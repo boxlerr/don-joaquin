@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sistema Don Joaquín
 
-## Getting Started
+Plataforma de gestión logística y administrativa para **Don Joaquín Hnos SRL** (flota inicial de 11 camiones, escalable a 62). Desarrollado por **Vaxler Software**.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Next.js 15** (App Router, Server Actions, Route Handlers) — full-stack en Vercel
+- **Supabase** — Postgres + Auth + Storage + RLS
+- **TypeScript + Tailwind CSS**
+- **Zod** para validación end-to-end
+- **Vercel Cron** / **Supabase Edge Functions** para alertas de vencimientos
+
+## Arquitectura
+
+Monolito Next.js full-stack: el "backend" vive como Server Actions y Route Handlers en el mismo repo. Postgres administrado por Supabase, con RLS para roles administrativos. Jobs de alertas y notificaciones (email / WhatsApp) se disparan vía cron contra endpoints internos protegidos por `CRON_SECRET`.
+
+## Estructura
+
+```
+src/
+  app/
+    (auth)/login        # login admin
+    (dashboard)/        # vistas internas
+    api/                # route handlers + cron endpoints
+  components/ui/        # primitives compartidas
+  lib/
+    supabase/           # clients (browser, server, middleware)
+    utils/
+  modules/              # un folder por módulo SRS
+    camiones/
+    choferes/
+    viajes/
+    hojas-ruta/
+    tarifas/
+    viaticos-gastos/
+    cheques/
+    clientes/
+    documentacion-alertas/
+    reportes/
+  types/
+supabase/
+  migrations/           # migraciones SQL versionadas (Supabase CLI)
+docs/                   # SRS, contrato, diagramas
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+# completar SUPABASE_*, CRON_SECRET
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+- `npm run dev` — dev server (Turbopack)
+- `npm run build` — build prod
+- `npm run lint`
 
-To learn more about Next.js, take a look at the following resources:
+## Módulos (SRS)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Gestión de Camiones
+2. Gestión de Choferes
+3. Hojas de Ruta y Liquidación por Kilómetros *(prioritario)*
+4. Gestión de Viajes
+5. Tarifas y Fletes
+6. Viáticos, Gastos y Caja
+7. Planillas y Reportes
+8. Documentación y Alertas
+9. Gestión de Cheques
+10. Clientes y Cuentas Corrientes
