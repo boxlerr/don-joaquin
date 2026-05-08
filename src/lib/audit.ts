@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getClientIP } from "@/lib/rate-limit";
+import type { Json } from "@/types/database";
 
 export type AuditAction = "login" | "login_fallido" | "logout";
 
@@ -14,9 +15,9 @@ export async function auditLog(options: {
   entidadId?: string | null;
   ip?: string;
   userAgent?: string;
-  metadata?: Record<string, unknown>;
-  valoresAnteriores?: Record<string, unknown>;
-  valoresNuevos?: Record<string, unknown>;
+  metadata?: Json;
+  valoresAnteriores?: Json;
+  valoresNuevos?: Json;
 }): Promise<void> {
   const supabase = await createClient();
 

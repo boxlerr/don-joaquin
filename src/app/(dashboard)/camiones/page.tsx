@@ -27,11 +27,11 @@ export default async function CamionesPage() {
       supabase
         .from("camiones")
         .select("*", { count: "exact", head: true })
-        .eq("estado", "operativo"),
+        .eq("estado", "activo"),
       supabase
         .from("camiones")
         .select("*", { count: "exact", head: true })
-        .eq("estado", "mantenimiento"),
+        .eq("estado", "en_mantenimiento"),
       supabase.from("camion_documentos").select("*", { count: "exact", head: true }),
     ]);
 
@@ -122,9 +122,9 @@ export default async function CamionesPage() {
                     <StatusBadge
                       label={c.estado}
                       tone={
-                        c.estado === "operativo"
+                        c.estado === "activo"
                           ? "success"
-                          : c.estado === "mantenimiento"
+                          : c.estado === "en_mantenimiento"
                             ? "warning"
                             : "neutral"
                       }

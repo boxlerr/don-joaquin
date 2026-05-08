@@ -6,16 +6,29 @@ import { Moon, Truck, LogOut } from "lucide-react";
 import { NAV_GROUPS } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
 
-const PLACEHOLDER_USER = { name: "JULIANBOXLER", initials: "JB", role: "Admin" };
+export type SidebarUser = {
+  nombre: string;
+  apellido: string | null;
+  email: string;
+  rol: string | null;
+  avatarUrl: string | null;
+};
 
-export default function Sidebar() {
+function getInitials(user: SidebarUser): string {
+  const first = user.nombre?.[0] ?? "";
+  const last = user.apellido?.[0] ?? "";
+  const initials = `${first}${last}`.toUpperCase();
+  return initials || user.email[0]?.toUpperCase() || "?";
+}
+
+export default function Sidebar({ user }: { user: SidebarUser | null }) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <aside className="flex flex-col w-60 min-h-screen bg-[#0F172A] shrink-0">
+    <aside className="flex flex-col w-60 h-screen bg-[#0F172A] shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-6 border-b border-white/10">
         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#0088D1]">
@@ -68,14 +81,27 @@ export default function Sidebar() {
       {/* User */}
       <div className="px-3 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 px-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0088D1] text-white text-xs font-bold shrink-0">
-            {PLACEHOLDER_USER.initials}
-          </div>
+          {user?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.avatarUrl}
+              alt={`${user.nombre} ${user.apellido ?? ""}`.trim()}
+              className="w-8 h-8 rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0088D1] text-white text-xs font-bold shrink-0">
+              {user ? getInitials(user) : "?"}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-semibold truncate">{PLACEHOLDER_USER.name}</p>
-            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FFB300]/20 text-[#FFB300] uppercase tracking-wide">
-              {PLACEHOLDER_USER.role}
-            </span>
+            <p className="text-white text-sm font-semibold truncate">
+              {user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : "Invitado"}
+            </p>
+            {user?.rol && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FFB300]/20 text-[#FFB300] uppercase tracking-wide">
+                {user.rol}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button

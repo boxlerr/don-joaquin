@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PanelLeft, Search } from "lucide-react";
-import Sidebar from "./Sidebar";
+import Sidebar, { type SidebarUser } from "./Sidebar";
 import CommandPalette from "./CommandPalette";
 import { AuditDrawer } from "@/components/audit-drawer";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
-export default function DashboardShell({ children }: { children: React.ReactNode }) {
+export default function DashboardShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: SidebarUser | null;
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
@@ -27,7 +33,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           collapsed ? "w-0" : "w-60"
         }`}
       >
-        <Sidebar />
+        <Sidebar user={user} />
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">

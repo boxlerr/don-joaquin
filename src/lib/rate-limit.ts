@@ -96,7 +96,7 @@ export async function recordLoginAttempt(
  */
 export function getClientIP(
   request?: Request | null,
-  headersFn?: () => Promise<import("next/headers").ReadonlyHeaders>,
+  headersFn?: () => Promise<Headers>,
 ): string {
   // Si tenemos una request, úsala
   if (request) {

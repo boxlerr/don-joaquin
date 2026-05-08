@@ -38,10 +38,16 @@ export default async function NotificacionesPage() {
       .from("notificaciones")
       .select("*", { count: "exact", head: true })
       .eq("estado", "enviada"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "documentacion"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "cheque"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "viaje"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "sistema"),
+    supabase
+      .from("alertas")
+      .select("*", { count: "exact", head: true })
+      .in("tipo", ["vencimiento_doc_camion", "vencimiento_doc_chofer"]),
+    supabase
+      .from("alertas")
+      .select("*", { count: "exact", head: true })
+      .in("tipo", ["vencimiento_cheque", "cheque_rechazado_recordatorio"]),
+    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "viaje_sin_cerrar"),
+    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("tipo", "otro"),
     supabase
       .from("tipos_documento")
       .select("nombre, aplica_a, dias_alerta_vencimiento, obligatorio")

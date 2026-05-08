@@ -44,7 +44,7 @@ export default async function ViajesPage() {
       .select("id, nombre, apellido")
       .eq("estado", "activo")
       .order("apellido"),
-    supabase.from("camiones").select("id, patente").eq("estado", "operativo").order("patente"),
+    supabase.from("camiones").select("id, patente").eq("estado", "activo").order("patente"),
   ]);
 
   return (

@@ -24,12 +24,6 @@ import {
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-async function countTable(name: Parameters<ReturnType<typeof createAdminClient>["from"]>[0]) {
-  const supabase = createAdminClient();
-  const { count } = await supabase.from(name).select("*", { count: "exact", head: true });
-  return count ?? 0;
-}
-
 export default async function DashboardPage() {
   const supabase = createAdminClient();
 
@@ -58,9 +52,9 @@ export default async function DashboardPage() {
     supabase.from("cheques").select("*", { count: "exact", head: true }),
     supabase.from("alertas").select("*", { count: "exact", head: true }),
     supabase.from("clientes").select("*", { count: "exact", head: true }),
-    countTable("camiones"),
-    countTable("choferes"),
-    countTable("clientes"),
+    supabase.from("camiones").select("*", { count: "exact", head: true }),
+    supabase.from("choferes").select("*", { count: "exact", head: true }),
+    supabase.from("clientes").select("*", { count: "exact", head: true }),
   ]);
 
   return (
@@ -163,21 +157,21 @@ export default async function DashboardPage() {
         <SummaryCard
           icon={Truck}
           title="Flota de camiones"
-          metric={String(totalCamiones)}
+          metric={String(totalCamiones.count ?? 0)}
           metricLabel="unidades"
           description="Registradas en el sistema"
         />
         <SummaryCard
           icon={Users}
           title="Choferes"
-          metric={String(totalChoferes)}
+          metric={String(totalChoferes.count ?? 0)}
           metricLabel="legajos"
           description="Sin acceso al sistema"
         />
         <SummaryCard
           icon={Briefcase}
           title="Clientes"
-          metric={String(totalClientes)}
+          metric={String(totalClientes.count ?? 0)}
           metricLabel="activos"
           description={`${clientesConSaldo.count ?? 0} con cuenta corriente abierta`}
         />

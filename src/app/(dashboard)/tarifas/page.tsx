@@ -54,7 +54,7 @@ export default async function TarifasPage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard label="Total tarifas" value={String(total ?? 0)} color="brand" />
         <StatCard label="Vigentes" value={String(vigentes.count ?? 0)} color="success" />
-        <StatCard label="Modalidad fija" value={String(fijas.count ?? 0)} color="info" />
+        <StatCard label="Modalidad fija" value={String(fijas.count ?? 0)} color="brand" />
         <StatCard
           label="Por kilo / TN"
           value={String(porTonelaje.count ?? 0)}
