@@ -1,15 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type LoginState } from "./actions";
+import { Eye, EyeOff } from "lucide-react";
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(
     loginAction,
     null,
   );
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <form action={action} className="space-y-5">
@@ -44,16 +46,24 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
           <Input
             id="password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             required
             disabled={pending}
             placeholder="••••••••"
-            className="pr-10 h-11 rounded-lg border-neutral-200 focus:border-[#0088D1] focus:ring-[#0088D1]/20 bg-transparent text-[14px] tracking-widest font-bold"
+            className={`pr-10 h-11 rounded-lg border-neutral-200 focus:border-[#0088D1] focus:ring-[#0088D1]/20 bg-transparent text-[14px] ${!showPassword && "tracking-widest font-bold"}`}
           />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-neutral-400">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </div>
+          <button 
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute inset-y-0 right-0 flex items-center pr-3 text-neutral-400 hover:text-neutral-600 transition-colors"
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
 
