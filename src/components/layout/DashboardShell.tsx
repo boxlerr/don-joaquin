@@ -1,13 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PanelLeft, Search } from "lucide-react";
 import Sidebar from "./Sidebar";
 import CommandPalette from "./CommandPalette";
+import { AuditDrawer } from "@/components/audit-drawer";
+
+export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+
+  const openAudit = useCallback(() => setAuditOpen(true), []);
+
+  useEffect(() => {
+    window.addEventListener(AUDIT_DRAWER_EVENT, openAudit);
+    return () => window.removeEventListener(AUDIT_DRAWER_EVENT, openAudit);
+  }, [openAudit]);
 
   return (
     <div className="flex h-full bg-[#F8FAFC]">
@@ -52,6 +63,8 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         onOpen={() => setPaletteOpen(true)}
         onClose={() => setPaletteOpen(false)}
       />
+
+      <AuditDrawer open={auditOpen} onClose={() => setAuditOpen(false)} />
     </div>
   );
 }

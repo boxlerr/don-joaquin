@@ -12,8 +12,9 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { Shield, Plus, History } from "lucide-react";
+import { Shield, Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { OpenAuditButton } from "@/components/open-audit-button";
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -53,10 +54,7 @@ export default async function UsuariosPage() {
         description="Acceso administrativo — choferes no acceden al sistema"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <History size={14} />
-              Auditoría
-            </Button>
+            <OpenAuditButton />
             <Button variant="brand" size="sm">
               <Plus size={14} />
               Nuevo usuario
