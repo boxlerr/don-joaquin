@@ -2,12 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getClientIP } from "@/lib/rate-limit";
 import type { Json } from "@/types/database";
 
-export type AuditAction = "login" | "login_fallido" | "logout";
+export type AuditAction = "login" | "login_fallido" | "logout" | "alerta_login";
 
-/**
- * Registra un evento de auditoría en audit_log.
- * Para logins: entidad_tipo="usuario", entidad_id=usuario_id
- */
 export async function auditLog(options: {
   accion: AuditAction;
   usuarioId?: string | null;
@@ -80,6 +76,28 @@ export async function auditLoginFailure(
       email,
       razon,
       evento: "login_fallido",
+    },
+  });
+}
+
+/**
+ * Registra el envío de un email de alerta por múltiples intentos fallidos.
+ */
+export async function auditLoginAlert(
+  email: string,
+  ip: string,
+  attempts: number,
+  userAgent?: string,
+): Promise<void> {
+  await auditLog({
+    accion: "alerta_login",
+    entidadTipo: "usuario",
+    ip,
+    userAgent,
+    metadata: {
+      email,
+      intentos: attempts,
+      evento: "alerta_email_enviado",
     },
   });
 }

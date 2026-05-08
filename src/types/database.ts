@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -3094,6 +3094,7 @@ export type Database = {
         | "login_fallido"
         | "exportar"
         | "importar"
+        | "alerta_login"
       banco_estado: "activo" | "inactivo"
       caja_categoria:
         | "cobro_cliente"
@@ -3354,6 +3355,7 @@ export const Constants = {
         "login_fallido",
         "exportar",
         "importar",
+        "alerta_login",
       ],
       banco_estado: ["activo", "inactivo"],
       caja_categoria: [

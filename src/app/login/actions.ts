@@ -4,15 +4,17 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
-  checkRateLimitByEmail,
+  checkLoginStatus,
   checkRateLimitByIP,
   recordLoginAttempt,
-  getClientIP,
+  MAX_PER_EMAIL_ALERT,
 } from "@/lib/rate-limit";
 import {
   auditLoginSuccess,
   auditLoginFailure,
+  auditLoginAlert,
 } from "@/lib/audit";
+import { sendLoginAlertEmail } from "@/lib/email";
 
 export type LoginState = {
   error?: string;
@@ -30,10 +32,7 @@ export async function loginAction(
     return { error: "Email y contraseña son obligatorios." };
   }
 
-  // Obtener IP y User-Agent del cliente
   const headersList = await headers();
-
-  // Extraer IP de headers (similar a getClientIP pero más simple)
   const forwardedFor = headersList.get("x-forwarded-for");
   const ipAddress = forwardedFor
     ? forwardedFor.split(",")[0].trim()
@@ -45,14 +44,12 @@ export async function loginAction(
 
   const userAgent = headersList.get("user-agent") ?? undefined;
 
-  // Verificar rate limit por email
-  const emailLimit = await checkRateLimitByEmail(email);
-  if (!emailLimit.allowed) {
+  // Verificar si el email ya está bloqueado antes de intentar
+  const preStatus = await checkLoginStatus(email);
+  if (preStatus.status === "blocked") {
     await recordLoginAttempt(email, ipAddress, false, "rate_limit_email", userAgent);
     await auditLoginFailure(email, ipAddress, "rate_limit_email", userAgent);
-    return {
-      error: "Demasiados intentos. Intenta de nuevo en 15 minutos.",
-    };
+    return { error: "Demasiados intentos fallidos. Contactá a un administrador." };
   }
 
   // Verificar rate limit por IP
@@ -60,23 +57,34 @@ export async function loginAction(
   if (!ipLimit.allowed) {
     await recordLoginAttempt(email, ipAddress, false, "rate_limit_ip", userAgent);
     await auditLoginFailure(email, ipAddress, "rate_limit_ip", userAgent);
-    return {
-      error: "Demasiados intentos desde tu ubicación. Intenta de nuevo en 15 minutos.",
-    };
+    return { error: "Demasiados intentos desde tu ubicación. Intentá de nuevo más tarde." };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    // Registrar intento fallido
     await recordLoginAttempt(email, ipAddress, false, "wrong_password", userAgent);
     await auditLoginFailure(email, ipAddress, "wrong_password", userAgent);
-    // Mensaje genérico para no filtrar info (existe usuario / no existe)
+
+    // Consultar status posterior al registro del intento
+    const postStatus = await checkLoginStatus(email);
+
+    if (postStatus.status === "blocked") {
+      return { error: "Demasiados intentos fallidos. Contactá a un administrador." };
+    }
+
+    // Enviar email de alerta exactamente cuando se cruza el umbral
+    if (postStatus.attempts === MAX_PER_EMAIL_ALERT) {
+      sendLoginAlertEmail(email, ipAddress, new Date()).catch((err) =>
+        console.error("[email] Error al enviar alerta de login:", err),
+      );
+      auditLoginAlert(email, ipAddress, postStatus.attempts, userAgent).catch(() => {});
+    }
+
     return { error: "Credenciales inválidas." };
   }
 
-  // Validar que el usuario tenga perfil activo en public.usuarios
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -100,11 +108,9 @@ export async function loginAction(
     return { error: "Tu usuario está inactivo. Contactá a un administrador." };
   }
 
-  // Registrar intento exitoso en rate_limit y auditoría
   await recordLoginAttempt(email, ipAddress, true, undefined, userAgent);
   await auditLoginSuccess(user.id, email, ipAddress, userAgent);
 
-  // Whitelist de redirects internos para evitar open redirect
   const safeRedirect =
     redirectTo.startsWith("/") && !redirectTo.startsWith("//")
       ? redirectTo

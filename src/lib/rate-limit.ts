@@ -6,15 +6,21 @@ export type RateLimitResult = {
   resetAt: Date;
 };
 
+export type LoginStatus = {
+  status: "ok" | "alert" | "blocked";
+  attempts: number;
+};
+
 const WINDOW_MS = 5 * 60 * 1000; // 5 minutos
-const MAX_PER_EMAIL = 10;
+export const MAX_PER_EMAIL_BLOCK = 20;
+export const MAX_PER_EMAIL_ALERT = 6;
 const MAX_PER_IP = 20;
 
 /**
- * Verifica si el email está bloqueado por rate limit.
- * Máximo 10 intentos en 5 minutos por email.
+ * Retorna el estado actual de intentos fallidos para un email en la ventana activa.
+ * 'alert' se activa al llegar a MAX_PER_EMAIL_ALERT, 'blocked' al llegar a MAX_PER_EMAIL_BLOCK.
  */
-export async function checkRateLimitByEmail(email: string): Promise<RateLimitResult> {
+export async function checkLoginStatus(email: string): Promise<LoginStatus> {
   const supabase = await createClient();
   const windowStart = new Date(Date.now() - WINDOW_MS);
 
@@ -22,19 +28,19 @@ export async function checkRateLimitByEmail(email: string): Promise<RateLimitRes
     .from("login_attempts")
     .select("*", { count: "exact" })
     .eq("email", email)
+    .eq("success", false)
     .gte("created_at", windowStart.toISOString());
 
   if (error) {
-    console.error("Rate limit check error:", error);
-    return { allowed: true, remainingAttempts: MAX_PER_EMAIL, resetAt: new Date(Date.now() + WINDOW_MS) };
+    console.error("Login status check error:", error);
+    return { status: "ok", attempts: 0 };
   }
 
-  const attempts = count || 0;
-  return {
-    allowed: attempts < MAX_PER_EMAIL,
-    remainingAttempts: Math.max(0, MAX_PER_EMAIL - attempts),
-    resetAt: new Date(windowStart.getTime() + WINDOW_MS),
-  };
+  const attempts = count ?? 0;
+
+  if (attempts >= MAX_PER_EMAIL_BLOCK) return { status: "blocked", attempts };
+  if (attempts >= MAX_PER_EMAIL_ALERT) return { status: "alert", attempts };
+  return { status: "ok", attempts };
 }
 
 /**
@@ -56,7 +62,7 @@ export async function checkRateLimitByIP(ipAddress: string): Promise<RateLimitRe
     return { allowed: true, remainingAttempts: MAX_PER_IP, resetAt: new Date(Date.now() + WINDOW_MS) };
   }
 
-  const attempts = count || 0;
+  const attempts = count ?? 0;
   return {
     allowed: attempts < MAX_PER_IP,
     remainingAttempts: Math.max(0, MAX_PER_IP - attempts),
@@ -86,24 +92,16 @@ export async function recordLoginAttempt(
 
   if (error) {
     console.error("Failed to record login attempt:", error);
-    // No fallar si no se puede registrar el intento
   }
 }
 
 /**
  * Extrae la IP real del cliente considerando proxies.
- * Desde Server Actions, usa headers() de Next.js directamente.
  */
-export function getClientIP(
-  request?: Request | null,
-  headersFn?: () => Promise<Headers>,
-): string {
-  // Si tenemos una request, úsala
+export function getClientIP(request?: Request | null): string {
   if (request) {
     const forwardedFor = request.headers.get("x-forwarded-for");
-    if (forwardedFor) {
-      return forwardedFor.split(",")[0].trim();
-    }
+    if (forwardedFor) return forwardedFor.split(",")[0].trim();
 
     const realIP = request.headers.get("x-real-ip");
     if (realIP) return realIP;
@@ -112,6 +110,5 @@ export function getClientIP(
     if (cf) return cf;
   }
 
-  // Fallback para cuando no tenemos request (dev, etc)
   return "unknown";
 }
