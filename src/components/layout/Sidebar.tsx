@@ -2,71 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type LucideIcon } from "lucide-react";
-import {
-  LayoutDashboard,
-  Bell,
-  MapPin,
-  Truck,
-  Users,
-  Briefcase,
-  DollarSign,
-  Wallet,
-  FileText,
-  Shield,
-  Settings,
-  Moon,
-} from "lucide-react";
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-}
-
-interface NavGroup {
-  group: string;
-  items: NavItem[];
-}
-
-const navigation: NavGroup[] = [
-  {
-    group: "PRINCIPAL",
-    items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "Notificaciones", href: "/notificaciones", icon: Bell },
-    ],
-  },
-  {
-    group: "LOGÍSTICA",
-    items: [
-      { label: "Viajes", href: "/viajes", icon: MapPin },
-      { label: "Camiones", href: "/camiones", icon: Truck },
-      { label: "Choferes", href: "/choferes", icon: Users },
-    ],
-  },
-  {
-    group: "COMERCIAL",
-    items: [
-      { label: "Clientes", href: "/clientes", icon: Briefcase },
-      { label: "Tarifas", href: "/tarifas", icon: DollarSign },
-    ],
-  },
-  {
-    group: "FINANZAS",
-    items: [
-      { label: "Caja", href: "/caja", icon: Wallet },
-      { label: "Cheques", href: "/cheques", icon: FileText },
-    ],
-  },
-  {
-    group: "SISTEMA",
-    items: [
-      { label: "Usuarios", href: "/usuarios", icon: Shield },
-      { label: "Configuración", href: "/configuracion", icon: Settings },
-    ],
-  },
-];
+import { Moon, Truck, LogOut } from "lucide-react";
+import { NAV_GROUPS } from "./nav-items";
+import { logoutAction } from "@/app/login/actions";
 
 const PLACEHOLDER_USER = { name: "JULIANBOXLER", initials: "JB", role: "Admin" };
 
@@ -91,7 +29,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {navigation.map((group) => (
+        {NAV_GROUPS.map((group) => (
           <div key={group.group} className="mb-5">
             <p className="px-3 mb-1.5 text-[10px] font-semibold tracking-widest text-[#475569] uppercase">
               {group.group}
@@ -139,13 +77,24 @@ export default function Sidebar() {
               {PLACEHOLDER_USER.role}
             </span>
           </div>
-          <button
-            type="button"
-            aria-label="Alternar modo oscuro"
-            className="flex items-center justify-center w-7 h-7 rounded-lg text-[#94A3B8] hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <Moon size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Alternar modo oscuro"
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-[#94A3B8] hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <Moon size={14} />
+            </button>
+            <form action={logoutAction}>
+              <button
+                type="submit"
+                aria-label="Cerrar sesión"
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-[#94A3B8] hover:text-red-400 hover:bg-white/10 transition-colors"
+              >
+                <LogOut size={14} />
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </aside>

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, Search } from "lucide-react";
 import Sidebar from "./Sidebar";
+import CommandPalette from "./CommandPalette";
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
     <div className="flex h-full bg-[#F8FAFC]">
@@ -28,10 +30,28 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           >
             <PanelLeft size={18} />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-[#94A3B8] hover:border-[#0088D1] hover:text-[#475569] transition-colors text-sm"
+          >
+            <Search size={14} />
+            <span className="hidden sm:inline text-xs">Buscar página...</span>
+            <kbd className="hidden sm:flex items-center gap-0.5 ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-white rounded border border-[#E2E8F0]">
+              Ctrl K
+            </kbd>
+          </button>
         </div>
 
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onOpen={() => setPaletteOpen(true)}
+        onClose={() => setPaletteOpen(false)}
+      />
     </div>
   );
 }
