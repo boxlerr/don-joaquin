@@ -1,5 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,27 +10,50 @@ import {
   TableBody,
   TableHead,
   TableRow,
+  TableCell,
 } from "@/components/ui/table";
 import { Users, Plus } from "lucide-react";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export default function ChoferesPage() {
+export default async function ChoferesPage() {
+  const supabase = createAdminClient();
+
+  const [{ data: choferes, count: total }, activos, inactivos, docs] = await Promise.all([
+    supabase.from("choferes").select("*", { count: "exact" }).order("apellido"),
+    supabase
+      .from("choferes")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "activo"),
+    supabase
+      .from("choferes")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "inactivo"),
+    supabase.from("chofer_documentos").select("*", { count: "exact", head: true }),
+  ]);
+
   return (
     <div className="p-8">
       <PageHeader
         title="Choferes"
-        description="Gestión del personal de conducción"
+        description="Legajo digital — sin acceso al sistema (gestión administrativa)"
         action={
-          <Button variant="brand" size="default" className="gap-2 px-4 py-2.5 h-auto">
-            <Plus size={16} />
-            Agregar chofer
+          <Button variant="brand" size="sm">
+            <Plus size={14} />
+            Nuevo chofer
           </Button>
         }
       />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <StatCard label="Total choferes" value="—" color="brand" />
-        <StatCard label="Disponibles" value="—" color="success" />
-        <StatCard label="En viaje" value="—" color="warning" />
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total choferes" value={String(total ?? 0)} sub="En planilla" color="brand" />
+        <StatCard label="Activos" value={String(activos.count ?? 0)} color="success" />
+        <StatCard label="Inactivos" value={String(inactivos.count ?? 0)} color="warning" />
+        <StatCard
+          label="Documentos"
+          value={String(docs.count ?? 0)}
+          sub="Registrados en legajos"
+          color="error"
+        />
       </div>
 
       <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
@@ -38,12 +62,26 @@ export default function ChoferesPage() {
             <Users size={16} className="text-[#0088D1]" />
             <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Choferes</h2>
           </div>
-          <Input type="search" placeholder="Buscar chofer..." className="w-56 text-sm" />
+          <div className="flex items-center gap-2">
+            <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
+              <option>Todos los estados</option>
+              <option>Activo</option>
+              <option>Inactivo</option>
+            </select>
+            <Input type="search" placeholder="Buscar por nombre o DNI..." className="w-64 text-sm" />
+          </div>
         </div>
         <Table>
           <TableHeader className="bg-[#F8FAFC]">
             <TableRow>
-              {["Nombre", "DNI", "Licencia", "Vencimiento licencia", "Teléfono", "Estado", "Acciones"].map((col) => (
+              {[
+                "Nombre",
+                "DNI",
+                "Localidad",
+                "Teléfono",
+                "Fecha ingreso",
+                "Estado",
+              ].map((col) => (
                 <TableHead
                   key={col}
                   className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
@@ -54,7 +92,29 @@ export default function ChoferesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <EmptyTableRow message="Sin choferes registrados" />
+            {!choferes || choferes.length === 0 ? (
+              <EmptyTableRow message="Sin choferes registrados" />
+            ) : (
+              choferes.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">
+                    {c.apellido}, {c.nombre}
+                  </TableCell>
+                  <TableCell className="font-mono">{c.dni}</TableCell>
+                  <TableCell className="text-[#475569]">{c.localidad ?? "—"}</TableCell>
+                  <TableCell className="text-[#475569]">{c.telefono ?? "—"}</TableCell>
+                  <TableCell className="text-[#475569] text-xs">
+                    {new Date(c.fecha_ingreso).toLocaleDateString("es-AR")}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      label={c.estado}
+                      tone={c.estado === "activo" ? "success" : "neutral"}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

@@ -10,27 +10,50 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
-import { Wallet, Plus } from "lucide-react";
+import { Wallet, ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export default function CajaPage() {
+export default async function CajaPage() {
+  const supabase = createAdminClient();
+
+  const [{ data: tiposGasto }, { count: totalMovimientos }] = await Promise.all([
+    supabase
+      .from("tipos_gasto")
+      .select("id, nombre, categoria")
+      .eq("estado", "activo")
+      .order("categoria")
+      .order("nombre"),
+    supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
+  ]);
+
   return (
     <div className="p-8">
       <PageHeader
-        title="Caja"
-        description="Control de movimientos de caja y efectivo"
+        title="Caja General"
+        description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         action={
-          <Button variant="brand" size="default" className="gap-2 px-4 py-2.5 h-auto">
-            <Plus size={16} />
-            Nuevo movimiento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <Receipt size={14} />
+              Registrar viático
+            </Button>
+            <Button variant="outline" size="sm">
+              <ArrowUpRight size={14} />
+              Ingreso
+            </Button>
+            <Button variant="brand" size="sm">
+              <ArrowDownRight size={14} />
+              Egreso
+            </Button>
+          </div>
         }
       />
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Saldo actual" value="—" color="brand" />
+        <StatCard label="Saldo actual" value="—" sub="Caja general" color="brand" />
         <StatCard label="Ingresos del mes" value="—" color="success" />
         <StatCard label="Egresos del mes" value="—" color="error" />
-        <StatCard label="Movimientos hoy" value="—" color="warning" />
+        <StatCard label="Movimientos" value={String(totalMovimientos ?? 0)} sub="Total registrados" color="warning" />
       </div>
 
       <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
@@ -41,13 +64,31 @@ export default function CajaPage() {
           </div>
           <div className="flex items-center gap-2">
             <Input type="date" className="text-sm w-auto" />
+            <Input type="date" className="text-sm w-auto" />
+            <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
+              <option value="">Todos los tipos de gasto ({tiposGasto?.length ?? 0})</option>
+              {tiposGasto?.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nombre}
+                </option>
+              ))}
+            </select>
             <Input type="search" placeholder="Buscar..." className="w-44 text-sm" />
           </div>
         </div>
         <Table>
           <TableHeader className="bg-[#F8FAFC]">
             <TableRow>
-              {["Fecha", "Descripción", "Tipo", "Referencia", "Monto", "Saldo acum.", "Usuario"].map((col) => (
+              {[
+                "Fecha",
+                "Concepto",
+                "Tipo",
+                "Vinculado a",
+                "Medio de pago",
+                "Monto",
+                "Saldo acum.",
+                "Usuario",
+              ].map((col) => (
                 <TableHead
                   key={col}
                   className="text-xs font-semibold text-[#475569] uppercase tracking-wide"

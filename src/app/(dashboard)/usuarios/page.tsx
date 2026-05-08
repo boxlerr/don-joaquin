@@ -1,5 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,27 +10,65 @@ import {
   TableBody,
   TableHead,
   TableRow,
+  TableCell,
 } from "@/components/ui/table";
-import { Shield, Plus } from "lucide-react";
+import { Shield, Plus, History } from "lucide-react";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export default function UsuariosPage() {
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default async function UsuariosPage() {
+  const supabase = createAdminClient();
+
+  const [{ data: usuarios }, { count: total }, { count: admins }, { count: operativos }] =
+    await Promise.all([
+      supabase
+        .from("usuarios")
+        .select("*, roles(codigo, nombre)")
+        .order("created_at", { ascending: false }),
+      supabase.from("usuarios").select("*", { count: "exact", head: true }),
+      supabase
+        .from("usuarios")
+        .select("*, roles!inner(codigo)", { count: "exact", head: true })
+        .eq("roles.codigo", "admin"),
+      supabase
+        .from("usuarios")
+        .select("*, roles!inner(codigo)", { count: "exact", head: true })
+        .eq("roles.codigo", "administrativo"),
+    ]);
+
   return (
     <div className="p-8">
       <PageHeader
-        title="Usuarios"
-        description="Gestión de accesos y roles del sistema"
+        title="Usuarios y Permisos"
+        description="Acceso administrativo — choferes no acceden al sistema"
         action={
-          <Button variant="brand" size="default" className="gap-2 px-4 py-2.5 h-auto">
-            <Plus size={16} />
-            Nuevo usuario
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <History size={14} />
+              Auditoría
+            </Button>
+            <Button variant="brand" size="sm">
+              <Plus size={14} />
+              Nuevo usuario
+            </Button>
+          </div>
         }
       />
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <StatCard label="Usuarios totales" value="—" color="brand" />
-        <StatCard label="Activos" value="—" color="success" />
-        <StatCard label="Inactivos" value="—" color="error" />
+        <StatCard label="Usuarios totales" value={String(total ?? 0)} color="brand" />
+        <StatCard label="Administradores" value={String(admins ?? 0)} sub="Acceso total" color="warning" />
+        <StatCard label="Operativos" value={String(operativos ?? 0)} sub="Carga y consulta" color="success" />
       </div>
 
       <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
@@ -38,12 +77,19 @@ export default function UsuariosPage() {
             <Shield size={16} className="text-[#0088D1]" />
             <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Usuarios</h2>
           </div>
-          <Input type="search" placeholder="Buscar usuario..." className="w-56 text-sm" />
+          <div className="flex items-center gap-2">
+            <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
+              <option>Todos los roles</option>
+              <option>Administrador</option>
+              <option>Administrativo / Operativo</option>
+            </select>
+            <Input type="search" placeholder="Buscar usuario..." className="w-56 text-sm" />
+          </div>
         </div>
         <Table>
           <TableHeader className="bg-[#F8FAFC]">
             <TableRow>
-              {["Nombre", "Email", "Rol", "Último acceso", "Estado", "Acciones"].map((col) => (
+              {["Nombre", "Email", "Rol", "Último acceso", "Estado"].map((col) => (
                 <TableHead
                   key={col}
                   className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
@@ -54,7 +100,34 @@ export default function UsuariosPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <EmptyTableRow message="Sin usuarios registrados" />
+            {!usuarios || usuarios.length === 0 ? (
+              <EmptyTableRow message="Sin usuarios registrados" />
+            ) : (
+              usuarios.map((u) => {
+                const rol = (u.roles as unknown as { codigo: string; nombre: string } | null) ?? null;
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">
+                      {[u.nombre, u.apellido].filter(Boolean).join(" ")}
+                    </TableCell>
+                    <TableCell className="text-[#475569]">{u.email}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={rol?.nombre ?? "—"}
+                        tone={rol?.codigo === "admin" ? "warning" : "info"}
+                      />
+                    </TableCell>
+                    <TableCell className="text-[#475569] text-xs">{fmtDate(u.last_login)}</TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        label={u.estado}
+                        tone={u.estado === "activo" ? "success" : "neutral"}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
