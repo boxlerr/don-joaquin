@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LoginForm } from "./login-form";
+import { LoginDecoration } from "./login-decoration";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión — Don Joaquín",
@@ -16,22 +17,29 @@ export default async function LoginPage({
   const redirectTo = params.redirect_to;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border border-neutral-200 bg-white p-8 shadow-sm">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            Don Joaquín
-          </h1>
-          <p className="text-sm text-neutral-500">
-            Plataforma de Gestión Logística
+    <main className="flex min-h-screen bg-white">
+      <LoginDecoration />
+
+      {/* Mitad Derecha: Formulario */}
+      <div className="flex w-full flex-col justify-center px-8 lg:w-[45%] xl:w-[40%] xl:px-24">
+        <div className="mx-auto w-full max-w-md">
+          {/* Títulos */}
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-[#0088D1] mb-2">Bienvenido</h3>
+            <h1 className="text-4xl font-extrabold text-[#0F172A] mb-3">
+              Iniciar Sesión
+            </h1>
+            <p className="text-sm text-neutral-500 font-medium">
+              Ingresa tus credenciales para acceder al sistema.
+            </p>
+          </div>
+
+          <LoginForm redirectTo={redirectTo} />
+
+          <p className="mt-12 text-center text-[13px] text-neutral-400 font-medium">
+            Sistema de uso interno — <span className="text-[#0088D1]">Don Joaquín Hnos. SRL</span>
           </p>
         </div>
-
-        <LoginForm redirectTo={redirectTo} />
-
-        <p className="text-center text-xs text-neutral-400">
-          Sistema de uso interno — Don Joaquín Hnos. SRL
-        </p>
       </div>
     </main>
   );
