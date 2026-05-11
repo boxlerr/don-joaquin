@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Users, Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AddChoferDialog from "./components/AddChoferDialog";
 
 export default async function ChoferesPage() {
   const supabase = createAdminClient();
@@ -37,10 +38,12 @@ export default async function ChoferesPage() {
         title="Choferes"
         description="Legajo digital — sin acceso al sistema (gestión administrativa)"
         action={
-          <Button variant="brand" size="sm">
-            <Plus size={14} />
-            Nuevo chofer
-          </Button>
+          <AddChoferDialog>
+            <Button variant="brand" size="sm">
+              <Plus size={14} />
+              Nuevo chofer
+            </Button>
+          </AddChoferDialog>
         }
       />
 

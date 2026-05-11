@@ -17,6 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
+import CamionRow from "./components/CamionRow";
 
 export default async function CamionesPage() {
   const supabase = createAdminClient();
@@ -119,27 +120,7 @@ export default async function CamionesPage() {
               <EmptyTableRow message="Sin camiones registrados" />
             ) : (
               camiones.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-mono font-medium">{c.patente}</TableCell>
-                  <TableCell>
-                    {c.marca} {c.modelo}
-                  </TableCell>
-                  <TableCell>{c.ano ?? "—"}</TableCell>
-                  <TableCell>{Number(c.capacidad_tn).toFixed(1)} TN</TableCell>
-                  <TableCell className="text-[#475569]">{c.tipo_camion ?? "—"}</TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={c.estado}
-                      tone={
-                        c.estado === "activo"
-                          ? "success"
-                          : c.estado === "en_mantenimiento"
-                            ? "warning"
-                            : "neutral"
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
+                <CamionRow key={c.id} camion={c} />
               ))
             )}
           </TableBody>
