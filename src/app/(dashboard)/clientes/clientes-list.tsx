@@ -1,0 +1,313 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import {
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  FileText,
+  Wallet,
+  Map,
+} from "lucide-react";
+import NewClienteSheet from "./new-cliente-sheet";
+import ImportClientesModal from "./import-clientes-modal";
+import DeleteClienteButton from "./delete-cliente-button";
+import ReactivateClienteButton from "./reactivate-cliente-button";
+import HelpTutorialButton from "./help-tutorial-button";
+
+type EstadoFiltro = "activos" | "inactivos" | "todos";
+
+type Cliente = {
+  id: string;
+  razon_social: string;
+  nombre_comercial: string | null;
+  cuit: string | null;
+  domicilio_fiscal: string | null;
+  localidad: string | null;
+  provincia: string | null;
+  condicion_iva: string;
+  es_multinacional: boolean;
+  estado: string;
+  observaciones: string | null;
+};
+
+const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
+
+type Tab = "info" | "cuenta" | "viajes";
+
+function firstLetter(name: string): string {
+  const c = name.trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(c) ? c : "#";
+}
+
+export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
+  const [letter, setLetter] = useState<string>("#");
+  const [search, setSearch] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("info");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return clientes.filter((c) => {
+      if (estadoFiltro === "activos" && c.estado !== "activo") return false;
+      if (estadoFiltro === "inactivos" && c.estado !== "inactivo") return false;
+      if (letter !== "#" && firstLetter(c.razon_social) !== letter) return false;
+      if (!q) return true;
+      return (
+        c.razon_social.toLowerCase().includes(q) ||
+        (c.nombre_comercial ?? "").toLowerCase().includes(q) ||
+        (c.cuit ?? "").toLowerCase().includes(q) ||
+        (c.localidad ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [clientes, letter, search, estadoFiltro]);
+
+  const titulo =
+    estadoFiltro === "activos"
+      ? "Cartera de clientes activos"
+      : estadoFiltro === "inactivos"
+        ? "Clientes dados de baja"
+        : "Todos los clientes";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {LETTERS.map((l) => {
+          const active = letter === l;
+          return (
+            <button
+              key={l}
+              type="button"
+              onClick={() => setLetter(l)}
+              className={
+                "size-8 rounded-full text-xs font-semibold transition-colors border " +
+                (active
+                  ? "bg-[#0F172A] text-white border-[#0F172A]"
+                  : "bg-white text-[#475569] border-[#E2E8F0] hover:bg-[#F1F5F9]")
+              }
+            >
+              {l}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar cliente por nombre..."
+            className="flex-1 text-sm"
+          />
+          <select
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
+            className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+          >
+            <option value="activos">Activos</option>
+            <option value="inactivos">Inactivos</option>
+            <option value="todos">Todos</option>
+          </select>
+          <HelpTutorialButton />
+          <ImportClientesModal />
+          <NewClienteSheet />
+        </div>
+
+        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase mb-3">
+          {titulo}
+        </p>
+
+        {filtered.length === 0 ? (
+          <div className="py-12 text-center text-sm text-[#475569]">
+            Sin clientes para el filtro seleccionado.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {filtered.map((c) => {
+              const isOpen = expanded === c.id;
+              const initial = firstLetter(c.razon_social);
+              const inactivo = c.estado === "inactivo";
+              return (
+                <li
+                  key={c.id}
+                  className={
+                    "rounded-[8px] border bg-white " +
+                    (inactivo ? "border-[#E2E8F0] opacity-70" : "border-[#E2E8F0]")
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpanded(isOpen ? null : c.id);
+                      setActiveTab("info");
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#F8FAFC] transition-colors rounded-[8px]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={
+                          "size-10 rounded-full font-bold text-sm flex items-center justify-center " +
+                          (inactivo
+                            ? "bg-[#F1F5F9] text-[#94A3B8]"
+                            : "bg-[#FEE2E2] text-[#B91C1C]")
+                        }
+                      >
+                        {initial}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-[#0F172A] font-semibold text-sm">
+                            {c.razon_social}
+                          </div>
+                          {inactivo && (
+                            <span className="text-[10px] font-semibold tracking-wide uppercase bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] rounded-full px-2 py-0.5">
+                              Inactivo
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] text-[#475569] uppercase tracking-wide mt-0.5">
+                          <MapPin size={11} className="text-[#EF4444]" />
+                          {c.localidad ?? "Sin localidad"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+                          Identificación
+                        </div>
+                        <div className="text-[#0F172A] text-sm font-mono">
+                          {c.cuit ?? "NO DATA"}
+                        </div>
+                      </div>
+                      <span className="size-7 rounded-full bg-[#FEE2E2] text-[#B91C1C] flex items-center justify-center">
+                        {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-[#E2E8F0] p-4 bg-[#F8FAFC] rounded-b-[8px]">
+                      <div className="flex items-center gap-2 mb-4">
+                        <TabButton
+                          icon={<FileText size={14} />}
+                          label="Información general"
+                          active={activeTab === "info"}
+                          onClick={() => setActiveTab("info")}
+                        />
+                        <TabButton
+                          icon={<Wallet size={14} />}
+                          label="Estado de cuenta"
+                          active={activeTab === "cuenta"}
+                          onClick={() => setActiveTab("cuenta")}
+                        />
+                        <TabButton
+                          icon={<Map size={14} />}
+                          label="Viajes recientes"
+                          active={activeTab === "viajes"}
+                          onClick={() => setActiveTab("viajes")}
+                        />
+                      </div>
+
+                      {activeTab === "info" && <InfoGeneral cliente={c} />}
+                      {activeTab === "cuenta" && (
+                        <Placeholder text="Estado de cuenta: pendiente de integración con cta_cte_movimientos." />
+                      )}
+                      {activeTab === "viajes" && (
+                        <Placeholder text="Viajes recientes: pendiente de integración con módulo viajes." />
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TabButton({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-semibold uppercase tracking-wide transition-colors " +
+        (active
+          ? "bg-[#EF4444] text-white"
+          : "bg-white text-[#475569] border border-[#E2E8F0] hover:bg-[#F1F5F9]")
+      }
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function InfoGeneral({ cliente }: { cliente: Cliente }) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Field label="Firma comercial" value={cliente.nombre_comercial ?? cliente.razon_social} />
+        <Field label="CUIT / CUIL" value={cliente.cuit ?? "—"} mono />
+        <Field label="Domicilio" value={cliente.domicilio_fiscal ?? "—"} />
+        <Field
+          label="Ubicación"
+          value={[cliente.localidad, cliente.provincia].filter(Boolean).join(", ") || "—"}
+        />
+      </div>
+      {cliente.observaciones && (
+        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] p-3">
+          <div className="text-[10px] font-semibold tracking-[0.18em] text-[#92400E] uppercase mb-1">
+            Observaciones técnicas
+          </div>
+          <p className="text-sm text-[#78350F] italic">&ldquo;{cliente.observaciones}&rdquo;</p>
+        </div>
+      )}
+      <div className="flex justify-end pt-1">
+        {cliente.estado === "inactivo" ? (
+          <ReactivateClienteButton id={cliente.id} razonSocial={cliente.razon_social} />
+        ) : (
+          <DeleteClienteButton id={cliente.id} razonSocial={cliente.razon_social} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3">
+      <div className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+        {label}
+      </div>
+      <div className={"text-[#0F172A] text-sm font-semibold mt-1 " + (mono ? "font-mono" : "")}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function Placeholder({ text }: { text: string }) {
+  return (
+    <div className="py-8 text-center text-sm text-[#475569] bg-white border border-dashed border-[#E2E8F0] rounded-[8px]">
+      {text}
+    </div>
+  );
+}

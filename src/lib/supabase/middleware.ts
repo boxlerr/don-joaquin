@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Rutas públicas que NO requieren autenticación.
  * Cualquier otra ruta queda protegida y redirige a /login si no hay sesión.
  */
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/error"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback", "/auth/reset-password", "/auth/error"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

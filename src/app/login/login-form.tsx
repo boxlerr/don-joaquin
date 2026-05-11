@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type LoginState } from "./actions";
 import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(
@@ -80,9 +81,9 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
             Recordarme
           </label>
         </div>
-        <a href="#" className="text-[13px] font-medium text-[#0088D1] hover:text-[#005a8a] transition-colors">
+        <Link href="/forgot-password" className="text-[13px] font-medium text-[#0088D1] hover:text-[#005a8a] transition-colors">
           ¿Olvidaste tu contraseña?
-        </a>
+        </Link>
       </div>
 
       {state?.error && (

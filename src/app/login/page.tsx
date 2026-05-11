@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Iniciar sesión — Don Joaquín",
 };
 
-type SearchParams = Promise<{ redirect_to?: string }>;
+type SearchParams = Promise<{ redirect_to?: string; reset?: string }>;
 
 export default async function LoginPage({
   searchParams,
@@ -15,6 +15,7 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const redirectTo = params.redirect_to;
+  const resetSuccess = params.reset === "success";
 
   return (
     <main className="flex min-h-screen bg-white">
@@ -33,6 +34,12 @@ export default async function LoginPage({
               Ingresa tus credenciales para acceder al sistema.
             </p>
           </div>
+
+          {resetSuccess && (
+            <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              Contraseña actualizada correctamente. Ya podés iniciar sesión.
+            </div>
+          )}
 
           <LoginForm redirectTo={redirectTo} />
 
