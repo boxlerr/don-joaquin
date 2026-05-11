@@ -14,7 +14,7 @@ import {
   auditLoginFailure,
   auditLoginAlert,
 } from "@/lib/audit";
-import { sendLoginAlertEmail } from "@/lib/email";
+
 
 export type LoginState = {
   error?: string;
@@ -74,11 +74,7 @@ export async function loginAction(
       return { error: "Demasiados intentos fallidos. Contactá a un administrador." };
     }
 
-    // Enviar email de alerta exactamente cuando se cruza el umbral
     if (postStatus.attempts === MAX_PER_EMAIL_ALERT) {
-      sendLoginAlertEmail(email, ipAddress, new Date()).catch((err) =>
-        console.error("[email] Error al enviar alerta de login:", err),
-      );
       auditLoginAlert(email, ipAddress, postStatus.attempts, userAgent).catch(() => {});
     }
 
