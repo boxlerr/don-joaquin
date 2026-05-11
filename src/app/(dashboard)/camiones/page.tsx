@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/table";
 import { Truck, Plus, Fuel, Wrench } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AddCamionDialog from "./components/AddCamionDialog";
+import AddServiceDialog from "./components/AddServiceDialog";
+import AddGasoilDialog from "./components/AddGasoilDialog";
 
 export default async function CamionesPage() {
   const supabase = createAdminClient();
@@ -42,18 +45,24 @@ export default async function CamionesPage() {
         description="Flota de 11 unidades — documentación, mantenimiento y gasoil"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Fuel size={14} />
-              Cargar gasoil
-            </Button>
-            <Button variant="outline" size="sm">
-              <Wrench size={14} />
-              Registrar service
-            </Button>
-            <Button variant="brand" size="sm">
-              <Plus size={14} />
-              Agregar camión
-            </Button>
+            <AddGasoilDialog camiones={camiones || []}>
+              <Button variant="outline" size="sm">
+                <Fuel size={14} />
+                Cargar gasoil
+              </Button>
+            </AddGasoilDialog>
+            <AddServiceDialog camiones={camiones || []}>
+              <Button variant="outline" size="sm">
+                <Wrench size={14} />
+                Registrar service
+              </Button>
+            </AddServiceDialog>
+            <AddCamionDialog>
+              <Button variant="brand" size="sm">
+                <Plus size={14} />
+                Agregar camión
+              </Button>
+            </AddCamionDialog>
           </div>
         }
       />
