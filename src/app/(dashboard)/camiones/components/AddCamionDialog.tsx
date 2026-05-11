@@ -68,9 +68,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-[#0F172A] text-xl">Agregar nuevo camión</DialogTitle>
@@ -99,7 +97,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             </div>
             <div className="space-y-2">
               <Label htmlFor="estado" className="text-sm font-medium text-[#1E293B]">Estado</Label>
-              <Select value={estado} onValueChange={setEstado}>
+              <Select value={estado} onValueChange={(v) => setEstado(v ?? "activo")}>
                 <SelectTrigger id="estado" className="w-full">
                   <SelectValue placeholder="Seleccionar estado">
                     {(value: string) => {
@@ -170,7 +168,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             </div>
             <div className="space-y-2">
               <Label htmlFor="tipo" className="text-sm font-medium text-[#1E293B]">Tipo</Label>
-              <Select value={tipo} onValueChange={setTipo}>
+              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "otro")}>
                 <SelectTrigger id="tipo" className="w-full">
                   <SelectValue placeholder="Seleccionar tipo">
                     {(value: string) => {

@@ -85,6 +85,8 @@ export default function CamionDetailSheet({
         ...formData,
         ano: parseInt(formData.ano),
         capacidad_tn: parseFloat(formData.capacidad_tn),
+        tipo_camion: formData.tipo_camion as "tractor" | "chasis_rigido" | "batea" | "otro",
+        estado: formData.estado as "activo" | "inactivo" | "baja" | "en_mantenimiento",
       });
       if (result.error) {
         setError(result.error);
@@ -193,7 +195,7 @@ export default function CamionDetailSheet({
                   <Label className="text-sm font-medium text-[#1E293B]">Estado</Label>
                   <Select 
                     value={formData.estado} 
-                    onValueChange={(val) => setFormData({...formData, estado: val})}
+                    onValueChange={(val) => setFormData({...formData, estado: val ?? formData.estado})}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Estado">
@@ -255,7 +257,7 @@ export default function CamionDetailSheet({
                   <Label className="text-sm font-medium text-[#1E293B]">Tipo</Label>
                   <Select 
                     value={formData.tipo_camion} 
-                    onValueChange={(val) => setFormData({...formData, tipo_camion: val})}
+                    onValueChange={(val) => setFormData({...formData, tipo_camion: val ?? formData.tipo_camion})}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Tipo">

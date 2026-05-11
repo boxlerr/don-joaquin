@@ -72,9 +72,7 @@ export default function AddGasoilDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-[#0F172A] text-xl">Cargar Gasoil</DialogTitle>
@@ -92,7 +90,7 @@ export default function AddGasoilDialog({
 
           <div className="space-y-2">
             <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
-            <Select value={camionId} onValueChange={setCamionId}>
+            <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
               <SelectTrigger id="camion" className="w-full">
                 <SelectValue placeholder="Seleccionar camión...">
                   {(value: string) => {
@@ -165,7 +163,7 @@ export default function AddGasoilDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipo" className="text-sm font-medium text-[#1E293B]">Tipo de combustible</Label>
-              <Select value={tipo} onValueChange={setTipo}>
+              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "grado_2")}>
                 <SelectTrigger id="tipo" className="w-full">
                   <SelectValue placeholder="Seleccionar...">
                     {(value: string) => {

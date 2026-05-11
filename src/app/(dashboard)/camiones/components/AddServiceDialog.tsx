@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Assuming Textarea exists or I'll use textarea
 import { addServiceAction } from "../actions";
 
 export default function AddServiceDialog({ 
@@ -76,9 +75,7 @@ export default function AddServiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle className="text-[#0F172A] text-xl">Registrar Service</DialogTitle>
@@ -97,7 +94,7 @@ export default function AddServiceDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
-              <Select value={camionId} onValueChange={setCamionId}>
+              <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
                 <SelectTrigger id="camion" className="w-full">
                   <SelectValue placeholder="Seleccionar camión...">
                     {(value: string) => {
@@ -131,7 +128,7 @@ export default function AddServiceDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipo_service" className="text-sm font-medium text-[#1E293B]">Tipo de Service</Label>
-              <Select value={tipo} onValueChange={setTipo}>
+              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "service_preventivo")}>
                 <SelectTrigger id="tipo_service" className="w-full">
                   <SelectValue placeholder="Seleccionar tipo...">
                     {(value: string) => {

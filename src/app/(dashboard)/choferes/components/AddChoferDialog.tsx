@@ -31,9 +31,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-[#0F172A] text-xl">Agregar nuevo chofer</DialogTitle>
