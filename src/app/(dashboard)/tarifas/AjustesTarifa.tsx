@@ -10,11 +10,19 @@ import { guardarAjustes, type TarifaParams } from "./actions";
 export default function AjustesTarifa({ params }: { params: TarifaParams }) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [tarifaBase, setTarifaBase] = useState(String(params.tarifa_base));
+  const [precioPorKg, setPrecioPorKg] = useState(String(params.precio_por_kg));
+  const [precioPorKm, setPrecioPorKm] = useState(String(params.precio_por_km));
 
-  function onSubmit(formData: FormData) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setSaved(false);
+    const fd = new FormData();
+    fd.set("tarifa_base", tarifaBase);
+    fd.set("precio_por_kg", precioPorKg);
+    fd.set("precio_por_km", precioPorKm);
     startTransition(async () => {
-      await guardarAjustes(formData);
+      await guardarAjustes(fd);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     });
@@ -30,7 +38,7 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
         </div>
       </div>
 
-      <form action={onSubmit} className="p-5 space-y-4">
+      <form onSubmit={onSubmit} className="p-5 space-y-4">
         <div className="space-y-2">
           <Label
             htmlFor="tarifa_base"
@@ -40,12 +48,12 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
           </Label>
           <Input
             id="tarifa_base"
-            name="tarifa_base"
             type="number"
             step="0.01"
             min="0"
             inputMode="decimal"
-            defaultValue={params.tarifa_base}
+            value={tarifaBase}
+            onChange={(e) => setTarifaBase(e.target.value)}
             required
             className="h-10 text-sm"
           />
@@ -60,12 +68,12 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
           </Label>
           <Input
             id="precio_por_kg"
-            name="precio_por_kg"
             type="number"
             step="0.01"
             min="0"
             inputMode="decimal"
-            defaultValue={params.precio_por_kg}
+            value={precioPorKg}
+            onChange={(e) => setPrecioPorKg(e.target.value)}
             required
             className="h-10 text-sm"
           />
@@ -80,12 +88,12 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
           </Label>
           <Input
             id="precio_por_km"
-            name="precio_por_km"
             type="number"
             step="0.01"
             min="0"
             inputMode="decimal"
-            defaultValue={params.precio_por_km}
+            value={precioPorKm}
+            onChange={(e) => setPrecioPorKm(e.target.value)}
             required
             className="h-10 text-sm"
           />
