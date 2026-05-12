@@ -3,110 +3,89 @@
 import { useState } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { ChevronDown, ChevronRight, Edit, RefreshCw, Trash2, UserCog } from "lucide-react";
-import { updateChoferAction, updateChoferEstadoAction, deleteChoferAction } from "../actions";
+import { ChevronDown, ChevronRight, RefreshCw, Trash2, Loader2 } from "lucide-react";
+import { updateChoferEstadoAction, deleteChoferAction } from "../actions";
+import { getChoferDetailAction } from "../[id]/actions";
+import ChoferInfoTab from "../[id]/ChoferInfoTab";
+import ChoferDocumentosTab from "../[id]/ChoferDocumentosTab";
+import ChoferViajesTab from "../[id]/ChoferViajesTab";
+import ChoferCuentaTab from "../[id]/ChoferCuentaTab";
+import type { ChoferDetail } from "../[id]/types";
+
+type TabId = "info" | "documentos" | "viajes" | "cuenta";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "info", label: "Información General" },
+  { id: "documentos", label: "Documentación" },
+  { id: "viajes", label: "Historial Viajes" },
+  { id: "cuenta", label: "Cuenta Corriente" },
+];
 
 export default function ChoferRow({ chofer }: { chofer: any }) {
-  const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("info");
+  const [detail, setDetail] = useState<ChoferDetail | null>(null);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Edit form state
-  const [nombre, setNombre] = useState(chofer.nombre || "");
-  const [apellido, setApellido] = useState(chofer.apellido || "");
-  const [dni, setDni] = useState(chofer.dni || "");
-  const [estado, setEstado] = useState<"activo" | "inactivo">(chofer.estado || "activo");
-  const [telefono, setTelefono] = useState(chofer.telefono || "");
-  const [localidad, setLocalidad] = useState(chofer.localidad || "");
-
-  const handleEditOpen = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Evita que colapse la fila al tocar el botón
-    setNombre(chofer.nombre || "");
-    setApellido(chofer.apellido || "");
-    setDni(chofer.dni || "");
-    setEstado(chofer.estado || "activo");
-    setTelefono(chofer.telefono || "");
-    setLocalidad(chofer.localidad || "");
-    setEditOpen(true);
+  const handleExpand = async () => {
+    const opening = !expanded;
+    setExpanded(opening);
+    if (opening && !detail) {
+      setTabLoading(true);
+      const data = await getChoferDetailAction(chofer.id);
+      setDetail(data);
+      setTabLoading(false);
+    }
   };
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await updateChoferAction(chofer.id, {
-        nombre,
-        apellido,
-        dni,
-        estado,
-        telefono,
-        localidad,
-      });
-      if (res.error) {
-        setError(res.error);
-      } else {
-        setEditOpen(false);
-      }
-    } catch {
-      setError("Error al actualizar los datos.");
-    } finally {
-      setLoading(false);
-    }
+  const refresh = async () => {
+    setTabLoading(true);
+    const data = await getChoferDetailAction(chofer.id);
+    setDetail(data);
+    setTabLoading(false);
   };
 
   const handleToggleEstado = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setLoading(true);
-    const nuevoEstado = chofer.estado === "activo" ? "inactivo" : "activo";
-    try {
-      await updateChoferEstadoAction(chofer.id, nuevoEstado);
-    } catch {
-      alert("No se pudo cambiar el estado.");
-    } finally {
-      setLoading(false);
-    }
+    setActionLoading(true);
+    const nuevo = chofer.estado === "activo" ? "inactivo" : "activo";
+    await updateChoferEstadoAction(chofer.id, nuevo);
+    setActionLoading(false);
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`¿Estás seguro de eliminar al chofer ${chofer.apellido}, ${chofer.nombre}?`)) return;
-    setLoading(true);
-    try {
-      const res = await deleteChoferAction(chofer.id);
-      if (res.error) alert(res.error);
-    } catch {
-      alert("Error al eliminar el chofer.");
-    } finally {
-      setLoading(false);
-    }
+    if (!confirm(`¿Eliminar a ${chofer.apellido}, ${chofer.nombre}?`)) return;
+    setActionLoading(true);
+    const res = await deleteChoferAction(chofer.id);
+    if (res.error) alert(res.error);
+    setActionLoading(false);
   };
+
+  const estadoTone = chofer.estado === "activo" ? "success" : "neutral";
 
   return (
     <>
-      <TableRow 
-        className={`hover:bg-[#F8FAFC] transition-all cursor-pointer select-none ${expanded ? "bg-[#F8FAFC] font-medium" : ""}`}
-        onClick={() => setExpanded(!expanded)}
+      <TableRow
+        className={`hover:bg-[#F8FAFC] transition-all cursor-pointer select-none ${
+          expanded ? "bg-[#F0F9FF]" : ""
+        }`}
+        onClick={handleExpand}
       >
         <TableCell className="font-medium text-[#0F172A]">
           <div className="flex items-center gap-2">
-            <span className="text-[#94A3B8] transition-transform duration-200">
-              {expanded ? <ChevronDown size={15} className="text-[#0088D1]" /> : <ChevronRight size={15} />}
+            <span className="text-[#94A3B8]">
+              {expanded ? (
+                <ChevronDown size={15} className="text-[#0088D1]" />
+              ) : (
+                <ChevronRight size={15} />
+              )}
             </span>
-            <span>{chofer.apellido}, {chofer.nombre}</span>
+            <span>
+              {chofer.apellido}, {chofer.nombre}
+            </span>
           </div>
         </TableCell>
         <TableCell className="font-mono">{chofer.dni}</TableCell>
@@ -116,171 +95,102 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
           {new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}
         </TableCell>
         <TableCell>
-          <StatusBadge
-            label={chofer.estado}
-            tone={chofer.estado === "activo" ? "success" : "neutral"}
-          />
+          <StatusBadge label={chofer.estado} tone={estadoTone} />
         </TableCell>
       </TableRow>
 
-      {/* Panel Desplegable Entero */}
       {expanded && (
-        <TableRow className="bg-[#F8FAFC] hover:bg-[#F8FAFC]">
+        <TableRow className="bg-white hover:bg-white">
           <TableCell colSpan={6} className="p-0 border-b border-[#E2E8F0]">
-            <div className="px-8 py-4 bg-gradient-to-r from-[#F1F5F9]/50 via-[#F8FAFC] to-[#F1F5F9]/50 border-t border-[#E2E8F0] animate-in fade-in-50 slide-in-from-top-1 duration-150">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-[#64748B]">
-                  <UserCog size={14} className="text-[#0088D1]" />
-                  <span>Opciones de gestión para el legajo de <strong>{chofer.nombre}</strong></span>
+            <div className="animate-in fade-in-50 slide-in-from-top-1 duration-150">
+              {/* Barra de tabs + acciones */}
+              <div className="flex items-center justify-between px-4 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto">
+                <div className="flex items-center">
+                  {TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveTab(tab.id);
+                      }}
+                      className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                        activeTab === tab.id
+                          ? "text-[#0088D1] border-[#0088D1]"
+                          : "text-[#64748B] border-transparent hover:text-[#0F172A]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div
+                  className="flex items-center gap-2 pl-4 py-2 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Button
-                    type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs border-[#CBD5E1] text-[#334155] hover:bg-white"
-                    onClick={handleEditOpen}
-                    disabled={loading}
-                  >
-                    <Edit size={13} className="mr-1.5 text-[#0088D1]" />
-                    Modificar datos
-                  </Button>
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs border-[#CBD5E1] text-[#334155] hover:bg-white"
+                    className="h-7 text-xs border-[#CBD5E1] text-[#334155]"
                     onClick={handleToggleEstado}
-                    disabled={loading}
+                    disabled={actionLoading}
                   >
-                    <RefreshCw size={13} className={`mr-1.5 ${chofer.estado === "activo" ? "text-amber-500" : "text-emerald-500"}`} />
-                    {chofer.estado === "activo" ? "Pasar a Inactivo" : "Pasar a Activo"}
+                    <RefreshCw
+                      size={12}
+                      className={`mr-1 ${
+                        chofer.estado === "activo" ? "text-amber-500" : "text-emerald-500"
+                      }`}
+                    />
+                    {chofer.estado === "activo" ? "Inactivar" : "Activar"}
                   </Button>
-
-                  <div className="w-px h-4 bg-[#CBD5E1] mx-1" />
-
                   <Button
-                    type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
                     onClick={handleDelete}
-                    disabled={loading}
+                    disabled={actionLoading}
                   >
-                    <Trash2 size={13} className="mr-1.5" />
+                    <Trash2 size={12} className="mr-1" />
                     Eliminar
                   </Button>
                 </div>
               </div>
+
+              {/* Contenido del tab */}
+              <div
+                className="p-5 bg-[#FDFDFD]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {tabLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="animate-spin text-[#0088D1]" />
+                  </div>
+                ) : detail ? (
+                  <>
+                    {activeTab === "info" && (
+                    <ChoferInfoTab key={detail.updated_at} chofer={detail} onSaved={refresh} />
+                  )}
+                    {activeTab === "documentos" && (
+                      <ChoferDocumentosTab chofer={detail} onRefresh={refresh} />
+                    )}
+                    {activeTab === "viajes" && (
+                      <ChoferViajesTab viajes={detail.viajes_recientes} />
+                    )}
+                    {activeTab === "cuenta" && (
+                      <ChoferCuentaTab movimientos={detail.movimientos_mes} />
+                    )}
+                  </>
+                ) : (
+                  <p className="text-center text-[#94A3B8] text-sm py-8">
+                    No se pudo cargar el legajo.
+                  </p>
+                )}
+              </div>
             </div>
+
           </TableCell>
         </TableRow>
       )}
-
-      {/* Edit Modal */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-[#0F172A] text-xl">Modificar datos del chofer</DialogTitle>
-            <DialogDescription className="text-[#475569]">
-              Actualizá la información personal y de contacto.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleEditSubmit} className="space-y-4 py-4">
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-                {error}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-nombre" className="text-sm font-medium text-[#1E293B]">Nombre</Label>
-                <Input 
-                  id="edit-nombre" 
-                  required 
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-apellido" className="text-sm font-medium text-[#1E293B]">Apellido</Label>
-                <Input 
-                  id="edit-apellido" 
-                  required 
-                  value={apellido}
-                  onChange={(e) => setApellido(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-dni" className="text-sm font-medium text-[#1E293B]">DNI</Label>
-                <Input 
-                  id="edit-dni" 
-                  required 
-                  value={dni}
-                  onChange={(e) => setDni(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-estado" className="text-sm font-medium text-[#1E293B]">Estado</Label>
-                <Select value={estado} onValueChange={(v) => setEstado((v ?? "activo") as any)}>
-                  <SelectTrigger id="edit-estado" className="w-full">
-                    <SelectValue placeholder="Estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-telefono" className="text-sm font-medium text-[#1E293B]">Teléfono</Label>
-                <Input 
-                  id="edit-telefono" 
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-localidad" className="text-sm font-medium text-[#1E293B]">Localidad</Label>
-                <Input 
-                  id="edit-localidad" 
-                  value={localidad}
-                  onChange={(e) => setLocalidad(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setEditOpen(false)}
-                className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                type="submit" 
-                variant="brand" 
-                disabled={loading}
-                className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
-              >
-                {loading ? "Guardando..." : "Guardar cambios"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

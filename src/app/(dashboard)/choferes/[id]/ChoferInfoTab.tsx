@@ -1,0 +1,203 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { updateChoferInfoAction } from "./actions";
+import type { ChoferDetail } from "./types";
+import { Check, Pencil, X } from "lucide-react";
+
+interface Props {
+  chofer: ChoferDetail;
+  onSaved?: () => void;
+}
+
+export default function ChoferInfoTab({ chofer, onSaved }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const [nombre, setNombre] = useState(chofer.nombre);
+  const [apellido, setApellido] = useState(chofer.apellido);
+  const [email, setEmail] = useState(chofer.email ?? "");
+  const [telefono, setTelefono] = useState(chofer.telefono ?? "");
+  const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
+  const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
+  const [banco, setBanco] = useState(chofer.banco ?? "");
+  const [cbu, setCbu] = useState(chofer.cbu ?? "");
+  const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
+
+  const handleCancel = () => {
+    setNombre(chofer.nombre);
+    setApellido(chofer.apellido);
+    setEmail(chofer.email ?? "");
+    setTelefono(chofer.telefono ?? "");
+    setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
+    setDomicilio(chofer.domicilio ?? "");
+    setBanco(chofer.banco ?? "");
+    setCbu(chofer.cbu ?? "");
+    setAliasCbu(chofer.alias_cbu ?? "");
+    setError(null);
+    setEditing(false);
+  };
+
+  const handleSave = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await updateChoferInfoAction(chofer.id, {
+        nombre: nombre.trim(),
+        apellido: apellido.trim(),
+        email: email.trim() || undefined,
+        telefono: telefono.trim() || undefined,
+        telefono_emergencia: telefonoEmergencia.trim() || undefined,
+        domicilio: domicilio.trim() || undefined,
+        banco: banco.trim() || undefined,
+        cbu: cbu.trim() || undefined,
+        alias_cbu: aliasCbu.trim() || undefined,
+      });
+      if (res.error) {
+        setError(res.error);
+      } else {
+        setEditing(false);
+        onSaved?.();
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Header con toggle de edición */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-[#94A3B8]">
+          {editing ? "Editando — los cambios no se guardan hasta confirmar." : "Vista de solo lectura."}
+        </span>
+        {!editing ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC]"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil size={12} className="mr-1.5 text-[#0088D1]" />
+            Editar datos
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-[#CBD5E1] text-[#475569]"
+            onClick={handleCancel}
+            disabled={isPending}
+          >
+            <X size={12} className="mr-1" />
+            Cancelar
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Datos de contacto */}
+        <section className="space-y-3">
+          <h4 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wide border-b border-[#F1F5F9] pb-2">
+            Datos de contacto
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Nombre">
+              {editing
+                ? <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                : <Value v={chofer.nombre} />}
+            </Field>
+            <Field label="Apellido">
+              {editing
+                ? <Input value={apellido} onChange={(e) => setApellido(e.target.value)} />
+                : <Value v={chofer.apellido} />}
+            </Field>
+          </div>
+          <Field label="Email">
+            {editing
+              ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="—" />
+              : <Value v={chofer.email} />}
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Teléfono">
+              {editing
+                ? <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="—" />
+                : <Value v={chofer.telefono} />}
+            </Field>
+            <Field label="Tel. emergencia">
+              {editing
+                ? <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} placeholder="—" />
+                : <Value v={chofer.telefono_emergencia} />}
+            </Field>
+          </div>
+          <Field label="Domicilio">
+            {editing
+              ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} placeholder="—" />
+              : <Value v={chofer.domicilio} />}
+          </Field>
+        </section>
+
+        {/* Datos bancarios */}
+        <section className="space-y-3">
+          <h4 className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wide border-b border-[#F1F5F9] pb-2">
+            Datos bancarios
+          </h4>
+          <Field label="Banco">
+            {editing
+              ? <Input value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="—" />
+              : <Value v={chofer.banco} />}
+          </Field>
+          <Field label="CBU">
+            {editing
+              ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono" placeholder="—" maxLength={22} />
+              : <Value v={chofer.cbu} mono />}
+          </Field>
+          <Field label="Alias CBU">
+            {editing
+              ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} placeholder="—" />
+              : <Value v={chofer.alias_cbu} />}
+          </Field>
+          {!editing && (
+            <p className="text-xs text-[#94A3B8] bg-[#F8FAFC] rounded-md px-3 py-2 border border-[#E2E8F0]">
+              Los datos bancarios se usan para liquidaciones y transferencias.
+            </p>
+          )}
+        </section>
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {editing && (
+        <div className="flex items-center justify-end pt-3 border-t border-[#E2E8F0]">
+          <Button variant="brand" size="sm" onClick={handleSave} disabled={isPending}>
+            {isPending ? "Guardando..." : (
+              <><Check size={13} className="mr-1.5" />Guardar cambios</>
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-medium text-[#64748B]">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function Value({ v, mono }: { v?: string | null; mono?: boolean }) {
+  return (
+    <p className={`text-sm py-1.5 text-[#1E293B] ${mono ? "font-mono" : ""} ${!v ? "text-[#CBD5E1]" : ""}`}>
+      {v ?? "—"}
+    </p>
+  );
+}
