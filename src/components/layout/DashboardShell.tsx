@@ -5,15 +5,18 @@ import { PanelLeft, Search } from "lucide-react";
 import Sidebar, { type SidebarUser } from "./Sidebar";
 import CommandPalette from "./CommandPalette";
 import { AuditDrawer } from "@/components/audit-drawer";
+import NotificationBell from "./NotificationBell";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
 export default function DashboardShell({
   children,
   user,
+  alertasCount = 0,
 }: {
   children: React.ReactNode;
   user: SidebarUser | null;
+  alertasCount?: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -59,6 +62,10 @@ export default function DashboardShell({
               Ctrl K
             </kbd>
           </button>
+
+          <div className="ml-auto">
+            <NotificationBell initialCount={alertasCount} />
+          </div>
         </div>
 
         <main className="flex-1 overflow-y-auto">{children}</main>

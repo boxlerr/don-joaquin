@@ -1,5 +1,6 @@
 import DashboardShell from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function DashboardLayout({
   children,
@@ -7,9 +8,15 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const adminSupabase = createAdminClient();
+
+  const [{ data: { user } }, { count: alertasCount }] = await Promise.all([
+    supabase.auth.getUser(),
+    adminSupabase
+      .from("alertas")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "pendiente"),
+  ]);
 
   let sidebarUser = null;
   if (user) {
@@ -35,5 +42,9 @@ export default async function DashboardLayout({
     }
   }
 
-  return <DashboardShell user={sidebarUser}>{children}</DashboardShell>;
+  return (
+    <DashboardShell user={sidebarUser} alertasCount={alertasCount ?? 0}>
+      {children}
+    </DashboardShell>
+  );
 }
