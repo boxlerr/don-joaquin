@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { Edit2, AlertCircle, type LucideIcon } from "lucide-react";
+import { Edit2, AlertCircle, Mail, MessageCircle, Webhook } from "lucide-react";
 import { toggleCanalAction, updateCanalConfigAction } from "./actions";
 import type { CanalKey } from "./constants";
 
@@ -24,6 +24,12 @@ type CanalCampo = {
   type: "email" | "tel" | "url";
 };
 
+const CANAL_ICONS: Record<CanalKey, React.ElementType> = {
+  email: Mail,
+  whatsapp: MessageCircle,
+  webhook: Webhook,
+};
+
 interface Props {
   canal: {
     key: CanalKey;
@@ -31,12 +37,12 @@ interface Props {
     descripcion: string;
     configCampos: CanalCampo[];
   };
-  icon: LucideIcon;
   activo: boolean;
   configValores: Record<string, string>;
 }
 
-export default function CanalCard({ canal, icon: Icon, activo, configValores }: Props) {
+export default function CanalCard({ canal, activo, configValores }: Props) {
+  const Icon = CANAL_ICONS[canal.key];
   const [open, setOpen] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(configValores);
   const [error, setError] = useState<string | null>(null);

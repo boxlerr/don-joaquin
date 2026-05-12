@@ -35,100 +35,98 @@ export default async function ConfiguracionNegocioPage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-8 space-y-6">
       <PageHeader
         title="Configuración de Negocio"
         description="Datos de la empresa, contacto e información legal"
       />
 
-      <div className="max-w-2xl">
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 size={16} className="text-[#0088D1]" />
-              <h2 className="text-[#0F172A] text-sm font-semibold">Datos de la Empresa</h2>
-            </div>
-            <EditarEmpresaDialog initial={empresa} />
+      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 size={16} className="text-[#0088D1]" />
+            <h2 className="text-[#0F172A] text-sm font-semibold">Datos de la Empresa</h2>
           </div>
+          <EditarEmpresaDialog initial={empresa} />
+        </div>
 
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-medium text-[#1E293B] block mb-2">
-                  Razón Social
-                </label>
-                <input
-                  type="text"
-                  value={empresa.razon_social}
-                  placeholder="Sin definir"
-                  className={READ_ONLY_INPUT}
-                  disabled
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
-                  <Hash size={14} />
-                  CUIT
-                </label>
-                <input
-                  type="text"
-                  value={empresa.cuit}
-                  placeholder="Sin definir"
-                  className={READ_ONLY_INPUT}
-                  disabled
-                />
-              </div>
-            </div>
-
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
-                <MapPin size={14} />
-                Domicilio
+              <label className="text-sm font-medium text-[#1E293B] block mb-2">
+                Razón Social
               </label>
               <input
                 type="text"
-                value={empresa.domicilio}
+                value={empresa.razon_social}
                 placeholder="Sin definir"
                 className={READ_ONLY_INPUT}
                 disabled
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
-                  <Mail size={14} />
-                  Email de contacto
-                </label>
-                <input
-                  type="email"
-                  value={empresa.email}
-                  placeholder="Sin definir"
-                  className={READ_ONLY_INPUT}
-                  disabled
-                />
-              </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+                <Hash size={14} />
+                CUIT
+              </label>
+              <input
+                type="text"
+                value={empresa.cuit}
+                placeholder="Sin definir"
+                className={READ_ONLY_INPUT}
+                disabled
+              />
+            </div>
+          </div>
 
-              <div>
-                <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
-                  <Phone size={14} />
-                  Teléfono
-                </label>
-                <input
-                  type="tel"
-                  value={empresa.telefono}
-                  placeholder="Sin definir"
-                  className={READ_ONLY_INPUT}
-                  disabled
-                />
-              </div>
+          <div>
+            <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+              <MapPin size={14} />
+              Domicilio
+            </label>
+            <input
+              type="text"
+              value={empresa.domicilio}
+              placeholder="Sin definir"
+              className={READ_ONLY_INPUT}
+              disabled
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+                <Mail size={14} />
+                Email de contacto
+              </label>
+              <input
+                type="email"
+                value={empresa.email}
+                placeholder="Sin definir"
+                className={READ_ONLY_INPUT}
+                disabled
+              />
             </div>
 
-            <p className="text-xs text-[#64748B] pt-6 border-t border-[#E2E8F0]">
-              Los cambios quedan registrados en el historial de auditoría.
-            </p>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+                <Phone size={14} />
+                Teléfono
+              </label>
+              <input
+                type="tel"
+                value={empresa.telefono}
+                placeholder="Sin definir"
+                className={READ_ONLY_INPUT}
+                disabled
+              />
+            </div>
           </div>
+
+          <p className="text-xs text-[#64748B] pt-4 border-t border-[#E2E8F0]">
+            Los cambios quedan registrados en el historial de auditoría.
+          </p>
         </div>
       </div>
     </div>

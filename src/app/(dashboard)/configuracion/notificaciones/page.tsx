@@ -1,18 +1,12 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
-import { Bell, Mail, MessageCircle, Webhook, Users } from "lucide-react";
+import { Bell, Users } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CanalCard from "./CanalCard";
 import AlertaToggle from "./AlertaToggle";
 import DestinatarioToggle from "./DestinatarioToggle";
 import { ALERTAS, CANALES, DESTINATARIOS_CLAVE, alertaClave } from "./constants";
-
-const CANAL_ICONS = {
-  email: Mail,
-  whatsapp: MessageCircle,
-  webhook: Webhook,
-} as const;
 
 function parseDestinatarios(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -73,7 +67,6 @@ export default async function ConfiguracionNotificacionesPage() {
               <CanalCard
                 key={canal.key}
                 canal={canal}
-                icon={CANAL_ICONS[canal.key]}
                 activo={activo}
                 configValores={configValores}
               />
