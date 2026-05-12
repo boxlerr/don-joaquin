@@ -73,7 +73,8 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
-  const tipo_documento_id = formData.get("tipo_documento_id") as string;
+  const tipo_nombre_custom = formData.get("tipo_nombre_custom") as string | null;
+  let tipo_documento_id = formData.get("tipo_documento_id") as string;
   const file = formData.get("file") as File;
   const numero = formData.get("numero") as string | null;
   const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
@@ -83,6 +84,47 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
   if (!file.type.startsWith("application/pdf") && !file.type.startsWith("image/"))
     return { error: "Solo se permiten PDF e imágenes" };
   if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
+
+  // Si el usuario eligió "Otro", buscar o crear el tipo de documento
+  if (tipo_nombre_custom) {
+    const nombreNorm = tipo_nombre_custom.trim();
+    if (!nombreNorm) return { error: "El nombre del tipo de documento no puede estar vacío" };
+
+    // Buscar si ya existe un tipo con ese nombre
+    const { data: existente } = await supabase
+      .from("tipos_documento")
+      .select("id")
+      .eq("nombre", nombreNorm)
+      .eq("aplica_a", "chofer")
+      .maybeSingle();
+
+    if (existente) {
+      tipo_documento_id = existente.id;
+    } else {
+      // Crear el tipo nuevo
+      const codigoBase = nombreNorm
+        .toUpperCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Z0-9_]/g, "")
+        .slice(0, 30);
+
+      const { data: nuevo, error: crearError } = await supabase
+        .from("tipos_documento")
+        .insert({
+          nombre: nombreNorm,
+          codigo: `CUSTOM_${codigoBase}_${Date.now()}`,
+          aplica_a: "chofer",
+          estado: "activo",
+        })
+        .select("id")
+        .single();
+
+      if (crearError || !nuevo) return { error: "No se pudo crear el tipo de documento" };
+      tipo_documento_id = nuevo.id;
+    }
+  }
+
+  if (!tipo_documento_id) return { error: "Tipo de documento requerido" };
 
   const ext = file.name.split(".").pop();
   const storagePath = `choferes/${chofer_id}/${tipo_documento_id}_${Date.now()}.${ext}`;

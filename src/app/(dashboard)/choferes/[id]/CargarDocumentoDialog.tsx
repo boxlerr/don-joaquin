@@ -41,14 +41,18 @@ export default function CargarDocumentoDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipoId, setTipoId] = useState("");
+  const [tipoNombreCustom, setTipoNombreCustom] = useState("");
   const [numero, setNumero] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState("");
   const [fechaEmision, setFechaEmision] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const isOtro = tipoId === "__otro__";
+
   const reset = () => {
     setTipoId("");
+    setTipoNombreCustom("");
     setNumero("");
     setFechaVencimiento("");
     setFechaEmision("");
@@ -60,6 +64,8 @@ export default function CargarDocumentoDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tipoId) return setError("Seleccioná un tipo de documento");
+    if (isOtro && !tipoNombreCustom.trim())
+      return setError("Escribí el nombre del tipo de documento");
     if (!fileRef.current?.files?.[0]) return setError("Seleccioná un archivo");
 
     setLoading(true);
@@ -67,7 +73,11 @@ export default function CargarDocumentoDialog({
 
     const formData = new FormData();
     formData.set("chofer_id", chofer_id);
-    formData.set("tipo_documento_id", tipoId);
+    if (isOtro) {
+      formData.set("tipo_nombre_custom", tipoNombreCustom.trim());
+    } else {
+      formData.set("tipo_documento_id", tipoId);
+    }
     formData.set("file", fileRef.current.files[0]);
     if (numero) formData.set("numero", numero);
     if (fechaVencimiento) formData.set("fecha_vencimiento", fechaVencimiento);
@@ -114,18 +124,37 @@ export default function CargarDocumentoDialog({
             {tipos.length === 0 ? (
               <p className="text-sm text-[#94A3B8]">No hay tipos de documento disponibles</p>
             ) : (
-              <Select value={tipoId} onValueChange={(v) => setTipoId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleccionar tipo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tipos.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select
+                  value={tipoId}
+                  onValueChange={(v) => {
+                    setTipoId(v ?? "");
+                    if (v !== "__otro__") setTipoNombreCustom("");
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar tipo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tipos.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nombre}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__otro__">Otro...</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {isOtro && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Nombre del documento (ej: Seguro de vida)"
+                    value={tipoNombreCustom}
+                    onChange={(e) => setTipoNombreCustom(e.target.value)}
+                    autoFocus
+                  />
+                )}
+              </>
             )}
           </div>
 
