@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Calculator, Settings, Users } from "lucide-react";
 import AjustesTarifa from "./AjustesTarifa";
 import CalculadoraTarifasAvanzada from "./CalculadoraTarifasAvanzada";
+import HelpTutorialButton from "./help-tutorial-button";
 import TabTarifasPorCliente from "./TabTarifasPorCliente";
 import type {
   ClienteOption,
@@ -61,6 +62,9 @@ export default function TarifasTabs({ params, clientes, rutas, tarifas }: Props)
             </button>
           );
         })}
+        <div className="ml-auto pb-1">
+          <HelpTutorialButton />
+        </div>
       </div>
 
       {tab === "calculadora" && (
