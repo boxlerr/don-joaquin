@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,26 +15,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin } from "lucide-react";
-import { updateCamionAction, deleteCamionAction, getCamionHistoryAction } from "../actions";
-import StatusBadge from "@/components/ui/StatusBadge";
+import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction } from "../actions";
+import type { Camion, ServiceRecord, GasoilRecord } from "../types";
+
+type TabId = "info" | "services" | "gasoil" | "docs";
 
 export default function CamionDetailSheet({
   camion,
   open,
   onOpenChange,
 }: {
-  camion: any;
+  camion: Camion;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"info" | "services" | "gasoil" | "docs">("info");
+  const [activeTab, setActiveTab] = useState<TabId>("info");
   const [loading, setLoading] = useState(false);
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<{ services: any[]; gasoil: any[] }>({
-    services: [],
-    gasoil: [],
-  });
 
   const [formData, setFormData] = useState({
     patente: "",
@@ -46,6 +43,21 @@ export default function CamionDetailSheet({
     estado: "activo",
   });
 
+  // Services state
+  const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [servicesPage, setServicesPage] = useState(0);
+  const [servicesHasMore, setServicesHasMore] = useState(false);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [loadingServices, setLoadingServices] = useState(false);
+
+  // Gasoil state
+  const [gasoil, setGasoil] = useState<GasoilRecord[]>([]);
+  const [gasoilPage, setGasoilPage] = useState(0);
+  const [gasoilHasMore, setGasoilHasMore] = useState(false);
+  const [gasoilLoaded, setGasoilLoaded] = useState(false);
+  const [loadingGasoil, setLoadingGasoil] = useState(false);
+
+  // Reset all state when the truck changes
   useEffect(() => {
     if (camion) {
       setFormData({
@@ -57,20 +69,49 @@ export default function CamionDetailSheet({
         tipo_camion: camion.tipo_camion || "otro",
         estado: camion.estado || "activo",
       });
-      if (open) fetchHistory();
+      setActiveTab("info");
+      setServices([]);
+      setServicesPage(0);
+      setServicesHasMore(false);
+      setServicesLoaded(false);
+      setGasoil([]);
+      setGasoilPage(0);
+      setGasoilHasMore(false);
+      setGasoilLoaded(false);
+      setError(null);
     }
-  }, [camion, open]);
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchHistory = async () => {
-    setLoadingHistory(true);
+  const fetchServices = useCallback(async (page: number) => {
+    setLoadingServices(true);
     try {
-      const data = await getCamionHistoryAction(camion.id);
-      setHistory(data);
-    } catch (err) {
-      console.error("Error fetching history:", err);
+      const result = await getServiceHistoryAction(camion.id, page);
+      setServices((prev) => page === 0 ? result.data as ServiceRecord[] : [...prev, ...result.data as ServiceRecord[]]);
+      setServicesHasMore(result.hasMore);
+      setServicesPage(page);
+      setServicesLoaded(true);
     } finally {
-      setLoadingHistory(false);
+      setLoadingServices(false);
     }
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchGasoil = useCallback(async (page: number) => {
+    setLoadingGasoil(true);
+    try {
+      const result = await getGasoilHistoryAction(camion.id, page);
+      setGasoil((prev) => page === 0 ? result.data as GasoilRecord[] : [...prev, ...result.data as GasoilRecord[]]);
+      setGasoilHasMore(result.hasMore);
+      setGasoilPage(page);
+      setGasoilLoaded(true);
+    } finally {
+      setLoadingGasoil(false);
+    }
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    if (tab === "services" && !servicesLoaded) fetchServices(0);
+    if (tab === "gasoil" && !gasoilLoaded) fetchGasoil(0);
   };
 
   const handleUpdate = async () => {
@@ -155,15 +196,15 @@ export default function CamionDetailSheet({
         {/* Tabs */}
         <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC]">
           {[
-            { id: "info", label: "Información", icon: Truck },
-            { id: "services", label: "Services", icon: Wrench },
-            { id: "gasoil", label: "Gasoil", icon: Fuel },
-            { id: "docs", label: "Documentos", icon: FileText },
+            { id: "info" as TabId, label: "Información", icon: Truck },
+            { id: "services" as TabId, label: "Services", icon: Wrench },
+            { id: "gasoil" as TabId, label: "Gasoil", icon: Fuel },
+            { id: "docs" as TabId, label: "Documentos", icon: FileText },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? "text-[#0088D1] border-[#0088D1]"
@@ -293,91 +334,117 @@ export default function CamionDetailSheet({
 
           {activeTab === "services" && (
             <div className="space-y-3">
-              {loadingHistory ? (
+              {loadingServices && services.length === 0 ? (
                 <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
-              ) : history.services.length === 0 ? (
+              ) : services.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
                   <Wrench size={40} className="mb-3 opacity-20" />
                   <p className="text-sm">No hay services registrados.</p>
                 </div>
               ) : (
-                history.services.map((s) => (
-                  <div
-                    key={s.id}
-                    className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          className="bg-[#E0F2FE] text-[#0369A1] hover:bg-[#E0F2FE]"
-                        >
-                          {s.tipo.replace("_", " ")}
-                        </Badge>
-                        <span className="text-xs text-[#64748B] flex items-center gap-1">
-                          <Calendar size={11} />
-                          {new Date(s.fecha).toLocaleDateString("es-AR")}
+                <>
+                  {services.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className="bg-[#E0F2FE] text-[#0369A1] hover:bg-[#E0F2FE]"
+                          >
+                            {s.tipo.replace("_", " ")}
+                          </Badge>
+                          <span className="text-xs text-[#64748B] flex items-center gap-1">
+                            <Calendar size={11} />
+                            {new Date(s.fecha).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-[#0F172A]">
+                          ${Number(s.costo || 0).toLocaleString("es-AR")}
                         </span>
                       </div>
-                      <span className="text-sm font-bold text-[#0F172A]">
-                        ${Number(s.costo || 0).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <p className="text-sm text-[#0F172A] font-medium mb-2">{s.descripcion}</p>
-                    <div className="flex items-center gap-4 pt-2 border-t border-[#F1F5F9]">
-                      <span className="flex items-center gap-1 text-xs text-[#64748B]">
-                        <Truck size={11} />
-                        {s.km_odometro.toLocaleString()} KM
-                      </span>
-                      {s.taller && (
+                      <p className="text-sm text-[#0F172A] font-medium mb-2">{s.descripcion}</p>
+                      <div className="flex items-center gap-4 pt-2 border-t border-[#F1F5F9]">
                         <span className="flex items-center gap-1 text-xs text-[#64748B]">
-                          <MapPin size={11} />
-                          {s.taller}
+                          <Truck size={11} />
+                          {s.km_odometro.toLocaleString()} KM
                         </span>
-                      )}
+                        {s.taller && (
+                          <span className="flex items-center gap-1 text-xs text-[#64748B]">
+                            <MapPin size={11} />
+                            {s.taller}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {servicesHasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={loadingServices}
+                      onClick={() => fetchServices(servicesPage + 1)}
+                    >
+                      {loadingServices ? "Cargando..." : "Cargar más"}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {activeTab === "gasoil" && (
             <div className="space-y-3">
-              {loadingHistory ? (
+              {loadingGasoil && gasoil.length === 0 ? (
                 <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
-              ) : history.gasoil.length === 0 ? (
+              ) : gasoil.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
                   <Fuel size={40} className="mb-3 opacity-20" />
                   <p className="text-sm">No hay cargas registradas.</p>
                 </div>
               ) : (
-                history.gasoil.map((g) => (
-                  <div
-                    key={g.id}
-                    className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold text-[#0F172A] flex items-center gap-1">
-                          <Fuel size={12} className="text-[#0088D1]" />
-                          {g.litros.toLocaleString()} Lts
-                        </span>
-                        <span className="text-xs text-[#64748B] flex items-center gap-1">
-                          <Calendar size={11} />
-                          {new Date(g.fecha).toLocaleDateString("es-AR")}
+                <>
+                  {gasoil.map((g) => (
+                    <div
+                      key={g.id}
+                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-[#0F172A] flex items-center gap-1">
+                            <Fuel size={12} className="text-[#0088D1]" />
+                            {g.litros.toLocaleString()} Lts
+                          </span>
+                          <span className="text-xs text-[#64748B] flex items-center gap-1">
+                            <Calendar size={11} />
+                            {new Date(g.fecha).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-[#0F172A]">
+                          ${Number(g.importe_total || 0).toLocaleString("es-AR")}
                         </span>
                       </div>
-                      <span className="text-sm font-bold text-[#0F172A]">
-                        ${Number(g.importe_total || 0).toLocaleString("es-AR")}
-                      </span>
+                      <div className="flex items-center justify-between text-xs text-[#64748B]">
+                        <span>{g.estacion || "Estación no especificada"}</span>
+                        <span className="font-mono">{g.km_odometro.toLocaleString()} KM</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-[#64748B]">
-                      <span>{g.estacion || "Estación no especificada"}</span>
-                      <span className="font-mono">{g.km_odometro.toLocaleString()} KM</span>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                  {gasoilHasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={loadingGasoil}
+                      onClick={() => fetchGasoil(gasoilPage + 1)}
+                    >
+                      {loadingGasoil ? "Cargando..." : "Cargar más"}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           )}

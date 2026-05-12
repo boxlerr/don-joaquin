@@ -15,13 +15,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addServiceAction } from "../actions";
+import type { Camion } from "../types";
+import type { Database } from "@/types/database";
 
-export default function AddServiceDialog({ 
-  children, 
-  camiones 
-}: { 
+type MantenimientoTipo = Database["public"]["Enums"]["mantenimiento_tipo"];
+
+export default function AddServiceDialog({
+  children,
+  camiones
+}: {
   children: React.ReactNode;
-  camiones: any[];
+  camiones: Camion[];
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,7 +34,7 @@ export default function AddServiceDialog({
   // Form states
   const [camionId, setCamionId] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [tipo, setTipo] = useState("service_preventivo");
+  const [tipo, setTipo] = useState<MantenimientoTipo>("service_preventivo");
   const [km, setKm] = useState("");
   const [proximoKm, setProximoKm] = useState("");
   const [taller, setTaller] = useState("");
@@ -128,7 +132,7 @@ export default function AddServiceDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipo_service" className="text-sm font-medium text-[#1E293B]">Tipo de Service</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "service_preventivo")}>
+              <Select value={tipo} onValueChange={(v) => setTipo((v ?? "service_preventivo") as MantenimientoTipo)}>
                 <SelectTrigger id="tipo_service" className="w-full">
                   <SelectValue placeholder="Seleccionar tipo...">
                     {(value: string) => {

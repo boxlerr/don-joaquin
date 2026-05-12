@@ -1,0 +1,21 @@
+import { Database } from "@/types/database";
+
+export type Camion = Pick<
+  Database["public"]["Tables"]["camiones"]["Row"],
+  "id" | "patente" | "marca" | "modelo" | "ano" | "capacidad_tn" | "tipo_camion" | "estado"
+>;
+
+export type ServiceRecord = Pick<
+  Database["public"]["Tables"]["mantenimientos"]["Row"],
+  "id" | "fecha" | "tipo" | "km_odometro" | "descripcion" | "costo" | "taller"
+>;
+
+export type GasoilRecord = Pick<
+  Database["public"]["Tables"]["cargas_combustible"]["Row"],
+  "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion"
+>;
+
+export type PaginatedResult<T> = {
+  data: T[];
+  hasMore: boolean;
+};

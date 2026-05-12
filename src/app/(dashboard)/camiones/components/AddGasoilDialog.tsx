@@ -15,13 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addGasoilAction } from "../actions";
+import type { Camion } from "../types";
 
-export default function AddGasoilDialog({ 
+export default function AddGasoilDialog({
   children,
-  camiones 
-}: { 
+  camiones
+}: {
   children: React.ReactNode;
-  camiones: any[];
+  camiones: Camion[];
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);

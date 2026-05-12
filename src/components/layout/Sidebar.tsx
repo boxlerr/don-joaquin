@@ -2,8 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Truck, LogOut } from "lucide-react";
-import { NAV_GROUPS } from "./nav-items";
+import { useState } from "react";
+import {
+  Moon,
+  Truck,
+  LogOut,
+  ChevronDown,
+  Sliders,
+  Building2,
+  Shield,
+  FileText,
+  Bell,
+  type LucideIcon,
+} from "lucide-react";
+import { NAV_GROUPS, type NavItem, type NavChild } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
 
 export type SidebarUser = {
@@ -12,6 +24,14 @@ export type SidebarUser = {
   email: string;
   rol: string | null;
   avatarUrl: string | null;
+};
+
+const CHILD_ICONS: Record<string, LucideIcon> = {
+  General: Sliders,
+  Negocio: Building2,
+  Usuarios: Shield,
+  "Plantillas PDF": FileText,
+  Notificaciones: Bell,
 };
 
 function getInitials(user: SidebarUser): string {
@@ -26,6 +46,11 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
+
+  const isChildActive = (child: NavChild) => pathname === child.href;
+
+  const hasActiveChild = (item: NavItem) =>
+    !!item.children?.some((c) => isChildActive(c));
 
   return (
     <aside className="flex flex-col w-60 h-screen bg-[#0F172A] shrink-0">
@@ -48,31 +73,37 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
               {group.group}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = isActive(item.href);
-                const Icon = item.icon;
-                return (
+              {group.items.map((item) =>
+                item.children && item.children.length > 0 ? (
+                  <CollapsibleItem
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    isChildActive={isChildActive}
+                    hasActiveChild={hasActiveChild}
+                  />
+                ) : (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                        active
+                        isActive(item.href)
                           ? "bg-[#0088D1] text-white shadow-sm"
                           : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
                       }`}
                     >
-                      <Icon
+                      <item.icon
                         size={18}
-                        className={active ? "text-white" : "text-[#94A3B8]"}
+                        className={isActive(item.href) ? "text-white" : "text-[#94A3B8]"}
                       />
                       {item.label}
-                      {active && (
+                      {isActive(item.href) && (
                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/80" />
                       )}
                     </Link>
                   </li>
-                );
-              })}
+                )
+              )}
             </ul>
           </div>
         ))}
@@ -124,5 +155,76 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function CollapsibleItem({
+  item,
+  pathname,
+  isChildActive,
+  hasActiveChild,
+}: {
+  item: NavItem;
+  pathname: string;
+  isChildActive: (child: NavChild) => boolean;
+  hasActiveChild: (item: NavItem) => boolean;
+}) {
+  const activeChild = hasActiveChild(item);
+  const sectionActive =
+    activeChild || pathname === item.href || pathname.startsWith(item.href + "/");
+  const [open, setOpen] = useState(sectionActive);
+  const Icon = item.icon;
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+          sectionActive
+            ? "bg-[#0088D1] text-white shadow-sm"
+            : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+        }`}
+      >
+        <Icon size={18} className={sectionActive ? "text-white" : "text-[#94A3B8]"} />
+        <span className="flex-1 text-left">{item.label}</span>
+        <ChevronDown
+          size={16}
+          className={`transition-transform duration-200 ${open ? "rotate-180" : ""} ${
+            sectionActive ? "text-white" : "text-[#94A3B8]"
+          }`}
+        />
+      </button>
+
+      {open && (
+        <ul className="mt-0.5 ml-3 pl-3 border-l border-white/10 space-y-0.5">
+          {item.children!.map((child) => {
+            const active = isChildActive(child);
+            const ChildIcon = CHILD_ICONS[child.label];
+            return (
+              <li key={child.href}>
+                <Link
+                  href={child.href}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold tracking-wide uppercase transition-all duration-150 ${
+                    active
+                      ? "text-[#EF4444]"
+                      : "text-[#94A3B8] hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  {ChildIcon && (
+                    <ChildIcon
+                      size={14}
+                      className={active ? "text-[#EF4444]" : "text-[#94A3B8]"}
+                    />
+                  )}
+                  {child.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }

@@ -1,6 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,6 @@ import {
   TableBody,
   TableHead,
   TableRow,
-  TableCell,
 } from "@/components/ui/table";
 import { Truck, Plus, Fuel, Wrench } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,8 +24,9 @@ export default async function CamionesPage() {
     await Promise.all([
       supabase
         .from("camiones")
-        .select("*", { count: "exact" })
-        .order("patente"),
+        .select("id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado", { count: "exact" })
+        .order("patente")
+        .limit(50),
       supabase
         .from("camiones")
         .select("*", { count: "exact", head: true })
@@ -43,7 +42,7 @@ export default async function CamionesPage() {
     <div className="p-8">
       <PageHeader
         title="Camiones"
-        description="Flota de 11 unidades — documentación, mantenimiento y gasoil"
+        description={`Flota de ${total ?? 0} unidades — documentación, mantenimiento y gasoil`}
         action={
           <div className="flex items-center gap-2">
             <AddGasoilDialog camiones={camiones || []}>

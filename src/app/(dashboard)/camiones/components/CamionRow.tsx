@@ -4,8 +4,9 @@ import { useState } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CamionDetailSheet from "./CamionDetailSheet";
+import type { Camion } from "../types";
 
-export default function CamionRow({ camion }: { camion: any }) {
+export default function CamionRow({ camion }: { camion: Camion }) {
   const [open, setOpen] = useState(false);
 
   return (

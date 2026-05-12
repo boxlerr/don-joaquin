@@ -13,10 +13,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export interface NavChild {
+  label: string;
+  href: string;
+}
+
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  children?: NavChild[];
 }
 
 export interface NavGroup {
@@ -58,7 +64,18 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "SISTEMA",
     items: [
       { label: "Usuarios", href: "/usuarios", icon: Shield },
-      { label: "Configuración", href: "/configuracion", icon: Settings },
+      {
+        label: "Configuración",
+        href: "/configuracion",
+        icon: Settings,
+        children: [
+          { label: "General", href: "/configuracion" },
+          { label: "Negocio", href: "/configuracion/negocio" },
+          { label: "Usuarios", href: "/usuarios" },
+          { label: "Plantillas PDF", href: "/configuracion/plantillas-pdf" },
+          { label: "Notificaciones", href: "/configuracion/notificaciones" },
+        ],
+      },
     ],
   },
 ];

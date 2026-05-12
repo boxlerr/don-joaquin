@@ -101,7 +101,7 @@ export async function deleteCamionAction(id: string) {
 export async function addServiceAction(data: {
   camion_id: string;
   fecha: string;
-  tipo: any;
+  tipo: Database["public"]["Enums"]["mantenimiento_tipo"];
   km_odometro: number;
   proximo_service_km?: number;
   taller?: string;
@@ -171,24 +171,40 @@ export async function addGasoilAction(data: {
   return { success: true };
 }
 
-export async function getCamionHistoryAction(id: string) {
-  const supabase = await createClient();
+const HISTORY_PAGE_SIZE = 20;
 
-  const [services, gasoil] = await Promise.all([
-    supabase
-      .from("mantenimientos")
-      .select("*")
-      .eq("camion_id", id)
-      .order("fecha", { ascending: false }),
-    supabase
-      .from("cargas_combustible")
-      .select("*")
-      .eq("camion_id", id)
-      .order("fecha", { ascending: false }),
-  ]);
+export async function getServiceHistoryAction(camionId: string, page = 0) {
+  const supabase = await createClient();
+  const from = page * HISTORY_PAGE_SIZE;
+  const to = from + HISTORY_PAGE_SIZE - 1;
+
+  const { data, count } = await supabase
+    .from("mantenimientos")
+    .select("id, fecha, tipo, km_odometro, descripcion, costo, taller", { count: "exact" })
+    .eq("camion_id", camionId)
+    .order("fecha", { ascending: false })
+    .range(from, to);
 
   return {
-    services: services.data || [],
-    gasoil: gasoil.data || [],
+    data: data || [],
+    hasMore: (count ?? 0) > (page + 1) * HISTORY_PAGE_SIZE,
+  };
+}
+
+export async function getGasoilHistoryAction(camionId: string, page = 0) {
+  const supabase = await createClient();
+  const from = page * HISTORY_PAGE_SIZE;
+  const to = from + HISTORY_PAGE_SIZE - 1;
+
+  const { data, count } = await supabase
+    .from("cargas_combustible")
+    .select("id, fecha, litros, km_odometro, importe_total, estacion", { count: "exact" })
+    .eq("camion_id", camionId)
+    .order("fecha", { ascending: false })
+    .range(from, to);
+
+  return {
+    data: data || [],
+    hasMore: (count ?? 0) > (page + 1) * HISTORY_PAGE_SIZE,
   };
 }
