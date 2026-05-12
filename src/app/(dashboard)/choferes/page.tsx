@@ -15,6 +15,7 @@ import {
 import { Users, Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AddChoferDialog from "./components/AddChoferDialog";
+import ChoferRow from "./components/ChoferRow";
 
 export default async function ChoferesPage() {
   const supabase = createAdminClient();
@@ -99,23 +100,7 @@ export default async function ChoferesPage() {
               <EmptyTableRow message="Sin choferes registrados" />
             ) : (
               choferes.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">
-                    {c.apellido}, {c.nombre}
-                  </TableCell>
-                  <TableCell className="font-mono">{c.dni}</TableCell>
-                  <TableCell className="text-[#475569]">{c.localidad ?? "—"}</TableCell>
-                  <TableCell className="text-[#475569]">{c.telefono ?? "—"}</TableCell>
-                  <TableCell className="text-[#475569] text-xs">
-                    {new Date(c.fecha_ingreso).toLocaleDateString("es-AR")}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={c.estado}
-                      tone={c.estado === "activo" ? "success" : "neutral"}
-                    />
-                  </TableCell>
-                </TableRow>
+                <ChoferRow key={c.id} chofer={c} />
               ))
             )}
           </TableBody>
