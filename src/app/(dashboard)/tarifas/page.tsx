@@ -1,19 +1,30 @@
 import PageHeader from "@/components/layout/PageHeader";
-import CalculadoraFlete from "./CalculadoraFlete";
-import AjustesTarifa from "./AjustesTarifa";
-import { getTarifaParams } from "./actions";
+import TarifasTabs from "./TarifasTabs";
+import {
+  getTarifaParams,
+  obtenerClientesYRutas,
+  obtenerTarifas,
+} from "./actions";
 
 export default async function TarifasPage() {
-  const params = await getTarifaParams();
+  const [params, { clientes, rutas }, tarifas] = await Promise.all([
+    getTarifaParams(),
+    obtenerClientesYRutas(),
+    obtenerTarifas(),
+  ]);
 
   return (
     <div className="p-8">
-      <PageHeader title="Tarifas" description="Calculadora y configuración de precios" />
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
-        <CalculadoraFlete params={params} />
-        <AjustesTarifa params={params} />
-      </div>
+      <PageHeader
+        title="Tarifas"
+        description="Calculadora, tarifas por cliente y parámetros globales"
+      />
+      <TarifasTabs
+        params={params}
+        clientes={clientes}
+        rutas={rutas}
+        tarifas={tarifas}
+      />
     </div>
   );
 }

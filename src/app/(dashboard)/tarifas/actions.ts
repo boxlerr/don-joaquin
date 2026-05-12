@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
+import { validarTarifa, type TarifaInput } from "./validaciones";
+
+type TarifaRow = Database["public"]["Tables"]["tarifas"]["Row"];
 
 export type TarifaParams = {
   tarifa_base: number;
@@ -67,4 +71,483 @@ export async function guardarAjustes(formData: FormData) {
 
   revalidatePath("/tarifas");
   revalidatePath("/configuracion");
+}
+
+// ============================================================
+// CRUD DE TARIFAS POR CLIENTE / RUTA
+// ============================================================
+
+export type ClienteOption = { id: string; nombre: string };
+export type RutaOption = {
+  id: string;
+  cliente_id: string | null;
+  origen: string;
+  destino: string;
+  km_oficiales: number;
+};
+
+export type TarifaConRelaciones = TarifaRow & {
+  cliente_nombre: string;
+  ruta_label: string | null;
+  ruta_km: number | null;
+};
+
+export async function obtenerClientesYRutas(): Promise<{
+  clientes: ClienteOption[];
+  rutas: RutaOption[];
+}> {
+  const supabase = await createClient();
+
+  const [clientesRes, rutasRes] = await Promise.all([
+    supabase
+      .from("clientes")
+      .select("id, razon_social, nombre_comercial, estado")
+      .eq("estado", "activo")
+      .order("razon_social"),
+    supabase
+      .from("rutas")
+      .select(
+        `id, km_oficiales, estado,
+         origen:puntos_ruta!rutas_origen_id_fkey (nombre, localidad),
+         destino:puntos_ruta!rutas_destino_id_fkey (nombre, localidad)`,
+      )
+      .eq("estado", "activa")
+      .order("created_at"),
+  ]);
+
+  const clientes: ClienteOption[] = (clientesRes.data ?? []).map((c) => ({
+    id: c.id,
+    nombre: c.nombre_comercial ?? c.razon_social,
+  }));
+
+  const rutas: RutaOption[] = (rutasRes.data ?? []).map((r) => {
+    const origen = r.origen as { nombre: string; localidad: string | null } | null;
+    const destino = r.destino as { nombre: string; localidad: string | null } | null;
+    const origenLabel = origen
+      ? [origen.nombre, origen.localidad].filter(Boolean).join(", ")
+      : "—";
+    const destinoLabel = destino
+      ? [destino.nombre, destino.localidad].filter(Boolean).join(", ")
+      : "—";
+    return {
+      id: r.id,
+      cliente_id: null,
+      origen: origenLabel,
+      destino: destinoLabel,
+      km_oficiales: Number(r.km_oficiales),
+    };
+  });
+
+  return { clientes, rutas };
+}
+
+export type TarifaFiltros = {
+  busqueda?: string;
+  modalidad?: string;
+  soloActivas?: boolean;
+};
+
+export async function obtenerTarifas(
+  filtros: TarifaFiltros = {},
+): Promise<TarifaConRelaciones[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("tarifas")
+    .select(
+      `*,
+       cliente:cliente_id (razon_social, nombre_comercial),
+       ruta:ruta_id (km_oficiales,
+         origen:puntos_ruta!rutas_origen_id_fkey (nombre, localidad),
+         destino:puntos_ruta!rutas_destino_id_fkey (nombre, localidad))`,
+    )
+    .order("created_at", { ascending: false });
+
+  if (filtros.soloActivas) query = query.eq("activa", true);
+
+  if (filtros.modalidad && filtros.modalidad !== "todas") {
+    query = query.eq("modalidad", filtros.modalidad as Database["public"]["Enums"]["tarifa_modalidad"]);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) {
+    console.error("Error obteniendo tarifas:", error);
+    return [];
+  }
+
+  const busqueda = (filtros.busqueda ?? "").trim().toLowerCase();
+
+  return data
+    .map((row) => {
+      const cliente = row.cliente as
+        | { razon_social: string; nombre_comercial: string | null }
+        | null;
+      const ruta = row.ruta as
+        | {
+            km_oficiales: number;
+            origen: { nombre: string; localidad: string | null } | null;
+            destino: { nombre: string; localidad: string | null } | null;
+          }
+        | null;
+
+      const clienteNombre =
+        cliente?.nombre_comercial ?? cliente?.razon_social ?? "—";
+
+      let rutaLabel: string | null = null;
+      let rutaKm: number | null = null;
+      if (ruta) {
+        const origen = ruta.origen
+          ? [ruta.origen.nombre, ruta.origen.localidad].filter(Boolean).join(", ")
+          : "—";
+        const destino = ruta.destino
+          ? [ruta.destino.nombre, ruta.destino.localidad].filter(Boolean).join(", ")
+          : "—";
+        rutaLabel = `${origen} → ${destino}`;
+        rutaKm = Number(ruta.km_oficiales);
+      }
+
+      const { cliente: _c, ruta: _r, ...resto } = row as typeof row & {
+        cliente?: unknown;
+        ruta?: unknown;
+      };
+
+      return {
+        ...(resto as TarifaRow),
+        cliente_nombre: clienteNombre,
+        ruta_label: rutaLabel,
+        ruta_km: rutaKm,
+      };
+    })
+    .filter((t) => {
+      if (!busqueda) return true;
+      const hay = [
+        t.cliente_nombre,
+        t.ruta_label ?? "",
+        t.observaciones ?? "",
+        t.modalidad,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(busqueda);
+    });
+}
+
+type ActionResult = { success: true; id?: string } | { error: string };
+
+function parseFormToInput(formData: FormData): Parameters<typeof validarTarifa>[0] {
+  return {
+    cliente_id: formData.get("cliente_id"),
+    ruta_id: formData.get("ruta_id"),
+    modalidad: formData.get("modalidad"),
+    valor: formData.get("valor"),
+    moneda: formData.get("moneda"),
+    vigencia_desde: formData.get("vigencia_desde"),
+    vigencia_hasta: formData.get("vigencia_hasta"),
+    observaciones: formData.get("observaciones"),
+  };
+}
+
+function inputToValoresJson(input: TarifaInput, activa: boolean) {
+  return {
+    cliente_id: input.cliente_id,
+    ruta_id: input.ruta_id,
+    modalidad: input.modalidad,
+    valor: input.valor,
+    moneda: input.moneda,
+    vigencia_desde: input.vigencia_desde,
+    vigencia_hasta: input.vigencia_hasta,
+    observaciones: input.observaciones,
+    activa,
+  };
+}
+
+export async function crearTarifa(formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const validacion = validarTarifa(parseFormToInput(formData));
+  if (!validacion.ok) return { error: validacion.error };
+
+  const input = validacion.data;
+  const { data: insertado, error: insertError } = await supabase
+    .from("tarifas")
+    .insert({
+      cliente_id: input.cliente_id,
+      ruta_id: input.ruta_id,
+      modalidad: input.modalidad,
+      valor: input.valor,
+      moneda: input.moneda,
+      vigencia_desde: input.vigencia_desde,
+      vigencia_hasta: input.vigencia_hasta,
+      observaciones: input.observaciones,
+      activa: true,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !insertado) {
+    console.error("Error creando tarifa:", insertError);
+    return { error: "No se pudo crear la tarifa" };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "crear",
+    usuario_id: user.id,
+    entidad_tipo: "tarifa",
+    entidad_id: insertado.id,
+    valores_anteriores: null,
+    valores_nuevos: inputToValoresJson(input, true),
+    metadata: { cliente_id: input.cliente_id, modalidad: input.modalidad },
+  });
+
+  revalidatePath("/tarifas");
+  return { success: true, id: insertado.id };
+}
+
+export async function actualizarTarifa(
+  id: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: actual, error: fetchError } = await supabase
+    .from("tarifas")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !actual) return { error: "Tarifa no encontrada" };
+
+  const validacion = validarTarifa(parseFormToInput(formData));
+  if (!validacion.ok) return { error: validacion.error };
+
+  const input = validacion.data;
+  const sinCambios =
+    actual.cliente_id === input.cliente_id &&
+    actual.ruta_id === input.ruta_id &&
+    actual.modalidad === input.modalidad &&
+    Number(actual.valor) === input.valor &&
+    actual.moneda === input.moneda &&
+    actual.vigencia_desde === input.vigencia_desde &&
+    actual.vigencia_hasta === input.vigencia_hasta &&
+    (actual.observaciones ?? null) === input.observaciones;
+
+  if (sinCambios) return { success: true, id };
+
+  const { error: updateError } = await supabase
+    .from("tarifas")
+    .update({
+      cliente_id: input.cliente_id,
+      ruta_id: input.ruta_id,
+      modalidad: input.modalidad,
+      valor: input.valor,
+      moneda: input.moneda,
+      vigencia_desde: input.vigencia_desde,
+      vigencia_hasta: input.vigencia_hasta,
+      observaciones: input.observaciones,
+    })
+    .eq("id", id);
+
+  if (updateError) {
+    console.error("Error actualizando tarifa:", updateError);
+    return { error: "No se pudo actualizar la tarifa" };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "actualizar",
+    usuario_id: user.id,
+    entidad_tipo: "tarifa",
+    entidad_id: id,
+    valores_anteriores: {
+      cliente_id: actual.cliente_id,
+      ruta_id: actual.ruta_id,
+      modalidad: actual.modalidad,
+      valor: Number(actual.valor),
+      moneda: actual.moneda,
+      vigencia_desde: actual.vigencia_desde,
+      vigencia_hasta: actual.vigencia_hasta,
+      observaciones: actual.observaciones,
+      activa: actual.activa,
+    },
+    valores_nuevos: inputToValoresJson(input, actual.activa),
+    metadata: { cliente_id: input.cliente_id, modalidad: input.modalidad },
+  });
+
+  revalidatePath("/tarifas");
+  return { success: true, id };
+}
+
+export async function cambiarEstadoTarifa(
+  id: string,
+  activa: boolean,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: actual, error: fetchError } = await supabase
+    .from("tarifas")
+    .select("activa, cliente_id, modalidad")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !actual) return { error: "Tarifa no encontrada" };
+  if (actual.activa === activa) return { success: true, id };
+
+  const { error: updateError } = await supabase
+    .from("tarifas")
+    .update({ activa })
+    .eq("id", id);
+
+  if (updateError) {
+    console.error("Error cambiando estado tarifa:", updateError);
+    return { error: "No se pudo cambiar el estado" };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "cambio_estado",
+    usuario_id: user.id,
+    entidad_tipo: "tarifa",
+    entidad_id: id,
+    valores_anteriores: { activa: actual.activa },
+    valores_nuevos: { activa },
+    metadata: { cliente_id: actual.cliente_id, modalidad: actual.modalidad },
+  });
+
+  revalidatePath("/tarifas");
+  return { success: true, id };
+}
+
+export type TarifaHistorialEvento = {
+  id: string;
+  created_at: string;
+  accion: Database["public"]["Enums"]["audit_accion"];
+  valores_anteriores: Record<string, unknown> | null;
+  valores_nuevos: Record<string, unknown> | null;
+  usuario_nombre: string | null;
+  usuario_email: string | null;
+};
+
+export async function obtenerHistorialTarifa(
+  tarifaId: string,
+): Promise<TarifaHistorialEvento[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select(
+      `id, created_at, accion, valores_anteriores, valores_nuevos,
+       usuarios:usuario_id (nombre, apellido, email)`,
+    )
+    .eq("entidad_tipo", "tarifa")
+    .eq("entidad_id", tarifaId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error || !data) {
+    console.error("Error obteniendo historial tarifa:", error);
+    return [];
+  }
+
+  return data.map((row) => {
+    const usuario = row.usuarios as
+      | { nombre: string | null; apellido: string | null; email: string }
+      | null;
+    const nombreCompleto = usuario
+      ? [usuario.nombre, usuario.apellido].filter(Boolean).join(" ").trim() || null
+      : null;
+    return {
+      id: row.id,
+      created_at: row.created_at,
+      accion: row.accion,
+      valores_anteriores: row.valores_anteriores as Record<string, unknown> | null,
+      valores_nuevos: row.valores_nuevos as Record<string, unknown> | null,
+      usuario_nombre: nombreCompleto,
+      usuario_email: usuario?.email ?? null,
+    };
+  });
+}
+
+export async function buscarTarifaAplicable(
+  clienteId: string,
+  rutaId: string | null,
+): Promise<TarifaConRelaciones | null> {
+  const supabase = await createClient();
+  const hoy = new Date().toISOString().slice(0, 10);
+
+  let query = supabase
+    .from("tarifas")
+    .select(
+      `*,
+       cliente:cliente_id (razon_social, nombre_comercial),
+       ruta:ruta_id (km_oficiales,
+         origen:puntos_ruta!rutas_origen_id_fkey (nombre, localidad),
+         destino:puntos_ruta!rutas_destino_id_fkey (nombre, localidad))`,
+    )
+    .eq("cliente_id", clienteId)
+    .eq("activa", true)
+    .lte("vigencia_desde", hoy)
+    .order("vigencia_desde", { ascending: false });
+
+  if (rutaId) {
+    query = query.or(`ruta_id.eq.${rutaId},ruta_id.is.null`);
+  } else {
+    query = query.is("ruta_id", null);
+  }
+
+  const { data, error } = await query.limit(20);
+  if (error || !data || data.length === 0) return null;
+
+  const vigentes = data.filter(
+    (t) => t.vigencia_hasta === null || t.vigencia_hasta >= hoy,
+  );
+  if (vigentes.length === 0) return null;
+
+  const conRuta = vigentes.find((t) => t.ruta_id === rutaId && rutaId !== null);
+  const elegida = conRuta ?? vigentes[0]!;
+
+  const cliente = elegida.cliente as
+    | { razon_social: string; nombre_comercial: string | null }
+    | null;
+  const ruta = elegida.ruta as
+    | {
+        km_oficiales: number;
+        origen: { nombre: string; localidad: string | null } | null;
+        destino: { nombre: string; localidad: string | null } | null;
+      }
+    | null;
+
+  let rutaLabel: string | null = null;
+  let rutaKm: number | null = null;
+  if (ruta) {
+    const origen = ruta.origen
+      ? [ruta.origen.nombre, ruta.origen.localidad].filter(Boolean).join(", ")
+      : "—";
+    const destino = ruta.destino
+      ? [ruta.destino.nombre, ruta.destino.localidad].filter(Boolean).join(", ")
+      : "—";
+    rutaLabel = `${origen} → ${destino}`;
+    rutaKm = Number(ruta.km_oficiales);
+  }
+
+  const { cliente: _c, ruta: _r, ...resto } = elegida as typeof elegida & {
+    cliente?: unknown;
+    ruta?: unknown;
+  };
+
+  return {
+    ...(resto as TarifaRow),
+    cliente_nombre: cliente?.nombre_comercial ?? cliente?.razon_social ?? "—",
+    ruta_label: rutaLabel,
+    ruta_km: rutaKm,
+  };
 }

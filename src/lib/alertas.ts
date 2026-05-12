@@ -1,15 +1,51 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+async function getUmbralesAlertas() {
+  const supabase = createAdminClient();
+  const claves = [
+    "dias_alerta_vencimiento_default",
+    "dias_alerta_cheque",
+    "alerta_critico_dias",
+    "alerta_viatico_pendiente_dias",
+    "alerta_viaje_sin_cerrar_horas",
+  ];
+
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("clave, valor")
+    .in("clave", claves);
+
+  const map: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const num = Number(row.valor);
+    if (Number.isFinite(num)) map[row.clave] = num;
+  }
+
+  return {
+    diasVencimientoDoc: map["dias_alerta_vencimiento_default"] ?? 30,
+    diasVencimientoCheque: map["dias_alerta_cheque"] ?? 30,
+    diasCritico: map["alerta_critico_dias"] ?? 7,
+    diasViaticoPendiente: map["alerta_viatico_pendiente_dias"] ?? 7,
+    horasViajeSinCerrar: map["alerta_viaje_sin_cerrar_horas"] ?? 48,
+  };
+}
+
 export async function generarAlertas() {
   const supabase = createAdminClient();
   const hoy = new Date();
-  const en30dias = new Date(hoy);
-  en30dias.setDate(hoy.getDate() + 30);
-  const hoyStr = hoy.toISOString().split("T")[0];
-  const en30Str = en30dias.toISOString().split("T")[0];
+  const hoyStr = hoy.toISOString().split("T")[0]!;
 
-  // Fetch existing pending alerts to avoid duplicates
+  const umbrales = await getUmbralesAlertas();
+
+  const enDocDias = new Date(hoy);
+  enDocDias.setDate(hoy.getDate() + umbrales.diasVencimientoDoc);
+  const enDocStr = enDocDias.toISOString().split("T")[0]!;
+
+  const enChequeDias = new Date(hoy);
+  enChequeDias.setDate(hoy.getDate() + umbrales.diasVencimientoCheque);
+  const enChequeStr = enChequeDias.toISOString().split("T")[0]!;
+
   const { data: existentes } = await supabase
     .from("alertas")
     .select("entidad_id, tipo")
@@ -36,20 +72,22 @@ export async function generarAlertas() {
     .from("camion_documentos")
     .select("id, camion_id, fecha_vencimiento, camiones(patente), tipos_documento(nombre)")
     .not("fecha_vencimiento", "is", null)
-    .lte("fecha_vencimiento", en30Str)
+    .lte("fecha_vencimiento", enDocStr)
     .gte("fecha_vencimiento", hoyStr);
 
   for (const doc of docsCAMION ?? []) {
     const key = `vencimiento_doc_camion:${doc.id}`;
     if (existentesSet.has(key)) continue;
-    const patente = (doc.camiones as any)?.patente ?? "Camión";
-    const tipoNombre = (doc.tipos_documento as any)?.nombre ?? "documento";
+    const camion = doc.camiones as { patente: string } | null;
+    const tipoDocCamion = doc.tipos_documento as { nombre: string } | null;
+    const patente = camion?.patente ?? "Camión";
+    const tipoNombre = tipoDocCamion?.nombre ?? "documento";
     const diasRestantes = Math.ceil(
       (new Date(doc.fecha_vencimiento!).getTime() - hoy.getTime()) / 86400000
     );
     nuevasAlertas.push({
       tipo: "vencimiento_doc_camion",
-      severidad: diasRestantes <= 7 ? "critica" : "advertencia",
+      severidad: diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia",
       titulo: `Vencimiento: ${tipoNombre} — ${patente}`,
       mensaje: `El documento "${tipoNombre}" del camión ${patente} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
       entidad_id: doc.id,
@@ -64,21 +102,22 @@ export async function generarAlertas() {
     .from("chofer_documentos")
     .select("id, chofer_id, fecha_vencimiento, choferes(nombre, apellido), tipos_documento(nombre)")
     .not("fecha_vencimiento", "is", null)
-    .lte("fecha_vencimiento", en30Str)
+    .lte("fecha_vencimiento", enDocStr)
     .gte("fecha_vencimiento", hoyStr);
 
   for (const doc of docsCHOFER ?? []) {
     const key = `vencimiento_doc_chofer:${doc.id}`;
     if (existentesSet.has(key)) continue;
-    const chofer = (doc.choferes as any);
+    const chofer = doc.choferes as { nombre: string; apellido: string } | null;
+    const tipoDocChofer = doc.tipos_documento as { nombre: string } | null;
     const nombre = chofer ? `${chofer.nombre} ${chofer.apellido}` : "Chofer";
-    const tipoNombre = (doc.tipos_documento as any)?.nombre ?? "documento";
+    const tipoNombre = tipoDocChofer?.nombre ?? "documento";
     const diasRestantes = Math.ceil(
       (new Date(doc.fecha_vencimiento!).getTime() - hoy.getTime()) / 86400000
     );
     nuevasAlertas.push({
       tipo: "vencimiento_doc_chofer",
-      severidad: diasRestantes <= 7 ? "critica" : "advertencia",
+      severidad: diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia",
       titulo: `Vencimiento: ${tipoNombre} — ${nombre}`,
       mensaje: `El documento "${tipoNombre}" del chofer ${nombre} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
       entidad_id: doc.id,
@@ -93,7 +132,7 @@ export async function generarAlertas() {
     .from("cheques")
     .select("id, librador_nombre, importe, fecha_vencimiento")
     .eq("estado", "cartera")
-    .lte("fecha_vencimiento", en30Str)
+    .lte("fecha_vencimiento", enChequeStr)
     .gte("fecha_vencimiento", hoyStr);
 
   for (const cheque of cheques ?? []) {
@@ -104,7 +143,7 @@ export async function generarAlertas() {
     );
     nuevasAlertas.push({
       tipo: "vencimiento_cheque",
-      severidad: diasRestantes <= 7 ? "critica" : "advertencia",
+      severidad: diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia",
       titulo: `Cheque próximo a vencer — ${cheque.librador_nombre}`,
       mensaje: `Cheque de $${Number(cheque.importe).toLocaleString("es-AR")} de ${cheque.librador_nombre} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
       entidad_id: cheque.id,
@@ -115,6 +154,7 @@ export async function generarAlertas() {
   }
 
   if (nuevasAlertas.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);
   }
 

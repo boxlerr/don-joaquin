@@ -3,31 +3,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   type LucideIcon,
   Settings,
-  Building2,
   Mail,
   MessageCircle,
-  Shield,
   History,
   Database,
   FileText,
-  Bell,
-  Wallet,
 } from "lucide-react";
-
-const CATEGORY_META: Record<string, { icon: LucideIcon; titulo: string }> = {
-  general: { icon: Building2, titulo: "Empresa y datos generales" },
-  notificaciones: { icon: Bell, titulo: "Notificaciones" },
-  seguridad: { icon: Shield, titulo: "Seguridad" },
-  liquidacion: { icon: Wallet, titulo: "Liquidación" },
-};
-
-const CATEGORY_ORDER = ["general", "notificaciones", "seguridad", "liquidacion"];
-
-function formatValor(valor: string, tipo: string): string {
-  if (valor === "") return "—";
-  if (tipo === "boolean") return valor === "true" ? "Activado" : "Desactivado";
-  return valor;
-}
+import ParametrosList from "./ParametrosList";
 
 export default async function ConfiguracionPage() {
   const supabase = createAdminClient();
@@ -36,15 +18,6 @@ export default async function ConfiguracionPage() {
     .select("*")
     .order("categoria")
     .order("clave");
-
-  const grouped = (parametros ?? []).reduce<
-    Record<string, NonNullable<typeof parametros>>
-  >((acc, p) => {
-    const cat = p.categoria ?? "general";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat]!.push(p);
-    return acc;
-  }, {});
 
   return (
     <div className="p-8 space-y-8">
@@ -55,42 +28,7 @@ export default async function ConfiguracionPage() {
 
       <div>
         <SectionTitle icon={Settings} label="Parámetros del sistema" />
-        {CATEGORY_ORDER.filter((cat) => grouped[cat]?.length).map((cat) => {
-          const meta = CATEGORY_META[cat] ?? CATEGORY_META.general;
-          const Icon = meta.icon;
-          return (
-            <div key={cat} className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon size={14} className="text-[#475569]" />
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
-                  {meta.titulo}
-                </h3>
-              </div>
-              <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm divide-y divide-[#E2E8F0]">
-                {grouped[cat]!.map((p) => (
-                  <div key={p.id} className="flex items-start gap-4 px-5 py-3.5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[#0F172A] text-sm font-medium">
-                        {p.descripcion ?? p.clave}
-                      </p>
-                      <p className="text-[#94A3B8] text-xs mt-0.5 font-mono">{p.clave}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[#0F172A] text-sm font-semibold">
-                        {formatValor(p.valor, p.tipo_dato)}
-                      </p>
-                      {!p.editable && (
-                        <span className="inline-block mt-1 text-[10px] text-[#94A3B8] uppercase tracking-wide">
-                          Solo lectura
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+        <ParametrosList parametros={parametros ?? []} />
       </div>
 
       <div>
