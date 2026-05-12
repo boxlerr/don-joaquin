@@ -24,6 +24,7 @@ export type Database = {
           fecha_vencimiento: string | null
           id: string
           mensaje: string
+          notificacion_procesada: boolean
           severidad: Database["public"]["Enums"]["alerta_severidad"]
           tipo: Database["public"]["Enums"]["alerta_tipo"]
           titulo: string
@@ -39,6 +40,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           id?: string
           mensaje: string
+          notificacion_procesada?: boolean
           severidad?: Database["public"]["Enums"]["alerta_severidad"]
           tipo: Database["public"]["Enums"]["alerta_tipo"]
           titulo: string
@@ -54,6 +56,7 @@ export type Database = {
           fecha_vencimiento?: string | null
           id?: string
           mensaje?: string
+          notificacion_procesada?: boolean
           severidad?: Database["public"]["Enums"]["alerta_severidad"]
           tipo?: Database["public"]["Enums"]["alerta_tipo"]
           titulo?: string
@@ -1167,6 +1170,56 @@ export type Database = {
           },
         ]
       }
+      configuracion_notificaciones: {
+        Row: {
+          alertas_por_recibir: Json
+          created_at: string
+          habilitar_email: boolean
+          habilitar_whatsapp: boolean
+          horario_silencio_fin: string | null
+          horario_silencio_inicio: string | null
+          id: string
+          severidad_minima_whatsapp: string
+          telefono_verificado: boolean
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          alertas_por_recibir?: Json
+          created_at?: string
+          habilitar_email?: boolean
+          habilitar_whatsapp?: boolean
+          horario_silencio_fin?: string | null
+          horario_silencio_inicio?: string | null
+          id?: string
+          severidad_minima_whatsapp?: string
+          telefono_verificado?: boolean
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          alertas_por_recibir?: Json
+          created_at?: string
+          habilitar_email?: boolean
+          habilitar_whatsapp?: boolean
+          horario_silencio_fin?: string | null
+          horario_silencio_inicio?: string | null
+          id?: string
+          severidad_minima_whatsapp?: string
+          telefono_verificado?: boolean
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "configuracion_notificaciones_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cta_cte_movimientos: {
         Row: {
           categoria: Database["public"]["Enums"]["cta_cte_categoria"]
@@ -1790,7 +1843,10 @@ export type Database = {
           fecha_programada: string | null
           id: string
           intentos: number
+          metadata: Json | null
           provider_id: string | null
+          provider_status: string | null
+          ultimo_intento_en: string | null
           usuario_id: string | null
         }
         Insert: {
@@ -1806,7 +1862,10 @@ export type Database = {
           fecha_programada?: string | null
           id?: string
           intentos?: number
+          metadata?: Json | null
           provider_id?: string | null
+          provider_status?: string | null
+          ultimo_intento_en?: string | null
           usuario_id?: string | null
         }
         Update: {
@@ -1822,7 +1881,10 @@ export type Database = {
           fecha_programada?: string | null
           id?: string
           intentos?: number
+          metadata?: Json | null
           provider_id?: string | null
+          provider_status?: string | null
+          ultimo_intento_en?: string | null
           usuario_id?: string | null
         }
         Relationships: [
@@ -2039,6 +2101,47 @@ export type Database = {
           {
             foreignKeyName: "parametros_sistema_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plantillas_pdf: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descripcion: string
+          estado: Database["public"]["Enums"]["plantilla_estado"]
+          id: string
+          nombre: string
+          tipo: Database["public"]["Enums"]["plantilla_tipo"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string
+          estado?: Database["public"]["Enums"]["plantilla_estado"]
+          id?: string
+          nombre: string
+          tipo: Database["public"]["Enums"]["plantilla_tipo"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string
+          estado?: Database["public"]["Enums"]["plantilla_estado"]
+          id?: string
+          nombre?: string
+          tipo?: Database["public"]["Enums"]["plantilla_tipo"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plantillas_pdf_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
@@ -3189,6 +3292,8 @@ export type Database = {
       notificacion_estado: "pendiente" | "enviada" | "error" | "rebotada"
       pago_medio: "efectivo" | "transferencia" | "cheque" | "compensacion"
       parametro_tipo_dato: "string" | "number" | "boolean" | "json"
+      plantilla_estado: "activo" | "desarrollo" | "eliminada"
+      plantilla_tipo: "remito" | "factura" | "gasoil" | "liquidacion"
       punto_estado: "activo" | "inactivo"
       punto_tipo: "planta_propia" | "cliente" | "proveedor" | "puerto" | "otro"
       ruta_estado: "activa" | "inactiva"
@@ -3462,6 +3567,8 @@ export const Constants = {
       notificacion_estado: ["pendiente", "enviada", "error", "rebotada"],
       pago_medio: ["efectivo", "transferencia", "cheque", "compensacion"],
       parametro_tipo_dato: ["string", "number", "boolean", "json"],
+      plantilla_estado: ["activo", "desarrollo", "eliminada"],
+      plantilla_tipo: ["remito", "factura", "gasoil", "liquidacion"],
       punto_estado: ["activo", "inactivo"],
       punto_tipo: ["planta_propia", "cliente", "proveedor", "puerto", "otro"],
       ruta_estado: ["activa", "inactiva"],
@@ -3485,3 +3592,4 @@ export const Constants = {
     },
   },
 } as const
+
