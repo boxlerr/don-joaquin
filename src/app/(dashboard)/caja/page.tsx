@@ -12,11 +12,14 @@ import {
 } from "@/components/ui/table";
 import { Wallet, ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AddIngresoDialog from "./components/AddIngresoDialog";
+import AddEgresoDialog from "./components/AddEgresoDialog";
+import AddViaticoDialog from "./components/AddViaticoDialog";
 
 export default async function CajaPage() {
   const supabase = createAdminClient();
 
-  const [{ data: tiposGasto }, { count: totalMovimientos }] = await Promise.all([
+  const [{ data: tiposGasto }, { count: totalMovimientos }, { data: choferes }] = await Promise.all([
     supabase
       .from("tipos_gasto")
       .select("id, nombre, categoria")
@@ -24,6 +27,7 @@ export default async function CajaPage() {
       .order("categoria")
       .order("nombre"),
     supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
+    supabase.from("choferes").select("id, nombre, apellido").eq("estado", "activo").order("apellido"),
   ]);
 
   return (
@@ -33,18 +37,24 @@ export default async function CajaPage() {
         description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Receipt size={14} />
-              Registrar viático
-            </Button>
-            <Button variant="outline" size="sm">
-              <ArrowUpRight size={14} />
-              Ingreso
-            </Button>
-            <Button variant="brand" size="sm">
-              <ArrowDownRight size={14} />
-              Egreso
-            </Button>
+            <AddViaticoDialog choferes={choferes || []}>
+              <Button variant="outline" size="sm">
+                <Receipt size={14} />
+                Registrar viático
+              </Button>
+            </AddViaticoDialog>
+            <AddIngresoDialog>
+              <Button variant="outline" size="sm">
+                <ArrowUpRight size={14} />
+                Ingreso
+              </Button>
+            </AddIngresoDialog>
+            <AddEgresoDialog tiposGasto={tiposGasto || []}>
+              <Button variant="brand" size="sm">
+                <ArrowDownRight size={14} />
+                Egreso
+              </Button>
+            </AddEgresoDialog>
           </div>
         }
       />
