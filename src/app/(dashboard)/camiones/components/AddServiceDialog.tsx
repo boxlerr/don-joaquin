@@ -100,13 +100,7 @@ export default function AddServiceDialog({
               <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
               <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
                 <SelectTrigger id="camion" className="w-full">
-                  <SelectValue placeholder="Seleccionar camión...">
-                    {(value: string) => {
-                      if (!value) return "Seleccionar camión...";
-                      const c = camiones.find((c: any) => c.id === value);
-                      return c ? `${c.patente} - ${c.marca} ${c.modelo}` : "Seleccionar camión...";
-                    }}
-                  </SelectValue>
+                  <SelectValue placeholder="Seleccionar camión..." />
                 </SelectTrigger>
                 <SelectContent>
                   {camiones.map((c) => (
@@ -134,16 +128,7 @@ export default function AddServiceDialog({
               <Label htmlFor="tipo_service" className="text-sm font-medium text-[#1E293B]">Tipo de Service</Label>
               <Select value={tipo} onValueChange={(v) => setTipo((v ?? "service_preventivo") as MantenimientoTipo)}>
                 <SelectTrigger id="tipo_service" className="w-full">
-                  <SelectValue placeholder="Seleccionar tipo...">
-                    {(value: string) => {
-                      if (value === "service_preventivo") return "Mantenimiento Preventivo";
-                      if (value === "reparacion") return "Reparación";
-                      if (value === "cambio_aceite") return "Cambio de Aceite/Filtros";
-                      if (value === "cubiertas") return "Neumáticos";
-                      if (value === "otro") return "Otro";
-                      return "Seleccionar tipo...";
-                    }}
-                  </SelectValue>
+                  <SelectValue placeholder="Seleccionar tipo..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="service_preventivo">Mantenimiento Preventivo</SelectItem>

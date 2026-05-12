@@ -99,15 +99,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
               <Label htmlFor="estado" className="text-sm font-medium text-[#1E293B]">Estado</Label>
               <Select value={estado} onValueChange={(v) => setEstado(v ?? "activo")}>
                 <SelectTrigger id="estado" className="w-full">
-                  <SelectValue placeholder="Seleccionar estado">
-                    {(value: string) => {
-                      if (value === "activo") return "Activo";
-                      if (value === "en_mantenimiento") return "En Mantenimiento";
-                      if (value === "inactivo") return "Inactivo";
-                      if (value === "baja") return "Baja";
-                      return "Seleccionar estado";
-                    }}
-                  </SelectValue>
+                  <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="activo">Activo</SelectItem>
@@ -170,15 +162,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
               <Label htmlFor="tipo" className="text-sm font-medium text-[#1E293B]">Tipo</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "otro")}>
                 <SelectTrigger id="tipo" className="w-full">
-                  <SelectValue placeholder="Seleccionar tipo">
-                    {(value: string) => {
-                      if (value === "tractor") return "Tractor";
-                      if (value === "chasis_rigido") return "Chasis Rígido";
-                      if (value === "batea") return "Batea";
-                      if (value === "otro") return "Otro";
-                      return "Seleccionar tipo";
-                    }}
-                  </SelectValue>
+                  <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tractor">Tractor</SelectItem>

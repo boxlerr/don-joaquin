@@ -57,9 +57,9 @@ export default function CamionDetailSheet({
   const [gasoilLoaded, setGasoilLoaded] = useState(false);
   const [loadingGasoil, setLoadingGasoil] = useState(false);
 
-  // Reset all state when the truck changes
+  // Refrescar y cargar la información cuando se abra la hoja o cambie el camión
   useEffect(() => {
-    if (camion) {
+    if (camion && open) {
       setFormData({
         patente: camion.patente || "",
         marca: camion.marca || "",
@@ -69,18 +69,19 @@ export default function CamionDetailSheet({
         tipo_camion: camion.tipo_camion || "otro",
         estado: camion.estado || "activo",
       });
-      setActiveTab("info");
-      setServices([]);
-      setServicesPage(0);
-      setServicesHasMore(false);
+      // Forzar siempre la recarga de los datos para garantizar frescura
       setServicesLoaded(false);
-      setGasoil([]);
-      setGasoilPage(0);
-      setGasoilHasMore(false);
       setGasoilLoaded(false);
       setError(null);
+
+      // Si se abre directo en una tab en particular, cargarla
+      if (activeTab === "services") {
+        fetchServices(0);
+      } else if (activeTab === "gasoil") {
+        fetchGasoil(0);
+      }
     }
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchServices = useCallback(async (page: number) => {
     setLoadingServices(true);
@@ -110,8 +111,9 @@ export default function CamionDetailSheet({
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    if (tab === "services" && !servicesLoaded) fetchServices(0);
-    if (tab === "gasoil" && !gasoilLoaded) fetchGasoil(0);
+    // Siempre buscar de nuevo al cambiar a la pestaña para obtener las cargas recientes
+    if (tab === "services") fetchServices(0);
+    if (tab === "gasoil") fetchGasoil(0);
   };
 
   const handleUpdate = async () => {
@@ -246,15 +248,7 @@ export default function CamionDetailSheet({
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Estado">
-                        {(value: string) => {
-                          if (value === "activo") return "Activo";
-                          if (value === "en_mantenimiento") return "En Mantenimiento";
-                          if (value === "inactivo") return "Inactivo";
-                          if (value === "baja") return "Baja";
-                          return "Estado";
-                        }}
-                      </SelectValue>
+                      <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="activo">Activo</SelectItem>
@@ -310,15 +304,7 @@ export default function CamionDetailSheet({
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Tipo">
-                        {(value: string) => {
-                          if (value === "tractor") return "Tractor";
-                          if (value === "chasis_rigido") return "Chasis Rígido";
-                          if (value === "batea") return "Batea";
-                          if (value === "otro") return "Otro";
-                          return "Tipo";
-                        }}
-                      </SelectValue>
+                      <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="tractor">Tractor</SelectItem>

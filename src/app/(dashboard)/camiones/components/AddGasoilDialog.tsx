@@ -93,13 +93,7 @@ export default function AddGasoilDialog({
             <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
             <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
               <SelectTrigger id="camion" className="w-full">
-                <SelectValue placeholder="Seleccionar camión...">
-                  {(value: string) => {
-                    if (!value) return "Seleccionar camión...";
-                    const c = camiones.find((c: any) => c.id === value);
-                    return c ? `${c.patente} - ${c.marca} ${c.modelo}` : "Seleccionar camión...";
-                  }}
-                </SelectValue>
+                <SelectValue placeholder="Seleccionar camión..." />
               </SelectTrigger>
               <SelectContent>
                 {camiones.map((c) => (
@@ -166,13 +160,7 @@ export default function AddGasoilDialog({
               <Label htmlFor="tipo" className="text-sm font-medium text-[#1E293B]">Tipo de combustible</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "grado_2")}>
                 <SelectTrigger id="tipo" className="w-full">
-                  <SelectValue placeholder="Seleccionar...">
-                    {(value: string) => {
-                      if (value === "grado_2") return "Gasoil Grado 2 (Común)";
-                      if (value === "grado_3") return "Gasoil Grado 3 (Premium)";
-                      return "Seleccionar...";
-                    }}
-                  </SelectValue>
+                  <SelectValue placeholder="Seleccionar..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="grado_2">Gasoil Grado 2 (Común)</SelectItem>

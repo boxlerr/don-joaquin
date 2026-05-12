@@ -1,5 +1,6 @@
 "use server";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { Database } from "@/types/database";
@@ -15,15 +16,9 @@ export async function addCamionAction(data: {
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
 }) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("No autenticado");
-  }
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
 
   const camion: CamionInsert = {
     patente: data.patente,
@@ -33,7 +28,7 @@ export async function addCamionAction(data: {
     capacidad_tn: data.capacidad_tn,
     tipo_camion: data.tipo_camion,
     estado: data.estado,
-    created_by: user.id,
+    created_by: user?.id ?? null,
   };
 
   const { error } = await supabase.from("camiones").insert(camion);
@@ -56,7 +51,7 @@ export async function updateCamionAction(id: string, data: {
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("camiones")
@@ -82,7 +77,7 @@ export async function updateCamionAction(id: string, data: {
 }
 
 export async function deleteCamionAction(id: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("camiones")
@@ -109,9 +104,9 @@ export async function addServiceAction(data: {
   descripcion: string;
   observaciones?: string;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
 
   const { error } = await supabase.from("mantenimientos").insert({
     camion_id: data.camion_id,
@@ -124,7 +119,7 @@ export async function addServiceAction(data: {
     descripcion: data.descripcion,
     observaciones: data.observaciones,
     moneda: "ARS",
-    created_by: user.id,
+    created_by: user?.id ?? null,
   });
 
   if (error) {
@@ -145,9 +140,9 @@ export async function addGasoilAction(data: {
   estacion?: string;
   observaciones?: string;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("No autenticado");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
 
   const { error } = await supabase.from("cargas_combustible").insert({
     camion_id: data.camion_id,
@@ -159,7 +154,7 @@ export async function addGasoilAction(data: {
     observaciones: data.observaciones,
     moneda: "ARS",
     origen: "estacion_servicio",
-    created_by: user.id,
+    created_by: user?.id ?? null,
   });
 
   if (error) {
@@ -174,7 +169,7 @@ export async function addGasoilAction(data: {
 const HISTORY_PAGE_SIZE = 20;
 
 export async function getServiceHistoryAction(camionId: string, page = 0) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const from = page * HISTORY_PAGE_SIZE;
   const to = from + HISTORY_PAGE_SIZE - 1;
 
@@ -192,7 +187,7 @@ export async function getServiceHistoryAction(camionId: string, page = 0) {
 }
 
 export async function getGasoilHistoryAction(camionId: string, page = 0) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const from = page * HISTORY_PAGE_SIZE;
   const to = from + HISTORY_PAGE_SIZE - 1;
 
