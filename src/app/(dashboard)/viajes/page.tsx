@@ -2,9 +2,11 @@ import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import { MapPin, Plus, Download, X } from "lucide-react";
+import { MapPin, Download, X } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ViajesTable from "./components/ViajesTable";
+import NewViajeSheet from "./components/new-viaje-sheet";
+import { getViajeFormData } from "./actions";
 
 export default async function ViajesPage({
   searchParams,
@@ -40,10 +42,14 @@ export default async function ViajesPage({
   const [
     [total, enCurso, pendientes, sinFacturar, internacionales],
     choferResult,
+    formData,
   ] = await Promise.all([
     Promise.all(statsQuery),
     choferQuery ?? Promise.resolve(null),
+    getViajeFormData(),
   ]);
+
+  const viajeFormData = "error" in formData ? null : formData;
 
   const choferNombre =
     choferResult && "data" in choferResult && choferResult.data
@@ -61,10 +67,7 @@ export default async function ViajesPage({
               <Download size={14} />
               Exportar
             </Button>
-            <Button variant="brand" size="sm">
-              <Plus size={14} />
-              Nuevo viaje
-            </Button>
+            {viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }
       />
