@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addIngresoAction } from "../actions";
 
+const CATEGORIA_LABEL: Record<string, string> = {
+  cobro_cliente: "Cobro a Cliente",
+  rendicion_vuelto: "Rendición / Vuelto",
+  transferencia_interna: "Transferencia Interna",
+  ajuste: "Ajuste Positivo",
+  otro: "Otro Ingreso",
+};
+
+const MEDIO_LABEL: Record<string, string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  cheque: "Cheque",
+  otro: "Otro",
+};
+
 export default function AddIngresoDialog({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +63,8 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
         setOpen(false);
         setConcepto("");
         setMonto("");
+        window.dispatchEvent(new CustomEvent("caja:refresh"));
+        router.refresh();
       }
     } catch {
       setError("Error al registrar el ingreso.");
@@ -113,7 +132,9 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
               <Label htmlFor="ing-categoria" className="text-sm font-medium text-[#1E293B]">Categoría</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as any)}>
                 <SelectTrigger id="ing-categoria" className="w-full">
-                  <SelectValue placeholder="Categoría" />
+                  <SelectValue placeholder="Categoría">
+                    {(value: unknown) => CATEGORIA_LABEL[value as string] ?? null}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cobro_cliente">Cobro a Cliente</SelectItem>
@@ -128,7 +149,9 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
               <Label htmlFor="ing-medio" className="text-sm font-medium text-[#1E293B]">Medio de cobro</Label>
               <Select value={medio} onValueChange={(v) => setMedio(v as any)}>
                 <SelectTrigger id="ing-medio" className="w-full">
-                  <SelectValue placeholder="Medio" />
+                  <SelectValue placeholder="Medio">
+                    {(value: unknown) => MEDIO_LABEL[value as string] ?? null}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="efectivo">Efectivo</SelectItem>

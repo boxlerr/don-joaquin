@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addViaticoAction } from "../actions";
 
+const MEDIO_LABEL: Record<string, string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  otro: "Otro",
+};
+
 export default function AddViaticoDialog({
   children,
   choferes,
@@ -23,6 +30,7 @@ export default function AddViaticoDialog({
   children: React.ReactNode;
   choferes?: { id: string; nombre: string; apellido: string }[];
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +65,8 @@ export default function AddViaticoDialog({
         setConcepto("");
         setMonto("");
         setChoferId("");
+        window.dispatchEvent(new CustomEvent("caja:refresh"));
+        router.refresh();
       }
     } catch {
       setError("Error al registrar el viático.");
@@ -87,7 +97,12 @@ export default function AddViaticoDialog({
             <Label htmlFor="viat-chofer" className="text-sm font-medium text-[#1E293B]">Chofer receptor</Label>
             <Select value={choferId} onValueChange={(v) => setChoferId(v ?? "")}>
               <SelectTrigger id="viat-chofer" className="w-full">
-                <SelectValue placeholder="Seleccionar chofer..." />
+                <SelectValue placeholder="Seleccionar chofer...">
+                  {(value: unknown) => {
+                    const c = choferes?.find((c) => c.id === value);
+                    return c ? `${c.apellido}, ${c.nombre}` : null;
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {choferes && choferes.length > 0 ? (
@@ -142,7 +157,9 @@ export default function AddViaticoDialog({
             <Label htmlFor="viat-medio" className="text-sm font-medium text-[#1E293B]">Medio de entrega</Label>
             <Select value={medioEntrega} onValueChange={(v) => setMedioEntrega(v as any)}>
               <SelectTrigger id="viat-medio" className="w-full">
-                <SelectValue placeholder="Medio" />
+                <SelectValue placeholder="Medio">
+                  {(value: unknown) => MEDIO_LABEL[value as string] ?? null}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="efectivo">Efectivo</SelectItem>
