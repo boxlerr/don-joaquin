@@ -1,51 +1,54 @@
+import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
-import { MapPin, Plus, Filter, Download } from "lucide-react";
+import { MapPin, Plus, Download, X } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import ViajesTable from "./components/ViajesTable";
 
-export default async function ViajesPage() {
+export default async function ViajesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ choferId?: string }>;
+}) {
+  const { choferId } = await searchParams;
   const supabase = createAdminClient();
 
-  const [
-    total,
-    enCurso,
-    pendientes,
-    sinFacturar,
-    internacionales,
-    clientes,
-    choferes,
-    camiones,
-  ] = await Promise.all([
+  const statsQuery = [
     supabase.from("viajes").select("*", { count: "exact", head: true }),
     supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "en_curso"),
     supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
-    supabase.from("viajes").select("*", { count: "exact", head: true }).eq("facturado", false),
+    supabase
+      .from("viajes")
+      .select("*", { count: "exact", head: true })
+      .eq("facturado", false)
+      .neq("estado", "cancelado"),
     supabase
       .from("viajes")
       .select("*", { count: "exact", head: true })
       .eq("es_internacional", true),
-    supabase
-      .from("clientes")
-      .select("id, razon_social")
-      .eq("estado", "activo")
-      .order("razon_social"),
-    supabase
-      .from("choferes")
-      .select("id, nombre, apellido")
-      .eq("estado", "activo")
-      .order("apellido"),
-    supabase.from("camiones").select("id, patente").eq("estado", "activo").order("patente"),
+  ] as const;
+
+  const choferQuery = choferId
+    ? supabase
+        .from("choferes")
+        .select("nombre, apellido")
+        .eq("id", choferId)
+        .single()
+    : null;
+
+  const [
+    [total, enCurso, pendientes, sinFacturar, internacionales],
+    choferResult,
+  ] = await Promise.all([
+    Promise.all(statsQuery),
+    choferQuery ?? Promise.resolve(null),
   ]);
+
+  const choferNombre =
+    choferResult && "data" in choferResult && choferResult.data
+      ? `${choferResult.data.apellido}, ${choferResult.data.nombre}`
+      : null;
 
   return (
     <div className="p-8">
@@ -84,83 +87,28 @@ export default async function ViajesPage() {
         />
       </div>
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
+      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm mb-1">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <MapPin size={16} className="text-[#0088D1]" />
             <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Viajes</h2>
-          </div>
-          <Button variant="ghost" size="sm">
-            <Filter size={14} />
-            Filtros
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-6 gap-3 px-5 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
-          <Input type="date" className="text-sm" />
-          <Input type="date" className="text-sm" />
-          <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
-            <option value="">Todos los clientes ({clientes.data?.length ?? 0})</option>
-            {clientes.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.razon_social}
-              </option>
-            ))}
-          </select>
-          <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
-            <option value="">Todos los choferes ({choferes.data?.length ?? 0})</option>
-            {choferes.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.apellido}, {c.nombre}
-              </option>
-            ))}
-          </select>
-          <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
-            <option value="">Todos los camiones ({camiones.data?.length ?? 0})</option>
-            {camiones.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.patente}
-              </option>
-            ))}
-          </select>
-          <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
-            <option>Todos los estados</option>
-            <option>Pendiente</option>
-            <option>En curso</option>
-            <option>Cerrado</option>
-          </select>
-        </div>
-
-        <Table>
-          <TableHeader className="bg-[#F8FAFC]">
-            <TableRow>
-              {[
-                "Fecha",
-                "Origen → Destino",
-                "Cliente",
-                "Camión",
-                "Chofer",
-                "Tipo carga",
-                "KM",
-                "Tonelaje",
-                "Remito",
-                "Facturación",
-                "Estado",
-              ].map((col) => (
-                <TableHead
-                  key={col}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+            {choferNombre && (
+              <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-[#E1F5FE] text-[#0088D1] border border-[#0088D1]/20">
+                Filtrado por: {choferNombre}
+                <Link
+                  href="/viajes"
+                  className="flex items-center hover:text-[#004A99] transition-colors"
+                  aria-label="Limpiar filtro de chofer"
                 >
-                  {col}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <EmptyTableRow message="Sin viajes registrados" />
-          </TableBody>
-        </Table>
+                  <X size={12} />
+                </Link>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
+
+      <ViajesTable choferId={choferId} />
     </div>
   );
 }

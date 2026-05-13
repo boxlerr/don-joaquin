@@ -4,7 +4,8 @@ import { useState } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, RefreshCw, Trash2, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronRight, RefreshCw, Trash2, Loader2, MapPin } from "lucide-react";
 import { updateChoferEstadoAction, deleteChoferAction } from "../actions";
 import { getChoferDetailAction } from "../[id]/actions";
 import ChoferInfoTab from "../[id]/ChoferInfoTab";
@@ -128,6 +129,15 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
                   className="flex items-center gap-2 pl-4 py-2 flex-shrink-0"
                   onClick={(e) => e.stopPropagation()}
                 >
+                  <Link
+                    href={`/viajes?choferId=${chofer.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 h-7 px-3 text-xs font-medium rounded-md border border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC] transition-colors"
+                    aria-label={`Ver viajes de ${chofer.apellido}, ${chofer.nombre}`}
+                  >
+                    <MapPin size={12} className="text-[#0088D1]" />
+                    Ver viajes
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"
