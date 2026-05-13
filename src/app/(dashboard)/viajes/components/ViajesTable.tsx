@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Eye, Loader2, X } from "lucide-react";
 import { getViajesAction } from "../actions";
 import type { ViajeBasico } from "../types";
+import HelpTutorialButton from "../help-tutorial-button";
 
 interface Props {
   choferId?: string;
@@ -120,6 +121,7 @@ export default function ViajesTable({ choferId }: Props) {
     <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+        <HelpTutorialButton />
         <Input
           type="date"
           value={desde}
