@@ -81,13 +81,13 @@ export default async function CajaPage() {
               </Button>
             </AddViaticoDialog>
             <AddIngresoDialog>
-              <Button variant="outline" size="sm">
+              <Button variant="success" size="sm">
                 <ArrowUpRight size={14} />
                 Ingreso
               </Button>
             </AddIngresoDialog>
             <AddEgresoDialog tiposGasto={tiposGasto || []}>
-              <Button variant="brand" size="sm">
+              <Button variant="danger" size="sm">
                 <ArrowDownRight size={14} />
                 Egreso
               </Button>

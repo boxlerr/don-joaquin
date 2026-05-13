@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { FileText, Plus, Download } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import AddChequeDialog from "./components/AddChequeDialog";
 
 const TABS = [
   { label: "Todos" },
@@ -26,9 +27,14 @@ const TABS = [
 export default async function ChequesPage() {
   const supabase = createAdminClient();
 
-  const [{ data: bancos }, { count: totalCheques }] = await Promise.all([
+  const [{ data: bancos }, { count: totalCheques }, { data: clientes }] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
     supabase.from("cheques").select("*", { count: "exact", head: true }),
+    supabase
+      .from("clientes")
+      .select("id, razon_social")
+      .eq("estado", "activo")
+      .order("razon_social"),
   ]);
 
   return (
@@ -42,10 +48,12 @@ export default async function ChequesPage() {
               <Download size={14} />
               Exportar
             </Button>
-            <Button variant="brand" size="sm">
-              <Plus size={14} />
-              Registrar cheque
-            </Button>
+            <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>
+              <Button variant="brand" size="sm">
+                <Plus size={14} />
+                Registrar cheque
+              </Button>
+            </AddChequeDialog>
           </div>
         }
       />

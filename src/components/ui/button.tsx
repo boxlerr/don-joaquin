@@ -10,6 +10,10 @@ const buttonVariants = cva(
       variant: {
         brand:
           "bg-[#0088D1] text-white shadow-sm hover:bg-[#0277BD] focus-visible:border-[#0088D1] focus-visible:ring-[#0088D1]/30",
+        success:
+          "bg-[#10B981] text-white shadow-sm hover:bg-[#059669] focus-visible:border-[#10B981] focus-visible:ring-[#10B981]/30",
+        danger:
+          "bg-[#EF4444] text-white shadow-sm hover:bg-[#DC2626] focus-visible:border-[#EF4444] focus-visible:ring-[#EF4444]/30",
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
