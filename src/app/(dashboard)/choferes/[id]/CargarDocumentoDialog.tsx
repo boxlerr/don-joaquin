@@ -133,7 +133,13 @@ export default function CargarDocumentoDialog({
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Seleccionar tipo..." />
+                    <SelectValue placeholder="Seleccionar tipo...">
+                      {tipoId
+                        ? tipoId === "__otro__"
+                          ? "Otro..."
+                          : tipos.find((t) => t.id === tipoId)?.nombre
+                        : undefined}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {tipos.map((t) => (
