@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import React, { useState, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -15,8 +15,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
-import { Eye, Loader2, X } from "lucide-react";
-import { getViajesAction } from "../actions";
+import {
+  Eye,
+  Loader2,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  CheckCircle2,
+  PlayCircle,
+  Clock,
+  Coins,
+  FileText,
+  Truck,
+  User,
+} from "lucide-react";
+import { getViajesAction, deleteViajeAction, updateViajeEstadoAction } from "../actions";
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 
@@ -31,7 +45,17 @@ const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
   cancelado: "error",
 };
 
-const COLUMNS = ["Fecha", "Origen", "Destino", "KM", "Estado", "Facturado", ""];
+const COLUMNS = [
+  "Fecha",
+  "Cliente",
+  "Origen",
+  "Destino",
+  "KM",
+  "Toneladas",
+  "Estado",
+  "Facturado",
+  "",
+];
 
 export default function ViajesTable({ choferId }: Props) {
   const router = useRouter();
@@ -42,6 +66,10 @@ export default function ViajesTable({ choferId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
@@ -208,52 +236,207 @@ export default function ViajesTable({ choferId }: Props) {
             <EmptyTableRow message="Sin viajes registrados" />
           ) : (
             rows.map((v) => (
-              <TableRow
-                key={v.id}
-                className="hover:bg-[#F8FAFC] transition-colors"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") router.push(`/viajes/${v.id}`);
-                }}
-              >
-                <TableCell className="text-sm text-[#475569]">
-                  {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
-                </TableCell>
-                <TableCell className="text-sm text-[#475569]">
-                  {v.origen ?? "—"}
-                </TableCell>
-                <TableCell className="text-sm text-[#475569]">
-                  {v.destino ?? "—"}
-                </TableCell>
-                <TableCell className="text-sm text-[#475569] font-mono">
-                  {v.km_totales.toLocaleString("es-AR")} km
-                </TableCell>
-                <TableCell>
-                  <StatusBadge
-                    label={v.estado.replace("_", " ")}
-                    tone={ESTADO_TONE[v.estado] ?? "neutral"}
-                  />
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={`text-xs font-medium ${
-                      v.facturado ? "text-[#10B981]" : "text-[#94A3B8]"
-                    }`}
-                  >
-                    {v.facturado ? "Sí" : "No"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Ver viaje ${v.codigo}`}
-                    onClick={() => router.push(`/viajes/${v.id}`)}
-                  >
-                    <Eye size={14} />
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <React.Fragment key={v.id}>
+                <TableRow
+                  className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                  tabIndex={0}
+                  onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setExpandedId(expandedId === v.id ? null : v.id);
+                  }}
+                >
+                  <TableCell className="text-sm text-[#475569]">
+                    {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                  </TableCell>
+                  <TableCell className="text-sm font-medium text-[#0F172A]">
+                    {v.cliente ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#475569]">
+                    {v.origen ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#475569]">
+                    {v.destino ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#475569] font-mono">
+                    {v.km_totales.toLocaleString("es-AR")} km
+                  </TableCell>
+                  <TableCell className="text-sm text-[#475569] font-mono">
+                    {v.toneladas ?? 0} tn
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      label={v.estado.replace("_", " ")}
+                      tone={ESTADO_TONE[v.estado] ?? "neutral"}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={`text-xs font-medium ${
+                        v.facturado ? "text-[#10B981]" : "text-[#94A3B8]"
+                      }`}
+                    >
+                      {v.facturado ? "Sí" : "No"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Expandir detalles"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedId(expandedId === v.id ? null : v.id);
+                      }}
+                    >
+                      {expandedId === v.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+
+                {/* Sub-fila Desplegable de Detalles */}
+                {expandedId === v.id && (
+                  <TableRow className="bg-[#F8FAFC]/60 hover:bg-[#F8FAFC]/60">
+                    <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-[#E2E8F0]">
+                      <div className="p-6 grid grid-cols-3 gap-6 animate-in fade-in-50 duration-200">
+                        {/* Detalles Operativos */}
+                        <div className="space-y-3 bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
+                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
+                            <User size={14} className="text-[#0088D1]" /> Chofer Asignado
+                          </h4>
+                          <p className="text-sm font-medium text-[#334155]">{v.chofer ?? "—"}</p>
+
+                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2 pt-2">
+                            <Truck size={14} className="text-[#0088D1]" /> Vehículo / Patente
+                          </h4>
+                          <p className="text-sm font-medium text-[#334155]">{v.camion ?? "—"}</p>
+                        </div>
+
+                        {/* Finanzas y Distancias Parciales */}
+                        <div className="space-y-3 bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
+                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
+                            <Coins size={14} className="text-[#10B981]" /> Flete y Distancias
+                          </h4>
+                          <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                            <span className="text-[#64748B]">Monto Flete:</span>
+                            <span className="font-semibold text-[#0F172A] text-right">
+                              {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
+                            </span>
+                            <span className="text-[#64748B]">KM con Carga:</span>
+                            <span className="font-mono text-[#334155] text-right">{v.km_con_carga ?? 0} km</span>
+                            <span className="text-[#64748B]">KM Vacíos:</span>
+                            <span className="font-mono text-[#334155] text-right">{v.km_vacios ?? 0} km</span>
+                          </div>
+                        </div>
+
+                        {/* Notas y Acciones Operativas */}
+                        <div className="space-y-3 flex flex-col justify-between bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
+                          <div>
+                            <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
+                              <FileText size={14} className="text-[#F59E0B]" /> Notas / Descripción
+                            </h4>
+                            <p className="text-xs text-[#475569] pt-1.5 italic line-clamp-3">
+                              {v.observaciones
+                                ? v.observaciones
+                                    .split("|")
+                                    .filter((p) => !p.includes("Origen:") && !p.includes("Destino:"))
+                                    .join(" | ")
+                                    .trim() || "Sin notas adicionales"
+                                : "Sin notas adicionales"}
+                            </p>
+                          </div>
+
+                          <div className="pt-3 border-t border-[#E2E8F0] space-y-2.5">
+                            <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider block">
+                              Cambiar Estado Operativo:
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {["pendiente", "en_curso", "cerrado"].map((st) => {
+                                const isCurrent = v.estado === st;
+                                const isUpd = updatingId === `${v.id}-${st}`;
+                                const labels: Record<string, string> = {
+                                  pendiente: "Pendiente",
+                                  en_curso: "En Curso",
+                                  cerrado: "Cerrado",
+                                };
+                                return (
+                                  <Button
+                                    key={st}
+                                    variant={isCurrent ? "default" : "outline"}
+                                    size="xs"
+                                    disabled={isCurrent || isUpd || updatingId !== null}
+                                    className={`text-[11px] h-7 px-2.5 ${isCurrent ? "bg-[#0F172A]" : ""}`}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setUpdatingId(`${v.id}-${st}`);
+                                      const res = await updateViajeEstadoAction(v.id, st);
+                                      setUpdatingId(null);
+                                      if (res && res.ok) {
+                                        setRows((prev) =>
+                                          prev.map((item) => (item.id === v.id ? { ...item, estado: st } : item))
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {isUpd && <Loader2 size={10} className="animate-spin mr-1" />}
+                                    {labels[st]}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+
+                            <div className="pt-2 flex justify-end">
+                              {deletingId === v.id ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
+                                  <Button
+                                    variant="destructive"
+                                    size="xs"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const res = await deleteViajeAction(v.id);
+                                      if (res && res.ok) {
+                                        setRows((prev) => prev.filter((item) => item.id !== v.id));
+                                        setExpandedId(null);
+                                      }
+                                      setDeletingId(null);
+                                    }}
+                                  >
+                                    Sí, borrar
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDeletingId(null);
+                                    }}
+                                  >
+                                    No
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingId(v.id);
+                                  }}
+                                >
+                                  <Trash2 size={12} /> Eliminar Viaje
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
             ))
           )}
         </TableBody>

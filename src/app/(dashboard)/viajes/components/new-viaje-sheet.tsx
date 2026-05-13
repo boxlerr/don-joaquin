@@ -25,19 +25,28 @@ const labelClass = "text-xs font-semibold text-[#475569] mb-1 block";
 
 export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
+  const [tipoCarga, setTipoCarga] = useState("");
   const [state, formAction] = useActionState<CreateViajeState, FormData>(
     createViajeAction,
     null,
   );
 
   useEffect(() => {
-    if (state?.ok) setOpen(false);
+    if (state?.ok) {
+      setOpen(false);
+      setTipoCarga("");
+    }
   }, [state]);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) setTipoCarga("");
+  };
 
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Button variant="brand" size="sm" onClick={() => setOpen(true)}>
         <Plus size={14} />
         Nuevo viaje
@@ -139,21 +148,59 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               options={data.tipos_carga}
               required
               error={state?.fieldErrors?.tipo_carga_id}
+              onChange={(e) => setTipoCarga(e.target.value)}
             />
 
+            {tipoCarga === "otros" && (
+              <div className="animate-fade-in">
+                <label className={labelClass}>Descripción de la carga *</label>
+                <Input
+                  name="descripcion_otros"
+                  type="text"
+                  placeholder="Especificá el tipo de carga..."
+                  required
+                  className="text-sm"
+                />
+              </div>
+            )}
+
+            <datalist id="puntos-ruta-list">
+              {data.puntos_ruta.map((p) => (
+                <option key={p.id} value={p.label} />
+              ))}
+            </datalist>
+
             <div className="grid grid-cols-2 gap-3">
-              <SelectField
-                label="Origen"
-                name="origen_id"
-                options={data.puntos_ruta}
-                error={state?.fieldErrors?.origen_id}
-              />
-              <SelectField
-                label="Destino"
-                name="destino_id"
-                options={data.puntos_ruta}
-                error={state?.fieldErrors?.destino_id}
-              />
+              <div>
+                <label className={labelClass}>Origen</label>
+                <Input
+                  name="origen_nombre"
+                  type="text"
+                  list="puntos-ruta-list"
+                  placeholder="Escribí ciudad o lugar..."
+                  className="text-sm"
+                />
+                {state?.fieldErrors?.origen_nombre && (
+                  <p className="text-xs text-[#B91C1C] mt-1">
+                    {state.fieldErrors.origen_nombre}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className={labelClass}>Destino</label>
+                <Input
+                  name="destino_nombre"
+                  type="text"
+                  list="puntos-ruta-list"
+                  placeholder="Escribí ciudad o lugar..."
+                  className="text-sm"
+                />
+                {state?.fieldErrors?.destino_nombre && (
+                  <p className="text-xs text-[#B91C1C] mt-1">
+                    {state.fieldErrors.destino_nombre}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -218,17 +265,25 @@ function SelectField({
   options,
   required,
   error,
+  onChange,
 }: {
   label: string;
   name: string;
   options: { id: string; label: string }[];
   required?: boolean;
   error?: string;
+  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
 }) {
   return (
     <div>
       <label className={labelClass}>{label}</label>
-      <select name={name} required={required} defaultValue="" className={inputClass}>
+      <select
+        name={name}
+        required={required}
+        defaultValue=""
+        className={inputClass}
+        onChange={onChange}
+      >
         <option value="" disabled={required}>
           {required ? "Seleccioná una opción..." : "—"}
         </option>

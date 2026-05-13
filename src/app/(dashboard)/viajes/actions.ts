@@ -39,7 +39,10 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, estado, facturado, codigo,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda,
+       clientes(razon_social),
+       choferes(nombre, apellido),
+       camiones(patente, marca, modelo),
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
       { count: "exact" }
@@ -77,16 +80,56 @@ export async function getViajesAction(
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapped: ViajeBasico[] = (data ?? []).map((v: any) => ({
-    id: v.id,
-    codigo: v.codigo,
-    fecha_viaje: v.fecha_viaje,
-    origen: v.origen?.nombre ?? null,
-    destino: v.destino?.nombre ?? null,
-    km_totales: (v.km_con_carga ?? 0) + (v.km_vacios ?? 0),
-    estado: v.estado,
-    facturado: v.facturado,
-  }));
+  const mapped: ViajeBasico[] = (data ?? []).map((v: any) => {
+    let oName = v.origen?.nombre ?? null;
+    let dName = v.destino?.nombre ?? null;
+
+    if (!oName && v.observaciones) {
+      const match = v.observaciones.match(/Origen:\s*([^|]+)/);
+      if (match) oName = match[1].trim();
+    }
+
+    if (!dName && v.observaciones) {
+      const match = v.observaciones.match(/Destino:\s*([^|]+)/);
+      if (match) dName = match[1].trim();
+    }
+
+    let choferStr: string | null = null;
+    if (v.choferes) {
+      choferStr = [v.choferes.apellido, v.choferes.nombre].filter(Boolean).join(", ");
+    } else if (v.chofer) {
+      choferStr = [v.chofer.apellido, v.chofer.nombre].filter(Boolean).join(", ");
+    }
+
+    let camionStr: string | null = null;
+    if (v.camiones) {
+      camionStr = [v.camiones.patente, v.camiones.marca, v.camiones.modelo]
+        .filter(Boolean)
+        .join(" - ");
+    } else if (v.camion) {
+      camionStr = [v.camion.patente, v.camion.marca, v.camion.modelo].filter(Boolean).join(" - ");
+    }
+
+    return {
+      id: v.id,
+      codigo: v.codigo,
+      fecha_viaje: v.fecha_viaje,
+      origen: oName,
+      destino: dName,
+      cliente: v.clientes?.razon_social ?? v.cliente?.razon_social ?? "—",
+      toneladas: Number(v.tonelaje_real) || 0,
+      km_totales: (v.km_con_carga ?? 0) + (v.km_vacios ?? 0),
+      km_con_carga: v.km_con_carga ?? 0,
+      km_vacios: v.km_vacios ?? 0,
+      estado: v.estado,
+      facturado: v.facturado,
+      chofer: choferStr ?? "—",
+      camion: camionStr ?? "—",
+      monto_flete: v.monto_flete ?? null,
+      moneda: v.moneda ?? "ARS",
+      observaciones: v.observaciones ?? null,
+    };
+  });
 
   return {
     data: mapped,
@@ -158,6 +201,47 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     return { error: "No se pudieron cargar los datos del formulario." };
   }
 
+  let tiposCargaList = (tiposCargaRes.data ?? []).map((t) => ({
+    id: t.id,
+    label: t.nombre,
+  }));
+
+  // Auto-completar opciones genéricas en la base de datos si la tabla está vacía
+  if (tiposCargaList.length === 0) {
+    const genericOptions = [
+      { nombre: "Carga General", requiere_documentacion_especial: false },
+      { nombre: "Carga Refrigerada", requiere_documentacion_especial: false },
+      { nombre: "Carga a Granel", requiere_documentacion_especial: false },
+      { nombre: "Carga Paletizada", requiere_documentacion_especial: false },
+      { nombre: "Carga Peligrosa", requiere_documentacion_especial: true },
+      { nombre: "Otros", requiere_documentacion_especial: false },
+    ];
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertRes = await (supabase as any)
+        .from("tipos_carga")
+        .insert(genericOptions)
+        .select("id, nombre");
+
+      if (!insertRes.error && insertRes.data) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tiposCargaList = insertRes.data.map((t: any) => ({
+          id: t.id,
+          label: t.nombre,
+        }));
+      }
+    } catch (err) {
+      console.error("Error auto-poblando tipos de carga genéricos:", err);
+    }
+  }
+
+  // Garantizar que la opción "Otros" siempre exista en la lista final
+  const hasOtros = tiposCargaList.some((t) => t.label.toLowerCase() === "otros");
+  if (!hasOtros) {
+    tiposCargaList.push({ id: "otros", label: "Otros" });
+  }
+
   return {
     clientes: (clientesRes.data ?? []).map((c) => ({
       id: c.id,
@@ -171,16 +255,14 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
       id: c.id,
       label: c.patente,
     })),
-    tipos_carga: (tiposCargaRes.data ?? []).map((t) => ({
-      id: t.id,
-      label: t.nombre,
-    })),
+    tipos_carga: tiposCargaList,
     puntos_ruta: (puntosRes.data ?? []).map((p) => ({
       id: p.id,
       label: p.nombre,
     })),
   };
 }
+
 
 // ============================================================================
 // Crear viaje
@@ -197,19 +279,25 @@ const viajeSchema = z
     cliente_id: z.string().uuid("Cliente inválido."),
     chofer_id: z.string().uuid("Chofer inválido."),
     camion_id: z.string().uuid("Camión inválido."),
-    tipo_carga_id: z.string().uuid("Tipo de carga inválido."),
-    origen_id: z.string().uuid("Origen inválido.").optional().nullable(),
-    destino_id: z.string().uuid("Destino inválido.").optional().nullable(),
+    tipo_carga_id: z.string().min(1, "Tipo de carga requerido."),
+    origen_nombre: z.string().optional().nullable(),
+    destino_nombre: z.string().optional().nullable(),
     km_con_carga: z.number().int().min(0, "Debe ser ≥ 0."),
     km_vacios: z.number().int().min(0, "Debe ser ≥ 0."),
     tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
     monto_flete: z.number().min(0, "Debe ser ≥ 0."),
   })
   .refine(
-    (d) => !(d.origen_id && d.destino_id && d.origen_id === d.destino_id),
+    (d) =>
+      !(
+        d.origen_nombre &&
+        d.destino_nombre &&
+        d.origen_nombre.toLowerCase().trim() ===
+          d.destino_nombre.toLowerCase().trim()
+      ),
     {
       message: "Origen y destino deben ser distintos.",
-      path: ["destino_id"],
+      path: ["destino_nombre"],
     },
   );
 
@@ -258,6 +346,70 @@ async function generarCodigoViaje(
   return `${prefix}${String(next).padStart(5, "0")}`;
 }
 
+async function getOrCreatePuntoRuta(
+  supabase: ReturnType<typeof createAdminClient>,
+  nombre: string
+): Promise<string | null> {
+  const trimmed = nombre.trim();
+  if (!trimmed) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("puntos_ruta")
+    .select("id")
+    .ilike("nombre", trimmed)
+    .limit(1);
+
+  if (!error && data && data.length > 0) {
+    return data[0].id;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertRes = await (supabase as any)
+    .from("puntos_ruta")
+    .insert({
+      nombre: trimmed,
+      estado: "activo",
+      es_frontera: false,
+      es_puerto: false,
+    })
+    .select("id")
+    .single();
+
+  if (insertRes.error) return null;
+  return insertRes.data.id;
+}
+
+async function getOrCreateTipoCargaOtros(
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("tipos_carga")
+    .select("id")
+    .ilike("nombre", "otros")
+    .limit(1);
+
+  if (!error && data && data.length > 0) {
+    return data[0].id;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertRes = await (supabase as any)
+    .from("tipos_carga")
+    .insert({
+      nombre: "Otros",
+      descripcion: "Carga general / Otros",
+      requiere_documentacion_especial: false,
+      estado: "activo",
+    })
+    .select("id")
+    .single();
+
+  if (insertRes.error) throw insertRes.error;
+  return insertRes.data.id;
+}
+
 export async function createViajeAction(
   _prev: CreateViajeState,
   formData: FormData,
@@ -269,8 +421,8 @@ export async function createViajeAction(
     chofer_id: String(formData.get("chofer_id") ?? "").trim(),
     camion_id: String(formData.get("camion_id") ?? "").trim(),
     tipo_carga_id: String(formData.get("tipo_carga_id") ?? "").trim(),
-    origen_id: emptyOrNull(formData.get("origen_id")),
-    destino_id: emptyOrNull(formData.get("destino_id")),
+    origen_nombre: emptyOrNull(formData.get("origen_nombre")),
+    destino_nombre: emptyOrNull(formData.get("destino_nombre")),
     km_con_carga: parseNumber(formData.get("km_con_carga")),
     km_vacios: parseNumber(formData.get("km_vacios")),
     tonelaje_real: parseNumber(formData.get("tonelaje_real")),
@@ -304,6 +456,38 @@ export async function createViajeAction(
     return { error: "No se pudo generar el código del viaje." };
   }
 
+  let realTipoCargaId = parsed.data.tipo_carga_id;
+  const notasAdicionales: string[] = [];
+
+  if (realTipoCargaId === "otros") {
+    try {
+      realTipoCargaId = await getOrCreateTipoCargaOtros(supabase);
+    } catch (e) {
+      console.error("Error obteniendo/creando tipo de carga Otros:", e);
+      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
+    }
+    const descOtros = String(formData.get("descripcion_otros") ?? "").trim();
+    if (descOtros) {
+      notasAdicionales.push(`Carga (Otros): ${descOtros}`);
+    }
+  }
+
+  let origen_id: string | null = null;
+  if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
+    const valTrimmed = parsed.data.origen_nombre.trim();
+    origen_id = await getOrCreatePuntoRuta(supabase, valTrimmed);
+    notasAdicionales.push(`Origen: ${valTrimmed}`);
+  }
+
+  let destino_id: string | null = null;
+  if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
+    const valTrimmed = parsed.data.destino_nombre.trim();
+    destino_id = await getOrCreatePuntoRuta(supabase, valTrimmed);
+    notasAdicionales.push(`Destino: ${valTrimmed}`);
+  }
+
+  const observacionesDB = notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("viajes").insert({
     codigo,
@@ -312,14 +496,15 @@ export async function createViajeAction(
     cliente_id: parsed.data.cliente_id,
     chofer_id: parsed.data.chofer_id,
     camion_id: parsed.data.camion_id,
-    tipo_carga_id: parsed.data.tipo_carga_id,
-    origen_id: parsed.data.origen_id ?? null,
-    destino_id: parsed.data.destino_id ?? null,
+    tipo_carga_id: realTipoCargaId,
+    origen_id,
+    destino_id,
     km_con_carga: parsed.data.km_con_carga,
     km_vacios: parsed.data.km_vacios,
     tonelaje_real: parsed.data.tonelaje_real,
     monto_flete: parsed.data.monto_flete,
     moneda: "ARS",
+    observaciones: observacionesDB,
     facturado: false,
     created_by: user.id,
   });
@@ -327,6 +512,78 @@ export async function createViajeAction(
   if (error) {
     console.error("Error al crear viaje:", error);
     return { error: error.message };
+  }
+
+  revalidatePath("/viajes");
+  return { ok: true };
+}
+
+// ============================================================================
+// Obtener todos los viajes para exportación a Excel
+// ============================================================================
+
+export async function getAllViajesForExportAction(choferId?: string) {
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from("viajes")
+    .select(
+      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, monto_flete, moneda, observaciones,
+       clientes(razon_social),
+       chofer:choferes(nombre, apellido),
+       camion:camiones(patente, marca, modelo),
+       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`
+    )
+    .order("fecha_viaje", { ascending: false });
+
+  if (choferId) {
+    query = query.eq("chofer_id", choferId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error al obtener viajes para exportación:", error);
+    throw new Error("No se pudieron cargar los datos para exportar.");
+  }
+
+  return data ?? [];
+}
+
+// ============================================================================
+// Eliminar viaje
+// ============================================================================
+
+export async function deleteViajeAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("viajes").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error al eliminar viaje:", error);
+    return { ok: false, error: "No se pudo eliminar el viaje." };
+  }
+
+  revalidatePath("/viajes");
+  return { ok: true };
+}
+
+// ============================================================================
+// Actualizar estado de viaje
+// ============================================================================
+
+export async function updateViajeEstadoAction(
+  id: string,
+  estado: string
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("viajes").update({ estado }).eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar estado del viaje:", error);
+    return { ok: false, error: "No se pudo actualizar el estado." };
   }
 
   revalidatePath("/viajes");

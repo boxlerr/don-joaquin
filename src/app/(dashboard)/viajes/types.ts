@@ -4,9 +4,18 @@ export type ViajeBasico = {
   fecha_viaje: string;
   origen: string | null;
   destino: string | null;
+  cliente: string | null;
+  toneladas: number | null;
   km_totales: number;
+  km_con_carga: number;
+  km_vacios: number;
   estado: string;
   facturado: boolean;
+  chofer: string | null;
+  camion: string | null;
+  monto_flete: number | null;
+  moneda: string | null;
+  observaciones: string | null;
 };
 
 export type PaginatedResult<T> = {

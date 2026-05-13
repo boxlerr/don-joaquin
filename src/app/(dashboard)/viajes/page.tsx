@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import { getViajeFormData } from "./actions";
+import ExportViajesButton from "./components/ExportViajesButton";
 
 export default async function ViajesPage({
   searchParams,
@@ -63,10 +64,10 @@ export default async function ViajesPage({
         description="Núcleo operativo: registro, asociación y trazabilidad de viajes"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Download size={14} />
-              Exportar
-            </Button>
+            <ExportViajesButton
+              choferId={choferId}
+              disabled={(total.count ?? 0) === 0}
+            />
             {viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }
