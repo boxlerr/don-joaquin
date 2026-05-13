@@ -30,7 +30,7 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
             autoComplete="email"
             required
             disabled={pending}
-            placeholder="lucianovaxler@gmail.com"
+            placeholder="tu@email.com"
             className="pr-10 h-11 rounded-lg border-neutral-200 focus:border-[#0088D1] focus:ring-[#0088D1]/20 bg-transparent text-[14px]"
           />
           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-neutral-400">

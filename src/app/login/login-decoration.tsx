@@ -13,6 +13,20 @@ export function LoginDecoration() {
       <div className="absolute inset-0 bg-brand-900/40 mix-blend-multiply"></div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#001f4c] via-[#001f4c]/60 to-transparent h-3/4 mt-auto"></div>
 
+      {/* Vaxler credit */}
+      <a
+        href="https://www.vaxler.com.ar"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-5 left-6 z-10 opacity-30 hover:opacity-60 transition-opacity duration-300"
+      >
+        <img
+          src="/logo-vaxler.png"
+          alt="Vaxler"
+          className="h-4 w-auto"
+        />
+      </a>
+
       <div className="relative z-10 flex w-full max-w-xl flex-col items-center text-center text-white mt-auto">
         {/* Textos Principales */}
         <motion.h2 
