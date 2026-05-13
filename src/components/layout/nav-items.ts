@@ -63,7 +63,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "SISTEMA",
     items: [
-      { label: "Usuarios", href: "/usuarios", icon: Shield },
       {
         label: "Configuración",
         href: "/configuracion",
