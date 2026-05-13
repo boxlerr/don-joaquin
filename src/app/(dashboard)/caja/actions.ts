@@ -65,7 +65,7 @@ export async function getCajaMovimientosAction(
 
   if (desde) query = query.gte("fecha", desde);
   if (hasta) query = query.lte("fecha", hasta);
-  if (categoria) query = query.eq("categoria", categoria);
+  if (categoria) query = query.eq("categoria", categoria as never);
   if (gastoIdsFiltro) query = query.in("gasto_id", gastoIdsFiltro);
   if (search) query = query.ilike("concepto", `%${search}%`);
 
