@@ -55,14 +55,15 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
   return (
     <aside className="flex flex-col w-60 h-screen bg-white shrink-0 border-r border-slate-200">
       {/* Logo */}
-      <div className="flex items-center px-4 h-[84px] border-b border-slate-200 overflow-hidden">
+      <div className="flex items-center justify-center px-4 h-[84px] border-b border-slate-200 overflow-hidden">
         <Image
           src="/logo-horizontal.png"
           alt="Don Joaquín Transporte"
           width={480}
           height={173}
           priority
-          className="w-full h-auto object-contain object-left"
+          className="h-auto object-contain"
+          style={{ maxWidth: '90%' }}
         />
       </div>
 
