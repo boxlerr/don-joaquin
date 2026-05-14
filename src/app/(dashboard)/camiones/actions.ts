@@ -166,6 +166,130 @@ export async function addGasoilAction(data: {
   return { success: true };
 }
 
+export async function getCamionDocumentosAction(camion_id: string) {
+  const supabase = createAdminClient();
+
+  const [{ data: docs }, { data: tipos }] = await Promise.all([
+    supabase
+      .from("v_camion_documentos_vigencia")
+      .select("id, tipo_documento, tipo_documento_codigo, fecha_vencimiento, dias_restantes, estado_vigencia, numero")
+      .eq("camion_id", camion_id),
+
+    supabase
+      .from("tipos_documento")
+      .select("id, nombre, codigo")
+      .eq("aplica_a", "camion")
+      .eq("estado", "activo"),
+  ]);
+
+  return {
+    documentos: docs ?? [],
+    tipos: tipos ?? [],
+  };
+}
+
+export async function uploadDocumentoCamionAction(formData: FormData) {
+  const supabase = createAdminClient();
+
+  const camion_id = formData.get("camion_id") as string;
+  const tipo_nombre_custom = formData.get("tipo_nombre_custom") as string | null;
+  let tipo_documento_id = formData.get("tipo_documento_id") as string;
+  const file = formData.get("file") as File;
+  const numero = formData.get("numero") as string | null;
+  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
+  const fecha_emision = formData.get("fecha_emision") as string | null;
+
+  if (!file || !file.size) return { error: "Archivo requerido" };
+  if (!file.type.startsWith("application/pdf") && !file.type.startsWith("image/"))
+    return { error: "Solo se permiten PDF e imágenes" };
+  if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
+
+  if (tipo_nombre_custom) {
+    const nombreNorm = tipo_nombre_custom.trim();
+    if (!nombreNorm) return { error: "El nombre del tipo de documento no puede estar vacío" };
+
+    const { data: existente } = await supabase
+      .from("tipos_documento")
+      .select("id")
+      .eq("nombre", nombreNorm)
+      .eq("aplica_a", "camion")
+      .maybeSingle();
+
+    if (existente) {
+      tipo_documento_id = existente.id;
+    } else {
+      const codigoBase = nombreNorm
+        .toUpperCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Z0-9_]/g, "")
+        .slice(0, 30);
+
+      const { data: nuevo, error: crearError } = await supabase
+        .from("tipos_documento")
+        .insert({
+          nombre: nombreNorm,
+          codigo: `CUSTOM_${codigoBase}_${Date.now()}`,
+          aplica_a: "camion",
+          estado: "activo",
+        })
+        .select("id")
+        .single();
+
+      if (crearError || !nuevo) return { error: "No se pudo crear el tipo de documento" };
+      tipo_documento_id = nuevo.id;
+    }
+  }
+
+  if (!tipo_documento_id) return { error: "Tipo de documento requerido" };
+
+  const ext = file.name.split(".").pop();
+  const storagePath = `camiones/${camion_id}/${tipo_documento_id}_${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("documentos-personal")
+    .upload(storagePath, file);
+  if (uploadError) return { error: "Error al subir el archivo" };
+
+  const { data: archivoData, error: archivoError } = await supabase
+    .from("documentos_archivos")
+    .insert({
+      bucket: "documentos-personal",
+      nombre_original: file.name,
+      path: storagePath,
+      tamano_bytes: file.size,
+      mime_type: file.type,
+    })
+    .select("id")
+    .single();
+  if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+
+  const { error: dbError } = await supabase.from("camion_documentos").insert({
+    camion_id,
+    tipo_documento_id,
+    numero: numero || null,
+    fecha_emision: fecha_emision || null,
+    fecha_vencimiento: fecha_vencimiento || null,
+    archivo_id: archivoData.id,
+  });
+  if (dbError) return { error: "Error al guardar el documento" };
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+export async function deleteDocumentoCamionAction(doc_id: string) {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("camion_documentos")
+    .delete()
+    .eq("id", doc_id);
+  if (error) return { error: "No se pudo eliminar el documento" };
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
 const HISTORY_PAGE_SIZE = 20;
 
 export async function getServiceHistoryAction(camionId: string, page = 0) {
