@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
+import ImportMovimientosDialog from "./components/ImportMovimientosDialog";
 import MovimientosCajaTable from "./components/MovimientosCajaTable";
 
 function formatARS(n: number): string {
@@ -74,6 +75,7 @@ export default async function CajaPage() {
         description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         action={
           <div className="flex items-center gap-2">
+            <ImportMovimientosDialog />
             <AddViaticoDialog choferes={choferes || []}>
               <Button variant="outline" size="sm">
                 <Receipt size={14} />

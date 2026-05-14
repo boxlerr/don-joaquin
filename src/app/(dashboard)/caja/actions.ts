@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import * as XLSX from "xlsx";
 
 const MOVIMIENTOS_PAGE_SIZE = 20;
 
@@ -255,6 +256,254 @@ export async function addEgresoAction(data: {
 
   revalidatePath("/caja");
   return { success: true };
+}
+
+// ============================================================================
+// Importación masiva desde Excel / CSV
+// ============================================================================
+
+const CAJA_TIPO_VALUES = ["ingreso", "egreso"] as const;
+const CAJA_MEDIO_VALUES = ["efectivo", "transferencia", "cheque", "otro"] as const;
+const CAJA_CATEGORIA_VALUES = [
+  "cobro_cliente",
+  "pago_proveedor",
+  "entrega_viatico",
+  "rendicion_vuelto",
+  "gasto_operativo",
+  "pago_chofer",
+  "transferencia_interna",
+  "ajuste",
+  "otro",
+] as const;
+
+type CajaTipo = (typeof CAJA_TIPO_VALUES)[number];
+type CajaMedio = (typeof CAJA_MEDIO_VALUES)[number];
+type CajaCategoria = (typeof CAJA_CATEGORIA_VALUES)[number];
+
+export type ImportMovimientosState = {
+  ok?: boolean;
+  imported?: number;
+  skipped?: number;
+  errors?: { row: number; message: string }[];
+  error?: string;
+} | null;
+
+type RawMovRow = {
+  fecha?: string;
+  tipo?: string;
+  categoria?: string;
+  concepto?: string;
+  monto?: string;
+  medio?: string;
+  observaciones?: string;
+};
+
+const HEADER_MAP_MOV: Record<string, keyof RawMovRow> = {
+  fecha: "fecha",
+  tipo: "tipo",
+  categoria: "categoria",
+  categoría: "categoria",
+  concepto: "concepto",
+  descripcion: "concepto",
+  descripción: "concepto",
+  monto: "monto",
+  importe: "monto",
+  medio: "medio",
+  "medio de pago": "medio",
+  medio_pago: "medio",
+  observaciones: "observaciones",
+  observacion: "observaciones",
+};
+
+function normalizeKey(k: string): string {
+  return k
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+function cell(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}
+
+function normalizeTipo(v?: string): CajaTipo | null {
+  const s = (v ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s.startsWith("ing")) return "ingreso";
+  if (s.startsWith("egr") || s.startsWith("sal") || s.startsWith("gas")) return "egreso";
+  if ((CAJA_TIPO_VALUES as readonly string[]).includes(s)) return s as CajaTipo;
+  return null;
+}
+
+function normalizeMedio(v?: string): CajaMedio {
+  const s = (v ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  if ((CAJA_MEDIO_VALUES as readonly string[]).includes(s)) return s as CajaMedio;
+  if (s.includes("transf")) return "transferencia";
+  if (s.includes("efec") || s.includes("cash")) return "efectivo";
+  if (s.includes("cheq")) return "cheque";
+  return "otro";
+}
+
+function normalizeCategoria(v: string | undefined, tipo: CajaTipo): CajaCategoria {
+  const s = (v ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  if ((CAJA_CATEGORIA_VALUES as readonly string[]).includes(s)) {
+    return s as CajaCategoria;
+  }
+  if (s.includes("cobro") || s.includes("cliente")) return "cobro_cliente";
+  if (s.includes("proveedor")) return "pago_proveedor";
+  if (s.includes("viatico") || s.includes("viático")) return "entrega_viatico";
+  if (s.includes("rendicion") || s.includes("vuelto")) return "rendicion_vuelto";
+  if (s.includes("operativo") || s.includes("gasto")) return "gasto_operativo";
+  if (s.includes("chofer")) return "pago_chofer";
+  if (s.includes("transferencia") || s.includes("interna")) return "transferencia_interna";
+  if (s.includes("ajuste")) return "ajuste";
+  return tipo === "ingreso" ? "otro" : "gasto_operativo";
+}
+
+function parseMonto(v?: string): number | null {
+  if (!v) return null;
+  // Quitar símbolos de moneda y separadores de miles tipo es-AR ($ 1.234,56)
+  const cleaned = v
+    .replace(/[$\s]/g, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return null;
+  return Math.abs(n);
+}
+
+function parseFecha(v?: string): string | null {
+  if (!v) return null;
+  const s = v.trim();
+  // ISO yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // dd/mm/yyyy o dd-mm-yyyy
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, "0");
+    const mm = m[2].padStart(2, "0");
+    let yyyy = m[3];
+    if (yyyy.length === 2) yyyy = `20${yyyy}`;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // Excel serial date
+  if (/^\d+$/.test(s)) {
+    const serial = Number(s);
+    const d = XLSX.SSF.parse_date_code(serial);
+    if (d) {
+      const yyyy = String(d.y).padStart(4, "0");
+      const mm = String(d.m).padStart(2, "0");
+      const dd = String(d.d).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+  // Intento genérico
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().split("T")[0];
+  }
+  return null;
+}
+
+export async function importMovimientosCajaAction(
+  _prev: ImportMovimientosState,
+  formData: FormData,
+): Promise<ImportMovimientosState> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Adjuntá un archivo .xlsx o .csv." };
+  }
+
+  let rows: Record<string, unknown>[];
+  try {
+    const buf = Buffer.from(await file.arrayBuffer());
+    const wb = XLSX.read(buf, { type: "buffer" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return { error: "El archivo no contiene hojas." };
+    rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  } catch {
+    return { error: "No se pudo leer el archivo. Verificá el formato." };
+  }
+
+  if (rows.length === 0) {
+    return { error: "El archivo no contiene filas." };
+  }
+
+  const user = await requireUser();
+  const supabase = createAdminClient();
+
+  const errors: { row: number; message: string }[] = [];
+  let imported = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i];
+    const rowNum = i + 2; // header + 1-indexed
+
+    const mapped: RawMovRow = {};
+    for (const [key, value] of Object.entries(raw)) {
+      const norm = normalizeKey(key);
+      const target = HEADER_MAP_MOV[norm];
+      if (target) mapped[target] = cell(value);
+    }
+
+    const tipo = normalizeTipo(mapped.tipo);
+    if (!tipo) {
+      skipped++;
+      errors.push({ row: rowNum, message: "Tipo inválido (usá ingreso/egreso)." });
+      continue;
+    }
+
+    const fecha = parseFecha(mapped.fecha);
+    if (!fecha) {
+      skipped++;
+      errors.push({ row: rowNum, message: "Fecha inválida (usá yyyy-mm-dd o dd/mm/yyyy)." });
+      continue;
+    }
+
+    const monto = parseMonto(mapped.monto);
+    if (monto === null || monto <= 0) {
+      skipped++;
+      errors.push({ row: rowNum, message: "Monto inválido." });
+      continue;
+    }
+
+    const concepto = cell(mapped.concepto);
+    if (!concepto) {
+      skipped++;
+      errors.push({ row: rowNum, message: "Falta concepto." });
+      continue;
+    }
+
+    const medio = normalizeMedio(mapped.medio);
+    const categoria = normalizeCategoria(mapped.categoria, tipo);
+    const observaciones = cell(mapped.observaciones) ?? null;
+
+    const { error } = await supabase.from("caja_movimientos").insert({
+      tipo,
+      fecha,
+      concepto,
+      monto,
+      medio,
+      categoria,
+      moneda: "ARS",
+      observaciones,
+      created_by: user.id,
+    });
+
+    if (error) {
+      skipped++;
+      errors.push({ row: rowNum, message: error.message });
+    } else {
+      imported++;
+    }
+  }
+
+  revalidatePath("/caja");
+  return { ok: true, imported, skipped, errors };
 }
 
 export async function addViaticoAction(data: {
