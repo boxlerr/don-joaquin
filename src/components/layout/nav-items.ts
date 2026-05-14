@@ -9,6 +9,7 @@ import {
   Wallet,
   FileText,
   Shield,
+  ShieldAlert,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -63,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "SISTEMA",
     items: [
+      { label: "Auditoría", href: "/auditoria", icon: ShieldAlert },
       {
         label: "Configuración",
         href: "/configuracion",
