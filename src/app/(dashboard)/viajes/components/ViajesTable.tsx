@@ -33,6 +33,7 @@ import {
 import { getViajesAction, deleteViajeAction, updateViajeEstadoAction } from "../actions";
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
+import AuditTrailDrawer from "./audit-trail-drawer";
 
 interface Props {
   choferId?: string;
@@ -70,6 +71,8 @@ export default function ViajesTable({ choferId }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [auditTrailOpen, setAuditTrailOpen] = useState(false);
+  const [auditTrailViajeId, setAuditTrailViajeId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
@@ -384,7 +387,20 @@ export default function ViajesTable({ choferId }: Props) {
                               })}
                             </div>
 
-                            <div className="pt-2 flex justify-end">
+                            <div className="pt-2 flex justify-between items-center">
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAuditTrailViajeId(v.id);
+                                  setAuditTrailOpen(true);
+                                }}
+                              >
+                                <Clock size={12} />
+                                Historial
+                              </Button>
                               {deletingId === v.id ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
@@ -468,6 +484,15 @@ export default function ViajesTable({ choferId }: Props) {
             </p>
           )}
         </div>
+      )}
+
+      {/* Audit Trail Drawer */}
+      {auditTrailViajeId && (
+        <AuditTrailDrawer
+          viajeId={auditTrailViajeId}
+          open={auditTrailOpen}
+          onOpenChange={setAuditTrailOpen}
+        />
       )}
     </div>
   );

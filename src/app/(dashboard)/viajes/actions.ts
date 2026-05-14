@@ -552,39 +552,163 @@ export async function getAllViajesForExportAction(choferId?: string) {
 }
 
 // ============================================================================
-// Eliminar viaje
+// Auditoría de viajes
+// ============================================================================
+
+async function logViajeAudit(
+  supabase: ReturnType<typeof createAdminClient>,
+  viajeId: string,
+  accion: string,
+  valoresAnteriores: Record<string, unknown> | null,
+  valoresNuevos: Record<string, unknown>,
+  userId: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("audit_log").insert({
+    usuario_id: userId,
+    accion,
+    entidad_tipo: "viaje",
+    entidad_id: viajeId,
+    valores_anteriores: valoresAnteriores,
+    valores_nuevos: valoresNuevos,
+  });
+}
+
+export type AuditTrailEntry = {
+  id: string;
+  accion: string;
+  valores_anteriores: Record<string, unknown> | null;
+  valores_nuevos: Record<string, unknown>;
+  created_at: string;
+  usuario: { nombre: string; apellido: string } | null;
+};
+
+export async function getViajeAuditTrail(
+  viajeId: string,
+): Promise<{ data?: AuditTrailEntry[]; error?: string }> {
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("audit_log")
+    .select(
+      `
+      id,
+      accion,
+      valores_anteriores,
+      valores_nuevos,
+      created_at,
+      usuario:usuario_id(nombre, apellido)
+    `
+    )
+    .eq("entidad_tipo", "viaje")
+    .eq("entidad_id", viajeId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching audit trail:", error);
+    return { error: "No se pudo cargar el historial de auditoría." };
+  }
+
+  return { data: data ?? [] };
+}
+
+// ============================================================================
+// Eliminar viaje (soft delete + auditoría)
 // ============================================================================
 
 export async function deleteViajeAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  const userClient = await createClient();
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+
+  if (!user) return { ok: false, error: "No autenticado." };
+
   const supabase = createAdminClient();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("viajes").delete().eq("id", id);
+  const { data: viajeActual, error: fetchError } = await (supabase as any)
+    .from("viajes")
+    .select("estado")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !viajeActual) {
+    return { ok: false, error: "Viaje no encontrado." };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("viajes")
+    .update({ estado: "cancelado" })
+    .eq("id", id);
 
   if (error) {
-    console.error("Error al eliminar viaje:", error);
-    return { ok: false, error: "No se pudo eliminar el viaje." };
+    console.error("Error al cancelar viaje:", error);
+    return { ok: false, error: "No se pudo cancelar el viaje." };
   }
+
+  await logViajeAudit(
+    supabase,
+    id,
+    "cambio_estado",
+    { estado: viajeActual.estado },
+    { estado: "cancelado" },
+    user.id,
+  );
 
   revalidatePath("/viajes");
   return { ok: true };
 }
 
 // ============================================================================
-// Actualizar estado de viaje
+// Actualizar estado de viaje + auditoría
 // ============================================================================
 
 export async function updateViajeEstadoAction(
   id: string,
-  estado: string
+  estado: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const userClient = await createClient();
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+
+  if (!user) return { ok: false, error: "No autenticado." };
+
   const supabase = createAdminClient();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("viajes").update({ estado }).eq("id", id);
+  const { data: viajeActual, error: fetchError } = await (supabase as any)
+    .from("viajes")
+    .select("estado")
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !viajeActual) {
+    return { ok: false, error: "Viaje no encontrado." };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("viajes")
+    .update({ estado })
+    .eq("id", id);
 
   if (error) {
     console.error("Error al actualizar estado del viaje:", error);
     return { ok: false, error: "No se pudo actualizar el estado." };
   }
+
+  await logViajeAudit(
+    supabase,
+    id,
+    "cambio_estado",
+    { estado: viajeActual.estado },
+    { estado },
+    user.id,
+  );
 
   revalidatePath("/viajes");
   return { ok: true };
