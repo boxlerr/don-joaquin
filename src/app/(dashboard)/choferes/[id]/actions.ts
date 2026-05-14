@@ -10,7 +10,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   const { data: chofer } = await supabase
     .from("choferes")
     .select(
-      "id, nombre, apellido, dni, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, cbu, alias_cbu, banco, telefono_emergencia, updated_at"
+      "id, nombre, apellido, dni, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, cbu, alias_cbu, banco, telefono_emergencia, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
     )
     .eq("id", chofer_id)
     .single();
@@ -49,8 +49,11 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
         .eq("estado", "activo"),
     ]);
 
+  const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
+
   return {
     ...chofer,
+    foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: docs ?? [],
     tipos_documento: (tiposDoc ?? []).map((t) => ({
       id: t.id,

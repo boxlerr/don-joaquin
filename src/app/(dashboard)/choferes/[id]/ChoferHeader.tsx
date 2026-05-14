@@ -6,6 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import EditarChoferDialog from "./EditarChoferDialog";
 import { Edit, Phone, Mail, MapPin, Calendar } from "lucide-react";
 import type { ChoferDetail } from "./types";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   chofer: ChoferDetail;
@@ -24,12 +25,21 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
       ? "error"
       : "neutral";
 
+  const supabase = createClient();
+  const fotoUrl = chofer.foto
+    ? supabase.storage.from(chofer.foto.bucket).getPublicUrl(chofer.foto.path).data.publicUrl
+    : null;
+
   return (
     <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center flex-shrink-0">
-            <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
+          <div className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[#B3E5FC]">
+            {fotoUrl ? (
+              <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
+            )}
           </div>
           <div>
             <h1 className="text-[#0F172A] text-xl font-semibold">

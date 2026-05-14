@@ -20,6 +20,7 @@ export type ChoferBasico = Pick<
   | "banco"
   | "telefono_emergencia"
   | "updated_at"
+  | "foto_id"
 >;
 
 export type DocumentoVigencia = {
@@ -58,6 +59,7 @@ export type MovimientoChofer = {
 };
 
 export type ChoferDetail = ChoferBasico & {
+  foto?: { bucket: string; path: string } | null;
   documentos_vigencia: DocumentoVigencia[];
   tipos_documento: TipoDocumento[];
   viajes_recientes: ViajeBasico[];

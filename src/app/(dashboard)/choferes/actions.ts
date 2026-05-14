@@ -101,3 +101,48 @@ export async function deleteChoferAction(id: string) {
   revalidatePath("/choferes");
   return { success: true };
 }
+
+export async function uploadFotoChoferAction(formData: FormData) {
+  const supabase = createAdminClient();
+
+  const chofer_id = formData.get("chofer_id") as string;
+  const file = formData.get("file") as File;
+
+  if (!file || !file.size) return { error: "Archivo requerido" };
+  if (!file.type.startsWith("image/")) return { error: "Solo se permiten imágenes" };
+  if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
+
+  const ext = file.name.split(".").pop();
+  const storagePath = `choferes/${chofer_id}/foto_${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("documentos-personal")
+    .upload(storagePath, file);
+  if (uploadError) return { error: "Error al subir la foto" };
+
+  const { data: archivoData, error: archivoError } = await supabase
+    .from("documentos_archivos")
+    .insert({
+      bucket: "documentos-personal",
+      nombre_original: file.name,
+      path: storagePath,
+      tamano_bytes: file.size,
+      mime_type: file.type,
+    })
+    .select("id")
+    .single();
+  if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+
+  const { error: dbError } = await supabase
+    .from("choferes")
+    .update({
+      foto_id: archivoData.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", chofer_id);
+  if (dbError) return { error: "Error al guardar la foto en el chofer" };
+
+  revalidatePath("/choferes");
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
