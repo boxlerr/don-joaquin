@@ -19,3 +19,19 @@ export type PaginatedResult<T> = {
   data: T[];
   hasMore: boolean;
 };
+
+export type DocumentoVigenciaCamion = {
+  id: string | null;
+  tipo_documento: string | null;
+  tipo_documento_codigo: string | null;
+  fecha_vencimiento: string | null;
+  dias_restantes: number | null;
+  estado_vigencia: string | null;
+  numero: string | null;
+};
+
+export type TipoDocumentoCamion = {
+  id: string;
+  nombre: string;
+  codigo: string;
+};

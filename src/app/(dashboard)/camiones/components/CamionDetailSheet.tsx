@@ -15,8 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin } from "lucide-react";
-import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction } from "../actions";
-import type { Camion, ServiceRecord, GasoilRecord } from "../types";
+import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction, getCamionDocumentosAction } from "../actions";
+import type { Camion, ServiceRecord, GasoilRecord, DocumentoVigenciaCamion, TipoDocumentoCamion } from "../types";
+import CamionDocumentosTab from "./CamionDocumentosTab";
 
 type TabId = "info" | "services" | "gasoil" | "docs";
 
@@ -57,6 +58,11 @@ export default function CamionDetailSheet({
   const [gasoilLoaded, setGasoilLoaded] = useState(false);
   const [loadingGasoil, setLoadingGasoil] = useState(false);
 
+  // Docs state
+  const [documentos, setDocumentos] = useState<DocumentoVigenciaCamion[]>([]);
+  const [tipos, setTipos] = useState<TipoDocumentoCamion[]>([]);
+  const [docsLoaded, setDocsLoaded] = useState(false);
+
   // Refrescar y cargar la información cuando se abra la hoja o cambie el camión
   useEffect(() => {
     if (camion && open) {
@@ -72,6 +78,7 @@ export default function CamionDetailSheet({
       // Forzar siempre la recarga de los datos para garantizar frescura
       setServicesLoaded(false);
       setGasoilLoaded(false);
+      setDocsLoaded(false);
       setError(null);
 
       // Si se abre directo en una tab en particular, cargarla
@@ -79,6 +86,8 @@ export default function CamionDetailSheet({
         fetchServices(0);
       } else if (activeTab === "gasoil") {
         fetchGasoil(0);
+      } else if (activeTab === "docs") {
+        fetchDocs();
       }
     }
   }, [camion?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -109,11 +118,19 @@ export default function CamionDetailSheet({
     }
   }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchDocs = useCallback(async () => {
+    const result = await getCamionDocumentosAction(camion.id);
+    setDocumentos(result.documentos as DocumentoVigenciaCamion[]);
+    setTipos(result.tipos as TipoDocumentoCamion[]);
+    setDocsLoaded(true);
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
     // Siempre buscar de nuevo al cambiar a la pestaña para obtener las cargas recientes
     if (tab === "services") fetchServices(0);
     if (tab === "gasoil") fetchGasoil(0);
+    if (tab === "docs") fetchDocs();
   };
 
   const handleUpdate = async () => {
@@ -435,11 +452,16 @@ export default function CamionDetailSheet({
             </div>
           )}
 
-          {activeTab === "docs" && (
-            <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
-              <FileText size={40} className="mb-3 opacity-20" />
-              <p className="text-sm">Documentación del vehículo próximamente...</p>
-            </div>
+          {activeTab === "docs" && docsLoaded && (
+            <CamionDocumentosTab
+              camion_id={camion.id}
+              documentos={documentos}
+              tipos={tipos}
+              onRefresh={fetchDocs}
+            />
+          )}
+          {activeTab === "docs" && !docsLoaded && (
+            <div className="py-8 text-center text-sm text-[#64748B]">Cargando documentos...</div>
           )}
         </div>
 
