@@ -1,10 +1,11 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import { Plus, Download } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
+import ExportChequesButton from "./components/ExportChequesButton";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -70,10 +71,7 @@ export default async function ChequesPage() {
         description="Cartera completa con trazabilidad por estado"
         action={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <Download size={14} />
-              Exportar
-            </Button>
+            <ExportChequesButton />
             <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>
               <Button variant="brand" size="sm">
                 <Plus size={14} />

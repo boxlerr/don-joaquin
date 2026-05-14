@@ -385,3 +385,45 @@ export async function anularChequeAction(input: AnularChequeInput) {
   revalidatePath("/cheques");
   return { success: true };
 }
+
+export type ChequeExportRow = {
+  id: string;
+  numero: string;
+  tipo: ChequeTipo;
+  importe: number;
+  moneda: string;
+  fecha_emision: string;
+  fecha_vencimiento: string;
+  fecha_recepcion: string;
+  estado: ChequeEstado;
+  librador_nombre: string;
+  librador_cuit: string | null;
+  concepto: string | null;
+  observaciones: string | null;
+  banco: { nombre: string } | null;
+  cliente: { razon_social: string } | null;
+};
+
+export async function getAllChequesForExportAction(): Promise<ChequeExportRow[]> {
+  await requireUser();
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("cheques")
+    .select(
+      "id, numero, tipo, importe, moneda, fecha_emision, fecha_vencimiento, fecha_recepcion, estado, librador_nombre, librador_cuit, concepto, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)"
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error al obtener cheques para exportar:", error);
+    return [];
+  }
+
+  return (data ?? []).map((c) => ({
+    ...c,
+    importe: Number(c.importe),
+    banco: Array.isArray(c.banco) ? (c.banco[0] ?? null) : c.banco,
+    cliente: Array.isArray(c.cliente) ? (c.cliente[0] ?? null) : c.cliente,
+  })) as ChequeExportRow[];
+}
