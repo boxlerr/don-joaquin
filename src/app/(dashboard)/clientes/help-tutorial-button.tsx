@@ -443,13 +443,13 @@ function MockClienteCard({
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <span className="size-9 rounded-full bg-[#FEE2E2] text-[#B91C1C] font-bold text-sm flex items-center justify-center">
+        <span className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] font-bold text-sm flex items-center justify-center">
           D
         </span>
         <div>
           <div className="text-[#0F172A] font-semibold text-sm">{razon}</div>
           <div className="flex items-center gap-1 text-[10px] text-[#475569] uppercase tracking-wide mt-0.5">
-            <MapPin size={10} className="text-[#EF4444]" />
+            <MapPin size={10} className="text-[#0088D1]" />
             {loc}
           </div>
         </div>

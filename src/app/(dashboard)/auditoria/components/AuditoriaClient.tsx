@@ -229,7 +229,7 @@ export default function AuditoriaClient({
               {entries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-[#F8FAFC] transition-colors">
                   <td className="px-5 py-3 text-[#475569] whitespace-nowrap">
-                    {new Date(entry.created_at).toLocaleString("es-AR")}
+                    {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
                   </td>
                   <td className="px-5 py-3 text-[#1E293B]">
                     {entry.usuario ? (
@@ -327,7 +327,7 @@ function AuditDetailDrawer({
             <div>
               <h2 className="text-[#0F172A] font-semibold">Detalle del registro</h2>
               <p className="text-[#475569] text-xs">
-                {new Date(entry.created_at).toLocaleString("es-AR")}
+                {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
               </p>
             </div>
           </div>

@@ -22,7 +22,12 @@ import {
   FileText,
   User,
 } from "lucide-react";
-import { updateChoferEstadoAction, deleteChoferAction, uploadFotoChoferAction } from "../actions";
+import {
+  updateChoferEstadoAction,
+  deleteChoferAction,
+  uploadFotoChoferAction,
+  deleteFotoChoferAction,
+} from "../actions";
 import { getChoferDetailAction } from "../[id]/actions";
 import ChoferInfoTab from "../[id]/ChoferInfoTab";
 import ChoferDocumentosTab from "../[id]/ChoferDocumentosTab";
@@ -92,23 +97,52 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (!file) return;
 
-    setUploadingFoto(true);
-    const formData = new FormData();
-    formData.set("chofer_id", chofer.id);
-    formData.set("file", file);
-
-    const res = await uploadFotoChoferAction(formData);
-    setUploadingFoto(false);
-
-    if (res.error) {
-      alert(res.error);
-    } else {
-      if (detailOpen) refreshDetail();
+    if (!file.type.startsWith("image/")) {
+      alert("Solo se permiten imágenes (JPG, PNG, WEBP, GIF, HEIC).");
+      return;
     }
-    // reset input
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (file.size > 5 * 1024 * 1024) {
+      alert(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(2)} MB. El máximo permitido es 5 MB.`);
+      return;
+    }
+
+    setUploadingFoto(true);
+    try {
+      const formData = new FormData();
+      formData.set("chofer_id", chofer.id);
+      formData.set("file", file);
+      const res = await uploadFotoChoferAction(formData);
+      if (res.error) {
+        alert(res.error);
+      } else if (detailOpen) {
+        refreshDetail();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo subir la foto. Probá con una imagen más liviana o en otro formato.");
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  const handleFotoDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!fotoUrl) return;
+    if (!confirm("¿Eliminar la foto de perfil?")) return;
+    setUploadingFoto(true);
+    try {
+      const res = await deleteFotoChoferAction(chofer.id);
+      if (res.error) {
+        alert(res.error);
+      } else if (detailOpen) {
+        refreshDetail();
+      }
+    } finally {
+      setUploadingFoto(false);
+    }
   };
 
   return (
@@ -121,43 +155,56 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           {/* Header de la Card: Avatar + Nombre/Estado */}
           <div className="flex items-start gap-4 mb-4">
             {/* Avatar interactivo */}
-            <div
-              className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center flex-shrink-0 relative group/avatar cursor-pointer overflow-hidden shadow-inner"
-              onClick={() => fileInputRef.current?.click()}
-              title="Hacer clic para cambiar foto"
-            >
-              {fotoUrl ? (
-                <img
-                  src={fotoUrl}
-                  alt={`${chofer.nombre} ${chofer.apellido}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
-              )}
+            <div className="relative flex-shrink-0 group/avatar">
+              <div
+                className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center cursor-pointer overflow-hidden shadow-inner relative"
+                onClick={() => fileInputRef.current?.click()}
+                title="Hacer clic para cambiar foto"
+              >
+                {fotoUrl ? (
+                  <img
+                    src={fotoUrl}
+                    alt={`${chofer.nombre} ${chofer.apellido}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
+                )}
 
-              {/* Overlay de hover con icono de cámara */}
-              <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
-                <Camera size={18} className="text-white mb-0.5" />
-                <span className="text-[9px] font-medium text-white tracking-wider uppercase">
-                  Foto
-                </span>
+                {/* Overlay de hover con icono de cámara */}
+                <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                  <Camera size={16} className="text-white" />
+                  <span className="text-[9px] font-medium text-white tracking-wider uppercase">
+                    {fotoUrl ? "Cambiar" : "Subir"}
+                  </span>
+                </div>
+
+                {/* Loader al subir foto */}
+                {uploadingFoto && (
+                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                    <Loader2 size={20} className="animate-spin text-[#0088D1]" />
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFotoChange}
+                />
               </div>
 
-              {/* Loader al subir foto */}
-              {uploadingFoto && (
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                  <Loader2 size={20} className="animate-spin text-[#0088D1]" />
-                </div>
+              {fotoUrl && !uploadingFoto && (
+                <button
+                  type="button"
+                  onClick={handleFotoDelete}
+                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white opacity-0 group-hover/avatar:opacity-100 transition-opacity z-20"
+                  title="Eliminar foto"
+                >
+                  <Trash2 size={10} />
+                </button>
               )}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFotoChange}
-              />
             </div>
 
             {/* Datos principales */}

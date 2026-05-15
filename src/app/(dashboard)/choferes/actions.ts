@@ -102,28 +102,67 @@ export async function deleteChoferAction(id: string) {
   return { success: true };
 }
 
+const FOTOS_BUCKET = "avatares-choferes";
+const MIME_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+function slugify(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
 export async function uploadFotoChoferAction(formData: FormData) {
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
   const file = formData.get("file") as File;
 
+  if (!chofer_id) return { error: "Chofer requerido" };
   if (!file || !file.size) return { error: "Archivo requerido" };
   if (!file.type.startsWith("image/")) return { error: "Solo se permiten imágenes" };
   if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
 
-  const ext = file.name.split(".").pop();
-  const storagePath = `choferes/${chofer_id}/foto_${Date.now()}.${ext}`;
+  const ext = MIME_EXT[file.type];
+  if (!ext) return { error: "Formato no soportado (usá JPG, PNG, WEBP, GIF o HEIC)" };
 
+  const { data: chofer, error: choferErr } = await supabase
+    .from("choferes")
+    .select("nombre, apellido, dni, foto_id")
+    .eq("id", chofer_id)
+    .single();
+  if (choferErr || !chofer) return { error: "Chofer no encontrado" };
+
+  const carpeta = `${slugify(chofer.apellido)}-${slugify(chofer.nombre)}-${chofer.dni}`;
+  const storagePath = `${carpeta}/avatar-${Date.now()}.${ext}`;
+
+  const arrayBuffer = await file.arrayBuffer();
   const { error: uploadError } = await supabase.storage
-    .from("documentos-personal")
-    .upload(storagePath, file);
-  if (uploadError) return { error: "Error al subir la foto" };
+    .from(FOTOS_BUCKET)
+    .upload(storagePath, arrayBuffer, {
+      contentType: file.type,
+      upsert: true,
+    });
+  if (uploadError) {
+    console.error("Error al subir foto:", uploadError);
+    return { error: `Error al subir la foto: ${uploadError.message}` };
+  }
 
   const { data: archivoData, error: archivoError } = await supabase
     .from("documentos_archivos")
     .insert({
-      bucket: "documentos-personal",
+      bucket: FOTOS_BUCKET,
       nombre_original: file.name,
       path: storagePath,
       tamano_bytes: file.size,
@@ -131,7 +170,13 @@ export async function uploadFotoChoferAction(formData: FormData) {
     })
     .select("id")
     .single();
-  if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+  if (archivoError || !archivoData) {
+    await supabase.storage.from(FOTOS_BUCKET).remove([storagePath]);
+    console.error("Error al registrar archivo:", archivoError);
+    return { error: "Error al registrar el archivo" };
+  }
+
+  const fotoIdPrevia = chofer.foto_id;
 
   const { error: dbError } = await supabase
     .from("choferes")
@@ -140,7 +185,57 @@ export async function uploadFotoChoferAction(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", chofer_id);
-  if (dbError) return { error: "Error al guardar la foto en el chofer" };
+  if (dbError) {
+    await supabase.storage.from(FOTOS_BUCKET).remove([storagePath]);
+    await supabase.from("documentos_archivos").delete().eq("id", archivoData.id);
+    console.error("Error al actualizar chofer:", dbError);
+    return { error: "Error al guardar la foto en el chofer" };
+  }
+
+  if (fotoIdPrevia) {
+    const { data: previo } = await supabase
+      .from("documentos_archivos")
+      .select("bucket, path")
+      .eq("id", fotoIdPrevia)
+      .single();
+    if (previo) {
+      await supabase.storage.from(previo.bucket).remove([previo.path]);
+      await supabase.from("documentos_archivos").delete().eq("id", fotoIdPrevia);
+    }
+  }
+
+  revalidatePath("/choferes");
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function deleteFotoChoferAction(chofer_id: string) {
+  const supabase = createAdminClient();
+
+  const { data: chofer, error: choferErr } = await supabase
+    .from("choferes")
+    .select("foto_id")
+    .eq("id", chofer_id)
+    .single();
+  if (choferErr || !chofer) return { error: "Chofer no encontrado" };
+  if (!chofer.foto_id) return { success: true };
+
+  const { data: archivo } = await supabase
+    .from("documentos_archivos")
+    .select("bucket, path")
+    .eq("id", chofer.foto_id)
+    .single();
+
+  const { error: updErr } = await supabase
+    .from("choferes")
+    .update({ foto_id: null, updated_at: new Date().toISOString() })
+    .eq("id", chofer_id);
+  if (updErr) return { error: "No se pudo desvincular la foto" };
+
+  if (archivo) {
+    await supabase.storage.from(archivo.bucket).remove([archivo.path]);
+    await supabase.from("documentos_archivos").delete().eq("id", chofer.foto_id);
+  }
 
   revalidatePath("/choferes");
   revalidatePath(`/choferes/${chofer_id}`);

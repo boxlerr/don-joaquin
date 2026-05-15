@@ -9,12 +9,16 @@ import {
   FileText,
   Wallet,
   Map,
+  Pencil,
 } from "lucide-react";
 import NewClienteSheet from "./new-cliente-sheet";
 import ImportClientesModal from "./import-clientes-modal";
 import DeleteClienteButton from "./delete-cliente-button";
 import ReactivateClienteButton from "./reactivate-cliente-button";
 import HelpTutorialButton from "./help-tutorial-button";
+import EditClienteSheet, { type ClienteEditable } from "./edit-cliente-sheet";
+import CuentaTab from "./cuenta-tab";
+import ViajesTab from "./viajes-tab";
 
 type EstadoFiltro = "activos" | "inactivos" | "todos";
 
@@ -30,6 +34,8 @@ type Cliente = {
   es_multinacional: boolean;
   estado: string;
   observaciones: string | null;
+  email?: string | null;
+  telefono?: string | null;
 };
 
 const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
@@ -47,6 +53,7 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("info");
+  const [editing, setEditing] = useState<ClienteEditable | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -153,7 +160,7 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
                           "size-10 rounded-full font-bold text-sm flex items-center justify-center " +
                           (inactivo
                             ? "bg-[#F1F5F9] text-[#94A3B8]"
-                            : "bg-[#FEE2E2] text-[#B91C1C]")
+                            : "bg-[#E1F5FE] text-[#0088D1]")
                         }
                       >
                         {initial}
@@ -170,7 +177,7 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
                           )}
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-[#475569] uppercase tracking-wide mt-0.5">
-                          <MapPin size={11} className="text-[#EF4444]" />
+                          <MapPin size={11} className="text-[#0088D1]" />
                           {c.localidad ?? "Sin localidad"}
                         </div>
                       </div>
@@ -184,7 +191,7 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
                           {c.cuit ?? "NO DATA"}
                         </div>
                       </div>
-                      <span className="size-7 rounded-full bg-[#FEE2E2] text-[#B91C1C] flex items-center justify-center">
+                      <span className="size-7 rounded-full bg-[#E1F5FE] text-[#0088D1] flex items-center justify-center">
                         {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
                     </div>
@@ -213,13 +220,11 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
                         />
                       </div>
 
-                      {activeTab === "info" && <InfoGeneral cliente={c} />}
-                      {activeTab === "cuenta" && (
-                        <Placeholder text="Estado de cuenta: pendiente de integración con cta_cte_movimientos." />
+                      {activeTab === "info" && (
+                        <InfoGeneral cliente={c} onEdit={() => setEditing(c)} />
                       )}
-                      {activeTab === "viajes" && (
-                        <Placeholder text="Viajes recientes: pendiente de integración con módulo viajes." />
-                      )}
+                      {activeTab === "cuenta" && <CuentaTab clienteId={c.id} />}
+                      {activeTab === "viajes" && <ViajesTab clienteId={c.id} />}
                     </div>
                   )}
                 </li>
@@ -228,6 +233,14 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
           </ul>
         )}
       </div>
+
+      {editing && (
+        <EditClienteSheet
+          cliente={editing}
+          open={editing !== null}
+          onOpenChange={(v) => !v && setEditing(null)}
+        />
+      )}
     </div>
   );
 }
@@ -250,7 +263,7 @@ function TabButton({
       className={
         "inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-semibold uppercase tracking-wide transition-colors " +
         (active
-          ? "bg-[#EF4444] text-white"
+          ? "bg-[#0088D1] text-white"
           : "bg-white text-[#475569] border border-[#E2E8F0] hover:bg-[#F1F5F9]")
       }
     >
@@ -260,7 +273,7 @@ function TabButton({
   );
 }
 
-function InfoGeneral({ cliente }: { cliente: Cliente }) {
+function InfoGeneral({ cliente, onEdit }: { cliente: Cliente; onEdit: () => void }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -280,7 +293,15 @@ function InfoGeneral({ cliente }: { cliente: Cliente }) {
           <p className="text-sm text-[#78350F] italic">&ldquo;{cliente.observaciones}&rdquo;</p>
         </div>
       )}
-      <div className="flex justify-end pt-1">
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold text-[#0088D1] border border-[#0088D1]/30 hover:bg-[#E1F5FE] transition-colors"
+        >
+          <Pencil size={12} />
+          Editar datos
+        </button>
         {cliente.estado === "inactivo" ? (
           <ReactivateClienteButton id={cliente.id} razonSocial={cliente.razon_social} />
         ) : (
@@ -304,10 +325,3 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
-function Placeholder({ text }: { text: string }) {
-  return (
-    <div className="py-8 text-center text-sm text-[#475569] bg-white border border-dashed border-[#E2E8F0] rounded-[8px]">
-      {text}
-    </div>
-  );
-}

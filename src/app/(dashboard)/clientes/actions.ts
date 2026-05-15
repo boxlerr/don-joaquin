@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const CONDICION_IVA_VALUES = [
   "responsable_inscripto",
@@ -324,4 +325,225 @@ export async function importClientesAction(
 
   revalidatePath("/clientes");
   return { ok: true, imported, skipped, errors };
+}
+
+// ============================================================================
+// Edición de cliente
+// ============================================================================
+
+export type UpdateClienteState = {
+  ok?: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+} | null;
+
+export async function updateClienteAction(
+  _prev: UpdateClienteState,
+  formData: FormData,
+): Promise<UpdateClienteState> {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "ID de cliente inválido." };
+
+  const parsed = clienteSchema.safeParse({
+    razon_social: formData.get("razon_social"),
+    nombre_comercial: emptyToNull(formData.get("nombre_comercial")),
+    cuit: emptyToNull(formData.get("cuit")),
+    condicion_iva: formData.get("condicion_iva") ?? "no_categorizado",
+    domicilio_fiscal: emptyToNull(formData.get("domicilio_fiscal")),
+    localidad: emptyToNull(formData.get("localidad")),
+    provincia: emptyToNull(formData.get("provincia")),
+    email: emptyToNull(formData.get("email")) ?? "",
+    telefono: emptyToNull(formData.get("telefono")),
+    es_multinacional: formData.get("es_multinacional") === "on",
+    observaciones: emptyToNull(formData.get("observaciones")),
+  });
+
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === "string" && !fieldErrors[key]) {
+        fieldErrors[key] = issue.message;
+      }
+    }
+    return { error: "Revisá los campos marcados.", fieldErrors };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("clientes")
+    .update({
+      razon_social: parsed.data.razon_social,
+      nombre_comercial: parsed.data.nombre_comercial ?? null,
+      cuit: parsed.data.cuit ?? null,
+      condicion_iva: parsed.data.condicion_iva,
+      domicilio_fiscal: parsed.data.domicilio_fiscal ?? null,
+      localidad: parsed.data.localidad ?? null,
+      provincia: parsed.data.provincia ?? null,
+      email: parsed.data.email ? parsed.data.email : null,
+      telefono: parsed.data.telefono ?? null,
+      es_multinacional: parsed.data.es_multinacional ?? false,
+      observaciones: parsed.data.observaciones ?? null,
+    })
+    .eq("id", id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/clientes");
+  return { ok: true };
+}
+
+// ============================================================================
+// Estado de cuenta / Viajes recientes
+// ============================================================================
+
+export type CtaCteMovimiento = {
+  id: string;
+  fecha: string;
+  tipo: string;
+  concepto: string | null;
+  categoria: string | null;
+  monto: number;
+  moneda: string;
+  observaciones: string | null;
+};
+
+export type CuentaResumen = {
+  saldo: number;
+  totalDebe: number;
+  totalHaber: number;
+  movimientos: CtaCteMovimiento[];
+};
+
+export async function getCuentaClienteAction(cliente_id: string): Promise<CuentaResumen> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("cta_cte_movimientos")
+    .select("id, fecha, tipo, concepto, categoria, monto, moneda, observaciones")
+    .eq("cliente_id", cliente_id)
+    .order("fecha", { ascending: false })
+    .limit(100);
+
+  const movimientos = (data ?? []) as CtaCteMovimiento[];
+  let totalDebe = 0;
+  let totalHaber = 0;
+  for (const m of movimientos) {
+    const monto = Number(m.monto ?? 0);
+    if (m.tipo === "debe" || m.tipo === "debito") totalDebe += monto;
+    else totalHaber += monto;
+  }
+  return { saldo: totalDebe - totalHaber, totalDebe, totalHaber, movimientos };
+}
+
+export type ViajeReciente = {
+  id: string;
+  codigo: string | null;
+  fecha_viaje: string | null;
+  estado: string;
+  monto_flete: number | null;
+  moneda: string | null;
+  tonelaje_real: number | null;
+  facturado: boolean;
+  origen: string | null;
+  destino: string | null;
+};
+
+export async function getViajesClienteAction(cliente_id: string): Promise<ViajeReciente[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("viajes")
+    .select(
+      "id, codigo, fecha_viaje, estado, monto_flete, moneda, tonelaje_real, facturado, origen:puntos_ruta!viajes_origen_id_fkey(nombre), destino:puntos_ruta!viajes_destino_id_fkey(nombre)"
+    )
+    .eq("cliente_id", cliente_id)
+    .order("fecha_viaje", { ascending: false, nullsFirst: false })
+    .limit(20);
+
+  return (data ?? []).map((v: any) => ({
+    id: v.id,
+    codigo: v.codigo,
+    fecha_viaje: v.fecha_viaje,
+    estado: v.estado,
+    monto_flete: v.monto_flete,
+    moneda: v.moneda,
+    tonelaje_real: v.tonelaje_real,
+    facturado: v.facturado,
+    origen: v.origen?.nombre ?? null,
+    destino: v.destino?.nombre ?? null,
+  }));
+}
+
+// ============================================================================
+// Exportación de cuenta corriente
+// ============================================================================
+
+export async function exportCuentaCorrienteAction(): Promise<{
+  filename: string;
+  base64: string;
+}> {
+  const supabase = createAdminClient();
+
+  const { data: clientes } = await supabase
+    .from("clientes")
+    .select("id, razon_social, cuit, estado")
+    .order("razon_social");
+
+  const { data: movs } = await supabase
+    .from("cta_cte_movimientos")
+    .select("cliente_id, fecha, tipo, concepto, categoria, monto, moneda, observaciones")
+    .order("fecha", { ascending: false });
+
+  const movsByCliente = new Map<string, any[]>();
+  for (const m of movs ?? []) {
+    const arr = movsByCliente.get(m.cliente_id) ?? [];
+    arr.push(m);
+    movsByCliente.set(m.cliente_id, arr);
+  }
+
+  const resumenRows = (clientes ?? []).map((c) => {
+    const ms = movsByCliente.get(c.id) ?? [];
+    let debe = 0;
+    let haber = 0;
+    for (const m of ms) {
+      const monto = Number(m.monto ?? 0);
+      if (m.tipo === "debe" || m.tipo === "debito") debe += monto;
+      else haber += monto;
+    }
+    return {
+      Cliente: c.razon_social,
+      CUIT: c.cuit ?? "",
+      Estado: c.estado,
+      Movimientos: ms.length,
+      "Total debe": debe,
+      "Total haber": haber,
+      Saldo: debe - haber,
+    };
+  });
+
+  const movRows = (movs ?? []).map((m) => {
+    const cliente = (clientes ?? []).find((c) => c.id === m.cliente_id);
+    return {
+      Cliente: cliente?.razon_social ?? "",
+      CUIT: cliente?.cuit ?? "",
+      Fecha: m.fecha,
+      Tipo: m.tipo,
+      Concepto: m.concepto ?? "",
+      Categoria: m.categoria ?? "",
+      Monto: Number(m.monto ?? 0),
+      Moneda: m.moneda ?? "",
+      Observaciones: m.observaciones ?? "",
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), "Resumen");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movRows), "Movimientos");
+
+  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const date = new Date().toISOString().slice(0, 10);
+  return {
+    filename: `cuenta-corriente-${date}.xlsx`,
+    base64: buf.toString("base64"),
+  };
 }
