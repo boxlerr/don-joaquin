@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
-import { X, Clock, User, ChevronLeft, ChevronRight, ShieldAlert } from "lucide-react";
+import {
+  X,
+  Clock,
+  User,
+  ChevronLeft,
+  ChevronRight,
+  ShieldAlert,
+  ListChecks,
+  MapPin,
+  Banknote,
+  Wallet,
+  Users,
+  IdCard,
+  Truck,
+} from "lucide-react";
 import {
   getGlobalAuditLogsAction,
   type AuditLogEntry,
@@ -17,22 +31,28 @@ type Filters = {
   desde: string;
   hasta: string;
   usuario_id: string;
-  entidad_tipo: string;
+  entidad_tipos: string[];
 };
 
-const ENTIDADES = [
-  { value: "", label: "Todas las entidades" },
-  { value: "viaje", label: "Viajes" },
-  { value: "cheque", label: "Cheques" },
-  { value: "caja", label: "Caja" },
-  { value: "cliente", label: "Clientes" },
-];
+const ENTIDAD_TABS = [
+  { value: "", label: "Todas", icon: ListChecks },
+  { value: "viaje", label: "Viajes", icon: MapPin },
+  { value: "cheque", label: "Cheques", icon: Banknote },
+  { value: "caja", label: "Caja", icon: Wallet },
+  { value: "cliente", label: "Clientes", icon: Users },
+  { value: "chofer", label: "Choferes", icon: IdCard },
+  { value: "camion", label: "Camiones", icon: Truck },
+] as const;
 
 const ACCIONES_LABELS: Record<string, string> = {
   crear: "Creación",
   cambio_estado: "Cambio de estado",
   actualizar: "Actualización",
   eliminar: "Eliminación",
+  foto_agregada: "Foto agregada",
+  foto_eliminada: "Foto eliminada",
+  foto_principal: "Foto marcada como principal",
+  nota_foto: "Nota de foto actualizada",
 };
 
 const ACCIONES_COLORS: Record<string, string> = {
@@ -40,6 +60,10 @@ const ACCIONES_COLORS: Record<string, string> = {
   cambio_estado: "bg-[#E0E7FF] text-[#3730A3]",
   actualizar: "bg-[#FEF3C7] text-[#92400E]",
   eliminar: "bg-[#FEE2E2] text-[#7F1D1D]",
+  foto_agregada: "bg-[#E0F2FE] text-[#075985]",
+  foto_eliminada: "bg-[#FEE2E2] text-[#7F1D1D]",
+  foto_principal: "bg-[#FEF3C7] text-[#92400E]",
+  nota_foto: "bg-[#F3E8FF] text-[#6B21A8]",
 };
 
 const ENTIDADES_LABELS: Record<string, string> = {
@@ -47,6 +71,8 @@ const ENTIDADES_LABELS: Record<string, string> = {
   cheque: "Cheque",
   caja: "Caja",
   cliente: "Cliente",
+  chofer: "Chofer",
+  camion: "Camión",
 };
 
 export default function AuditoriaClient({
@@ -63,7 +89,7 @@ export default function AuditoriaClient({
     desde: "",
     hasta: "",
     usuario_id: "",
-    entidad_tipo: "",
+    entidad_tipos: [],
   });
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -76,7 +102,7 @@ export default function AuditoriaClient({
         desde: newFilters.desde || undefined,
         hasta: newFilters.hasta || undefined,
         usuario_id: newFilters.usuario_id || undefined,
-        entidad_tipo: newFilters.entidad_tipo || undefined,
+        entidad_tipos: newFilters.entidad_tipos.length > 0 ? newFilters.entidad_tipos : undefined,
         page: newPage,
       };
       startTransition(async () => {
@@ -91,8 +117,26 @@ export default function AuditoriaClient({
     []
   );
 
-  const handleFilterChange = (key: keyof Filters, value: string) => {
+  const handleFilterChange = <K extends Exclude<keyof Filters, "entidad_tipos">>(
+    key: K,
+    value: string,
+  ) => {
     const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    setPage(0);
+    fetchData(newFilters, 0);
+  };
+
+  const toggleEntidad = (value: string) => {
+    let next: string[];
+    if (value === "") {
+      next = [];
+    } else if (filters.entidad_tipos.includes(value)) {
+      next = filters.entidad_tipos.filter((v) => v !== value);
+    } else {
+      next = [...filters.entidad_tipos, value];
+    }
+    const newFilters = { ...filters, entidad_tipos: next };
     setFilters(newFilters);
     setPage(0);
     fetchData(newFilters, 0);
@@ -104,18 +148,56 @@ export default function AuditoriaClient({
   };
 
   const clearFilters = () => {
-    const empty: Filters = { desde: "", hasta: "", usuario_id: "", entidad_tipo: "" };
+    const empty: Filters = { desde: "", hasta: "", usuario_id: "", entidad_tipos: [] };
     setFilters(empty);
     setPage(0);
     fetchData(empty, 0);
   };
 
-  const hasFilters = Object.values(filters).some(Boolean);
+  const hasFilters =
+    !!filters.desde ||
+    !!filters.hasta ||
+    !!filters.usuario_id ||
+    filters.entidad_tipos.length > 0;
   const rangeFrom = page * PAGE_SIZE + 1;
   const rangeTo = Math.min((page + 1) * PAGE_SIZE, total);
 
   return (
     <>
+      {/* Entity tabs (multi-select) */}
+      <div className="bg-white rounded-lg border border-[#E2E8F0] px-2 py-1 mb-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {ENTIDAD_TABS.map((t) => {
+          const Icon = t.icon;
+          const isAll = t.value === "";
+          const active = isAll
+            ? filters.entidad_tipos.length === 0
+            : filters.entidad_tipos.includes(t.value);
+          return (
+            <button
+              key={t.value || "all"}
+              type="button"
+              onClick={() => toggleEntidad(t.value)}
+              className={
+                "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold rounded-md transition-colors whitespace-nowrap " +
+                (active
+                  ? "bg-[#E1F5FE] text-[#0088D1]"
+                  : "text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]")
+              }
+              title={
+                isAll
+                  ? "Mostrar todas las entidades"
+                  : active
+                    ? `Quitar ${t.label}`
+                    : `Agregar ${t.label}`
+              }
+            >
+              <Icon size={14} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filter bar */}
       <div className="bg-white rounded-lg border border-[#E2E8F0] px-5 py-4 mb-4 flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
@@ -155,23 +237,6 @@ export default function AuditoriaClient({
             {usuarios.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.apellido ? `${u.apellido}, ${u.nombre}` : u.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
-            Entidad
-          </label>
-          <select
-            value={filters.entidad_tipo}
-            onChange={(e) => handleFilterChange("entidad_tipo", e.target.value)}
-            className="border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
-          >
-            {ENTIDADES.map((e) => (
-              <option key={e.value} value={e.value}>
-                {e.label}
               </option>
             ))}
           </select>
@@ -364,24 +429,278 @@ function AuditDetailDrawer({
         </div>
 
         {/* Diff */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {entry.valores_anteriores && (
-            <div>
-              <p className="text-[11px] font-semibold text-[#475569] mb-2">Antes:</p>
-              <div className="bg-[#FEE2E2] text-[#7F1D1D] px-3 py-2 rounded text-[11px] font-mono break-words whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {JSON.stringify(entry.valores_anteriores, null, 2)}
-              </div>
-            </div>
-          )}
-          {entry.valores_nuevos && (
-            <div>
-              <p className="text-[11px] font-semibold text-[#475569] mb-2">Después:</p>
-              <div className="bg-[#DCFCE7] text-[#14532D] px-3 py-2 rounded text-[11px] font-mono break-words whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {JSON.stringify(entry.valores_nuevos, null, 2)}
-              </div>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <FriendlyDiff entry={entry} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Render legible del cambio (sin JSON crudo)
+// ============================================================================
+
+const FIELD_LABELS: Record<string, Record<string, string>> = {
+  camion: {
+    patente: "Patente",
+    marca: "Marca",
+    modelo: "Modelo",
+    ano: "Año",
+    capacidad_tn: "Capacidad (TN)",
+    tipo_camion: "Tipo",
+    estado: "Estado",
+    observaciones: "Observaciones",
+    archivo: "Archivo",
+    nota: "Nota",
+    es_principal: "Es principal",
+    era_principal: "Era la foto principal",
+  },
+  chofer: {
+    nombre: "Nombre",
+    apellido: "Apellido",
+    dni: "DNI",
+    telefono: "Teléfono",
+    email: "Email",
+    localidad: "Localidad",
+    direccion: "Dirección",
+    fecha_ingreso: "Fecha de ingreso",
+    estado: "Estado",
+    observaciones: "Observaciones",
+  },
+  viaje: {
+    numero: "Número",
+    estado: "Estado",
+    fecha_salida: "Fecha de salida",
+    fecha_llegada: "Fecha de llegada",
+    origen: "Origen",
+    destino: "Destino",
+    km_oficial: "KM oficial",
+    km_calculado: "KM calculado",
+    tarifa: "Tarifa",
+    chofer_id: "Chofer",
+    camion_id: "Camión",
+    cliente_id: "Cliente",
+    observaciones: "Observaciones",
+  },
+  cheque: {
+    numero: "Número",
+    monto: "Monto",
+    banco: "Banco",
+    estado: "Estado",
+    fecha_emision: "Fecha de emisión",
+    fecha_cobro: "Fecha de cobro",
+    observaciones: "Observaciones",
+  },
+  caja: {
+    tipo: "Tipo",
+    monto: "Monto",
+    descripcion: "Descripción",
+    fecha: "Fecha",
+  },
+  cliente: {
+    razon_social: "Razón social",
+    nombre_comercial: "Nombre comercial",
+    cuit: "CUIT",
+    condicion_iva: "Condición IVA",
+    localidad: "Localidad",
+    provincia: "Provincia",
+    email: "Email",
+    estado: "Estado",
+  },
+};
+
+const VALUE_TRANSLATIONS: Record<string, string> = {
+  // Estado camión
+  activo: "Activo",
+  inactivo: "Inactivo",
+  baja: "Baja",
+  en_mantenimiento: "En mantenimiento",
+  // Tipo camión
+  tractor: "Tractor",
+  chasis_rigido: "Chasis rígido",
+  batea: "Batea",
+  otro: "Otro",
+  // Condición IVA
+  responsable_inscripto: "Responsable inscripto",
+  monotributo: "Monotributo",
+  exento: "Exento",
+  consumidor_final: "Consumidor final",
+  no_categorizado: "No categorizado",
+};
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\bid\b/gi, "")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (typeof value === "number") return value.toLocaleString("es-AR");
+  const s = String(value);
+  // Fecha ISO
+  if (/^\d{4}-\d{2}-\d{2}(T|$)/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString("es-AR");
+  }
+  // Traducción de enum común
+  if (VALUE_TRANSLATIONS[s]) return VALUE_TRANSLATIONS[s];
+  return s;
+}
+
+function fieldLabel(entidad: string, key: string): string {
+  return FIELD_LABELS[entidad]?.[key] ?? humanizeKey(key);
+}
+
+type DiffRow = { key: string; antes: unknown; despues: unknown };
+
+const HIDDEN_KEYS = new Set(["foto_url"]);
+
+function computeDiff(
+  antes: Record<string, unknown> | null,
+  despues: Record<string, unknown> | null,
+): DiffRow[] {
+  const keys = new Set<string>([
+    ...Object.keys(antes ?? {}),
+    ...Object.keys(despues ?? {}),
+  ]);
+  const rows: DiffRow[] = [];
+  for (const key of keys) {
+    if (key.endsWith("_at") || key.endsWith("_by") || key === "id") continue;
+    if (HIDDEN_KEYS.has(key)) continue;
+    const a = antes?.[key];
+    const d = despues?.[key];
+    if (antes && despues) {
+      if (JSON.stringify(a) !== JSON.stringify(d)) {
+        rows.push({ key, antes: a, despues: d });
+      }
+    } else {
+      rows.push({ key, antes: a, despues: d });
+    }
+  }
+  return rows;
+}
+
+function FotoPreview({ url, deleted }: { url: string; deleted?: boolean }) {
+  return (
+    <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] overflow-hidden">
+      <div className="relative aspect-[4/3] bg-black/5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt="Foto del registro"
+          className={`w-full h-full object-contain ${deleted ? "opacity-60" : ""}`}
+          loading="lazy"
+        />
+        {deleted && (
+          <span className="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-semibold bg-red-50 text-[#7F1D1D] border border-[#FECACA] rounded">
+            Foto eliminada
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
+  const antes = entry.valores_anteriores;
+  const despues = entry.valores_nuevos;
+  const entidad = entry.entidad_tipo;
+  const esFotoEntry = entry.accion.startsWith("foto_") || entry.accion === "nota_foto";
+  const fotoUrl =
+    (despues?.foto_url as string | undefined) ?? (antes?.foto_url as string | undefined) ?? null;
+
+  const diff = computeDiff(antes, despues);
+
+  if (diff.length === 0 && !fotoUrl) {
+    return (
+      <p className="text-sm text-[#94A3B8] text-center py-8">
+        Sin cambios para mostrar.
+      </p>
+    );
+  }
+
+  // Sólo "después" → creación / foto_agregada / foto_principal
+  if (!antes && despues) {
+    return (
+      <div className="space-y-3">
+        {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
+        <p className="text-[12px] text-[#475569]">
+          {esFotoEntry ? "Datos de la foto:" : "Se registraron estos datos:"}
+        </p>
+        <div className="rounded-lg border border-[#A7F3D0] bg-[#ECFDF5] divide-y divide-[#A7F3D0]/60">
+          {diff.map((row) => (
+            <div key={row.key} className="px-3 py-2 flex items-start justify-between gap-3">
+              <span className="text-[12px] font-semibold text-[#065F46]">
+                {fieldLabel(entidad, row.key)}
+              </span>
+              <span className="text-[12px] text-[#065F46] text-right break-words">
+                {formatValue(row.despues)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Sólo "antes" → eliminación / foto_eliminada
+  if (antes && !despues) {
+    return (
+      <div className="space-y-3">
+        {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} deleted />}
+        <p className="text-[12px] text-[#475569]">
+          {esFotoEntry ? "Datos de la foto eliminada:" : "Se eliminó un registro con estos datos:"}
+        </p>
+        <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] divide-y divide-[#FECACA]/60">
+          {diff.map((row) => (
+            <div key={row.key} className="px-3 py-2 flex items-start justify-between gap-3">
+              <span className="text-[12px] font-semibold text-[#7F1D1D]">
+                {fieldLabel(entidad, row.key)}
+              </span>
+              <span className="text-[12px] text-[#7F1D1D] text-right break-words line-through">
+                {formatValue(row.antes)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Actualización → diff antes→después por campo (incluye nota_foto)
+  return (
+    <div className="space-y-3">
+      {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
+      <p className="text-[12px] text-[#475569]">
+        {diff.length === 1
+          ? "Se modificó 1 campo:"
+          : `Se modificaron ${diff.length} campos:`}
+      </p>
+      <div className="space-y-2">
+        {diff.map((row) => (
+          <div
+            key={row.key}
+            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2"
+          >
+            <p className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide mb-1.5">
+              {fieldLabel(entidad, row.key)}
+            </p>
+            <div className="flex items-center gap-2 text-[13px] flex-wrap">
+              <span className="px-2 py-0.5 rounded bg-[#FEE2E2] text-[#7F1D1D] line-through break-words">
+                {formatValue(row.antes)}
+              </span>
+              <span className="text-[#94A3B8] text-xs">→</span>
+              <span className="px-2 py-0.5 rounded bg-[#DCFCE7] text-[#14532D] font-semibold break-words">
+                {formatValue(row.despues)}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

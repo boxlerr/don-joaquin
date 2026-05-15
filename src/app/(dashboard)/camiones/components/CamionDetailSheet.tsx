@@ -58,6 +58,29 @@ type FieldErrors = Partial<Record<keyof FormData, string>>;
 const PATENTE_REGEX = /^[A-Z0-9\s-]{6,10}$/;
 const CURRENT_YEAR = new Date().getFullYear();
 
+const ESTADO_STYLES: Record<string, string> = {
+  activo: "bg-[#ECFDF5] text-[#065F46] font-medium",
+  en_mantenimiento: "bg-[#FEF3C7] text-[#92400E] font-medium",
+  inactivo: "bg-[#F1F5F9] text-[#475569] font-medium",
+  baja: "bg-[#FEF2F2] text-[#7F1D1D] font-medium",
+};
+
+const ESTADO_DOT: Record<string, string> = {
+  activo: "bg-[#10B981]",
+  en_mantenimiento: "bg-[#F59E0B]",
+  inactivo: "bg-[#94A3B8]",
+  baja: "bg-[#EF4444]",
+};
+
+function EstadoOption({ value, label }: { value: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`size-2 rounded-full ${ESTADO_DOT[value]}`} />
+      {label}
+    </span>
+  );
+}
+
 function validate(data: FormData): FieldErrors {
   const errs: FieldErrors = {};
   if (!data.patente.trim()) errs.patente = "Patente requerida";
@@ -349,7 +372,7 @@ export default function CamionDetailSheet({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto">
+        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
@@ -404,14 +427,24 @@ export default function CamionDetailSheet({
                     value={formData.estado}
                     onValueChange={(val) => updateField("estado", val ?? formData.estado)}
                   >
-                    <SelectTrigger className={`w-full ${fieldClass("estado")}`}>
+                    <SelectTrigger
+                      className={`w-full ${ESTADO_STYLES[formData.estado] ?? ""} ${fieldClass("estado")}`}
+                    >
                       <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="activo">Activo</SelectItem>
-                      <SelectItem value="en_mantenimiento">En Mantenimiento</SelectItem>
-                      <SelectItem value="inactivo">Inactivo</SelectItem>
-                      <SelectItem value="baja">Baja</SelectItem>
+                      <SelectItem value="activo">
+                        <EstadoOption value="activo" label="Activo" />
+                      </SelectItem>
+                      <SelectItem value="en_mantenimiento">
+                        <EstadoOption value="en_mantenimiento" label="En Mantenimiento" />
+                      </SelectItem>
+                      <SelectItem value="inactivo">
+                        <EstadoOption value="inactivo" label="Inactivo" />
+                      </SelectItem>
+                      <SelectItem value="baja">
+                        <EstadoOption value="baja" label="Baja" />
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

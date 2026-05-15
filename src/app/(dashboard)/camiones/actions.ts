@@ -53,12 +53,24 @@ export async function addCamionAction(data: {
     created_by: user?.id ?? null,
   };
 
-  const { error } = await supabase.from("camiones").insert(camion);
+  const { data: inserted, error } = await supabase
+    .from("camiones")
+    .insert(camion)
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al insertar camion:", error);
     return { error: "No se pudo guardar el camión. Verificá que la patente no esté repetida." };
   }
+
+  await supabase.from("audit_log").insert({
+    accion: "crear",
+    entidad_tipo: "camion",
+    entidad_id: inserted?.id ?? null,
+    usuario_id: user?.id ?? null,
+    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
 
   revalidatePath("/camiones");
   return { success: true };
@@ -74,6 +86,14 @@ export async function updateCamionAction(id: string, data: {
   estado: Database["public"]["Enums"]["camion_estado"];
 }) {
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("camiones")
+    .select("patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado")
+    .eq("id", id)
+    .single();
 
   const { error } = await supabase
     .from("camiones")
@@ -91,15 +111,40 @@ export async function updateCamionAction(id: string, data: {
 
   if (error) {
     console.error("Error al actualizar camion:", error);
-    return { error: "No se pudo actualizar el camión." };
+    return { error: friendlyCamionError(error.message) };
   }
+
+  const cambioEstado = previo && previo.estado !== data.estado;
+  await supabase.from("audit_log").insert({
+    accion: cambioEstado ? "cambio_estado" : "actualizar",
+    entidad_tipo: "camion",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+    valores_anteriores: previo as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
 
   revalidatePath("/camiones");
   return { success: true };
 }
 
+function friendlyCamionError(message: string): string {
+  if (message.includes("camiones_patente_key")) return "Ya existe un camión con esa patente.";
+  if (message.includes("camiones_capacidad_tn")) return "La capacidad ingresada no está permitida.";
+  if (message.includes("camiones_ano_check")) return "El año ingresado no está permitido (debe ser ≥ 1980).";
+  return `No se pudo actualizar el camión: ${message}`;
+}
+
 export async function deleteCamionAction(id: string) {
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("camiones")
+    .select("patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado")
+    .eq("id", id)
+    .single();
 
   const { error } = await supabase
     .from("camiones")
@@ -110,6 +155,14 @@ export async function deleteCamionAction(id: string) {
     console.error("Error al eliminar camion:", error);
     return { error: "No se pudo eliminar el camión. Verificá que no tenga registros asociados (viajes, mantenimientos, etc)." };
   }
+
+  await supabase.from("audit_log").insert({
+    accion: "eliminar",
+    entidad_tipo: "camion",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+    valores_anteriores: previo as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+  });
 
   revalidatePath("/camiones");
   return { success: true };
@@ -513,11 +566,12 @@ export async function uploadFotoCamionAction(formData: FormData) {
     .select("*", { count: "exact", head: true })
     .eq("camion_id", camion_id);
 
+  const esPrimera = (existentes ?? 0) === 0;
   const { error: insertError } = await supabase.from("camion_fotos").insert({
     camion_id,
     archivo_id: archivoData.id,
     descripcion,
-    es_principal: (existentes ?? 0) === 0,
+    es_principal: esPrimera,
     created_by: user?.id ?? null,
   });
   if (insertError) {
@@ -526,12 +580,39 @@ export async function uploadFotoCamionAction(formData: FormData) {
     return { error: "Error al registrar la foto" };
   }
 
+  const { data: pubFoto } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(storagePath);
+
+  await supabase.from("audit_log").insert({
+    accion: "foto_agregada",
+    entidad_tipo: "camion",
+    entidad_id: camion_id,
+    usuario_id: user?.id ?? null,
+    valores_nuevos: {
+      archivo: file.name,
+      nota: descripcion ?? null,
+      es_principal: esPrimera,
+      foto_url: pubFoto.publicUrl,
+    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
+
   revalidatePath("/camiones");
   return { success: true };
 }
 
 export async function setFotoPrincipalAction(foto_id: string, camion_id: string) {
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: foto } = await supabase
+    .from("camion_fotos")
+    .select("descripcion, archivo:documentos_archivos!archivo_id(nombre_original, bucket, path)")
+    .eq("id", foto_id)
+    .single();
+  const archivoFp = Array.isArray(foto?.archivo) ? foto?.archivo[0] : foto?.archivo;
+  const urlFp = archivoFp
+    ? supabase.storage.from(archivoFp.bucket).getPublicUrl(archivoFp.path).data.publicUrl
+    : null;
 
   const { error: clearError } = await supabase
     .from("camion_fotos")
@@ -546,16 +627,75 @@ export async function setFotoPrincipalAction(foto_id: string, camion_id: string)
     .eq("id", foto_id);
   if (setError) return { error: "No se pudo marcar la foto como principal" };
 
+  await supabase.from("audit_log").insert({
+    accion: "foto_principal",
+    entidad_tipo: "camion",
+    entidad_id: camion_id,
+    usuario_id: user?.id ?? null,
+    valores_nuevos: {
+      archivo: archivoFp?.nombre_original ?? null,
+      nota: foto?.descripcion ?? null,
+      foto_url: urlFp,
+    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+export async function updateFotoDescripcionAction(foto_id: string, descripcion: string | null) {
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("camion_fotos")
+    .select("camion_id, descripcion, archivo:documentos_archivos!archivo_id(nombre_original, bucket, path)")
+    .eq("id", foto_id)
+    .single();
+  const archivoUf = Array.isArray(previo?.archivo) ? previo?.archivo[0] : previo?.archivo;
+  const urlUf = archivoUf
+    ? supabase.storage.from(archivoUf.bucket).getPublicUrl(archivoUf.path).data.publicUrl
+    : null;
+
+  const desc = descripcion?.trim() || null;
+  const { error } = await supabase
+    .from("camion_fotos")
+    .update({ descripcion: desc })
+    .eq("id", foto_id);
+  if (error) return { error: "No se pudo actualizar la nota" };
+
+  if (previo?.camion_id) {
+    await supabase.from("audit_log").insert({
+      accion: "nota_foto",
+      entidad_tipo: "camion",
+      entidad_id: previo.camion_id,
+      usuario_id: user?.id ?? null,
+      valores_anteriores: {
+        archivo: archivoUf?.nombre_original ?? null,
+        nota: previo.descripcion ?? null,
+        foto_url: urlUf,
+      } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+      valores_nuevos: {
+        archivo: archivoUf?.nombre_original ?? null,
+        nota: desc,
+        foto_url: urlUf,
+      } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    });
+  }
+
   revalidatePath("/camiones");
   return { success: true };
 }
 
 export async function deleteFotoCamionAction(foto_id: string) {
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
 
   const { data: foto, error: getErr } = await supabase
     .from("camion_fotos")
-    .select("camion_id, es_principal, archivo:documentos_archivos!archivo_id(id, bucket, path)")
+    .select("camion_id, es_principal, descripcion, archivo:documentos_archivos!archivo_id(id, bucket, path, nombre_original)")
     .eq("id", foto_id)
     .single();
   if (getErr || !foto) return { error: "Foto no encontrada" };
@@ -569,6 +709,18 @@ export async function deleteFotoCamionAction(foto_id: string) {
     await supabase.storage.from(archivo.bucket).remove([archivo.path]);
     await supabase.from("documentos_archivos").delete().eq("id", archivo.id);
   }
+
+  await supabase.from("audit_log").insert({
+    accion: "foto_eliminada",
+    entidad_tipo: "camion",
+    entidad_id: foto.camion_id,
+    usuario_id: user?.id ?? null,
+    valores_anteriores: {
+      archivo: archivo?.nombre_original ?? null,
+      nota: foto.descripcion ?? null,
+      era_principal: foto.es_principal,
+    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+  });
 
   if (foto.es_principal) {
     const { data: siguiente } = await supabase

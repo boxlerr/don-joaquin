@@ -20,7 +20,7 @@ export type GetAuditLogsParams = {
   desde?: string;
   hasta?: string;
   usuario_id?: string;
-  entidad_tipo?: string;
+  entidad_tipos?: string[];
   page?: number;
 };
 
@@ -34,7 +34,7 @@ export async function getGlobalAuditLogsAction(
 ): Promise<AuditLogsResult | { error: string }> {
   await requireUser();
 
-  const { desde, hasta, usuario_id, entidad_tipo, page = 0 } = params;
+  const { desde, hasta, usuario_id, entidad_tipos, page = 0 } = params;
   const supabase = createAdminClient();
   const rangeFrom = page * AUDIT_PAGE_SIZE;
   const rangeTo = rangeFrom + AUDIT_PAGE_SIZE - 1;
@@ -52,7 +52,9 @@ export async function getGlobalAuditLogsAction(
   if (desde) query = query.gte("created_at", desde);
   if (hasta) query = query.lte("created_at", hasta + "T23:59:59");
   if (usuario_id) query = query.eq("usuario_id", usuario_id);
-  if (entidad_tipo) query = query.eq("entidad_tipo", entidad_tipo);
+  if (entidad_tipos && entidad_tipos.length > 0) {
+    query = query.in("entidad_tipo", entidad_tipos);
+  }
 
   const { data, count, error } = await query;
 

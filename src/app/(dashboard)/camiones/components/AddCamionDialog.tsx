@@ -24,6 +24,29 @@ type CamionEstado = Database["public"]["Enums"]["camion_estado"];
 const PATENTE_REGEX = /^[A-Z0-9\s-]{6,10}$/;
 const CURRENT_YEAR = new Date().getFullYear();
 
+const ESTADO_STYLES: Record<string, string> = {
+  activo: "bg-[#ECFDF5] text-[#065F46] font-medium",
+  en_mantenimiento: "bg-[#FEF3C7] text-[#92400E] font-medium",
+  inactivo: "bg-[#F1F5F9] text-[#475569] font-medium",
+  baja: "bg-[#FEF2F2] text-[#7F1D1D] font-medium",
+};
+
+const ESTADO_DOT: Record<string, string> = {
+  activo: "bg-[#10B981]",
+  en_mantenimiento: "bg-[#F59E0B]",
+  inactivo: "bg-[#94A3B8]",
+  baja: "bg-[#EF4444]",
+};
+
+function EstadoOption({ value, label }: { value: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`size-2 rounded-full ${ESTADO_DOT[value]}`} />
+      {label}
+    </span>
+  );
+}
+
 type FieldErrors = {
   patente?: string;
   marca?: string;
@@ -150,14 +173,22 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             <div className="space-y-2">
               <Label htmlFor="estado" className="text-sm font-medium text-[#1E293B]">Estado</Label>
               <Select value={estado} onValueChange={(v) => setEstado((v ?? "activo") as CamionEstado)}>
-                <SelectTrigger id="estado" className="w-full">
+                <SelectTrigger id="estado" className={`w-full ${ESTADO_STYLES[estado] ?? ""}`}>
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="activo">Activo</SelectItem>
-                  <SelectItem value="en_mantenimiento">En Mantenimiento</SelectItem>
-                  <SelectItem value="inactivo">Inactivo</SelectItem>
-                  <SelectItem value="baja">Baja</SelectItem>
+                  <SelectItem value="activo">
+                    <EstadoOption value="activo" label="Activo" />
+                  </SelectItem>
+                  <SelectItem value="en_mantenimiento">
+                    <EstadoOption value="en_mantenimiento" label="En Mantenimiento" />
+                  </SelectItem>
+                  <SelectItem value="inactivo">
+                    <EstadoOption value="inactivo" label="Inactivo" />
+                  </SelectItem>
+                  <SelectItem value="baja">
+                    <EstadoOption value="baja" label="Baja" />
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

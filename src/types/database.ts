@@ -3250,6 +3250,10 @@ export type Database = {
         | "exportar"
         | "importar"
         | "alerta_login"
+        | "foto_agregada"
+        | "foto_eliminada"
+        | "foto_principal"
+        | "nota_foto"
       banco_estado: "activo" | "inactivo"
       caja_categoria:
         | "cobro_cliente"
@@ -3513,6 +3517,10 @@ export const Constants = {
         "exportar",
         "importar",
         "alerta_login",
+        "foto_agregada",
+        "foto_eliminada",
+        "foto_principal",
+        "nota_foto",
       ],
       banco_estado: ["activo", "inactivo"],
       caja_categoria: [
