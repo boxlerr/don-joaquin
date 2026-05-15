@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,22 +14,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addGasoilAction } from "../actions";
+import { addGasoilAction, updateGasoilAction } from "../actions";
 import type { Camion } from "../types";
+
+export type GasoilEditing = {
+  id: string;
+  fecha: string;
+  litros: number;
+  km_odometro: number;
+  importe_total: number;
+  estacion?: string | null;
+  observaciones?: string | null;
+};
 
 export default function AddGasoilDialog({
   children,
-  camiones
+  camiones,
+  defaultCamionId,
+  editing,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  onSaved,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   camiones: Camion[];
+  defaultCamionId?: string;
+  editing?: GasoilEditing | null;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  onSaved?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form states
-  const [camionId, setCamionId] = useState("");
+  const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [litros, setLitros] = useState("");
   const [km, setKm] = useState("");
@@ -37,34 +58,54 @@ export default function AddGasoilDialog({
   const [estacion, setEstacion] = useState("");
   const [tipo, setTipo] = useState("grado_2");
 
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setCamionId(defaultCamionId ?? "");
+      setFecha(editing.fecha);
+      setLitros(String(editing.litros));
+      setKm(String(editing.km_odometro));
+      setImporte(String(editing.importe_total));
+      setEstacion(editing.estacion ?? "");
+      setTipo(editing.observaciones?.includes("Grado 3") ? "grado_3" : "grado_2");
+    } else {
+      setCamionId(defaultCamionId ?? "");
+      setFecha(new Date().toISOString().split("T")[0]);
+      setLitros("");
+      setKm("");
+      setImporte("");
+      setEstacion("");
+      setTipo("grado_2");
+    }
+    setError(null);
+  }, [open, editing, defaultCamionId]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const result = await addGasoilAction({
-        camion_id: camionId,
+      const payload = {
         fecha,
         litros: parseFloat(litros),
         km_odometro: parseInt(km),
         importe_total: parseFloat(importe),
         estacion,
         observaciones: `Tipo de combustible: ${tipo === "grado_2" ? "Grado 2" : "Grado 3"}`,
-      });
+      };
+
+      const result = editing
+        ? await updateGasoilAction(editing.id, payload)
+        : await addGasoilAction({ camion_id: camionId, ...payload });
 
       if (result.error) {
         setError(result.error);
       } else {
         setOpen(false);
-        // Reset form
-        setCamionId("");
-        setLitros("");
-        setKm("");
-        setImporte("");
-        setEstacion("");
+        onSaved?.();
       }
-    } catch (err) {
+    } catch {
       setError("Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
@@ -73,12 +114,14 @@ export default function AddGasoilDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Cargar Gasoil</DialogTitle>
+          <DialogTitle className="text-[#0F172A] text-xl">
+            {editing ? "Editar carga" : "Cargar Gasoil"}
+          </DialogTitle>
           <DialogDescription className="text-[#475569]">
-            Registrá una nueva carga de combustible.
+            {editing ? "Actualizá los datos de la carga." : "Registrá una nueva carga de combustible."}
           </DialogDescription>
         </DialogHeader>
 
@@ -89,21 +132,23 @@ export default function AddGasoilDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
-            <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
-              <SelectTrigger id="camion" className="w-full">
-                <SelectValue placeholder="Seleccionar camión..." />
-              </SelectTrigger>
-              <SelectContent>
-                {camiones.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.patente} - {c.marca} {c.modelo}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!editing && (
+            <div className="space-y-2">
+              <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
+              <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
+                <SelectTrigger id="camion" className="w-full">
+                  <SelectValue placeholder="Seleccionar camión..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {camiones.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.patente} - {c.marca} {c.modelo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -195,7 +240,7 @@ export default function AddGasoilDialog({
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
             >
-              {loading ? "Cargando..." : "Registrar carga"}
+              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar carga"}
             </Button>
           </DialogFooter>
         </form>

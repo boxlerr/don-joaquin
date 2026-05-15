@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin } from "lucide-react";
-import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction, getCamionDocumentosAction } from "../actions";
+import { Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil } from "lucide-react";
+import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction, getCamionDocumentosAction, deleteServiceAction, deleteGasoilAction } from "../actions";
 import type { Camion, ServiceRecord, GasoilRecord, DocumentoVigenciaCamion, TipoDocumentoCamion } from "../types";
 import CamionDocumentosTab from "./CamionDocumentosTab";
+import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
+import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
 type TabId = "info" | "services" | "gasoil" | "docs";
 
@@ -62,6 +64,16 @@ export default function CamionDetailSheet({
   const [documentos, setDocumentos] = useState<DocumentoVigenciaCamion[]>([]);
   const [tipos, setTipos] = useState<TipoDocumentoCamion[]>([]);
   const [docsLoaded, setDocsLoaded] = useState(false);
+
+  // Service/Gasoil dialog state
+  const [serviceDialog, setServiceDialog] = useState<{ open: boolean; editing: ServiceEditing | null }>({
+    open: false,
+    editing: null,
+  });
+  const [gasoilDialog, setGasoilDialog] = useState<{ open: boolean; editing: GasoilEditing | null }>({
+    open: false,
+    editing: null,
+  });
 
   // Refrescar y cargar la información cuando se abra la hoja o cambie el camión
   useEffect(() => {
@@ -171,6 +183,20 @@ export default function CamionDetailSheet({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteService = async (id: string) => {
+    if (!confirm("¿Eliminar este service?")) return;
+    const res = await deleteServiceAction(id);
+    if (res.error) setError(res.error);
+    else setServices((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleDeleteGasoil = async (id: string) => {
+    if (!confirm("¿Eliminar esta carga de gasoil?")) return;
+    const res = await deleteGasoilAction(id);
+    if (res.error) setError(res.error);
+    else setGasoil((prev) => prev.filter((g) => g.id !== id));
   };
 
   if (!camion) return null;
@@ -337,6 +363,16 @@ export default function CamionDetailSheet({
 
           {activeTab === "services" && (
             <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button
+                  variant="brand"
+                  size="sm"
+                  onClick={() => setServiceDialog({ open: true, editing: null })}
+                >
+                  <Plus size={14} />
+                  Nuevo service
+                </Button>
+              </div>
               {loadingServices && services.length === 0 ? (
                 <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
               ) : services.length === 0 ? (
@@ -349,7 +385,7 @@ export default function CamionDetailSheet({
                   {services.map((s) => (
                     <div
                       key={s.id}
-                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
+                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -364,9 +400,40 @@ export default function CamionDetailSheet({
                             {new Date(s.fecha).toLocaleDateString("es-AR")}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-[#0F172A]">
-                          ${Number(s.costo || 0).toLocaleString("es-AR")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-[#0F172A]">
+                            ${Number(s.costo || 0).toLocaleString("es-AR")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setServiceDialog({
+                                open: true,
+                                editing: {
+                                  id: s.id,
+                                  fecha: s.fecha,
+                                  tipo: s.tipo,
+                                  km_odometro: s.km_odometro,
+                                  taller: s.taller,
+                                  costo: s.costo,
+                                  descripcion: s.descripcion,
+                                },
+                              })
+                            }
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-[#0088D1]"
+                            title="Editar service"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteService(s.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                            title="Eliminar service"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-sm text-[#0F172A] font-medium mb-2">{s.descripcion}</p>
                       <div className="flex items-center gap-4 pt-2 border-t border-[#F1F5F9]">
@@ -401,6 +468,16 @@ export default function CamionDetailSheet({
 
           {activeTab === "gasoil" && (
             <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button
+                  variant="brand"
+                  size="sm"
+                  onClick={() => setGasoilDialog({ open: true, editing: null })}
+                >
+                  <Plus size={14} />
+                  Nueva carga
+                </Button>
+              </div>
               {loadingGasoil && gasoil.length === 0 ? (
                 <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
               ) : gasoil.length === 0 ? (
@@ -413,7 +490,7 @@ export default function CamionDetailSheet({
                   {gasoil.map((g) => (
                     <div
                       key={g.id}
-                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
+                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -426,9 +503,39 @@ export default function CamionDetailSheet({
                             {new Date(g.fecha).toLocaleDateString("es-AR")}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-[#0F172A]">
-                          ${Number(g.importe_total || 0).toLocaleString("es-AR")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-[#0F172A]">
+                            ${Number(g.importe_total || 0).toLocaleString("es-AR")}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setGasoilDialog({
+                                open: true,
+                                editing: {
+                                  id: g.id,
+                                  fecha: g.fecha,
+                                  litros: g.litros,
+                                  km_odometro: g.km_odometro,
+                                  importe_total: g.importe_total,
+                                  estacion: g.estacion,
+                                },
+                              })
+                            }
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-[#0088D1]"
+                            title="Editar carga"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGasoil(g.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                            title="Eliminar carga"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-[#64748B]">
                         <span>{g.estacion || "Estación no especificada"}</span>
@@ -486,6 +593,23 @@ export default function CamionDetailSheet({
           )}
         </DialogFooter>
       </DialogContent>
+
+      <AddServiceDialog
+        camiones={[camion]}
+        defaultCamionId={camion.id}
+        editing={serviceDialog.editing}
+        open={serviceDialog.open}
+        onOpenChange={(v) => setServiceDialog((prev) => ({ ...prev, open: v }))}
+        onSaved={() => fetchServices(0)}
+      />
+      <AddGasoilDialog
+        camiones={[camion]}
+        defaultCamionId={camion.id}
+        editing={gasoilDialog.editing}
+        open={gasoilDialog.open}
+        onOpenChange={(v) => setGasoilDialog((prev) => ({ ...prev, open: v }))}
+        onSaved={() => fetchGasoil(0)}
+      />
     </Dialog>
   );
 }

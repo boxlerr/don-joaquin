@@ -84,9 +84,7 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
   const fecha_emision = formData.get("fecha_emision") as string | null;
 
   if (!file || !file.size) return { error: "Archivo requerido" };
-  if (!file.type.startsWith("application/pdf") && !file.type.startsWith("image/"))
-    return { error: "Solo se permiten PDF e imágenes" };
-  if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
+  if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
 
   // Si el usuario eligió "Otro", buscar o crear el tipo de documento
   if (tipo_nombre_custom) {

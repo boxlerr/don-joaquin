@@ -16,6 +16,7 @@ import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
 import CamionRow from "./components/CamionRow";
+import { ExportCamionesButton, ImportCamionesButton } from "./components/CamionesIO";
 
 export default async function CamionesPage() {
   const supabase = createAdminClient();
@@ -45,6 +46,8 @@ export default async function CamionesPage() {
         description={`Flota de ${total ?? 0} unidades — documentación, mantenimiento y gasoil`}
         action={
           <div className="flex items-center gap-2">
+            <ImportCamionesButton />
+            <ExportCamionesButton />
             <AddGasoilDialog camiones={camiones || []}>
               <Button variant="outline" size="sm">
                 <Fuel size={14} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,25 +14,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addServiceAction } from "../actions";
+import { addServiceAction, updateServiceAction } from "../actions";
 import type { Camion } from "../types";
 import type { Database } from "@/types/database";
 
 type MantenimientoTipo = Database["public"]["Enums"]["mantenimiento_tipo"];
 
+export type ServiceEditing = {
+  id: string;
+  fecha: string;
+  tipo: MantenimientoTipo;
+  km_odometro: number;
+  proximo_service_km?: number | null;
+  taller?: string | null;
+  costo?: number | null;
+  descripcion: string;
+  observaciones?: string | null;
+};
+
 export default function AddServiceDialog({
   children,
-  camiones
+  camiones,
+  defaultCamionId,
+  editing,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  onSaved,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   camiones: Camion[];
+  defaultCamionId?: string;
+  editing?: ServiceEditing | null;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  onSaved?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form states
-  const [camionId, setCamionId] = useState("");
+  const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [tipo, setTipo] = useState<MantenimientoTipo>("service_preventivo");
   const [km, setKm] = useState("");
@@ -41,14 +65,37 @@ export default function AddServiceDialog({
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setCamionId(defaultCamionId ?? "");
+      setFecha(editing.fecha);
+      setTipo(editing.tipo);
+      setKm(String(editing.km_odometro));
+      setProximoKm(editing.proximo_service_km != null ? String(editing.proximo_service_km) : "");
+      setTaller(editing.taller ?? "");
+      setCosto(editing.costo != null ? String(editing.costo) : "");
+      setDescripcion(editing.descripcion === "Sin descripción" ? "" : editing.descripcion);
+    } else {
+      setCamionId(defaultCamionId ?? "");
+      setFecha(new Date().toISOString().split("T")[0]);
+      setTipo("service_preventivo");
+      setKm("");
+      setProximoKm("");
+      setTaller("");
+      setCosto("");
+      setDescripcion("");
+    }
+    setError(null);
+  }, [open, editing, defaultCamionId]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      const result = await addServiceAction({
-        camion_id: camionId,
+      const payload = {
         fecha,
         tipo,
         km_odometro: parseInt(km),
@@ -56,21 +103,19 @@ export default function AddServiceDialog({
         taller,
         costo: costo ? parseFloat(costo) : undefined,
         descripcion: descripcion || "Sin descripción",
-      });
+      };
+
+      const result = editing
+        ? await updateServiceAction(editing.id, payload)
+        : await addServiceAction({ camion_id: camionId, ...payload });
 
       if (result.error) {
         setError(result.error);
       } else {
         setOpen(false);
-        // Reset form
-        setCamionId("");
-        setKm("");
-        setProximoKm("");
-        setTaller("");
-        setCosto("");
-        setDescripcion("");
+        onSaved?.();
       }
-    } catch (err) {
+    } catch {
       setError("Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
@@ -79,12 +124,14 @@ export default function AddServiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={children as React.ReactElement} />
+      {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Service</DialogTitle>
+          <DialogTitle className="text-[#0F172A] text-xl">
+            {editing ? "Editar service" : "Registrar service"}
+          </DialogTitle>
           <DialogDescription className="text-[#475569]">
-            Ingresá los datos del mantenimiento realizado.
+            {editing ? "Actualizá los datos del mantenimiento." : "Ingresá los datos del mantenimiento realizado."}
           </DialogDescription>
         </DialogHeader>
 
@@ -96,27 +143,29 @@ export default function AddServiceDialog({
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
-              <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
-                <SelectTrigger id="camion" className="w-full">
-                  <SelectValue placeholder="Seleccionar camión..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {camiones.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.patente} - {c.marca} {c.modelo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!editing && (
+              <div className="space-y-2">
+                <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
+                <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
+                  <SelectTrigger id="camion" className="w-full">
+                    <SelectValue placeholder="Seleccionar camión..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {camiones.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.patente} - {c.marca} {c.modelo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="fecha" className="text-sm font-medium text-[#1E293B]">Fecha del service</Label>
-              <Input 
-                id="fecha" 
-                type="date" 
-                required 
+              <Input
+                id="fecha"
+                type="date"
+                required
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
               />
@@ -212,7 +261,7 @@ export default function AddServiceDialog({
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
             >
-              {loading ? "Registrando..." : "Registrar service"}
+              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar service"}
             </Button>
           </DialogFooter>
         </form>

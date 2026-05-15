@@ -106,7 +106,7 @@ export default function CargarDocumentoDialog({
         <DialogHeader>
           <DialogTitle className="text-[#0F172A] text-xl">Cargar documento</DialogTitle>
           <DialogDescription className="text-[#475569]">
-            PDF o imagen — máximo 5 MB.
+            Cualquier formato — máximo 10 MB.
           </DialogDescription>
         </DialogHeader>
 
@@ -199,12 +199,11 @@ export default function CargarDocumentoDialog({
             <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
               <Upload size={16} className="text-[#94A3B8]" />
               <span className="text-sm text-[#64748B]">
-                {fileName ?? "Elegir PDF o imagen..."}
+                {fileName ?? "Elegir archivo..."}
               </span>
               <input
                 ref={fileRef}
                 type="file"
-                accept="application/pdf,image/*"
                 className="hidden"
                 onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
               />
