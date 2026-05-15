@@ -1,12 +1,10 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Users, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AddChoferDialog from "./components/AddChoferDialog";
-import ChoferCard from "./components/ChoferCard";
+import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ChoferesPage() {
@@ -63,35 +61,7 @@ export default async function ChoferesPage() {
         />
       </div>
 
-      {/* Contenedor de filtros y listado en Cards */}
-      <div className="space-y-4">
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0] px-5 py-4 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Choferes en Plantilla</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
-              <option>Todos los estados</option>
-              <option>Activo</option>
-              <option>Inactivo</option>
-            </select>
-            <Input type="search" placeholder="Buscar por nombre o DNI..." className="w-64 text-sm" />
-          </div>
-        </div>
-
-        {!choferesMapeados || choferesMapeados.length === 0 ? (
-          <div className="bg-white rounded-[8px] border border-[#E2E8F0]">
-            <EmptyState icon={Users} message="Sin choferes registrados" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {choferesMapeados.map((c) => (
-              <ChoferCard key={c.id} chofer={c} />
-            ))}
-          </div>
-        )}
-      </div>
+      <ChoferesList choferes={choferesMapeados ?? []} />
     </div>
   );
 }
