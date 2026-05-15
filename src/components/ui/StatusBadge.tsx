@@ -5,19 +5,37 @@ interface StatusBadgeProps {
   tone?: StatusTone;
 }
 
-const toneMap: Record<StatusTone, string> = {
-  success: "bg-[#ECFDF5] text-[#064E3B] border-[#10B981]/30",
-  warning: "bg-[#FFFBEB] text-[#78350F] border-[#F59E0B]/30",
-  error: "bg-[#FEF2F2] text-[#7F1D1D] border-[#EF4444]/30",
-  info: "bg-[#EFF6FF] text-[#1E3A8A] border-[#3B82F6]/30",
-  neutral: "bg-[#F1F5F9] text-[#334155] border-[#CBD5E1]",
+const toneMap: Record<StatusTone, { container: string; dot: string }> = {
+  success: {
+    container: "bg-[#F0FDF4] text-[#166534] border-[#BBF7D0]",
+    dot: "bg-[#22C55E]",
+  },
+  warning: {
+    container: "bg-[#FFFBEB] text-[#92400E] border-[#FEF3C7]",
+    dot: "bg-[#F59E0B]",
+  },
+  error: {
+    container: "bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]",
+    dot: "bg-[#EF4444]",
+  },
+  info: {
+    container: "bg-[#F0F9FF] text-[#075985] border-[#B3E5FC]",
+    dot: "bg-[#0088D1]",
+  },
+  neutral: {
+    container: "bg-[#F8FAFC] text-[#475569] border-[#E2E8F0]",
+    dot: "bg-[#94A3B8]",
+  },
 };
 
 export default function StatusBadge({ label, tone = "neutral" }: StatusBadgeProps) {
+  const styles = toneMap[tone];
+
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-semibold uppercase tracking-wide ${toneMap[tone]}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${styles.container}`}
     >
+      <span className={`size-1.5 rounded-full ${styles.dot} animate-pulse-slow`} />
       {label}
     </span>
   );

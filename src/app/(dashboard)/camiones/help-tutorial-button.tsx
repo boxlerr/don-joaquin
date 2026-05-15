@@ -10,6 +10,7 @@ import {
   FileDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Sparkles,
   CheckCircle2,
   Truck,
@@ -25,7 +26,7 @@ type TabId = "manual" | "import" | "detalle";
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "manual", label: "Cargar manual", icon: <Plus size={14} /> },
   { id: "import", label: "Importar Excel", icon: <Upload size={14} /> },
-  { id: "detalle", label: "Detalle del camión", icon: <Sparkles size={14} /> },
+  { id: "detalle", label: "Detalle del camión", icon: <Eye size={14} /> },
 ];
 
 export default function HelpTutorialButton() {

@@ -11,6 +11,7 @@ import {
   ListChecks,
   ChevronLeft,
   ChevronRight,
+  ListFilter,
   Sparkles,
   CheckCircle2,
   MapPin,
@@ -21,7 +22,7 @@ type TabId = "manual" | "import" | "tips";
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "manual", label: "Cargar manual", icon: <UserPlus size={14} /> },
   { id: "import", label: "Importar Excel", icon: <Upload size={14} /> },
-  { id: "tips", label: "Filtros", icon: <Sparkles size={14} /> },
+  { id: "tips", label: "Filtros", icon: <ListFilter size={14} /> },
 ];
 
 export default function HelpTutorialButton() {

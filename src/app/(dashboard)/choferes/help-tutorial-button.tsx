@@ -19,6 +19,7 @@ import {
   Phone,
   Calendar,
   Wallet,
+  Zap,
 } from "lucide-react";
 
 type TabId = "manual" | "legajo" | "acciones";
@@ -26,7 +27,7 @@ type TabId = "manual" | "legajo" | "acciones";
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "manual", label: "Crear chofer", icon: <Plus size={14} /> },
   { id: "legajo", label: "Legajo digital", icon: <FileText size={14} /> },
-  { id: "acciones", label: "Acciones rápidas", icon: <Sparkles size={14} /> },
+  { id: "acciones", label: "Acciones rápidas", icon: <Zap size={14} /> },
 ];
 
 export default function HelpTutorialButton() {

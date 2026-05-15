@@ -14,10 +14,10 @@ export default function CamionRow({ camion }: { camion: Camion }) {
     <>
       <TableRow
         key={camion.id}
-        className="cursor-pointer hover:bg-[#F8FAFC] transition-colors"
+        className="cursor-pointer hover:bg-[#F8FAFC] transition-all border-b border-[#F1F5F9] last:border-0 group"
         onClick={() => setOpen(true)}
       >
-        <TableCell className="py-3">
+        <TableCell className="py-4 pl-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#E1F5FE] flex items-center justify-center shrink-0 overflow-hidden border border-[#B3E5FC]">
               {camion.foto_url ? (
