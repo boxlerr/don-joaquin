@@ -7,6 +7,7 @@ import { Users, Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferCard from "./components/ChoferCard";
+import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ChoferesPage() {
   const supabase = createAdminClient();
@@ -38,12 +39,15 @@ export default async function ChoferesPage() {
         title="Choferes"
         description="Legajo digital — sin acceso al sistema (gestión administrativa)"
         action={
-          <AddChoferDialog>
-            <Button variant="brand" size="sm">
-              <Plus size={14} />
-              Nuevo chofer
-            </Button>
-          </AddChoferDialog>
+          <div className="flex items-center gap-2">
+            <HelpTutorialButton />
+            <AddChoferDialog>
+              <Button variant="brand" size="sm">
+                <Plus size={14} />
+                Nuevo chofer
+              </Button>
+            </AddChoferDialog>
+          </div>
         }
       />
 

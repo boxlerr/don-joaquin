@@ -3,7 +3,9 @@ import { Database } from "@/types/database";
 export type Camion = Pick<
   Database["public"]["Tables"]["camiones"]["Row"],
   "id" | "patente" | "marca" | "modelo" | "ano" | "capacidad_tn" | "tipo_camion" | "estado"
->;
+> & {
+  foto_url?: string | null;
+};
 
 export type ServiceRecord = Pick<
   Database["public"]["Tables"]["mantenimientos"]["Row"],
@@ -34,4 +36,13 @@ export type TipoDocumentoCamion = {
   id: string;
   nombre: string;
   codigo: string;
+};
+
+export type FotoCamion = {
+  id: string;
+  url: string;
+  descripcion: string | null;
+  es_principal: boolean;
+  created_at: string;
+  nombre_original: string;
 };

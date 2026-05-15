@@ -8,6 +8,27 @@ import * as XLSX from "xlsx";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 
+const FOTOS_BUCKET = "fotos-camiones";
+const FOTO_MIME_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+function slugifyCamion(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
 export async function addCamionAction(data: {
   patente: string;
   marca: string;
@@ -398,6 +419,206 @@ export async function getGasoilHistoryAction(camionId: string, page = 0) {
 }
 
 // ============================================================================
+// Fotos del camión
+// ============================================================================
+
+export async function getFotosCamionAction(camion_id: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("camion_fotos")
+    .select("id, descripcion, es_principal, created_at, archivo:documentos_archivos!archivo_id(bucket, path, nombre_original)")
+    .eq("camion_id", camion_id)
+    .order("es_principal", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error al cargar fotos:", error);
+    return { fotos: [] };
+  }
+
+  const fotos = (data ?? []).map((row) => {
+    const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
+    if (!archivo) return null;
+    const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
+    return {
+      id: row.id,
+      url: pub.publicUrl,
+      descripcion: row.descripcion,
+      es_principal: row.es_principal,
+      created_at: row.created_at,
+      nombre_original: archivo.nombre_original,
+    };
+  }).filter((f): f is NonNullable<typeof f> => f !== null);
+
+  return { fotos };
+}
+
+export async function uploadFotoCamionAction(formData: FormData) {
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const camion_id = formData.get("camion_id") as string;
+  const descripcion = (formData.get("descripcion") as string | null)?.trim() || null;
+  const file = formData.get("file") as File;
+
+  if (!camion_id) return { error: "Camión requerido" };
+  if (!file || !file.size) return { error: "Archivo requerido" };
+  if (!file.type.startsWith("image/")) return { error: "Solo se permiten imágenes" };
+  if (file.size > 5 * 1024 * 1024) return { error: "Máximo 5MB" };
+
+  const ext = FOTO_MIME_EXT[file.type];
+  if (!ext) return { error: "Formato no soportado (JPG, PNG, WEBP, GIF, HEIC)" };
+
+  const { data: camion, error: camionErr } = await supabase
+    .from("camiones")
+    .select("patente")
+    .eq("id", camion_id)
+    .single();
+  if (camionErr || !camion) return { error: "Camión no encontrado" };
+
+  const carpeta = slugifyCamion(camion.patente);
+  const storagePath = `${carpeta}/${Date.now()}.${ext}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const { error: uploadError } = await supabase.storage
+    .from(FOTOS_BUCKET)
+    .upload(storagePath, arrayBuffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+  if (uploadError) {
+    console.error("Error al subir foto:", uploadError);
+    return { error: `Error al subir la foto: ${uploadError.message}` };
+  }
+
+  const { data: archivoData, error: archivoError } = await supabase
+    .from("documentos_archivos")
+    .insert({
+      bucket: FOTOS_BUCKET,
+      nombre_original: file.name,
+      path: storagePath,
+      tamano_bytes: file.size,
+      mime_type: file.type,
+    })
+    .select("id")
+    .single();
+  if (archivoError || !archivoData) {
+    await supabase.storage.from(FOTOS_BUCKET).remove([storagePath]);
+    return { error: "Error al registrar el archivo" };
+  }
+
+  const { count: existentes } = await supabase
+    .from("camion_fotos")
+    .select("*", { count: "exact", head: true })
+    .eq("camion_id", camion_id);
+
+  const { error: insertError } = await supabase.from("camion_fotos").insert({
+    camion_id,
+    archivo_id: archivoData.id,
+    descripcion,
+    es_principal: (existentes ?? 0) === 0,
+    created_by: user?.id ?? null,
+  });
+  if (insertError) {
+    await supabase.storage.from(FOTOS_BUCKET).remove([storagePath]);
+    await supabase.from("documentos_archivos").delete().eq("id", archivoData.id);
+    return { error: "Error al registrar la foto" };
+  }
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+export async function setFotoPrincipalAction(foto_id: string, camion_id: string) {
+  const supabase = createAdminClient();
+
+  const { error: clearError } = await supabase
+    .from("camion_fotos")
+    .update({ es_principal: false })
+    .eq("camion_id", camion_id)
+    .eq("es_principal", true);
+  if (clearError) return { error: "No se pudo actualizar la foto principal" };
+
+  const { error: setError } = await supabase
+    .from("camion_fotos")
+    .update({ es_principal: true })
+    .eq("id", foto_id);
+  if (setError) return { error: "No se pudo marcar la foto como principal" };
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+export async function deleteFotoCamionAction(foto_id: string) {
+  const supabase = createAdminClient();
+
+  const { data: foto, error: getErr } = await supabase
+    .from("camion_fotos")
+    .select("camion_id, es_principal, archivo:documentos_archivos!archivo_id(id, bucket, path)")
+    .eq("id", foto_id)
+    .single();
+  if (getErr || !foto) return { error: "Foto no encontrada" };
+
+  const archivo = Array.isArray(foto.archivo) ? foto.archivo[0] : foto.archivo;
+
+  const { error: delFotoErr } = await supabase.from("camion_fotos").delete().eq("id", foto_id);
+  if (delFotoErr) return { error: "No se pudo eliminar la foto" };
+
+  if (archivo) {
+    await supabase.storage.from(archivo.bucket).remove([archivo.path]);
+    await supabase.from("documentos_archivos").delete().eq("id", archivo.id);
+  }
+
+  if (foto.es_principal) {
+    const { data: siguiente } = await supabase
+      .from("camion_fotos")
+      .select("id")
+      .eq("camion_id", foto.camion_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (siguiente) {
+      await supabase
+        .from("camion_fotos")
+        .update({ es_principal: true })
+        .eq("id", siguiente.id);
+    }
+  }
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+export async function getUltimoKmCamionAction(camion_id: string): Promise<number | null> {
+  const supabase = createAdminClient();
+  const [{ data: ultimoService }, { data: ultimaCarga }] = await Promise.all([
+    supabase
+      .from("mantenimientos")
+      .select("km_odometro")
+      .eq("camion_id", camion_id)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("cargas_combustible")
+      .select("km_odometro")
+      .eq("camion_id", camion_id)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const a = ultimoService?.km_odometro ?? null;
+  const b = ultimaCarga?.km_odometro ?? null;
+  if (a === null && b === null) return null;
+  return Math.max(a ?? 0, b ?? 0);
+}
+
+// ============================================================================
 // Import / Export camiones
 // ============================================================================
 
@@ -444,11 +665,22 @@ function normKeyCamion(k: string): string {
   return k.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-export async function importCamionesAction(formData: FormData): Promise<{
-  ok?: boolean;
-  imported?: number;
-  skipped?: number;
-  errors?: { row: number; message: string }[];
+export type ParsedImportRow = {
+  rowNum: number;
+  patente: string;
+  marca: string;
+  modelo: string;
+  ano: number;
+  capacidad_tn: number;
+  tipo_camion: Database["public"]["Enums"]["camion_tipo"];
+  estado: Database["public"]["Enums"]["camion_estado"];
+  isValid: boolean;
+  errorMsg?: string;
+};
+
+export async function previewCamionesImportAction(formData: FormData): Promise<{
+  rows?: ParsedImportRow[];
+  summary?: { validas: number; invalidas: number };
   error?: string;
 }> {
   const file = formData.get("file");
@@ -456,19 +688,59 @@ export async function importCamionesAction(formData: FormData): Promise<{
     return { error: "Adjuntá un archivo .xlsx o .csv." };
   }
 
-  let rows: Record<string, unknown>[];
+  let raw: Record<string, unknown>[];
   try {
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) return { error: "El archivo no contiene hojas." };
-    rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+    raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
   } catch {
     return { error: "No se pudo leer el archivo." };
   }
 
-  if (rows.length === 0) return { error: "El archivo no contiene filas." };
+  if (raw.length === 0) return { error: "El archivo no contiene filas." };
 
+  const rows: ParsedImportRow[] = raw.map((r, i) => {
+    const rowNum = i + 2;
+    const mapped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(r)) {
+      const target = CAMION_HEADER_MAP[normKeyCamion(key)];
+      if (target) mapped[target] = value;
+    }
+
+    const patente = String(mapped.patente ?? "").trim().toUpperCase();
+    const ano = Number(mapped.ano);
+    const capacidad = Number(mapped.capacidad_tn);
+
+    const base: ParsedImportRow = {
+      rowNum,
+      patente,
+      marca: String(mapped.marca ?? "").trim(),
+      modelo: String(mapped.modelo ?? "").trim(),
+      ano: Number.isFinite(ano) ? ano : 0,
+      capacidad_tn: Number.isFinite(capacidad) ? capacidad : 0,
+      tipo_camion: normalizeTipo(mapped.tipo_camion),
+      estado: normalizeEstado(mapped.estado),
+      isValid: true,
+    };
+
+    if (!patente) return { ...base, isValid: false, errorMsg: "Falta patente" };
+    if (!Number.isFinite(ano)) return { ...base, isValid: false, errorMsg: "Año inválido" };
+    if (!Number.isFinite(capacidad) || capacidad <= 0)
+      return { ...base, isValid: false, errorMsg: "Capacidad inválida" };
+    return base;
+  });
+
+  const validas = rows.filter((r) => r.isValid).length;
+  return { rows, summary: { validas, invalidas: rows.length - validas } };
+}
+
+export async function confirmCamionesImportAction(rows: ParsedImportRow[]): Promise<{
+  imported: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+}> {
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -477,51 +749,31 @@ export async function importCamionesAction(formData: FormData): Promise<{
   let imported = 0;
   let skipped = 0;
 
-  for (let i = 0; i < rows.length; i++) {
-    const raw = rows[i];
-    const rowNum = i + 2;
-    const mapped: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const target = CAMION_HEADER_MAP[normKeyCamion(key)];
-      if (target) mapped[target] = value;
-    }
-
-    const patente = String(mapped.patente ?? "").trim().toUpperCase();
-    if (!patente) {
+  for (const r of rows) {
+    if (!r.isValid) {
       skipped++;
-      errors.push({ row: rowNum, message: "Falta patente." });
       continue;
     }
-
-    const ano = Number(mapped.ano);
-    const capacidad = Number(mapped.capacidad_tn);
-    if (!Number.isFinite(ano) || !Number.isFinite(capacidad)) {
-      skipped++;
-      errors.push({ row: rowNum, message: `Año o capacidad inválidos en patente ${patente}.` });
-      continue;
-    }
-
     const { error } = await supabase.from("camiones").insert({
-      patente,
-      marca: String(mapped.marca ?? "").trim(),
-      modelo: String(mapped.modelo ?? "").trim(),
-      ano,
-      capacidad_tn: capacidad,
-      tipo_camion: normalizeTipo(mapped.tipo_camion),
-      estado: normalizeEstado(mapped.estado),
+      patente: r.patente,
+      marca: r.marca,
+      modelo: r.modelo,
+      ano: r.ano,
+      capacidad_tn: r.capacidad_tn,
+      tipo_camion: r.tipo_camion,
+      estado: r.estado,
       created_by: user?.id ?? null,
     });
-
     if (error) {
       skipped++;
-      errors.push({ row: rowNum, message: error.message });
+      errors.push({ row: r.rowNum, message: error.message });
     } else {
       imported++;
     }
   }
 
   revalidatePath("/camiones");
-  return { ok: true, imported, skipped, errors };
+  return { imported, skipped, errors };
 }
 
 export async function exportCamionesAction(): Promise<{

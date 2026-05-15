@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addGasoilAction, updateGasoilAction } from "../actions";
+import InlineFeedback from "@/components/ui/InlineFeedback";
+import {
+  addGasoilAction,
+  updateGasoilAction,
+  getUltimoKmCamionAction,
+} from "../actions";
 import type { Camion } from "../types";
 
 export type GasoilEditing = {
@@ -25,6 +30,12 @@ export type GasoilEditing = {
   importe_total: number;
   estacion?: string | null;
   observaciones?: string | null;
+};
+
+type FieldErrors = {
+  litros?: string;
+  km?: string;
+  importe?: string;
 };
 
 export default function AddGasoilDialog({
@@ -49,14 +60,17 @@ export default function AddGasoilDialog({
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [litros, setLitros] = useState("");
   const [km, setKm] = useState("");
+  const [kmPlaceholder, setKmPlaceholder] = useState("Ej: 150000");
   const [importe, setImporte] = useState("");
   const [estacion, setEstacion] = useState("");
   const [tipo, setTipo] = useState("grado_2");
+  const [errors, setErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (!open) return;
@@ -76,14 +90,39 @@ export default function AddGasoilDialog({
       setImporte("");
       setEstacion("");
       setTipo("grado_2");
+      if (defaultCamionId) {
+        getUltimoKmCamionAction(defaultCamionId).then((ultimo) => {
+          if (ultimo != null) setKmPlaceholder(`Último: ${ultimo.toLocaleString("es-AR")} KM`);
+          else setKmPlaceholder("Ej: 150000");
+        });
+      } else {
+        setKmPlaceholder("Ej: 150000");
+      }
     }
     setError(null);
+    setSuccess(null);
+    setErrors({});
   }, [open, editing, defaultCamionId]);
+
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {};
+    const litN = parseFloat(litros);
+    if (!Number.isFinite(litN) || litN <= 0) e.litros = "Litros mayor a 0";
+    const kmN = parseInt(km);
+    if (!Number.isFinite(kmN) || kmN <= 0) e.km = "KM mayor a 0";
+    const impN = parseFloat(importe);
+    if (!Number.isFinite(impN) || impN <= 0) e.importe = "Importe mayor a 0";
+    return e;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const payload = {
@@ -102,8 +141,9 @@ export default function AddGasoilDialog({
       if (result.error) {
         setError(result.error);
       } else {
-        setOpen(false);
+        setSuccess(editing ? "Cambios guardados" : "Carga registrada");
         onSaved?.();
+        setTimeout(() => setOpen(false), 900);
       }
     } catch {
       setError("Ocurrió un error inesperado.");
@@ -111,6 +151,8 @@ export default function AddGasoilDialog({
       setLoading(false);
     }
   };
+
+  const errClass = (key: keyof FieldErrors) => (errors[key] ? "border-red-300 focus-visible:ring-red-300" : "");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -126,11 +168,8 @@ export default function AddGasoilDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
+          {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
+          {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           {!editing && (
             <div className="space-y-2">
@@ -153,50 +192,59 @@ export default function AddGasoilDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fecha" className="text-sm font-medium text-[#1E293B]">Fecha</Label>
-              <Input 
-                id="fecha" 
-                type="date" 
-                required 
+              <Input
+                id="fecha"
+                type="date"
+                required
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="km" className="text-sm font-medium text-[#1E293B]">KM Odómetro</Label>
-              <Input 
-                id="km" 
-                type="number" 
-                placeholder="Ej: 150000" 
-                required 
+              <Input
+                id="km"
+                type="number"
+                placeholder={kmPlaceholder}
+                required
                 value={km}
                 onChange={(e) => setKm(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("km")}
               />
+              {errors.km && <p className="text-xs text-red-600">{errors.km}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="litros" className="text-sm font-medium text-[#1E293B]">Litros</Label>
-              <Input 
-                id="litros" 
-                type="number" 
-                step="0.01" 
-                placeholder="Ej: 300.5" 
-                required 
+              <Input
+                id="litros"
+                type="number"
+                step="0.01"
+                placeholder="Ej: 300.5"
+                required
                 value={litros}
                 onChange={(e) => setLitros(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("litros")}
               />
+              {errors.litros && <p className="text-xs text-red-600">{errors.litros}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="importe" className="text-sm font-medium text-[#1E293B]">Importe Total ($)</Label>
-              <Input 
-                id="importe" 
-                type="number" 
-                placeholder="Ej: 120000" 
-                required 
+              <Input
+                id="importe"
+                type="number"
+                placeholder="Ej: 120000"
+                required
                 value={importe}
                 onChange={(e) => setImporte(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("importe")}
               />
+              {errors.importe && <p className="text-xs text-red-600">{errors.importe}</p>}
             </div>
           </div>
 
@@ -215,9 +263,9 @@ export default function AddGasoilDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="estacion" className="text-sm font-medium text-[#1E293B]">Estación de Servicio</Label>
-              <Input 
-                id="estacion" 
-                placeholder="Ej: YPF Arrecifes" 
+              <Input
+                id="estacion"
+                placeholder="Ej: YPF Arrecifes"
                 value={estacion}
                 onChange={(e) => setEstacion(e.target.value)}
               />
@@ -225,18 +273,18 @@ export default function AddGasoilDialog({
           </div>
 
           <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setOpen(false)}
               className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
               disabled={loading}
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
-              variant="brand" 
+            <Button
+              type="submit"
+              variant="brand"
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
             >

@@ -376,6 +376,58 @@ export type Database = {
           },
         ]
       }
+      camion_fotos: {
+        Row: {
+          archivo_id: string
+          camion_id: string
+          created_at: string
+          created_by: string | null
+          descripcion: string | null
+          es_principal: boolean
+          id: string
+        }
+        Insert: {
+          archivo_id: string
+          camion_id: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          es_principal?: boolean
+          id?: string
+        }
+        Update: {
+          archivo_id?: string
+          camion_id?: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          es_principal?: boolean
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camion_fotos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camion_fotos_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camion_fotos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       camiones: {
         Row: {
           ano: number | null

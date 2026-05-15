@@ -14,14 +14,75 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil } from "lucide-react";
-import { updateCamionAction, deleteCamionAction, getServiceHistoryAction, getGasoilHistoryAction, getCamionDocumentosAction, deleteServiceAction, deleteGasoilAction } from "../actions";
-import type { Camion, ServiceRecord, GasoilRecord, DocumentoVigenciaCamion, TipoDocumentoCamion } from "../types";
+import InlineFeedback from "@/components/ui/InlineFeedback";
+import {
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera,
+} from "lucide-react";
+import {
+  updateCamionAction,
+  deleteCamionAction,
+  getServiceHistoryAction,
+  getGasoilHistoryAction,
+  getCamionDocumentosAction,
+  deleteServiceAction,
+  deleteGasoilAction,
+  getFotosCamionAction,
+} from "../actions";
+import type {
+  Camion,
+  ServiceRecord,
+  GasoilRecord,
+  DocumentoVigenciaCamion,
+  TipoDocumentoCamion,
+  FotoCamion,
+} from "../types";
 import CamionDocumentosTab from "./CamionDocumentosTab";
+import CamionFotosTab from "./CamionFotosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-type TabId = "info" | "services" | "gasoil" | "docs";
+type TabId = "info" | "fotos" | "services" | "gasoil" | "docs";
+
+type FormData = {
+  patente: string;
+  marca: string;
+  modelo: string;
+  ano: string;
+  capacidad_tn: string;
+  tipo_camion: string;
+  estado: string;
+};
+
+type FieldErrors = Partial<Record<keyof FormData, string>>;
+
+const PATENTE_REGEX = /^[A-Z0-9\s-]{6,10}$/;
+const CURRENT_YEAR = new Date().getFullYear();
+
+function validate(data: FormData): FieldErrors {
+  const errs: FieldErrors = {};
+  if (!data.patente.trim()) errs.patente = "Patente requerida";
+  else if (!PATENTE_REGEX.test(data.patente.trim())) errs.patente = "Formato inválido (ej: AB123CD)";
+  if (!data.marca.trim()) errs.marca = "Marca requerida";
+  if (!data.modelo.trim()) errs.modelo = "Modelo requerido";
+  const ano = parseInt(data.ano);
+  if (!Number.isFinite(ano)) errs.ano = "Año requerido";
+  else if (ano < 1900 || ano > CURRENT_YEAR + 1) errs.ano = `Año entre 1900 y ${CURRENT_YEAR + 1}`;
+  const cap = parseFloat(data.capacidad_tn);
+  if (!Number.isFinite(cap) || cap <= 0) errs.capacidad_tn = "Capacidad mayor a 0";
+  return errs;
+}
+
+function shallowEq(a: FormData, b: FormData): boolean {
+  return (
+    a.patente === b.patente &&
+    a.marca === b.marca &&
+    a.modelo === b.modelo &&
+    a.ano === b.ano &&
+    a.capacidad_tn === b.capacidad_tn &&
+    a.tipo_camion === b.tipo_camion &&
+    a.estado === b.estado
+  );
+}
 
 export default function CamionDetailSheet({
   camion,
@@ -35,8 +96,9 @@ export default function CamionDetailSheet({
   const [activeTab, setActiveTab] = useState<TabId>("info");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
+  const emptyForm: FormData = {
     patente: "",
     marca: "",
     modelo: "",
@@ -44,28 +106,29 @@ export default function CamionDetailSheet({
     capacidad_tn: "",
     tipo_camion: "otro",
     estado: "activo",
-  });
+  };
+  const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [initialFormData, setInitialFormData] = useState<FormData>(emptyForm);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof FormData, boolean>>>({});
 
-  // Services state
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [servicesPage, setServicesPage] = useState(0);
   const [servicesHasMore, setServicesHasMore] = useState(false);
-  const [servicesLoaded, setServicesLoaded] = useState(false);
   const [loadingServices, setLoadingServices] = useState(false);
 
-  // Gasoil state
   const [gasoil, setGasoil] = useState<GasoilRecord[]>([]);
   const [gasoilPage, setGasoilPage] = useState(0);
   const [gasoilHasMore, setGasoilHasMore] = useState(false);
-  const [gasoilLoaded, setGasoilLoaded] = useState(false);
   const [loadingGasoil, setLoadingGasoil] = useState(false);
 
-  // Docs state
   const [documentos, setDocumentos] = useState<DocumentoVigenciaCamion[]>([]);
   const [tipos, setTipos] = useState<TipoDocumentoCamion[]>([]);
   const [docsLoaded, setDocsLoaded] = useState(false);
 
-  // Service/Gasoil dialog state
+  const [fotos, setFotos] = useState<FotoCamion[]>([]);
+  const [fotosLoaded, setFotosLoaded] = useState(false);
+
   const [serviceDialog, setServiceDialog] = useState<{ open: boolean; editing: ServiceEditing | null }>({
     open: false,
     editing: null,
@@ -75,10 +138,9 @@ export default function CamionDetailSheet({
     editing: null,
   });
 
-  // Refrescar y cargar la información cuando se abra la hoja o cambie el camión
   useEffect(() => {
     if (camion && open) {
-      setFormData({
+      const fresh: FormData = {
         patente: camion.patente || "",
         marca: camion.marca || "",
         modelo: camion.modelo || "",
@@ -86,21 +148,20 @@ export default function CamionDetailSheet({
         capacidad_tn: camion.capacidad_tn?.toString() || "",
         tipo_camion: camion.tipo_camion || "otro",
         estado: camion.estado || "activo",
-      });
-      // Forzar siempre la recarga de los datos para garantizar frescura
-      setServicesLoaded(false);
-      setGasoilLoaded(false);
+      };
+      setFormData(fresh);
+      setInitialFormData(fresh);
+      setFieldErrors({});
+      setTouched({});
+      setFotosLoaded(false);
       setDocsLoaded(false);
       setError(null);
+      setSuccess(null);
 
-      // Si se abre directo en una tab en particular, cargarla
-      if (activeTab === "services") {
-        fetchServices(0);
-      } else if (activeTab === "gasoil") {
-        fetchGasoil(0);
-      } else if (activeTab === "docs") {
-        fetchDocs();
-      }
+      if (activeTab === "services") fetchServices(0);
+      else if (activeTab === "gasoil") fetchGasoil(0);
+      else if (activeTab === "docs") fetchDocs();
+      else if (activeTab === "fotos") fetchFotos();
     }
   }, [camion?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -111,7 +172,6 @@ export default function CamionDetailSheet({
       setServices((prev) => page === 0 ? result.data as ServiceRecord[] : [...prev, ...result.data as ServiceRecord[]]);
       setServicesHasMore(result.hasMore);
       setServicesPage(page);
-      setServicesLoaded(true);
     } finally {
       setLoadingServices(false);
     }
@@ -124,7 +184,6 @@ export default function CamionDetailSheet({
       setGasoil((prev) => page === 0 ? result.data as GasoilRecord[] : [...prev, ...result.data as GasoilRecord[]]);
       setGasoilHasMore(result.hasMore);
       setGasoilPage(page);
-      setGasoilLoaded(true);
     } finally {
       setLoadingGasoil(false);
     }
@@ -137,20 +196,56 @@ export default function CamionDetailSheet({
     setDocsLoaded(true);
   }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchFotos = useCallback(async () => {
+    const result = await getFotosCamionAction(camion.id);
+    setFotos(result.fotos as FotoCamion[]);
+    setFotosLoaded(true);
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    // Siempre buscar de nuevo al cambiar a la pestaña para obtener las cargas recientes
     if (tab === "services") fetchServices(0);
     if (tab === "gasoil") fetchGasoil(0);
     if (tab === "docs") fetchDocs();
+    if (tab === "fotos") fetchFotos();
   };
 
+  const updateField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
+    const next = { ...formData, [key]: value };
+    setFormData(next);
+    if (touched[key]) {
+      const errs = validate(next);
+      setFieldErrors((prev) => ({ ...prev, [key]: errs[key] }));
+    }
+  };
+
+  const markTouched = (key: keyof FormData) => {
+    setTouched((prev) => ({ ...prev, [key]: true }));
+    const errs = validate(formData);
+    setFieldErrors((prev) => ({ ...prev, [key]: errs[key] }));
+  };
+
+  const isDirty = !shallowEq(formData, initialFormData);
+  const hasErrors = Object.values(fieldErrors).some(Boolean);
+
   const handleUpdate = async () => {
+    const allErrs = validate(formData);
+    if (Object.keys(allErrs).length > 0) {
+      setFieldErrors(allErrs);
+      setTouched({
+        patente: true, marca: true, modelo: true, ano: true, capacidad_tn: true,
+        tipo_camion: true, estado: true,
+      });
+      return;
+    }
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const result = await updateCamionAction(camion.id, {
-        ...formData,
+        patente: formData.patente.trim().toUpperCase(),
+        marca: formData.marca.trim(),
+        modelo: formData.modelo.trim(),
         ano: parseInt(formData.ano),
         capacidad_tn: parseFloat(formData.capacidad_tn),
         tipo_camion: formData.tipo_camion as "tractor" | "chasis_rigido" | "batea" | "otro",
@@ -159,7 +254,8 @@ export default function CamionDetailSheet({
       if (result.error) {
         setError(result.error);
       } else {
-        onOpenChange(false);
+        setInitialFormData(formData);
+        setSuccess("Cambios guardados");
       }
     } catch {
       setError("Ocurrió un error al actualizar.");
@@ -173,11 +269,8 @@ export default function CamionDetailSheet({
     setLoading(true);
     try {
       const result = await deleteCamionAction(camion.id);
-      if (result.error) {
-        setError(result.error);
-      } else {
-        onOpenChange(false);
-      }
+      if (result.error) setError(result.error);
+      else onOpenChange(false);
     } catch {
       setError("Ocurrió un error al eliminar.");
     } finally {
@@ -199,15 +292,33 @@ export default function CamionDetailSheet({
     else setGasoil((prev) => prev.filter((g) => g.id !== id));
   };
 
+  const requestClose = () => {
+    if (isDirty && !confirm("Tenés cambios sin guardar. ¿Salir igual?")) return;
+    onOpenChange(false);
+  };
+
   if (!camion) return null;
 
+  const fieldClass = (key: keyof FormData) => {
+    const dirty = formData[key] !== initialFormData[key];
+    const hasErr = !!fieldErrors[key];
+    if (hasErr) return "border-red-300 focus-visible:ring-red-300";
+    if (dirty) return "border-[#BAE6FD] focus-visible:ring-[#0088D1]/40";
+    return "";
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) requestClose();
+        else onOpenChange(v);
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         className="sm:max-w-[680px] p-0 gap-0 overflow-hidden"
       >
-        {/* Header */}
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-[#E2E8F0] bg-white">
           <div className="flex items-center justify-between mb-3">
             <Badge
@@ -238,10 +349,10 @@ export default function CamionDetailSheet({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Tabs */}
-        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto">
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
+            { id: "fotos" as TabId, label: "Fotos", icon: Camera },
             { id: "services" as TabId, label: "Services", icon: Wrench },
             { id: "gasoil" as TabId, label: "Gasoil", icon: Fuel },
             { id: "docs" as TabId, label: "Documentos", icon: FileText },
@@ -250,7 +361,7 @@ export default function CamionDetailSheet({
               key={tab.id}
               type="button"
               onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                 activeTab === tab.id
                   ? "text-[#0088D1] border-[#0088D1]"
                   : "text-[#64748B] border-transparent hover:text-[#0F172A]"
@@ -262,11 +373,15 @@ export default function CamionDetailSheet({
           ))}
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto max-h-[50vh] p-6 bg-[#FDFDFD]">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-              {error}
+            <div className="mb-4">
+              <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />
+            </div>
+          )}
+          {success && activeTab === "info" && (
+            <div className="mb-4">
+              <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />
             </div>
           )}
 
@@ -277,20 +392,19 @@ export default function CamionDetailSheet({
                   <Label className="text-sm font-medium text-[#1E293B]">Patente</Label>
                   <Input
                     value={formData.patente}
-                    onChange={(e) =>
-                      setFormData({ ...formData, patente: e.target.value.toUpperCase() })
-                    }
+                    onChange={(e) => updateField("patente", e.target.value.toUpperCase())}
+                    onBlur={() => markTouched("patente")}
+                    className={fieldClass("patente")}
                   />
+                  {fieldErrors.patente && <p className="text-xs text-red-600">{fieldErrors.patente}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-[#1E293B]">Estado</Label>
                   <Select
                     value={formData.estado}
-                    onValueChange={(val) =>
-                      setFormData({ ...formData, estado: val ?? formData.estado })
-                    }
+                    onValueChange={(val) => updateField("estado", val ?? formData.estado)}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className={`w-full ${fieldClass("estado")}`}>
                       <SelectValue placeholder="Estado" />
                     </SelectTrigger>
                     <SelectContent>
@@ -308,15 +422,21 @@ export default function CamionDetailSheet({
                   <Label className="text-sm font-medium text-[#1E293B]">Marca</Label>
                   <Input
                     value={formData.marca}
-                    onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+                    onChange={(e) => updateField("marca", e.target.value)}
+                    onBlur={() => markTouched("marca")}
+                    className={fieldClass("marca")}
                   />
+                  {fieldErrors.marca && <p className="text-xs text-red-600">{fieldErrors.marca}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-[#1E293B]">Modelo</Label>
                   <Input
                     value={formData.modelo}
-                    onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+                    onChange={(e) => updateField("modelo", e.target.value)}
+                    onBlur={() => markTouched("modelo")}
+                    className={fieldClass("modelo")}
                   />
+                  {fieldErrors.modelo && <p className="text-xs text-red-600">{fieldErrors.modelo}</p>}
                 </div>
               </div>
 
@@ -326,8 +446,11 @@ export default function CamionDetailSheet({
                   <Input
                     type="number"
                     value={formData.ano}
-                    onChange={(e) => setFormData({ ...formData, ano: e.target.value })}
+                    onChange={(e) => updateField("ano", e.target.value)}
+                    onBlur={() => markTouched("ano")}
+                    className={fieldClass("ano")}
                   />
+                  {fieldErrors.ano && <p className="text-xs text-red-600">{fieldErrors.ano}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-[#1E293B]">Capacidad (TN)</Label>
@@ -335,18 +458,19 @@ export default function CamionDetailSheet({
                     type="number"
                     step="0.1"
                     value={formData.capacidad_tn}
-                    onChange={(e) => setFormData({ ...formData, capacidad_tn: e.target.value })}
+                    onChange={(e) => updateField("capacidad_tn", e.target.value)}
+                    onBlur={() => markTouched("capacidad_tn")}
+                    className={fieldClass("capacidad_tn")}
                   />
+                  {fieldErrors.capacidad_tn && <p className="text-xs text-red-600">{fieldErrors.capacidad_tn}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-[#1E293B]">Tipo</Label>
                   <Select
                     value={formData.tipo_camion}
-                    onValueChange={(val) =>
-                      setFormData({ ...formData, tipo_camion: val ?? formData.tipo_camion })
-                    }
+                    onValueChange={(val) => updateField("tipo_camion", val ?? formData.tipo_camion)}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className={`w-full ${fieldClass("tipo_camion")}`}>
                       <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -359,6 +483,14 @@ export default function CamionDetailSheet({
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === "fotos" && (
+            fotosLoaded ? (
+              <CamionFotosTab camion_id={camion.id} fotos={fotos} onRefresh={fetchFotos} />
+            ) : (
+              <div className="py-8 text-center text-sm text-[#64748B]">Cargando fotos...</div>
+            )
           )}
 
           {activeTab === "services" && (
@@ -572,11 +704,10 @@ export default function CamionDetailSheet({
           )}
         </div>
 
-        {/* Footer */}
         <DialogFooter className="px-6 py-4 border-t border-[#E2E8F0] bg-white">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={requestClose}
             disabled={loading}
           >
             Cerrar
@@ -585,7 +716,7 @@ export default function CamionDetailSheet({
             <Button
               variant="brand"
               onClick={handleUpdate}
-              disabled={loading}
+              disabled={loading || !isDirty || hasErrors}
             >
               <Save size={14} />
               {loading ? "Guardando..." : "Guardar cambios"}

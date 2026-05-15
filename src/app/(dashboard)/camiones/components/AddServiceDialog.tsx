@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addServiceAction, updateServiceAction } from "../actions";
+import InlineFeedback from "@/components/ui/InlineFeedback";
+import {
+  addServiceAction,
+  updateServiceAction,
+  getUltimoKmCamionAction,
+} from "../actions";
 import type { Camion } from "../types";
 import type { Database } from "@/types/database";
 
@@ -30,6 +35,12 @@ export type ServiceEditing = {
   costo?: number | null;
   descripcion: string;
   observaciones?: string | null;
+};
+
+type FieldErrors = {
+  km?: string;
+  proximoKm?: string;
+  costo?: string;
 };
 
 export default function AddServiceDialog({
@@ -54,16 +65,18 @@ export default function AddServiceDialog({
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // Form states
   const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [tipo, setTipo] = useState<MantenimientoTipo>("service_preventivo");
   const [km, setKm] = useState("");
+  const [kmPlaceholder, setKmPlaceholder] = useState("Ej: 150000");
   const [proximoKm, setProximoKm] = useState("");
   const [taller, setTaller] = useState("");
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (!open) return;
@@ -85,14 +98,44 @@ export default function AddServiceDialog({
       setTaller("");
       setCosto("");
       setDescripcion("");
+      if (defaultCamionId) {
+        getUltimoKmCamionAction(defaultCamionId).then((ultimo) => {
+          if (ultimo != null) setKmPlaceholder(`Último: ${ultimo.toLocaleString("es-AR")} KM`);
+          else setKmPlaceholder("Ej: 150000");
+        });
+      } else {
+        setKmPlaceholder("Ej: 150000");
+      }
     }
     setError(null);
+    setSuccess(null);
+    setErrors({});
   }, [open, editing, defaultCamionId]);
+
+  const validate = (): FieldErrors => {
+    const e: FieldErrors = {};
+    const kmN = parseInt(km);
+    if (!Number.isFinite(kmN) || kmN <= 0) e.km = "KM debe ser mayor a 0";
+    if (proximoKm) {
+      const pN = parseInt(proximoKm);
+      if (!Number.isFinite(pN) || pN <= 0) e.proximoKm = "KM inválido";
+      else if (Number.isFinite(kmN) && pN <= kmN) e.proximoKm = "Debe ser mayor al actual";
+    }
+    if (costo) {
+      const c = parseFloat(costo);
+      if (!Number.isFinite(c) || c < 0) e.costo = "Costo inválido";
+    }
+    return e;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const payload = {
@@ -112,8 +155,9 @@ export default function AddServiceDialog({
       if (result.error) {
         setError(result.error);
       } else {
-        setOpen(false);
+        setSuccess(editing ? "Cambios guardados" : "Service registrado");
         onSaved?.();
+        setTimeout(() => setOpen(false), 900);
       }
     } catch {
       setError("Ocurrió un error inesperado.");
@@ -121,6 +165,8 @@ export default function AddServiceDialog({
       setLoading(false);
     }
   };
+
+  const errClass = (key: keyof FieldErrors) => (errors[key] ? "border-red-300 focus-visible:ring-red-300" : "");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -136,11 +182,8 @@ export default function AddServiceDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
+          {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
+          {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           <div className="grid grid-cols-2 gap-4">
             {!editing && (
@@ -190,45 +233,54 @@ export default function AddServiceDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="km" className="text-sm font-medium text-[#1E293B]">KM Odómetro</Label>
-              <Input 
-                id="km" 
-                type="number" 
-                placeholder="Ej: 150000" 
-                required 
+              <Input
+                id="km"
+                type="number"
+                placeholder={kmPlaceholder}
+                required
                 value={km}
                 onChange={(e) => setKm(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("km")}
               />
+              {errors.km && <p className="text-xs text-red-600">{errors.km}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="proximo_km" className="text-sm font-medium text-[#1E293B]">Próximo Service (KM)</Label>
-              <Input 
-                id="proximo_km" 
-                type="number" 
-                placeholder="Ej: 160000" 
+              <Input
+                id="proximo_km"
+                type="number"
+                placeholder="Ej: 160000"
                 value={proximoKm}
                 onChange={(e) => setProximoKm(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("proximoKm")}
               />
+              {errors.proximoKm && <p className="text-xs text-red-600">{errors.proximoKm}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="costo" className="text-sm font-medium text-[#1E293B]">Costo Total ($)</Label>
-              <Input 
-                id="costo" 
-                type="number" 
-                placeholder="Ej: 150000" 
+              <Input
+                id="costo"
+                type="number"
+                placeholder="Ej: 150000"
                 value={costo}
                 onChange={(e) => setCosto(e.target.value)}
+                onBlur={() => setErrors(validate())}
+                className={errClass("costo")}
               />
+              {errors.costo && <p className="text-xs text-red-600">{errors.costo}</p>}
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="taller" className="text-sm font-medium text-[#1E293B]">Taller / Mecánico</Label>
-            <Input 
-              id="taller" 
-              placeholder="Nombre del taller" 
+            <Input
+              id="taller"
+              placeholder="Nombre del taller"
               value={taller}
               onChange={(e) => setTaller(e.target.value)}
             />
@@ -246,18 +298,18 @@ export default function AddServiceDialog({
           </div>
 
           <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setOpen(false)}
               className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
               disabled={loading}
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
-              variant="brand" 
+            <Button
+              type="submit"
+              variant="brand"
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
             >

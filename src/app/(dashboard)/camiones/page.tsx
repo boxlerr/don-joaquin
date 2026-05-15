@@ -17,11 +17,12 @@ import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
 import CamionRow from "./components/CamionRow";
 import { ExportCamionesButton, ImportCamionesButton } from "./components/CamionesIO";
+import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function CamionesPage() {
   const supabase = createAdminClient();
 
-  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer] =
+  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }] =
     await Promise.all([
       supabase
         .from("camiones")
@@ -37,7 +38,24 @@ export default async function CamionesPage() {
         .select("*", { count: "exact", head: true })
         .eq("estado", "en_mantenimiento"),
       supabase.from("camion_documentos").select("*", { count: "exact", head: true }),
+      supabase
+        .from("camion_fotos")
+        .select("camion_id, archivo:documentos_archivos!archivo_id(bucket, path)")
+        .eq("es_principal", true),
     ]);
+
+  const fotosMap = new Map<string, string>();
+  for (const f of fotosPrincipales ?? []) {
+    const archivo = Array.isArray(f.archivo) ? f.archivo[0] : f.archivo;
+    if (!archivo) continue;
+    const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
+    fotosMap.set(f.camion_id, pub.publicUrl);
+  }
+
+  const camionesConFoto = (camiones ?? []).map((c) => ({
+    ...c,
+    foto_url: fotosMap.get(c.id) ?? null,
+  }));
 
   return (
     <div className="p-8">
@@ -46,6 +64,7 @@ export default async function CamionesPage() {
         description={`Flota de ${total ?? 0} unidades — documentación, mantenimiento y gasoil`}
         action={
           <div className="flex items-center gap-2">
+            <HelpTutorialButton />
             <ImportCamionesButton />
             <ExportCamionesButton />
             <AddGasoilDialog camiones={camiones || []}>
@@ -118,10 +137,10 @@ export default async function CamionesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {!camiones || camiones.length === 0 ? (
+            {camionesConFoto.length === 0 ? (
               <EmptyTableRow message="Sin camiones registrados" />
             ) : (
-              camiones.map((c) => (
+              camionesConFoto.map((c) => (
                 <CamionRow key={c.id} camion={c} />
               ))
             )}
