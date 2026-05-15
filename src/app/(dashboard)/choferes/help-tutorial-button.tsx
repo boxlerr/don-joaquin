@@ -68,112 +68,141 @@ export default function HelpTutorialButton() {
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-[#E2E8F0]">
-            <div className="flex items-start gap-3">
-              <span className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+            <div className="flex items-center gap-2.5">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-base font-semibold">
-                  Cómo gestionar choferes
+                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                  Guía de Gestión
                 </Dialog.Title>
-                <Dialog.Description className="text-[#475569] text-xs mt-0.5">
-                  Paso a paso visual para armar el legajo digital de cada chofer.
-                </Dialog.Description>
               </div>
             </div>
-            <Dialog.Close
-              render={
-                <button
-                  type="button"
-                  className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
-                  aria-label="Cerrar"
-                />
-              }
-            >
-              <X size={16} />
-            </Dialog.Close>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-5 pt-3 flex items-center gap-1 border-b border-[#E2E8F0]">
-            {TABS.map((t) => {
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => changeTab(t.id)}
-                  className={
-                    "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold transition-colors border-b-2 -mb-px " +
-                    (active
-                      ? "border-[#0088D1] text-[#0088D1]"
-                      : "border-transparent text-[#475569] hover:text-[#0F172A]")
-                  }
-                >
-                  {t.icon}
-                  {t.label}
-                </button>
-              );
-            })}
+            <div className="flex items-center gap-4">
+              {/* Tabs inside header */}
+              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+                {TABS.map((t) => {
+                  const active = tab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => changeTab(t.id)}
+                      className={
+                        "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
+                        (active
+                          ? "bg-white text-[#0088D1] shadow-sm"
+                          : "text-[#64748B] hover:text-[#0F172A]")
+                      }
+                    >
+                      {t.icon}
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <Dialog.Close
+                render={
+                  <button
+                    type="button"
+                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    aria-label="Cerrar"
+                  />
+                }
+              >
+                <X size={16} />
+              </Dialog.Close>
+            </div>
           </div>
 
           {/* Stepper */}
-          <div className="px-5 pt-4">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
                 const isCurrent = i === step;
                 return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setStep(i)}
-                    className="flex items-center gap-2 flex-1 group"
-                  >
-                    <span
+                  <div key={i} className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setStep(i)}
                       className={
-                        "size-6 rounded-full text-[11px] font-semibold inline-flex items-center justify-center shrink-0 " +
+                        "size-6 rounded-full text-[10px] font-bold inline-flex items-center justify-center transition-all " +
                         (isCurrent
-                          ? "bg-[#0088D1] text-white"
+                          ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
-                            ? "bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
-                            : "bg-[#F1F5F9] text-[#94A3B8]")
+                            ? "bg-[#10B981] text-white"
+                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
-                    </span>
+                    </button>
                     {i < totalSteps - 1 && (
-                      <span
-                        className={
-                          "h-px flex-1 " +
-                          (isDone ? "bg-[#A7F3D0]" : "bg-[#E2E8F0]")
-                        }
-                      />
+                      <div className={
+                        "w-6 h-0.5 mx-1 rounded-full " +
+                        (isDone ? "bg-[#10B981]" : "bg-[#E2E8F0]")
+                      } />
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
+            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full">
+              Paso {step + 1} de {totalSteps}
+            </div>
           </div>
 
-          {/* Step content */}
-          <div className="px-5 py-4 overflow-y-auto">
-            <h3 className="text-[#0F172A] text-sm font-semibold mb-1">
-              Paso {step + 1} de {totalSteps}: {current.title}
-            </h3>
-            <p className="text-[#475569] text-sm mb-3 leading-relaxed">
-              {current.description}
-            </p>
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-              {current.mockup}
+          {/* Side-by-Side Content */}
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* Left Column: Instructions */}
+            <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                    {current.title}
+                  </h3>
+                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                    {current.description}
+                  </p>
+                </div>
+
+                {current.hint && (
+                  <div className="p-3.5 rounded-xl bg-[#FFFBEB] border border-[#FEF3C7] text-[#92400E] shadow-sm">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Sparkles size={14} className="text-[#D97706]" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#B45309]">Pro Tip</span>
+                    </div>
+                    <p className="text-xs leading-normal opacity-90">
+                      {current.hint}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            {current.hint && (
-              <p className="text-[12px] text-[#475569] mt-3 leading-relaxed">
-                <span className="font-semibold text-[#0F172A]">Tip:</span>{" "}
-                {current.hint}
-              </p>
-            )}
+
+            {/* Right Column: Visual Preview */}
+            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+              <div className="flex-1 flex items-center justify-center p-6">
+                <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
+                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                      <div className="flex gap-1">
+                        <div className="size-2 rounded-full bg-[#FF5F56]/30" />
+                        <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
+                        <div className="size-2 rounded-full bg-[#27C93F]/30" />
+                      </div>
+                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      </div>
+                    </div>
+                    <div className="p-5 overflow-hidden">
+                      {current.mockup}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Footer */}
@@ -313,14 +342,14 @@ type TutorialStep = {
 function MockToolbar() {
   return (
     <div className="flex items-center justify-between gap-2">
-      <div>
-        <div className="text-[#0F172A] text-sm font-semibold">Choferes</div>
-        <div className="text-[#475569] text-[10px] mt-0.5">
-          Legajo digital — sin acceso al sistema
+      <div className="opacity-50 transition-opacity">
+        <div className="text-[#0F172A] text-sm font-bold uppercase tracking-tight">Choferes</div>
+        <div className="text-[#64748B] text-[10px] mt-0.5">
+          Legajo digital — sin acceso
         </div>
       </div>
-      <div className="h-9 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-[#0088D1] text-white shadow-[0_0_0_3px_rgba(0,136,209,0.25)] ring-2 ring-[#0088D1]">
-        <Plus size={12} /> Nuevo chofer
+      <div className="h-9 px-4 rounded-md text-xs font-bold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white transition-all scale-105">
+        <Plus size={14} /> Nuevo chofer
       </div>
     </div>
   );
@@ -328,28 +357,28 @@ function MockToolbar() {
 
 function MockNewChoferForm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm w-full max-w-[420px] mx-auto">
-      <div className="px-3 py-2 border-b border-[#E2E8F0]">
-        <div className="text-[#0F172A] text-xs font-semibold">Nuevo chofer</div>
+    <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-white">
+        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Nuevo chofer</div>
       </div>
-      <div className="p-3 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="p-4 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
           <MockField label="Apellido *" value="Pérez" required />
           <MockField label="Nombre *" value="Juan" required />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <MockField label="DNI *" value="30.123.456" required />
           <MockField label="Teléfono" value="+54 9 22…" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <MockField label="Localidad" value="Tres Arroyos" />
           <MockField label="Fecha ingreso" value="01/06/2024" />
         </div>
-        <div className="flex justify-end gap-2 pt-1">
-          <div className="h-7 px-2 text-[11px] rounded-md border border-[#E2E8F0] text-[#475569] inline-flex items-center">
+        <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center hover:bg-[#F8FAFC]">
             Cancelar
           </div>
-          <div className="h-7 px-2 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-semibold">
+          <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
             Guardar chofer
           </div>
         </div>
