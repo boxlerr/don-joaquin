@@ -38,13 +38,17 @@ const colorMap = {
 export default function StatCard({ label, value, sub, color = "brand", icon: Icon }: StatCardProps) {
   const styles = colorMap[color];
 
+  const len = value.length;
+  const valueSizeClass =
+    len <= 8 ? "text-3xl" : len <= 11 ? "text-2xl" : len <= 14 ? "text-xl" : "text-lg";
+
   return (
     <div className={`relative overflow-hidden bg-white rounded-xl border ${styles.border} p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group`}>
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1 min-w-0 flex-1">
           <p className="text-[#64748B] text-xs font-bold uppercase tracking-wider">{label}</p>
-          <div className="flex items-baseline gap-2">
-            <p className={`text-3xl font-black tracking-tight ${styles.text}`}>{value}</p>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <p className={`${valueSizeClass} font-black tracking-tight ${styles.text} whitespace-nowrap`}>{value}</p>
             {sub && <p className="text-[#94A3B8] text-[11px] font-medium">{sub}</p>}
           </div>
         </div>
