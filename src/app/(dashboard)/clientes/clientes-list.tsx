@@ -10,6 +10,9 @@ import {
   Wallet,
   Map,
   Pencil,
+  Users as UsersIcon,
+  Building,
+  ClipboardList,
 } from "lucide-react";
 import NewClienteSheet from "./new-cliente-sheet";
 import ImportClientesModal from "./import-clientes-modal";
@@ -19,6 +22,10 @@ import HelpTutorialButton from "./help-tutorial-button";
 import EditClienteSheet, { type ClienteEditable } from "./edit-cliente-sheet";
 import CuentaTab from "./cuenta-tab";
 import ViajesTab from "./viajes-tab";
+import ContactosTab from "./contactos-tab";
+import SucursalesTab from "./sucursales-tab";
+import RequisitosTab from "./requisitos-tab";
+import SucursalPrincipalCard from "./sucursal-principal-card";
 
 type EstadoFiltro = "activos" | "inactivos" | "todos";
 
@@ -40,14 +47,20 @@ type Cliente = {
 
 const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")];
 
-type Tab = "info" | "cuenta" | "viajes";
+type Tab = "info" | "contactos" | "sucursales" | "requisitos" | "cuenta" | "viajes";
 
 function firstLetter(name: string): string {
   const c = name.trim().charAt(0).toUpperCase();
   return /[A-Z]/.test(c) ? c : "#";
 }
 
-export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
+export default function ClientesList({
+  clientes,
+  sucursalesCount,
+}: {
+  clientes: Cliente[];
+  sucursalesCount: Record<string, number>;
+}) {
   const [letter, setLetter] = useState<string>("#");
   const [search, setSearch] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("activos");
@@ -199,12 +212,32 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
 
                   {isOpen && (
                     <div className="border-t border-[#E2E8F0] p-4 bg-[#F8FAFC] rounded-b-[8px]">
-                      <div className="flex items-center gap-2 mb-4">
+                      <div className="flex items-center gap-2 mb-4 flex-wrap">
                         <TabButton
                           icon={<FileText size={14} />}
                           label="Información general"
                           active={activeTab === "info"}
                           onClick={() => setActiveTab("info")}
+                        />
+                        <TabButton
+                          icon={<UsersIcon size={14} />}
+                          label="Contactos"
+                          active={activeTab === "contactos"}
+                          onClick={() => setActiveTab("contactos")}
+                        />
+                        {(sucursalesCount[c.id] ?? 0) >= 2 && (
+                          <TabButton
+                            icon={<Building size={14} />}
+                            label="Sucursales"
+                            active={activeTab === "sucursales"}
+                            onClick={() => setActiveTab("sucursales")}
+                          />
+                        )}
+                        <TabButton
+                          icon={<ClipboardList size={14} />}
+                          label="Requisitos"
+                          active={activeTab === "requisitos"}
+                          onClick={() => setActiveTab("requisitos")}
                         />
                         <TabButton
                           icon={<Wallet size={14} />}
@@ -221,8 +254,15 @@ export default function ClientesList({ clientes }: { clientes: Cliente[] }) {
                       </div>
 
                       {activeTab === "info" && (
-                        <InfoGeneral cliente={c} onEdit={() => setEditing(c)} />
+                        <InfoGeneral
+                          cliente={c}
+                          totalSucursales={sucursalesCount[c.id] ?? 0}
+                          onEdit={() => setEditing(c)}
+                        />
                       )}
+                      {activeTab === "contactos" && <ContactosTab clienteId={c.id} />}
+                      {activeTab === "sucursales" && <SucursalesTab clienteId={c.id} />}
+                      {activeTab === "requisitos" && <RequisitosTab clienteId={c.id} />}
                       {activeTab === "cuenta" && <CuentaTab clienteId={c.id} />}
                       {activeTab === "viajes" && <ViajesTab clienteId={c.id} />}
                     </div>
@@ -273,7 +313,15 @@ function TabButton({
   );
 }
 
-function InfoGeneral({ cliente, onEdit }: { cliente: Cliente; onEdit: () => void }) {
+function InfoGeneral({
+  cliente,
+  totalSucursales,
+  onEdit,
+}: {
+  cliente: Cliente;
+  totalSucursales: number;
+  onEdit: () => void;
+}) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -285,6 +333,9 @@ function InfoGeneral({ cliente, onEdit }: { cliente: Cliente; onEdit: () => void
           value={[cliente.localidad, cliente.provincia].filter(Boolean).join(", ") || "—"}
         />
       </div>
+
+      <SucursalPrincipalCard clienteId={cliente.id} totalSucursales={totalSucursales} />
+
       {cliente.observaciones && (
         <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] p-3">
           <div className="text-[10px] font-semibold tracking-[0.18em] text-[#92400E] uppercase mb-1">
