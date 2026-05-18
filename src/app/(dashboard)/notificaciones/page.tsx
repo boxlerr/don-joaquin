@@ -1,10 +1,18 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Bell, ShieldAlert, FileText, MapPin, Settings, RefreshCw } from "lucide-react";
+import {
+  ShieldAlert,
+  FileText,
+  MapPin,
+  Settings,
+  RefreshCw,
+} from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
+import NotificacionesView from "./NotificacionesView";
+import TiposMonitoreados from "./TiposMonitoreados";
+import { categoriaDeAlerta, type AlertaItem } from "./utils";
 
 export default async function NotificacionesPage() {
   const supabase = createAdminClient();
@@ -12,47 +20,104 @@ export default async function NotificacionesPage() {
   const [
     { count: totalPendientes },
     { count: totalCriticas },
-    { data: alertas },
-    { count: docCount },
-    { count: chequeCount },
-    { count: viajeCount },
-    { count: sistemaCount },
+    { data: alertasRaw },
     { data: tiposDoc },
+    { data: camionDocs },
+    { data: choferDocs },
   ] = await Promise.all([
     supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente").eq("severidad", "critica"),
+    supabase
+      .from("alertas")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "pendiente")
+      .eq("severidad", "critica"),
     supabase
       .from("alertas")
       .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo")
       .eq("estado", "pendiente")
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
-      .limit(50),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente").in("tipo", ["vencimiento_doc_camion", "vencimiento_doc_chofer"]),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente").in("tipo", ["vencimiento_cheque", "cheque_rechazado_recordatorio"]),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente").eq("tipo", "viaje_sin_cerrar"),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente").eq("tipo", "otro"),
-    supabase.from("tipos_documento").select("nombre, aplica_a, dias_alerta_vencimiento, obligatorio").eq("estado", "activo").order("aplica_a").order("nombre"),
+      .limit(200),
+    supabase
+      .from("tipos_documento")
+      .select("id, nombre, aplica_a, dias_alerta_vencimiento, obligatorio")
+      .eq("estado", "activo"),
+    supabase
+      .from("camion_documentos")
+      .select("tipo_documento_id, fecha_vencimiento"),
+    supabase
+      .from("chofer_documentos")
+      .select("tipo_documento_id, fecha_vencimiento"),
   ]);
 
+  const alertas = (alertasRaw ?? []) as AlertaItem[];
+
+  const tipos = (tiposDoc ?? []) as {
+    id: string;
+    nombre: string;
+    aplica_a: "camion" | "chofer";
+    dias_alerta_vencimiento: number;
+    obligatorio: boolean;
+  }[];
+
+  const tipoById = new Map(tipos.map((t) => [t.id, t]));
+  const conteos: Record<string, { total: number; proximos: number; vencidos: number }> = {};
+  for (const t of tipos) conteos[t.id] = { total: 0, proximos: 0, vencidos: 0 };
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  function acumular(docs: { tipo_documento_id: string; fecha_vencimiento: string | null }[] | null | undefined) {
+    for (const d of docs ?? []) {
+      const tipo = tipoById.get(d.tipo_documento_id);
+      if (!tipo) continue;
+      const c = conteos[d.tipo_documento_id]!;
+      c.total++;
+      if (!d.fecha_vencimiento) continue;
+      const venc = new Date(d.fecha_vencimiento);
+      venc.setHours(0, 0, 0, 0);
+      const diasRest = Math.ceil((venc.getTime() - hoy.getTime()) / 86400000);
+      if (diasRest < 0) c.vencidos++;
+      else if (diasRest <= tipo.dias_alerta_vencimiento) c.proximos++;
+    }
+  }
+  acumular(camionDocs);
+  acumular(choferDocs);
+
+  const catCounts = {
+    documentacion: 0,
+    cheques: 0,
+    viajes: 0,
+    sistema: 0,
+  };
+  for (const a of alertas) catCounts[categoriaDeAlerta(a.tipo)]++;
+
   const categorias = [
-    { icon: ShieldAlert, label: "Documentación", description: "Vencimientos de VTV, seguro, licencias, RUTA/LINTI", count: docCount ?? 0 },
-    { icon: FileText, label: "Cheques", description: "Próximos a vencer, vencidos o rechazados", count: chequeCount ?? 0 },
-    { icon: MapPin, label: "Viajes y viáticos", description: "Viajes pendientes de cierre, viáticos sin rendir", count: viajeCount ?? 0 },
-    { icon: Settings, label: "Sistema", description: "Backups, sesiones y eventos administrativos", count: sistemaCount ?? 0 },
+    {
+      icon: ShieldAlert,
+      label: "Documentación",
+      description: "Vencimientos de VTV, seguro, licencias, RUTA/LINTI",
+      count: catCounts.documentacion,
+    },
+    {
+      icon: FileText,
+      label: "Cheques",
+      description: "Próximos a vencer, vencidos o rechazados",
+      count: catCounts.cheques,
+    },
+    {
+      icon: MapPin,
+      label: "Viajes y viáticos",
+      description: "Viajes pendientes de cierre, viáticos sin rendir",
+      count: catCounts.viajes,
+    },
+    {
+      icon: Settings,
+      label: "Sistema",
+      description: "Backups, sesiones y eventos administrativos",
+      count: catCounts.sistema,
+    },
   ];
-
-  const severidadLabel: Record<string, string> = {
-    critica: "Crítica",
-    advertencia: "Advertencia",
-    info: "Info",
-  };
-
-  const severidadTone: Record<string, "error" | "warning" | "info"> = {
-    critica: "error",
-    advertencia: "warning",
-    info: "info",
-  };
 
   return (
     <div className="p-8">
@@ -93,7 +158,7 @@ export default async function NotificacionesPage() {
         />
         <StatCard
           label="Tipos monitoreados"
-          value={String(tiposDoc?.length ?? 0)}
+          value={String(tipos.length)}
           sub="Documentos con alerta"
           color="success"
         />
@@ -101,7 +166,10 @@ export default async function NotificacionesPage() {
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         {categorias.map(({ icon: Icon, label, description, count }) => (
-          <div key={label} className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-5">
+          <div
+            key={label}
+            className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-5"
+          >
             <div className="flex items-start gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#E1F5FE] shrink-0">
                 <Icon size={20} className="text-[#0088D1]" />
@@ -116,79 +184,10 @@ export default async function NotificacionesPage() {
         ))}
       </div>
 
-      {/* Alert list */}
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm mb-6">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
-          <div className="flex items-center gap-2">
-            <Bell size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Alertas pendientes</h2>
-          </div>
-          <span className="text-xs text-[#94A3B8]">{totalPendientes ?? 0} total</span>
-        </div>
+      <NotificacionesView alertas={alertas} />
 
-        {!alertas || alertas.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-[#E1F5FE] mb-4">
-              <Bell size={24} className="text-[#0088D1]" />
-            </div>
-            <p className="text-[#0F172A] text-sm font-medium mb-1">Sin alertas pendientes</p>
-            <p className="text-[#94A3B8] text-sm">El sistema no detectó alertas activas</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-[#F1F5F9]">
-            {alertas.map((alerta) => (
-              <div key={alerta.id} className="flex items-start gap-4 px-5 py-4 hover:bg-[#F8FAFC] transition-colors">
-                <StatusBadge
-                  label={severidadLabel[alerta.severidad] ?? alerta.severidad}
-                  tone={severidadTone[alerta.severidad] ?? "info"}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[#0F172A] text-sm font-semibold">{alerta.titulo}</p>
-                  <p className="text-[#475569] text-xs mt-0.5">{alerta.mensaje}</p>
-                  {alerta.fecha_vencimiento && (
-                    <p className="text-[#94A3B8] text-xs mt-1">
-                      Vence: {new Date(alerta.fecha_vencimiento).toLocaleDateString("es-AR")}
-                    </p>
-                  )}
-                </div>
-                <span className="text-xs text-[#94A3B8] shrink-0">
-                  {new Date(alerta.fecha_disparo).toLocaleDateString("es-AR")}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Tipos de documento configurados */}
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
-          <div className="flex items-center gap-2">
-            <ShieldAlert size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Tipos de documento monitoreados</h2>
-          </div>
-          <span className="text-xs text-[#94A3B8]">{tiposDoc?.length ?? 0} tipos activos</span>
-        </div>
-        <div className="p-5 grid grid-cols-2 gap-3">
-          {tiposDoc?.map((t) => (
-            <div
-              key={`${t.aplica_a}-${t.nombre}`}
-              className="flex items-center gap-3 p-3 rounded-lg border border-[#E2E8F0]"
-            >
-              <StatusBadge
-                label={t.aplica_a}
-                tone={t.aplica_a === "camion" ? "info" : "warning"}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[#0F172A] text-sm font-medium truncate">{t.nombre}</p>
-                <p className="text-[#475569] text-xs">
-                  Alerta a los {t.dias_alerta_vencimiento} días
-                  {t.obligatorio && <span className="ml-1 text-[#EF4444]">· Obligatorio</span>}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="mt-6">
+        <TiposMonitoreados tipos={tipos} conteos={conteos} />
       </div>
     </div>
   );

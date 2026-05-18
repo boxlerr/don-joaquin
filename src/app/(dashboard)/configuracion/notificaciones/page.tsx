@@ -1,7 +1,7 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
-import { Bell, Users } from "lucide-react";
+import { Bell, Users, AlertTriangle } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CanalCard from "./CanalCard";
 import AlertaToggle from "./AlertaToggle";
@@ -54,6 +54,22 @@ export default async function ConfiguracionNotificacionesPage() {
         <div className="flex items-center gap-2 mb-4">
           <Bell size={16} className="text-[#0088D1]" />
           <h2 className="text-[#0F172A] text-sm font-semibold">Canales de Notificación</h2>
+        </div>
+
+        <div className="mb-4 p-4 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] flex items-start gap-3">
+          <AlertTriangle size={16} className="text-[#B45309] mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#92400E]">
+              Envío de notificaciones aún no implementado
+            </p>
+            <p className="text-xs text-[#92400E] mt-0.5 leading-relaxed">
+              Por ahora las alertas se ven solo dentro del sistema (en
+              /notificaciones y en la campanita del header). La integración con
+              Email, WhatsApp y Webhooks está pendiente — podés activar los
+              canales y guardar la configuración, pero todavía no se envían
+              mensajes reales.
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4">

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, X } from "lucide-react";
+import { Bell, Check, CheckCheck } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { marcarAlertaVista, marcarTodasVistas } from "@/app/(dashboard)/notificaciones/actions";
+import { alertaHref } from "@/app/(dashboard)/notificaciones/utils";
 
 type Alerta = {
   id: string;
@@ -13,12 +15,7 @@ type Alerta = {
   mensaje: string;
   fecha_disparo: string;
   fecha_vencimiento: string | null;
-};
-
-const severidadColor: Record<Alerta["severidad"], string> = {
-  critica: "bg-red-50 border-red-200 text-red-700",
-  advertencia: "bg-amber-50 border-amber-200 text-amber-700",
-  info: "bg-blue-50 border-blue-200 text-blue-700",
+  entidad_tipo: string | null;
 };
 
 const severidadDot: Record<Alerta["severidad"], string> = {
@@ -118,28 +115,48 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                 Sin alertas pendientes
               </div>
             ) : (
-              alertas.map((alerta) => (
-                <div
-                  key={alerta.id}
-                  className="group flex items-start gap-3 px-4 py-3 hover:bg-[#F8FAFC] border-b border-[#F1F5F9] last:border-0"
-                >
-                  <span
-                    className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${severidadDot[alerta.severidad]}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-[#0F172A] truncate">{alerta.titulo}</p>
-                    <p className="text-xs text-[#64748B] mt-0.5 line-clamp-2">{alerta.mensaje}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleMarcarVista(alerta.id)}
-                    className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-[#94A3B8] hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
-                    aria-label="Marcar como vista"
+              alertas.map((alerta) => {
+                const href = alertaHref(alerta);
+                const content = (
+                  <>
+                    <span
+                      className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${severidadDot[alerta.severidad]}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-[#0F172A] truncate">{alerta.titulo}</p>
+                      <p className="text-xs text-[#64748B] mt-0.5 line-clamp-2">{alerta.mensaje}</p>
+                    </div>
+                  </>
+                );
+                return (
+                  <div
+                    key={alerta.id}
+                    className="group flex items-start gap-3 px-4 py-3 hover:bg-[#F8FAFC] border-b border-[#F1F5F9] last:border-0"
                   >
-                    <Check size={12} />
-                  </button>
-                </div>
-              ))
+                    {href ? (
+                      <Link
+                        href={href}
+                        onClick={() => setOpen(false)}
+                        className="flex items-start gap-3 flex-1 min-w-0"
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        {content}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleMarcarVista(alerta.id)}
+                      className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-[#94A3B8] hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
+                      aria-label="Marcar como vista"
+                    >
+                      <Check size={12} />
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
 
