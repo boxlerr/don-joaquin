@@ -34,6 +34,7 @@ import { getViajesAction, deleteViajeAction, updateViajeEstadoAction } from "../
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
+import ViajeGastosPanel from "./ViajeGastosPanel";
 
 interface Props {
   choferId?: string;
@@ -448,6 +449,8 @@ export default function ViajesTable({ choferId }: Props) {
                             </div>
                           </div>
                         </div>
+
+                        <ViajeGastosPanel viajeId={v.id} />
                       </div>
                     </TableCell>
                   </TableRow>
