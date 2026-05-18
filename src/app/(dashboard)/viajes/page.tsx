@@ -2,12 +2,14 @@ import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import { MapPin, Download, X } from "lucide-react";
+import { MapPin, Download, X, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import { getViajeFormData } from "./actions";
 import ExportViajesButton from "./components/ExportViajesButton";
+import AddGastoDialog from "../gastos/components/AddGastoDialog";
+import { getGastoFormData } from "../gastos/actions";
 
 export default async function ViajesPage({
   searchParams,
@@ -44,10 +46,12 @@ export default async function ViajesPage({
     [total, enCurso, pendientes, sinFacturar, internacionales],
     choferResult,
     formData,
+    gastoFormData,
   ] = await Promise.all([
     Promise.all(statsQuery),
     choferQuery ?? Promise.resolve(null),
     getViajeFormData(),
+    getGastoFormData(),
   ]);
 
   const viajeFormData = "error" in formData ? null : formData;
@@ -68,6 +72,17 @@ export default async function ViajesPage({
               choferId={choferId}
               disabled={(total.count ?? 0) === 0}
             />
+            <AddGastoDialog
+              tiposGasto={gastoFormData.tiposGasto}
+              viajes={gastoFormData.viajes}
+              camiones={gastoFormData.camiones}
+              choferes={gastoFormData.choferes}
+            >
+              <Button variant="outline" size="sm">
+                <Receipt size={14} />
+                Registrar gasto
+              </Button>
+            </AddGastoDialog>
             {viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }

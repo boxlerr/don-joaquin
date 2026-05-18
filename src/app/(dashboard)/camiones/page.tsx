@@ -10,7 +10,7 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
-import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Search, ChevronRight } from "lucide-react";
+import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Search, ChevronRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
@@ -18,11 +18,13 @@ import AddGasoilDialog from "./components/AddGasoilDialog";
 import CamionRow from "./components/CamionRow";
 import { ExportCamionesButton, ImportCamionesButton } from "./components/CamionesIO";
 import HelpTutorialButton from "./help-tutorial-button";
+import AddGastoDialog from "../gastos/components/AddGastoDialog";
+import { getGastoFormData } from "../gastos/actions";
 
 export default async function CamionesPage() {
   const supabase = createAdminClient();
 
-  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }] =
+  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData] =
     await Promise.all([
       supabase
         .from("camiones")
@@ -42,6 +44,7 @@ export default async function CamionesPage() {
         .from("camion_fotos")
         .select("camion_id, archivo:documentos_archivos!archivo_id(bucket, path)")
         .eq("es_principal", true),
+      getGastoFormData(),
     ]);
 
   const fotosMap = new Map<string, string>();
@@ -83,6 +86,17 @@ export default async function CamionesPage() {
                 Registrar service
               </Button>
             </AddServiceDialog>
+            <AddGastoDialog
+              tiposGasto={gastoFormData.tiposGasto}
+              viajes={gastoFormData.viajes}
+              camiones={gastoFormData.camiones}
+              choferes={gastoFormData.choferes}
+            >
+              <Button variant="outline" size="default" className="bg-white border-[#E2E8F0] text-[#475569] hover:text-[#0088D1] hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                <Receipt size={14} className="text-[#0088D1]" />
+                Registrar gasto
+              </Button>
+            </AddGastoDialog>
             <AddCamionDialog>
               <Button variant="brand" size="default" className="shadow-md shadow-[#0088D1]/20">
                 <Plus size={16} strokeWidth={3} />

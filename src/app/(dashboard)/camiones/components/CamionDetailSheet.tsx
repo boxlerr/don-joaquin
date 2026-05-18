@@ -16,7 +16,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt,
 } from "lucide-react";
 import {
   updateCamionAction,
@@ -38,10 +38,11 @@ import type {
 } from "../types";
 import CamionDocumentosTab from "./CamionDocumentosTab";
 import CamionFotosTab from "./CamionFotosTab";
+import CamionGastosTab from "./CamionGastosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-type TabId = "info" | "fotos" | "services" | "gasoil" | "docs";
+type TabId = "info" | "fotos" | "services" | "gasoil" | "gastos" | "docs";
 
 type FormData = {
   patente: string;
@@ -378,6 +379,7 @@ export default function CamionDetailSheet({
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
             { id: "services" as TabId, label: "Services", icon: Wrench },
             { id: "gasoil" as TabId, label: "Gasoil", icon: Fuel },
+            { id: "gastos" as TabId, label: "Gastos", icon: Receipt },
             { id: "docs" as TabId, label: "Documentos", icon: FileText },
           ].map((tab) => (
             <button
@@ -723,6 +725,8 @@ export default function CamionDetailSheet({
               )}
             </div>
           )}
+
+          {activeTab === "gastos" && <CamionGastosTab camionId={camion.id} />}
 
           {activeTab === "docs" && docsLoaded && (
             <CamionDocumentosTab

@@ -8,6 +8,7 @@ import {
   DollarSign,
   Wallet,
   FileText,
+  Receipt,
   Shield,
   ShieldAlert,
   Settings,
@@ -58,6 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "FINANZAS",
     items: [
       { label: "Caja", href: "/caja", icon: Wallet },
+      { label: "Gastos", href: "/gastos", icon: Receipt },
       { label: "Cheques", href: "/cheques", icon: FileText },
     ],
   },
