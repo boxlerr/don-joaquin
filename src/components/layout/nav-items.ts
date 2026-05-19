@@ -4,6 +4,7 @@ import {
   MapPin,
   Truck,
   Users,
+  AlertTriangle,
   Briefcase,
   DollarSign,
   Wallet,
@@ -46,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Viajes", href: "/viajes", icon: MapPin },
       { label: "Camiones", href: "/camiones", icon: Truck },
       { label: "Choferes", href: "/choferes", icon: Users },
+      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle },
     ],
   },
   {
