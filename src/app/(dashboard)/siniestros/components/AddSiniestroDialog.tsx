@@ -7,13 +7,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  AlertTriangle,
+  Truck,
+  User,
+  Calendar,
+  DollarSign,
+  Shield,
+  FileText,
+  Users,
+  MessageSquare,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 
 export type SiniestroEditing = {
@@ -153,155 +163,320 @@ export default function AddSiniestroDialog({
     }
   };
 
-  const errClass = (key: keyof FieldErrors) => (errors[key] ? "border-red-300 focus-visible:ring-red-300" : "");
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">
-            {editing ? "Editar siniestro" : "Registrar siniestro"}
-          </DialogTitle>
-          <DialogDescription className="text-[#475569]">
-            {editing ? "Actualizá los datos del siniestro registrado." : "Ingresá los datos del siniestro para registrarlo en el sistema."}
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[600px] p-6 gap-0">
+        {/* Header */}
+        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#FEE2E2] text-[#EF4444] shrink-0 animate-pulse">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+                {editing ? "Editar siniestro" : "Registrar siniestro"}
+              </DialogTitle>
+              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+                {editing
+                  ? "Actualizá los datos del siniestro registrado."
+                  : "Ingresá los datos del siniestro para registrarlo en el sistema."}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
-              <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
-                <SelectTrigger id="camion" className={`w-full ${errClass("camionId")}`}>
-                  <SelectValue placeholder="Seleccionar camión..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {camiones.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.patente} - {c.marca} {c.modelo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.camionId && <p className="text-xs text-red-600">{errors.camionId}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="chofer" className="text-sm font-medium text-[#1E293B]">Chofer Involucrado</Label>
-              <Select value={choferId} onValueChange={(v) => setChoferId(v ?? "none")}>
-                <SelectTrigger id="chofer" className="w-full">
-                  <SelectValue placeholder="Seleccionar chofer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin chofer / Otro</SelectItem>
-                  {choferes.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>
-                      {ch.nombre} {ch.apellido || ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="fecha" className="text-sm font-medium text-[#1E293B]">Fecha del Siniestro</Label>
-              <Input
-                id="fecha"
-                type="date"
-                required
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                className={errClass("fecha")}
-              />
-              {errors.fecha && <p className="text-xs text-red-600">{errors.fecha}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="monto" className="text-sm font-medium text-[#1E293B]">Monto Estimado Daños ($)</Label>
-              <Input
-                id="monto"
-                type="number"
-                placeholder="Ej: 150000"
-                value={montoDanos}
-                onChange={(e) => setMontoDanos(e.target.value)}
-                className={errClass("montoDanos")}
-              />
-              {errors.montoDanos && <p className="text-xs text-red-600">{errors.montoDanos}</p>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="compania" className="text-sm font-medium text-[#1E293B]">Compañía de Seguro</Label>
-              <Input
-                id="compania"
-                placeholder="Ej: La Caja, San Cristóbal"
-                value={companiaSeguro}
-                onChange={(e) => setCompaniaSeguro(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="nroSiniestro" className="text-sm font-medium text-[#1E293B]">Nro Siniestro/Reclamación</Label>
-              <Input
-                id="nroSiniestro"
-                placeholder="Ej: SIN-12345/26"
-                value={numeroSiniestroSeguro}
-                onChange={(e) => setNumeroSiniestroSeguro(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="terceros" className="text-sm font-medium text-[#1E293B]">Terceros Involucrados (Datos)</Label>
-            <Input
-              id="terceros"
-              placeholder="Ej: Juan Pérez (Patente XYZ-789) / Compañía Rivadavia"
-              value={tercerosInvolucrados}
-              onChange={(e) => setTercerosInvolucrados(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="descripcion" className="text-sm font-medium text-[#1E293B]">Detalles / Descripción del Accidente</Label>
-            <textarea
-              id="descripcion"
+            {/* Camion */}
+            <SelectFieldWithIcon
+              label="Camión *"
+              name="camion"
+              value={camionId}
+              onValueChange={setCamionId}
+              options={camiones.map((c) => ({
+                value: c.id,
+                label: `${c.patente} - ${c.marca} ${c.modelo}`,
+              }))}
               required
-              className="flex min-h-[90px] w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm placeholder:text-[#94A3B8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1] disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Describí detalladamente lo sucedido (ej: Colisión en ruta 3 km 120, despiste por calzada húmeda, etc.)..."
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
+              icon={Truck}
+              error={errors.camionId}
             />
-            {errors.descripcion && <p className="text-xs text-red-600">{errors.descripcion}</p>}
+
+            {/* Chofer */}
+            <SelectFieldWithIcon
+              label="Chofer Involucrado"
+              name="chofer"
+              value={choferId}
+              onValueChange={setChoferId}
+              options={[
+                { value: "none", label: "Sin chofer / Otro" },
+                ...choferes.map((ch) => ({
+                  value: ch.id,
+                  label: `${ch.nombre} ${ch.apellido || ""}`,
+                })),
+              ]}
+              icon={User}
+            />
           </div>
 
-          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
+          <div className="grid grid-cols-2 gap-4">
+            {/* Fecha */}
+            <InputFieldWithIcon
+              label="Fecha del Siniestro *"
+              name="fecha"
+              type="date"
+              required
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              icon={Calendar}
+              error={errors.fecha}
+            />
+
+            {/* Monto */}
+            <InputFieldWithIcon
+              label="Monto Estimado Daños ($)"
+              name="monto"
+              type="number"
+              placeholder="Ej: 150000"
+              value={montoDanos}
+              onChange={(e) => setMontoDanos(e.target.value)}
+              icon={DollarSign}
+              error={errors.montoDanos}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Compania */}
+            <InputFieldWithIcon
+              label="Compañía de Seguro"
+              name="compania"
+              placeholder="Ej: La Caja, San Cristóbal"
+              value={companiaSeguro}
+              onChange={(e) => setCompaniaSeguro(e.target.value)}
+              icon={Shield}
+            />
+
+            {/* Nro Siniestro */}
+            <InputFieldWithIcon
+              label="Nro Siniestro/Reclamación"
+              name="nroSiniestro"
+              placeholder="Ej: SIN-12345/26"
+              value={numeroSiniestroSeguro}
+              onChange={(e) => setNumeroSiniestroSeguro(e.target.value)}
+              icon={FileText}
+            />
+          </div>
+
+          {/* Terceros */}
+          <InputFieldWithIcon
+            label="Terceros Involucrados (Datos)"
+            name="terceros"
+            placeholder="Ej: Juan Pérez (Patente XYZ-789) / Compañía Rivadavia"
+            value={tercerosInvolucrados}
+            onChange={(e) => setTercerosInvolucrados(e.target.value)}
+            icon={Users}
+          />
+
+          {/* Detalles */}
+          <TextareaFieldWithIcon
+            label="Detalles / Descripción del Accidente *"
+            name="descripcion"
+            placeholder="Describí detalladamente lo sucedido (ej: Colisión en ruta 3 km 120, despiste por calzada húmeda, etc.)..."
+            required
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            icon={MessageSquare}
+            error={errors.descripcion}
+          />
+
+          {/* Footer */}
+          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-100 -mx-6 px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
               disabled={loading}
             >
               Cancelar
             </Button>
             <Button
               type="submit"
-              variant="brand"
               disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar siniestro"}
+              {loading ? (
+                "Guardando..."
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={2.5} />{" "}
+                  {editing ? "Guardar cambios" : "Registrar siniestro"}
+                </>
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Subcomponente Input con Icono incorporado
+function InputFieldWithIcon({
+  label,
+  name,
+  id,
+  type = "text",
+  placeholder,
+  required,
+  value,
+  onChange,
+  error,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  id?: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <input
+          id={id}
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
+        />
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Subcomponente Select con Icono y Chevron
+function SelectFieldWithIcon({
+  label,
+  name,
+  id,
+  value,
+  onValueChange,
+  options,
+  required,
+  error,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  id?: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  error?: string;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <div className="relative flex-1 h-full">
+          <select
+            id={id}
+            name={name}
+            value={value}
+            required={required}
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
+            onChange={(e) => onValueChange(e.target.value)}
+          >
+            <option value="" disabled={required}>
+              Seleccionar...
+            </option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Subcomponente Textarea con Icono
+function TextareaFieldWithIcon({
+  label,
+  name,
+  id,
+  placeholder,
+  required,
+  value,
+  onChange,
+  error,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  id?: string;
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  error?: string;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className={`relative flex items-start w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-10 border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <textarea
+          id={id}
+          name={name}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          className="flex-1 min-h-[90px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-y"
+        />
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
   );
 }

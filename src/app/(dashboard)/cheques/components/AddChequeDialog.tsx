@@ -8,19 +8,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+  X,
+  Landmark,
+  Hash,
+  Sliders,
+  Home,
+  FileText,
+  DollarSign,
+  User,
+  Fingerprint,
+  Building2,
+  Calendar,
+  MessageSquare,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { createChequeAction, type ChequeTipo } from "../actions";
 
 const TIPO_LABEL: Record<ChequeTipo, string> = {
@@ -129,258 +136,348 @@ export default function AddChequeDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Cheque</DialogTitle>
-          <DialogDescription className="text-[#475569]">
-            Ingresá los datos del cheque recibido. Quedará registrado en cartera.
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[840px] p-6 gap-0">
+        {/* Header */}
+        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+              <Landmark size={22} />
+            </div>
+            <div>
+              <DialogTitle className="text-[#0F172A] text-lg font-bold">Registrar Cheque</DialogTitle>
+              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+                Ingresá los datos del cheque recibido. Quedará registrado en cartera.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-numero" className="text-sm font-medium text-[#1E293B]">
-                Número de cheque <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-numero"
-                placeholder="Ej: 00012345"
-                required
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-tipo" className="text-sm font-medium text-[#1E293B]">
-                Tipo
-              </Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v as ChequeTipo)}>
-                <SelectTrigger id="ch-tipo" className="w-full">
-                  <SelectValue placeholder="Tipo">
-                    {(value: unknown) => TIPO_LABEL[value as ChequeTipo] ?? null}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="comun">Común</SelectItem>
-                  <SelectItem value="diferido">Diferido</SelectItem>
-                  <SelectItem value="electronico">Electrónico (Echeq)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Fila 1: Número de cheque + Tipo + Banco */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Numero de cheque */}
+            <InputFieldWithIcon
+              label="Número de cheque *"
+              name="numero"
+              placeholder="Ej: 00012345"
+              required
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              icon={Hash}
+            />
+
+            {/* Tipo */}
+            <SelectFieldWithIcon
+              label="Tipo *"
+              name="tipo"
+              value={tipo}
+              onValueChange={(v) => setTipo(v as ChequeTipo)}
+              options={Object.entries(TIPO_LABEL).map(([val, lbl]) => ({ value: val, label: lbl }))}
+              required
+              icon={Sliders}
+            />
+
+            {/* Banco */}
+            <SelectFieldWithIcon
+              label="Banco *"
+              name="banco"
+              value={bancoId}
+              onValueChange={setBancoId}
+              options={bancos.map((b) => ({ value: b.id, label: b.nombre }))}
+              required
+              placeholder="Seleccionar banco..."
+              icon={Landmark}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-banco" className="text-sm font-medium text-[#1E293B]">
-                Banco <span className="text-red-500">*</span>
-              </Label>
-              <Select value={bancoId} onValueChange={(v) => setBancoId(v ?? "")}>
-                <SelectTrigger id="ch-banco" className="w-full">
-                  <SelectValue placeholder="Seleccionar banco">
-                    {(value: unknown) =>
-                      bancos.find((b) => b.id === value)?.nombre ?? null
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {bancos.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-sucursal" className="text-sm font-medium text-[#1E293B]">
-                Sucursal
-              </Label>
-              <Input
-                id="ch-sucursal"
-                placeholder="Ej: 045 - Centro"
-                value={sucursal}
-                onChange={(e) => setSucursal(e.target.value)}
-              />
-            </div>
+          {/* Fila 2: Sucursal + Cuenta corriente + Importe */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Sucursal */}
+            <InputFieldWithIcon
+              label="Sucursal"
+              name="sucursal"
+              placeholder="Ej: 045 - Centro"
+              value={sucursal}
+              onChange={(e) => setSucursal(e.target.value)}
+              icon={Home}
+            />
+
+            {/* Cuenta corriente */}
+            <InputFieldWithIcon
+              label="Cuenta corriente"
+              name="cuentaCorriente"
+              placeholder="Nº de cuenta"
+              value={cuentaCorriente}
+              onChange={(e) => setCuentaCorriente(e.target.value)}
+              icon={FileText}
+            />
+
+            {/* Importe */}
+            <InputFieldWithIcon
+              label="Importe ($) *"
+              name="importe"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              required
+              value={importe}
+              onChange={(e) => setImporte(e.target.value)}
+              icon={DollarSign}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-cuenta" className="text-sm font-medium text-[#1E293B]">
-                Cuenta corriente
-              </Label>
-              <Input
-                id="ch-cuenta"
-                placeholder="Nº de cuenta"
-                value={cuentaCorriente}
-                onChange={(e) => setCuentaCorriente(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-importe" className="text-sm font-medium text-[#1E293B]">
-                Importe ($) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-importe"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                required
-                value={importe}
-                onChange={(e) => setImporte(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-librador" className="text-sm font-medium text-[#1E293B]">
-                Librador (nombre) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-librador"
+          {/* Fila 3: Librador (nombre) + CUIT del librador + Cliente vinculado */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="sm:col-span-2">
+              {/* Librador (nombre) */}
+              <InputFieldWithIcon
+                label="Librador (nombre) *"
+                name="libradorNombre"
                 placeholder="Nombre / razón social del librador"
                 required
                 value={libradorNombre}
                 onChange={(e) => setLibradorNombre(e.target.value)}
+                icon={User}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-cuit" className="text-sm font-medium text-[#1E293B]">
-                CUIT del librador
-              </Label>
-              <Input
-                id="ch-cuit"
-                placeholder="20-12345678-9"
-                value={libradorCuit}
-                onChange={(e) => setLibradorCuit(e.target.value)}
-              />
-            </div>
+
+            {/* CUIT del librador */}
+            <InputFieldWithIcon
+              label="CUIT del librador"
+              name="libradorCuit"
+              placeholder="20-12345678-9"
+              value={libradorCuit}
+              onChange={(e) => setLibradorCuit(e.target.value)}
+              icon={Fingerprint}
+            />
+
+            {/* Cliente vinculado */}
+            <SelectFieldWithIcon
+              label="Cliente vinculado"
+              name="cliente"
+              value={clienteId}
+              onValueChange={setClienteId}
+              options={clientes.map((c) => ({ value: c.id, label: c.razon_social }))}
+              placeholder="Sin cliente"
+              icon={Building2}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-cliente" className="text-sm font-medium text-[#1E293B]">
-                Cliente vinculado
-              </Label>
-              <Select value={clienteId} onValueChange={(v) => setClienteId(v ?? "")}>
-                <SelectTrigger id="ch-cliente" className="w-full">
-                  <SelectValue placeholder="Sin cliente">
-                    {(value: unknown) => {
-                      if (!value) return null;
-                      return clientes.find((c) => c.id === value)?.razon_social ?? null;
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Sin cliente</SelectItem>
-                  {clientes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.razon_social}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-recibido" className="text-sm font-medium text-[#1E293B]">
-                Recibido de
-              </Label>
-              <Input
-                id="ch-recibido"
-                placeholder="Persona o entidad (si no es cliente)"
-                value={recibidoDe}
-                onChange={(e) => setRecibidoDe(e.target.value)}
-              />
-            </div>
+          {/* Fila 4: Recibido de + Fecha emisión + Fecha vencimiento + Fecha recepción */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            {/* Recibido de */}
+            <InputFieldWithIcon
+              label="Recibido de"
+              name="recibidoDe"
+              placeholder="Persona o entidad (si no es cliente)"
+              value={recibidoDe}
+              onChange={(e) => setRecibidoDe(e.target.value)}
+              icon={User}
+            />
+
+            {/* Fecha emision */}
+            <InputFieldWithIcon
+              label="Fecha emisión *"
+              name="fechaEmision"
+              type="date"
+              required
+              value={fechaEmision}
+              onChange={(e) => setFechaEmision(e.target.value)}
+              icon={Calendar}
+            />
+
+            {/* Fecha vencimiento */}
+            <InputFieldWithIcon
+              label="Fecha vencimiento *"
+              name="fechaVencimiento"
+              type="date"
+              required
+              value={fechaVencimiento}
+              onChange={(e) => setFechaVencimiento(e.target.value)}
+              icon={Calendar}
+            />
+
+            {/* Fecha recepcion */}
+            <InputFieldWithIcon
+              label="Fecha recepción *"
+              name="fechaRecepcion"
+              type="date"
+              required
+              value={fechaRecepcion}
+              onChange={(e) => setFechaRecepcion(e.target.value)}
+              icon={Calendar}
+            />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="ch-emision" className="text-sm font-medium text-[#1E293B]">
-                Fecha emisión <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-emision"
-                type="date"
-                required
-                value={fechaEmision}
-                onChange={(e) => setFechaEmision(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-vencimiento" className="text-sm font-medium text-[#1E293B]">
-                Fecha vencimiento <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-vencimiento"
-                type="date"
-                required
-                value={fechaVencimiento}
-                onChange={(e) => setFechaVencimiento(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ch-recepcion" className="text-sm font-medium text-[#1E293B]">
-                Fecha recepción <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="ch-recepcion"
-                type="date"
-                required
-                value={fechaRecepcion}
-                onChange={(e) => setFechaRecepcion(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="ch-concepto" className="text-sm font-medium text-[#1E293B]">
-              Concepto
-            </Label>
-            <Input
-              id="ch-concepto"
+          {/* Fila 5: Concepto + Observaciones */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Concepto */}
+            <InputFieldWithIcon
+              label="Concepto"
+              name="concepto"
               placeholder="Ej: Pago factura A-0001-00012345"
               value={concepto}
               onChange={(e) => setConcepto(e.target.value)}
+              icon={MessageSquare}
             />
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="ch-observaciones" className="text-sm font-medium text-[#1E293B]">
-              Observaciones
-            </Label>
-            <Input
-              id="ch-observaciones"
+            {/* Observaciones */}
+            <InputFieldWithIcon
+              label="Observaciones"
+              name="observaciones"
               placeholder="Notas internas (opcional)"
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
+              icon={MessageSquare}
             />
           </div>
 
-          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
+          {/* Footer */}
+          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-100 -mx-6 px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
               disabled={loading}
             >
               Cancelar
             </Button>
-            <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Registrando..." : "Confirmar cheque"}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+            >
+              {loading ? (
+                "Registrando..."
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={2.5} /> Confirmar cheque
+                </>
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Subcomponente Input con Icono incorporado
+function InputFieldWithIcon({
+  label,
+  name,
+  type = "text",
+  placeholder,
+  required,
+  value,
+  onChange,
+  disabled,
+  icon: Icon,
+  step,
+  min,
+  className = "",
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  icon: React.ComponentType<any>;
+  step?: string;
+  min?: string;
+  className?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <input
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          step={step}
+          min={min}
+          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] ${className}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Subcomponente Select con Icono y Chevron
+function SelectFieldWithIcon({
+  label,
+  name,
+  value,
+  onValueChange,
+  options,
+  required,
+  disabled,
+  icon: Icon,
+  placeholder,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  disabled?: boolean;
+  icon: React.ComponentType<any>;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <div className="relative flex-1 h-full">
+          <select
+            name={name}
+            required={required}
+            value={value}
+            disabled={disabled}
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+            onChange={(e) => onValueChange(e.target.value)}
+          >
+            {placeholder && (
+              <option value="" disabled={required}>
+                {placeholder}
+              </option>
+            )}
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          />
+        </div>
+      </div>
+    </div>
   );
 }

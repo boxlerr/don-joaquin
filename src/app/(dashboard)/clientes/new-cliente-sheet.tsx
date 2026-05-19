@@ -4,8 +4,22 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
+import {
+  Plus,
+  X,
+  UserPlus,
+  Building2,
+  Tag,
+  Fingerprint,
+  Percent,
+  MapPin,
+  Home,
+  Mail,
+  Phone,
+  MessageSquare,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { createClienteAction, type CreateClienteState } from "./actions";
 
 const CONDICIONES_IVA: { value: string; label: string }[] = [
@@ -31,7 +45,7 @@ export default function NewClienteSheet() {
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Button variant="brand" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="brand" size="sm" onClick={() => setOpen(true)} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
         <Plus size={14} />
         Nuevo cliente
       </Button>
@@ -39,139 +53,162 @@ export default function NewClienteSheet() {
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(760px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-white rounded-[16px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
         >
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-[#E2E8F0]">
-            <div>
-              <Dialog.Title className="text-[#0F172A] text-base font-semibold">
-                Nuevo cliente
-              </Dialog.Title>
-              <Dialog.Description className="text-[#475569] text-xs mt-0.5">
-                Datos básicos de la cartera. Podés completar el resto luego desde la ficha.
-              </Dialog.Description>
+          {/* Header */}
+          <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-[#E2E8F0]">
+            <div className="flex items-start gap-4">
+              <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+                <UserPlus size={22} />
+              </div>
+              <div>
+                <Dialog.Title className="text-[#0F172A] text-lg font-bold">
+                  Nuevo cliente
+                </Dialog.Title>
+                <Dialog.Description className="text-[#64748B] text-xs font-medium mt-0.5">
+                  Datos básicos de la cartera. Podés completar el resto luego desde la ficha.
+                </Dialog.Description>
+              </div>
             </div>
             <Dialog.Close
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                  className="size-8 rounded-full text-[#64748B] hover:bg-[#F1F5F9] inline-flex items-center justify-center transition-colors"
                   aria-label="Cerrar"
                 />
               }
             >
-              <X size={16} />
+              <X size={18} />
             </Dialog.Close>
           </div>
 
+          {/* Form */}
           <form
             action={formAction}
             key={open ? "open" : "closed"}
-            className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
+            className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
           >
-            <Field
-              label="Razón social *"
-              name="razon_social"
-              required
-              error={state?.fieldErrors?.razon_social}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Field
+            {/* Fila 1: Razón social + Nombre comercial + CUIT */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <InputFieldWithIcon
+                label="Razón social *"
+                name="razon_social"
+                placeholder="Ej: Don Joaquín S.A."
+                required
+                icon={Building2}
+                error={state?.fieldErrors?.razon_social}
+              />
+              <InputFieldWithIcon
                 label="Nombre comercial"
                 name="nombre_comercial"
+                placeholder="Ej: Don Joaquín"
+                icon={Tag}
                 error={state?.fieldErrors?.nombre_comercial}
               />
-              <Field
+              <InputFieldWithIcon
                 label="CUIT"
                 name="cuit"
                 placeholder="30-12345678-9"
+                icon={Fingerprint}
                 error={state?.fieldErrors?.cuit}
               />
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-[#475569] mb-1 block">
-                Condición IVA *
-              </label>
-              <select
-                name="condicion_iva"
-                defaultValue="no_categorizado"
-                className="w-full h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-              >
-                {CONDICIONES_IVA.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+            {/* Fila 2: Condición IVA + Domicilio fiscal */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-1">
+                <SelectFieldWithIcon
+                  label="Condición IVA *"
+                  name="condicion_iva"
+                  defaultValue="no_categorizado"
+                  options={CONDICIONES_IVA}
+                  required
+                  icon={Percent}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <InputFieldWithIcon
+                  label="Domicilio fiscal"
+                  name="domicilio_fiscal"
+                  placeholder="Ej: Av. Colón 123"
+                  icon={Home}
+                  error={state?.fieldErrors?.domicilio_fiscal}
+                />
+              </div>
             </div>
 
-            <Field
-              label="Domicilio fiscal"
-              name="domicilio_fiscal"
-              error={state?.fieldErrors?.domicilio_fiscal}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Field
+            {/* Fila 3: Localidad + Provincia + Teléfono */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <InputFieldWithIcon
                 label="Localidad"
                 name="localidad"
+                placeholder="Ej: Arrecifes"
+                icon={MapPin}
                 error={state?.fieldErrors?.localidad}
               />
-              <Field
+              <InputFieldWithIcon
                 label="Provincia"
                 name="provincia"
+                placeholder="Ej: Buenos Aires"
+                icon={MapPin}
                 error={state?.fieldErrors?.provincia}
               />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Email"
-                name="email"
-                type="email"
-                error={state?.fieldErrors?.email}
-              />
-              <Field
+              <InputFieldWithIcon
                 label="Teléfono"
                 name="telefono"
+                placeholder="Ej: +54 9 11 ..."
+                icon={Phone}
                 error={state?.fieldErrors?.telefono}
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-[#0F172A]">
-              <input
-                type="checkbox"
-                name="es_multinacional"
-                className="size-4 rounded border-[#E2E8F0] accent-[#0088D1]"
-              />
-              Es multinacional
-            </label>
-
-            <div>
-              <label className="text-xs font-semibold text-[#475569] mb-1 block">
-                Observaciones
-              </label>
-              <textarea
+            {/* Fila 4: Distribución de Email & Checkbox (Izquierda) + Observaciones (Derecha) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              <div className="space-y-4">
+                <InputFieldWithIcon
+                  label="Email"
+                  name="email"
+                  type="email"
+                  placeholder="Ej: contacto@empresa.com"
+                  icon={Mail}
+                  error={state?.fieldErrors?.email}
+                />
+                <div className="flex items-center pt-1.5">
+                  <label className="flex items-center gap-2.5 text-sm font-semibold text-[#334155] cursor-pointer selection:bg-transparent">
+                    <input
+                      type="checkbox"
+                      name="es_multinacional"
+                      className="size-4.5 rounded border-[#E2E8F0] accent-[#0088D1] cursor-pointer"
+                    />
+                    Es multinacional
+                  </label>
+                </div>
+              </div>
+              
+              <TextareaFieldWithIcon
+                label="Observaciones"
                 name="observaciones"
-                rows={3}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] resize-none"
+                placeholder="Detalles u observaciones adicionales sobre el cliente..."
+                icon={MessageSquare}
               />
             </div>
 
             {state?.error && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-sm rounded-md px-3 py-2">
+              <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-xs rounded-lg px-3 py-2 font-medium">
                 {state.error}
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
+            {/* Footer */}
+            <div className="flex justify-end gap-3 pt-3.5 border-t border-slate-100 mt-4">
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={() => setOpen(false)}
+                className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
               >
                 Cancelar
-              </Button>
+              </button>
               <SubmitButton />
             </div>
           </form>
@@ -181,43 +218,153 @@ export default function NewClienteSheet() {
   );
 }
 
-function Field({
+// Subcomponente Input con Icono incorporado
+function InputFieldWithIcon({
   label,
   name,
   type = "text",
-  required,
   placeholder,
+  required,
   error,
+  icon: Icon,
 }: {
   label: string;
   name: string;
   type?: string;
-  required?: boolean;
   placeholder?: string;
+  required?: boolean;
   error?: string;
+  icon: React.ComponentType<any>;
 }) {
   return (
-    <div>
-      <label className="text-xs font-semibold text-[#475569] mb-1 block">
-        {label}
-      </label>
-      <Input
-        name={name}
-        type={type}
-        required={required}
-        placeholder={placeholder}
-        className="text-sm"
-      />
-      {error && <p className="text-xs text-[#B91C1C] mt-1">{error}</p>}
+    <div className="space-y-1">
+      <label className="text-xs font-semibold text-[#475569]">{label}</label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <input
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
+        />
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }
 
+// Subcomponente Select con Icono y Chevron
+function SelectFieldWithIcon({
+  label,
+  name,
+  defaultValue = "",
+  options,
+  required,
+  error,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  error?: string;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-semibold text-[#475569]">{label}</label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <div className="relative flex-1 h-full">
+          <select
+            name={name}
+            required={required}
+            defaultValue={defaultValue}
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
+          >
+            <option value="" disabled={required}>
+              Seleccionar...
+            </option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Subcomponente Textarea con Icono
+function TextareaFieldWithIcon({
+  label,
+  name,
+  placeholder,
+  required,
+  error,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  required?: boolean;
+  error?: string;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1 h-full flex flex-col justify-between">
+      <label className="text-xs font-semibold text-[#475569]">{label}</label>
+      <div className={`relative flex items-start flex-1 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-10 border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <textarea
+          name={name}
+          placeholder={placeholder}
+          required={required}
+          className="flex-1 w-full h-[85px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-none"
+        />
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+}
+
+// Boton de submit estilizado
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="brand" size="sm" disabled={pending}>
-      {pending ? "Guardando..." : "Guardar cliente"}
-    </Button>
+    <button
+      type="submit"
+      disabled={pending}
+      className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+    >
+      {pending ? (
+        "Guardando..."
+      ) : (
+        <>
+          <Check size={16} strokeWidth={2.5} /> Guardar cliente
+        </>
+      )}
+    </button>
   );
 }

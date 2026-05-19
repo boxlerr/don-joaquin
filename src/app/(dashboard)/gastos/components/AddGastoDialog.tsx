@@ -8,22 +8,27 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-  SelectLabel,
-} from "@/components/ui/select";
-import { Lock } from "lucide-react";
+  X,
+  Lock,
+  Receipt,
+  Tag,
+  DollarSign,
+  Calendar,
+  CreditCard,
+  FileText,
+  Store,
+  MessageSquare,
+  Navigation,
+  Truck,
+  User,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { addGastoAction, type GastoMedioPago } from "../actions";
 
 const MEDIO_PAGO_OPTIONS: { value: GastoMedioPago; label: string; hint: string }[] = [
@@ -44,11 +49,8 @@ interface Props {
   viajes: ViajeOption[];
   camiones: CamionOption[];
   choferes: ChoferOption[];
-  /** Pre-rellena y bloquea el viaje (carga contextual desde /viajes). */
   contextViajeId?: string;
-  /** Pre-rellena y bloquea el camión (carga contextual desde /camiones). */
   contextCamionId?: string;
-  /** Pre-rellena y bloquea el chofer (carga contextual desde /choferes). */
   contextChoferId?: string;
   onSuccess?: () => void;
 }
@@ -168,259 +170,338 @@ export default function AddGastoDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Gasto</DialogTitle>
-          <DialogDescription className="text-[#475569]">
-            Asocialo a un viaje, camión o chofer para mantener trazabilidad.
-          </DialogDescription>
+      <DialogContent className="sm:max-w-[760px] p-6 gap-0">
+        {/* Header */}
+        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+              <Receipt size={22} />
+            </div>
+            <div>
+              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+                Registrar Gasto
+              </DialogTitle>
+              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+                Asocialo a un viaje, camión o chofer para mantener trazabilidad en la logística.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
+        {/* Lock indicator */}
         {contextLabel && (
-          <div className="flex items-center gap-2 px-3 py-2 -mt-1 rounded-md bg-[#E1F5FE]/50 border border-[#B3E5FC] text-[#004A99] text-xs font-medium">
-            <Lock size={12} />
-            Vinculado a: <span className="font-semibold">{contextLabel}</span>
+          <div className="flex items-center gap-2 px-4 py-2 mt-4 rounded-lg bg-[#E1F5FE]/60 border border-[#B3E5FC] text-[#004A99] text-xs font-semibold">
+            <Lock size={12} strokeWidth={2.5} />
+            Vinculado por contexto a: <span className="underline">{contextLabel}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
               {error}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="g-tipo" className="text-sm font-medium text-[#1E293B]">
-              Tipo de gasto <span className="text-red-500">*</span>
-            </Label>
-            <Select value={tipoGastoId} onValueChange={(v) => setTipoGastoId(v ?? "")}>
-              <SelectTrigger id="g-tipo" className="w-full">
-                <SelectValue placeholder="Seleccioná un tipo">
-                  {(value: unknown) => {
-                    const t = tiposGasto.find((t) => t.id === value);
-                    return t?.nombre ?? null;
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(tiposPorCategoria).map(([cat, items]) => (
-                  <SelectGroup key={cat}>
-                    <SelectLabel>{cat.toUpperCase()}</SelectLabel>
-                    {items.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nombre}
-                      </SelectItem>
+          {/* Fila 1: Tipo de gasto + Monto + Fecha */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Tipo Gasto */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-[#475569]">Tipo de gasto *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                  <Tag size={15} />
+                </div>
+                <div className="relative flex-1 h-full">
+                  <select
+                    value={tipoGastoId}
+                    onChange={(e) => setTipoGastoId(e.target.value)}
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium"
+                    required
+                  >
+                    <option value="" disabled>
+                      Seleccioná un tipo
+                    </option>
+                    {Object.entries(tiposPorCategoria).map(([cat, items]) => (
+                      <optgroup key={cat} label={cat.toUpperCase()}>
+                        {items.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.nombre}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="g-monto" className="text-sm font-medium text-[#1E293B]">
-                Monto ($) <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="g-monto"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                required
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-              />
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="g-fecha" className="text-sm font-medium text-[#1E293B]">
-                Fecha <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="g-fecha"
-                type="date"
-                required
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="g-medio" className="text-sm font-medium text-[#1E293B]">
-              Medio de pago
-            </Label>
-            <Select value={medioPago} onValueChange={(v) => setMedioPago(v as GastoMedioPago)}>
-              <SelectTrigger id="g-medio" className="w-full">
-                <SelectValue>
-                  {(value: unknown) =>
-                    MEDIO_PAGO_OPTIONS.find((o) => o.value === value)?.label ?? null
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {MEDIO_PAGO_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    <div className="flex items-center justify-between gap-3 w-full">
-                      <span>{o.label}</span>
-                      <span className="text-[10px] text-[#94A3B8] uppercase tracking-wide">
-                        {o.hint}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Monto */}
+            <InputFieldWithIcon
+              label="Monto ($) *"
+              name="monto"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              required
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              icon={DollarSign}
+            />
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="g-desc" className="text-sm font-medium text-[#1E293B]">
-                Descripción
-              </Label>
-              <Input
-                id="g-desc"
-                placeholder="Ej: Carga de gasoil ruta 3..."
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="g-comp" className="text-sm font-medium text-[#1E293B]">
-                N° comprobante
-              </Label>
-              <Input
-                id="g-comp"
-                placeholder="0001-00000123"
-                value={numeroComprobante}
-                onChange={(e) => setNumeroComprobante(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="g-prov" className="text-sm font-medium text-[#1E293B]">
-              Proveedor
-            </Label>
-            <Input
-              id="g-prov"
-              placeholder="Nombre del proveedor"
-              value={proveedor}
-              onChange={(e) => setProveedor(e.target.value)}
+            {/* Fecha */}
+            <InputFieldWithIcon
+              label="Fecha *"
+              name="fecha"
+              type="date"
+              required
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              icon={Calendar}
             />
           </div>
 
-          <div className="border-t border-[#E2E8F0] pt-3 space-y-3">
+          {/* Fila 2: Medio de pago + N° Comprobante + Proveedor */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Medio de pago */}
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-[#475569]">Medio de pago *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                  <CreditCard size={15} />
+                </div>
+                <div className="relative flex-1 h-full">
+                  <select
+                    value={medioPago}
+                    onChange={(e) => setMedioPago(e.target.value as GastoMedioPago)}
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium"
+                    required
+                  >
+                    {MEDIO_PAGO_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label} ({o.hint})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* N° comprobante */}
+            <InputFieldWithIcon
+              label="N° comprobante"
+              name="numeroComprobante"
+              placeholder="Ej: 0001-00000123"
+              value={numeroComprobante}
+              onChange={(e) => setNumeroComprobante(e.target.value)}
+              icon={FileText}
+            />
+
+            {/* Proveedor */}
+            <InputFieldWithIcon
+              label="Proveedor"
+              name="proveedor"
+              placeholder="Nombre del proveedor"
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+              icon={Store}
+            />
+          </div>
+
+          {/* Fila 3: Descripción */}
+          <InputFieldWithIcon
+            label="Descripción del gasto"
+            name="descripcion"
+            placeholder="Ej: Carga de gasoil ruta 3, compra de repuestos..."
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            icon={MessageSquare}
+          />
+
+          {/* Fila 4: Asignación */}
+          <div className="border-t border-slate-100 pt-4 space-y-2 mt-2">
             <p className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-              Asignación
+              Asignación / Trazabilidad
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="g-viaje" className="text-xs font-medium text-[#475569]">
-                  Viaje
-                </Label>
-                <Select
-                  value={viajeId || "__none__"}
-                  onValueChange={(v) => setViajeId(v === "__none__" ? "" : v ?? "")}
-                  disabled={viajeLocked}
-                >
-                  <SelectTrigger id="g-viaje" className="w-full">
-                    <SelectValue placeholder="Sin asignar">
-                      {(value: unknown) => {
-                        if (!value || value === "__none__") return "Sin asignar";
-                        const v = viajes.find((v) => v.id === value);
-                        return v ? `${v.codigo}` : null;
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {viajes.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>
-                        {v.codigo}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Viaje */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-[#475569]">Viaje</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                    <Navigation size={15} />
+                  </div>
+                  <div className="relative flex-1 h-full">
+                    <select
+                      value={viajeId || "__none__"}
+                      onChange={(e) => setViajeId(e.target.value === "__none__" ? "" : e.target.value)}
+                      disabled={viajeLocked}
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                    >
+                      <option value="__none__">Sin asignar</option>
+                      {viajes.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.codigo}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="g-camion" className="text-xs font-medium text-[#475569]">
-                  Camión
-                </Label>
-                <Select
-                  value={camionId || "__none__"}
-                  onValueChange={(v) => setCamionId(v === "__none__" ? "" : v ?? "")}
-                  disabled={camionLocked}
-                >
-                  <SelectTrigger id="g-camion" className="w-full">
-                    <SelectValue placeholder="Sin asignar">
-                      {(value: unknown) => {
-                        if (!value || value === "__none__") return "Sin asignar";
-                        const c = camiones.find((c) => c.id === value);
-                        return c?.patente ?? null;
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {camiones.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.patente}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Camión */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-[#475569]">Camión</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                    <Truck size={15} />
+                  </div>
+                  <div className="relative flex-1 h-full">
+                    <select
+                      value={camionId || "__none__"}
+                      onChange={(e) => setCamionId(e.target.value === "__none__" ? "" : e.target.value)}
+                      disabled={camionLocked}
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                    >
+                      <option value="__none__">Sin asignar</option>
+                      {camiones.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.patente}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="g-chofer" className="text-xs font-medium text-[#475569]">
-                  Chofer
-                </Label>
-                <Select
-                  value={choferId || "__none__"}
-                  onValueChange={(v) => setChoferId(v === "__none__" ? "" : v ?? "")}
-                  disabled={choferLocked}
-                >
-                  <SelectTrigger id="g-chofer" className="w-full">
-                    <SelectValue placeholder="Sin asignar">
-                      {(value: unknown) => {
-                        if (!value || value === "__none__") return "Sin asignar";
-                        const c = choferes.find((c) => c.id === value);
-                        return c ? `${c.apellido}, ${c.nombre}` : null;
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {choferes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.apellido}, {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Chofer */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-[#475569]">Chofer</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                    <User size={15} />
+                  </div>
+                  <div className="relative flex-1 h-full">
+                    <select
+                      value={choferId || "__none__"}
+                      onChange={(e) => setChoferId(e.target.value === "__none__" ? "" : e.target.value)}
+                      disabled={choferLocked}
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                    >
+                      <option value="__none__">Sin asignar</option>
+                      {choferes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.apellido}, {c.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="pt-4 sm:justify-end gap-2">
+          {/* Footer */}
+          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-100 -mx-6 px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
               disabled={loading}
             >
               Cancelar
             </Button>
-            <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Registrando..." : "Registrar gasto"}
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+            >
+              {loading ? (
+                "Registrando..."
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={2.5} /> Registrar gasto
+                </>
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Subcomponente Input con Icono incorporado
+function InputFieldWithIcon({
+  label,
+  name,
+  type = "text",
+  placeholder,
+  required,
+  value,
+  onChange,
+  disabled,
+  icon: Icon,
+  step,
+  min,
+  className = "",
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  icon: React.ComponentType<any>;
+  step?: string;
+  min?: string;
+  className?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <input
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          step={step}
+          min={min}
+          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] ${className}`}
+        />
+      </div>
+    </div>
   );
 }

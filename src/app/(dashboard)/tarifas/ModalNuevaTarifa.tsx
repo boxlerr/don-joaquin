@@ -1,9 +1,19 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Save, X } from "lucide-react";
+import {
+  X,
+  Coins,
+  Building2,
+  Sliders,
+  Navigation,
+  DollarSign,
+  Calendar,
+  MessageSquare,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   actualizarTarifa,
@@ -52,6 +62,18 @@ export default function ModalNuevaTarifa({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const reset = () => {
+    setClienteId(tarifa?.cliente_id ?? "");
+    setRutaId(tarifa?.ruta_id ?? "_sin_ruta");
+    setModalidad((tarifa?.modalidad as TarifaModalidad) ?? "fija");
+    setValor(tarifa ? String(tarifa.valor) : "");
+    setMoneda(tarifa?.moneda ?? "ARS");
+    setVigDesde(tarifa?.vigencia_desde ?? hoyISO());
+    setVigHasta(tarifa?.vigencia_hasta ?? "");
+    setObservaciones(tarifa?.observaciones ?? "");
+    setError(null);
+  };
+
   const rutaObligatoria = rutaEsObligatoria(modalidad);
   const modalidadMeta = useMemo(
     () => MODALIDADES.find((m) => m.value === modalidad)!,
@@ -89,198 +111,355 @@ export default function ModalNuevaTarifa({
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/40 z-40"
+        className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm transition-opacity"
         onClick={() => !isPending && onClose()}
       />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-white rounded-[8px] shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
-          <h2 className="text-[#0F172A] text-base font-semibold">
-            {editando ? "Editar tarifa" : "Nueva tarifa"}
-          </h2>
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(760px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-white rounded-[16px] shadow-2xl border border-[#E2E8F0]">
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-[#E2E8F0]">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+              <Coins size={22} />
+            </div>
+            <div>
+              <h2 className="text-[#0F172A] text-lg font-bold">
+                {editando ? "Editar tarifa" : "Nueva tarifa"}
+              </h2>
+              <p className="text-[#64748B] text-xs font-medium mt-0.5">
+                Ingresá los parámetros de facturación y vigencia para esta tarifa.
+              </p>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="p-1 rounded-lg hover:bg-[#F1F5F9] text-[#475569]"
+            className="size-8 rounded-full text-[#64748B] hover:bg-[#F1F5F9] inline-flex items-center justify-center transition-colors"
             aria-label="Cerrar"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* Form */}
+        <form onSubmit={onSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {error && (
-            <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2 text-sm text-[#7F1D1D]">
+            <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2 text-xs text-[#7F1D1D] font-medium">
               {error}
             </div>
           )}
 
-          <FieldRow label="Cliente" required>
-            <select
+          {/* Fila 1: Cliente + Modalidad + Ruta */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Cliente */}
+            <SelectFieldWithIcon
+              label="Cliente *"
+              name="cliente_id"
               value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
+              onValueChange={setClienteId}
               required
               disabled={isPending}
-              className="h-10 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-            >
-              <option value="">Seleccionar cliente…</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </FieldRow>
-
-          <FieldRow label="Modalidad" required>
-            <select
-              value={modalidad}
-              onChange={(e) => setModalidad(e.target.value as TarifaModalidad)}
-              required
-              disabled={isPending}
-              className="h-10 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-            >
-              {MODALIDADES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-[10px] text-[#94A3B8]">{modalidadMeta.pista}</span>
-          </FieldRow>
-
-          <FieldRow
-            label="Ruta"
-            required={rutaObligatoria}
-            hint={
-              rutaObligatoria
-                ? "Obligatoria para esta modalidad"
-                : "Opcional — sin ruta = tarifa por defecto del cliente"
-            }
-          >
-            <select
-              value={rutaId}
-              onChange={(e) => setRutaId(e.target.value)}
-              disabled={isPending}
-              className="h-10 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-            >
-              {!rutaObligatoria && (
-                <option value="_sin_ruta">Sin ruta específica</option>
-              )}
-              {rutaObligatoria && <option value="">Seleccionar ruta…</option>}
-              {rutas.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.origen} → {r.destino} ({r.km_oficiales} km)
-                </option>
-              ))}
-            </select>
-          </FieldRow>
-
-          <div className="grid grid-cols-[1fr_100px] gap-3">
-            <FieldRow label={`Valor (${modalidadMeta.unidad})`} required>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                inputMode="decimal"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                required
-                disabled={isPending}
-                className="h-10 text-sm"
-              />
-            </FieldRow>
-            <FieldRow label="Moneda">
-              <Input
-                type="text"
-                maxLength={3}
-                value={moneda}
-                onChange={(e) => setMoneda(e.target.value.toUpperCase())}
-                disabled={isPending}
-                className="h-10 text-sm uppercase"
-              />
-            </FieldRow>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <FieldRow label="Vigencia desde" required>
-              <Input
-                type="date"
-                value={vigDesde}
-                onChange={(e) => setVigDesde(e.target.value)}
-                required
-                disabled={isPending}
-                className="h-10 text-sm"
-              />
-            </FieldRow>
-            <FieldRow label="Vigencia hasta" hint="Opcional">
-              <Input
-                type="date"
-                value={vigHasta}
-                onChange={(e) => setVigHasta(e.target.value)}
-                disabled={isPending}
-                className="h-10 text-sm"
-              />
-            </FieldRow>
-          </div>
-
-          <FieldRow label="Observaciones" hint="Opcional, máx. 500 caracteres">
-            <textarea
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              disabled={isPending}
-              maxLength={500}
-              rows={3}
-              className="w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30 resize-none"
+              icon={Building2}
+              options={clientes.map((c) => ({ value: c.id, label: c.nombre }))}
+              placeholder="Seleccionar cliente…"
             />
-          </FieldRow>
-        </form>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[#E2E8F0] bg-[#F8FAFC] rounded-b-[8px]">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
+            {/* Modalidad */}
+            <div className="space-y-1">
+              <SelectFieldWithIcon
+                label="Modalidad *"
+                name="modalidad"
+                value={modalidad}
+                onValueChange={(v) => setModalidad(v as TarifaModalidad)}
+                required
+                disabled={isPending}
+                icon={Sliders}
+                options={MODALIDADES.map((m) => ({ value: m.value, label: m.label }))}
+              />
+              <span className="text-[10px] text-[#94A3B8] block px-1 truncate font-medium">
+                {modalidadMeta.pista}
+              </span>
+            </div>
+
+            {/* Ruta */}
+            <div className="space-y-1">
+              <SelectFieldWithIcon
+                label={rutaObligatoria ? "Ruta *" : "Ruta"}
+                name="ruta_id"
+                value={rutaId}
+                onValueChange={setRutaId}
+                required={rutaObligatoria}
+                disabled={isPending}
+                icon={Navigation}
+                options={[
+                  ...(!rutaObligatoria ? [{ value: "_sin_ruta", label: "Sin ruta específica" }] : []),
+                  ...rutas.map((r) => ({
+                    value: r.id,
+                    label: `${r.origen} → ${r.destino} (${r.km_oficiales} km)`,
+                  })),
+                ]}
+                placeholder={rutaObligatoria ? "Seleccionar ruta…" : undefined}
+              />
+              <span className="text-[10px] text-[#94A3B8] block px-1 truncate font-medium">
+                {rutaObligatoria
+                  ? "Obligatoria para esta modalidad"
+                  : "Opcional (tarifa por defecto)"}
+              </span>
+            </div>
+          </div>
+
+          {/* Fila 2: Valor + Moneda + Vigencia Desde + Vigencia Hasta */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            {/* Valor */}
+            <InputFieldWithIcon
+              label={`Valor (${modalidadMeta.unidad}) *`}
+              name="valor"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              disabled={isPending}
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              icon={DollarSign}
+            />
+
+            {/* Moneda */}
+            <InputFieldWithIcon
+              label="Moneda *"
+              name="moneda"
+              type="text"
+              maxLength={3}
+              required
+              disabled={isPending}
+              value={moneda}
+              onChange={(e) => setMoneda(e.target.value.toUpperCase())}
+              icon={Coins}
+              className="uppercase"
+            />
+
+            {/* Vigencia Desde */}
+            <InputFieldWithIcon
+              label="Vigencia desde *"
+              name="vigencia_desde"
+              type="date"
+              required
+              disabled={isPending}
+              value={vigDesde}
+              onChange={(e) => setVigDesde(e.target.value)}
+              icon={Calendar}
+            />
+
+            {/* Vigencia Hasta */}
+            <InputFieldWithIcon
+              label="Vigencia hasta"
+              name="vigencia_hasta"
+              type="date"
+              disabled={isPending}
+              value={vigHasta}
+              onChange={(e) => setVigHasta(e.target.value)}
+              icon={Calendar}
+              placeholder="Opcional"
+            />
+          </div>
+
+          {/* Fila 3: Observaciones */}
+          <TextareaFieldWithIcon
+            label="Observaciones"
+            name="observaciones"
+            placeholder="Opcional, máx. 500 caracteres"
+            maxLength={500}
             disabled={isPending}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            variant="brand"
-            size="sm"
-            disabled={isPending}
-            onClick={(e) => onSubmit(e as unknown as React.FormEvent)}
-          >
-            <Save size={13} />
-            {isPending ? "Guardando…" : editando ? "Guardar cambios" : "Crear tarifa"}
-          </Button>
-        </div>
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            icon={MessageSquare}
+          />
+
+          {/* Footer */}
+          <div className="flex justify-end gap-3 pt-3.5 border-t border-slate-100 mt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+            >
+              {isPending ? (
+                "Guardando…"
+              ) : (
+                <>
+                  <Check size={16} strokeWidth={2.5} />{" "}
+                  {editando ? "Guardar cambios" : "Crear tarifa"}
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </>
   );
 }
 
-function FieldRow({
+// Subcomponente Input con Icono incorporado
+function InputFieldWithIcon({
   label,
+  name,
+  type = "text",
+  placeholder,
   required,
-  hint,
-  children,
+  value,
+  onChange,
+  disabled,
+  icon: Icon,
+  step,
+  min,
+  maxLength,
+  className = "",
 }: {
   label: string;
+  name: string;
+  type?: string;
+  placeholder?: string;
   required?: boolean;
-  hint?: string;
-  children: React.ReactNode;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  icon: React.ComponentType<any>;
+  step?: string;
+  min?: string;
+  maxLength?: number;
+  className?: string;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
-        {label}
-        {required && <span className="text-[#EF4444] ml-1">*</span>}
-      </Label>
-      {children}
-      {hint && <p className="text-[10px] text-[#94A3B8]">{hint}</p>}
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <input
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          step={step}
+          min={min}
+          maxLength={maxLength}
+          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] ${className}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Subcomponente Select con Icono y Chevron
+function SelectFieldWithIcon({
+  label,
+  name,
+  value,
+  onValueChange,
+  options,
+  required,
+  disabled,
+  icon: Icon,
+  placeholder,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  disabled?: boolean;
+  icon: React.ComponentType<any>;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <div className="relative flex-1 h-full">
+          <select
+            name={name}
+            required={required}
+            value={value}
+            disabled={disabled}
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium"
+            onChange={(e) => onValueChange(e.target.value)}
+          >
+            {placeholder && (
+              <option value="" disabled={required}>
+                {placeholder}
+              </option>
+            )}
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={14}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Subcomponente Textarea con Icono
+function TextareaFieldWithIcon({
+  label,
+  name,
+  placeholder,
+  required,
+  value,
+  onChange,
+  disabled,
+  maxLength,
+  icon: Icon,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  required?: boolean;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  disabled?: boolean;
+  maxLength?: number;
+  icon: React.ComponentType<any>;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
+      <div className="relative flex items-start w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-10 border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+          <Icon size={15} />
+        </div>
+        <textarea
+          name={name}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          maxLength={maxLength}
+          className="flex-1 min-h-[70px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-none"
+        />
+      </div>
     </div>
   );
 }
