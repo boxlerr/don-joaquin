@@ -23,6 +23,7 @@ import {
   Search,
   AlertTriangle,
 } from "lucide-react";
+import SiniestroArchivosPanel from "./SiniestroArchivosPanel";
 
 export type TipoSiniestro = "choque" | "robo" | "incendio" | "vandalismo" | "vuelco" | "otro";
 export type EstadoSiniestro = "abierto" | "en_gestion" | "cerrado";
@@ -220,7 +221,8 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                     {isExpanded && (
                       <TableRow className="bg-[#F8FAFC]/40 hover:bg-[#F8FAFC]/40">
                         <TableCell colSpan={7} className="p-0 border-b border-[#E2E8F0]">
-                          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in-50 duration-200">
+                          <div className="p-6 space-y-4 animate-in fade-in-50 duration-200">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Unidad y Chofer */}
                             <div className="space-y-4 bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-sm">
                               <div>
@@ -335,6 +337,12 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                                 )}
                               </div>
                             </div>
+                          </div>
+
+                          {/* Archivos adjuntos — fila completa */}
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <SiniestroArchivosPanel siniestro_id={s.id} />
+                          </div>
                           </div>
                         </TableCell>
                       </TableRow>

@@ -2389,6 +2389,55 @@ export type Database = {
           },
         ]
       }
+      siniestro_archivos: {
+        Row: {
+          id: string
+          siniestro_id: string
+          archivo_id: string
+          descripcion: string | null
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          siniestro_id: string
+          archivo_id: string
+          descripcion?: string | null
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          siniestro_id?: string
+          archivo_id?: string
+          descripcion?: string | null
+          created_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "siniestro_archivos_siniestro_id_fkey"
+            columns: ["siniestro_id"]
+            isOneToOne: false
+            referencedRelation: "siniestros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siniestro_archivos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siniestro_archivos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       siniestros: {
         Row: {
           id: string
