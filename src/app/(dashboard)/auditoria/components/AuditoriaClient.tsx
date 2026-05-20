@@ -494,9 +494,14 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
   },
   caja: {
     tipo: "Tipo",
-    monto: "Monto",
+    concepto: "Concepto",
     descripcion: "Descripción",
+    monto: "Monto",
+    medio: "Medio de pago",
+    categoria: "Categoría",
     fecha: "Fecha",
+    moneda: "Moneda",
+    observaciones: "Observaciones",
   },
   cliente: {
     razon_social: "Razón social",
@@ -527,6 +532,22 @@ const VALUE_TRANSLATIONS: Record<string, string> = {
   exento: "Exento",
   consumidor_final: "Consumidor final",
   no_categorizado: "No categorizado",
+  // Caja - tipo movimiento
+  ingreso: "Ingreso",
+  egreso: "Egreso",
+  // Caja - medio de pago
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  cheque: "Cheque",
+  // Caja - categoría
+  cobro_cliente: "Cobro a cliente",
+  pago_proveedor: "Pago a proveedor",
+  entrega_viatico: "Entrega de viático",
+  rendicion_vuelto: "Rendición / vuelto",
+  gasto_operativo: "Gasto operativo",
+  pago_chofer: "Pago a chofer",
+  transferencia_interna: "Transferencia interna",
+  ajuste: "Ajuste",
 };
 
 function humanizeKey(key: string): string {
@@ -542,8 +563,14 @@ function formatValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Sí" : "No";
   if (typeof value === "number") return value.toLocaleString("es-AR");
   const s = String(value);
-  // Fecha ISO
-  if (/^\d{4}-\d{2}-\d{2}(T|$)/.test(s)) {
+  // Fecha ISO sólo día: parsear como local para no correrse por timezone
+  const dateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const [, y, m, d] = dateOnly;
+    return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("es-AR");
+  }
+  // Fecha con hora
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
     const d = new Date(s);
     if (!isNaN(d.getTime())) return d.toLocaleDateString("es-AR");
   }
@@ -558,7 +585,19 @@ function fieldLabel(entidad: string, key: string): string {
 
 type DiffRow = { key: string; antes: unknown; despues: unknown };
 
-const HIDDEN_KEYS = new Set(["foto_url"]);
+const HIDDEN_KEYS = new Set([
+  "foto_url",
+  // FKs internos: se guardan como UUIDs sin valor en el panel
+  "gasto_id",
+  "chofer_id",
+  "cliente_id",
+  "viaje_id",
+  "viatico_id",
+  "cheque_id",
+  "camion_id",
+  "factura_id",
+  "pago_cliente_id",
+]);
 
 function computeDiff(
   antes: Record<string, unknown> | null,

@@ -7,6 +7,25 @@ import * as XLSX from "xlsx";
 
 const MOVIMIENTOS_PAGE_SIZE = 20;
 
+async function logCajaAudit(
+  supabase: ReturnType<typeof createAdminClient>,
+  movimientoId: string,
+  accion: "crear" | "actualizar" | "eliminar",
+  valoresAnteriores: Record<string, unknown> | null,
+  valoresNuevos: Record<string, unknown> | null,
+  userId: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("audit_log").insert({
+    usuario_id: userId,
+    accion,
+    entidad_tipo: "caja",
+    entidad_id: movimientoId,
+    valores_anteriores: valoresAnteriores,
+    valores_nuevos: valoresNuevos,
+  });
+}
+
 export type CajaMovimientoRow = {
   id: string;
   fecha: string;
@@ -172,8 +191,8 @@ export async function addIngresoAction(data: {
   const user = await requireUser();
   const supabase = createAdminClient();
 
-  const { error } = await supabase.from("caja_movimientos").insert({
-    tipo: "ingreso",
+  const insertData = {
+    tipo: "ingreso" as const,
     concepto: data.concepto,
     monto: data.monto,
     medio: data.medio,
@@ -181,11 +200,21 @@ export async function addIngresoAction(data: {
     fecha: data.fecha,
     moneda: "ARS",
     created_by: user.id,
-  });
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("caja_movimientos")
+    .insert(insertData)
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al registrar ingreso:", error);
     return { error: "No se pudo registrar el ingreso en la caja." };
+  }
+
+  if (inserted?.id) {
+    await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
   }
 
   revalidatePath("/caja");
@@ -237,8 +266,8 @@ export async function addEgresoAction(data: {
     gastoId = gasto?.id ?? null;
   }
 
-  const { error } = await supabase.from("caja_movimientos").insert({
-    tipo: "egreso",
+  const insertData = {
+    tipo: "egreso" as const,
     concepto: data.concepto,
     monto: data.monto,
     medio: data.medio,
@@ -247,11 +276,21 @@ export async function addEgresoAction(data: {
     fecha: data.fecha,
     moneda: "ARS",
     created_by: user.id,
-  });
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("caja_movimientos")
+    .insert(insertData)
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al registrar egreso:", error);
     return { error: "No se pudo registrar el egreso en la caja." };
+  }
+
+  if (inserted?.id) {
+    await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
   }
 
   revalidatePath("/caja");
@@ -482,7 +521,7 @@ export async function importMovimientosCajaAction(
     const categoria = normalizeCategoria(mapped.categoria, tipo);
     const observaciones = cell(mapped.observaciones) ?? null;
 
-    const { error } = await supabase.from("caja_movimientos").insert({
+    const insertRow = {
       tipo,
       fecha,
       concepto,
@@ -492,13 +531,22 @@ export async function importMovimientosCajaAction(
       moneda: "ARS",
       observaciones,
       created_by: user.id,
-    });
+    };
+
+    const { data: inserted, error } = await supabase
+      .from("caja_movimientos")
+      .insert(insertRow)
+      .select("id")
+      .single();
 
     if (error) {
       skipped++;
       errors.push({ row: rowNum, message: error.message });
     } else {
       imported++;
+      if (inserted?.id) {
+        await logCajaAudit(supabase, inserted.id, "crear", null, insertRow, user.id);
+      }
     }
   }
 
@@ -542,21 +590,31 @@ export async function addViaticoAction(data: {
   }
 
   // 2. Reflejar la salida en la caja general vinculando el viático
-  const { error: cajaError } = await supabase.from("caja_movimientos").insert({
-    tipo: "egreso",
+  const cajaInsert = {
+    tipo: "egreso" as const,
     concepto: `Entrega de viático: ${data.concepto}`,
     monto: data.monto,
-    medio: data.medio_entrega === "transferencia" ? "transferencia" : "efectivo",
-    categoria: "entrega_viatico",
+    medio: (data.medio_entrega === "transferencia" ? "transferencia" : "efectivo") as
+      | "transferencia"
+      | "efectivo",
+    categoria: "entrega_viatico" as const,
     viatico_id: viatico?.id || null,
     chofer_id: data.chofer_id,
     fecha: data.fecha,
     moneda: "ARS",
     created_by: user.id,
-  });
+  };
+
+  const { data: cajaMov, error: cajaError } = await supabase
+    .from("caja_movimientos")
+    .insert(cajaInsert)
+    .select("id")
+    .single();
 
   if (cajaError) {
     console.error("Error al reflejar viático en caja:", cajaError);
+  } else if (cajaMov?.id) {
+    await logCajaAudit(supabase, cajaMov.id, "crear", null, cajaInsert, user.id);
   }
 
   revalidatePath("/caja");
