@@ -19,6 +19,25 @@ export type ChequeMotivoRechazo =
   | "formal"
   | "otro";
 
+async function logChequeAudit(
+  supabase: ReturnType<typeof createAdminClient>,
+  chequeId: string,
+  accion: "crear" | "cambio_estado" | "actualizar" | "eliminar",
+  valoresAnteriores: Record<string, unknown> | null,
+  valoresNuevos: Record<string, unknown> | null,
+  userId: string,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("audit_log").insert({
+    usuario_id: userId,
+    accion,
+    entidad_tipo: "cheque",
+    entidad_id: chequeId,
+    valores_anteriores: valoresAnteriores,
+    valores_nuevos: valoresNuevos,
+  });
+}
+
 const TRANSICIONES_VALIDAS: Record<ChequeEstado, ChequeEstado[]> = {
   cartera: ["entregado", "depositado", "rechazado", "anulado"],
   entregado: [],
@@ -60,29 +79,31 @@ export async function createChequeAction(input: CreateChequeInput) {
     return { error: "Las fechas son obligatorias." };
   }
 
+  const insertData = {
+    numero: input.numero.trim(),
+    banco_id: input.banco_id,
+    sucursal_banco: input.sucursal_banco?.trim() || null,
+    cuenta_corriente: input.cuenta_corriente?.trim() || null,
+    librador_nombre: input.librador_nombre.trim(),
+    librador_cuit: input.librador_cuit?.trim() || null,
+    cliente_id: input.cliente_id || null,
+    recibido_de: input.recibido_de?.trim() || null,
+    tipo: input.tipo,
+    importe: input.importe,
+    moneda: "ARS",
+    fecha_emision: input.fecha_emision,
+    fecha_vencimiento: input.fecha_vencimiento,
+    fecha_recepcion: input.fecha_recepcion,
+    concepto: input.concepto?.trim() || null,
+    observaciones: input.observaciones?.trim() || null,
+    estado: "cartera" as ChequeEstado,
+    fecha_estado_actual: input.fecha_recepcion,
+    created_by: user.id,
+  };
+
   const { data: inserted, error } = await supabase
     .from("cheques")
-    .insert({
-      numero: input.numero.trim(),
-      banco_id: input.banco_id,
-      sucursal_banco: input.sucursal_banco?.trim() || null,
-      cuenta_corriente: input.cuenta_corriente?.trim() || null,
-      librador_nombre: input.librador_nombre.trim(),
-      librador_cuit: input.librador_cuit?.trim() || null,
-      cliente_id: input.cliente_id || null,
-      recibido_de: input.recibido_de?.trim() || null,
-      tipo: input.tipo,
-      importe: input.importe,
-      moneda: "ARS",
-      fecha_emision: input.fecha_emision,
-      fecha_vencimiento: input.fecha_vencimiento,
-      fecha_recepcion: input.fecha_recepcion,
-      concepto: input.concepto?.trim() || null,
-      observaciones: input.observaciones?.trim() || null,
-      estado: "cartera",
-      fecha_estado_actual: input.fecha_recepcion,
-      created_by: user.id,
-    })
+    .insert(insertData)
     .select("id")
     .single();
 
@@ -104,6 +125,8 @@ export async function createChequeAction(input: CreateChequeInput) {
     observaciones: input.observaciones?.trim() || null,
     usuario_id: user.id,
   });
+
+  await logChequeAudit(supabase, inserted!.id, "crear", null, insertData, user.id);
 
   revalidatePath("/cheques");
   return { success: true };
@@ -194,6 +217,20 @@ export async function entregarChequeAction(input: EntregarChequeInput) {
     usuario_id: user.id,
   });
 
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "entregado",
+      entregado_a: input.entregado_a.trim(),
+      fecha_entrega: input.fecha_entrega,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
+
   revalidatePath("/cheques");
   return { success: true };
 }
@@ -242,6 +279,20 @@ export async function depositarChequeAction(input: DepositarChequeInput) {
     usuario_id: user.id,
   });
 
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "depositado",
+      banco_deposito: input.banco_deposito.trim(),
+      fecha_deposito: input.fecha_deposito,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
+
   revalidatePath("/cheques");
   return { success: true };
 }
@@ -285,6 +336,19 @@ export async function acreditarChequeAction(input: AcreditarChequeInput) {
     observaciones: input.observaciones,
     usuario_id: user.id,
   });
+
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "acreditado",
+      fecha_estado_actual: input.fecha,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
 
   revalidatePath("/cheques");
   return { success: true };
@@ -336,6 +400,21 @@ export async function rechazarChequeAction(input: RechazarChequeInput) {
     usuario_id: user.id,
   });
 
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "rechazado",
+      motivo_rechazo: input.motivo,
+      motivo_rechazo_detalle: input.motivo_detalle?.trim() || null,
+      fecha_rechazo: input.fecha,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
+
   revalidatePath("/cheques");
   return { success: true };
 }
@@ -381,6 +460,20 @@ export async function anularChequeAction(input: AnularChequeInput) {
     observaciones: input.observaciones,
     usuario_id: user.id,
   });
+
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "anulado",
+      motivo: input.motivo.trim(),
+      fecha_estado_actual: input.fecha,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
 
   revalidatePath("/cheques");
   return { success: true };

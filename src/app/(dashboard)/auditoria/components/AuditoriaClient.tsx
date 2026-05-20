@@ -485,11 +485,29 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
   },
   cheque: {
     numero: "Número",
+    importe: "Importe",
     monto: "Monto",
-    banco: "Banco",
+    moneda: "Moneda",
+    tipo: "Tipo",
     estado: "Estado",
     fecha_emision: "Fecha de emisión",
-    fecha_cobro: "Fecha de cobro",
+    fecha_vencimiento: "Fecha de vencimiento",
+    fecha_recepcion: "Fecha de recepción",
+    fecha_entrega: "Fecha de entrega",
+    fecha_deposito: "Fecha de depósito",
+    fecha_rechazo: "Fecha de rechazo",
+    fecha_estado_actual: "Fecha del estado",
+    librador_nombre: "Librador",
+    librador_cuit: "CUIT del librador",
+    sucursal_banco: "Sucursal del banco",
+    cuenta_corriente: "Cuenta corriente",
+    recibido_de: "Recibido de",
+    entregado_a: "Entregado a",
+    banco_deposito: "Banco de depósito",
+    motivo: "Motivo",
+    motivo_rechazo: "Motivo del rechazo",
+    motivo_rechazo_detalle: "Detalle del rechazo",
+    concepto: "Concepto",
     observaciones: "Observaciones",
   },
   caja: {
@@ -548,6 +566,22 @@ const VALUE_TRANSLATIONS: Record<string, string> = {
   pago_chofer: "Pago a chofer",
   transferencia_interna: "Transferencia interna",
   ajuste: "Ajuste",
+  // Cheques - estado
+  cartera: "En cartera",
+  entregado: "Entregado",
+  depositado: "Depositado",
+  acreditado: "Acreditado",
+  rechazado: "Rechazado",
+  anulado: "Anulado",
+  // Cheques - tipo
+  comun: "Común",
+  diferido: "Diferido",
+  electronico: "Electrónico",
+  // Cheques - motivo rechazo
+  sin_fondos: "Sin fondos",
+  firma_no_corresponde: "Firma no corresponde",
+  cuenta_cerrada: "Cuenta cerrada",
+  formal: "Defecto formal",
 };
 
 function humanizeKey(key: string): string {
@@ -597,6 +631,7 @@ const HIDDEN_KEYS = new Set([
   "camion_id",
   "factura_id",
   "pago_cliente_id",
+  "banco_id",
 ]);
 
 function computeDiff(
