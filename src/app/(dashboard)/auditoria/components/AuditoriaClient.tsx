@@ -53,6 +53,13 @@ const ACCIONES_LABELS: Record<string, string> = {
   foto_eliminada: "Foto eliminada",
   foto_principal: "Foto marcada como principal",
   nota_foto: "Nota de foto actualizada",
+  contacto_agregado: "Contacto agregado",
+  contacto_eliminado: "Contacto eliminado",
+  sucursal_agregada: "Sucursal agregada",
+  sucursal_eliminada: "Sucursal eliminada",
+  requisito_agregado: "Requisito agregado",
+  requisito_eliminado: "Requisito eliminado",
+  requisito_estado: "Estado de requisito",
 };
 
 const ACCIONES_COLORS: Record<string, string> = {
@@ -64,6 +71,13 @@ const ACCIONES_COLORS: Record<string, string> = {
   foto_eliminada: "bg-[#FEE2E2] text-[#7F1D1D]",
   foto_principal: "bg-[#FEF3C7] text-[#92400E]",
   nota_foto: "bg-[#F3E8FF] text-[#6B21A8]",
+  contacto_agregado: "bg-[#ECFDF5] text-[#065F46]",
+  contacto_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
+  sucursal_agregada: "bg-[#ECFDF5] text-[#065F46]",
+  sucursal_eliminada: "bg-[#FEE2E2] text-[#7F1D1D]",
+  requisito_agregado: "bg-[#ECFDF5] text-[#065F46]",
+  requisito_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
+  requisito_estado: "bg-[#E0E7FF] text-[#3730A3]",
 };
 
 const ENTIDADES_LABELS: Record<string, string> = {
@@ -526,10 +540,26 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     nombre_comercial: "Nombre comercial",
     cuit: "CUIT",
     condicion_iva: "Condición IVA",
+    domicilio_fiscal: "Domicilio fiscal",
     localidad: "Localidad",
     provincia: "Provincia",
+    pais: "País",
     email: "Email",
+    telefono: "Teléfono",
+    es_multinacional: "Es multinacional",
     estado: "Estado",
+    observaciones: "Observaciones",
+    // Contactos / sucursales / requisitos
+    nombre: "Nombre",
+    cargo: "Cargo",
+    es_principal: "Es principal",
+    domicilio: "Domicilio",
+    tipo: "Tipo",
+    descripcion: "Descripción",
+    frecuencia: "Frecuencia",
+    proxima_fecha: "Próxima fecha",
+    formato_requerido: "Formato requerido",
+    responsable_interno: "Responsable interno",
   },
 };
 
@@ -582,6 +612,28 @@ const VALUE_TRANSLATIONS: Record<string, string> = {
   firma_no_corresponde: "Firma no corresponde",
   cuenta_cerrada: "Cuenta cerrada",
   formal: "Defecto formal",
+  // Cliente - estado
+  suspendido: "Suspendido",
+  // Contactos - cargo
+  comercial: "Comercial",
+  administrativo: "Administrativo",
+  logistica: "Logística",
+  // Requisitos - tipo
+  habilitacion_proveedor: "Habilitación de proveedor",
+  documentacion_chofer: "Documentación de chofer",
+  documentacion_camion: "Documentación de camión",
+  reporte_periodico: "Reporte periódico",
+  auditoria: "Auditoría",
+  // Requisitos - frecuencia
+  unica: "Única",
+  mensual: "Mensual",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+  // Requisitos - estado
+  pendiente: "Pendiente",
+  cumplido: "Cumplido",
+  vencido: "Vencido",
 };
 
 function humanizeKey(key: string): string {

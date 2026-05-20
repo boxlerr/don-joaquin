@@ -5,6 +5,7 @@ import { z } from "zod";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logClienteAudit } from "./audit";
 
 const CONDICION_IVA_VALUES = [
   "responsable_inscripto",
@@ -81,7 +82,7 @@ export async function createClienteAction(
     return { error: "No autenticado." };
   }
 
-  const { error } = await supabase.from("clientes").insert({
+  const insertData = {
     razon_social: parsed.data.razon_social,
     nombre_comercial: parsed.data.nombre_comercial ?? null,
     cuit: parsed.data.cuit ?? null,
@@ -93,12 +94,22 @@ export async function createClienteAction(
     telefono: parsed.data.telefono ?? null,
     es_multinacional: parsed.data.es_multinacional ?? false,
     observaciones: parsed.data.observaciones ?? null,
-    estado: "activo",
+    estado: "activo" as const,
     created_by: user.id,
-  });
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("clientes")
+    .insert(insertData)
+    .select("id")
+    .single();
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (inserted?.id) {
+    await logClienteAudit(inserted.id, "crear", null, insertData, user.id);
   }
 
   revalidatePath("/clientes");
@@ -131,6 +142,14 @@ export async function deleteClienteAction(
 
   if (error) return { error: error.message };
 
+  await logClienteAudit(
+    id,
+    "cambio_estado",
+    { estado: "activo" },
+    { estado: "inactivo" },
+    user.id,
+  );
+
   revalidatePath("/clientes");
   return { ok: true };
 }
@@ -156,6 +175,14 @@ export async function reactivateClienteAction(
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  await logClienteAudit(
+    id,
+    "cambio_estado",
+    { estado: "inactivo" },
+    { estado: "activo" },
+    user.id,
+  );
 
   revalidatePath("/clientes");
   return { ok: true };
@@ -299,7 +326,7 @@ export async function importClientesAction(
       continue;
     }
 
-    const { error } = await supabase.from("clientes").insert({
+    const insertRow = {
       razon_social: razon,
       nombre_comercial: cell(mapped.nombre_comercial) ?? null,
       cuit: cuit ?? null,
@@ -311,15 +338,24 @@ export async function importClientesAction(
       telefono: cell(mapped.telefono) ?? null,
       es_multinacional: normalizeBool(mapped.es_multinacional),
       observaciones: cell(mapped.observaciones) ?? null,
-      estado: "activo",
+      estado: "activo" as const,
       created_by: user.id,
-    });
+    };
+
+    const { data: inserted, error } = await supabase
+      .from("clientes")
+      .insert(insertRow)
+      .select("id")
+      .single();
 
     if (error) {
       skipped++;
       errors.push({ row: rowNum, message: error.message });
     } else {
       imported++;
+      if (inserted?.id) {
+        await logClienteAudit(inserted.id, "crear", null, insertRow, user.id);
+      }
     }
   }
 
@@ -370,25 +406,41 @@ export async function updateClienteAction(
   }
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  const { data: previo } = await supabase
+    .from("clientes")
+    .select(
+      "razon_social, nombre_comercial, cuit, condicion_iva, domicilio_fiscal, localidad, provincia, email, telefono, es_multinacional, observaciones",
+    )
+    .eq("id", id)
+    .single();
+
+  const updateData = {
+    razon_social: parsed.data.razon_social,
+    nombre_comercial: parsed.data.nombre_comercial ?? null,
+    cuit: parsed.data.cuit ?? null,
+    condicion_iva: parsed.data.condicion_iva,
+    domicilio_fiscal: parsed.data.domicilio_fiscal ?? null,
+    localidad: parsed.data.localidad ?? null,
+    provincia: parsed.data.provincia ?? null,
+    email: parsed.data.email ? parsed.data.email : null,
+    telefono: parsed.data.telefono ?? null,
+    es_multinacional: parsed.data.es_multinacional ?? false,
+    observaciones: parsed.data.observaciones ?? null,
+  };
 
   const { error } = await supabase
     .from("clientes")
-    .update({
-      razon_social: parsed.data.razon_social,
-      nombre_comercial: parsed.data.nombre_comercial ?? null,
-      cuit: parsed.data.cuit ?? null,
-      condicion_iva: parsed.data.condicion_iva,
-      domicilio_fiscal: parsed.data.domicilio_fiscal ?? null,
-      localidad: parsed.data.localidad ?? null,
-      provincia: parsed.data.provincia ?? null,
-      email: parsed.data.email ? parsed.data.email : null,
-      telefono: parsed.data.telefono ?? null,
-      es_multinacional: parsed.data.es_multinacional ?? false,
-      observaciones: parsed.data.observaciones ?? null,
-    })
+    .update(updateData)
     .eq("id", id);
 
   if (error) return { error: error.message };
+
+  await logClienteAudit(id, "actualizar", previo ?? null, updateData, user.id);
 
   revalidatePath("/clientes");
   return { ok: true };

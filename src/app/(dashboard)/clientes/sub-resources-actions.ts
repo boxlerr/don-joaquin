@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logClienteAudit } from "./audit";
 
 // ============================================================================
 // CONTACTOS
@@ -91,7 +92,7 @@ export async function addContactoAction(
       .eq("cliente_id", parsed.data.cliente_id);
   }
 
-  const { error } = await supabase.from("cliente_contactos").insert({
+  const contactoData = {
     cliente_id: parsed.data.cliente_id,
     nombre: parsed.data.nombre,
     cargo: parsed.data.cargo,
@@ -99,17 +100,41 @@ export async function addContactoAction(
     email: parsed.data.email ? parsed.data.email : null,
     es_principal: parsed.data.es_principal ?? false,
     observaciones: parsed.data.observaciones ?? null,
-  });
+  };
+
+  const { error } = await supabase.from("cliente_contactos").insert(contactoData);
 
   if (error) return { error: error.message };
+
+  await logClienteAudit(parsed.data.cliente_id, "contacto_agregado", null, contactoData, user.id);
+
   revalidatePath("/clientes");
   return { ok: true };
 }
 
 export async function deleteContactoAction(id: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("cliente_contactos")
+    .select("cliente_id, nombre, cargo, telefono, email, es_principal, observaciones")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("cliente_contactos").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  if (previo?.cliente_id) {
+    await logClienteAudit(
+      previo.cliente_id,
+      "contacto_eliminado",
+      previo,
+      null,
+      user?.id ?? null,
+    );
+  }
+
   revalidatePath("/clientes");
   return { ok: true };
 }
@@ -191,7 +216,7 @@ export async function addSucursalAction(
       .eq("cliente_id", parsed.data.cliente_id);
   }
 
-  const { error } = await supabase.from("cliente_sucursales").insert({
+  const sucursalData = {
     cliente_id: parsed.data.cliente_id,
     nombre: parsed.data.nombre,
     domicilio: parsed.data.domicilio ?? null,
@@ -201,18 +226,42 @@ export async function addSucursalAction(
     telefono: parsed.data.telefono ?? null,
     observaciones: parsed.data.observaciones ?? null,
     es_principal: parsed.data.es_principal ?? false,
-    estado: "activo",
-  });
+    estado: "activo" as const,
+  };
+
+  const { error } = await supabase.from("cliente_sucursales").insert(sucursalData);
 
   if (error) return { error: error.message };
+
+  await logClienteAudit(parsed.data.cliente_id, "sucursal_agregada", null, sucursalData, user.id);
+
   revalidatePath("/clientes");
   return { ok: true };
 }
 
 export async function deleteSucursalAction(id: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("cliente_sucursales")
+    .select("cliente_id, nombre, domicilio, localidad, provincia, pais, telefono, observaciones, es_principal, estado")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("cliente_sucursales").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  if (previo?.cliente_id) {
+    await logClienteAudit(
+      previo.cliente_id,
+      "sucursal_eliminada",
+      previo,
+      null,
+      user?.id ?? null,
+    );
+  }
+
   revalidatePath("/clientes");
   return { ok: true };
 }
@@ -301,7 +350,7 @@ export async function addRequisitoAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado." };
 
-  const { error } = await supabase.from("cliente_requisitos").insert({
+  const requisitoData = {
     cliente_id: parsed.data.cliente_id,
     tipo: parsed.data.tipo,
     descripcion: parsed.data.descripcion,
@@ -309,19 +358,43 @@ export async function addRequisitoAction(
     proxima_fecha: parsed.data.proxima_fecha ?? null,
     formato_requerido: parsed.data.formato_requerido ?? null,
     responsable_interno: parsed.data.responsable_interno ?? null,
-    estado: parsed.data.estado ?? "pendiente",
+    estado: parsed.data.estado ?? ("pendiente" as RequisitoEstado),
     observaciones: parsed.data.observaciones ?? null,
-  });
+  };
+
+  const { error } = await supabase.from("cliente_requisitos").insert(requisitoData);
 
   if (error) return { error: error.message };
+
+  await logClienteAudit(parsed.data.cliente_id, "requisito_agregado", null, requisitoData, user.id);
+
   revalidatePath("/clientes");
   return { ok: true };
 }
 
 export async function deleteRequisitoAction(id: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("cliente_requisitos")
+    .select("cliente_id, tipo, descripcion, frecuencia, proxima_fecha, formato_requerido, responsable_interno, estado, observaciones")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("cliente_requisitos").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  if (previo?.cliente_id) {
+    await logClienteAudit(
+      previo.cliente_id,
+      "requisito_eliminado",
+      previo,
+      null,
+      user?.id ?? null,
+    );
+  }
+
   revalidatePath("/clientes");
   return { ok: true };
 }
@@ -331,8 +404,27 @@ export async function setRequisitoEstadoAction(
   estado: RequisitoEstado
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("cliente_requisitos")
+    .select("cliente_id, tipo, descripcion, estado")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("cliente_requisitos").update({ estado }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  if (previo?.cliente_id && previo.estado !== estado) {
+    await logClienteAudit(
+      previo.cliente_id,
+      "requisito_estado",
+      { tipo: previo.tipo, descripcion: previo.descripcion, estado: previo.estado },
+      { tipo: previo.tipo, descripcion: previo.descripcion, estado },
+      user?.id ?? null,
+    );
+  }
+
   revalidatePath("/clientes");
   return { ok: true };
 }
