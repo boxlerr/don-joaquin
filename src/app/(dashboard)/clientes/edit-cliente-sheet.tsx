@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, X } from "lucide-react";
 import { updateClienteAction, type UpdateClienteState } from "./actions";
+import { formatCuit } from "@/lib/utils/cuit";
 
 const CONDICIONES_IVA: { value: string; label: string }[] = [
   { value: "responsable_inscripto", label: "Responsable inscripto" },
@@ -100,9 +101,14 @@ export default function EditClienteSheet({
               <Field
                 label="CUIT"
                 name="cuit"
-                defaultValue={cliente.cuit ?? ""}
+                defaultValue={formatCuit(cliente.cuit ?? "")}
                 placeholder="30-12345678-9"
                 error={state?.fieldErrors?.cuit}
+                inputMode="numeric"
+                maxLength={13}
+                onInput={(e) => {
+                  e.currentTarget.value = formatCuit(e.currentTarget.value);
+                }}
               />
             </div>
 
@@ -209,6 +215,9 @@ function Field({
   placeholder,
   defaultValue,
   error,
+  inputMode,
+  maxLength,
+  onInput,
 }: {
   label: string;
   name: string;
@@ -217,6 +226,9 @@ function Field({
   placeholder?: string;
   defaultValue?: string;
   error?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
+  onInput?: React.FormEventHandler<HTMLInputElement>;
 }) {
   return (
     <div>
@@ -227,6 +239,9 @@ function Field({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        onInput={onInput}
         className="text-sm"
       />
       {error && <p className="text-xs text-[#B91C1C] mt-1">{error}</p>}

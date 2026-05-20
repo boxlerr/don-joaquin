@@ -21,6 +21,7 @@ import {
   Check,
 } from "lucide-react";
 import { createClienteAction, type CreateClienteState } from "./actions";
+import { formatCuit } from "@/lib/utils/cuit";
 
 const CONDICIONES_IVA: { value: string; label: string }[] = [
   { value: "responsable_inscripto", label: "Responsable inscripto" },
@@ -112,6 +113,11 @@ export default function NewClienteSheet() {
                 placeholder="30-12345678-9"
                 icon={Fingerprint}
                 error={state?.fieldErrors?.cuit}
+                inputMode="numeric"
+                maxLength={13}
+                onInput={(e) => {
+                  e.currentTarget.value = formatCuit(e.currentTarget.value);
+                }}
               />
             </div>
 
@@ -227,6 +233,9 @@ function InputFieldWithIcon({
   required,
   error,
   icon: Icon,
+  inputMode,
+  maxLength,
+  onInput,
 }: {
   label: string;
   name: string;
@@ -235,6 +244,9 @@ function InputFieldWithIcon({
   required?: boolean;
   error?: string;
   icon: React.ComponentType<any>;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
+  onInput?: React.FormEventHandler<HTMLInputElement>;
 }) {
   return (
     <div className="space-y-1">
@@ -250,6 +262,9 @@ function InputFieldWithIcon({
           type={type}
           placeholder={placeholder}
           required={required}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          onInput={onInput}
           className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
         />
       </div>
