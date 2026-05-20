@@ -103,6 +103,7 @@ export default function SiniestrosClient({ siniestros, camiones, choferes }: Sin
             chofer_id: s.chofer_id,
             fecha: s.fecha,
             tipo_siniestro: s.tipo_siniestro,
+            tipo_siniestro_detalle: s.tipo_siniestro_detalle ?? "",
             estado: s.estado,
             descripcion: s.descripcion,
             monto_danos: s.monto_danos,

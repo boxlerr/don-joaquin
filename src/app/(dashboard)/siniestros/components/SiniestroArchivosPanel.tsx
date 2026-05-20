@@ -226,7 +226,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
 
                     {/* Descripción debajo del thumbnail */}
                     {foto.descripcion && (
-                      <div className="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-1 text-[9px] text-white truncate leading-tight">
+                      <div className="absolute bottom-0 inset-x-0 bg-black/70 px-2 py-1.5 text-sm font-semibold text-white truncate leading-tight">
                         {foto.descripcion}
                       </div>
                     )}

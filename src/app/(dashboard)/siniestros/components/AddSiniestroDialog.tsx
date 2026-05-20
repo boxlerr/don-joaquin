@@ -34,6 +34,7 @@ export type SiniestroFormPayload = {
   chofer_id: string | null;
   fecha: string;
   tipo_siniestro: TipoSiniestro;
+  tipo_siniestro_detalle: string | null;
   estado: EstadoSiniestro;
   descripcion: string;
   monto_danos: number | null;
@@ -51,6 +52,7 @@ type FieldErrors = {
   fecha?: string;
   descripcion?: string;
   montoDanos?: string;
+  tipoDetalle?: string;
 };
 
 const TIPO_OPTIONS: { value: TipoSiniestro; label: string }[] = [
@@ -99,6 +101,7 @@ export default function AddSiniestroDialog({
   const [choferId, setChoferId] = useState<string>("none");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [tipoSiniestro, setTipoSiniestro] = useState<TipoSiniestro>("choque");
+  const [tipoSiniestroDetalle, setTipoSiniestroDetalle] = useState("");
   const [estado, setEstado] = useState<EstadoSiniestro>("abierto");
   const [descripcion, setDescripcion] = useState("");
   const [montoDanos, setMontoDanos] = useState("");
@@ -114,6 +117,7 @@ export default function AddSiniestroDialog({
       setChoferId(editing.chofer_id ?? "none");
       setFecha(editing.fecha);
       setTipoSiniestro(editing.tipo_siniestro);
+      setTipoSiniestroDetalle(editing.tipo_siniestro_detalle ?? "");
       setEstado(editing.estado);
       setDescripcion(editing.descripcion);
       setMontoDanos(editing.monto_danos != null ? String(editing.monto_danos) : "");
@@ -125,6 +129,7 @@ export default function AddSiniestroDialog({
       setChoferId("none");
       setFecha(new Date().toISOString().split("T")[0]);
       setTipoSiniestro("choque");
+      setTipoSiniestroDetalle("");
       setEstado("abierto");
       setDescripcion("");
       setMontoDanos("");
@@ -146,6 +151,9 @@ export default function AddSiniestroDialog({
       const m = parseFloat(montoDanos);
       if (!Number.isFinite(m) || m < 0) e.montoDanos = "Monto inválido (debe ser ≥ 0)";
     }
+    if (tipoSiniestro === "otro" && !tipoSiniestroDetalle.trim()) {
+      e.tipoDetalle = "Especificá el tipo de siniestro";
+    }
     return e;
   };
 
@@ -164,6 +172,7 @@ export default function AddSiniestroDialog({
         chofer_id: choferId === "none" ? null : choferId,
         fecha,
         tipo_siniestro: tipoSiniestro,
+        tipo_siniestro_detalle: tipoSiniestro === "otro" ? tipoSiniestroDetalle.trim() : null,
         estado,
         descripcion: descripcion.trim(),
         monto_danos: montoDanos ? parseFloat(montoDanos) : null,
@@ -264,7 +273,7 @@ export default function AddSiniestroDialog({
               label="Tipo de Siniestro *"
               name="tipo"
               value={tipoSiniestro}
-              onValueChange={(v) => setTipoSiniestro(v as TipoSiniestro)}
+              onValueChange={(v) => { setTipoSiniestro(v as TipoSiniestro); setTipoSiniestroDetalle(""); }}
               options={TIPO_OPTIONS}
               required
               icon={Tag}
@@ -279,6 +288,18 @@ export default function AddSiniestroDialog({
               icon={Activity}
             />
           </div>
+
+          {tipoSiniestro === "otro" && (
+            <InputFieldWithIcon
+              label="Especificá el tipo de siniestro *"
+              name="tipoDetalle"
+              placeholder="Ej: Granizo, inundación, animal en ruta..."
+              value={tipoSiniestroDetalle}
+              onChange={(e) => setTipoSiniestroDetalle(e.target.value)}
+              icon={Tag}
+              error={errors.tipoDetalle}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <InputFieldWithIcon

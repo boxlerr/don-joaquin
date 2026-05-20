@@ -34,6 +34,7 @@ export interface SiniestroConRelaciones {
   chofer_id: string | null;
   fecha: string;
   tipo_siniestro: TipoSiniestro;
+  tipo_siniestro_detalle: string | null;
   estado: EstadoSiniestro;
   descripcion: string;
   monto_danos: number | null;
@@ -191,7 +192,9 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                       </TableCell>
                       <TableCell className="py-4 px-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${TIPO_STYLES[s.tipo_siniestro]}`}>
-                          {TIPO_LABELS[s.tipo_siniestro]}
+                          {s.tipo_siniestro === "otro" && s.tipo_siniestro_detalle
+                            ? s.tipo_siniestro_detalle
+                            : TIPO_LABELS[s.tipo_siniestro]}
                         </span>
                       </TableCell>
                       <TableCell className="py-4 px-4">
@@ -207,14 +210,24 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                         )}
                       </TableCell>
                       <TableCell className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="w-8 h-8 p-0 hover:bg-slate-100 text-slate-400 hover:text-slate-700"
-                          onClick={() => setExpandedId(isExpanded ? null : s.id)}
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="h-8 px-2.5 text-[11px] font-bold text-[#0088D1] hover:bg-blue-50 gap-1"
+                            onClick={(e) => { e.stopPropagation(); onEdit(s); }}
+                          >
+                            <Edit size={12} /> Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 p-0 hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                            onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                          >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
 
@@ -295,16 +308,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                                 )}
                               </div>
 
-                              <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between">
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-8 px-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-50 text-[11px] gap-1.5 font-bold"
-                                  onClick={(e) => { e.stopPropagation(); onEdit(s); }}
-                                >
-                                  <Edit size={12} className="text-[#0088D1]" /> Editar datos
-                                </Button>
-
+                              <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end">
                                 {deletingId === s.id ? (
                                   <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] text-red-600 font-bold">¿Confirmar?</span>
