@@ -23,20 +23,28 @@ import {
   MessageSquare,
   ChevronDown,
   Check,
+  Tag,
+  Activity,
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import type { TipoSiniestro, EstadoSiniestro } from "./SiniestrosTable";
 
-export type SiniestroEditing = {
-  id: string;
+export type SiniestroFormPayload = {
   camion_id: string;
   chofer_id: string | null;
   fecha: string;
+  tipo_siniestro: TipoSiniestro;
+  estado: EstadoSiniestro;
   descripcion: string;
-  monto_danos?: number | null;
-  compania_seguro?: string | null;
-  numero_siniestro_seguro?: string | null;
-  terceros_involucrados?: string | null;
+  monto_danos: number | null;
+  compania_seguro: string;
+  numero_siniestro_seguro: string;
+  terceros_involucrados: string;
 };
+
+export type SiniestroEditing = {
+  id: string;
+} & SiniestroFormPayload;
 
 type FieldErrors = {
   camionId?: string;
@@ -44,6 +52,21 @@ type FieldErrors = {
   descripcion?: string;
   montoDanos?: string;
 };
+
+const TIPO_OPTIONS: { value: TipoSiniestro; label: string }[] = [
+  { value: "choque", label: "Choque" },
+  { value: "robo", label: "Robo" },
+  { value: "incendio", label: "Incendio" },
+  { value: "vandalismo", label: "Vandalismo" },
+  { value: "vuelco", label: "Vuelco" },
+  { value: "otro", label: "Otro" },
+];
+
+const ESTADO_OPTIONS: { value: EstadoSiniestro; label: string }[] = [
+  { value: "abierto", label: "Abierto" },
+  { value: "en_gestion", label: "En gestión" },
+  { value: "cerrado", label: "Cerrado" },
+];
 
 export default function AddSiniestroDialog({
   children,
@@ -53,7 +76,7 @@ export default function AddSiniestroDialog({
   editing,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
-  onSavedLocal,
+  onSaved,
 }: {
   children?: React.ReactNode;
   camiones: { id: string; patente: string; marca: string; modelo: string }[];
@@ -62,20 +85,12 @@ export default function AddSiniestroDialog({
   editing?: SiniestroEditing | null;
   open?: boolean;
   onOpenChange?: (v: boolean) => void;
-  onSavedLocal?: (data: {
-    camion_id: string;
-    chofer_id: string | null;
-    fecha: string;
-    descripcion: string;
-    monto_danos: number | null;
-    compania_seguro: string;
-    numero_siniestro_seguro: string;
-    terceros_involucrados: string;
-  }) => void;
+  onSaved?: (data: SiniestroFormPayload) => void;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -83,6 +98,8 @@ export default function AddSiniestroDialog({
   const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [choferId, setChoferId] = useState<string>("none");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [tipoSiniestro, setTipoSiniestro] = useState<TipoSiniestro>("choque");
+  const [estado, setEstado] = useState<EstadoSiniestro>("abierto");
   const [descripcion, setDescripcion] = useState("");
   const [montoDanos, setMontoDanos] = useState("");
   const [companiaSeguro, setCompaniaSeguro] = useState("");
@@ -96,6 +113,8 @@ export default function AddSiniestroDialog({
       setCamionId(editing.camion_id);
       setChoferId(editing.chofer_id ?? "none");
       setFecha(editing.fecha);
+      setTipoSiniestro(editing.tipo_siniestro);
+      setEstado(editing.estado);
       setDescripcion(editing.descripcion);
       setMontoDanos(editing.monto_danos != null ? String(editing.monto_danos) : "");
       setCompaniaSeguro(editing.compania_seguro ?? "");
@@ -105,6 +124,8 @@ export default function AddSiniestroDialog({
       setCamionId(defaultCamionId ?? "");
       setChoferId("none");
       setFecha(new Date().toISOString().split("T")[0]);
+      setTipoSiniestro("choque");
+      setEstado("abierto");
       setDescripcion("");
       setMontoDanos("");
       setCompaniaSeguro("");
@@ -138,10 +159,12 @@ export default function AddSiniestroDialog({
     setSuccess(null);
 
     try {
-      const payload = {
+      const payload: SiniestroFormPayload = {
         camion_id: camionId,
         chofer_id: choferId === "none" ? null : choferId,
         fecha,
+        tipo_siniestro: tipoSiniestro,
+        estado,
         descripcion: descripcion.trim(),
         monto_danos: montoDanos ? parseFloat(montoDanos) : null,
         compania_seguro: companiaSeguro.trim(),
@@ -149,12 +172,10 @@ export default function AddSiniestroDialog({
         terceros_involucrados: tercerosInvolucrados.trim(),
       };
 
-      if (onSavedLocal) {
-        onSavedLocal(payload);
+      if (onSaved) {
+        onSaved(payload);
         setSuccess(editing ? "Siniestro actualizado" : "Siniestro registrado");
         setTimeout(() => setOpen(false), 800);
-      } else {
-        setError("Error de configuración del formulario.");
       }
     } catch {
       setError("Ocurrió un error inesperado.");
@@ -166,7 +187,7 @@ export default function AddSiniestroDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[600px] p-6 gap-0">
+      <DialogContent className="sm:max-w-[620px] p-6 gap-0">
         {/* Header */}
         <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
@@ -192,22 +213,16 @@ export default function AddSiniestroDialog({
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Camion */}
             <SelectFieldWithIcon
               label="Camión *"
               name="camion"
               value={camionId}
               onValueChange={setCamionId}
-              options={camiones.map((c) => ({
-                value: c.id,
-                label: `${c.patente} - ${c.marca} ${c.modelo}`,
-              }))}
+              options={camiones.map((c) => ({ value: c.id, label: `${c.patente} - ${c.marca} ${c.modelo}` }))}
               required
               icon={Truck}
               error={errors.camionId}
             />
-
-            {/* Chofer */}
             <SelectFieldWithIcon
               label="Chofer Involucrado"
               name="chofer"
@@ -215,17 +230,13 @@ export default function AddSiniestroDialog({
               onValueChange={setChoferId}
               options={[
                 { value: "none", label: "Sin chofer / Otro" },
-                ...choferes.map((ch) => ({
-                  value: ch.id,
-                  label: `${ch.nombre} ${ch.apellido || ""}`,
-                })),
+                ...choferes.map((ch) => ({ value: ch.id, label: `${ch.nombre} ${ch.apellido || ""}` })),
               ]}
               icon={User}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Fecha */}
             <InputFieldWithIcon
               label="Fecha del Siniestro *"
               name="fecha"
@@ -236,8 +247,6 @@ export default function AddSiniestroDialog({
               icon={Calendar}
               error={errors.fecha}
             />
-
-            {/* Monto */}
             <InputFieldWithIcon
               label="Monto Estimado Daños ($)"
               name="monto"
@@ -251,7 +260,27 @@ export default function AddSiniestroDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Compania */}
+            <SelectFieldWithIcon
+              label="Tipo de Siniestro *"
+              name="tipo"
+              value={tipoSiniestro}
+              onValueChange={(v) => setTipoSiniestro(v as TipoSiniestro)}
+              options={TIPO_OPTIONS}
+              required
+              icon={Tag}
+            />
+            <SelectFieldWithIcon
+              label="Estado *"
+              name="estado"
+              value={estado}
+              onValueChange={(v) => setEstado(v as EstadoSiniestro)}
+              options={ESTADO_OPTIONS}
+              required
+              icon={Activity}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <InputFieldWithIcon
               label="Compañía de Seguro"
               name="compania"
@@ -260,8 +289,6 @@ export default function AddSiniestroDialog({
               onChange={(e) => setCompaniaSeguro(e.target.value)}
               icon={Shield}
             />
-
-            {/* Nro Siniestro */}
             <InputFieldWithIcon
               label="Nro Siniestro/Reclamación"
               name="nroSiniestro"
@@ -272,7 +299,6 @@ export default function AddSiniestroDialog({
             />
           </div>
 
-          {/* Terceros */}
           <InputFieldWithIcon
             label="Terceros Involucrados (Datos)"
             name="terceros"
@@ -282,11 +308,10 @@ export default function AddSiniestroDialog({
             icon={Users}
           />
 
-          {/* Detalles */}
           <TextareaFieldWithIcon
             label="Detalles / Descripción del Accidente *"
             name="descripcion"
-            placeholder="Describí detalladamente lo sucedido (ej: Colisión en ruta 3 km 120, despiste por calzada húmeda, etc.)..."
+            placeholder="Describí detalladamente lo sucedido..."
             required
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
@@ -294,7 +319,6 @@ export default function AddSiniestroDialog({
             error={errors.descripcion}
           />
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-100 -mx-6 px-6">
             <Button
               type="button"
@@ -310,13 +334,8 @@ export default function AddSiniestroDialog({
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? (
-                "Guardando..."
-              ) : (
-                <>
-                  <Check size={16} strokeWidth={2.5} />{" "}
-                  {editing ? "Guardar cambios" : "Registrar siniestro"}
-                </>
+              {loading ? "Guardando..." : (
+                <><Check size={16} strokeWidth={2.5} /> {editing ? "Guardar cambios" : "Registrar siniestro"}</>
               )}
             </Button>
           </div>
@@ -326,29 +345,12 @@ export default function AddSiniestroDialog({
   );
 }
 
-// Subcomponente Input con Icono incorporado
 function InputFieldWithIcon({
-  label,
-  name,
-  id,
-  type = "text",
-  placeholder,
-  required,
-  value,
-  onChange,
-  error,
-  icon: Icon,
+  label, name, id, type = "text", placeholder, required, value, onChange, error, icon: Icon,
 }: {
-  label: string;
-  name: string;
-  id?: string;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  error?: string;
-  icon: React.ComponentType<any>;
+  label: string; name: string; id?: string; type?: string; placeholder?: string;
+  required?: boolean; value?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  error?: string; icon: React.ComponentType<{ size?: number }>;
 }) {
   return (
     <div className="space-y-1">
@@ -360,13 +362,8 @@ function InputFieldWithIcon({
           <Icon size={15} />
         </div>
         <input
-          id={id}
-          name={name}
-          type={type}
-          placeholder={placeholder}
-          required={required}
-          value={value}
-          onChange={onChange}
+          id={id} name={name} type={type} placeholder={placeholder} required={required}
+          value={value} onChange={onChange}
           className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
         />
       </div>
@@ -375,27 +372,12 @@ function InputFieldWithIcon({
   );
 }
 
-// Subcomponente Select con Icono y Chevron
 function SelectFieldWithIcon({
-  label,
-  name,
-  id,
-  value,
-  onValueChange,
-  options,
-  required,
-  error,
-  icon: Icon,
+  label, name, id, value, onValueChange, options, required, error, icon: Icon,
 }: {
-  label: string;
-  name: string;
-  id?: string;
-  value: string;
-  onValueChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  required?: boolean;
-  error?: string;
-  icon: React.ComponentType<any>;
+  label: string; name: string; id?: string; value: string; onValueChange: (v: string) => void;
+  options: { value: string; label: string }[]; required?: boolean; error?: string;
+  icon: React.ComponentType<{ size?: number }>;
 }) {
   return (
     <div className="space-y-1">
@@ -408,26 +390,16 @@ function SelectFieldWithIcon({
         </div>
         <div className="relative flex-1 h-full">
           <select
-            id={id}
-            name={name}
-            value={value}
-            required={required}
+            id={id} name={name} value={value} required={required}
             className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
             onChange={(e) => onValueChange(e.target.value)}
           >
-            <option value="" disabled={required}>
-              Seleccionar...
-            </option>
+            <option value="" disabled={required}>Seleccionar...</option>
             {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <ChevronDown
-            size={14}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
-          />
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none" />
         </div>
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
@@ -435,27 +407,12 @@ function SelectFieldWithIcon({
   );
 }
 
-// Subcomponente Textarea con Icono
 function TextareaFieldWithIcon({
-  label,
-  name,
-  id,
-  placeholder,
-  required,
-  value,
-  onChange,
-  error,
-  icon: Icon,
+  label, name, id, placeholder, required, value, onChange, error, icon: Icon,
 }: {
-  label: string;
-  name: string;
-  id?: string;
-  placeholder?: string;
-  required?: boolean;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  error?: string;
-  icon: React.ComponentType<any>;
+  label: string; name: string; id?: string; placeholder?: string; required?: boolean;
+  value?: string; onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  error?: string; icon: React.ComponentType<{ size?: number }>;
 }) {
   return (
     <div className="space-y-1">
@@ -467,12 +424,7 @@ function TextareaFieldWithIcon({
           <Icon size={15} />
         </div>
         <textarea
-          id={id}
-          name={name}
-          placeholder={placeholder}
-          required={required}
-          value={value}
-          onChange={onChange}
+          id={id} name={name} placeholder={placeholder} required={required} value={value} onChange={onChange}
           className="flex-1 min-h-[90px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-y"
         />
       </div>

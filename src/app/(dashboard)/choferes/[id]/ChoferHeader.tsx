@@ -36,7 +36,7 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[#B3E5FC]">
             {fotoUrl ? (
-              <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" />
+              <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
               <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
             )}

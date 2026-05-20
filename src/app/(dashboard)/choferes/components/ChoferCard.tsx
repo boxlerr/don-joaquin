@@ -166,6 +166,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     src={fotoUrl}
                     alt={`${chofer.nombre} ${chofer.apellido}`}
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
@@ -293,6 +295,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     src={fotoUrl}
                     alt={`${chofer.nombre} ${chofer.apellido}`}
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <span className="text-[#0088D1] text-base font-bold">{initials}</span>

@@ -2389,6 +2389,79 @@ export type Database = {
           },
         ]
       }
+      siniestros: {
+        Row: {
+          id: string
+          camion_id: string
+          chofer_id: string | null
+          fecha: string
+          tipo_siniestro: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          estado: Database["public"]["Enums"]["estado_siniestro_enum"]
+          descripcion: string
+          monto_danos: number | null
+          compania_seguro: string | null
+          numero_siniestro_seguro: string | null
+          terceros_involucrados: string | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          camion_id: string
+          chofer_id?: string | null
+          fecha: string
+          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
+          descripcion: string
+          monto_danos?: number | null
+          compania_seguro?: string | null
+          numero_siniestro_seguro?: string | null
+          terceros_involucrados?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          camion_id?: string
+          chofer_id?: string | null
+          fecha?: string
+          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
+          descripcion?: string
+          monto_danos?: number | null
+          compania_seguro?: string | null
+          numero_siniestro_seguro?: string | null
+          terceros_involucrados?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "siniestros_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siniestros_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siniestros_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tarifas: {
         Row: {
           activa: boolean
@@ -3321,6 +3394,7 @@ export type Database = {
       cta_cte_tipo: "debe" | "haber"
       documento_aplica_a: "camion" | "chofer"
       documento_vigencia_estado: "vigente" | "vencido" | "por_vencer"
+      estado_siniestro_enum: "abierto" | "en_gestion" | "cerrado"
       factura_tipo:
         | "nacional"
         | "internacional_ar"
@@ -3361,6 +3435,7 @@ export type Database = {
         | "administrativo"
         | "otro"
       tipo_gasto_estado: "activo" | "inactivo"
+      tipo_siniestro_enum: "choque" | "robo" | "incendio" | "vandalismo" | "vuelco" | "otro"
       usuario_estado: "activo" | "inactivo" | "suspendido"
       viaje_estado: "pendiente" | "en_curso" | "cerrado" | "cancelado"
       viatico_estado: "pendiente_rendicion" | "rendido" | "parcialmente_rendido"
@@ -3596,6 +3671,7 @@ export const Constants = {
       cta_cte_tipo: ["debe", "haber"],
       documento_aplica_a: ["camion", "chofer"],
       documento_vigencia_estado: ["vigente", "vencido", "por_vencer"],
+      estado_siniestro_enum: ["abierto", "en_gestion", "cerrado"],
       factura_tipo: [
         "nacional",
         "internacional_ar",
@@ -3641,6 +3717,7 @@ export const Constants = {
         "otro",
       ],
       tipo_gasto_estado: ["activo", "inactivo"],
+      tipo_siniestro_enum: ["choque", "robo", "incendio", "vandalismo", "vuelco", "otro"],
       usuario_estado: ["activo", "inactivo", "suspendido"],
       viaje_estado: ["pendiente", "en_curso", "cerrado", "cancelado"],
       viatico_estado: [

@@ -235,6 +235,7 @@ export default function CamionFotosTab({
             alt={lightbox.descripcion ?? lightbox.nombre_original}
             className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
+            decoding="async"
           />
           {lightbox.descripcion && (
             <div

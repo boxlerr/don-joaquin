@@ -109,6 +109,8 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
               src={user.avatarUrl}
               alt={`${user.nombre} ${user.apellido ?? ""}`.trim()}
               className="w-8 h-8 rounded-full object-cover shrink-0 ring-2 ring-[#29ABE2]/20"
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-[#29ABE2] to-[#1B3F8C] text-white text-xs font-bold shrink-0 ring-2 ring-[#29ABE2]/20">

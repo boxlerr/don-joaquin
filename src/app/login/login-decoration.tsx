@@ -24,6 +24,8 @@ export function LoginDecoration() {
           src="/logo-vaxler.png"
           alt="Vaxler"
           className="h-4 w-auto"
+          loading="lazy"
+          decoding="async"
         />
       </a>
 
