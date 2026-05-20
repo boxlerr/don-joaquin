@@ -1,7 +1,9 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logChoferAudit } from "../audit";
 import type { ChoferDetail } from "./types";
 
 export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
@@ -73,6 +75,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 }
 
 export async function uploadDocumentoChoferAction(formData: FormData) {
+  const user = await requireUser();
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
@@ -158,6 +161,26 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
   });
   if (dbError) return { error: "Error al guardar el documento" };
 
+  const { data: tipoDoc } = await supabase
+    .from("tipos_documento")
+    .select("nombre")
+    .eq("id", tipo_documento_id)
+    .single();
+
+  await logChoferAudit(
+    chofer_id,
+    "documento_agregado",
+    null,
+    {
+      tipo_documento: tipoDoc?.nombre ?? null,
+      archivo: file.name,
+      numero: numero || null,
+      fecha_emision: fecha_emision || null,
+      fecha_vencimiento: fecha_vencimiento || null,
+    },
+    user.id,
+  );
+
   revalidatePath(`/choferes/${chofer_id}`);
   return { success: true };
 }
@@ -176,7 +199,15 @@ export async function updateChoferInfoAction(
     telefono_emergencia: string;
   }>
 ) {
+  const user = await requireUser();
   const supabase = createAdminClient();
+
+  const camposEditables = Object.keys(data) as (keyof typeof data)[];
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select(camposEditables.join(", "))
+    .eq("id", chofer_id)
+    .single();
 
   const { error } = await supabase
     .from("choferes")
@@ -185,9 +216,11 @@ export async function updateChoferInfoAction(
   if (error) return { error: "Error al actualizar" };
 
   await supabase.from("audit_log").insert({
+    usuario_id: user.id,
     accion: "actualizar",
     entidad_tipo: "chofer",
     entidad_id: chofer_id,
+    valores_anteriores: previo ?? null,
     valores_nuevos: data,
   });
 
@@ -196,13 +229,55 @@ export async function updateChoferInfoAction(
 }
 
 export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {
+  const user = await requireUser();
   const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("chofer_documentos")
+    .select(
+      "numero, fecha_emision, fecha_vencimiento, tipo_documento_id, archivo_id",
+    )
+    .eq("id", doc_id)
+    .single();
+
+  let tipoNombre: string | null = null;
+  let archivoNombre: string | null = null;
+  if (previo?.tipo_documento_id) {
+    const { data: tipoDoc } = await supabase
+      .from("tipos_documento")
+      .select("nombre")
+      .eq("id", previo.tipo_documento_id)
+      .single();
+    tipoNombre = tipoDoc?.nombre ?? null;
+  }
+  if (previo?.archivo_id) {
+    const { data: arch } = await supabase
+      .from("documentos_archivos")
+      .select("nombre_original")
+      .eq("id", previo.archivo_id)
+      .single();
+    archivoNombre = arch?.nombre_original ?? null;
+  }
 
   const { error } = await supabase
     .from("chofer_documentos")
     .delete()
     .eq("id", doc_id);
   if (error) return { error: "No se pudo eliminar el documento" };
+
+  await logChoferAudit(
+    chofer_id,
+    "documento_eliminado",
+    {
+      tipo_documento: tipoNombre,
+      archivo: archivoNombre,
+      numero: previo?.numero ?? null,
+      fecha_emision: previo?.fecha_emision ?? null,
+      fecha_vencimiento: previo?.fecha_vencimiento ?? null,
+    },
+    null,
+    user.id,
+  );
 
   revalidatePath(`/choferes/${chofer_id}`);
   return { success: true };

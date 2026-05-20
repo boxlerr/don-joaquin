@@ -60,6 +60,8 @@ const ACCIONES_LABELS: Record<string, string> = {
   requisito_agregado: "Requisito agregado",
   requisito_eliminado: "Requisito eliminado",
   requisito_estado: "Estado de requisito",
+  documento_agregado: "Documento agregado",
+  documento_eliminado: "Documento eliminado",
 };
 
 const ACCIONES_COLORS: Record<string, string> = {
@@ -78,6 +80,8 @@ const ACCIONES_COLORS: Record<string, string> = {
   requisito_agregado: "bg-[#ECFDF5] text-[#065F46]",
   requisito_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
   requisito_estado: "bg-[#E0E7FF] text-[#3730A3]",
+  documento_agregado: "bg-[#E0F2FE] text-[#075985]",
+  documento_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
 };
 
 const ENTIDADES_LABELS: Record<string, string> = {
@@ -478,9 +482,23 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     email: "Email",
     localidad: "Localidad",
     direccion: "Dirección",
+    domicilio: "Domicilio",
+    provincia: "Provincia",
     fecha_ingreso: "Fecha de ingreso",
+    fecha_egreso: "Fecha de egreso",
+    fecha_nacimiento: "Fecha de nacimiento",
+    cbu: "CBU",
+    alias_cbu: "Alias CBU",
+    banco: "Banco",
+    telefono_emergencia: "Teléfono de emergencia",
     estado: "Estado",
     observaciones: "Observaciones",
+    // Documentos
+    tipo_documento: "Tipo de documento",
+    archivo: "Archivo",
+    numero: "Número",
+    fecha_emision: "Fecha de emisión",
+    fecha_vencimiento: "Fecha de vencimiento",
   },
   viaje: {
     numero: "Número",

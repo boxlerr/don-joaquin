@@ -1,7 +1,9 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logChoferAudit } from "./audit";
 
 export async function addChoferAction(data: {
   nombre: string;
@@ -12,9 +14,10 @@ export async function addChoferAction(data: {
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
 }) {
+  const user = await requireUser();
   const supabase = createAdminClient();
 
-  const { error } = await supabase.from("choferes").insert({
+  const insertData = {
     nombre: data.nombre,
     apellido: data.apellido,
     dni: data.dni,
@@ -22,11 +25,21 @@ export async function addChoferAction(data: {
     localidad: data.localidad || null,
     fecha_ingreso: data.fecha_ingreso,
     estado: data.estado,
-  });
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("choferes")
+    .insert(insertData)
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al insertar chofer:", error);
     return { error: "No se pudo registrar el chofer. Verificá que el DNI no esté duplicado." };
+  }
+
+  if (inserted?.id) {
+    await logChoferAudit(inserted.id, "crear", null, insertData, user.id);
   }
 
   revalidatePath("/choferes");
@@ -41,19 +54,27 @@ export async function updateChoferAction(id: string, data: {
   localidad?: string;
   estado: "activo" | "inactivo";
 }) {
+  const user = await requireUser();
   const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select("nombre, apellido, dni, telefono, localidad, estado")
+    .eq("id", id)
+    .single();
+
+  const updateData = {
+    nombre: data.nombre,
+    apellido: data.apellido,
+    dni: data.dni,
+    telefono: data.telefono || null,
+    localidad: data.localidad || null,
+    estado: data.estado,
+  };
 
   const { error } = await supabase
     .from("choferes")
-    .update({
-      nombre: data.nombre,
-      apellido: data.apellido,
-      dni: data.dni,
-      telefono: data.telefono || null,
-      localidad: data.localidad || null,
-      estado: data.estado,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ ...updateData, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (error) {
@@ -61,12 +82,28 @@ export async function updateChoferAction(id: string, data: {
     return { error: "No se pudo actualizar los datos del chofer." };
   }
 
+  const cambioEstado = previo && previo.estado !== data.estado;
+  await logChoferAudit(
+    id,
+    cambioEstado ? "cambio_estado" : "actualizar",
+    previo ?? null,
+    updateData,
+    user.id,
+  );
+
   revalidatePath("/choferes");
   return { success: true };
 }
 
 export async function updateChoferEstadoAction(id: string, estado: "activo" | "inactivo") {
+  const user = await requireUser();
   const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select("estado")
+    .eq("id", id)
+    .single();
 
   const { error } = await supabase
     .from("choferes")
@@ -81,12 +118,29 @@ export async function updateChoferEstadoAction(id: string, estado: "activo" | "i
     return { error: "No se pudo cambiar el estado del chofer." };
   }
 
+  if (previo && previo.estado !== estado) {
+    await logChoferAudit(
+      id,
+      "cambio_estado",
+      { estado: previo.estado },
+      { estado },
+      user.id,
+    );
+  }
+
   revalidatePath("/choferes");
   return { success: true };
 }
 
 export async function deleteChoferAction(id: string) {
+  const user = await requireUser();
   const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select("nombre, apellido, dni, telefono, localidad, email, domicilio, provincia, fecha_ingreso, estado")
+    .eq("id", id)
+    .single();
 
   const { error } = await supabase
     .from("choferes")
@@ -97,6 +151,8 @@ export async function deleteChoferAction(id: string) {
     console.error("Error al eliminar chofer:", error);
     return { error: "No se pudo eliminar el chofer. Es posible que tenga registros o viajes asociados." };
   }
+
+  await logChoferAudit(id, "eliminar", previo ?? null, null, user.id);
 
   revalidatePath("/choferes");
   return { success: true };
@@ -124,6 +180,7 @@ function slugify(value: string): string {
 }
 
 export async function uploadFotoChoferAction(formData: FormData) {
+  const user = await requireUser();
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
@@ -204,12 +261,25 @@ export async function uploadFotoChoferAction(formData: FormData) {
     }
   }
 
+  const { data: publicUrl } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(storagePath);
+  await logChoferAudit(
+    chofer_id,
+    "foto_agregada",
+    null,
+    {
+      archivo: file.name,
+      foto_url: publicUrl?.publicUrl ?? null,
+    },
+    user.id,
+  );
+
   revalidatePath("/choferes");
   revalidatePath(`/choferes/${chofer_id}`);
   return { success: true };
 }
 
 export async function deleteFotoChoferAction(chofer_id: string) {
+  const user = await requireUser();
   const supabase = createAdminClient();
 
   const { data: chofer, error: choferErr } = await supabase
@@ -232,10 +302,23 @@ export async function deleteFotoChoferAction(chofer_id: string) {
     .eq("id", chofer_id);
   if (updErr) return { error: "No se pudo desvincular la foto" };
 
+  let fotoUrl: string | null = null;
   if (archivo) {
+    const { data: publicUrl } = supabase.storage
+      .from(archivo.bucket)
+      .getPublicUrl(archivo.path);
+    fotoUrl = publicUrl?.publicUrl ?? null;
     await supabase.storage.from(archivo.bucket).remove([archivo.path]);
     await supabase.from("documentos_archivos").delete().eq("id", chofer.foto_id);
   }
+
+  await logChoferAudit(
+    chofer_id,
+    "foto_eliminada",
+    { foto_url: fotoUrl },
+    null,
+    user.id,
+  );
 
   revalidatePath("/choferes");
   revalidatePath(`/choferes/${chofer_id}`);
