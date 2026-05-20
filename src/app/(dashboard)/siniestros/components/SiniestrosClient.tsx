@@ -7,6 +7,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus, AlertTriangle, DollarSign, Calendar, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import HelpTutorialButton from "../help-tutorial-button";
 import AddSiniestroDialog, { SiniestroFormPayload, SiniestroEditing } from "./AddSiniestroDialog";
 import SiniestrosTable, { SiniestroConRelaciones } from "./SiniestrosTable";
 
@@ -61,16 +62,20 @@ export default function SiniestrosClient({ siniestros, camiones, choferes }: Sin
         title="Siniestros"
         description="Historial y registro de siniestros de la flota"
         action={
-          <Button
-            variant="brand"
-            className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 h-10 px-4 rounded-lg font-semibold shadow-sm transition-all hover:shadow"
-            onClick={() => {
-              setEditingSiniestro(null);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus size={16} strokeWidth={2.5} /> Registrar Siniestro
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <HelpTutorialButton />
+            <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
+            <Button
+              variant="brand"
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 h-10 px-4 rounded-lg font-semibold shadow-sm transition-all hover:shadow"
+              onClick={() => {
+                setEditingSiniestro(null);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus size={16} strokeWidth={2.5} /> Registrar Siniestro
+            </Button>
+          </div>
         }
       />
 

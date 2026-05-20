@@ -9,7 +9,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
+  Lightbulb,
   CheckCircle2,
   User,
   FileText,
@@ -169,10 +169,10 @@ export default function HelpTutorialButton() {
                 </div>
 
                 {current.hint && (
-                  <div className="p-3.5 rounded-xl bg-[#FFFBEB] border border-[#FEF3C7] text-[#92400E] shadow-sm">
+                  <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Sparkles size={14} className="text-[#D97706]" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#B45309]">Pro Tip</span>
+                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
                       {current.hint}
