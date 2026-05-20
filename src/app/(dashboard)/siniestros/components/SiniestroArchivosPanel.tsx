@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Paperclip, Plus, Trash2, Download, FileText, Image, Loader2 } from "lucide-react";
+import {
+  Paperclip, Plus, Trash2, Download, FileText,
+  Loader2, X, ChevronLeft, ChevronRight, ZoomIn,
+} from "lucide-react";
 import { getArchivosSiniestroAction, deleteArchivoSiniestroAction, type SiniestroArchivo } from "../actions";
 import CargarArchivoSiniestroDialog from "./CargarArchivoSiniestroDialog";
 
@@ -16,16 +19,113 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FileIcon({ mime }: { mime: string }) {
-  if (mime.startsWith("image/")) return <Image size={14} className="text-violet-500 shrink-0" />;
-  return <FileText size={14} className="text-[#0088D1] shrink-0" />;
+function isImage(mime: string) {
+  return mime.startsWith("image/");
 }
 
+// ─── Lightbox ────────────────────────────────────────────────────────────────
+function Lightbox({
+  images,
+  initialIndex,
+  onClose,
+}: {
+  images: SiniestroArchivo[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(initialIndex);
+  const current = images[idx];
+
+  const prev = () => setIdx((i) => (i - 1 + images.length) % images.length);
+  const next = () => setIdx((i) => (i + 1) % images.length);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-4xl w-full mx-4 flex flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cerrar */}
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
+        >
+          <X size={24} />
+        </button>
+
+        {/* Imagen */}
+        <div className="relative w-full flex items-center justify-center">
+          {images.length > 1 && (
+            <button
+              onClick={prev}
+              className="absolute left-2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={current.url}
+            alt={current.descripcion || current.nombre_original}
+            className="max-h-[75vh] max-w-full rounded-xl shadow-2xl object-contain"
+          />
+
+          {images.length > 1 && (
+            <button
+              onClick={next}
+              className="absolute right-2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* Info pie */}
+        <div className="flex items-center gap-3 text-white/80 text-xs">
+          <span className="font-semibold">{current.descripcion || current.nombre_original}</span>
+          <span className="text-white/40">·</span>
+          <span>{formatBytes(current.tamano_bytes)}</span>
+          {images.length > 1 && (
+            <>
+              <span className="text-white/40">·</span>
+              <span>{idx + 1} / {images.length}</span>
+            </>
+          )}
+          <a
+            href={current.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-white/60 hover:text-white transition-colors ml-1"
+          >
+            <Download size={13} /> Descargar
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Panel principal ──────────────────────────────────────────────────────────
 export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
   const [archivos, setArchivos] = useState<SiniestroArchivo[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,8 +143,12 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
     load();
   };
 
+  const fotos = archivos.filter((a) => isImage(a.mime_type));
+  const docs = archivos.filter((a) => !isImage(a.mime_type));
+
   return (
-    <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-sm">
+    <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-sm" onClick={(e) => e.stopPropagation()}>
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2 mb-3">
         <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
           <Paperclip size={13} className="text-[#0088D1]" /> Archivos adjuntos
@@ -56,7 +160,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
           variant="ghost"
           size="xs"
           className="h-7 px-2 text-[11px] text-[#0088D1] hover:bg-blue-50 font-bold gap-1"
-          onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
+          onClick={() => setDialogOpen(true)}
         >
           <Plus size={12} /> Adjuntar
         </Button>
@@ -69,44 +173,112 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
       ) : archivos.length === 0 ? (
         <p className="text-xs text-slate-400 font-medium py-1">Sin archivos adjuntos</p>
       ) : (
-        <ul className="space-y-1.5">
-          {archivos.map((a) => (
-            <li
-              key={a.id}
-              className="flex items-center gap-2 text-xs group"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <FileIcon mime={a.mime_type} />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-[#0F172A] truncate">{a.descripcion || a.nombre_original}</p>
-                {a.descripcion && (
-                  <p className="text-[10px] text-slate-400 truncate">{a.nombre_original}</p>
-                )}
+        <div className="space-y-4">
+          {/* Grid de fotos */}
+          {fotos.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Fotos ({fotos.length})
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                {fotos.map((foto, i) => (
+                  <div key={foto.id} className="group relative aspect-square rounded-lg overflow-hidden border border-[#E2E8F0] bg-slate-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={foto.url}
+                      alt={foto.descripcion || foto.nombre_original}
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+
+                    {/* Overlay con acciones */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
+                      <button
+                        onClick={() => setLightboxIdx(i)}
+                        className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors"
+                        title="Ver"
+                      >
+                        <ZoomIn size={13} />
+                      </button>
+                      <a
+                        href={foto.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors"
+                        title="Descargar"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Download size={13} />
+                      </a>
+                      {deletingId === foto.id ? (
+                        <span className="p-1.5">
+                          <Loader2 size={13} className="animate-spin text-red-400" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(foto.id)}
+                          className="p-1.5 rounded-full bg-white/90 text-red-500 hover:bg-white transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Descripción debajo del thumbnail */}
+                    {foto.descripcion && (
+                      <div className="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-1 text-[9px] text-white truncate leading-tight">
+                        {foto.descripcion}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <span className="text-[10px] text-slate-400 shrink-0">{formatBytes(a.tamano_bytes)}</span>
-              <a
-                href={a.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1 rounded text-slate-400 hover:text-[#0088D1] hover:bg-blue-50 transition-colors"
-                title="Descargar"
-              >
-                <Download size={12} />
-              </a>
-              {deletingId === a.id ? (
-                <Loader2 size={12} className="animate-spin text-red-400 shrink-0" />
-              ) : (
-                <button
-                  onClick={() => handleDelete(a.id)}
-                  className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Eliminar"
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+
+          {/* Lista de documentos */}
+          {docs.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Documentos ({docs.length})
+              </p>
+              <ul className="space-y-1.5">
+                {docs.map((doc) => (
+                  <li key={doc.id} className="flex items-center gap-2 text-xs">
+                    <FileText size={14} className="text-[#0088D1] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-[#0F172A] truncate">{doc.descripcion || doc.nombre_original}</p>
+                      {doc.descripcion && (
+                        <p className="text-[10px] text-slate-400 truncate">{doc.nombre_original}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0">{formatBytes(doc.tamano_bytes)}</span>
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 rounded text-slate-400 hover:text-[#0088D1] hover:bg-blue-50 transition-colors"
+                      title="Descargar"
+                    >
+                      <Download size={12} />
+                    </a>
+                    {deletingId === doc.id ? (
+                      <Loader2 size={12} className="animate-spin text-red-400 shrink-0" />
+                    ) : (
+                      <button
+                        onClick={() => handleDelete(doc.id)}
+                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
 
       <CargarArchivoSiniestroDialog
@@ -115,6 +287,14 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
         onOpenChange={setDialogOpen}
         onSuccess={() => { setDialogOpen(false); load(); }}
       />
+
+      {lightboxIdx !== null && (
+        <Lightbox
+          images={fotos}
+          initialIndex={lightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
     </div>
   );
 }
