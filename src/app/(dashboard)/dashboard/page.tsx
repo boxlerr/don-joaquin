@@ -31,10 +31,9 @@ export default async function DashboardPage() {
     viaticosPendientes,
     chequesPorVencer,
     docPorVencer,
-    clientesConSaldo,
+    totalClientes,
     totalCamiones,
     totalChoferes,
-    totalClientes,
     viajesResult,
   ] = await Promise.all([
     supabase
@@ -52,7 +51,6 @@ export default async function DashboardPage() {
     supabase.from("clientes").select("*", { count: "exact", head: true }),
     supabase.from("camiones").select("*", { count: "exact", head: true }),
     supabase.from("choferes").select("*", { count: "exact", head: true }),
-    supabase.from("clientes").select("*", { count: "exact", head: true }),
     getViajesAction({ pageSize: 5 }),
   ]);
 
@@ -230,7 +228,7 @@ export default async function DashboardPage() {
           title="Clientes"
           metric={String(totalClientes.count ?? 0)}
           metricLabel="activos"
-          description={`${clientesConSaldo.count ?? 0} con cuenta corriente abierta`}
+          description="Registrados en el sistema"
           href="/clientes"
           iconColor="text-[#059669] dark:text-emerald-300"
           iconBg="bg-[#ECFDF5] dark:bg-emerald-500/15"

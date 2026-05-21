@@ -94,8 +94,15 @@ export default function ViajesTable({ choferId }: Props) {
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    const handler = () => setRefreshToken((t) => t + 1);
+    window.addEventListener("viaje-created", handler);
+    return () => window.removeEventListener("viaje-created", handler);
+  }, []);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
@@ -131,7 +138,7 @@ export default function ViajesTable({ choferId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, debouncedSearch]);
+  }, [choferId, desde, hasta, estadoFiltro, debouncedSearch, refreshToken]);
 
   const loadMore = () => {
     startTransition(async () => {

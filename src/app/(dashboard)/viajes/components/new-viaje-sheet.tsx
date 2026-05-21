@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
   const [tipoCarga, setTipoCarga] = useState("");
   const [estado, setEstado] = useState("pendiente");
-  
+  const router = useRouter();
+
   const [state, formAction] = useActionState<CreateViajeState, FormData>(
     createViajeAction,
     null,
@@ -48,8 +50,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setOpen(false);
       setTipoCarga("");
       setEstado("pendiente");
+      window.dispatchEvent(new Event("viaje-created"));
+      router.refresh();
     }
-  }, [state]);
+  }, [state, router]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

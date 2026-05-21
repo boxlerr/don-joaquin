@@ -1,12 +1,9 @@
+import { cache } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const getLayoutData = cache(async () => {
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
 
@@ -42,8 +39,18 @@ export default async function DashboardLayout({
     }
   }
 
+  return { sidebarUser, alertasCount: alertasCount ?? 0 };
+});
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { sidebarUser, alertasCount } = await getLayoutData();
+
   return (
-    <DashboardShell user={sidebarUser} alertasCount={alertasCount ?? 0}>
+    <DashboardShell user={sidebarUser} alertasCount={alertasCount}>
       {children}
     </DashboardShell>
   );
