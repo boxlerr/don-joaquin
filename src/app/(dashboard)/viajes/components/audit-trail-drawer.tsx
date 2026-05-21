@@ -88,7 +88,7 @@ function EntryContent({ entry }: { entry: AuditTrailEntry }) {
 
         {/* Observaciones */}
         {observaciones && (
-          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-md px-2 py-1.5 border border-slate-100">
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground bg-muted/40 rounded-md px-2 py-1.5 border border-border">
             <MessageSquare size={11} className="text-muted-foreground/70 mt-0.5 shrink-0" />
             <span className="italic">{observaciones}</span>
           </div>

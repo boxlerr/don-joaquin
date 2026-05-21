@@ -175,7 +175,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                   <React.Fragment key={s.id}>
                     <TableRow
                       onClick={() => setExpandedId(isExpanded ? null : s.id)}
-                      className={`hover:bg-muted/40/30 transition-colors border-b border-border last:border-0 cursor-pointer ${isExpanded ? "bg-muted/40/30" : ""}`}
+                      className={`hover:bg-muted/30 transition-colors border-b border-border last:border-0 cursor-pointer ${isExpanded ? "bg-muted/30" : ""}`}
                     >
                       <TableCell className="text-xs text-muted-foreground py-4 px-6 font-semibold">
                         {new Date(s.fecha + "T00:00:00").toLocaleDateString("es-AR")}
@@ -235,7 +235,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                     </TableRow>
 
                     {isExpanded && (
-                      <TableRow className="bg-muted/40/40 hover:bg-muted/40/40">
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableCell colSpan={7} className="p-0 border-b border-border">
                           <div className="p-6 space-y-4 animate-in fade-in-50 duration-200">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -272,15 +272,15 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                                 <ShieldCheck size={13} className="text-[#10B981]" /> Seguro y Daños
                               </h4>
                               <div className="space-y-2">
-                                <div className="flex justify-between border-b border-slate-50 pb-1.5">
+                                <div className="flex justify-between border-b border-border pb-1.5">
                                   <span className="text-muted-foreground">Compañía:</span>
                                   <span className="font-semibold text-foreground">{s.compania_seguro || "—"}</span>
                                 </div>
-                                <div className="flex justify-between border-b border-slate-50 pb-1.5">
+                                <div className="flex justify-between border-b border-border pb-1.5">
                                   <span className="text-muted-foreground">Nro Reclamación:</span>
                                   <span className="font-mono font-semibold text-foreground">{s.numero_siniestro_seguro || "—"}</span>
                                 </div>
-                                <div className="flex justify-between border-b border-slate-50 pb-1.5">
+                                <div className="flex justify-between border-b border-border pb-1.5">
                                   <span className="text-muted-foreground">Terceros:</span>
                                   <span className="font-semibold text-foreground text-right line-clamp-1 max-w-[200px]" title={s.terceros_involucrados || ""}>
                                     {s.terceros_involucrados || "—"}
@@ -313,7 +313,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                                   {s.descripcion}
                                 </p>
                                 {s.terceros_involucrados && (
-                                  <p className="text-[10px] text-muted-foreground mt-2 font-medium bg-muted/40 p-1.5 rounded border border-slate-100">
+                                  <p className="text-[10px] text-muted-foreground mt-2 font-medium bg-muted/40 p-1.5 rounded border border-border">
                                     <strong className="text-foreground/90">Terceros:</strong> {s.terceros_involucrados}
                                   </p>
                                 )}

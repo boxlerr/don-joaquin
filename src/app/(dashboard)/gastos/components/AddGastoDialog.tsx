@@ -210,7 +210,7 @@ export default function AddGastoDialog({
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-muted-foreground">Tipo de gasto *</Label>
               <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                   <Tag size={15} />
                 </div>
                 <div className="relative flex-1 h-full">
@@ -273,7 +273,7 @@ export default function AddGastoDialog({
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-muted-foreground">Medio de pago *</Label>
               <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                   <CreditCard size={15} />
                 </div>
                 <div className="relative flex-1 h-full">
@@ -329,7 +329,7 @@ export default function AddGastoDialog({
           />
 
           {/* Fila 4: Asignación */}
-          <div className="border-t border-slate-100 pt-4 space-y-2 mt-2">
+          <div className="border-t border-border pt-4 space-y-2 mt-2">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Asignación / Trazabilidad
             </p>
@@ -338,7 +338,7 @@ export default function AddGastoDialog({
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-muted-foreground">Viaje</Label>
                 <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <Navigation size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -367,7 +367,7 @@ export default function AddGastoDialog({
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-muted-foreground">Camión</Label>
                 <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <Truck size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -396,7 +396,7 @@ export default function AddGastoDialog({
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-muted-foreground">Chofer</Label>
                 <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <User size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -424,7 +424,7 @@ export default function AddGastoDialog({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-100 -mx-6 px-6">
+          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button
               type="button"
               variant="outline"
@@ -486,7 +486,7 @@ function InputFieldWithIcon({
     <div className="space-y-1">
       <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
       <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input

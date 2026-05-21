@@ -117,7 +117,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -472,7 +472,7 @@ function MockRowExpand() {
           Abierto
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40/40">
+      <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40">
         <div className="rounded border border-border bg-card p-2">
           <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
             <Truck size={10} className="text-primary" /> Unidad

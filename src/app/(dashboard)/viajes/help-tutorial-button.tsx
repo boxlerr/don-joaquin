@@ -648,7 +648,7 @@ function MockRegistrarCobro() {
           <span className="text-[#10B981] font-semibold">● Cerrado</span>
           <span className="text-muted-foreground/70 font-semibold">No</span>
         </div>
-        <div className="px-4 py-3 bg-muted/40/60 space-y-2">
+        <div className="px-4 py-3 bg-muted/60 space-y-2">
           <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
             Cambiar Estado Operativo:
           </div>

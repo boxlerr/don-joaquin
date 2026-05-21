@@ -393,7 +393,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             </CField>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 -mx-6 px-6">
+            <div className="flex justify-end gap-3 pt-4 border-t border-border -mx-6 px-6">
               <Button
                 type="button"
                 variant="outline"

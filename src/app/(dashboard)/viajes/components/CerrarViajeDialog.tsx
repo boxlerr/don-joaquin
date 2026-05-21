@@ -122,7 +122,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">Fecha de cobro</Label>
                   <div className="relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                       <Calendar size={13} />
                     </div>
                     <input
@@ -138,7 +138,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">Medio de cobro</Label>
                   <div className="relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                       <CreditCard size={13} />
                     </div>
                     <select
@@ -176,7 +176,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 -mx-6 px-6">
+          <div className="flex justify-end gap-3 pt-4 border-t border-border -mx-6 px-6">
             <Button
               type="button"
               variant="outline"

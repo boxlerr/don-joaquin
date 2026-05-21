@@ -136,7 +136,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-muted-foreground">Estado *</label>
                 <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 shrink-0">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 shrink-0">
                     <span className={`size-2.5 rounded-full ${getEstadoDotColor(estado)}`} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -287,7 +287,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             )}
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -332,7 +332,7 @@ function InputFieldWithIcon({
       <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
         error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input
@@ -374,7 +374,7 @@ function SelectFieldWithIcon({
       <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
         error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <div className="relative flex-1 h-full">

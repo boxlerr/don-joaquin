@@ -311,7 +311,7 @@ export default function ViajesTable({ choferId }: Props) {
 
                 {/* Sub-fila Desplegable de Detalles */}
                 {expandedId === v.id && (
-                  <TableRow className="bg-muted/40/60 hover:bg-muted/40/60">
+                  <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
                       <div className="p-6 grid grid-cols-3 gap-6 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
@@ -619,7 +619,7 @@ export default function ViajesTable({ choferId }: Props) {
               </p>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 -mx-6 px-6">
+            <div className="flex justify-end gap-3 pt-3 border-t border-border -mx-6 px-6">
               <Button
                 variant="outline"
                 size="sm"

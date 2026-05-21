@@ -117,7 +117,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper (Simplified and integrated) */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
