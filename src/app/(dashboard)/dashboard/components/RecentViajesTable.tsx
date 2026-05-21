@@ -62,11 +62,11 @@ export default function RecentViajesTable({ initialViajes }: Props) {
     <Table>
       <TableHeader className="bg-slate-50/50">
         <TableRow className="border-b border-[#E2E8F0]">
-          {["Fecha", "Origen → Destino", "Cliente", "Chofer", "Estado", "Facturación", ""].map(
+          {["Origen → Destino", "Cliente", "Chofer", "Estado", "Facturación", ""].map(
             (col) => (
               <TableHead
                 key={col}
-                className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider h-9"
+                className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider h-9 px-3"
               >
                 {col}
               </TableHead>
@@ -77,7 +77,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
       <TableBody>
         {rows.length === 0 ? (
           <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={7} className="py-12 text-center">
+            <TableCell colSpan={6} className="py-12 text-center">
               <div className="flex flex-col items-center justify-center">
                 <span className="text-slate-800 text-sm font-bold tracking-tight">Sin viajes registrados</span>
                 <span className="text-slate-400 text-xs font-medium mt-1">Los viajes que registres aparecerán aquí</span>
@@ -95,19 +95,23 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                     isExpanded ? "bg-slate-50/30" : ""
                   }`}
                 >
-                  <TableCell className="text-xs text-[#64748B] py-3 px-5">
-                    {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                  <TableCell className="py-3 px-3">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-[#0F172A]">
+                        {v.origen || "—"} → {v.destino || "—"}
+                      </span>
+                      <span className="text-[10px] text-[#94A3B8] mt-0.5">
+                        {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                      </span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-xs font-medium text-[#0F172A] py-3 px-5">
-                    {v.origen || "—"} → {v.destino || "—"}
-                  </TableCell>
-                  <TableCell className="text-xs text-[#334155] font-semibold py-3 px-5">
+                  <TableCell className="text-xs text-[#334155] font-semibold py-3 px-3">
                     {v.cliente}
                   </TableCell>
-                  <TableCell className="text-xs text-[#475569] py-3 px-5">
+                  <TableCell className="text-xs text-[#475569] py-3 px-3">
                     {v.chofer}
                   </TableCell>
-                  <TableCell className="py-3 px-5">
+                  <TableCell className="py-3 px-3">
                     <StatusBadge
                       label={v.estado.replace("_", " ")}
                       tone={
@@ -121,14 +125,14 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                       }
                     />
                   </TableCell>
-                  <TableCell className="text-xs font-semibold text-slate-500 py-3 px-5">
+                  <TableCell className="text-xs font-semibold text-slate-500 py-3 px-3">
                     {v.facturado ? (
                       <span className="text-[#10B981] bg-[#ECFDF5] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 uppercase">Sí</span>
                     ) : (
                       <span className="text-[#64748B] bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200/50 uppercase">No</span>
                     )}
                   </TableCell>
-                  <TableCell className="py-3 px-5 text-right">
+                  <TableCell className="py-3 px-3 text-right w-10">
                     <Button variant="ghost" size="icon" className="w-6 h-6 p-0 hover:bg-slate-100 text-slate-400 hover:text-slate-700">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </Button>
@@ -137,7 +141,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
 
                 {isExpanded && (
                   <TableRow className="bg-[#F8FAFC]/40 hover:bg-[#F8FAFC]/40">
-                    <TableCell colSpan={7} className="p-0 border-b border-[#E2E8F0]">
+                    <TableCell colSpan={6} className="p-0 border-b border-[#E2E8F0]">
                       <div className="p-5 grid grid-cols-3 gap-5 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
                         <div className="space-y-3 bg-white p-3.5 rounded-[8px] border border-[#E2E8F0] shadow-sm">
