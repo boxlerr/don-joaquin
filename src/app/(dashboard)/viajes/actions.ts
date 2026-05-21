@@ -8,6 +8,43 @@ import type { ViajeBasico, PaginatedResult } from "./types";
 
 const PAGE_SIZE = 20;
 
+async function buildSearchOrFilter(
+  supabase: ReturnType<typeof createAdminClient>,
+  search: string,
+): Promise<string> {
+  const term = `%${search}%`;
+  const [choferes, camiones, clientes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("choferes")
+      .select("id")
+      .or(`nombre.ilike.${term},apellido.ilike.${term}`),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("camiones")
+      .select("id")
+      .or(`patente.ilike.${term},marca.ilike.${term},modelo.ilike.${term}`),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("clientes")
+      .select("id")
+      .ilike("razon_social", term),
+  ]);
+
+  const parts: string[] = [`codigo.ilike.${term}`];
+
+  const choferIds: string[] = (choferes.data ?? []).map((r: { id: string }) => r.id);
+  if (choferIds.length) parts.push(`chofer_id.in.(${choferIds.join(",")})`);
+
+  const camionIds: string[] = (camiones.data ?? []).map((r: { id: string }) => r.id);
+  if (camionIds.length) parts.push(`camion_id.in.(${camionIds.join(",")})`);
+
+  const clienteIds: string[] = (clientes.data ?? []).map((r: { id: string }) => r.id);
+  if (clienteIds.length) parts.push(`cliente_id.in.(${clienteIds.join(",")})`);
+
+  return parts.join(",");
+}
+
 export type GetViajesParams = {
   choferId?: string;
   page?: number;
@@ -69,7 +106,8 @@ export async function getViajesAction(
   }
 
   if (search) {
-    query = query.ilike("codigo", `%${search}%`);
+    const orFilter = await buildSearchOrFilter(supabase, search);
+    query = query.or(orFilter);
   }
 
   const { data, count, error } = await query;
@@ -565,7 +603,8 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   }
 
   if (search) {
-    query = query.ilike("codigo", `%${search}%`);
+    const orFilter = await buildSearchOrFilter(supabase, search);
+    query = query.or(orFilter);
   }
 
   const { data, error } = await query;

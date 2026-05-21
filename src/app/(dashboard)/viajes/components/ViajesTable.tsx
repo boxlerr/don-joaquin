@@ -183,7 +183,7 @@ export default function ViajesTable({ choferId }: Props) {
         />
         <Input
           type="text"
-          placeholder="Buscar por código..."
+          placeholder="Buscar por código, chofer, camión..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="text-sm w-44"
