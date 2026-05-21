@@ -92,7 +92,7 @@ export default function ChoferDetailPage() {
           ))}
         </div>
 
-        <div className="p-6 bg-[#FDFDFD] min-h-[50vh]">
+        <div className="p-6 bg-card min-h-[50vh]">
           {activeTab === "info" && (
             <ChoferInfoTab key={chofer.updated_at} chofer={chofer} onSaved={loadData} />
           )}

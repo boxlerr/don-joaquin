@@ -330,7 +330,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             </div>
           </DialogHeader>
 
-          <div className="p-6 bg-[#FDFDFD] max-h-[70vh] overflow-y-auto">
+          <div className="p-6 bg-card max-h-[70vh] overflow-y-auto">
             {tabLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 size={32} className="animate-spin text-primary" />

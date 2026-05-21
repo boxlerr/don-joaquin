@@ -117,7 +117,7 @@ function TipoColumna({
 
   return (
     <div className={borderLeft ? "md:border-l border-border" : ""}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-[#F1F5F9] bg-[#FAFBFC]">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-[#F1F5F9] bg-card">
         <div
           className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentColors.bg}`}
         >

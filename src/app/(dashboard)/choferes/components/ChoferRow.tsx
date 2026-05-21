@@ -168,7 +168,7 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
 
               {/* Contenido del tab */}
               <div
-                className="p-5 bg-[#FDFDFD]"
+                className="p-5 bg-card"
                 onClick={(e) => e.stopPropagation()}
               >
                 {tabLoading ? (

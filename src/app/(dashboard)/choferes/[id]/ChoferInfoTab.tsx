@@ -69,14 +69,14 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     <div className="space-y-5">
       {/* Header con toggle de edición */}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground/70">
+        <span className="text-xs text-muted-foreground">
           {editing ? "Editando — los cambios no se guardan hasta confirmar." : "Vista de solo lectura."}
         </span>
         {!editing ? (
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-xs border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="h-7 text-xs"
             onClick={() => setEditing(true)}
           >
             <Pencil size={12} className="mr-1.5 text-primary" />
@@ -86,7 +86,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
           <Button
             variant="outline"
             size="sm"
-            className="h-7 text-xs border-[#CBD5E1] text-muted-foreground"
+            className="h-7 text-xs"
             onClick={handleCancel}
             disabled={isPending}
           >
@@ -99,7 +99,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Datos de contacto */}
         <section className="space-y-3">
-          <h4 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide border-b border-[#F1F5F9] pb-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2">
             Datos de contacto
           </h4>
           <div className="grid grid-cols-2 gap-3">
@@ -140,7 +140,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
 
         {/* Datos bancarios */}
         <section className="space-y-3">
-          <h4 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide border-b border-[#F1F5F9] pb-2">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2">
             Datos bancarios
           </h4>
           <Field label="Banco">
@@ -159,7 +159,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
               : <Value v={chofer.alias_cbu} />}
           </Field>
           {!editing && (
-            <p className="text-xs text-muted-foreground/70 bg-muted/40 rounded-md px-3 py-2 border border-border">
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded-md px-3 py-2 border border-border">
               Los datos bancarios se usan para liquidaciones y transferencias.
             </p>
           )}
@@ -167,7 +167,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+        <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-300 text-sm rounded-lg">
           {error}
         </div>
       )}
@@ -196,7 +196,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Value({ v, mono }: { v?: string | null; mono?: boolean }) {
   return (
-    <p className={`text-sm py-1.5 text-[#1E293B] ${mono ? "font-mono" : ""} ${!v ? "text-[#CBD5E1]" : ""}`}>
+    <p className={`text-sm py-1.5 ${mono ? "font-mono" : ""} ${!v ? "text-muted-foreground/60" : "text-foreground"}`}>
       {v ?? "—"}
     </p>
   );

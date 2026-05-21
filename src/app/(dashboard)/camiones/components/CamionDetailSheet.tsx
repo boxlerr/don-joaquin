@@ -398,7 +398,7 @@ export default function CamionDetailSheet({
           ))}
         </div>
 
-        <div className="overflow-y-auto max-h-[50vh] p-6 bg-[#FDFDFD]">
+        <div className="overflow-y-auto max-h-[50vh] p-6 bg-card">
           {error && (
             <div className="mb-4">
               <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />
