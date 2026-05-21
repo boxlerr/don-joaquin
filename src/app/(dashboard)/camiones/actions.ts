@@ -168,6 +168,14 @@ export async function deleteCamionAction(id: string) {
   return { success: true };
 }
 
+const MANTENIMIENTO_TIPO_LABELS: Record<string, string> = {
+  service_preventivo: "Mantenimiento Preventivo",
+  reparacion: "Reparación",
+  cambio_aceite: "Cambio de Aceite/Filtros",
+  cubiertas: "Neumáticos",
+  otro: "Otro",
+};
+
 export async function addServiceAction(data: {
   camion_id: string;
   fecha: string;
@@ -183,7 +191,7 @@ export async function addServiceAction(data: {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
 
-  const { error } = await supabase.from("mantenimientos").insert({
+  const { data: inserted, error } = await supabase.from("mantenimientos").insert({
     camion_id: data.camion_id,
     fecha: data.fecha,
     tipo: data.tipo,
@@ -195,14 +203,32 @@ export async function addServiceAction(data: {
     observaciones: data.observaciones,
     moneda: "ARS",
     created_by: user?.id ?? null,
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error al insertar mantenimiento:", error);
     return { error: "No se pudo registrar el service." };
   }
 
+  if (data.costo && data.costo > 0 && inserted) {
+    const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
+    const tipoLabel = MANTENIMIENTO_TIPO_LABELS[data.tipo] ?? data.tipo;
+    const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
+    await supabase.from("caja_movimientos").insert({
+      tipo: "egreso",
+      categoria: "mantenimiento",
+      concepto: `${tipoLabel}${patenteLabel}${data.taller ? ` (${data.taller})` : ""}`,
+      monto: data.costo,
+      medio: "otro",
+      fecha: data.fecha,
+      moneda: "ARS",
+      mantenimiento_id: inserted.id,
+      created_by: user?.id ?? null,
+    });
+  }
+
   revalidatePath("/camiones");
+  revalidatePath("/caja");
   return { success: true };
 }
 
@@ -219,7 +245,7 @@ export async function addGasoilAction(data: {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
 
-  const { error } = await supabase.from("cargas_combustible").insert({
+  const { data: inserted, error } = await supabase.from("cargas_combustible").insert({
     camion_id: data.camion_id,
     fecha: data.fecha,
     litros: data.litros,
@@ -230,14 +256,32 @@ export async function addGasoilAction(data: {
     moneda: "ARS",
     origen: "estacion_servicio",
     created_by: user?.id ?? null,
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error al insertar carga combustible:", error);
     return { error: "No se pudo registrar la carga de combustible." };
   }
 
+  if (inserted) {
+    const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
+    const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
+    const estacionLabel = data.estacion ? ` (${data.estacion})` : "";
+    await supabase.from("caja_movimientos").insert({
+      tipo: "egreso",
+      categoria: "combustible",
+      concepto: `Combustible ${data.litros}L${patenteLabel}${estacionLabel}`,
+      monto: data.importe_total,
+      medio: "otro",
+      fecha: data.fecha,
+      moneda: "ARS",
+      carga_combustible_id: inserted.id,
+      created_by: user?.id ?? null,
+    });
+  }
+
   revalidatePath("/camiones");
+  revalidatePath("/caja");
   return { success: true };
 }
 

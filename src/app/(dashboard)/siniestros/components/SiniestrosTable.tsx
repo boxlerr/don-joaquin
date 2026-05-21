@@ -22,8 +22,10 @@ import {
   FileText,
   Search,
   AlertTriangle,
+  Banknote,
 } from "lucide-react";
 import SiniestroArchivosPanel from "./SiniestroArchivosPanel";
+import RegistrarPagoSiniestroDialog from "./RegistrarPagoSiniestroDialog";
 
 export type TipoSiniestro = "choque" | "robo" | "incendio" | "vandalismo" | "vuelco" | "otro";
 export type EstadoSiniestro = "abierto" | "en_gestion" | "cerrado";
@@ -90,6 +92,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pagoSiniestro, setPagoSiniestro] = useState<SiniestroConRelaciones | null>(null);
 
   const handleDelete = (id: string) => {
     onDelete(id);
@@ -290,6 +293,14 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                                   </span>
                                 </div>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="xs"
+                                className="mt-3 w-full h-8 text-[11px] font-bold text-green-700 hover:text-green-800 hover:bg-green-50 border border-green-200 gap-1.5"
+                                onClick={(e) => { e.stopPropagation(); setPagoSiniestro(s); }}
+                              >
+                                <Banknote size={13} /> Registrar pago en caja
+                              </Button>
                             </div>
 
                             {/* Descripción y Acciones */}
@@ -358,6 +369,15 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
           </TableBody>
         </Table>
       </div>
+
+      {pagoSiniestro && (
+        <RegistrarPagoSiniestroDialog
+          siniestro={pagoSiniestro}
+          open={!!pagoSiniestro}
+          onOpenChange={(v) => { if (!v) setPagoSiniestro(null); }}
+          onSuccess={() => setPagoSiniestro(null)}
+        />
+      )}
     </div>
   );
 }

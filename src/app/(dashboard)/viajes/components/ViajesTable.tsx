@@ -35,6 +35,7 @@ import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel from "./ViajeGastosPanel";
+import CerrarViajeDialog from "./CerrarViajeDialog";
 
 interface Props {
   choferId?: string;
@@ -74,6 +75,7 @@ export default function ViajesTable({ choferId }: Props) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
   const [auditTrailViajeId, setAuditTrailViajeId] = useState<string | null>(null);
+  const [cerrandoViaje, setCerrandoViaje] = useState<ViajeBasico | null>(null);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
@@ -350,103 +352,145 @@ export default function ViajesTable({ choferId }: Props) {
                           </div>
 
                           <div className="pt-3 border-t border-[#E2E8F0] space-y-2.5">
-                            <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider block">
-                              Cambiar Estado Operativo:
-                            </span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {["pendiente", "en_curso", "cerrado"].map((st) => {
-                                const isCurrent = v.estado === st;
-                                const isUpd = updatingId === `${v.id}-${st}`;
-                                const labels: Record<string, string> = {
-                                  pendiente: "Pendiente",
-                                  en_curso: "En Curso",
-                                  cerrado: "Cerrado",
-                                };
-                                return (
-                                  <Button
-                                    key={st}
-                                    variant={isCurrent ? "default" : "outline"}
-                                    size="xs"
-                                    disabled={isCurrent || isUpd || updatingId !== null}
-                                    className={`text-[11px] h-7 px-2.5 ${isCurrent ? "bg-[#0F172A]" : ""}`}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      setUpdatingId(`${v.id}-${st}`);
-                                      const res = await updateViajeEstadoAction(v.id, st);
-                                      setUpdatingId(null);
-                                      if (res && res.ok) {
-                                        setRows((prev) =>
-                                          prev.map((item) => (item.id === v.id ? { ...item, estado: st } : item))
-                                        );
-                                      }
-                                    }}
-                                  >
-                                    {isUpd && <Loader2 size={10} className="animate-spin mr-1" />}
-                                    {labels[st]}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-
-                            <div className="pt-2 flex justify-between items-center">
-                              <Button
-                                variant="ghost"
-                                size="xs"
-                                className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAuditTrailViajeId(v.id);
-                                  setAuditTrailOpen(true);
-                                }}
-                              >
-                                <Clock size={12} />
-                                Historial
-                              </Button>
-                              {deletingId === v.id ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
-                                  <Button
-                                    variant="destructive"
-                                    size="xs"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const res = await deleteViajeAction(v.id);
-                                      if (res && res.ok) {
-                                        setRows((prev) => prev.filter((item) => item.id !== v.id));
-                                        setExpandedId(null);
-                                      }
-                                      setDeletingId(null);
-                                    }}
-                                  >
-                                    Sí, borrar
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="xs"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeletingId(null);
-                                    }}
-                                  >
-                                    No
-                                  </Button>
+                            {v.facturado ? (
+                              <>
+                                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                  <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+                                  <span className="text-[11px] font-semibold text-green-700">
+                                    Viaje facturado y cobrado — solo lectura
+                                  </span>
                                 </div>
-                              ) : (
                                 <Button
                                   variant="ghost"
                                   size="xs"
-                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
+                                  className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setDeletingId(v.id);
+                                    setAuditTrailViajeId(v.id);
+                                    setAuditTrailOpen(true);
                                   }}
                                 >
-                                  <Trash2 size={12} /> Eliminar Viaje
+                                  <Clock size={12} /> Historial
                                 </Button>
-                              )}
-                            </div>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider block">
+                                  Cambiar Estado Operativo:
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {["pendiente", "en_curso", "cerrado"].map((st) => {
+                                    const isCurrent = v.estado === st;
+                                    const isUpd = updatingId === `${v.id}-${st}`;
+                                    const labels: Record<string, string> = {
+                                      pendiente: "Pendiente",
+                                      en_curso: "En Curso",
+                                      cerrado: "Cerrado",
+                                    };
+                                    return (
+                                      <Button
+                                        key={st}
+                                        variant={isCurrent ? "default" : "outline"}
+                                        size="xs"
+                                        disabled={isCurrent || isUpd || updatingId !== null}
+                                        className={`text-[11px] h-7 px-2.5 ${isCurrent ? "bg-[#0F172A]" : ""}`}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (st === "cerrado") {
+                                            setCerrandoViaje(v);
+                                            return;
+                                          }
+                                          setUpdatingId(`${v.id}-${st}`);
+                                          const res = await updateViajeEstadoAction(v.id, st);
+                                          setUpdatingId(null);
+                                          if (res && res.ok) {
+                                            setRows((prev) =>
+                                              prev.map((item) => (item.id === v.id ? { ...item, estado: st } : item))
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        {isUpd && <Loader2 size={10} className="animate-spin mr-1" />}
+                                        {labels[st]}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+
+                                {v.estado === "cerrado" && !v.facturado && (
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    className="h-7 px-2.5 text-[11px] gap-1 text-green-700 border-green-300 hover:bg-green-50 w-full mt-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCerrandoViaje(v);
+                                    }}
+                                  >
+                                    <Coins size={12} /> Registrar cobro
+                                  </Button>
+                                )}
+
+                                <div className="pt-2 flex justify-between items-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAuditTrailViajeId(v.id);
+                                      setAuditTrailOpen(true);
+                                    }}
+                                  >
+                                    <Clock size={12} /> Historial
+                                  </Button>
+                                  {deletingId === v.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
+                                      <Button
+                                        variant="destructive"
+                                        size="xs"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const res = await deleteViajeAction(v.id);
+                                          if (res && res.ok) {
+                                            setRows((prev) => prev.filter((item) => item.id !== v.id));
+                                            setExpandedId(null);
+                                          }
+                                          setDeletingId(null);
+                                        }}
+                                      >
+                                        Sí, borrar
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="xs"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeletingId(null);
+                                        }}
+                                      >
+                                        No
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeletingId(v.id);
+                                      }}
+                                    >
+                                      <Trash2 size={12} /> Eliminar Viaje
+                                    </Button>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -487,6 +531,23 @@ export default function ViajesTable({ choferId }: Props) {
             </p>
           )}
         </div>
+      )}
+
+      {/* Dialog cerrar viaje */}
+      {cerrandoViaje && (
+        <CerrarViajeDialog
+          viaje={cerrandoViaje}
+          open={!!cerrandoViaje}
+          onOpenChange={(v) => { if (!v) setCerrandoViaje(null); }}
+          onSuccess={(cobrado) => {
+            setRows((prev) =>
+              prev.map((item) =>
+                item.id === cerrandoViaje.id ? { ...item, estado: "cerrado", facturado: cobrado } : item
+              )
+            );
+            setCerrandoViaje(null);
+          }}
+        />
       )}
 
       {/* Audit Trail Drawer */}

@@ -4,6 +4,41 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+export async function registrarPagoSiniestroAction(data: {
+  siniestro_id: string;
+  monto: number;
+  fecha: string;
+  medio: "efectivo" | "transferencia" | "cheque" | "otro";
+  concepto: string;
+  observaciones: string | null;
+}): Promise<{ error?: string; success?: true }> {
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { error } = await supabase.from("caja_movimientos").insert({
+    tipo: "egreso",
+    categoria: "siniestro",
+    concepto: data.concepto,
+    monto: data.monto,
+    medio: data.medio,
+    fecha: data.fecha,
+    moneda: "ARS",
+    siniestro_id: data.siniestro_id,
+    observaciones: data.observaciones,
+    created_by: user?.id ?? null,
+  });
+
+  if (error) {
+    console.error("Error al registrar pago de siniestro:", error);
+    return { error: "No se pudo registrar el pago en caja." };
+  }
+
+  revalidatePath("/siniestros");
+  revalidatePath("/caja");
+  return { success: true };
+}
+
 const BUCKET = "documentos-siniestros";
 
 export type SiniestroArchivo = {

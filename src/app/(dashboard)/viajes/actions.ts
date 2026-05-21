@@ -711,5 +711,78 @@ export async function updateViajeEstadoAction(
   );
 
   revalidatePath("/viajes");
+  revalidatePath("/caja");
+  return { ok: true };
+}
+
+// ============================================================================
+// Cerrar viaje con opción de registrar cobro
+// ============================================================================
+
+export async function cerrarViajeAction(
+  viajeId: string,
+  cobro: {
+    cobrado: boolean;
+    fecha: string;
+    medio: "efectivo" | "transferencia" | "cheque" | "otro";
+    observaciones: string | null;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const userClient = await createClient();
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return { ok: false, error: "No autenticado." };
+
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: viaje, error: fetchError } = await (supabase as any)
+    .from("viajes")
+    .select("estado, monto_flete, fecha_viaje, codigo, cliente_id, clientes(razon_social)")
+    .eq("id", viajeId)
+    .single();
+
+  if (fetchError || !viaje) return { ok: false, error: "Viaje no encontrado." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from("viajes")
+    .update({ estado: "cerrado", facturado: cobro.cobrado })
+    .eq("id", viajeId);
+
+  if (updateError) return { ok: false, error: "No se pudo cerrar el viaje." };
+
+  await logViajeAudit(supabase, viajeId, "cambio_estado", { estado: viaje.estado }, {
+    estado: "cerrado",
+    cobrado: cobro.cobrado,
+    ...(cobro.cobrado && { medio_cobro: cobro.medio }),
+    ...(cobro.observaciones && { observaciones: cobro.observaciones }),
+  }, user.id);
+
+  if (cobro.cobrado && viaje.monto_flete > 0) {
+    const { count } = await supabase
+      .from("caja_movimientos")
+      .select("id", { count: "exact", head: true })
+      .eq("viaje_id", viajeId);
+
+    if (count === 0) {
+      const clienteNombre = viaje.clientes?.razon_social ?? "Cliente";
+      await supabase.from("caja_movimientos").insert({
+        tipo: "ingreso",
+        categoria: "cobro_cliente",
+        concepto: `Flete ${viaje.codigo} - ${clienteNombre}`,
+        monto: viaje.monto_flete,
+        medio: cobro.medio,
+        fecha: cobro.fecha,
+        moneda: "ARS",
+        viaje_id: viajeId,
+        cliente_id: viaje.cliente_id ?? null,
+        observaciones: cobro.observaciones,
+        created_by: user.id,
+      });
+    }
+  }
+
+  revalidatePath("/viajes");
+  revalidatePath("/caja");
   return { ok: true };
 }
