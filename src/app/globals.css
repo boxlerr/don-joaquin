@@ -72,8 +72,8 @@ body {
 
 body {
   font-family: 'Inter', sans-serif;
-  background-color: #F8FAFC;
-  color: #0F172A;
+  background-color: var(--background);
+  color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -150,6 +150,36 @@ body {
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: rgba(255,255,255,0.1);
   --sidebar-ring: #0088D1;
+}
+
+.dark {
+  /* Modo noche — tonos basados en neutral-800/900 de design.md */
+  --background: #0F172A;          /* neutral-900 */
+  --foreground: #F1F5F9;          /* neutral-100 */
+  --card: #1E293B;                /* neutral-800 */
+  --card-foreground: #F1F5F9;
+  --popover: #1E293B;
+  --popover-foreground: #F1F5F9;
+  --primary: #4FC3F7;             /* brand-300, mayor legibilidad sobre oscuro */
+  --primary-foreground: #0F172A;
+  --secondary: #1E293B;
+  --secondary-foreground: #F1F5F9;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;    /* neutral-400 */
+  --accent: #FFB300;              /* amarillo sol, se mantiene */
+  --accent-foreground: #0F172A;
+  --destructive: #F87171;         /* error-400, suaviza el rojo sobre oscuro */
+  --border: #334155;              /* neutral-700 */
+  --input: #334155;
+  --ring: #4FC3F7;
+  --sidebar: #020617;             /* un escalón más oscuro que el fondo */
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #4FC3F7;
+  --sidebar-primary-foreground: #0F172A;
+  --sidebar-accent: rgba(255,255,255,0.06);
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #4FC3F7;
 }
 
 @layer base {
