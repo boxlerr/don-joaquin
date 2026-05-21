@@ -22,7 +22,8 @@ export async function createSiniestroAction(data: {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
 
-  const { error } = await supabase.from("siniestros").insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("siniestros").insert({
     ...data,
     created_by: user?.id ?? null,
   });
@@ -51,7 +52,8 @@ export async function updateSiniestroAction(id: string, data: {
 }): Promise<{ error?: string; success?: true }> {
   const supabase = createAdminClient();
 
-  const { error } = await supabase.from("siniestros").update(data).eq("id", id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("siniestros").update(data).eq("id", id);
 
   if (error) {
     console.error("Error al actualizar siniestro:", error);
@@ -88,9 +90,10 @@ export async function registrarPagoSiniestroAction(data: {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
 
-  const { error } = await supabase.from("caja_movimientos").insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("caja_movimientos").insert({
     tipo: "egreso",
-    categoria: "siniestro",
+    categoria: "gasto_operativo",
     concepto: data.concepto,
     monto: data.monto,
     medio: data.medio,

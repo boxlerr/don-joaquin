@@ -522,13 +522,22 @@ export async function createViajeAction(
 // Obtener todos los viajes para exportación a Excel
 // ============================================================================
 
-export async function getAllViajesForExportAction(choferId?: string) {
+export type ExportViajesParams = {
+  choferId?: string;
+  desde?: string;
+  hasta?: string;
+  estado?: string;
+  search?: string;
+};
+
+export async function getAllViajesForExportAction(params?: ExportViajesParams) {
+  const { choferId, desde, hasta, estado, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, monto_flete, moneda, observaciones,
+      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, monto_flete, moneda, observaciones,
        clientes(razon_social),
        chofer:choferes(nombre, apellido),
        camion:camiones(patente, marca, modelo),
@@ -539,6 +548,24 @@ export async function getAllViajesForExportAction(choferId?: string) {
 
   if (choferId) {
     query = query.eq("chofer_id", choferId);
+  }
+
+  if (desde) {
+    query = query.gte("fecha_viaje", desde);
+  }
+
+  if (hasta) {
+    query = query.lte("fecha_viaje", hasta);
+  }
+
+  if (estado) {
+    query = query.in("estado", [estado]);
+  } else {
+    query = query.neq("estado", "cancelado");
+  }
+
+  if (search) {
+    query = query.ilike("codigo", `%${search}%`);
   }
 
   const { data, error } = await query;

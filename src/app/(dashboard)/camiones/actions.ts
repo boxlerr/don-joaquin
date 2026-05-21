@@ -214,9 +214,10 @@ export async function addServiceAction(data: {
     const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
     const tipoLabel = MANTENIMIENTO_TIPO_LABELS[data.tipo] ?? data.tipo;
     const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
-    await supabase.from("caja_movimientos").insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("caja_movimientos").insert({
       tipo: "egreso",
-      categoria: "mantenimiento",
+      categoria: "gasto_operativo",
       concepto: `${tipoLabel}${patenteLabel}${data.taller ? ` (${data.taller})` : ""}`,
       monto: data.costo,
       medio: "otro",
@@ -267,9 +268,10 @@ export async function addGasoilAction(data: {
     const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
     const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
     const estacionLabel = data.estacion ? ` (${data.estacion})` : "";
-    await supabase.from("caja_movimientos").insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from("caja_movimientos").insert({
       tipo: "egreso",
-      categoria: "combustible",
+      categoria: "gasto_operativo",
       concepto: `Combustible ${data.litros}L${patenteLabel}${estacionLabel}`,
       monto: data.importe_total,
       medio: "otro",

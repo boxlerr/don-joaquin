@@ -12,6 +12,7 @@ export interface ViajeExportable {
   km_con_carga?: number;
   km_vacios?: number;
   estado?: string;
+  facturado?: boolean;
   monto_flete?: number;
   monto?: number;
   moneda?: string;
@@ -143,6 +144,7 @@ export function exportViajesToExcel(
     },
     { header: "Toneladas", key: (v) => Number(v.tonelaje_real || v.toneladas || 0), width: 12 },
     { header: "Estado", key: (v) => formatEstado(v.estado), width: 15 },
+    { header: "Facturado", key: (v) => (v.facturado ? "Sí" : "No"), width: 12 },
     { header: "Monto", key: (v) => formatMonto(v.monto_flete ?? v.monto, v.moneda), width: 18 },
     {
       header: "Notas",

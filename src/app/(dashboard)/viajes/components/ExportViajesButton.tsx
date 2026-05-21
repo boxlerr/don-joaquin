@@ -6,24 +6,50 @@ import { getAllViajesForExportAction } from "../actions";
 
 interface ExportViajesButtonProps {
   choferId?: string;
+  desde?: string;
+  hasta?: string;
+  estado?: string;
+  search?: string;
   disabled?: boolean;
 }
 
-export default function ExportViajesButton({ choferId, disabled }: ExportViajesButtonProps) {
+export default function ExportViajesButton({
+  choferId,
+  desde,
+  hasta,
+  estado,
+  search,
+  disabled,
+}: ExportViajesButtonProps) {
+  const hayFiltros = !!(desde || hasta || estado || search);
+
   const handleExport = async () => {
-    // Obtener los datos completos desde el servidor
-    const data = await getAllViajesForExportAction(choferId);
-    
+    const data = await getAllViajesForExportAction({
+      choferId,
+      desde,
+      hasta,
+      estado,
+      search,
+    });
+
     if (!data || data.length === 0) {
-      throw new Error("No hay viajes registrados para exportar.");
+      throw new Error("No hay viajes para exportar con los filtros actuales.");
     }
 
-    // Llamar al servicio de dominio para procesar y descargar el Excel
-    ViajesExcelService.exportViajesToExcel(
-      data,
-      choferId ? `viajes_chofer_${choferId}` : "viajes"
-    );
+    let filename = choferId ? `viajes_chofer_${choferId}` : "viajes";
+    if (desde || hasta) {
+      const partes = [desde, hasta].filter(Boolean).join("_");
+      filename += `_${partes}`;
+    }
+
+    ViajesExcelService.exportViajesToExcel(data, filename);
   };
 
-  return <ExportButton onClick={handleExport} disabled={disabled} label="Exportar" />;
+  return (
+    <ExportButton
+      onClick={handleExport}
+      disabled={disabled}
+      label={hayFiltros ? "Exportar filtro" : "Exportar"}
+    />
+  );
 }

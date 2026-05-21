@@ -44,6 +44,7 @@ import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel from "./ViajeGastosPanel";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
+import ExportViajesButton from "./ExportViajesButton";
 
 interface Props {
   choferId?: string;
@@ -212,6 +213,16 @@ export default function ViajesTable({ choferId }: Props) {
             Limpiar filtros
           </Button>
         )}
+        <div className="ml-auto">
+          <ExportViajesButton
+            choferId={choferId}
+            desde={desde || undefined}
+            hasta={hasta || undefined}
+            estado={estadoFiltro || undefined}
+            search={debouncedSearch || undefined}
+            disabled={loading || rows.length === 0}
+          />
+        </div>
       </div>
 
       {/* Tabla */}

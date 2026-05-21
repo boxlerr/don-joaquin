@@ -36,7 +36,7 @@ export interface SiniestroConRelaciones {
   chofer_id: string | null;
   fecha: string;
   tipo_siniestro: TipoSiniestro;
-  tipo_siniestro_detalle: string | null;
+  tipo_siniestro_detalle?: string | null;
   estado: EstadoSiniestro;
   descripcion: string;
   monto_danos: number | null;
