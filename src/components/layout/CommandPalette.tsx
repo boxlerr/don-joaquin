@@ -20,6 +20,7 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.trim()
     ? ALL_ITEMS.filter((item) =>
@@ -64,6 +65,11 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
       return () => clearTimeout(id);
     }
   }, [open]);
+
+  useEffect(() => {
+    const activeEl = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
+    activeEl?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -111,7 +117,7 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
         </div>
 
         {/* Lista */}
-        <div className="max-h-80 overflow-y-auto py-1.5">
+        <div ref={listRef} className="max-h-80 overflow-y-auto py-1.5">
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground/70">
               No se encontraron resultados
@@ -126,6 +132,7 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
                   type="button"
                   onClick={() => navigate(item.href)}
                   onMouseEnter={() => setActiveIndex(i)}
+                  data-active={active}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                     active
                       ? "bg-[#0088D1] text-white"
