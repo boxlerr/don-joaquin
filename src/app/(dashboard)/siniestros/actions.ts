@@ -3,6 +3,78 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
+
+export async function createSiniestroAction(data: {
+  camion_id: string;
+  chofer_id: string | null;
+  fecha: string;
+  tipo_siniestro: TipoSiniestro;
+  tipo_siniestro_detalle: string | null;
+  estado: EstadoSiniestro;
+  descripcion: string;
+  monto_danos: number | null;
+  compania_seguro: string;
+  numero_siniestro_seguro: string;
+  terceros_involucrados: string;
+}): Promise<{ error?: string; success?: true }> {
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { error } = await supabase.from("siniestros").insert({
+    ...data,
+    created_by: user?.id ?? null,
+  });
+
+  if (error) {
+    console.error("Error al crear siniestro:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/siniestros");
+  return { success: true };
+}
+
+export async function updateSiniestroAction(id: string, data: {
+  camion_id: string;
+  chofer_id: string | null;
+  fecha: string;
+  tipo_siniestro: TipoSiniestro;
+  tipo_siniestro_detalle: string | null;
+  estado: EstadoSiniestro;
+  descripcion: string;
+  monto_danos: number | null;
+  compania_seguro: string;
+  numero_siniestro_seguro: string;
+  terceros_involucrados: string;
+}): Promise<{ error?: string; success?: true }> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase.from("siniestros").update(data).eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar siniestro:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/siniestros");
+  return { success: true };
+}
+
+export async function deleteSiniestroAction(id: string): Promise<{ error?: string; success?: true }> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase.from("siniestros").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error al eliminar siniestro:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/siniestros");
+  return { success: true };
+}
 
 export async function registrarPagoSiniestroAction(data: {
   siniestro_id: string;

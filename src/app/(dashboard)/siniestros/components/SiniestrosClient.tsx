@@ -6,10 +6,10 @@ import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus, AlertTriangle, DollarSign, Calendar, Truck } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import HelpTutorialButton from "../help-tutorial-button";
 import AddSiniestroDialog, { SiniestroFormPayload, SiniestroEditing } from "./AddSiniestroDialog";
 import SiniestrosTable, { SiniestroConRelaciones } from "./SiniestrosTable";
+import { createSiniestroAction, updateSiniestroAction, deleteSiniestroAction } from "../actions";
 
 interface SiniestrosClientProps {
   siniestros: SiniestroConRelaciones[];
@@ -27,23 +27,20 @@ export default function SiniestrosClient({ siniestros, camiones, choferes }: Sin
   const refresh = () => startTransition(() => router.refresh());
 
   const handleAdd = async (data: SiniestroFormPayload) => {
-    const supabase = createClient();
-    const { error } = await supabase.from("siniestros").insert(data);
-    if (error) { setOpError(error.message); return; }
+    const result = await createSiniestroAction(data);
+    if (result.error) { setOpError(result.error); return; }
     refresh();
   };
 
   const handleUpdate = async (id: string, data: SiniestroFormPayload) => {
-    const supabase = createClient();
-    const { error } = await supabase.from("siniestros").update(data).eq("id", id);
-    if (error) { setOpError(error.message); return; }
+    const result = await updateSiniestroAction(id, data);
+    if (result.error) { setOpError(result.error); return; }
     refresh();
   };
 
   const handleDelete = async (id: string) => {
-    const supabase = createClient();
-    const { error } = await supabase.from("siniestros").delete().eq("id", id);
-    if (error) { setOpError(error.message); return; }
+    const result = await deleteSiniestroAction(id);
+    if (result.error) { setOpError(result.error); return; }
     refresh();
   };
 
