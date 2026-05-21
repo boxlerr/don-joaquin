@@ -14,6 +14,7 @@ import {
   Eye,
   MapPin,
   Truck,
+  Coins,
 } from "lucide-react";
 
 type TabId = "nuevo" | "filtros" | "estados";
@@ -335,6 +336,13 @@ const ESTADOS_STEPS: TutorialStep[] = [
     mockup: <MockFacturado />,
     hint: 'El stat card "Sin facturar" del encabezado muestra los viajes cerrados/en curso que todavía no tienen factura emitida.',
   },
+  {
+    title: "Registrar cobro en viaje ya cerrado",
+    description:
+      'Si cerraste un viaje sin marcar el cobro, podés registrarlo después. Expandí la fila del viaje cerrado y vas a ver el botón verde "Registrar cobro". Al hacer click se abre el mismo formulario para indicar fecha, medio y si el pago se suma a la caja.',
+    mockup: <MockRegistrarCobro />,
+    hint: 'El sistema verifica que no exista ya un movimiento en caja para ese viaje, así que podés usarlo sin riesgo de duplicar.',
+  },
 ];
 
 // =============================================================================
@@ -626,6 +634,38 @@ function MockFacturado() {
         <span className="w-20 text-[#3B82F6] font-medium">En curso</span>
         <span className="w-20 text-center text-[#94A3B8] font-semibold">No</span>
       </div>
+    </div>
+  );
+}
+
+function MockRegistrarCobro() {
+  return (
+    <div className="space-y-2">
+      {/* fila cerrada expandida */}
+      <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
+        <div className="px-3 py-2 flex items-center gap-4 text-[11px] bg-[#F8FAFC] border-b border-[#E2E8F0]">
+          <span className="flex-1 font-mono text-[#0F172A]">V-2026-00041</span>
+          <span className="text-[#10B981] font-semibold">● Cerrado</span>
+          <span className="text-[#94A3B8] font-semibold">No</span>
+        </div>
+        <div className="px-4 py-3 bg-[#F8FAFC]/60 space-y-2">
+          <div className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">
+            Cambiar Estado Operativo:
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-7 px-2.5 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#475569] inline-flex items-center">Pendiente</span>
+            <span className="h-7 px-2.5 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#475569] inline-flex items-center">En Curso</span>
+            <span className="h-7 px-2.5 text-[11px] rounded border bg-[#0F172A] text-white inline-flex items-center">Cerrado</span>
+          </div>
+          {/* botón destacado */}
+          <div className="h-7 px-2.5 text-[11px] rounded border border-green-400 bg-green-50 text-green-700 font-bold inline-flex items-center gap-1.5 shadow-[0_0_0_3px_rgba(34,197,94,0.15)] w-full justify-center">
+            <Coins size={12} /> Registrar cobro
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-[#64748B] text-center">
+        El botón aparece solo en viajes <strong>cerrados sin cobro</strong>
+      </p>
     </div>
   );
 }
