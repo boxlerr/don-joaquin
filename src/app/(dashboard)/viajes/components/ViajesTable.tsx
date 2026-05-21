@@ -594,16 +594,16 @@ export default function ViajesTable({ choferId }: Props) {
       {confirmEditViaje && (
         <Dialog open={!!confirmEditViaje} onOpenChange={(v) => { if (!v) setConfirmEditViaje(null); }}>
           <DialogContent className="sm:max-w-[420px] p-6 gap-0">
-            <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+            <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
               <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 shrink-0">
+                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300 shrink-0">
                   <AlertTriangle size={20} />
                 </div>
                 <div>
-                  <DialogTitle className="text-[#0F172A] text-base font-bold">
+                  <DialogTitle className="text-foreground text-base font-bold">
                     Viaje facturado
                   </DialogTitle>
-                  <DialogDescription className="text-[#64748B] text-xs mt-0.5">
+                  <DialogDescription className="text-muted-foreground text-xs mt-0.5">
                     {confirmEditViaje.codigo} · {confirmEditViaje.cliente}
                   </DialogDescription>
                 </div>
@@ -611,11 +611,11 @@ export default function ViajesTable({ choferId }: Props) {
             </DialogHeader>
 
             <div className="py-4 space-y-2">
-              <p className="text-sm text-[#0F172A] font-medium">
+              <p className="text-sm text-foreground font-medium">
                 Este viaje ya está facturado y su cobro impactó en la caja.
               </p>
-              <p className="text-sm text-[#475569]">
-                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
+              <p className="text-sm text-muted-foreground">
+                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700 dark:text-amber-300">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
               </p>
             </div>
 
@@ -624,7 +624,7 @@ export default function ViajesTable({ choferId }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={() => setConfirmEditViaje(null)}
-                className="h-9 px-5 text-sm border-[#E2E8F0] text-[#475569]"
+                className="h-9 px-5 text-sm"
               >
                 Cancelar
               </Button>
