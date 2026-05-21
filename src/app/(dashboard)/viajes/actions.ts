@@ -786,3 +786,229 @@ export async function cerrarViajeAction(
   revalidatePath("/caja");
   return { ok: true };
 }
+
+// ============================================================================
+// Obtener viaje completo para editar
+// ============================================================================
+
+export type ViajeParaEditar = {
+  id: string;
+  codigo: string;
+  fecha_viaje: string;
+  estado: string;
+  facturado: boolean;
+  cliente_id: string;
+  chofer_id: string;
+  camion_id: string;
+  tipo_carga_id: string;
+  origen_id: string | null;
+  origen_nombre: string | null;
+  destino_id: string | null;
+  destino_nombre: string | null;
+  km_con_carga: number;
+  km_vacios: number;
+  tonelaje_real: number;
+  monto_flete: number;
+  descripcion_otros: string | null;
+};
+
+export async function getViajeParaEditarAction(
+  id: string,
+): Promise<ViajeParaEditar | { error: string }> {
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("viajes")
+    .select(
+      `id, codigo, fecha_viaje, estado, facturado,
+       cliente_id, chofer_id, camion_id, tipo_carga_id,
+       origen_id, destino_id,
+       km_con_carga, km_vacios, tonelaje_real, monto_flete, observaciones,
+       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
+    )
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return { error: "No se pudo cargar el viaje." };
+
+  const obs: string = data.observaciones ?? "";
+  const otrosMatch = obs.match(/Carga \(Otros\):\s*([^|]+)/);
+
+  const origen = Array.isArray(data.origen) ? data.origen[0] : data.origen;
+  const destino = Array.isArray(data.destino) ? data.destino[0] : data.destino;
+
+  return {
+    id: data.id,
+    codigo: data.codigo,
+    fecha_viaje: data.fecha_viaje,
+    estado: data.estado,
+    facturado: data.facturado,
+    cliente_id: data.cliente_id,
+    chofer_id: data.chofer_id,
+    camion_id: data.camion_id,
+    tipo_carga_id: data.tipo_carga_id,
+    origen_id: data.origen_id ?? null,
+    origen_nombre: origen?.nombre ?? null,
+    destino_id: data.destino_id ?? null,
+    destino_nombre: destino?.nombre ?? null,
+    km_con_carga: data.km_con_carga ?? 0,
+    km_vacios: data.km_vacios ?? 0,
+    tonelaje_real: data.tonelaje_real ?? 0,
+    monto_flete: data.monto_flete ?? 0,
+    descripcion_otros: otrosMatch ? otrosMatch[1].trim() : null,
+  };
+}
+
+// ============================================================================
+// Actualizar viaje
+// ============================================================================
+
+export type UpdateViajeState = {
+  ok?: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+} | null;
+
+export async function updateViajeAction(
+  id: string,
+  data: {
+    fecha_viaje: string;
+    estado: string;
+    cliente_id: string;
+    chofer_id: string;
+    camion_id: string;
+    tipo_carga_id: string;
+    descripcion_otros: string | null;
+    origen_nombre: string | null;
+    destino_nombre: string | null;
+    km_con_carga: number;
+    km_vacios: number;
+    tonelaje_real: number;
+    monto_flete: number;
+  },
+): Promise<UpdateViajeState> {
+  const parsed = viajeSchema.safeParse({
+    fecha_viaje: data.fecha_viaje,
+    estado: data.estado,
+    cliente_id: data.cliente_id,
+    chofer_id: data.chofer_id,
+    camion_id: data.camion_id,
+    tipo_carga_id: data.tipo_carga_id,
+    origen_nombre: data.origen_nombre,
+    destino_nombre: data.destino_nombre,
+    km_con_carga: data.km_con_carga,
+    km_vacios: data.km_vacios,
+    tonelaje_real: data.tonelaje_real,
+    monto_flete: data.monto_flete,
+  });
+
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === "string" && !fieldErrors[key]) {
+        fieldErrors[key] = issue.message;
+      }
+    }
+    return { error: "Revisá los campos marcados.", fieldErrors };
+  }
+
+  const userClient = await createClient();
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+  if (!user) return { error: "No autenticado." };
+
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("viajes")
+    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, tonelaje_real, monto_flete")
+    .eq("id", id)
+    .single();
+
+  let realTipoCargaId = parsed.data.tipo_carga_id;
+  const notasAdicionales: string[] = [];
+
+  if (realTipoCargaId === "otros") {
+    try {
+      realTipoCargaId = await getOrCreateTipoCargaOtros(supabase);
+    } catch (e) {
+      console.error("Error obteniendo/creando tipo de carga Otros:", e);
+      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
+    }
+    if (data.descripcion_otros) {
+      notasAdicionales.push(`Carga (Otros): ${data.descripcion_otros}`);
+    }
+  }
+
+  let origen_id: string | null = null;
+  if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
+    const v = parsed.data.origen_nombre.trim();
+    origen_id = await getOrCreatePuntoRuta(supabase, v);
+    notasAdicionales.push(`Origen: ${v}`);
+  }
+
+  let destino_id: string | null = null;
+  if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
+    const v = parsed.data.destino_nombre.trim();
+    destino_id = await getOrCreatePuntoRuta(supabase, v);
+    notasAdicionales.push(`Destino: ${v}`);
+  }
+
+  const observacionesDB =
+    notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("viajes")
+    .update({
+      fecha_viaje: parsed.data.fecha_viaje,
+      estado: parsed.data.estado,
+      cliente_id: parsed.data.cliente_id,
+      chofer_id: parsed.data.chofer_id,
+      camion_id: parsed.data.camion_id,
+      tipo_carga_id: realTipoCargaId,
+      origen_id,
+      destino_id,
+      km_con_carga: parsed.data.km_con_carga,
+      km_vacios: parsed.data.km_vacios,
+      tonelaje_real: parsed.data.tonelaje_real,
+      monto_flete: parsed.data.monto_flete,
+      observaciones: observacionesDB,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar viaje:", error);
+    return { error: error.message };
+  }
+
+  await logViajeAudit(
+    supabase,
+    id,
+    "actualizar",
+    previo ?? null,
+    {
+      fecha_viaje: parsed.data.fecha_viaje,
+      estado: parsed.data.estado,
+      cliente_id: parsed.data.cliente_id,
+      chofer_id: parsed.data.chofer_id,
+      camion_id: parsed.data.camion_id,
+      tipo_carga_id: realTipoCargaId,
+      origen_id,
+      destino_id,
+      km_con_carga: parsed.data.km_con_carga,
+      km_vacios: parsed.data.km_vacios,
+      tonelaje_real: parsed.data.tonelaje_real,
+      monto_flete: parsed.data.monto_flete,
+    },
+    user.id,
+  );
+
+  revalidatePath("/viajes");
+  return { ok: true };
+}

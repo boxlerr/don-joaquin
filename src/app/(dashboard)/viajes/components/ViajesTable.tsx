@@ -16,26 +16,34 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
 import {
-  Eye,
   Loader2,
   X,
   ChevronDown,
   ChevronUp,
   Trash2,
   CheckCircle2,
-  PlayCircle,
   Clock,
   Coins,
   FileText,
   Truck,
   User,
+  Pencil,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { getViajesAction, deleteViajeAction, updateViajeEstadoAction } from "../actions";
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel from "./ViajeGastosPanel";
 import CerrarViajeDialog from "./CerrarViajeDialog";
+import EditViajeDialog from "./EditViajeDialog";
 
 interface Props {
   choferId?: string;
@@ -76,6 +84,8 @@ export default function ViajesTable({ choferId }: Props) {
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
   const [auditTrailViajeId, setAuditTrailViajeId] = useState<string | null>(null);
   const [cerrandoViaje, setCerrandoViaje] = useState<ViajeBasico | null>(null);
+  const [editingViaje, setEditingViaje] = useState<ViajeBasico | null>(null);
+  const [confirmEditViaje, setConfirmEditViaje] = useState<ViajeBasico | null>(null);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
@@ -354,24 +364,37 @@ export default function ViajesTable({ choferId }: Props) {
                           <div className="pt-3 border-t border-[#E2E8F0] space-y-2.5">
                             {v.facturado ? (
                               <>
-                                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                  <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-                                  <span className="text-[11px] font-semibold text-green-700">
-                                    Viaje facturado y cobrado — solo lectura
+                                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                  <CheckCircle2 size={14} className="text-amber-600 shrink-0" />
+                                  <span className="text-[11px] font-semibold text-amber-700">
+                                    Viaje facturado — ya impactó en caja
                                   </span>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAuditTrailViajeId(v.id);
-                                    setAuditTrailOpen(true);
-                                  }}
-                                >
-                                  <Clock size={12} /> Historial
-                                </Button>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAuditTrailViajeId(v.id);
+                                      setAuditTrailOpen(true);
+                                    }}
+                                  >
+                                    <Clock size={12} /> Historial
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="xs"
+                                    className="h-7 px-2 text-[#475569] hover:text-[#0F172A] hover:bg-slate-100 text-[11px] gap-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setConfirmEditViaje(v);
+                                    }}
+                                  >
+                                    <Pencil size={12} /> Editar
+                                  </Button>
+                                </div>
                               </>
                             ) : (
                               <>
@@ -432,18 +455,35 @@ export default function ViajesTable({ choferId }: Props) {
                                 )}
 
                                 <div className="pt-2 flex justify-between items-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setAuditTrailViajeId(v.id);
-                                      setAuditTrailOpen(true);
-                                    }}
-                                  >
-                                    <Clock size={12} /> Historial
-                                  </Button>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAuditTrailViajeId(v.id);
+                                        setAuditTrailOpen(true);
+                                      }}
+                                    >
+                                      <Clock size={12} /> Historial
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-[#475569] hover:text-[#0F172A] hover:bg-slate-100 text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (v.facturado) {
+                                          setConfirmEditViaje(v);
+                                        } else {
+                                          setEditingViaje(v);
+                                        }
+                                      }}
+                                    >
+                                      <Pencil size={12} /> Editar
+                                    </Button>
+                                  </div>
                                   {deletingId === v.id ? (
                                     <div className="flex items-center gap-2">
                                       <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
@@ -546,6 +586,76 @@ export default function ViajesTable({ choferId }: Props) {
               )
             );
             setCerrandoViaje(null);
+          }}
+        />
+      )}
+
+      {/* Confirm edit facturado */}
+      {confirmEditViaje && (
+        <Dialog open={!!confirmEditViaje} onOpenChange={(v) => { if (!v) setConfirmEditViaje(null); }}>
+          <DialogContent className="sm:max-w-[420px] p-6 gap-0">
+            <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 shrink-0">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-[#0F172A] text-base font-bold">
+                    Viaje facturado
+                  </DialogTitle>
+                  <DialogDescription className="text-[#64748B] text-xs mt-0.5">
+                    {confirmEditViaje.codigo} · {confirmEditViaje.cliente}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="py-4 space-y-2">
+              <p className="text-sm text-[#0F172A] font-medium">
+                Este viaje ya está facturado y su cobro impactó en la caja.
+              </p>
+              <p className="text-sm text-[#475569]">
+                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 -mx-6 px-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmEditViaje(null)}
+                className="h-9 px-5 text-sm border-[#E2E8F0] text-[#475569]"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="h-9 px-5 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                onClick={() => {
+                  setEditingViaje(confirmEditViaje);
+                  setConfirmEditViaje(null);
+                }}
+              >
+                Entendido, editar igual
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Viaje Dialog */}
+      {editingViaje && (
+        <EditViajeDialog
+          viaje={editingViaje}
+          open={!!editingViaje}
+          onOpenChange={(v) => { if (!v) setEditingViaje(null); }}
+          onSuccess={(patch) => {
+            setRows((prev) =>
+              prev.map((item) =>
+                item.id === editingViaje.id ? { ...item, ...patch } : item
+              )
+            );
+            setEditingViaje(null);
           }}
         />
       )}
