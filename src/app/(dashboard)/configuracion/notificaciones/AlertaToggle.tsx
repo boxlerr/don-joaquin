@@ -30,7 +30,7 @@ export default function AlertaToggle({ alertaKey, nombre, descripcion, initialAc
   }
 
   return (
-    <label className={`p-4 bg-white rounded-[8px] border border-[#E2E8F0] hover:shadow-sm transition-shadow block ${isPending ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
+    <label className={`p-4 bg-card rounded-[8px] border border-border hover:shadow-sm transition-shadow block ${isPending ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
@@ -40,8 +40,8 @@ export default function AlertaToggle({ alertaKey, nombre, descripcion, initialAc
           className="w-4 h-4 mt-0.5 cursor-pointer accent-[#0088D1] disabled:cursor-not-allowed"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-[#0F172A]">{nombre}</p>
-          <p className="text-xs text-[#64748B] mt-0.5">{descripcion}</p>
+          <p className="text-sm font-medium text-foreground">{nombre}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{descripcion}</p>
           {error && (
             <p className="text-xs text-[#7F1D1D] mt-1 flex items-center gap-1">
               <AlertCircle size={12} />

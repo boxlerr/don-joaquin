@@ -88,7 +88,7 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
       <div className="relative max-w-md">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
         />
         <Input
           type="search"
@@ -100,8 +100,8 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
       </div>
 
       {categoriasVisibles.length === 0 && (
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-6 text-center">
-          <p className="text-[#475569] text-sm">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 text-center">
+          <p className="text-muted-foreground text-sm">
             No se encontraron parámetros con ese criterio.
           </p>
         </div>
@@ -118,8 +118,8 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
           <div key={cat}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Icon size={14} className="text-[#475569]" />
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+                <Icon size={14} className="text-muted-foreground" />
+                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                   {meta.titulo}
                 </h3>
               </div>
@@ -132,7 +132,7 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
                     setSavedBanner(null);
                     setBulkCategoria(cat);
                   }}
-                  className="text-[#475569] hover:text-[#0088D1]"
+                  className="text-muted-foreground hover:text-primary"
                 >
                   <PencilLine size={11} />
                   Editar categoría
@@ -159,7 +159,7 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
                 }}
               />
             ) : (
-              <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm divide-y divide-[#E2E8F0]">
+              <div className="bg-card rounded-[8px] border border-border shadow-sm divide-y divide-border">
                 {grouped[cat]!.map((p) => (
                   <ParametroRow key={p.id} parametro={p} />
                 ))}
@@ -224,10 +224,10 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
   return (
     <div className="flex items-start gap-4 px-5 py-3.5">
       <div className="flex-1 min-w-0">
-        <p className="text-[#0F172A] text-sm font-medium">
+        <p className="text-foreground text-sm font-medium">
           {parametro.descripcion ?? parametro.clave}
         </p>
-        <p className="text-[#94A3B8] text-xs mt-0.5 font-mono">{parametro.clave}</p>
+        <p className="text-muted-foreground/70 text-xs mt-0.5 font-mono">{parametro.clave}</p>
         {error && (
           <p className="text-[#EF4444] text-xs mt-1.5">{error}</p>
         )}
@@ -245,10 +245,10 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
       <div className="shrink-0 flex items-center gap-2">
         {!parametro.editable && (
           <>
-            <span className="text-[#0F172A] text-sm font-semibold">
+            <span className="text-foreground text-sm font-semibold">
               {formatValor(parametro.valor, parametro.tipo_dato)}
             </span>
-            <span className="text-[10px] text-[#94A3B8] uppercase tracking-wide ml-2">
+            <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide ml-2">
               Solo lectura
             </span>
           </>
@@ -265,7 +265,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
 
         {parametro.editable && parametro.tipo_dato !== "boolean" && !editing && (
           <>
-            <span className="text-[#0F172A] text-sm font-semibold max-w-[240px] truncate">
+            <span className="text-foreground text-sm font-semibold max-w-[240px] truncate">
               {formatValor(parametro.valor, parametro.tipo_dato)}
             </span>
             {saved ? (
@@ -296,7 +296,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
                   onChange={(e) => setValor(e.target.value)}
                   autoFocus
                   disabled={isPending}
-                  className="h-8 w-48 text-sm rounded-lg border border-[#E2E8F0] bg-white px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
+                  className="h-8 w-48 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
                 >
                   {validacion.opciones.map((opt) => (
                     <option key={opt} value={opt}>
@@ -330,7 +330,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
                 />
               )}
               {validacion.pista && (
-                <span className="text-[10px] text-[#94A3B8]">{validacion.pista}</span>
+                <span className="text-[10px] text-muted-foreground/70">{validacion.pista}</span>
               )}
             </div>
             <Button
@@ -362,7 +362,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
           size="icon-sm"
           onClick={() => setHistorialOpen(true)}
           aria-label={`Ver historial de ${parametro.clave}`}
-          className="text-[#94A3B8] hover:text-[#0088D1]"
+          className="text-muted-foreground/70 hover:text-primary"
         >
           <History size={12} />
         </Button>
@@ -395,12 +395,12 @@ function BooleanToggle({
         }`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
             value ? "translate-x-4" : "translate-x-0.5"
           }`}
         />
       </button>
-      <span className="text-[#0F172A] text-sm font-semibold w-20">
+      <span className="text-foreground text-sm font-semibold w-20">
         {value ? "Activado" : "Desactivado"}
       </span>
       {saved && (

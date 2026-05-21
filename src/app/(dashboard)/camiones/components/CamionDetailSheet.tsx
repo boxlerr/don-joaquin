@@ -62,7 +62,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const ESTADO_STYLES: Record<string, string> = {
   activo: "bg-[#ECFDF5] text-[#065F46] font-medium",
   en_mantenimiento: "bg-[#FEF3C7] text-[#92400E] font-medium",
-  inactivo: "bg-[#F1F5F9] text-[#475569] font-medium",
+  inactivo: "bg-muted text-muted-foreground font-medium",
   baja: "bg-[#FEF2F2] text-[#7F1D1D] font-medium",
 };
 
@@ -343,11 +343,11 @@ export default function CamionDetailSheet({
         showCloseButton={false}
         className="sm:max-w-[680px] p-0 gap-0 overflow-hidden"
       >
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-[#E2E8F0] bg-white">
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border bg-card">
           <div className="flex items-center justify-between mb-3">
             <Badge
               variant="outline"
-              className="bg-[#F8FAFC] text-[#64748B] font-mono border-[#E2E8F0] text-xs"
+              className="bg-muted/40 text-muted-foreground font-mono border-border text-xs"
             >
               ID: {camion.id.slice(0, 8)}
             </Badge>
@@ -362,18 +362,18 @@ export default function CamionDetailSheet({
               Eliminar
             </Button>
           </div>
-          <DialogTitle className="text-xl font-bold text-[#0F172A] flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#0088D1]/10 flex items-center justify-center text-[#0088D1] shrink-0">
+          <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#0088D1]/10 flex items-center justify-center text-primary shrink-0">
               <Truck size={20} />
             </div>
             {camion.patente}
           </DialogTitle>
-          <DialogDescription className="text-[#64748B] text-sm mt-0.5">
+          <DialogDescription className="text-muted-foreground text-sm mt-0.5">
             {camion.marca} {camion.modelo} — {camion.ano}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
@@ -388,8 +388,8 @@ export default function CamionDetailSheet({
               onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "text-[#0088D1] border-[#0088D1]"
-                  : "text-[#64748B] border-transparent hover:text-[#0F172A]"
+                  ? "text-primary border-[#0088D1]"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
               }`}
             >
               <tab.icon size={15} />
@@ -524,7 +524,7 @@ export default function CamionDetailSheet({
             fotosLoaded ? (
               <CamionFotosTab camion_id={camion.id} fotos={fotos} onRefresh={fetchFotos} />
             ) : (
-              <div className="py-8 text-center text-sm text-[#64748B]">Cargando fotos...</div>
+              <div className="py-8 text-center text-sm text-muted-foreground">Cargando fotos...</div>
             )
           )}
 
@@ -541,9 +541,9 @@ export default function CamionDetailSheet({
                 </Button>
               </div>
               {loadingServices && services.length === 0 ? (
-                <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">Cargando historial...</div>
               ) : services.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Wrench size={40} className="mb-3 opacity-20" />
                   <p className="text-sm">No hay services registrados.</p>
                 </div>
@@ -552,7 +552,7 @@ export default function CamionDetailSheet({
                   {services.map((s) => (
                     <div
                       key={s.id}
-                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all group"
+                      className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -562,13 +562,13 @@ export default function CamionDetailSheet({
                           >
                             {s.tipo.replace("_", " ")}
                           </Badge>
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar size={11} />
                             {new Date(s.fecha).toLocaleDateString("es-AR")}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[#0F172A]">
+                          <span className="text-sm font-bold text-foreground">
                             ${Number(s.costo || 0).toLocaleString("es-AR")}
                           </span>
                           <button
@@ -587,7 +587,7 @@ export default function CamionDetailSheet({
                                 },
                               })
                             }
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-[#0088D1]"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-primary"
                             title="Editar service"
                           >
                             <Pencil size={13} />
@@ -602,14 +602,14 @@ export default function CamionDetailSheet({
                           </button>
                         </div>
                       </div>
-                      <p className="text-sm text-[#0F172A] font-medium mb-2">{s.descripcion}</p>
+                      <p className="text-sm text-foreground font-medium mb-2">{s.descripcion}</p>
                       <div className="flex items-center gap-4 pt-2 border-t border-[#F1F5F9]">
-                        <span className="flex items-center gap-1 text-xs text-[#64748B]">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Truck size={11} />
                           {s.km_odometro.toLocaleString()} KM
                         </span>
                         {s.taller && (
-                          <span className="flex items-center gap-1 text-xs text-[#64748B]">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <MapPin size={11} />
                             {s.taller}
                           </span>
@@ -646,9 +646,9 @@ export default function CamionDetailSheet({
                 </Button>
               </div>
               {loadingGasoil && gasoil.length === 0 ? (
-                <div className="py-8 text-center text-sm text-[#64748B]">Cargando historial...</div>
+                <div className="py-8 text-center text-sm text-muted-foreground">Cargando historial...</div>
               ) : gasoil.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <Fuel size={40} className="mb-3 opacity-20" />
                   <p className="text-sm">No hay cargas registradas.</p>
                 </div>
@@ -657,21 +657,21 @@ export default function CamionDetailSheet({
                   {gasoil.map((g) => (
                     <div
                       key={g.id}
-                      className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all group"
+                      className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-[#0F172A] flex items-center gap-1">
-                            <Fuel size={12} className="text-[#0088D1]" />
+                          <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                            <Fuel size={12} className="text-primary" />
                             {g.litros.toLocaleString()} Lts
                           </span>
-                          <span className="text-xs text-[#64748B] flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar size={11} />
                             {new Date(g.fecha).toLocaleDateString("es-AR")}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[#0F172A]">
+                          <span className="text-sm font-bold text-foreground">
                             ${Number(g.importe_total || 0).toLocaleString("es-AR")}
                           </span>
                           <button
@@ -689,7 +689,7 @@ export default function CamionDetailSheet({
                                 },
                               })
                             }
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-[#0088D1]"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-primary"
                             title="Editar carga"
                           >
                             <Pencil size={13} />
@@ -704,7 +704,7 @@ export default function CamionDetailSheet({
                           </button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs text-[#64748B]">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{g.estacion || "Estación no especificada"}</span>
                         <span className="font-mono">{g.km_odometro.toLocaleString()} KM</span>
                       </div>
@@ -737,11 +737,11 @@ export default function CamionDetailSheet({
             />
           )}
           {activeTab === "docs" && !docsLoaded && (
-            <div className="py-8 text-center text-sm text-[#64748B]">Cargando documentos...</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">Cargando documentos...</div>
           )}
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t border-[#E2E8F0] bg-white">
+        <DialogFooter className="px-6 py-4 border-t border-border bg-card">
           <Button
             variant="outline"
             onClick={requestClose}

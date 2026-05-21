@@ -126,10 +126,10 @@ export function ImportCamionesButton() {
       >
         <DialogContent className={step === "preview" ? "sm:max-w-[860px]" : "sm:max-w-[480px]"}>
           <DialogHeader>
-            <DialogTitle className="text-[#0F172A] text-xl">
+            <DialogTitle className="text-foreground text-xl">
               {step === "preview" ? "Vista previa" : step === "done" ? "Importación completada" : "Importar camiones"}
             </DialogTitle>
-            <DialogDescription className="text-[#475569]">
+            <DialogDescription className="text-muted-foreground">
               {step === "select" && (
                 <>Subí un archivo .xlsx o .csv con columnas: <strong>Patente</strong>, Marca, Modelo, Año, Capacidad TN, Tipo, Estado.</>
               )}
@@ -156,7 +156,7 @@ export function ImportCamionesButton() {
                 ref={fileRef}
                 type="file"
                 accept=".xlsx,.csv,.xls"
-                className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-[#E1F5FE] file:text-[#0088D1] file:font-semibold hover:file:bg-[#B3E5FC]"
+                className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-[#E1F5FE] file:text-primary file:font-semibold hover:file:bg-[#B3E5FC]"
                 required
               />
               {error && (
@@ -178,10 +178,10 @@ export function ImportCamionesButton() {
 
           {step === "preview" && (
             <div className="space-y-3 py-2">
-              <div className="max-h-[440px] overflow-y-auto border border-[#E2E8F0] rounded-lg">
+              <div className="max-h-[440px] overflow-y-auto border border-border rounded-lg">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#F8FAFC] sticky top-0">
-                    <tr className="text-left text-[#475569] text-xs uppercase tracking-wide">
+                  <thead className="bg-muted/40 sticky top-0">
+                    <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="px-3 py-2 w-10"></th>
                       <th className="px-3 py-2">Fila</th>
                       <th className="px-3 py-2">Patente</th>
@@ -208,15 +208,15 @@ export function ImportCamionesButton() {
                             <X size={14} className="text-red-500" />
                           )}
                         </td>
-                        <td className="px-3 py-2 font-mono text-[#64748B]">{r.rowNum}</td>
-                        <td className="px-3 py-2 font-semibold text-[#0F172A]">{r.patente || "—"}</td>
-                        <td className="px-3 py-2 text-[#0F172A]">
+                        <td className="px-3 py-2 font-mono text-muted-foreground">{r.rowNum}</td>
+                        <td className="px-3 py-2 font-semibold text-foreground">{r.patente || "—"}</td>
+                        <td className="px-3 py-2 text-foreground">
                           {r.marca} {r.modelo}
                         </td>
-                        <td className="px-3 py-2 text-[#475569]">{r.ano || "—"}</td>
-                        <td className="px-3 py-2 text-[#475569]">{r.capacidad_tn || "—"}</td>
-                        <td className="px-3 py-2 text-[#475569] capitalize">{r.tipo_camion.replace("_", " ")}</td>
-                        <td className="px-3 py-2 text-[#475569] capitalize">{r.estado.replace("_", " ")}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{r.ano || "—"}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{r.capacidad_tn || "—"}</td>
+                        <td className="px-3 py-2 text-muted-foreground capitalize">{r.tipo_camion.replace("_", " ")}</td>
+                        <td className="px-3 py-2 text-muted-foreground capitalize">{r.estado.replace("_", " ")}</td>
                         <td className="px-3 py-2 text-xs text-red-600">
                           {r.errorMsg ?? ""}
                         </td>
@@ -226,7 +226,7 @@ export function ImportCamionesButton() {
                 </table>
               </div>
               {previewRows.length > 100 && (
-                <p className="text-xs text-[#64748B] px-1">
+                <p className="text-xs text-muted-foreground px-1">
                   Mostrando primeras 100 de {previewRows.length} filas. Todas se importarán si confirmás.
                 </p>
               )}

@@ -69,14 +69,14 @@ export default async function UsuariosPage() {
         <StatCard label="Operativos" value={String(operativos ?? 0)} sub="Carga y consulta" color="success" />
       </div>
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <Shield size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Usuarios</h2>
+            <Shield size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">Listado de Usuarios</h2>
           </div>
           <div className="flex items-center gap-2">
-            <select className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]">
+            <select className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground">
               <option>Todos los roles</option>
               <option>Administrador</option>
               <option>Administrativo / Operativo</option>
@@ -85,12 +85,12 @@ export default async function UsuariosPage() {
           </div>
         </div>
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {["Nombre", "Email", "Rol", "Último acceso", "Estado"].map((col) => (
                 <TableHead
                   key={col}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
                   {col}
                 </TableHead>
@@ -108,14 +108,14 @@ export default async function UsuariosPage() {
                     <TableCell className="font-medium">
                       {[u.nombre, u.apellido].filter(Boolean).join(" ")}
                     </TableCell>
-                    <TableCell className="text-[#475569]">{u.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       <StatusBadge
                         label={rol?.nombre ?? "—"}
                         tone={rol?.codigo === "admin" ? "warning" : "info"}
                       />
                     </TableCell>
-                    <TableCell className="text-[#475569] text-xs">{fmtDate(u.last_login)}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{fmtDate(u.last_login)}</TableCell>
                     <TableCell>
                       <StatusBadge
                         label={u.estado}

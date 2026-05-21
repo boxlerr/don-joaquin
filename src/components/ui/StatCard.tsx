@@ -12,7 +12,7 @@ interface StatCardProps {
 const colorMap = {
   brand: {
     bg: "bg-[#F0F9FF]",
-    text: "text-[#0088D1]",
+    text: "text-primary",
     border: "border-[#B3E5FC]/50",
     iconBg: "bg-[#0088D1]/10",
     circleBg: "bg-[#0088D1]",
@@ -56,7 +56,7 @@ export default function StatCard({
 
   if (variant === "dashboard") {
     return (
-      <div className={`relative overflow-hidden bg-white rounded-[8px] border border-[#E2E8F0] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4`}>
+      <div className={`relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4`}>
         {Icon && (
           <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${
             color === "brand" ? "from-[#0088D1] to-[#004A99]" :
@@ -68,12 +68,12 @@ export default function StatCard({
           </div>
         )}
         <div className="space-y-1 min-w-0 flex-1 z-10">
-          <p className="text-[#64748B] text-[10px] font-extrabold uppercase tracking-wider leading-none">{label}</p>
+          <p className="text-muted-foreground text-[10px] font-extrabold uppercase tracking-wider leading-none">{label}</p>
           <div className="flex flex-col items-start gap-1">
             <p className={`${valueSizeClass} font-black tracking-tight ${styles.text} whitespace-nowrap leading-none transition-transform duration-300 group-hover:scale-105 origin-left`}>
               {value}
             </p>
-            {sub && <p className="text-slate-500 text-xs font-semibold leading-none">{sub}</p>}
+            {sub && <p className="text-muted-foreground/80 text-xs font-semibold leading-none">{sub}</p>}
           </div>
         </div>
         
@@ -131,13 +131,13 @@ export default function StatCard({
   }
 
   return (
-    <div className={`relative overflow-hidden bg-white rounded-xl border ${styles.border} p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group`}>
+    <div className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group`}>
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0 flex-1">
-          <p className="text-[#64748B] text-xs font-bold uppercase tracking-wider">{label}</p>
+          <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider">{label}</p>
           <div className="flex items-baseline gap-2 flex-wrap">
             <p className={`${valueSizeClass} font-black tracking-tight ${styles.text} whitespace-nowrap`}>{value}</p>
-            {sub && <p className="text-[#94A3B8] text-[11px] font-medium">{sub}</p>}
+            {sub && <p className="text-muted-foreground/80 text-[11px] font-medium">{sub}</p>}
           </div>
         </div>
         {Icon && (
@@ -147,7 +147,7 @@ export default function StatCard({
         )}
       </div>
       {/* Decorative background element */}
-      <div className={`absolute -right-4 -bottom-4 size-24 rounded-full opacity-[0.03] group-hover:opacity-[0.05] transition-opacity ${styles.bg}`} />
+      <div className={`absolute -right-4 -bottom-4 size-24 rounded-full opacity-[0.03] dark:opacity-[0.08] group-hover:opacity-[0.05] dark:group-hover:opacity-[0.12] transition-opacity ${styles.bg}`} />
     </div>
   );
 }

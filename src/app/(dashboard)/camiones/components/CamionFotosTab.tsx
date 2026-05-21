@@ -104,7 +104,7 @@ export default function CamionFotosTab({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-[#64748B]">
+        <p className="text-xs text-muted-foreground">
           {fotos.length === 0 ? "Sin fotos cargadas" : `${fotos.length} foto${fotos.length === 1 ? "" : "s"}`}
         </p>
         <div>
@@ -136,7 +136,7 @@ export default function CamionFotosTab({
       )}
 
       {fotos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-[#64748B] border border-dashed border-[#E2E8F0] rounded-lg">
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground border border-dashed border-border rounded-lg">
           <Camera size={40} className="mb-3 opacity-20" />
           <p className="text-sm">No hay fotos cargadas para este camión.</p>
           <p className="text-xs mt-1">Frente, lateral, interior, chapa, etc.</p>
@@ -146,9 +146,9 @@ export default function CamionFotosTab({
           {fotos.map((f) => (
             <div
               key={f.id}
-              className="rounded-lg overflow-hidden border border-[#E2E8F0] bg-white flex flex-col"
+              className="rounded-lg overflow-hidden border border-border bg-card flex flex-col"
             >
-              <div className="relative group bg-[#F8FAFC] aspect-[4/3]">
+              <div className="relative group bg-muted/40 aspect-[4/3]">
                 <button
                   type="button"
                   onClick={() => setLightbox(f)}
@@ -175,7 +175,7 @@ export default function CamionFotosTab({
                   <button
                     type="button"
                     onClick={() => openNotaEditor(f)}
-                    className="p-1.5 bg-white/90 hover:bg-white rounded-md text-[#0088D1] shadow-sm"
+                    className="p-1.5 bg-card/90 hover:bg-card rounded-md text-primary shadow-sm"
                     title="Editar nota"
                   >
                     <StickyNote size={13} />
@@ -184,7 +184,7 @@ export default function CamionFotosTab({
                     <button
                       type="button"
                       onClick={() => handleSetPrincipal(f.id)}
-                      className="p-1.5 bg-white/90 hover:bg-white rounded-md text-[#92400E] shadow-sm"
+                      className="p-1.5 bg-card/90 hover:bg-card rounded-md text-[#92400E] shadow-sm"
                       title="Marcar como principal"
                     >
                       <Star size={13} />
@@ -193,7 +193,7 @@ export default function CamionFotosTab({
                   <button
                     type="button"
                     onClick={() => handleDelete(f.id)}
-                    className="p-1.5 bg-white/90 hover:bg-white rounded-md text-red-600 shadow-sm"
+                    className="p-1.5 bg-card/90 hover:bg-card rounded-md text-red-600 shadow-sm"
                     title="Eliminar foto"
                   >
                     <Trash2 size={13} />
@@ -204,16 +204,16 @@ export default function CamionFotosTab({
               <button
                 type="button"
                 onClick={() => openNotaEditor(f)}
-                className="text-left px-2.5 py-2 text-xs leading-snug border-t border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors min-h-[44px] flex items-start gap-1.5"
+                className="text-left px-2.5 py-2 text-xs leading-snug border-t border-[#F1F5F9] hover:bg-muted/40 transition-colors min-h-[44px] flex items-start gap-1.5"
                 title={f.descripcion ? "Editar nota" : "Agregar nota"}
               >
                 <StickyNote
                   size={11}
-                  className={`mt-0.5 shrink-0 ${f.descripcion ? "text-[#0088D1]" : "text-[#94A3B8]"}`}
+                  className={`mt-0.5 shrink-0 ${f.descripcion ? "text-primary" : "text-muted-foreground/70"}`}
                 />
                 <span
                   className={`flex-1 line-clamp-2 ${
-                    f.descripcion ? "text-[#1E293B]" : "italic text-[#94A3B8]"
+                    f.descripcion ? "text-[#1E293B]" : "italic text-muted-foreground/70"
                   }`}
                 >
                   {f.descripcion ?? "Agregar nota"}
@@ -256,11 +256,11 @@ export default function CamionFotosTab({
       >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle className="text-[#0F172A] text-xl flex items-center gap-2">
-              <StickyNote size={18} className="text-[#0088D1]" />
+            <DialogTitle className="text-foreground text-xl flex items-center gap-2">
+              <StickyNote size={18} className="text-primary" />
               Nota de la foto
             </DialogTitle>
-            <DialogDescription className="text-[#475569]">
+            <DialogDescription className="text-muted-foreground">
               Anotá lo que necesites recordar: choque en el lateral derecho, golpe en parabrisas, problema mecánico, etc.
             </DialogDescription>
           </DialogHeader>
@@ -271,10 +271,10 @@ export default function CamionFotosTab({
               value={draftNota}
               onChange={(e) => setDraftNota(e.target.value)}
               placeholder="Ej: Foto del choque trasero del 12/03/2026..."
-              className="w-full min-h-[120px] rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm placeholder:text-[#94A3B8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1]"
+              className="w-full min-h-[120px] rounded-md border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1]"
               maxLength={500}
             />
-            <div className="flex items-center justify-between text-[11px] text-[#64748B]">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>{draftNota.length} / 500</span>
               {editing?.descripcion && (
                 <button

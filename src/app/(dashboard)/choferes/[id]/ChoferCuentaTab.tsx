@@ -38,7 +38,7 @@ export default function ChoferCuentaTab({ movimientos }: Props) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-[#0F172A]">
+      <h3 className="text-sm font-semibold text-foreground">
         Cuenta corriente — mes actual
       </h3>
 
@@ -61,18 +61,18 @@ export default function ChoferCuentaTab({ movimientos }: Props) {
         <StatMini
           label="Movimientos"
           value={String(movimientos.length)}
-          color="text-[#0088D1]"
+          color="text-primary"
         />
       </div>
 
-      <div className="rounded-[8px] border border-[#E2E8F0] overflow-hidden">
+      <div className="rounded-[8px] border border-border overflow-hidden">
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {["Fecha", "Concepto", "Categoría", "Monto"].map((col) => (
                 <TableHead
                   key={col}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
                   {col}
                 </TableHead>
@@ -84,14 +84,14 @@ export default function ChoferCuentaTab({ movimientos }: Props) {
               <EmptyTableRow message="Sin movimientos este mes" />
             ) : (
               movimientos.map((m) => (
-                <TableRow key={m.id} className="hover:bg-[#F8FAFC]">
-                  <TableCell className="text-sm text-[#475569]">
+                <TableRow key={m.id} className="hover:bg-muted/40">
+                  <TableCell className="text-sm text-muted-foreground">
                     {new Date(m.fecha).toLocaleDateString("es-AR")}
                   </TableCell>
                   <TableCell className="text-sm text-[#1E293B] max-w-[200px] truncate">
                     {m.concepto}
                   </TableCell>
-                  <TableCell className="text-xs text-[#64748B]">
+                  <TableCell className="text-xs text-muted-foreground">
                     {CATEGORIA_LABELS[m.categoria] ?? m.categoria}
                   </TableCell>
                   <TableCell
@@ -122,8 +122,8 @@ function StatMini({
   color: string;
 }) {
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] px-4 py-3">
-      <p className="text-xs text-[#94A3B8] mb-1">{label}</p>
+    <div className="bg-card rounded-[8px] border border-border px-4 py-3">
+      <p className="text-xs text-muted-foreground/70 mb-1">{label}</p>
       <p className={`text-lg font-bold ${color}`}>{value}</p>
     </div>
   );

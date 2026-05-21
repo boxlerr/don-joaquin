@@ -88,8 +88,8 @@ export default function AddEgresoDialog({
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Egreso de Caja</DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogTitle className="text-foreground text-xl">Registrar Egreso de Caja</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Ingresá los detalles del dinero saliente de la caja general.
           </DialogDescription>
         </DialogHeader>

@@ -31,21 +31,21 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
     : null;
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-6">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[#B3E5FC]">
             {fotoUrl ? (
               <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
             ) : (
-              <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
+              <span className="text-primary text-xl font-bold">{initials}</span>
             )}
           </div>
           <div>
-            <h1 className="text-[#0F172A] text-xl font-semibold">
+            <h1 className="text-foreground text-xl font-semibold">
               {chofer.apellido}, {chofer.nombre}
             </h1>
-            <p className="text-[#64748B] text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
+            <p className="text-muted-foreground text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
             <div className="mt-1.5">
               <StatusBadge label={chofer.estado} tone={estadoTone} />
             </div>
@@ -55,10 +55,10 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
         <Button
           variant="outline"
           size="sm"
-          className="border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC] flex-shrink-0"
+          className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40 flex-shrink-0"
           onClick={() => setEditOpen(true)}
         >
-          <Edit size={13} className="mr-1.5 text-[#0088D1]" />
+          <Edit size={13} className="mr-1.5 text-primary" />
           Editar
         </Button>
       </div>
@@ -85,8 +85,8 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
 
 function InfoItem({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-sm text-[#475569]">
-      <span className="text-[#94A3B8]">{icon}</span>
+    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <span className="text-muted-foreground/70">{icon}</span>
       <span className="truncate">{label}</span>
     </div>
   );

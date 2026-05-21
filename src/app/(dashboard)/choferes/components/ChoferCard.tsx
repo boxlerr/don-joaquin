@@ -147,7 +147,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
   return (
     <>
-      <div className="bg-white rounded-[12px] border border-[#E2E8F0] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col relative group overflow-hidden">
+      <div className="bg-card rounded-[12px] border border-border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col relative group overflow-hidden">
         {/* Barra superior de acento premium */}
         <div className="h-1.5 w-full bg-gradient-to-r from-[#0088D1] to-[#4FC3F7]" />
 
@@ -170,7 +170,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     decoding="async"
                   />
                 ) : (
-                  <span className="text-[#0088D1] text-xl font-bold">{initials}</span>
+                  <span className="text-primary text-xl font-bold">{initials}</span>
                 )}
 
                 {/* Overlay de hover con icono de cámara */}
@@ -183,8 +183,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
                 {/* Loader al subir foto */}
                 {uploadingFoto && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                    <Loader2 size={20} className="animate-spin text-[#0088D1]" />
+                  <div className="absolute inset-0 bg-card/80 flex items-center justify-center z-10">
+                    <Loader2 size={20} className="animate-spin text-primary" />
                   </div>
                 )}
 
@@ -211,10 +211,10 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
             {/* Datos principales */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-[#0F172A] font-semibold text-base leading-snug truncate group-hover:text-[#0088D1] transition-colors">
+              <h3 className="text-foreground font-semibold text-base leading-snug truncate group-hover:text-primary transition-colors">
                 {chofer.apellido}, {chofer.nombre}
               </h3>
-              <p className="text-[#64748B] text-xs font-mono mt-0.5">DNI {chofer.dni}</p>
+              <p className="text-muted-foreground text-xs font-mono mt-0.5">DNI {chofer.dni}</p>
               <div className="mt-2 flex items-center gap-2">
                 <StatusBadge label={chofer.estado} tone={estadoTone} />
               </div>
@@ -222,24 +222,24 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           </div>
 
           {/* Sub-información del chofer */}
-          <div className="space-y-2 mt-2 pt-3 border-t border-[#F1F5F9] text-xs text-[#475569]">
+          <div className="space-y-2 mt-2 pt-3 border-t border-[#F1F5F9] text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <Phone size={13} className="text-[#94A3B8] flex-shrink-0" />
+              <Phone size={13} className="text-muted-foreground/70 flex-shrink-0" />
               <span className="truncate">{chofer.telefono || "Sin teléfono"}</span>
             </div>
             <div className="flex items-center gap-2">
-              <MapPin size={13} className="text-[#94A3B8] flex-shrink-0" />
+              <MapPin size={13} className="text-muted-foreground/70 flex-shrink-0" />
               <span className="truncate">{chofer.localidad || "Sin localidad"}</span>
             </div>
             <div className="flex items-center gap-2">
-              <Calendar size={13} className="text-[#94A3B8] flex-shrink-0" />
+              <Calendar size={13} className="text-muted-foreground/70 flex-shrink-0" />
               <span>Ingreso: {new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}</span>
             </div>
           </div>
         </div>
 
         {/* Footer de Acciones */}
-        <div className="bg-[#F8FAFC] px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between gap-1">
+        <div className="bg-muted/40 px-4 py-3 border-t border-border flex items-center justify-between gap-1">
           <Button
             variant="brand"
             size="sm"
@@ -253,7 +253,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           <div className="flex items-center gap-1">
             <Link
               href={`/viajes?choferId=${chofer.id}`}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-[#475569] hover:text-[#0088D1] hover:bg-white transition-colors border border-transparent hover:border-[#CBD5E1]"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-primary hover:bg-card transition-colors border border-transparent hover:border-[#CBD5E1]"
               title="Ver viajes asociados"
             >
               <MapPin size={14} />
@@ -262,7 +262,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             <button
               onClick={handleToggleEstado}
               disabled={actionLoading}
-              className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border border-transparent hover:bg-white hover:border-[#CBD5E1] ${
+              className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border border-transparent hover:bg-card hover:border-[#CBD5E1] ${
                 chofer.estado === "activo"
                   ? "text-amber-500 hover:text-amber-600"
                   : "text-emerald-500 hover:text-emerald-600"
@@ -287,7 +287,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
       {/* Modal Dialog Premium para ver Legajo completo */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="sm:max-w-[760px] md:max-w-[880px] p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-4 bg-white border-b border-[#E2E8F0]">
+          <DialogHeader className="p-6 pb-4 bg-card border-b border-border">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-[#E1F5FE] border border-[#B3E5FC] flex items-center justify-center flex-shrink-0 overflow-hidden">
                 {fotoUrl ? (
@@ -299,29 +299,29 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     decoding="async"
                   />
                 ) : (
-                  <span className="text-[#0088D1] text-base font-bold">{initials}</span>
+                  <span className="text-primary text-base font-bold">{initials}</span>
                 )}
               </div>
               <div>
-                <DialogTitle className="text-[#0F172A] text-xl font-semibold">
+                <DialogTitle className="text-foreground text-xl font-semibold">
                   Legajo Digital: {chofer.apellido}, {chofer.nombre}
                 </DialogTitle>
-                <DialogDescription className="text-[#64748B] text-xs font-mono mt-0.5">
+                <DialogDescription className="text-muted-foreground text-xs font-mono mt-0.5">
                   DNI {chofer.dni} • Estado: <span className="font-semibold uppercase">{chofer.estado}</span>
                 </DialogDescription>
               </div>
             </div>
 
             {/* Pestañas / Tabs internas */}
-            <div className="flex items-center gap-1 mt-5 border-b border-[#E2E8F0] -mb-4 overflow-x-auto">
+            <div className="flex items-center gap-1 mt-5 border-b border-border -mb-4 overflow-x-auto">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                     activeTab === tab.id
-                      ? "text-[#0088D1] border-[#0088D1]"
-                      : "text-[#64748B] border-transparent hover:text-[#0F172A]"
+                      ? "text-primary border-[#0088D1]"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
                   }`}
                 >
                   {tab.label}
@@ -333,7 +333,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           <div className="p-6 bg-[#FDFDFD] max-h-[70vh] overflow-y-auto">
             {tabLoading ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 size={32} className="animate-spin text-[#0088D1]" />
+                <Loader2 size={32} className="animate-spin text-primary" />
               </div>
             ) : detail ? (
               <div className="animate-in fade-in-50 duration-200">
@@ -347,7 +347,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 {activeTab === "cuenta" && <ChoferCuentaTab movimientos={detail.movimientos_mes} />}
               </div>
             ) : (
-              <p className="text-center text-[#94A3B8] text-sm py-12">
+              <p className="text-center text-muted-foreground/70 text-sm py-12">
                 No se pudo cargar el detalle del legajo.
               </p>
             )}

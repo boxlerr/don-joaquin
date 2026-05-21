@@ -76,16 +76,16 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px] p-6 gap-0">
-        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-green-50 text-green-600 shrink-0">
               <Banknote size={22} />
             </div>
             <div>
-              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+              <DialogTitle className="text-foreground text-lg font-bold">
                 Registrar pago de siniestro
               </DialogTitle>
-              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+              <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 {tipoLabel} · {camionLabel}
               </DialogDescription>
             </div>
@@ -97,9 +97,9 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#475569]">Monto *</Label>
-              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+              <Label className="text-xs font-semibold text-muted-foreground">Monto *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                   <DollarSign size={15} />
                 </div>
                 <input
@@ -109,23 +109,23 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
                   placeholder="0.00"
                   value={monto}
                   onChange={(e) => setMonto(e.target.value)}
-                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-[#0F172A]"
+                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#475569]">Fecha *</Label>
-              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+              <Label className="text-xs font-semibold text-muted-foreground">Fecha *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                   <Calendar size={15} />
                 </div>
                 <input
                   type="date"
                   value={fecha}
                   onChange={(e) => setFecha(e.target.value)}
-                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-[#0F172A]"
+                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground"
                   required
                 />
               </div>
@@ -133,15 +133,15 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-semibold text-[#475569]">Medio de pago *</Label>
-            <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-              <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+            <Label className="text-xs font-semibold text-muted-foreground">Medio de pago *</Label>
+            <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+              <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                 <CreditCard size={15} />
               </div>
               <select
                 value={medio}
                 onChange={(e) => setMedio(e.target.value as Medio)}
-                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
+                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
               >
                 {MEDIO_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -151,12 +151,12 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs font-semibold text-[#475569]">Observaciones</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Observaciones</Label>
             <textarea
               placeholder="Ej: Pago parcial, cubierto por aseguradora..."
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full min-h-[72px] px-3 py-2 text-sm rounded-lg border border-[#E2E8F0] bg-white outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all resize-none text-[#0F172A]"
+              className="w-full min-h-[72px] px-3 py-2 text-sm rounded-lg border border-border bg-card outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all resize-none text-foreground"
             />
           </div>
 
@@ -165,7 +165,7 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40"
               disabled={loading}
             >
               Cancelar

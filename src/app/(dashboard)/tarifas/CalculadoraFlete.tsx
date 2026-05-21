@@ -30,10 +30,10 @@ export default function CalculadoraFlete({ params }: { params: TarifaParams }) {
   }
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E2E8F0]">
-        <Calculator size={16} className="text-[#0088D1]" />
-        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <Calculator size={16} className="text-primary" />
+        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Calculadora de flete
         </h2>
       </div>
@@ -42,12 +42,12 @@ export default function CalculadoraFlete({ params }: { params: TarifaParams }) {
         <div className="space-y-2">
           <Label
             htmlFor="peso"
-            className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+            className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
           >
             Peso carga
           </Label>
           <div className="relative">
-            <Weight size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <Weight size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
             <Input
               id="peso"
               type="number"
@@ -59,7 +59,7 @@ export default function CalculadoraFlete({ params }: { params: TarifaParams }) {
               onChange={(e) => setPeso(e.target.value)}
               className="h-11 pl-9 pr-12 text-sm"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">
               kg.
             </span>
           </div>
@@ -68,12 +68,12 @@ export default function CalculadoraFlete({ params }: { params: TarifaParams }) {
         <div className="space-y-2">
           <Label
             htmlFor="distancia"
-            className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+            className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
           >
             Distancia recorrida
           </Label>
           <div className="relative">
-            <Route size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <Route size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
             <Input
               id="distancia"
               type="number"
@@ -85,20 +85,20 @@ export default function CalculadoraFlete({ params }: { params: TarifaParams }) {
               onChange={(e) => setDistancia(e.target.value)}
               className="h-11 pl-9 pr-12 text-sm"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">
               km.
             </span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC]">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-border bg-muted/40">
           <div className="flex items-center gap-2">
-            <DollarSign size={14} className="text-[#0088D1]" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+            <DollarSign size={14} className="text-primary" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Precio estimado
             </span>
           </div>
-          <span className="text-xl font-bold text-[#0F172A] font-mono">
+          <span className="text-xl font-bold text-foreground font-mono">
             {precio === null ? "—" : `$ ${formatARS(precio)}`}
           </span>
         </div>

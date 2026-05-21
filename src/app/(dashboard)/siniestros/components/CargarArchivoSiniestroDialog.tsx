@@ -63,8 +63,8 @@ export default function CargarArchivoSiniestroDialog({ siniestro_id, open, onOpe
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-lg font-bold">Adjuntar archivo</DialogTitle>
-          <DialogDescription className="text-[#475569] text-xs">
+          <DialogTitle className="text-foreground text-lg font-bold">Adjuntar archivo</DialogTitle>
+          <DialogDescription className="text-muted-foreground text-xs">
             Fotos del siniestro, parte policial, informe de seguro, etc. Máximo 20 MB.
           </DialogDescription>
         </DialogHeader>
@@ -82,11 +82,11 @@ export default function CargarArchivoSiniestroDialog({ siniestro_id, open, onOpe
             </Label>
             <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-lg cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
               {fileName ? (
-                <FileText size={16} className="text-[#0088D1] shrink-0" />
+                <FileText size={16} className="text-primary shrink-0" />
               ) : (
-                <Upload size={16} className="text-[#94A3B8] shrink-0" />
+                <Upload size={16} className="text-muted-foreground/70 shrink-0" />
               )}
-              <span className="text-sm text-[#64748B] truncate">
+              <span className="text-sm text-muted-foreground truncate">
                 {fileName ?? "Elegir archivo..."}
               </span>
               <input
@@ -113,7 +113,7 @@ export default function CargarArchivoSiniestroDialog({ siniestro_id, open, onOpe
               variant="outline"
               onClick={() => { reset(); onOpenChange(false); }}
               disabled={loading}
-              className="text-[#475569] border-[#E2E8F0]"
+              className="text-muted-foreground border-border"
             >
               Cancelar
             </Button>

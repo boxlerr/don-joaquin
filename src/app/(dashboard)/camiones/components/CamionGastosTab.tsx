@@ -69,10 +69,10 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-[#64748B]">
+        <div className="text-xs text-muted-foreground">
           {gastos.length > 0 && (
             <>
-              <span className="font-semibold text-[#0F172A]">
+              <span className="font-semibold text-foreground">
                 $ {formatARS(total)}
               </span>{" "}
               en {gastos.length} gasto{gastos.length === 1 ? "" : "s"}
@@ -96,11 +96,11 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
       </div>
 
       {loading && gastos.length === 0 ? (
-        <div className="py-8 text-center text-sm text-[#64748B]">
+        <div className="py-8 text-center text-sm text-muted-foreground">
           Cargando gastos...
         </div>
       ) : gastos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-[#64748B]">
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Receipt size={40} className="mb-3 opacity-20" />
           <p className="text-sm">Este camión no tiene gastos registrados.</p>
         </div>
@@ -113,20 +113,20 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
           return (
             <div
               key={g.id}
-              className="p-4 bg-white border border-[#E2E8F0] rounded-lg hover:border-[#CBD5E1] transition-all"
+              className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs font-semibold text-[#0F172A] flex items-center gap-1 shrink-0">
-                    <Receipt size={12} className="text-[#0088D1]" />
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1 shrink-0">
+                    <Receipt size={12} className="text-primary" />
                     {g.tipo_gasto_nombre ?? "Gasto"}
                   </span>
-                  <span className="text-xs text-[#64748B] flex items-center gap-1 shrink-0">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                     <Calendar size={11} />
                     {new Date(g.fecha).toLocaleDateString("es-AR")}
                   </span>
                   {g.numero_comprobante && (
-                    <span className="text-[10px] text-[#94A3B8] uppercase tracking-wide truncate">
+                    <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide truncate">
                       #{g.numero_comprobante}
                     </span>
                   )}
@@ -135,7 +135,7 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
                   $ {formatARS(g.monto)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs text-[#64748B] gap-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground gap-3">
                 <span className="truncate">
                   {g.descripcion ?? g.proveedor ?? "Sin descripción"}
                 </span>
@@ -152,7 +152,7 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
                       Solo camión
                     </span>
                   )}
-                  <span className="text-[10px] uppercase tracking-wide text-[#94A3B8]">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
                     {MEDIO_LABEL[g.medio_pago] ?? g.medio_pago}
                   </span>
                 </div>

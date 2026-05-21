@@ -50,19 +50,19 @@ export default function CamionDocumentosTab({ camion_id, documentos, tipos, onRe
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[#0F172A]">
+        <h3 className="text-sm font-semibold text-foreground">
           Documentación del vehículo
-          <span className="ml-2 text-xs font-normal text-[#94A3B8]">
+          <span className="ml-2 text-xs font-normal text-muted-foreground/70">
             {docs.length} documento{docs.length !== 1 ? "s" : ""}
           </span>
         </h3>
         <Button
           variant="outline"
           size="sm"
-          className="border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC]"
+          className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
           onClick={() => setCargarOpen(true)}
         >
-          <Plus size={13} className="mr-1.5 text-[#0088D1]" />
+          <Plus size={13} className="mr-1.5 text-primary" />
           Cargar documento
         </Button>
       </div>
@@ -106,11 +106,11 @@ function DocCard({
   deleting: boolean;
 }) {
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] p-4 flex flex-col gap-2">
+    <div className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <FileText size={14} className="text-[#0088D1] flex-shrink-0" />
-          <span className="text-sm font-medium text-[#0F172A] truncate">
+          <FileText size={14} className="text-primary flex-shrink-0" />
+          <span className="text-sm font-medium text-foreground truncate">
             {doc.tipo_documento ?? "Documento"}
           </span>
         </div>
@@ -120,16 +120,16 @@ function DocCard({
         />
       </div>
 
-      <div className="space-y-1 text-xs text-[#64748B]">
+      <div className="space-y-1 text-xs text-muted-foreground">
         {doc.numero && (
           <p>
-            <span className="text-[#94A3B8]">Nº:</span>{" "}
+            <span className="text-muted-foreground/70">Nº:</span>{" "}
             <span className="font-mono">{doc.numero}</span>
           </p>
         )}
         {doc.fecha_vencimiento && (
           <p>
-            <span className="text-[#94A3B8]">Vence:</span>{" "}
+            <span className="text-muted-foreground/70">Vence:</span>{" "}
             {new Date(doc.fecha_vencimiento).toLocaleDateString("es-AR")}
           </p>
         )}

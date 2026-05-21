@@ -55,29 +55,29 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                <Dialog.Title className="text-foreground text-sm font-bold">
                   Guía de Gestión
                 </Dialog.Title>
               </div>
             </div>
             <div className="flex items-center gap-4">
               {/* Tabs inside header */}
-              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   return (
@@ -88,8 +88,8 @@ export default function HelpTutorialButton() {
                       className={
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
-                          ? "bg-white text-[#0088D1] shadow-sm"
-                          : "text-[#64748B] hover:text-[#0F172A]")
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
                       }
                     >
                       {t.icon}
@@ -102,7 +102,7 @@ export default function HelpTutorialButton() {
                 render={
                   <button
                     type="button"
-                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                     aria-label="Cerrar"
                   />
                 }
@@ -113,7 +113,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -129,7 +129,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
                             ? "bg-[#10B981] text-white"
-                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
+                            : "bg-card text-muted-foreground/70 border border-border")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
@@ -144,7 +144,7 @@ export default function HelpTutorialButton() {
                 );
               })}
             </div>
-            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full">
               Paso {step + 1} de {totalSteps}
             </div>
           </div>
@@ -155,10 +155,10 @@ export default function HelpTutorialButton() {
             <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                  <h3 className="text-foreground text-lg font-bold leading-tight">
                     {current.title}
                   </h3>
-                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
                     {current.description}
                   </p>
                 </div>
@@ -166,7 +166,7 @@ export default function HelpTutorialButton() {
                 {current.hint && (
                   <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <Lightbulb size={14} className="text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
@@ -178,18 +178,18 @@ export default function HelpTutorialButton() {
             </div>
 
             {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
                       <div className="flex gap-1">
                         <div className="size-2 rounded-full bg-[#FF5F56]/30" />
                         <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
                         <div className="size-2 rounded-full bg-[#27C93F]/30" />
                       </div>
-                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-muted rounded-full" />
                       </div>
                     </div>
                     <div className="p-5 overflow-hidden">
@@ -202,17 +202,17 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -292,23 +292,23 @@ const IMPORT_STEPS: TutorialStep[] = [
     hint: (
       <>
         Para <b>condicion_iva</b> usá exactamente uno de:{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">
+        <code className="text-[11px] bg-card border border-border px-1 rounded">
           responsable_inscripto
         </code>
         ,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">
+        <code className="text-[11px] bg-card border border-border px-1 rounded">
           monotributo
         </code>
         ,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">
+        <code className="text-[11px] bg-card border border-border px-1 rounded">
           exento
         </code>
         ,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">
+        <code className="text-[11px] bg-card border border-border px-1 rounded">
           consumidor_final
         </code>
         ,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">
+        <code className="text-[11px] bg-card border border-border px-1 rounded">
           no_categorizado
         </code>
         . Para <b>es_multinacional</b>: <code>sí</code> / <code>no</code>.
@@ -368,21 +368,21 @@ type TutorialStep = {
 function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center opacity-50">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center opacity-50">
         Buscar cliente por nombre…
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center opacity-50">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center opacity-50">
         Activos
       </div>
-      <div className="size-9 rounded-md border border-[#0088D1] bg-white text-[#0088D1] inline-flex items-center justify-center opacity-50">
+      <div className="size-9 rounded-md border border-[#0088D1] bg-card text-primary inline-flex items-center justify-center opacity-50">
         <HelpCircle size={14} />
       </div>
       <div
         className={
           "h-9 px-3 rounded-md text-xs font-bold inline-flex items-center gap-1.5 transition-all " +
           (highlight === "import"
-            ? "bg-white border-2 border-[#0088D1] text-[#0088D1] shadow-[0_0_0_4px_rgba(0,136,209,0.2)] scale-105"
-            : "bg-white border border-[#E2E8F0] text-[#64748B] opacity-50")
+            ? "bg-card border-2 border-[#0088D1] text-primary shadow-[0_0_0_4px_rgba(0,136,209,0.2)] scale-105"
+            : "bg-card border border-border text-muted-foreground opacity-50")
         }
       >
         <Upload size={14} /> Importar
@@ -403,9 +403,9 @@ function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
 
 function MockNewClienteForm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-white">
-        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Nuevo cliente</div>
+    <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-card">
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Nuevo cliente</div>
       </div>
       <div className="p-4 space-y-4">
         <MockField
@@ -423,7 +423,7 @@ function MockNewClienteForm() {
           <MockField label="Provincia" value="Buenos Aires" />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center hover:bg-[#F8FAFC]">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
             Cancelar
           </div>
           <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
@@ -446,13 +446,13 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
         {label}
       </div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
         {value}
@@ -471,24 +471,24 @@ function MockClienteCard({
   cuit: string;
 }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-center justify-between">
+    <div className="bg-card border border-border rounded-[8px] p-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <span className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] font-bold text-sm flex items-center justify-center">
+        <span className="size-9 rounded-full bg-[#E1F5FE] text-primary font-bold text-sm flex items-center justify-center">
           D
         </span>
         <div>
-          <div className="text-[#0F172A] font-semibold text-sm">{razon}</div>
-          <div className="flex items-center gap-1 text-[10px] text-[#475569] uppercase tracking-wide mt-0.5">
-            <MapPin size={10} className="text-[#0088D1]" />
+          <div className="text-foreground font-semibold text-sm">{razon}</div>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
+            <MapPin size={10} className="text-primary" />
             {loc}
           </div>
         </div>
       </div>
       <div className="text-right">
-        <div className="text-[9px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+        <div className="text-[9px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
           Identificación
         </div>
-        <div className="text-[#0F172A] text-xs font-mono">{cuit}</div>
+        <div className="text-foreground text-xs font-mono">{cuit}</div>
       </div>
     </div>
   );
@@ -496,24 +496,24 @@ function MockClienteCard({
 
 function MockImportModal() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm">
-      <div className="px-3 py-2 border-b border-[#E2E8F0]">
-        <div className="text-[#0F172A] text-xs font-semibold">Importar clientes</div>
+    <div className="bg-card border border-border rounded-md shadow-sm">
+      <div className="px-3 py-2 border-b border-border">
+        <div className="text-foreground text-xs font-semibold">Importar clientes</div>
       </div>
       <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1.5">
-          <div className="text-[11px] text-[#475569]">
+        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-2 py-1.5">
+          <div className="text-[11px] text-muted-foreground">
             ¿No tenés un template? Descargá el formato.
           </div>
-          <div className="h-7 px-2 rounded-md border-2 border-[#0088D1] text-[#0088D1] text-[11px] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+          <div className="h-7 px-2 rounded-md border-2 border-[#0088D1] text-primary text-[11px] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
             <FileDown size={11} /> Template
           </div>
         </div>
         <div>
-          <div className="text-[10px] font-semibold text-[#475569] mb-0.5">
+          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
             Archivo .xlsx / .csv
           </div>
-          <div className="h-7 px-2 rounded border border-dashed border-[#E2E8F0] text-[11px] text-[#94A3B8] inline-flex items-center">
+          <div className="h-7 px-2 rounded border border-dashed border-border text-[11px] text-muted-foreground/70 inline-flex items-center">
             Seleccionar archivo…
           </div>
         </div>
@@ -546,8 +546,8 @@ function MockExcelSheet() {
   const cols = "ABCDEFGH".split("");
 
   return (
-    <div className="bg-white border border-[#94A3B8] rounded-sm overflow-hidden font-mono text-[10px]">
-      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] bg-[#E2E8F0] text-[#475569] font-semibold border-b border-[#94A3B8]">
+    <div className="bg-card border border-[#94A3B8] rounded-sm overflow-hidden font-mono text-[10px]">
+      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] bg-[#E2E8F0] text-muted-foreground font-semibold border-b border-[#94A3B8]">
         <div className="border-r border-[#94A3B8] text-center py-0.5"></div>
         {cols.map((c) => (
           <div key={c} className="border-r border-[#94A3B8] text-center py-0.5">
@@ -555,42 +555,42 @@ function MockExcelSheet() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] bg-[#FFFBEB] text-[#0F172A] font-semibold border-b border-[#E2E8F0]">
-        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-[#475569] text-center py-1">
+      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] bg-[#FFFBEB] text-foreground font-semibold border-b border-border">
+        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-muted-foreground text-center py-1">
           1
         </div>
         {headers.map((h) => (
           <div
             key={h}
-            className="border-r border-[#E2E8F0] truncate px-1 py-1"
+            className="border-r border-border truncate px-1 py-1"
             title={h}
           >
             {h}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] text-[#0F172A] border-b border-[#E2E8F0]">
-        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-[#475569] text-center py-1 font-semibold">
+      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] text-foreground border-b border-border">
+        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-muted-foreground text-center py-1 font-semibold">
           2
         </div>
         {example.map((v, i) => (
           <div
             key={i}
-            className="border-r border-[#E2E8F0] truncate px-1 py-1"
+            className="border-r border-border truncate px-1 py-1"
             title={v}
           >
             {v}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] text-[#94A3B8]">
-        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-[#475569] text-center py-1 font-semibold">
+      <div className="grid grid-cols-[24px_repeat(8,minmax(0,1fr))] text-muted-foreground/70">
+        <div className="border-r border-[#94A3B8] bg-[#E2E8F0] text-muted-foreground text-center py-1 font-semibold">
           3
         </div>
         {cols.map((_, i) => (
           <div
             key={i}
-            className="border-r border-[#E2E8F0] px-1 py-1 italic"
+            className="border-r border-border px-1 py-1 italic"
           >
             …
           </div>
@@ -602,20 +602,20 @@ function MockExcelSheet() {
 
 function MockFileUpload() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm">
-      <div className="px-3 py-2 border-b border-[#E2E8F0] text-[#0F172A] text-xs font-semibold">
+    <div className="bg-card border border-border rounded-md shadow-sm">
+      <div className="px-3 py-2 border-b border-border text-foreground text-xs font-semibold">
         Importar clientes
       </div>
       <div className="p-3 space-y-2">
-        <div className="flex items-center gap-2 rounded border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-2">
-          <Upload size={14} className="text-[#0088D1]" />
-          <div className="flex-1 text-[11px] text-[#0F172A] font-mono">
+        <div className="flex items-center gap-2 rounded border border-border bg-muted/40 px-2 py-2">
+          <Upload size={14} className="text-primary" />
+          <div className="flex-1 text-[11px] text-foreground font-mono">
             mis-clientes.xlsx
           </div>
-          <div className="text-[10px] text-[#475569]">Listo para importar</div>
+          <div className="text-[10px] text-muted-foreground">Listo para importar</div>
         </div>
         <div className="flex justify-end gap-2">
-          <div className="h-7 px-2 text-[11px] rounded-md border border-[#E2E8F0] text-[#475569] inline-flex items-center">
+          <div className="h-7 px-2 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center">
             Cancelar
           </div>
           <div className="h-7 px-2 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-semibold gap-1">
@@ -629,12 +629,12 @@ function MockFileUpload() {
 
 function MockImportResult() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-2">
+    <div className="bg-card border border-border rounded-md p-3 space-y-2">
       <div className="flex items-center gap-4 text-xs">
         <span className="text-[#065F46] font-semibold">Importados: 8</span>
         <span className="text-[#92400E] font-semibold">Omitidos: 2</span>
       </div>
-      <div className="border-t border-[#E2E8F0] pt-2 text-[11px] space-y-1 text-[#7F1D1D] font-mono">
+      <div className="border-t border-border pt-2 text-[11px] space-y-1 text-[#7F1D1D] font-mono">
         <div>
           <span className="font-semibold">Fila 5:</span> Falta razón social.
         </div>
@@ -657,13 +657,13 @@ function MockAlphabet({ active }: { active: string }) {
             "size-7 rounded-full text-[11px] font-semibold inline-flex items-center justify-center border " +
             (l === active
               ? "bg-[#0F172A] text-white border-[#0F172A]"
-              : "bg-white text-[#475569] border-[#E2E8F0]")
+              : "bg-card text-muted-foreground border-border")
           }
         >
           {l}
         </span>
       ))}
-      <span className="text-[10px] text-[#475569] ml-2">… resto del abecedario</span>
+      <span className="text-[10px] text-muted-foreground ml-2">… resto del abecedario</span>
     </div>
   );
 }
@@ -671,10 +671,10 @@ function MockAlphabet({ active }: { active: string }) {
 function MockEstadoSelector() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Buscar cliente por nombre…
       </div>
-      <div className="h-9 px-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0088D1] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-primary font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
         Inactivos ▾
       </div>
     </div>
@@ -684,10 +684,10 @@ function MockEstadoSelector() {
 function MockDeleteReactivate() {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 flex items-center justify-between">
-        <div className="text-xs text-[#0F172A]">
+      <div className="bg-card border border-border rounded-md p-2 flex items-center justify-between">
+        <div className="text-xs text-foreground">
           <b>Don Joaquín SA</b>{" "}
-          <span className="ml-2 text-[10px] uppercase tracking-wide bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] rounded-full px-2 py-0.5">
+          <span className="ml-2 text-[10px] uppercase tracking-wide bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
             Activo
           </span>
         </div>
@@ -695,11 +695,11 @@ function MockDeleteReactivate() {
           Dar de baja
         </div>
       </div>
-      <div className="text-center text-[11px] text-[#475569]">↓ luego</div>
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 flex items-center justify-between opacity-70">
-        <div className="text-xs text-[#0F172A]">
+      <div className="text-center text-[11px] text-muted-foreground">↓ luego</div>
+      <div className="bg-card border border-border rounded-md p-2 flex items-center justify-between opacity-70">
+        <div className="text-xs text-foreground">
           <b>Don Joaquín SA</b>{" "}
-          <span className="ml-2 text-[10px] uppercase tracking-wide bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] rounded-full px-2 py-0.5">
+          <span className="ml-2 text-[10px] uppercase tracking-wide bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
             Inactivo
           </span>
         </div>

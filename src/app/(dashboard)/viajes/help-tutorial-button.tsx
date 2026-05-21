@@ -62,25 +62,25 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-[#E2E8F0]">
+          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
             <div className="flex items-start gap-3">
-              <span className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-9 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-base font-semibold">
+                <Dialog.Title className="text-foreground text-base font-semibold">
                   Cómo gestionar viajes
                 </Dialog.Title>
-                <Dialog.Description className="text-[#475569] text-xs mt-0.5">
+                <Dialog.Description className="text-muted-foreground text-xs mt-0.5">
                   Paso a paso visual para registrar y seguir el núcleo operativo.
                 </Dialog.Description>
               </div>
@@ -89,7 +89,7 @@ export default function HelpTutorialButton() {
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -99,7 +99,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Tabs */}
-          <div className="px-5 pt-3 flex items-center gap-1 border-b border-[#E2E8F0]">
+          <div className="px-5 pt-3 flex items-center gap-1 border-b border-border">
             {TABS.map((t) => {
               const active = tab === t.id;
               return (
@@ -110,8 +110,8 @@ export default function HelpTutorialButton() {
                   className={
                     "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold transition-colors border-b-2 -mb-px " +
                     (active
-                      ? "border-[#0088D1] text-[#0088D1]"
-                      : "border-transparent text-[#475569] hover:text-[#0F172A]")
+                      ? "border-[#0088D1] text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground")
                   }
                 >
                   {t.icon}
@@ -141,7 +141,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white"
                           : isDone
                             ? "bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
-                            : "bg-[#F1F5F9] text-[#94A3B8]")
+                            : "bg-muted text-muted-foreground/70")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
@@ -161,35 +161,35 @@ export default function HelpTutorialButton() {
 
           {/* Step content */}
           <div className="px-5 py-4 overflow-y-auto">
-            <h3 className="text-[#0F172A] text-sm font-semibold mb-1">
+            <h3 className="text-foreground text-sm font-semibold mb-1">
               Paso {step + 1} de {totalSteps}: {current.title}
             </h3>
-            <p className="text-[#475569] text-sm mb-3 leading-relaxed">
+            <p className="text-muted-foreground text-sm mb-3 leading-relaxed">
               {current.description}
             </p>
-            <div className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <div className="rounded-[10px] border border-border bg-muted/40 p-4">
               {current.mockup}
             </div>
             {current.hint && (
-              <p className="text-[12px] text-[#475569] mt-3 leading-relaxed">
-                <span className="font-semibold text-[#0F172A]">Tip:</span>{" "}
+              <p className="text-[12px] text-muted-foreground mt-3 leading-relaxed">
+                <span className="font-semibold text-foreground">Tip:</span>{" "}
                 {current.hint}
               </p>
             )}
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -360,11 +360,11 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">{label}</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
         {value}
@@ -376,13 +376,13 @@ function MockField({
 function MockToolbar({ highlight }: { highlight: "new" }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Viajes — Núcleo operativo
       </div>
-      <div className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] inline-flex items-center justify-center">
+      <div className="size-9 rounded-md border border-border bg-card text-primary inline-flex items-center justify-center">
         <HelpCircle size={14} />
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center gap-1">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1">
         Exportar
       </div>
       <div
@@ -404,8 +404,8 @@ function MockFechaEstado() {
     <div className="grid grid-cols-2 gap-3 max-w-[420px] mx-auto">
       <MockField label="Fecha del viaje *" value="13/05/2026" required />
       <div>
-        <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Estado *</div>
-        <div className="h-7 px-2 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#0F172A] inline-flex items-center w-full">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Estado *</div>
+        <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-foreground inline-flex items-center w-full">
           Pendiente ▾
         </div>
       </div>
@@ -431,14 +431,14 @@ function MockRuta() {
       <MockField label="Tipo de carga *" value="Cemento a granel" required />
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Origen</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#94A3B8] inline-flex items-center gap-1 w-full">
-            <MapPin size={10} className="text-[#0088D1]" /> LOMASER
+          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Origen</div>
+          <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-muted-foreground/70 inline-flex items-center gap-1 w-full">
+            <MapPin size={10} className="text-primary" /> LOMASER
           </div>
         </div>
         <div>
-          <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Destino</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#94A3B8] inline-flex items-center gap-1 w-full">
+          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Destino</div>
+          <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-muted-foreground/70 inline-flex items-center gap-1 w-full">
             <MapPin size={10} className="text-[#EF4444]" /> LOMA NEGRA
           </div>
         </div>
@@ -465,8 +465,8 @@ function MockMetricas() {
 
 function MockViajeGuardado() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold uppercase tracking-widest text-[#475569] flex gap-4">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
         <span className="w-24">Fecha</span>
         <span className="flex-1">Origen → Destino</span>
         <span className="w-16 text-right">KM</span>
@@ -474,14 +474,14 @@ function MockViajeGuardado() {
         <span className="w-8"></span>
       </div>
       <div className="px-3 py-2.5 flex items-center gap-4 text-[11px] bg-[#F0FFF4]">
-        <span className="w-24 text-[#475569]">13/05/2026</span>
-        <span className="flex-1 text-[#0F172A] font-medium">LOMASER → LOMA NEGRA</span>
-        <span className="w-16 text-right font-mono text-[#0F172A]">405 km</span>
+        <span className="w-24 text-muted-foreground">13/05/2026</span>
+        <span className="flex-1 text-foreground font-medium">LOMASER → LOMA NEGRA</span>
+        <span className="w-16 text-right font-mono text-foreground">405 km</span>
         <span className="w-20 text-[#F59E0B] font-medium flex items-center gap-1">
           <span className="size-1.5 rounded-full bg-[#F59E0B] inline-block" />
           Pendiente
         </span>
-        <button className="size-6 rounded inline-flex items-center justify-center text-[#0088D1]">
+        <button className="size-6 rounded inline-flex items-center justify-center text-primary">
           <Eye size={12} />
         </button>
       </div>
@@ -492,14 +492,14 @@ function MockViajeGuardado() {
 function MockFiltroFechas() {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <div className="h-9 px-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0F172A] inline-flex items-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)] font-mono">
+      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-foreground inline-flex items-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)] font-mono">
         01/05/2026
       </div>
-      <span className="text-[#475569] text-xs">hasta</span>
-      <div className="h-9 px-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0F172A] inline-flex items-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)] font-mono">
+      <span className="text-muted-foreground text-xs">hasta</span>
+      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-foreground inline-flex items-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)] font-mono">
         13/05/2026
       </div>
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Buscar por código...
       </div>
     </div>
@@ -509,13 +509,13 @@ function MockFiltroFechas() {
 function MockFiltroCodigo() {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#94A3B8] inline-flex items-center w-28">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center w-28">
         Fecha desde
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#94A3B8] inline-flex items-center w-28">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center w-28">
         Fecha hasta
       </div>
-      <div className="h-9 px-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0F172A] inline-flex items-center font-mono shadow-[0_0_0_3px_rgba(0,136,209,0.15)] flex-1">
+      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-foreground inline-flex items-center font-mono shadow-[0_0_0_3px_rgba(0,136,209,0.15)] flex-1">
         V-2026-00042
       </div>
     </div>
@@ -526,16 +526,16 @@ function MockFiltroEstado() {
   const estados = ["Todos los estados", "Pendiente", "En curso", "Cerrado", "Cancelado"];
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Buscar por código...
       </div>
-      <div className="bg-white border border-[#0088D1]/60 rounded-md text-[11px] overflow-hidden shadow-[0_0_0_3px_rgba(0,136,209,0.1)]">
+      <div className="bg-card border border-[#0088D1]/60 rounded-md text-[11px] overflow-hidden shadow-[0_0_0_3px_rgba(0,136,209,0.1)]">
         {estados.map((e, i) => (
           <div
             key={e}
             className={
-              "px-3 py-1.5 border-b last:border-0 border-[#E2E8F0] " +
-              (i === 1 ? "bg-[#E1F5FE] text-[#0088D1] font-semibold" : "text-[#475569]")
+              "px-3 py-1.5 border-b last:border-0 border-border " +
+              (i === 1 ? "bg-[#E1F5FE] text-primary font-semibold" : "text-muted-foreground")
             }
           >
             {e}
@@ -549,16 +549,16 @@ function MockFiltroEstado() {
 function MockLimpiarFiltros() {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#94A3B8] inline-flex items-center font-mono">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center font-mono">
         01/05/2026
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#94A3B8] inline-flex items-center font-mono">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center font-mono">
         13/05/2026
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#94A3B8] inline-flex items-center font-mono">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center font-mono">
         V-2026-00042
       </div>
-      <div className="h-9 px-3 bg-white border-2 border-[#EF4444]/50 rounded-md text-xs text-[#EF4444] inline-flex items-center gap-1 font-semibold shadow-[0_0_0_3px_rgba(239,68,68,0.1)]">
+      <div className="h-9 px-3 bg-card border-2 border-[#EF4444]/50 rounded-md text-xs text-[#EF4444] inline-flex items-center gap-1 font-semibold shadow-[0_0_0_3px_rgba(239,68,68,0.1)]">
         <X size={12} /> Limpiar filtros
       </div>
     </div>
@@ -581,7 +581,7 @@ function MockCicloEstados() {
             {s.label}
           </span>
           {i < flow.length - 1 && (
-            <span className="text-[#94A3B8] text-sm">→</span>
+            <span className="text-muted-foreground/70 text-sm">→</span>
           )}
         </div>
       ))}
@@ -606,33 +606,33 @@ function MockEstadoBadge({ estado, desc }: { estado: string; desc: string }) {
       <span className={`px-4 py-2 rounded-full text-sm font-semibold border ${styles[estado]}`}>
         {label}
       </span>
-      <p className="text-[#475569] text-xs text-center">{desc}</p>
+      <p className="text-muted-foreground text-xs text-center">{desc}</p>
     </div>
   );
 }
 
 function MockFacturado() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold uppercase tracking-widest text-[#475569] flex gap-4">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
         <span className="flex-1">Código</span>
         <span className="w-20">Estado</span>
         <span className="w-20 text-center">Facturado</span>
       </div>
-      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-[#E2E8F0]">
-        <span className="flex-1 font-mono text-[#0F172A]">V-2026-00040</span>
+      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-border">
+        <span className="flex-1 font-mono text-foreground">V-2026-00040</span>
         <span className="w-20 text-[#10B981] font-medium">Cerrado</span>
         <span className="w-20 text-center text-[#10B981] font-semibold">Sí</span>
       </div>
-      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-[#E2E8F0] bg-[#FFF7F7]">
-        <span className="flex-1 font-mono text-[#0F172A]">V-2026-00041</span>
+      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-border bg-[#FFF7F7]">
+        <span className="flex-1 font-mono text-foreground">V-2026-00041</span>
         <span className="w-20 text-[#10B981] font-medium">Cerrado</span>
-        <span className="w-20 text-center text-[#94A3B8] font-semibold">No</span>
+        <span className="w-20 text-center text-muted-foreground/70 font-semibold">No</span>
       </div>
       <div className="px-3 py-2 flex items-center gap-4 text-[11px]">
-        <span className="flex-1 font-mono text-[#0F172A]">V-2026-00042</span>
+        <span className="flex-1 font-mono text-foreground">V-2026-00042</span>
         <span className="w-20 text-[#3B82F6] font-medium">En curso</span>
-        <span className="w-20 text-center text-[#94A3B8] font-semibold">No</span>
+        <span className="w-20 text-center text-muted-foreground/70 font-semibold">No</span>
       </div>
     </div>
   );
@@ -642,19 +642,19 @@ function MockRegistrarCobro() {
   return (
     <div className="space-y-2">
       {/* fila cerrada expandida */}
-      <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-        <div className="px-3 py-2 flex items-center gap-4 text-[11px] bg-[#F8FAFC] border-b border-[#E2E8F0]">
-          <span className="flex-1 font-mono text-[#0F172A]">V-2026-00041</span>
+      <div className="bg-card border border-border rounded-md overflow-hidden">
+        <div className="px-3 py-2 flex items-center gap-4 text-[11px] bg-muted/40 border-b border-border">
+          <span className="flex-1 font-mono text-foreground">V-2026-00041</span>
           <span className="text-[#10B981] font-semibold">● Cerrado</span>
-          <span className="text-[#94A3B8] font-semibold">No</span>
+          <span className="text-muted-foreground/70 font-semibold">No</span>
         </div>
-        <div className="px-4 py-3 bg-[#F8FAFC]/60 space-y-2">
-          <div className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">
+        <div className="px-4 py-3 bg-muted/40/60 space-y-2">
+          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
             Cambiar Estado Operativo:
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="h-7 px-2.5 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#475569] inline-flex items-center">Pendiente</span>
-            <span className="h-7 px-2.5 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#475569] inline-flex items-center">En Curso</span>
+            <span className="h-7 px-2.5 text-[11px] rounded border border-border bg-card text-muted-foreground inline-flex items-center">Pendiente</span>
+            <span className="h-7 px-2.5 text-[11px] rounded border border-border bg-card text-muted-foreground inline-flex items-center">En Curso</span>
             <span className="h-7 px-2.5 text-[11px] rounded border bg-[#0F172A] text-white inline-flex items-center">Cerrado</span>
           </div>
           {/* botón destacado */}
@@ -663,7 +663,7 @@ function MockRegistrarCobro() {
           </div>
         </div>
       </div>
-      <p className="text-[10px] text-[#64748B] text-center">
+      <p className="text-[10px] text-muted-foreground text-center">
         El botón aparece solo en viajes <strong>cerrados sin cobro</strong>
       </p>
     </div>

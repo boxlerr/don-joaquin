@@ -147,19 +147,19 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
   const docs = archivos.filter((a) => !isImage(a.mime_type));
 
   return (
-    <div className="bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-sm" onClick={(e) => e.stopPropagation()}>
+    <div className="bg-card p-4 rounded-xl border border-border shadow-sm" onClick={(e) => e.stopPropagation()}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2 mb-3">
-        <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5">
-          <Paperclip size={13} className="text-[#0088D1]" /> Archivos adjuntos
+      <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
+        <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Paperclip size={13} className="text-primary" /> Archivos adjuntos
           {!loading && (
-            <span className="ml-1 font-bold text-slate-400">({archivos.length})</span>
+            <span className="ml-1 font-bold text-muted-foreground/70">({archivos.length})</span>
           )}
         </h4>
         <Button
           variant="ghost"
           size="xs"
-          className="h-7 px-2 text-[11px] text-[#0088D1] hover:bg-blue-50 font-bold gap-1"
+          className="h-7 px-2 text-[11px] text-primary hover:bg-blue-50 font-bold gap-1"
           onClick={() => setDialogOpen(true)}
         >
           <Plus size={12} /> Adjuntar
@@ -167,22 +167,22 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/70 py-2">
           <Loader2 size={13} className="animate-spin" /> Cargando...
         </div>
       ) : archivos.length === 0 ? (
-        <p className="text-xs text-slate-400 font-medium py-1">Sin archivos adjuntos</p>
+        <p className="text-xs text-muted-foreground/70 font-medium py-1">Sin archivos adjuntos</p>
       ) : (
         <div className="space-y-4">
           {/* Grid de fotos */}
           {fotos.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
                 Fotos ({fotos.length})
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                 {fotos.map((foto, i) => (
-                  <div key={foto.id} className="group relative aspect-square rounded-lg overflow-hidden border border-[#E2E8F0] bg-slate-50">
+                  <div key={foto.id} className="group relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/40">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={foto.url}
@@ -194,7 +194,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
                       <button
                         onClick={() => setLightboxIdx(i)}
-                        className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors"
+                        className="p-1.5 rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
                         title="Ver"
                       >
                         <ZoomIn size={13} />
@@ -203,7 +203,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                         href={foto.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors"
+                        className="p-1.5 rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
                         title="Descargar"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -216,7 +216,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                       ) : (
                         <button
                           onClick={() => handleDelete(foto.id)}
-                          className="p-1.5 rounded-full bg-white/90 text-red-500 hover:bg-white transition-colors"
+                          className="p-1.5 rounded-full bg-card/90 text-red-500 hover:bg-card transition-colors"
                           title="Eliminar"
                         >
                           <Trash2 size={13} />
@@ -239,25 +239,25 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
           {/* Lista de documentos */}
           {docs.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
                 Documentos ({docs.length})
               </p>
               <ul className="space-y-1.5">
                 {docs.map((doc) => (
                   <li key={doc.id} className="flex items-center gap-2 text-xs">
-                    <FileText size={14} className="text-[#0088D1] shrink-0" />
+                    <FileText size={14} className="text-primary shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-[#0F172A] truncate">{doc.descripcion || doc.nombre_original}</p>
+                      <p className="font-semibold text-foreground truncate">{doc.descripcion || doc.nombre_original}</p>
                       {doc.descripcion && (
-                        <p className="text-[10px] text-slate-400 truncate">{doc.nombre_original}</p>
+                        <p className="text-[10px] text-muted-foreground/70 truncate">{doc.nombre_original}</p>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-400 shrink-0">{formatBytes(doc.tamano_bytes)}</span>
+                    <span className="text-[10px] text-muted-foreground/70 shrink-0">{formatBytes(doc.tamano_bytes)}</span>
                     <a
                       href={doc.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1 rounded text-slate-400 hover:text-[#0088D1] hover:bg-blue-50 transition-colors"
+                      className="p-1 rounded text-muted-foreground/70 hover:text-primary hover:bg-blue-50 transition-colors"
                       title="Descargar"
                     >
                       <Download size={12} />

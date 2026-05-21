@@ -54,8 +54,8 @@ export default function SucursalPrincipalCard({
 
   if (loading) {
     return (
-      <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-center gap-2 text-xs text-[#475569]">
-        <Loader2 size={12} className="animate-spin text-[#0088D1]" />
+      <div className="bg-card border border-border rounded-[8px] p-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 size={12} className="animate-spin text-primary" />
         Cargando sucursal...
       </div>
     );
@@ -63,9 +63,9 @@ export default function SucursalPrincipalCard({
 
   if (!principal) {
     return (
-      <div className="bg-white border border-dashed border-[#E2E8F0] rounded-[8px] p-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-xs text-[#475569]">
-          <Building size={14} className="text-[#94A3B8]" />
+      <div className="bg-card border border-dashed border-border rounded-[8px] p-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Building size={14} className="text-muted-foreground/70" />
           <span>No hay sucursal operativa cargada.</span>
         </div>
         <AddSucursalDialog
@@ -85,14 +85,14 @@ export default function SucursalPrincipalCard({
     .join(", ");
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 group">
+    <div className="bg-card border border-border rounded-[8px] p-3 group">
       <div className="flex items-start gap-3">
-        <span className="size-9 rounded-md bg-[#E1F5FE] text-[#0088D1] flex items-center justify-center shrink-0">
+        <span className="size-9 rounded-md bg-[#E1F5FE] text-primary flex items-center justify-center shrink-0">
           <Building size={16} />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+            <span className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
               Sucursal operativa
             </span>
             {principal.es_principal && totalSucursales > 1 && (
@@ -102,22 +102,22 @@ export default function SucursalPrincipalCard({
               </span>
             )}
             {totalSucursales > 1 && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0088D1]">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">
                 +{totalSucursales - 1} más · ver tab
               </span>
             )}
           </div>
-          <div className="text-[#0F172A] text-sm font-semibold mt-0.5">{principal.nombre}</div>
+          <div className="text-foreground text-sm font-semibold mt-0.5">{principal.nombre}</div>
           {direccion && (
-            <div className="flex items-start gap-1 mt-1 text-xs text-[#475569]">
-              <MapPin size={11} className="text-[#0088D1] mt-0.5 shrink-0" />
+            <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
+              <MapPin size={11} className="text-primary mt-0.5 shrink-0" />
               <span>{direccion}</span>
             </div>
           )}
           {principal.telefono && (
             <a
               href={`tel:${principal.telefono}`}
-              className="inline-flex items-center gap-1 mt-1 text-xs text-[#475569] hover:text-[#0088D1]"
+              className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-primary"
             >
               <Phone size={11} />
               {principal.telefono}

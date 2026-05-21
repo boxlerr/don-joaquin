@@ -198,16 +198,16 @@ export default function AddSiniestroDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[620px] p-6 gap-0">
         {/* Header */}
-        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#FEE2E2] text-[#EF4444] shrink-0 animate-pulse">
               <AlertTriangle size={22} />
             </div>
             <div>
-              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+              <DialogTitle className="text-foreground text-lg font-bold">
                 {editing ? "Editar siniestro" : "Registrar siniestro"}
               </DialogTitle>
-              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+              <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 {editing
                   ? "Actualizá los datos del siniestro registrado."
                   : "Ingresá los datos del siniestro para registrarlo en el sistema."}
@@ -345,7 +345,7 @@ export default function AddSiniestroDialog({
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -375,17 +375,17 @@ function InputFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input
           id={id} name={name} type={type} placeholder={placeholder} required={required}
           value={value} onChange={onChange}
-          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
         />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
@@ -402,17 +402,17 @@ function SelectFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <div className="relative flex-1 h-full">
           <select
             id={id} name={name} value={value} required={required}
-            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
             onChange={(e) => onValueChange(e.target.value)}
           >
             <option value="" disabled={required}>Seleccionar...</option>
@@ -420,7 +420,7 @@ function SelectFieldWithIcon({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
         </div>
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
@@ -437,16 +437,16 @@ function TextareaFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className={`relative flex items-start w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <Label htmlFor={id} className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className={`relative flex items-start w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-10 border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-10 border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <textarea
           id={id} name={name} placeholder={placeholder} required={required} value={value} onChange={onChange}
-          className="flex-1 min-h-[90px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-y"
+          className="flex-1 min-h-[90px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground resize-y"
         />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}

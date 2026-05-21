@@ -144,24 +144,24 @@ export default function CalculadoraTarifasAvanzada({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E2E8F0]">
-          <Calculator size={16} className="text-[#0088D1]" />
-          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+          <Calculator size={16} className="text-primary" />
+          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Calculadora avanzada
           </h2>
         </div>
 
         <div className="p-5 space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+            <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Cliente
             </Label>
             <select
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
               disabled={isPending}
-              className="h-11 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
+              className="h-11 w-full text-sm rounded-lg border border-border bg-card px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
             >
               <option value="">Sin cliente (usa parámetros globales)</option>
               {clientes.map((c) => (
@@ -173,14 +173,14 @@ export default function CalculadoraTarifasAvanzada({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+            <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Ruta
             </Label>
             <select
               value={rutaId}
               onChange={(e) => setRutaId(e.target.value)}
               disabled={isPending}
-              className="h-11 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
+              className="h-11 w-full text-sm rounded-lg border border-border bg-card px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
             >
               <option value="">Sin ruta predefinida</option>
               {rutas.map((r) => (
@@ -190,7 +190,7 @@ export default function CalculadoraTarifasAvanzada({
               ))}
             </select>
             {rutaSel && (
-              <p className="text-[10px] text-[#94A3B8]">
+              <p className="text-[10px] text-muted-foreground/70">
                 KM oficiales: {rutaSel.km_oficiales}
               </p>
             )}
@@ -199,14 +199,14 @@ export default function CalculadoraTarifasAvanzada({
           <div className="space-y-1.5">
             <Label
               htmlFor="peso-calc"
-              className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+              className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
             >
               Peso carga
             </Label>
             <div className="relative">
               <Weight
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70"
               />
               <Input
                 id="peso-calc"
@@ -220,7 +220,7 @@ export default function CalculadoraTarifasAvanzada({
                 disabled={isPending}
                 className="h-11 pl-9 pr-12 text-sm"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">
                 kg.
               </span>
             </div>
@@ -229,14 +229,14 @@ export default function CalculadoraTarifasAvanzada({
           <div className="space-y-1.5">
             <Label
               htmlFor="dist-calc"
-              className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+              className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
             >
               Distancia
             </Label>
             <div className="relative">
               <Route
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70"
               />
               <Input
                 id="dist-calc"
@@ -248,14 +248,14 @@ export default function CalculadoraTarifasAvanzada({
                 value={distancia}
                 onChange={(e) => setDistancia(e.target.value)}
                 disabled={isPending || !!rutaSel}
-                className="h-11 pl-9 pr-12 text-sm disabled:bg-[#F8FAFC]"
+                className="h-11 pl-9 pr-12 text-sm disabled:bg-muted/40"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/70">
                 km.
               </span>
             </div>
             {rutaSel && (
-              <p className="text-[10px] text-[#94A3B8]">
+              <p className="text-[10px] text-muted-foreground/70">
                 Se usan los KM oficiales de la ruta
               </p>
             )}
@@ -282,19 +282,19 @@ export default function CalculadoraTarifasAvanzada({
       </div>
 
       <div className="space-y-4 lg:sticky lg:top-4">
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E2E8F0]">
-            <DollarSign size={16} className="text-[#0088D1]" />
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+            <DollarSign size={16} className="text-primary" />
+            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Resultado
             </h2>
           </div>
           <div className="p-5">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] mb-3">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-border bg-muted/40 mb-3">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 Total
               </span>
-              <span className="text-2xl font-bold text-[#0F172A] font-mono">
+              <span className="text-2xl font-bold text-foreground font-mono">
                 {resultado === null
                   ? "—"
                   : `${resultado.tarifa?.moneda ?? "ARS"} ${fmtARS(resultado.total)}`}
@@ -304,7 +304,7 @@ export default function CalculadoraTarifasAvanzada({
             {resultado && (
               <>
                 <div className="space-y-2 text-xs">
-                  <p className="text-[#475569]">{resultado.desglose}</p>
+                  <p className="text-muted-foreground">{resultado.desglose}</p>
                 </div>
 
                 <div

@@ -78,8 +78,8 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Ingreso de Caja</DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogTitle className="text-foreground text-xl">Registrar Ingreso de Caja</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Ingresá los detalles del dinero entrante a la caja general.
           </DialogDescription>
         </DialogHeader>

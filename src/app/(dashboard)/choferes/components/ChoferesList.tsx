@@ -44,11 +44,11 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] px-5 py-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
+      <div className="bg-card rounded-[8px] border border-border px-5 py-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Users size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Choferes en Plantilla</h2>
-          <span className="text-xs text-[#64748B] ml-2">
+          <Users size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Listado de Choferes en Plantilla</h2>
+          <span className="text-xs text-muted-foreground ml-2">
             {hayResultados
               ? `${filtered.length} de ${choferes.length}`
               : `0 de ${choferes.length}`}
@@ -58,7 +58,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
           <select
             value={estadoFilter}
             onChange={(e) => setEstadoFilter(e.target.value as EstadoFilter)}
-            className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           >
             <option value="todos">Todos los estados</option>
             <option value="activo">Activo</option>
@@ -78,7 +78,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
                 setEstadoFilter("todos");
                 setQuery("");
               }}
-              className="inline-flex items-center gap-1 h-9 px-2.5 text-xs text-[#475569] hover:bg-[#F1F5F9] rounded-md border border-[#E2E8F0]"
+              className="inline-flex items-center gap-1 h-9 px-2.5 text-xs text-muted-foreground hover:bg-muted rounded-md border border-border"
               title="Limpiar filtros"
             >
               <X size={12} /> Limpiar
@@ -88,7 +88,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
       </div>
 
       {!hayResultados ? (
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0]">
+        <div className="bg-card rounded-[8px] border border-border">
           <EmptyState
             icon={Users}
             message={

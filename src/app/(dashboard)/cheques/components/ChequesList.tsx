@@ -71,12 +71,12 @@ const ESTADO_LABEL: Record<ChequeEstado, string> = {
 };
 
 const ESTADO_BADGE: Record<ChequeEstado, string> = {
-  cartera: "bg-[#E1F5FE] text-[#0088D1]",
-  entregado: "bg-[#F1F5F9] text-[#475569]",
+  cartera: "bg-[#E1F5FE] text-primary",
+  entregado: "bg-muted text-muted-foreground",
   depositado: "bg-[#FEF3C7] text-[#B45309]",
   acreditado: "bg-[#DCFCE7] text-[#16A34A]",
   rechazado: "bg-[#FEE2E2] text-[#DC2626]",
-  anulado: "bg-[#F1F5F9] text-[#94A3B8]",
+  anulado: "bg-muted text-muted-foreground/70",
 };
 
 const ACCIONES_POR_ESTADO: Record<ChequeEstado, Array<{ key: Transicion; label: string; destructive?: boolean }>> = {
@@ -152,8 +152,8 @@ export default function ChequesList({
 
   return (
     <>
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-        <div className="flex items-center gap-1 px-5 pt-4 border-b border-[#E2E8F0] overflow-x-auto">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm">
+        <div className="flex items-center gap-1 px-5 pt-4 border-b border-border overflow-x-auto">
           {TABS.map((tab, i) => {
             const active = i === tabIndex;
             return (
@@ -163,8 +163,8 @@ export default function ChequesList({
                 onClick={() => setTabIndex(i)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
                   active
-                    ? "border-[#0088D1] text-[#0088D1]"
-                    : "border-transparent text-[#475569] hover:text-[#0F172A]"
+                    ? "border-[#0088D1] text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {tab.label}
@@ -173,16 +173,16 @@ export default function ChequesList({
           })}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40">
           <div className="flex items-center gap-2">
-            <FileText size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Cheques</h2>
+            <FileText size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">Listado de Cheques</h2>
           </div>
           <div className="flex items-center gap-2">
             <select
               value={bancoId}
               onChange={(e) => setBancoId(e.target.value)}
-              className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]"
+              className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground"
             >
               <option value="">Todos los bancos ({bancos.length})</option>
               {bancos.map((b) => (
@@ -202,7 +202,7 @@ export default function ChequesList({
         </div>
 
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {[
                 "Número",
@@ -217,7 +217,7 @@ export default function ChequesList({
               ].map((col, i) => (
                 <TableHead
                   key={col || `col-${i}`}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
                   {col}
                 </TableHead>
@@ -238,25 +238,25 @@ export default function ChequesList({
                 const acciones = ACCIONES_POR_ESTADO[c.estado];
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono text-sm text-[#0F172A]">
+                    <TableCell className="font-mono text-sm text-foreground">
                       {c.numero}
                     </TableCell>
-                    <TableCell className="text-sm text-[#475569]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {c.banco?.nombre ?? "—"}
                     </TableCell>
-                    <TableCell className="text-sm text-[#0F172A]">
+                    <TableCell className="text-sm text-foreground">
                       {c.librador_nombre}
                     </TableCell>
-                    <TableCell className="text-sm font-medium text-[#0F172A]">
+                    <TableCell className="text-sm font-medium text-foreground">
                       ${formatARS(Number(c.importe))}
                     </TableCell>
-                    <TableCell className="text-sm text-[#475569]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {formatFecha(c.fecha_emision)}
                     </TableCell>
-                    <TableCell className="text-sm text-[#475569]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {formatFecha(c.fecha_vencimiento)}
                     </TableCell>
-                    <TableCell className="text-sm text-[#475569]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {c.cliente?.razon_social ?? c.concepto ?? "—"}
                     </TableCell>
                     <TableCell>
@@ -299,7 +299,7 @@ export default function ChequesList({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <span className="text-xs text-[#94A3B8]">—</span>
+                        <span className="text-xs text-muted-foreground/70">—</span>
                       )}
                     </TableCell>
                   </TableRow>

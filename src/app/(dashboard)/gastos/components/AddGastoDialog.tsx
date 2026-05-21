@@ -172,16 +172,16 @@ export default function AddGastoDialog({
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[760px] p-6 gap-0">
         {/* Header */}
-        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Receipt size={22} />
             </div>
             <div>
-              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+              <DialogTitle className="text-foreground text-lg font-bold">
                 Registrar Gasto
               </DialogTitle>
-              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+              <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 Asocialo a un viaje, camión o chofer para mantener trazabilidad en la logística.
               </DialogDescription>
             </div>
@@ -208,16 +208,16 @@ export default function AddGastoDialog({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Tipo Gasto */}
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#475569]">Tipo de gasto *</Label>
-              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+              <Label className="text-xs font-semibold text-muted-foreground">Tipo de gasto *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                   <Tag size={15} />
                 </div>
                 <div className="relative flex-1 h-full">
                   <select
                     value={tipoGastoId}
                     onChange={(e) => setTipoGastoId(e.target.value)}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium"
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
                     required
                   >
                     <option value="" disabled>
@@ -235,7 +235,7 @@ export default function AddGastoDialog({
                   </select>
                   <ChevronDown
                     size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
                   />
                 </div>
               </div>
@@ -271,16 +271,16 @@ export default function AddGastoDialog({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Medio de pago */}
             <div className="space-y-1">
-              <Label className="text-xs font-semibold text-[#475569]">Medio de pago *</Label>
-              <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+              <Label className="text-xs font-semibold text-muted-foreground">Medio de pago *</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                   <CreditCard size={15} />
                 </div>
                 <div className="relative flex-1 h-full">
                   <select
                     value={medioPago}
                     onChange={(e) => setMedioPago(e.target.value as GastoMedioPago)}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium"
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
                     required
                   >
                     {MEDIO_PAGO_OPTIONS.map((o) => (
@@ -291,7 +291,7 @@ export default function AddGastoDialog({
                   </select>
                   <ChevronDown
                     size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
                   />
                 </div>
               </div>
@@ -330,15 +330,15 @@ export default function AddGastoDialog({
 
           {/* Fila 4: Asignación */}
           <div className="border-t border-slate-100 pt-4 space-y-2 mt-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Asignación / Trazabilidad
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Viaje */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#475569]">Viaje</Label>
-                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground">Viaje</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                     <Navigation size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -346,7 +346,7 @@ export default function AddGastoDialog({
                       value={viajeId || "__none__"}
                       onChange={(e) => setViajeId(e.target.value === "__none__" ? "" : e.target.value)}
                       disabled={viajeLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
                     >
                       <option value="__none__">Sin asignar</option>
                       {viajes.map((v) => (
@@ -357,7 +357,7 @@ export default function AddGastoDialog({
                     </select>
                     <ChevronDown
                       size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
                     />
                   </div>
                 </div>
@@ -365,9 +365,9 @@ export default function AddGastoDialog({
 
               {/* Camión */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#475569]">Camión</Label>
-                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground">Camión</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                     <Truck size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -375,7 +375,7 @@ export default function AddGastoDialog({
                       value={camionId || "__none__"}
                       onChange={(e) => setCamionId(e.target.value === "__none__" ? "" : e.target.value)}
                       disabled={camionLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
                     >
                       <option value="__none__">Sin asignar</option>
                       {camiones.map((c) => (
@@ -386,7 +386,7 @@ export default function AddGastoDialog({
                     </select>
                     <ChevronDown
                       size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
                     />
                   </div>
                 </div>
@@ -394,9 +394,9 @@ export default function AddGastoDialog({
 
               {/* Chofer */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-[#475569]">Chofer</Label>
-                <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+                <Label className="text-xs font-semibold text-muted-foreground">Chofer</Label>
+                <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all disabled:opacity-50">
+                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
                     <User size={15} />
                   </div>
                   <div className="relative flex-1 h-full">
@@ -404,7 +404,7 @@ export default function AddGastoDialog({
                       value={choferId || "__none__"}
                       onChange={(e) => setChoferId(e.target.value === "__none__" ? "" : e.target.value)}
                       disabled={choferLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
                     >
                       <option value="__none__">Sin asignar</option>
                       {choferes.map((c) => (
@@ -415,7 +415,7 @@ export default function AddGastoDialog({
                     </select>
                     <ChevronDown
                       size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
                     />
                   </div>
                 </div>
@@ -429,7 +429,7 @@ export default function AddGastoDialog({
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -484,9 +484,9 @@ function InputFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input
@@ -499,7 +499,7 @@ function InputFieldWithIcon({
           disabled={disabled}
           step={step}
           min={min}
-          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] ${className}`}
+          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground ${className}`}
         />
       </div>
     </div>

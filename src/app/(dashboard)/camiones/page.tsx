@@ -69,20 +69,20 @@ export default async function CamionesPage() {
           <div className="flex items-center gap-2.5">
             <HelpTutorialButton />
             <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
-            <div className="flex items-center gap-1.5 bg-[#F1F5F9] p-1 rounded-lg">
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
               <ImportCamionesButton />
               <ExportCamionesButton />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
             <AddGasoilDialog camiones={camiones || []}>
-              <Button variant="outline" size="default" className="bg-white border-[#E2E8F0] text-[#475569] hover:text-[#0088D1] hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Fuel size={14} className="text-[#0088D1]" />
+              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                <Fuel size={14} className="text-primary" />
                 Cargar gasoil
               </Button>
             </AddGasoilDialog>
             <AddServiceDialog camiones={camiones || []}>
-              <Button variant="outline" size="default" className="bg-white border-[#E2E8F0] text-[#475569] hover:text-[#0088D1] hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Wrench size={14} className="text-[#0088D1]" />
+              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                <Wrench size={14} className="text-primary" />
                 Registrar service
               </Button>
             </AddServiceDialog>
@@ -92,8 +92,8 @@ export default async function CamionesPage() {
               camiones={gastoFormData.camiones}
               choferes={gastoFormData.choferes}
             >
-              <Button variant="outline" size="default" className="bg-white border-[#E2E8F0] text-[#475569] hover:text-[#0088D1] hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Receipt size={14} className="text-[#0088D1]" />
+              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                <Receipt size={14} className="text-primary" />
                 Registrar gasto
               </Button>
             </AddGastoDialog>
@@ -138,40 +138,40 @@ export default async function CamionesPage() {
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 gap-4 bg-white">
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 gap-4 bg-card">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#E1F5FE] rounded-lg text-[#0088D1]">
+            <div className="p-2 bg-[#E1F5FE] rounded-lg text-primary">
               <Truck size={20} />
             </div>
             <div>
-              <h2 className="text-[#0F172A] text-lg font-bold">Listado de Unidades</h2>
-              <p className="text-[#64748B] text-xs font-medium">Gestioná el estado y documentación de tu flota</p>
+              <h2 className="text-foreground text-lg font-bold">Listado de Unidades</h2>
+              <p className="text-muted-foreground text-xs font-medium">Gestioná el estado y documentación de tu flota</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative group">
-              <select className="h-10 pl-4 pr-10 text-sm border border-[#E2E8F0] rounded-lg bg-white text-[#475569] appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[180px]">
+              <select className="h-10 pl-4 pr-10 text-sm border border-border rounded-lg bg-card text-muted-foreground appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[180px]">
                 <option>Todas las capacidades</option>
                 <option>TN ESC 35</option>
                 <option>TN ESC 37.5</option>
               </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#94A3B8]">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/70">
                 <ChevronRight size={14} className="rotate-90" />
               </div>
             </div>
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
               <Input 
                 type="search" 
                 placeholder="Buscar patente..." 
-                className="w-64 h-10 pl-9 text-sm rounded-lg border-[#E2E8F0] focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all" 
+                className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all" 
               />
             </div>
           </div>
         </div>
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {[
                 "Patente",
@@ -183,7 +183,7 @@ export default async function CamionesPage() {
               ].map((col) => (
                 <TableHead
                   key={col}
-                  className={`text-[11px] font-bold text-[#64748B] uppercase tracking-wider py-4 ${col === "Patente" ? "pl-6" : ""}`}
+                  className={`text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 ${col === "Patente" ? "pl-6" : ""}`}
                 >
                   {col}
                 </TableHead>

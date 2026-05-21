@@ -67,14 +67,14 @@ export default function BulkEditForm({
   const generalError = getFieldError("_general");
 
   return (
-    <div className="border border-[#E2E8F0] rounded-[8px] bg-white shadow-sm">
+    <div className="border border-border rounded-[8px] bg-card shadow-sm">
       {generalError && (
         <div className="px-5 py-3 bg-[#FEF2F2] border-b border-[#FECACA] text-sm text-[#7F1D1D] rounded-t-[8px]">
           {generalError}
         </div>
       )}
 
-      <div className="divide-y divide-[#E2E8F0]">
+      <div className="divide-y divide-border">
         {editables.map((p) => {
           const validacion = getValidacion(p.clave, p.tipo_dato);
           const fieldError = getFieldError(p.clave);
@@ -89,14 +89,14 @@ export default function BulkEditForm({
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-[#0F172A] text-sm font-medium">
+                  <p className="text-foreground text-sm font-medium">
                     {p.descripcion ?? p.clave}
                   </p>
                   {changed && (
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#0088D1]" />
                   )}
                 </div>
-                <p className="text-[#94A3B8] text-xs mt-0.5 font-mono">{p.clave}</p>
+                <p className="text-muted-foreground/70 text-xs mt-0.5 font-mono">{p.clave}</p>
                 {fieldError && (
                   <p className="text-[#EF4444] text-xs mt-1">{fieldError}</p>
                 )}
@@ -118,7 +118,7 @@ export default function BulkEditForm({
                       setValues((prev) => ({ ...prev, [p.id]: e.target.value }))
                     }
                     disabled={isPending}
-                    className="h-8 w-52 text-sm rounded-lg border border-[#E2E8F0] bg-white px-2.5 outline-none focus-visible:border-[#0088D1]"
+                    className="h-8 w-52 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1]"
                   >
                     {validacion.opciones.map((opt) => (
                       <option key={opt} value={opt}>
@@ -153,7 +153,7 @@ export default function BulkEditForm({
                   />
                 )}
                 {validacion.pista && (
-                  <span className="text-[10px] text-[#94A3B8]">{validacion.pista}</span>
+                  <span className="text-[10px] text-muted-foreground/70">{validacion.pista}</span>
                 )}
               </div>
             </div>
@@ -163,16 +163,16 @@ export default function BulkEditForm({
         {readOnly.map((p) => (
           <div key={p.id} className="flex items-start gap-4 px-5 py-3.5 opacity-60">
             <div className="flex-1 min-w-0">
-              <p className="text-[#0F172A] text-sm font-medium">
+              <p className="text-foreground text-sm font-medium">
                 {p.descripcion ?? p.clave}
               </p>
-              <p className="text-[#94A3B8] text-xs mt-0.5 font-mono">{p.clave}</p>
+              <p className="text-muted-foreground/70 text-xs mt-0.5 font-mono">{p.clave}</p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-[#0F172A] text-sm font-semibold">
+              <p className="text-foreground text-sm font-semibold">
                 {formatValor(p.valor, p.tipo_dato)}
               </p>
-              <span className="text-[10px] text-[#94A3B8] uppercase tracking-wide">
+              <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
                 Solo lectura
               </span>
             </div>
@@ -180,8 +180,8 @@ export default function BulkEditForm({
         ))}
       </div>
 
-      <div className="flex items-center justify-between px-5 py-3.5 border-t border-[#E2E8F0] bg-[#F8FAFC] rounded-b-[8px]">
-        <span className="text-sm text-[#475569]">
+      <div className="flex items-center justify-between px-5 py-3.5 border-t border-border bg-muted/40 rounded-b-[8px]">
+        <span className="text-sm text-muted-foreground">
           {cambiosCount === 0
             ? "Sin cambios"
             : cambiosCount === 1
@@ -239,12 +239,12 @@ function BooleanToggleBulk({
         }`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
             value ? "translate-x-4" : "translate-x-0.5"
           }`}
         />
       </button>
-      <span className="text-[#0F172A] text-sm font-semibold w-20">
+      <span className="text-foreground text-sm font-semibold w-20">
         {value ? "Activado" : "Desactivado"}
       </span>
     </div>

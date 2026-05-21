@@ -29,12 +29,12 @@ export default function TiposMonitoreados({
   const totalVencidos = Object.values(conteos).reduce((a, c) => a + c.vencidos, 0);
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-      <div className="px-5 py-4 border-b border-[#E2E8F0]">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      <div className="px-5 py-4 border-b border-border">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <ShieldAlert size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">
+            <ShieldAlert size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">
               Tipos de documento monitoreados
             </h2>
           </div>
@@ -49,17 +49,17 @@ export default function TiposMonitoreados({
                 {totalProximos} próximo{totalProximos !== 1 ? "s" : ""} a vencer
               </span>
             )}
-            <span className="text-[#94A3B8]">{tipos.length} tipos activos</span>
+            <span className="text-muted-foreground/70">{tipos.length} tipos activos</span>
           </div>
         </div>
-        <div className="mt-2.5 flex items-start gap-2 text-xs text-[#64748B] leading-relaxed">
-          <Info size={13} className="mt-0.5 shrink-0 text-[#94A3B8]" />
+        <div className="mt-2.5 flex items-start gap-2 text-xs text-muted-foreground leading-relaxed">
+          <Info size={13} className="mt-0.5 shrink-0 text-muted-foreground/70" />
           <span>
             Estos son los documentos que el sistema vigila. Cuando uno se acerca
             a su fecha de vencimiento (según los días configurados de cada tipo),
             se genera automáticamente una alerta en esta página. Para editar los
             tipos, agregar otros nuevos o cambiar la anticipación, andá a{" "}
-            <span className="font-medium text-[#475569]">Configuración</span>.
+            <span className="font-medium text-muted-foreground">Configuración</span>.
           </span>
         </div>
       </div>
@@ -102,7 +102,7 @@ function TipoColumna({
 }) {
   const accentColors =
     accent === "info"
-      ? { bg: "bg-[#E1F5FE]", text: "text-[#0088D1]" }
+      ? { bg: "bg-[#E1F5FE]", text: "text-primary" }
       : { bg: "bg-[#FEF3C7]", text: "text-[#B45309]" };
 
   const sorted = [...tipos].sort((a, b) => {
@@ -116,19 +116,19 @@ function TipoColumna({
   });
 
   return (
-    <div className={borderLeft ? "md:border-l border-[#E2E8F0]" : ""}>
+    <div className={borderLeft ? "md:border-l border-border" : ""}>
       <div className="flex items-center gap-2 px-5 py-3 border-b border-[#F1F5F9] bg-[#FAFBFC]">
         <div
           className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentColors.bg}`}
         >
           <Icon size={14} className={accentColors.text} />
         </div>
-        <p className="text-sm font-semibold text-[#0F172A]">{titulo}</p>
-        <span className="text-xs text-[#94A3B8]">· {tipos.length}</span>
+        <p className="text-sm font-semibold text-foreground">{titulo}</p>
+        <span className="text-xs text-muted-foreground/70">· {tipos.length}</span>
       </div>
 
       {sorted.length === 0 ? (
-        <div className="px-5 py-8 text-center text-xs text-[#94A3B8]">
+        <div className="px-5 py-8 text-center text-xs text-muted-foreground/70">
           Sin tipos configurados
         </div>
       ) : (
@@ -147,11 +147,11 @@ function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
   const tieneAlertas = conteo.vencidos > 0 || conteo.proximos > 0;
 
   return (
-    <div className="px-5 py-3 hover:bg-[#F8FAFC] transition-colors">
+    <div className="px-5 py-3 hover:bg-muted/40 transition-colors">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-[#0F172A] truncate">
+            <p className="text-sm font-medium text-foreground truncate">
               {tipo.nombre}
             </p>
             {tipo.obligatorio && (
@@ -160,7 +160,7 @@ function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
               </span>
             )}
           </div>
-          <p className="text-xs text-[#64748B] mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             Avisa con <span className="font-semibold">{tipo.dias_alerta_vencimiento} días</span> de
             anticipación
             <span className="text-[#CBD5E1] mx-1.5">·</span>

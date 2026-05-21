@@ -159,10 +159,10 @@ export default function AddGasoilDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">
+          <DialogTitle className="text-foreground text-xl">
             {editing ? "Editar carga" : "Cargar Gasoil"}
           </DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogDescription className="text-muted-foreground">
             {editing ? "Actualizá los datos de la carga." : "Registrá una nueva carga de combustible."}
           </DialogDescription>
         </DialogHeader>
@@ -277,7 +277,7 @@ export default function AddGasoilDialog({
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+              className="text-muted-foreground border-border hover:bg-muted/40"
               disabled={loading}
             >
               Cancelar

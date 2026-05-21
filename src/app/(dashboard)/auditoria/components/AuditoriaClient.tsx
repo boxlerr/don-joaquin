@@ -183,7 +183,7 @@ export default function AuditoriaClient({
   return (
     <>
       {/* Entity tabs (multi-select) */}
-      <div className="bg-white rounded-lg border border-[#E2E8F0] px-2 py-1 mb-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="bg-card rounded-lg border border-border px-2 py-1 mb-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {ENTIDAD_TABS.map((t) => {
           const Icon = t.icon;
           const isAll = t.value === "";
@@ -198,8 +198,8 @@ export default function AuditoriaClient({
               className={
                 "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold rounded-md transition-colors whitespace-nowrap " +
                 (active
-                  ? "bg-[#E1F5FE] text-[#0088D1]"
-                  : "text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9]")
+                  ? "bg-[#E1F5FE] text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted")
               }
               title={
                 isAll
@@ -217,39 +217,39 @@ export default function AuditoriaClient({
       </div>
 
       {/* Filter bar */}
-      <div className="bg-white rounded-lg border border-[#E2E8F0] px-5 py-4 mb-4 flex flex-wrap items-end gap-4">
+      <div className="bg-card rounded-lg border border-border px-5 py-4 mb-4 flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+          <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Desde
           </label>
           <input
             type="date"
             value={filters.desde}
             onChange={(e) => handleFilterChange("desde", e.target.value)}
-            className="border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+          <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Hasta
           </label>
           <input
             type="date"
             value={filters.hasta}
             onChange={(e) => handleFilterChange("hasta", e.target.value)}
-            className="border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+          <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Usuario
           </label>
           <select
             value={filters.usuario_id}
             onChange={(e) => handleFilterChange("usuario_id", e.target.value)}
-            className="border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
           >
             <option value="">Todos los usuarios</option>
             {usuarios.map((u) => (
@@ -263,7 +263,7 @@ export default function AuditoriaClient({
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[#475569] hover:bg-[#F1F5F9] border border-[#E2E8F0] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted border border-border transition-colors"
           >
             <X size={13} />
             Limpiar
@@ -272,72 +272,72 @@ export default function AuditoriaClient({
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-[#E2E8F0] overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
-          <p className="text-sm text-[#475569]">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <p className="text-sm text-muted-foreground">
             {total === 0
               ? "Sin registros"
               : `Mostrando ${rangeFrom}–${rangeTo} de ${total} registros`}
           </p>
           {isPending && (
-            <span className="text-xs text-[#94A3B8]">Actualizando...</span>
+            <span className="text-xs text-muted-foreground/70">Actualizando...</span>
           )}
         </div>
 
         {entries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[#94A3B8]">
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/70">
             <ShieldAlert size={32} className="mb-3 opacity-40" />
             <p className="text-sm">Sin registros de auditoría</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+              <tr className="bg-muted/40 border-b border-border">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Fecha
                 </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Usuario
                 </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Acción
                 </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Entidad
                 </th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-border">
               {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-[#F8FAFC] transition-colors">
-                  <td className="px-5 py-3 text-[#475569] whitespace-nowrap">
+                <tr key={entry.id} className="hover:bg-muted/40 transition-colors">
+                  <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
                     {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
                   </td>
                   <td className="px-5 py-3 text-[#1E293B]">
                     {entry.usuario ? (
                       `${entry.usuario.apellido}, ${entry.usuario.nombre}`
                     ) : (
-                      <span className="text-[#94A3B8]">—</span>
+                      <span className="text-muted-foreground/70">—</span>
                     )}
                   </td>
                   <td className="px-5 py-3">
                     <span
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                        ACCIONES_COLORS[entry.accion] ?? "bg-[#F1F5F9] text-[#475569]"
+                        ACCIONES_COLORS[entry.accion] ?? "bg-muted text-muted-foreground"
                       }`}
                     >
                       {ACCIONES_LABELS[entry.accion] ?? entry.accion}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-[#475569]">
+                  <td className="px-5 py-3 text-muted-foreground">
                     {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {(entry.valores_anteriores || entry.valores_nuevos) && (
                       <button
                         onClick={() => setSelectedEntry(entry)}
-                        className="text-[#0088D1] hover:text-[#0277BD] text-xs font-semibold hover:underline transition-colors"
+                        className="text-primary hover:text-[#0277BD] text-xs font-semibold hover:underline transition-colors"
                       >
                         Ver detalles
                       </button>
@@ -350,22 +350,22 @@ export default function AuditoriaClient({
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-t border-border">
             <button
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-xs text-[#94A3B8]">
+            <span className="text-xs text-muted-foreground/70">
               Página {page + 1} de {totalPages}
             </span>
             <button
               onClick={() => handlePageChange(page + 1)}
               disabled={page >= totalPages - 1}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Siguiente
               <ChevronRight size={14} />
@@ -398,25 +398,25 @@ function AuditDetailDrawer({
       onClick={onClose}
     >
       <div
-        className="fixed right-0 top-0 h-full w-[min(500px,calc(100vw-2rem))] bg-white shadow-2xl border-l border-[#E2E8F0] flex flex-col animate-in slide-in-from-right"
+        className="fixed right-0 top-0 h-full w-[min(500px,calc(100vw-2rem))] bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center">
+            <div className="size-9 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
               <Clock size={18} />
             </div>
             <div>
-              <h2 className="text-[#0F172A] font-semibold">Detalle del registro</h2>
-              <p className="text-[#475569] text-xs">
+              <h2 className="text-foreground font-semibold">Detalle del registro</h2>
+              <p className="text-muted-foreground text-xs">
                 {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="size-8 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+            className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
             aria-label="Cerrar"
           >
             <X size={16} />
@@ -424,23 +424,23 @@ function AuditDetailDrawer({
         </div>
 
         {/* Meta */}
-        <div className="px-5 py-4 border-b border-[#E2E8F0] space-y-2">
+        <div className="px-5 py-4 border-b border-border space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                ACCIONES_COLORS[entry.accion] ?? "bg-[#F1F5F9] text-[#475569]"
+                ACCIONES_COLORS[entry.accion] ?? "bg-muted text-muted-foreground"
               }`}
             >
               {ACCIONES_LABELS[entry.accion] ?? entry.accion}
             </span>
-            <span className="text-[#94A3B8] text-xs">·</span>
-            <span className="text-[12px] text-[#475569]">
+            <span className="text-muted-foreground/70 text-xs">·</span>
+            <span className="text-[12px] text-muted-foreground">
               {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
             </span>
           </div>
           {entry.usuario && (
-            <p className="text-[12px] text-[#475569] flex items-center gap-1">
-              <User size={11} className="text-[#0088D1]" />
+            <p className="text-[12px] text-muted-foreground flex items-center gap-1">
+              <User size={11} className="text-primary" />
               {entry.usuario.apellido}, {entry.usuario.nombre}
             </p>
           )}
@@ -731,7 +731,7 @@ function computeDiff(
 
 function FotoPreview({ url, deleted }: { url: string; deleted?: boolean }) {
   return (
-    <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] overflow-hidden">
+    <div className="rounded-lg border border-border bg-muted/40 overflow-hidden">
       <div className="relative aspect-[4/3] bg-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -762,7 +762,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
 
   if (diff.length === 0 && !fotoUrl) {
     return (
-      <p className="text-sm text-[#94A3B8] text-center py-8">
+      <p className="text-sm text-muted-foreground/70 text-center py-8">
         Sin cambios para mostrar.
       </p>
     );
@@ -773,7 +773,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
     return (
       <div className="space-y-3">
         {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
-        <p className="text-[12px] text-[#475569]">
+        <p className="text-[12px] text-muted-foreground">
           {esFotoEntry ? "Datos de la foto:" : "Se registraron estos datos:"}
         </p>
         <div className="rounded-lg border border-[#A7F3D0] bg-[#ECFDF5] divide-y divide-[#A7F3D0]/60">
@@ -797,7 +797,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
     return (
       <div className="space-y-3">
         {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} deleted />}
-        <p className="text-[12px] text-[#475569]">
+        <p className="text-[12px] text-muted-foreground">
           {esFotoEntry ? "Datos de la foto eliminada:" : "Se eliminó un registro con estos datos:"}
         </p>
         <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] divide-y divide-[#FECACA]/60">
@@ -820,7 +820,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
   return (
     <div className="space-y-3">
       {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
-      <p className="text-[12px] text-[#475569]">
+      <p className="text-[12px] text-muted-foreground">
         {diff.length === 1
           ? "Se modificó 1 campo:"
           : `Se modificaron ${diff.length} campos:`}
@@ -829,16 +829,16 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
         {diff.map((row) => (
           <div
             key={row.key}
-            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2"
+            className="rounded-lg border border-border bg-card px-3 py-2"
           >
-            <p className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide mb-1.5">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
               {fieldLabel(entidad, row.key)}
             </p>
             <div className="flex items-center gap-2 text-[13px] flex-wrap">
               <span className="px-2 py-0.5 rounded bg-[#FEE2E2] text-[#7F1D1D] line-through break-words">
                 {formatValue(row.antes)}
               </span>
-              <span className="text-[#94A3B8] text-xs">→</span>
+              <span className="text-muted-foreground/70 text-xs">→</span>
               <span className="px-2 py-0.5 rounded bg-[#DCFCE7] text-[#14532D] font-semibold break-words">
                 {formatValue(row.despues)}
               </span>

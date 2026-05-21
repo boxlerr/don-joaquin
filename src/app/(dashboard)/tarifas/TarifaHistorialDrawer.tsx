@@ -118,7 +118,7 @@ export default function TarifaHistorialDrawer({
       )}
 
       <div
-        className={`fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-white shadow-2xl z-50 transform transition-transform duration-200 flex flex-col ${
+        className={`fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-card shadow-2xl z-50 transform transition-transform duration-200 flex flex-col ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -132,7 +132,7 @@ export default function TarifaHistorialDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+            className="p-1.5 hover:bg-card/20 rounded-lg transition-colors shrink-0"
             aria-label="Cerrar"
           >
             <X size={18} />
@@ -145,7 +145,7 @@ export default function TarifaHistorialDrawer({
               <div className="animate-spin rounded-full h-7 w-7 border-2 border-[#0088D1] border-t-transparent" />
             </div>
           ) : eventos.length === 0 ? (
-            <div className="text-center py-16 text-[#475569]">
+            <div className="text-center py-16 text-muted-foreground">
               <History size={32} className="mx-auto text-[#CBD5E1] mb-3" />
               <p className="text-sm">Sin cambios registrados</p>
             </div>
@@ -153,27 +153,27 @@ export default function TarifaHistorialDrawer({
             eventos.map((ev) => {
               const meta = ACCION_LABEL[ev.accion] ?? {
                 label: ev.accion,
-                bg: "bg-[#F1F5F9]",
-                text: "text-[#475569]",
+                bg: "bg-muted",
+                text: "text-muted-foreground",
               };
               const diffs = diffCampos(ev.valores_anteriores, ev.valores_nuevos);
 
               return (
                 <div
                   key={ev.id}
-                  className="border border-[#E2E8F0] rounded-lg p-3.5 hover:border-[#CBD5E1]"
+                  className="border border-border rounded-lg p-3.5 hover:border-[#CBD5E1]"
                 >
                   <div className="flex items-start justify-between gap-3 mb-2.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-7 h-7 rounded-full bg-[#E1F5FE] flex items-center justify-center shrink-0">
-                        <User size={12} className="text-[#0088D1]" />
+                        <User size={12} className="text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[#0F172A] truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {ev.usuario_nombre ?? ev.usuario_email ?? "Sistema"}
                         </p>
                         {ev.usuario_nombre && ev.usuario_email && (
-                          <p className="text-[11px] text-[#94A3B8] truncate">
+                          <p className="text-[11px] text-muted-foreground/70 truncate">
                             {ev.usuario_email}
                           </p>
                         )}
@@ -185,19 +185,19 @@ export default function TarifaHistorialDrawer({
                       >
                         {meta.label}
                       </span>
-                      <span className="text-[11px] text-[#64748B]">
+                      <span className="text-[11px] text-muted-foreground">
                         {fmtDate(ev.created_at)}
                       </span>
                     </div>
                   </div>
 
                   {diffs.length === 0 ? (
-                    <p className="text-xs text-[#94A3B8] italic">Sin diferencias</p>
+                    <p className="text-xs text-muted-foreground/70 italic">Sin diferencias</p>
                   ) : (
                     <div className="space-y-1.5 text-xs">
                       {diffs.map((d) => (
                         <div key={d.campo} className="flex items-start gap-2 flex-wrap">
-                          <span className="text-[#475569] font-medium min-w-[110px]">
+                          <span className="text-muted-foreground font-medium min-w-[110px]">
                             {CAMPO_LABEL[d.campo] ?? d.campo}:
                           </span>
                           {ev.accion === "crear" ? (
@@ -209,7 +209,7 @@ export default function TarifaHistorialDrawer({
                               <span className="font-mono bg-[#FEF2F2] text-[#7F1D1D] px-2 py-0.5 rounded border border-[#FECACA] break-all">
                                 {formatCampo(d.antes)}
                               </span>
-                              <ArrowRight size={12} className="text-[#94A3B8] mt-1" />
+                              <ArrowRight size={12} className="text-muted-foreground/70 mt-1" />
                               <span className="font-mono bg-[#ECFDF5] text-[#064E3B] px-2 py-0.5 rounded border border-[#A7F3D0] break-all">
                                 {formatCampo(d.despues)}
                               </span>

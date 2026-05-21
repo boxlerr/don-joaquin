@@ -138,14 +138,14 @@ export default function AddChequeDialog({
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[840px] p-6 gap-0">
         {/* Header */}
-        <DialogHeader className="border-b border-[#E2E8F0] pb-4 -mx-6 px-6 pt-1">
+        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Landmark size={22} />
             </div>
             <div>
-              <DialogTitle className="text-[#0F172A] text-lg font-bold">Registrar Cheque</DialogTitle>
-              <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
+              <DialogTitle className="text-foreground text-lg font-bold">Registrar Cheque</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 Ingresá los datos del cheque recibido. Quedará registrado en cartera.
               </DialogDescription>
             </div>
@@ -346,7 +346,7 @@ export default function AddChequeDialog({
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
+              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -401,9 +401,9 @@ function InputFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input
@@ -416,7 +416,7 @@ function InputFieldWithIcon({
           disabled={disabled}
           step={step}
           min={min}
-          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] ${className}`}
+          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground ${className}`}
         />
       </div>
     </div>
@@ -447,9 +447,9 @@ function SelectFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-semibold text-[#475569]">{label}</Label>
-      <div className="relative flex items-center h-10 w-full rounded-lg border border-[#E2E8F0] bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
+      <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <div className="relative flex-1 h-full">
@@ -458,7 +458,7 @@ function SelectFieldWithIcon({
             required={required}
             value={value}
             disabled={disabled}
-            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
             onChange={(e) => onValueChange(e.target.value)}
           >
             {placeholder && (
@@ -474,7 +474,7 @@ function SelectFieldWithIcon({
           </select>
           <ChevronDown
             size={14}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
           />
         </div>
       </div>

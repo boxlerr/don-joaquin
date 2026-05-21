@@ -168,11 +168,11 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0] flex-wrap gap-2">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Wallet size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Movimientos de Caja</h2>
+          <Wallet size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Movimientos de Caja</h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Input
@@ -250,7 +250,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
               variant="ghost"
               size="sm"
               onClick={limpiarFiltros}
-              className="text-[#64748B] hover:text-[#0F172A] h-9"
+              className="text-muted-foreground hover:text-foreground h-9"
             >
               <X size={13} className="mr-1" />
               Limpiar
@@ -260,7 +260,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
       </div>
 
       <Table>
-        <TableHeader className="bg-[#F8FAFC]">
+        <TableHeader className="bg-muted/40">
           <TableRow>
             {[
               "Fecha",
@@ -273,7 +273,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
             ].map((col) => (
               <TableHead
                 key={col}
-                className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
               >
                 {col}
               </TableHead>
@@ -283,7 +283,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-[#94A3B8] text-sm">
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground/70 text-sm">
                 <Loader2 className="inline-block animate-spin mr-2" size={14} />
                 Cargando movimientos...
               </TableCell>
@@ -301,19 +301,19 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
               const esIngreso = m.tipo === "ingreso";
               return (
                 <TableRow key={m.id}>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {formatFecha(m.fecha)}
                   </TableCell>
-                  <TableCell className="text-sm text-[#0F172A] font-medium">
+                  <TableCell className="text-sm text-foreground font-medium">
                     {m.concepto}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {m.vinculado_a ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {MEDIO_LABEL[m.medio] ?? m.medio}
                   </TableCell>
                   <TableCell
@@ -323,7 +323,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
                   >
                     {esIngreso ? "+" : "-"} $ {formatARS(m.monto)}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {m.usuario ?? "—"}
                   </TableCell>
                 </TableRow>
@@ -334,7 +334,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
       </Table>
 
       {hasMore && !loading && (
-        <div className="flex justify-center py-4 border-t border-[#E2E8F0]">
+        <div className="flex justify-center py-4 border-t border-border">
           <Button
             variant="outline"
             size="sm"

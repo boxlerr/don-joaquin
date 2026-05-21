@@ -106,17 +106,17 @@ export default async function ViajesPage({
         />
       </div>
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm mb-1">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none mb-1">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <MapPin size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Viajes</h2>
+            <MapPin size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">Listado de Viajes</h2>
             {choferNombre && (
-              <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-[#E1F5FE] text-[#0088D1] border border-[#0088D1]/20">
+              <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
                 Filtrado por: {choferNombre}
                 <Link
                   href="/viajes"
-                  className="flex items-center hover:text-[#004A99] transition-colors"
+                  className="flex items-center hover:text-primary/80 transition-colors"
                   aria-label="Limpiar filtro de chofer"
                 >
                   <X size={12} />

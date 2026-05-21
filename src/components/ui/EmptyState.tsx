@@ -15,10 +15,10 @@ export function EmptyState({
     <div className="flex flex-col items-center justify-center py-16 text-center px-5">
       {Icon && (
         <div className="flex items-center justify-center w-14 h-14 rounded-full bg-[#E1F5FE] mb-4">
-          <Icon size={24} className="text-[#0088D1]" />
+          <Icon size={24} className="text-primary" />
         </div>
       )}
-      <p className="text-[#94A3B8] text-sm">{message}</p>
+      <p className="text-muted-foreground/70 text-sm">{message}</p>
     </div>
   );
 }
@@ -29,7 +29,7 @@ export function EmptyTableRow({ message = "Sin datos disponibles" }: { message?:
     <TableRow>
       <TableCell
         colSpan={99}
-        className="py-12 text-center text-[#94A3B8] text-sm"
+        className="py-12 text-center text-muted-foreground/70 text-sm"
       >
         {message}
       </TableCell>

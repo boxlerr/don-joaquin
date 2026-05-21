@@ -29,12 +29,12 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
   }
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-[#E2E8F0]">
-        <Settings size={16} className="text-[#0088D1]" />
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <Settings size={16} className="text-primary" />
         <div>
-          <h2 className="text-[#0F172A] text-sm font-semibold">Ajustes de tarifa</h2>
-          <p className="text-[#94A3B8] text-xs">Valores base para el cálculo</p>
+          <h2 className="text-foreground text-sm font-semibold">Ajustes de tarifa</h2>
+          <p className="text-muted-foreground/70 text-xs">Valores base para el cálculo</p>
         </div>
       </div>
 
@@ -42,7 +42,7 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
         <div className="space-y-2">
           <Label
             htmlFor="tarifa_base"
-            className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+            className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
           >
             Tarifa base ($)
           </Label>
@@ -62,7 +62,7 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
         <div className="space-y-2">
           <Label
             htmlFor="precio_por_kg"
-            className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+            className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
           >
             Precio por kg ($)
           </Label>
@@ -82,7 +82,7 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
         <div className="space-y-2">
           <Label
             htmlFor="precio_por_km"
-            className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]"
+            className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
           >
             Precio por km ($)
           </Label>

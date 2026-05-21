@@ -17,7 +17,7 @@ function fmtMoney(n: number | null, moneda: string | null) {
 const ESTADO_TONE: Record<string, string> = {
   finalizado: "bg-[#ECFDF5] text-[#047857]",
   en_curso: "bg-[#EFF6FF] text-[#1D4ED8]",
-  programado: "bg-[#F1F5F9] text-[#475569]",
+  programado: "bg-muted text-muted-foreground",
   cancelado: "bg-[#FEF2F2] text-[#B91C1C]",
 };
 
@@ -36,24 +36,24 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
 
   if (!viajes) {
     return (
-      <div className="py-10 flex items-center justify-center text-[#475569]">
-        <Loader2 size={18} className="animate-spin text-[#0088D1]" />
+      <div className="py-10 flex items-center justify-center text-muted-foreground">
+        <Loader2 size={18} className="animate-spin text-primary" />
       </div>
     );
   }
 
   if (viajes.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-[#475569] bg-white border border-dashed border-[#E2E8F0] rounded-[8px]">
+      <div className="py-8 text-center text-sm text-muted-foreground bg-card border border-dashed border-border rounded-[8px]">
         Este cliente todavía no tiene viajes registrados.
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] overflow-hidden">
+    <div className="bg-card border border-border rounded-[8px] overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-[#F8FAFC] text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+        <thead className="bg-muted/40 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
           <tr>
             <th className="text-left px-3 py-2">Código</th>
             <th className="text-left px-3 py-2">Fecha</th>
@@ -63,23 +63,23 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
             <th className="text-right px-3 py-2 w-10"></th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E2E8F0]">
+        <tbody className="divide-y divide-border">
           {viajes.map((v) => (
-            <tr key={v.id} className="hover:bg-[#F8FAFC]">
-              <td className="px-3 py-2 font-mono text-xs text-[#0088D1]">
+            <tr key={v.id} className="hover:bg-muted/40">
+              <td className="px-3 py-2 font-mono text-xs text-primary">
                 {v.codigo ?? "—"}
               </td>
-              <td className="px-3 py-2 text-[#475569] whitespace-nowrap">
+              <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
                 {v.fecha_viaje ? new Date(v.fecha_viaje).toLocaleDateString("es-AR") : "—"}
               </td>
-              <td className="px-3 py-2 text-[#0F172A]">
+              <td className="px-3 py-2 text-foreground">
                 <span className="inline-flex items-center gap-1 text-xs">
                   <span>{v.origen ?? "—"}</span>
-                  <ArrowRight size={11} className="text-[#94A3B8]" />
+                  <ArrowRight size={11} className="text-muted-foreground/70" />
                   <span>{v.destino ?? "—"}</span>
                 </span>
                 {v.tonelaje_real && (
-                  <div className="text-[10px] text-[#94A3B8] mt-0.5">
+                  <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                     {v.tonelaje_real} t
                   </div>
                 )}
@@ -88,7 +88,7 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
                 <span
                   className={
                     "inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase " +
-                    (ESTADO_TONE[v.estado] ?? "bg-[#F1F5F9] text-[#475569]")
+                    (ESTADO_TONE[v.estado] ?? "bg-muted text-muted-foreground")
                   }
                 >
                   {v.estado.replace("_", " ")}
@@ -99,13 +99,13 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
                   </span>
                 )}
               </td>
-              <td className="px-3 py-2 text-right font-mono text-[#0F172A]">
+              <td className="px-3 py-2 text-right font-mono text-foreground">
                 {fmtMoney(v.monto_flete, v.moneda)}
               </td>
               <td className="px-3 py-2 text-right">
                 <Link
                   href={`/viajes?id=${v.id}`}
-                  className="inline-flex items-center justify-center size-7 rounded-md text-[#475569] hover:text-[#0088D1] hover:bg-white border border-transparent hover:border-[#CBD5E1]"
+                  className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-primary hover:bg-card border border-transparent hover:border-[#CBD5E1]"
                   title="Ver viaje"
                 >
                   <ExternalLink size={13} />

@@ -66,8 +66,8 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Editar datos del chofer</DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogTitle className="text-foreground text-xl">Editar datos del chofer</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Actualizá la información de contacto y bancaria.
           </DialogDescription>
         </DialogHeader>
@@ -110,7 +110,7 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
           </div>
 
           <div className="pt-2 border-t border-[#F1F5F9]">
-            <p className="text-xs text-[#94A3B8] mb-3">Datos bancarios</p>
+            <p className="text-xs text-muted-foreground/70 mb-3">Datos bancarios</p>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Banco">
                 <Input value={banco} onChange={(e) => setBanco(e.target.value)} />
@@ -137,7 +137,7 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
-              className="text-[#475569] border-[#E2E8F0]"
+              className="text-muted-foreground border-border"
             >
               Cancelar
             </Button>

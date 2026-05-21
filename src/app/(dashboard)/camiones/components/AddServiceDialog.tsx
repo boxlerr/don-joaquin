@@ -173,10 +173,10 @@ export default function AddServiceDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">
+          <DialogTitle className="text-foreground text-xl">
             {editing ? "Editar service" : "Registrar service"}
           </DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogDescription className="text-muted-foreground">
             {editing ? "Actualizá los datos del mantenimiento." : "Ingresá los datos del mantenimiento realizado."}
           </DialogDescription>
         </DialogHeader>
@@ -290,7 +290,7 @@ export default function AddServiceDialog({
             <Label htmlFor="descripcion" className="text-sm font-medium text-[#1E293B]">Detalles / Observaciones</Label>
             <textarea
               id="descripcion"
-              className="flex min-h-[80px] w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm placeholder:text-[#94A3B8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[80px] w-full rounded-md border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1] disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="Describí brevemente el trabajo realizado..."
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
@@ -302,7 +302,7 @@ export default function AddServiceDialog({
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]"
+              className="text-muted-foreground border-border hover:bg-muted/40"
               disabled={loading}
             >
               Cancelar

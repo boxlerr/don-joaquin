@@ -87,13 +87,13 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
       onClick={closePalette}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden border border-[#E2E8F0]"
+        className="w-full max-w-lg bg-card rounded-xl shadow-2xl overflow-hidden border border-border"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[#E2E8F0]">
-          <Search size={17} className="text-[#94A3B8] shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border">
+          <Search size={17} className="text-muted-foreground/70 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -103,9 +103,9 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
               setQuery(e.target.value);
               setActiveIndex(0);
             }}
-            className="flex-1 text-sm text-[#0F172A] placeholder-[#94A3B8] outline-none bg-transparent"
+            className="flex-1 text-sm text-foreground placeholder-[#94A3B8] outline-none bg-transparent"
           />
-          <kbd className="flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-[#475569] bg-[#F1F5F9] rounded border border-[#E2E8F0]">
+          <kbd className="flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground bg-muted rounded border border-border">
             ESC
           </kbd>
         </div>
@@ -113,7 +113,7 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
         {/* Lista */}
         <div className="max-h-80 overflow-y-auto py-1.5">
           {filtered.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-[#94A3B8]">
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground/70">
               No se encontraron resultados
             </p>
           ) : (
@@ -129,17 +129,17 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                     active
                       ? "bg-[#0088D1] text-white"
-                      : "text-[#1E293B] hover:bg-[#F1F5F9]"
+                      : "text-[#1E293B] hover:bg-muted"
                   }`}
                 >
                   <Icon
                     size={16}
-                    className={active ? "text-white" : "text-[#94A3B8]"}
+                    className={active ? "text-white" : "text-muted-foreground/70"}
                   />
                   <span className="flex-1 text-sm font-medium">{item.label}</span>
                   <span
                     className={`text-[10px] font-semibold uppercase tracking-wider ${
-                      active ? "text-white/60" : "text-[#94A3B8]"
+                      active ? "text-white/60" : "text-muted-foreground/70"
                     }`}
                   >
                     {item.group}
@@ -154,17 +154,17 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-[#E2E8F0] bg-[#F8FAFC]">
-          <span className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
-            <kbd className="px-1 py-0.5 bg-white rounded border border-[#E2E8F0] font-mono text-[10px]">↑↓</kbd>
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-border bg-muted/40">
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+            <kbd className="px-1 py-0.5 bg-card rounded border border-border font-mono text-[10px]">↑↓</kbd>
             navegar
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
-            <kbd className="px-1 py-0.5 bg-white rounded border border-[#E2E8F0] font-mono text-[10px]">↵</kbd>
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+            <kbd className="px-1 py-0.5 bg-card rounded border border-border font-mono text-[10px]">↵</kbd>
             ir
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-[#94A3B8]">
-            <kbd className="px-1.5 py-0.5 bg-white rounded border border-[#E2E8F0] font-mono text-[10px]">ESC</kbd>
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+            <kbd className="px-1.5 py-0.5 bg-card rounded border border-border font-mono text-[10px]">ESC</kbd>
             cerrar
           </span>
         </div>

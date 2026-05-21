@@ -24,21 +24,21 @@ const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
 export default function ChoferViajesTab({ viajes }: Props) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-[#0F172A]">
+      <h3 className="text-sm font-semibold text-foreground">
         Últimos viajes
-        <span className="ml-2 text-xs font-normal text-[#94A3B8]">
+        <span className="ml-2 text-xs font-normal text-muted-foreground/70">
           {viajes.length} registro{viajes.length !== 1 ? "s" : ""}
         </span>
       </h3>
 
-      <div className="rounded-[8px] border border-[#E2E8F0] overflow-hidden">
+      <div className="rounded-[8px] border border-border overflow-hidden">
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {["Código", "Fecha", "KM", "Estado", "Facturado"].map((col) => (
                 <TableHead
                   key={col}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
                   {col}
                 </TableHead>
@@ -50,12 +50,12 @@ export default function ChoferViajesTab({ viajes }: Props) {
               <EmptyTableRow message="Sin viajes registrados" />
             ) : (
               viajes.map((v) => (
-                <TableRow key={v.id} className="hover:bg-[#F8FAFC]">
-                  <TableCell className="font-mono text-xs text-[#0088D1]">{v.codigo}</TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                <TableRow key={v.id} className="hover:bg-muted/40">
+                  <TableCell className="font-mono text-xs text-primary">{v.codigo}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
                     {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {(v.km_con_carga + v.km_vacios).toLocaleString("es-AR")} km
                   </TableCell>
                   <TableCell>
@@ -67,7 +67,7 @@ export default function ChoferViajesTab({ viajes }: Props) {
                   <TableCell>
                     <span
                       className={`text-xs font-medium ${
-                        v.facturado ? "text-[#10B981]" : "text-[#94A3B8]"
+                        v.facturado ? "text-[#10B981]" : "text-muted-foreground/70"
                       }`}
                     >
                       {v.facturado ? "Sí" : "No"}

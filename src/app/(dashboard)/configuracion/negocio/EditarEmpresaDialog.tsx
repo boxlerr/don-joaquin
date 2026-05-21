@@ -119,7 +119,7 @@ export default function EditarEmpresaDialog({ initial }: Props) {
               disabled={isPending}
               inputMode="numeric"
             />
-            <p className="text-[11px] text-[#94A3B8]">
+            <p className="text-[11px] text-muted-foreground/70">
               Formato: XX-XXXXXXXX-X
             </p>
           </div>

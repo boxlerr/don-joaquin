@@ -41,15 +41,15 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
 
   if (loading) {
     return (
-      <div className="py-10 flex items-center justify-center text-[#475569]">
-        <Loader2 size={18} className="animate-spin text-[#0088D1]" />
+      <div className="py-10 flex items-center justify-center text-muted-foreground">
+        <Loader2 size={18} className="animate-spin text-primary" />
       </div>
     );
   }
 
   if (!data || data.movimientos.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-[#475569] bg-white border border-dashed border-[#E2E8F0] rounded-[8px]">
+      <div className="py-8 text-center text-sm text-muted-foreground bg-card border border-dashed border-border rounded-[8px]">
         Este cliente todavía no tiene movimientos de cuenta corriente.
       </div>
     );
@@ -70,9 +70,9 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
         />
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-[8px] overflow-hidden">
+      <div className="bg-card border border-border rounded-[8px] overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-[#F8FAFC] text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+          <thead className="bg-muted/40 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
             <tr>
               <th className="text-left px-3 py-2">Fecha</th>
               <th className="text-left px-3 py-2">Concepto</th>
@@ -80,18 +80,18 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
               <th className="text-right px-3 py-2">Monto</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {data.movimientos.map((m) => {
               const meta = TIPO_LABEL[m.tipo] ?? { label: m.tipo, tone: "debe" as const };
               return (
-                <tr key={m.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-3 py-2 text-[#475569] whitespace-nowrap">
+                <tr key={m.id} className="hover:bg-muted/40">
+                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
                     {new Date(m.fecha).toLocaleDateString("es-AR")}
                   </td>
-                  <td className="px-3 py-2 text-[#0F172A]">
-                    {m.concepto ?? <span className="text-[#94A3B8]">—</span>}
+                  <td className="px-3 py-2 text-foreground">
+                    {m.concepto ?? <span className="text-muted-foreground/70">—</span>}
                     {m.categoria && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wide text-[#94A3B8]">
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">
                         {m.categoria}
                       </span>
                     )}
@@ -142,10 +142,10 @@ function Card({
       ? "text-[#B91C1C]"
       : tone === "haber"
         ? "text-[#047857]"
-        : "text-[#0F172A]";
+        : "text-foreground";
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3">
-      <div className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+    <div className="bg-card border border-border rounded-[8px] p-3">
+      <div className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
         {label}
       </div>
       <div className={`${big ? "text-lg" : "text-base"} font-bold mt-1 font-mono ${color}`}>

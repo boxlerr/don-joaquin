@@ -152,9 +152,9 @@ export default function ViajesTable({ choferId }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none">
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+      <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-muted/40">
         <HelpTutorialButton />
         <Input
           type="date"
@@ -181,7 +181,7 @@ export default function ViajesTable({ choferId }: Props) {
         <select
           value={estadoFiltro}
           onChange={(e) => setEstadoFiltro(e.target.value)}
-          className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569]"
+          className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground"
           aria-label="Filtrar por estado"
         >
           <option value="">Todos los estados</option>
@@ -195,7 +195,7 @@ export default function ViajesTable({ choferId }: Props) {
             variant="ghost"
             size="sm"
             onClick={limpiarFiltros}
-            className="text-[#64748B] hover:text-[#0F172A] h-9"
+            className="text-muted-foreground hover:text-foreground h-9"
             aria-label="Limpiar todos los filtros"
           >
             <X size={13} className="mr-1" />
@@ -206,12 +206,12 @@ export default function ViajesTable({ choferId }: Props) {
 
       {/* Tabla */}
       <Table>
-        <TableHeader className="bg-[#F8FAFC]">
+        <TableHeader className="bg-muted/40">
           <TableRow>
             {COLUMNS.map((col, i) => (
               <TableHead
                 key={i}
-                className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
               >
                 {col}
               </TableHead>
@@ -244,29 +244,29 @@ export default function ViajesTable({ choferId }: Props) {
             rows.map((v) => (
               <React.Fragment key={v.id}>
                 <TableRow
-                  className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                  className="hover:bg-muted/40 transition-colors cursor-pointer"
                   tabIndex={0}
                   onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setExpandedId(expandedId === v.id ? null : v.id);
                   }}
                 >
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
                   </TableCell>
-                  <TableCell className="text-sm font-medium text-[#0F172A]">
+                  <TableCell className="text-sm font-medium text-foreground">
                     {v.cliente ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {v.origen ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {v.destino ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569] font-mono">
+                  <TableCell className="text-sm text-muted-foreground font-mono">
                     {v.km_totales.toLocaleString("es-AR")} km
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569] font-mono">
+                  <TableCell className="text-sm text-muted-foreground font-mono">
                     {v.toneladas ?? 0} tn
                   </TableCell>
                   <TableCell>
@@ -278,7 +278,7 @@ export default function ViajesTable({ choferId }: Props) {
                   <TableCell>
                     <span
                       className={`text-xs font-medium ${
-                        v.facturado ? "text-[#10B981]" : "text-[#94A3B8]"
+                        v.facturado ? "text-[#10B981]" : "text-muted-foreground/70"
                       }`}
                     >
                       {v.facturado ? "Sí" : "No"}
@@ -301,46 +301,46 @@ export default function ViajesTable({ choferId }: Props) {
 
                 {/* Sub-fila Desplegable de Detalles */}
                 {expandedId === v.id && (
-                  <TableRow className="bg-[#F8FAFC]/60 hover:bg-[#F8FAFC]/60">
-                    <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-[#E2E8F0]">
+                  <TableRow className="bg-muted/40/60 hover:bg-muted/40/60">
+                    <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
                       <div className="p-6 grid grid-cols-3 gap-6 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
-                        <div className="space-y-3 bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
-                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
-                            <User size={14} className="text-[#0088D1]" /> Chofer Asignado
+                        <div className="space-y-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
+                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
+                            <User size={14} className="text-primary" /> Chofer Asignado
                           </h4>
-                          <p className="text-sm font-medium text-[#334155]">{v.chofer ?? "—"}</p>
+                          <p className="text-sm font-medium text-foreground/90">{v.chofer ?? "—"}</p>
 
-                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2 pt-2">
-                            <Truck size={14} className="text-[#0088D1]" /> Vehículo / Patente
+                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2 pt-2">
+                            <Truck size={14} className="text-primary" /> Vehículo / Patente
                           </h4>
-                          <p className="text-sm font-medium text-[#334155]">{v.camion ?? "—"}</p>
+                          <p className="text-sm font-medium text-foreground/90">{v.camion ?? "—"}</p>
                         </div>
 
                         {/* Finanzas y Distancias Parciales */}
-                        <div className="space-y-3 bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
-                          <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
+                        <div className="space-y-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
+                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
                             <Coins size={14} className="text-[#10B981]" /> Flete y Distancias
                           </h4>
                           <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                            <span className="text-[#64748B]">Monto Flete:</span>
-                            <span className="font-semibold text-[#0F172A] text-right">
+                            <span className="text-muted-foreground">Monto Flete:</span>
+                            <span className="font-semibold text-foreground text-right">
                               {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
                             </span>
-                            <span className="text-[#64748B]">KM con Carga:</span>
-                            <span className="font-mono text-[#334155] text-right">{v.km_con_carga ?? 0} km</span>
-                            <span className="text-[#64748B]">KM Vacíos:</span>
-                            <span className="font-mono text-[#334155] text-right">{v.km_vacios ?? 0} km</span>
+                            <span className="text-muted-foreground">KM con Carga:</span>
+                            <span className="font-mono text-foreground/90 text-right">{v.km_con_carga ?? 0} km</span>
+                            <span className="text-muted-foreground">KM Vacíos:</span>
+                            <span className="font-mono text-foreground/90 text-right">{v.km_vacios ?? 0} km</span>
                           </div>
                         </div>
 
                         {/* Notas y Acciones Operativas */}
-                        <div className="space-y-3 flex flex-col justify-between bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs">
+                        <div className="space-y-3 flex flex-col justify-between bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
                           <div>
-                            <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5 border-b border-[#E2E8F0] pb-2">
+                            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
                               <FileText size={14} className="text-[#F59E0B]" /> Notas / Descripción
                             </h4>
-                            <p className="text-xs text-[#475569] pt-1.5 italic line-clamp-3">
+                            <p className="text-xs text-muted-foreground pt-1.5 italic line-clamp-3">
                               {v.observaciones
                                 ? v.observaciones
                                     .split("|")
@@ -351,7 +351,7 @@ export default function ViajesTable({ choferId }: Props) {
                             </p>
                           </div>
 
-                          <div className="pt-3 border-t border-[#E2E8F0] space-y-2.5">
+                          <div className="pt-3 border-t border-border space-y-2.5">
                             {v.facturado ? (
                               <>
                                 <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -363,7 +363,7 @@ export default function ViajesTable({ choferId }: Props) {
                                 <Button
                                   variant="ghost"
                                   size="xs"
-                                  className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                  className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setAuditTrailViajeId(v.id);
@@ -375,7 +375,7 @@ export default function ViajesTable({ choferId }: Props) {
                               </>
                             ) : (
                               <>
-                                <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider block">
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
                                   Cambiar Estado Operativo:
                                 </span>
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -435,7 +435,7 @@ export default function ViajesTable({ choferId }: Props) {
                                   <Button
                                     variant="ghost"
                                     size="xs"
-                                    className="h-7 px-2 text-[#0088D1] hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                    className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setAuditTrailViajeId(v.id);
@@ -507,7 +507,7 @@ export default function ViajesTable({ choferId }: Props) {
 
       {/* Cargar más / fin de resultados */}
       {!loading && (hasMore || allLoaded) && (
-        <div className="flex justify-center px-5 py-4 border-t border-[#E2E8F0]">
+        <div className="flex justify-center px-5 py-4 border-t border-border">
           {hasMore ? (
             <Button
               variant="outline"
@@ -526,7 +526,7 @@ export default function ViajesTable({ choferId }: Props) {
               )}
             </Button>
           ) : (
-            <p className="text-xs text-[#94A3B8]">
+            <p className="text-xs text-muted-foreground/80">
               Todos los resultados cargados — {rows.length} viaje{rows.length !== 1 ? "s" : ""}
             </p>
           )}

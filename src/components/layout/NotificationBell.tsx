@@ -80,7 +80,7 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
       <button
         type="button"
         onClick={handleOpen}
-        className="relative flex items-center justify-center w-8 h-8 rounded-lg text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors"
+        className="relative flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         aria-label="Notificaciones"
       >
         <Bell size={18} />
@@ -92,14 +92,14 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 bg-white rounded-xl border border-[#E2E8F0] shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
-            <span className="text-sm font-semibold text-[#0F172A]">Notificaciones</span>
+        <div className="absolute right-0 top-10 z-50 w-80 bg-card rounded-xl border border-border shadow-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-semibold text-foreground">Notificaciones</span>
             {alertas.length > 0 && (
               <button
                 type="button"
                 onClick={handleMarcarTodas}
-                className="flex items-center gap-1 text-xs text-[#0088D1] hover:text-[#0069A5] font-medium"
+                className="flex items-center gap-1 text-xs text-primary hover:text-[#0069A5] font-medium"
               >
                 <CheckCheck size={13} />
                 Marcar todas
@@ -109,9 +109,9 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
 
           <div className="max-h-72 overflow-y-auto">
             {loading ? (
-              <div className="py-8 text-center text-sm text-[#94A3B8]">Cargando...</div>
+              <div className="py-8 text-center text-sm text-muted-foreground/70">Cargando...</div>
             ) : alertas.length === 0 ? (
-              <div className="py-8 text-center text-sm text-[#94A3B8]">
+              <div className="py-8 text-center text-sm text-muted-foreground/70">
                 Sin alertas pendientes
               </div>
             ) : (
@@ -123,15 +123,15 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                       className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${severidadDot[alerta.severidad]}`}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-[#0F172A] truncate">{alerta.titulo}</p>
-                      <p className="text-xs text-[#64748B] mt-0.5 line-clamp-2">{alerta.mensaje}</p>
+                      <p className="text-xs font-semibold text-foreground truncate">{alerta.titulo}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{alerta.mensaje}</p>
                     </div>
                   </>
                 );
                 return (
                   <div
                     key={alerta.id}
-                    className="group flex items-start gap-3 px-4 py-3 hover:bg-[#F8FAFC] border-b border-[#F1F5F9] last:border-0"
+                    className="group flex items-start gap-3 px-4 py-3 hover:bg-muted/40 border-b border-[#F1F5F9] last:border-0"
                   >
                     {href ? (
                       <Link
@@ -149,7 +149,7 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                     <button
                       type="button"
                       onClick={() => handleMarcarVista(alerta.id)}
-                      className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-[#94A3B8] hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
+                      className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-muted-foreground/70 hover:text-primary hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
                       aria-label="Marcar como vista"
                     >
                       <Check size={12} />
@@ -161,10 +161,10 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
           </div>
 
           {alertas.length > 0 && (
-            <div className="px-4 py-2.5 border-t border-[#E2E8F0] bg-[#F8FAFC]">
+            <div className="px-4 py-2.5 border-t border-border bg-muted/40">
               <a
                 href="/notificaciones"
-                className="block text-center text-xs text-[#0088D1] hover:text-[#0069A5] font-medium"
+                className="block text-center text-xs text-primary hover:text-[#0069A5] font-medium"
                 onClick={() => setOpen(false)}
               >
                 Ver todas las alertas

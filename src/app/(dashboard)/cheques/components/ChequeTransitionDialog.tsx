@@ -173,11 +173,11 @@ export default function ChequeTransitionDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">
+          <DialogTitle className="text-foreground text-xl">
             {meta.titulo}{" "}
-            <span className="text-sm font-normal text-[#94A3B8] font-mono">#{numero}</span>
+            <span className="text-sm font-normal text-muted-foreground/70 font-mono">#{numero}</span>
           </DialogTitle>
-          <DialogDescription className="text-[#475569]">{meta.descripcion}</DialogDescription>
+          <DialogDescription className="text-muted-foreground">{meta.descripcion}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">

@@ -45,13 +45,13 @@ export default function AddSucursalDialog({
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(520px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-[#E2E8F0]">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(520px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
             <div>
-              <Dialog.Title className="text-[#0F172A] text-base font-semibold">
+              <Dialog.Title className="text-foreground text-base font-semibold">
                 Nueva sucursal
               </Dialog.Title>
-              <Dialog.Description className="text-[#475569] text-xs mt-0.5">
+              <Dialog.Description className="text-muted-foreground text-xs mt-0.5">
                 Ubicación operativa del cliente (depósito, planta, etc.).
               </Dialog.Description>
             </div>
@@ -59,7 +59,7 @@ export default function AddSucursalDialog({
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -88,24 +88,24 @@ export default function AddSucursalDialog({
               <Field label="Teléfono" name="telefono" />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-[#0F172A]">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
                 name="es_principal"
                 defaultChecked={defaultPrincipal}
-                className="size-4 rounded border-[#E2E8F0] accent-[#0088D1]"
+                className="size-4 rounded border-border accent-[#0088D1]"
               />
               Marcar como sucursal principal
             </label>
 
             <div>
-              <label className="text-xs font-semibold text-[#475569] mb-1 block">
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                 Observaciones
               </label>
               <textarea
                 name="observaciones"
                 rows={2}
-                className="w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] resize-none"
+                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] resize-none"
               />
             </div>
 
@@ -145,7 +145,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-xs font-semibold text-[#475569] mb-1 block">{label}</label>
+      <label className="text-xs font-semibold text-muted-foreground mb-1 block">{label}</label>
       <Input
         name={name}
         type={type}

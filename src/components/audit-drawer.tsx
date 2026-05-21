@@ -104,7 +104,7 @@ export function AuditDrawer({
 
       {/* Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] max-w-[90vw] bg-white shadow-2xl z-50 transform transition-transform duration-200 flex flex-col ${
+        className={`fixed top-0 right-0 h-full w-[420px] max-w-[90vw] bg-card shadow-2xl z-50 transform transition-transform duration-200 flex flex-col ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -116,7 +116,7 @@ export function AuditDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-card/20 rounded-lg transition-colors"
           >
             <X size={18} />
           </button>
@@ -129,9 +129,9 @@ export function AuditDrawer({
               <div className="animate-spin rounded-full h-7 w-7 border-2 border-[#0088D1] border-t-transparent" />
             </div>
           ) : events.length === 0 ? (
-            <div className="text-center py-16 text-[#475569]">
+            <div className="text-center py-16 text-muted-foreground">
               <p className="text-sm">Sin eventos registrados</p>
-              <p className="text-xs mt-1 text-[#94A3B8]">
+              <p className="text-xs mt-1 text-muted-foreground/70">
                 Los eventos aparecen después de un login o logout
               </p>
             </div>
@@ -148,18 +148,18 @@ export function AuditDrawer({
               return (
                 <div
                   key={event.id}
-                  className="border border-[#E2E8F0] rounded-lg p-3.5 hover:border-[#CBD5E1] transition-colors"
+                  className="border border-border rounded-lg p-3.5 hover:border-[#CBD5E1] transition-colors"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-[#0F172A] truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {email}
                     </p>
                     {getActionBadge(event.accion)}
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-[#64748B]">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{fmtDate(event.created_at)}</span>
-                    <span className="font-mono bg-[#F1F5F9] px-1.5 py-0.5 rounded">
+                    <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
                       {event.ip}
                     </span>
                   </div>

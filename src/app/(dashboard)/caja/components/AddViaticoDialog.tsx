@@ -80,8 +80,8 @@ export default function AddViaticoDialog({
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle className="text-[#0F172A] text-xl">Registrar Entrega de Viático</DialogTitle>
-          <DialogDescription className="text-[#475569]">
+          <DialogTitle className="text-foreground text-xl">Registrar Entrega de Viático</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             Entregá dinero a un chofer para cubrir gastos operativos de sus viajes.
           </DialogDescription>
         </DialogHeader>

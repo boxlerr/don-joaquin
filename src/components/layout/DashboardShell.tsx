@@ -30,7 +30,7 @@ export default function DashboardShell({
   }, [openAudit]);
 
   return (
-    <div className="flex h-full bg-[#F8FAFC]">
+    <div className="flex h-full bg-background">
       <div
         className={`transition-[width] duration-300 ease-in-out overflow-hidden shrink-0 ${
           collapsed ? "w-0" : "w-60"
@@ -40,13 +40,13 @@ export default function DashboardShell({
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#E2E8F0] bg-white">
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-card">
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             aria-label={collapsed ? "Mostrar barra lateral" : "Ocultar barra lateral"}
             aria-expanded={!collapsed}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A] transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <PanelLeft size={18} />
           </button>
@@ -54,11 +54,11 @@ export default function DashboardShell({
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] text-[#94A3B8] hover:border-[#0088D1] hover:text-[#475569] transition-colors text-sm"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-foreground transition-colors text-sm"
           >
             <Search size={14} />
             <span className="hidden sm:inline text-xs">Buscar página...</span>
-            <kbd className="hidden sm:flex items-center gap-0.5 ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-white rounded border border-[#E2E8F0]">
+            <kbd className="hidden sm:flex items-center gap-0.5 ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-card text-foreground rounded border border-border">
               Ctrl K
             </kbd>
           </button>

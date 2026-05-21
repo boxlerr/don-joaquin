@@ -59,29 +59,29 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                <Dialog.Title className="text-foreground text-sm font-bold">
                   Guía de Gestión
                 </Dialog.Title>
               </div>
             </div>
             <div className="flex items-center gap-4">
               {/* Tabs inside header to save space */}
-              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   return (
@@ -92,8 +92,8 @@ export default function HelpTutorialButton() {
                       className={
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
-                          ? "bg-white text-[#0088D1] shadow-sm"
-                          : "text-[#64748B] hover:text-[#0F172A]")
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
                       }
                     >
                       {t.icon}
@@ -106,7 +106,7 @@ export default function HelpTutorialButton() {
                 render={
                   <button
                     type="button"
-                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                     aria-label="Cerrar"
                   />
                 }
@@ -117,7 +117,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper (Simplified and integrated) */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -133,7 +133,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
                             ? "bg-[#10B981] text-white"
-                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
+                            : "bg-card text-muted-foreground/70 border border-border")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
@@ -148,7 +148,7 @@ export default function HelpTutorialButton() {
                 );
               })}
             </div>
-            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full">
               Paso {step + 1} de {totalSteps}
             </div>
           </div>
@@ -159,10 +159,10 @@ export default function HelpTutorialButton() {
             <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                  <h3 className="text-foreground text-lg font-bold leading-tight">
                     {current.title}
                   </h3>
-                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
                     {current.description}
                   </p>
                 </div>
@@ -170,7 +170,7 @@ export default function HelpTutorialButton() {
                 {current.hint && (
                   <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <Lightbulb size={14} className="text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
@@ -182,18 +182,18 @@ export default function HelpTutorialButton() {
             </div>
 
             {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
                       <div className="flex gap-1">
                         <div className="size-2 rounded-full bg-[#FF5F56]/30" />
                         <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
                         <div className="size-2 rounded-full bg-[#27C93F]/30" />
                       </div>
-                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-muted rounded-full" />
                       </div>
                     </div>
                     <div className="p-5 overflow-hidden">
@@ -206,17 +206,17 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -289,15 +289,15 @@ const IMPORT_STEPS: TutorialStep[] = [
     hint: (
       <>
         Para <b>tipo</b> usá:{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">tractor</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">chasis_rigido</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">batea</code> u{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">otro</code>. Para{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">tractor</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">chasis_rigido</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">batea</code> u{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">otro</code>. Para{" "}
         <b>estado</b>:{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">activo</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">inactivo</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">en_mantenimiento</code> o{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">baja</code>.
+        <code className="text-[11px] bg-card border border-border px-1 rounded">activo</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">inactivo</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">en_mantenimiento</code> o{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">baja</code>.
       </>
     ),
   },
@@ -362,23 +362,23 @@ type TutorialStep = {
 function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center gap-1 opacity-50">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1 opacity-50">
         <FileDown size={12} /> Exportar
       </div>
       <div
         className={
           "h-9 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 transition-all " +
           (highlight === "import"
-            ? "bg-white border-2 border-[#0088D1] text-[#0088D1] shadow-[0_0_0_4px_rgba(0,136,209,0.2)] scale-105"
-            : "bg-white border border-[#E2E8F0] text-[#475569] opacity-50")
+            ? "bg-card border-2 border-[#0088D1] text-primary shadow-[0_0_0_4px_rgba(0,136,209,0.2)] scale-105"
+            : "bg-card border border-border text-muted-foreground opacity-50")
         }
       >
         <Upload size={12} /> Importar
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center gap-1 opacity-50">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1 opacity-50">
         <Fuel size={12} /> Cargar gasoil
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center gap-1 opacity-50">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1 opacity-50">
         <Wrench size={12} /> Registrar service
       </div>
       <div
@@ -397,9 +397,9 @@ function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
 
 function MockNewCamionForm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-white">
-        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Agregar nuevo camión</div>
+    <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-card">
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Agregar nuevo camión</div>
       </div>
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -416,7 +416,7 @@ function MockNewCamionForm() {
           <MockField label="Tipo" value="Chasis Rígido" />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center hover:bg-[#F8FAFC]">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
             Cancelar
           </div>
           <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
@@ -439,11 +439,11 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">{label}</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
         {value}
@@ -454,14 +454,14 @@ function MockField({
 
 function MockCamionListItem() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-center justify-between">
+    <div className="bg-card border border-border rounded-[8px] p-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <span className="size-9 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center border border-[#B3E5FC]">
+        <span className="size-9 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center border border-[#B3E5FC]">
           <Truck size={16} />
         </span>
         <div>
-          <div className="text-[#0F172A] font-mono font-semibold text-sm">AB123CD</div>
-          <div className="text-[10px] text-[#475569] mt-0.5">Scania V200 — 2020</div>
+          <div className="text-foreground font-mono font-semibold text-sm">AB123CD</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Scania V200 — 2020</div>
         </div>
       </div>
       <span className="text-[10px] font-semibold uppercase tracking-wide bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] rounded-full px-2 py-0.5">
@@ -473,19 +473,19 @@ function MockCamionListItem() {
 
 function MockImportSelect() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm">
-      <div className="px-3 py-2 border-b border-[#E2E8F0] text-[#0F172A] text-xs font-semibold">
+    <div className="bg-card border border-border rounded-md shadow-sm">
+      <div className="px-3 py-2 border-b border-border text-foreground text-xs font-semibold">
         Importar camiones
       </div>
       <div className="p-3 space-y-2">
-        <div className="text-[11px] text-[#475569]">
+        <div className="text-[11px] text-muted-foreground">
           Subí un .xlsx o .csv con columnas: Patente, Marca, Modelo, Año, Capacidad TN, Tipo, Estado.
         </div>
-        <div className="h-8 px-2 rounded border border-dashed border-[#94A3B8] text-[11px] text-[#475569] bg-[#F8FAFC] inline-flex items-center gap-2 w-full">
-          <Upload size={12} className="text-[#0088D1]" /> mi-flota.xlsx
+        <div className="h-8 px-2 rounded border border-dashed border-[#94A3B8] text-[11px] text-muted-foreground bg-muted/40 inline-flex items-center gap-2 w-full">
+          <Upload size={12} className="text-primary" /> mi-flota.xlsx
         </div>
         <div className="flex justify-end gap-2">
-          <div className="h-7 px-2 text-[11px] rounded-md border border-[#E2E8F0] text-[#475569] inline-flex items-center">
+          <div className="h-7 px-2 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center">
             Cancelar
           </div>
           <div className="h-7 px-2 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-semibold gap-1">
@@ -505,12 +505,12 @@ function MockImportPreview() {
     { ok: false, patente: "XY", marca: "Iveco", err: "Capacidad inválida" },
   ];
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden shadow-sm">
-      <div className="px-3 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC] flex items-center gap-3 text-[11px]">
+    <div className="bg-card border border-border rounded-md overflow-hidden shadow-sm">
+      <div className="px-3 py-2.5 border-b border-[#F1F5F9] bg-muted/40 flex items-center gap-3 text-[11px]">
         <span className="text-[#059669] font-bold">2 válidas</span>
         <span className="text-[#CBD5E1]">·</span>
         <span className="text-[#DC2626] font-bold">2 con error</span>
-        <span className="text-[#64748B]">· Se importarán 2 registros.</span>
+        <span className="text-muted-foreground">· Se importarán 2 registros.</span>
       </div>
       <div className="text-[10px] font-mono">
         {rows.map((r, i) => (
@@ -526,9 +526,9 @@ function MockImportPreview() {
             ) : (
               <X size={12} className="text-red-500" />
             )}
-            <span className="text-[#64748B] w-6">{i + 2}</span>
-            <span className="font-semibold text-[#0F172A] w-20">{r.patente || "—"}</span>
-            <span className="text-[#475569] flex-1 truncate">{r.marca}</span>
+            <span className="text-muted-foreground w-6">{i + 2}</span>
+            <span className="font-semibold text-foreground w-20">{r.patente || "—"}</span>
+            <span className="text-muted-foreground flex-1 truncate">{r.marca}</span>
             <span className="text-red-600 text-[10px]">{r.err}</span>
           </div>
         ))}
@@ -539,9 +539,9 @@ function MockImportPreview() {
 
 function MockImportConfirm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-2">
+    <div className="bg-card border border-border rounded-md p-3 space-y-2">
       <div className="flex justify-end gap-2">
-        <div className="h-7 px-2 text-[11px] rounded-md border border-[#E2E8F0] text-[#475569] inline-flex items-center">
+        <div className="h-7 px-2 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center">
           Volver
         </div>
         <div className="h-7 px-2 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-semibold gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.25)] ring-2 ring-[#0088D1]">
@@ -557,8 +557,8 @@ function MockImportConfirm() {
 
 function MockRowClick() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="px-3 py-2 border-b border-[#E2E8F0] bg-[#F8FAFC] text-[10px] font-semibold uppercase tracking-wide text-[#475569] grid grid-cols-[1fr,1fr,60px,60px] gap-2">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3 py-2 border-b border-border bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground grid grid-cols-[1fr,1fr,60px,60px] gap-2">
         <span>Patente</span>
         <span>Marca/Modelo</span>
         <span>Año</span>
@@ -566,18 +566,18 @@ function MockRowClick() {
       </div>
       <div className="px-3 py-2 grid grid-cols-[1fr,1fr,60px,60px] gap-2 items-center bg-[#E1F5FE] ring-2 ring-[#0088D1]">
         <div className="flex items-center gap-2">
-          <span className="size-7 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center border border-[#B3E5FC]">
+          <span className="size-7 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center border border-[#B3E5FC]">
             <Truck size={12} />
           </span>
-          <span className="text-[11px] font-mono font-semibold text-[#0F172A]">AB123CD</span>
+          <span className="text-[11px] font-mono font-semibold text-foreground">AB123CD</span>
         </div>
-        <span className="text-[11px] text-[#0F172A]">Scania V200</span>
-        <span className="text-[11px] text-[#475569]">2020</span>
+        <span className="text-[11px] text-foreground">Scania V200</span>
+        <span className="text-[11px] text-muted-foreground">2020</span>
         <span className="text-[10px] text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-full px-1.5 py-0.5 text-center">
           Activo
         </span>
       </div>
-      <div className="px-3 py-1.5 border-t border-[#E2E8F0] text-[10px] text-[#0088D1] text-center font-semibold">
+      <div className="px-3 py-1.5 border-t border-border text-[10px] text-primary text-center font-semibold">
         ↓ Se abre el panel del camión
       </div>
     </div>
@@ -586,9 +586,9 @@ function MockRowClick() {
 
 function MockFotos() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-2">
+    <div className="bg-card border border-border rounded-md p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] text-[#475569]">3 fotos</div>
+        <div className="text-[11px] text-muted-foreground">3 fotos</div>
         <div className="h-7 px-2 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 font-semibold">
           <Upload size={11} /> Subir foto
         </div>
@@ -597,9 +597,9 @@ function MockFotos() {
         {[true, false, false].map((principal, i) => (
           <div
             key={i}
-            className="relative aspect-[4/3] rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center overflow-hidden"
+            className="relative aspect-[4/3] rounded-md bg-muted/40 border border-border flex items-center justify-center overflow-hidden"
           >
-            <Camera size={18} className="text-[#94A3B8]" />
+            <Camera size={18} className="text-muted-foreground/70" />
             {principal && (
               <span className="absolute top-1 left-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-semibold bg-[#FEF3C7] text-[#92400E] rounded border border-[#FCD34D]">
                 <Star size={8} className="fill-[#F59E0B] text-[#F59E0B]" />
@@ -615,18 +615,18 @@ function MockFotos() {
 
 function MockServiceGasoil() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-2 text-[11px]">
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <Wrench size={12} className="text-[#0088D1]" />
-        <span className="text-[#0F172A] flex-1">Mantenimiento preventivo</span>
-        <span className="font-semibold text-[#0F172A]">$ 150.000</span>
+    <div className="bg-card border border-border rounded-md p-3 space-y-2 text-[11px]">
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-border">
+        <Wrench size={12} className="text-primary" />
+        <span className="text-foreground flex-1">Mantenimiento preventivo</span>
+        <span className="font-semibold text-foreground">$ 150.000</span>
       </div>
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <Fuel size={12} className="text-[#0088D1]" />
-        <span className="text-[#0F172A] flex-1">300 Lts — YPF Arrecifes</span>
-        <span className="font-semibold text-[#0F172A]">$ 120.000</span>
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-border">
+        <Fuel size={12} className="text-primary" />
+        <span className="text-foreground flex-1">300 Lts — YPF Arrecifes</span>
+        <span className="font-semibold text-foreground">$ 120.000</span>
       </div>
-      <div className="text-[10px] text-[#0088D1] bg-[#E1F5FE] border border-[#B3E5FC] rounded px-2 py-1">
+      <div className="text-[10px] text-primary bg-[#E1F5FE] border border-[#B3E5FC] rounded px-2 py-1">
         💡 El KM se autocompleta con el último registrado.
       </div>
     </div>
@@ -635,26 +635,26 @@ function MockServiceGasoil() {
 
 function MockDocumentos() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-1.5 text-[11px]">
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> Seguro
+    <div className="bg-card border border-border rounded-md p-3 space-y-1.5 text-[11px]">
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> Seguro
         </span>
         <span className="text-[10px] text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-full px-2 py-0.5">
           Vigente
         </span>
       </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> VTV
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> VTV
         </span>
         <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-full px-2 py-0.5">
           Vence en 15 días
         </span>
       </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> RTO
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> RTO
         </span>
         <span className="text-[10px] text-[#7F1D1D] bg-[#FEF2F2] border border-[#FECACA] rounded-full px-2 py-0.5">
           Vencido

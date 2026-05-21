@@ -163,11 +163,11 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
   }, {});
 
   return (
-    <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0] flex-wrap gap-2">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <Receipt size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Listado de Gastos</h2>
+          <Receipt size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Listado de Gastos</h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Input
@@ -279,7 +279,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
               variant="ghost"
               size="sm"
               onClick={limpiar}
-              className="text-[#64748B] hover:text-[#0F172A] h-9"
+              className="text-muted-foreground hover:text-foreground h-9"
             >
               <X size={13} className="mr-1" />
               Limpiar
@@ -289,7 +289,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
       </div>
 
       <Table>
-        <TableHeader className="bg-[#F8FAFC]">
+        <TableHeader className="bg-muted/40">
           <TableRow>
             {[
               "Fecha",
@@ -304,7 +304,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             ].map((col) => (
               <TableHead
                 key={col}
-                className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
               >
                 {col}
               </TableHead>
@@ -314,7 +314,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-[#94A3B8] text-sm">
+              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground/70 text-sm">
                 <Loader2 className="inline-block animate-spin mr-2" size={14} />
                 Cargando gastos...
               </TableCell>
@@ -337,19 +337,19 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
 
               return (
                 <TableRow key={g.id}>
-                  <TableCell className="text-sm text-[#475569]">{formatFecha(g.fecha)}</TableCell>
-                  <TableCell className="text-sm text-[#0F172A] font-medium">
+                  <TableCell className="text-sm text-muted-foreground">{formatFecha(g.fecha)}</TableCell>
+                  <TableCell className="text-sm text-foreground font-medium">
                     {g.tipo_gasto_nombre ?? "—"}
                     {g.tipo_gasto_categoria && (
-                      <div className="text-[10px] text-[#94A3B8] uppercase tracking-wide mt-0.5">
+                      <div className="text-[10px] text-muted-foreground/70 uppercase tracking-wide mt-0.5">
                         {g.tipo_gasto_categoria}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569] max-w-[220px] truncate">
+                  <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate">
                     {g.descripcion ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">{g.proveedor ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{g.proveedor ?? "—"}</TableCell>
                   <TableCell className="text-sm">
                     {sinAsignar ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
@@ -359,23 +359,23 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
                     ) : (
                       <div className="flex flex-col gap-0.5">
                         {asignaciones.map((a, i) => (
-                          <span key={i} className="text-[#475569]">
+                          <span key={i} className="text-muted-foreground">
                             {a}
                           </span>
                         ))}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {MEDIO_LABEL[g.medio_pago] ?? g.medio_pago}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {g.numero_comprobante ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm font-semibold text-[#EF4444]">
                     $ {formatARS(g.monto)}
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">{g.usuario ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{g.usuario ?? "—"}</TableCell>
                 </TableRow>
               );
             })
@@ -384,7 +384,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
       </Table>
 
       {hasMore && !loading && (
-        <div className="flex justify-center py-4 border-t border-[#E2E8F0]">
+        <div className="flex justify-center py-4 border-t border-border">
           <Button variant="outline" size="sm" onClick={loadMore} disabled={isPending}>
             {isPending ? (
               <>

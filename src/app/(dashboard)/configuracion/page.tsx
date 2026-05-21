@@ -73,8 +73,8 @@ export default async function ConfiguracionPage() {
 function SectionTitle({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <Icon size={16} className="text-[#0088D1]" />
-      <h2 className="text-[#0F172A] text-base font-semibold">{label}</h2>
+      <Icon size={16} className="text-primary" />
+      <h2 className="text-foreground text-base font-semibold">{label}</h2>
     </div>
   );
 }
@@ -89,13 +89,13 @@ function InfoCard({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
+    <div className="flex items-start gap-3 p-4 bg-card rounded-[8px] border border-border shadow-sm">
       <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#E1F5FE] shrink-0">
-        <Icon size={18} className="text-[#0088D1]" />
+        <Icon size={18} className="text-primary" />
       </div>
       <div className="min-w-0">
-        <p className="text-[#0F172A] text-sm font-semibold">{title}</p>
-        <p className="text-[#475569] text-xs mt-0.5">{description}</p>
+        <p className="text-foreground text-sm font-semibold">{title}</p>
+        <p className="text-muted-foreground text-xs mt-0.5">{description}</p>
       </div>
     </div>
   );

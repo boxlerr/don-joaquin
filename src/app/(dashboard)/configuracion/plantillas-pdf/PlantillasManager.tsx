@@ -113,22 +113,22 @@ export default function PlantillasManager({ plantillas }: Props) {
         </Button>
       </div>
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm">
-        <div className="px-5 py-4 border-b border-[#E2E8F0]">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm">
+        <div className="px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <FileText size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Plantillas disponibles</h2>
-            <span className="ml-auto text-xs text-[#64748B]">{ordenadas.length} plantillas</span>
+            <FileText size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">Plantillas disponibles</h2>
+            <span className="ml-auto text-xs text-muted-foreground">{ordenadas.length} plantillas</span>
           </div>
         </div>
 
         <Table>
-          <TableHeader className="bg-[#F8FAFC]">
+          <TableHeader className="bg-muted/40">
             <TableRow>
               {["Nombre", "Tipo", "Estado", "Creado", "Acciones"].map((col) => (
                 <TableHead
                   key={col}
-                  className="text-xs font-semibold text-[#475569] uppercase tracking-wide"
+                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
                   {col}
                 </TableHead>
@@ -140,15 +140,15 @@ export default function PlantillasManager({ plantillas }: Props) {
               <EmptyTableRow message="Sin plantillas registradas" />
             ) : (
               ordenadas.map((p) => (
-                <TableRow key={p.id} className="hover:bg-[#F8FAFC] transition-colors">
+                <TableRow key={p.id} className="hover:bg-muted/40 transition-colors">
                   <TableCell>
                     <div>
-                      <p className="text-sm font-medium text-[#0F172A]">{p.nombre}</p>
-                      <p className="text-xs text-[#64748B]">{p.descripcion}</p>
+                      <p className="text-sm font-medium text-foreground">{p.nombre}</p>
+                      <p className="text-xs text-muted-foreground">{p.descripcion}</p>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="inline-block px-2 py-1 bg-[#E1F5FE] text-[#0088D1] text-xs font-medium rounded">
+                    <span className="inline-block px-2 py-1 bg-[#E1F5FE] text-primary text-xs font-medium rounded">
                       {p.tipo}
                     </span>
                   </TableCell>
@@ -158,7 +158,7 @@ export default function PlantillasManager({ plantillas }: Props) {
                       tone={p.estado === "activo" ? "success" : "warning"}
                     />
                   </TableCell>
-                  <TableCell className="text-sm text-[#475569]">
+                  <TableCell className="text-sm text-muted-foreground">
                     {new Date(p.created_at).toLocaleDateString("es-AR")}
                   </TableCell>
                   <TableCell>
@@ -169,7 +169,7 @@ export default function PlantillasManager({ plantillas }: Props) {
                         title="Ver previsualización"
                         onClick={() => setPreviewOf(p)}
                       >
-                        <Eye size={14} className="text-[#0088D1]" />
+                        <Eye size={14} className="text-primary" />
                       </button>
                       <a
                         href={`data:text/plain;charset=utf-8,${encodeURIComponent(`Plantilla: ${p.nombre} (${p.tipo})`)}`}
@@ -177,7 +177,7 @@ export default function PlantillasManager({ plantillas }: Props) {
                         className="p-2 hover:bg-[#E1F5FE] rounded-md transition-colors inline-flex"
                         title="Descargar ejemplo"
                       >
-                        <DownloadCloud size={14} className="text-[#0088D1]" />
+                        <DownloadCloud size={14} className="text-primary" />
                       </a>
                       <button
                         type="button"
@@ -185,7 +185,7 @@ export default function PlantillasManager({ plantillas }: Props) {
                         title="Editor visual (próximamente)"
                         disabled
                       >
-                        <Edit2 size={14} className="text-[#475569]" />
+                        <Edit2 size={14} className="text-muted-foreground" />
                       </button>
                       <button
                         type="button"
@@ -232,7 +232,7 @@ export default function PlantillasManager({ plantillas }: Props) {
                 value={formTipo}
                 onChange={(e) => setFormTipo(e.target.value as PlantillaTipo)}
                 disabled={createPending}
-                className="h-8 w-full text-sm rounded-lg border border-[#E2E8F0] bg-white px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
+                className="h-8 w-full text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
               >
                 {TIPOS.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -267,7 +267,7 @@ export default function PlantillasManager({ plantillas }: Props) {
           {previewOf && (
             <iframe
               title={`Preview ${previewOf.nombre}`}
-              className="w-full h-80 rounded-md border border-[#E2E8F0] bg-white"
+              className="w-full h-80 rounded-md border border-border bg-card"
               srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
                 body{font-family:-apple-system,system-ui,sans-serif;padding:24px;color:#0F172A}
                 h1{font-size:18px;margin:0 0 4px}

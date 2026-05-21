@@ -55,29 +55,29 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                <Dialog.Title className="text-foreground text-sm font-bold">
                   Guía de Gestión
                 </Dialog.Title>
               </div>
             </div>
             <div className="flex items-center gap-4">
               {/* Tabs inside header */}
-              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   return (
@@ -88,8 +88,8 @@ export default function HelpTutorialButton() {
                       className={
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
-                          ? "bg-white text-[#0088D1] shadow-sm"
-                          : "text-[#64748B] hover:text-[#0F172A]")
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
                       }
                     >
                       {t.icon}
@@ -102,7 +102,7 @@ export default function HelpTutorialButton() {
                 render={
                   <button
                     type="button"
-                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                     aria-label="Cerrar"
                   />
                 }
@@ -113,7 +113,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -129,7 +129,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
                             ? "bg-[#10B981] text-white"
-                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
+                            : "bg-card text-muted-foreground/70 border border-border")
                       }
                     >
                       {isDone ? <CheckCircle2 size={10} /> : i + 1}
@@ -144,7 +144,7 @@ export default function HelpTutorialButton() {
                 );
               })}
             </div>
-            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full whitespace-nowrap ml-4">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full whitespace-nowrap ml-4">
               Paso {step + 1} de {totalSteps}
             </div>
           </div>
@@ -155,10 +155,10 @@ export default function HelpTutorialButton() {
             <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                  <h3 className="text-foreground text-lg font-bold leading-tight">
                     {current.title}
                   </h3>
-                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
                     {current.description}
                   </p>
                 </div>
@@ -166,7 +166,7 @@ export default function HelpTutorialButton() {
                 {current.hint && (
                   <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <Lightbulb size={14} className="text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
@@ -178,18 +178,18 @@ export default function HelpTutorialButton() {
             </div>
 
             {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
                       <div className="flex gap-1">
                         <div className="size-2 rounded-full bg-[#FF5F56]/30" />
                         <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
                         <div className="size-2 rounded-full bg-[#27C93F]/30" />
                       </div>
-                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-muted rounded-full" />
                       </div>
                     </div>
                     <div className="p-5 overflow-hidden">
@@ -202,17 +202,17 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -390,13 +390,13 @@ const AUDIT_STEPS: TutorialStep[] = [
 function MockToolbarTarifas({ highlight }: { highlight: "new" }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center opacity-50">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center opacity-50">
         Buscar por cliente, ruta, observaciones…
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center opacity-50">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center opacity-50">
         Todas las modalidades ▾
       </div>
-      <div className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] inline-flex items-center justify-center opacity-50">
+      <div className="size-9 rounded-md border border-border bg-card text-primary inline-flex items-center justify-center opacity-50">
         <HelpCircle size={14} />
       </div>
       <div
@@ -424,11 +424,11 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">{label}</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
         {value}
@@ -441,10 +441,10 @@ function MockClienteDropdown() {
   return (
     <div className="space-y-2 max-w-[380px] mx-auto">
       <MockField label="Cliente *" value="Don Joaquín SA" required />
-      <div className="text-[10px] text-[#94A3B8] pl-0.5">
+      <div className="text-[10px] text-muted-foreground/70 pl-0.5">
         ↓ Al seleccionar el cliente, se cargan sus rutas
       </div>
-      <div className="h-7 px-2 text-[11px] rounded border border-[#E2E8F0] bg-[#F1F5F9] text-[#94A3B8] inline-flex items-center w-full">
+      <div className="h-7 px-2 text-[11px] rounded border border-border bg-muted text-muted-foreground/70 inline-flex items-center w-full">
         Ruta (cargando…)
       </div>
     </div>
@@ -456,13 +456,13 @@ function MockRutaDropdown() {
     <div className="space-y-2 max-w-[380px] mx-auto">
       <MockField label="Cliente *" value="Don Joaquín SA" required />
       <div>
-        <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Ruta</div>
-        <div className="border border-[#0088D1]/60 rounded bg-white text-[11px] overflow-hidden">
-          <div className="px-2 py-1.5 bg-[#E1F5FE] text-[#0088D1] font-semibold flex items-center gap-1">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Ruta</div>
+        <div className="border border-[#0088D1]/60 rounded bg-card text-[11px] overflow-hidden">
+          <div className="px-2 py-1.5 bg-[#E1F5FE] text-primary font-semibold flex items-center gap-1">
             Ruta CABA – Tres Arroyos
           </div>
-          <div className="px-2 py-1.5 text-[#475569] border-t border-[#E2E8F0]">Ruta Rosario – Córdoba</div>
-          <div className="px-2 py-1.5 text-[#475569] border-t border-[#E2E8F0]">Sin ruta específica</div>
+          <div className="px-2 py-1.5 text-muted-foreground border-t border-border">Ruta Rosario – Córdoba</div>
+          <div className="px-2 py-1.5 text-muted-foreground border-t border-border">Sin ruta específica</div>
         </div>
       </div>
     </div>
@@ -478,15 +478,15 @@ function MockModalidadSelect() {
   ];
   return (
     <div className="space-y-1.5 max-w-[380px] mx-auto">
-      <div className="text-[10px] font-semibold text-[#475569] mb-1">Modalidad *</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-1">Modalidad *</div>
       {opciones.map((o) => (
         <div
           key={o.value}
           className={
             "flex items-center gap-2 px-2.5 py-1.5 rounded border text-[11px] cursor-pointer " +
             (o.active
-              ? "border-[#0088D1] bg-[#E1F5FE] text-[#0088D1]"
-              : "border-[#E2E8F0] bg-white text-[#475569]")
+              ? "border-[#0088D1] bg-[#E1F5FE] text-primary"
+              : "border-border bg-card text-muted-foreground")
           }
         >
           <span
@@ -498,7 +498,7 @@ function MockModalidadSelect() {
             {o.active && <span className="size-1.5 rounded-full bg-[#0088D1]" />}
           </span>
           <span className="font-semibold">{o.label}</span>
-          <span className="text-[#94A3B8] ml-auto">{o.desc}</span>
+          <span className="text-muted-foreground/70 ml-auto">{o.desc}</span>
         </div>
       ))}
     </div>
@@ -509,18 +509,18 @@ function MockPrecioInput() {
   return (
     <div className="space-y-2 max-w-[380px] mx-auto">
       <div>
-        <div className="text-[10px] font-semibold text-[#475569] mb-0.5">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
           Precio unitario ($ / kg) *
         </div>
         <div className="flex items-center gap-1">
-          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] inline-flex items-center">
+          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-border bg-muted/40 text-muted-foreground inline-flex items-center">
             $
           </div>
-          <div className="h-7 px-2 text-[11px] rounded-r border border-[#0088D1]/60 bg-white text-[#0F172A] font-mono inline-flex items-center flex-1">
+          <div className="h-7 px-2 text-[11px] rounded-r border border-[#0088D1]/60 bg-card text-foreground font-mono inline-flex items-center flex-1">
             2.50
           </div>
         </div>
-        <div className="text-[10px] text-[#94A3B8] mt-0.5">Precio por kilogramo transportado</div>
+        <div className="text-[10px] text-muted-foreground/70 mt-0.5">Precio por kilogramo transportado</div>
       </div>
     </div>
   );
@@ -531,18 +531,18 @@ function MockBaseInput() {
     <div className="space-y-2 max-w-[380px] mx-auto">
       <MockField label="Precio unitario ($ / kg) *" value="$ 2.50" />
       <div>
-        <div className="text-[10px] font-semibold text-[#475569] mb-0.5">
+        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
           Suma base ($ — opcional)
         </div>
         <div className="flex items-center gap-1">
-          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] inline-flex items-center">
+          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-border bg-muted/40 text-muted-foreground inline-flex items-center">
             $
           </div>
-          <div className="h-7 px-2 text-[11px] rounded-r border border-[#E2E8F0] bg-white text-[#94A3B8] italic inline-flex items-center flex-1">
+          <div className="h-7 px-2 text-[11px] rounded-r border border-border bg-card text-muted-foreground/70 italic inline-flex items-center flex-1">
             0.00
           </div>
         </div>
-        <div className="text-[10px] text-[#94A3B8] mt-0.5">
+        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
           Se suma fija a cualquier cálculo. Ej: $500 base + $2.50/kg
         </div>
       </div>
@@ -555,19 +555,19 @@ function MockVigenciaInputs() {
     <div className="space-y-2 max-w-[380px] mx-auto">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Vigente desde *</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-[#0088D1]/60 bg-white text-[#0F172A] inline-flex items-center w-full">
+          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Vigente desde *</div>
+          <div className="h-7 px-2 text-[11px] rounded border border-[#0088D1]/60 bg-card text-foreground inline-flex items-center w-full">
             11/05/2026
           </div>
         </div>
         <div>
-          <div className="text-[10px] font-semibold text-[#475569] mb-0.5">Vigente hasta</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-[#E2E8F0] bg-white text-[#94A3B8] italic inline-flex items-center w-full">
+          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Vigente hasta</div>
+          <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-muted-foreground/70 italic inline-flex items-center w-full">
             Sin vencimiento
           </div>
         </div>
       </div>
-      <div className="text-[10px] text-[#94A3B8]">
+      <div className="text-[10px] text-muted-foreground/70">
         Si no ponés fecha fin, la tarifa queda vigente indefinidamente.
       </div>
     </div>
@@ -576,9 +576,9 @@ function MockVigenciaInputs() {
 
 function MockGuardarButton() {
   return (
-    <div className="max-w-[440px] mx-auto bg-white border border-[#E2E8F0] rounded-lg shadow-md overflow-hidden">
+    <div className="max-w-[440px] mx-auto bg-card border border-border rounded-lg shadow-md overflow-hidden">
       <div className="px-4 py-3 border-b border-[#F1F5F9]">
-        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Nueva tarifa</div>
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Nueva tarifa</div>
       </div>
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -590,7 +590,7 @@ function MockGuardarButton() {
           <MockField label="Precio / kg" value="$ 2.50" />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center hover:bg-[#F8FAFC]">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
             Cancelar
           </div>
           <div className="h-8 px-4 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
@@ -608,13 +608,13 @@ function MockSearchBar() {
       <div className="relative flex-1">
         <Search
           size={12}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#94A3B8]"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70"
         />
-        <div className="h-9 pl-7 pr-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0F172A] inline-flex items-center w-full shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+        <div className="h-9 pl-7 pr-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-foreground inline-flex items-center w-full shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
           don joaquin
         </div>
       </div>
-      <div className="h-9 px-3 bg-white border border-[#E2E8F0] rounded-md text-xs text-[#475569] inline-flex items-center">
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center">
         Todas las modalidades ▾
       </div>
     </div>
@@ -624,10 +624,10 @@ function MockSearchBar() {
 function MockModalidadFiltro() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Buscar por cliente, ruta…
       </div>
-      <div className="h-9 px-3 bg-white border-2 border-[#0088D1] rounded-md text-xs text-[#0088D1] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-primary font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
         Por tonelada ▾
       </div>
     </div>
@@ -637,10 +637,10 @@ function MockModalidadFiltro() {
 function MockSoloActivas() {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-9 bg-white border border-[#E2E8F0] rounded-md px-3 text-xs text-[#94A3B8] inline-flex items-center">
+      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
         Buscar por cliente, ruta…
       </div>
-      <label className="flex items-center gap-2 text-xs text-[#0088D1] font-semibold cursor-pointer select-none bg-[#E1F5FE] px-2.5 h-9 rounded-md border border-[#0088D1]/40">
+      <label className="flex items-center gap-2 text-xs text-primary font-semibold cursor-pointer select-none bg-[#E1F5FE] px-2.5 h-9 rounded-md border border-[#0088D1]/40">
         <span className="size-4 rounded border-2 border-[#0088D1] bg-[#0088D1] inline-flex items-center justify-center">
           <CheckCircle2 size={10} className="text-white" />
         </span>
@@ -652,8 +652,8 @@ function MockSoloActivas() {
 
 function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "history" | "none" }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[10px] font-semibold uppercase tracking-widest text-[#475569] flex gap-4">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
         <span className="flex-1">Ruta</span>
         <span className="w-20">Modalidad</span>
         <span className="w-16 text-right">Valor</span>
@@ -661,11 +661,11 @@ function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "histor
         <span className="w-20 text-right">Acciones</span>
       </div>
       <div className="px-3 py-2.5 flex items-center gap-4 text-[11px]">
-        <span className="flex-1 text-[#0F172A]">CABA – Tres Arroyos</span>
+        <span className="flex-1 text-foreground">CABA – Tres Arroyos</span>
         <span className="w-20">
           <span className="px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#004A99] font-medium">Por kilo</span>
         </span>
-        <span className="w-16 text-right font-mono text-[#0F172A] font-semibold">$ 2.50</span>
+        <span className="w-16 text-right font-mono text-foreground font-semibold">$ 2.50</span>
         <span className="w-16 text-[#10B981] font-medium flex items-center gap-1">
           <CheckCircle2 size={10} /> Activa
         </span>
@@ -675,7 +675,7 @@ function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "histor
               "size-6 rounded inline-flex items-center justify-center " +
               (highlight === "edit"
                 ? "bg-[#0088D1] text-white ring-2 ring-[#0088D1] shadow-[0_0_0_3px_rgba(0,136,209,0.25)]"
-                : "text-[#94A3B8] hover:text-[#0088D1]")
+                : "text-muted-foreground/70 hover:text-primary")
             }
           >
             <Pencil size={11} />
@@ -685,7 +685,7 @@ function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "histor
               "size-6 rounded inline-flex items-center justify-center " +
               (highlight === "status"
                 ? "bg-[#FFF7E6] text-[#FFB300] ring-2 ring-[#FFB300] shadow-[0_0_0_3px_rgba(255,179,0,0.2)]"
-                : "text-[#94A3B8]")
+                : "text-muted-foreground/70")
             }
           >
             <PauseCircle size={11} />
@@ -694,8 +694,8 @@ function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "histor
             className={
               "size-6 rounded inline-flex items-center justify-center " +
               (highlight === "history"
-                ? "bg-[#E1F5FE] text-[#0088D1] ring-2 ring-[#0088D1] shadow-[0_0_0_3px_rgba(0,136,209,0.25)]"
-                : "text-[#94A3B8]")
+                ? "bg-[#E1F5FE] text-primary ring-2 ring-[#0088D1] shadow-[0_0_0_3px_rgba(0,136,209,0.25)]"
+                : "text-muted-foreground/70")
             }
           >
             <Clock size={11} />
@@ -713,22 +713,22 @@ function MockHistorialDrawer() {
     { user: "Lucas G.", date: "10/01/2026", prev: "—", next: "$ 1.80 / kg", current: false },
   ];
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden max-w-[380px] mx-auto">
-      <div className="px-3 py-2 border-b border-[#E2E8F0] flex items-center gap-2">
-        <Clock size={13} className="text-[#0088D1]" />
-        <div className="text-[#0F172A] text-xs font-semibold">Historial de cambios</div>
+    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[380px] mx-auto">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Clock size={13} className="text-primary" />
+        <div className="text-foreground text-xs font-semibold">Historial de cambios</div>
       </div>
-      <div className="divide-y divide-[#E2E8F0]">
+      <div className="divide-y divide-border">
         {events.map((e, i) => (
           <div key={i} className={`px-3 py-2 text-[11px] ${e.current ? "bg-[#F0F9FF]" : ""}`}>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-[#0F172A]">{e.user}</span>
-              <span className="text-[#94A3B8]">{e.date}</span>
+              <span className="font-semibold text-foreground">{e.user}</span>
+              <span className="text-muted-foreground/70">{e.date}</span>
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-[#475569]">
-              <span className="line-through text-[#94A3B8]">{e.prev}</span>
+            <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+              <span className="line-through text-muted-foreground/70">{e.prev}</span>
               <span>→</span>
-              <span className="text-[#0F172A] font-medium">{e.next}</span>
+              <span className="text-foreground font-medium">{e.next}</span>
             </div>
           </div>
         ))}
@@ -739,31 +739,31 @@ function MockHistorialDrawer() {
 
 function MockRevertEvent() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden max-w-[380px] mx-auto">
-      <div className="px-3 py-2 border-b border-[#E2E8F0] flex items-center gap-2">
-        <Clock size={13} className="text-[#0088D1]" />
-        <div className="text-[#0F172A] text-xs font-semibold">Historial de cambios</div>
+    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[380px] mx-auto">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Clock size={13} className="text-primary" />
+        <div className="text-foreground text-xs font-semibold">Historial de cambios</div>
       </div>
-      <div className="px-3 py-2 bg-[#F0F9FF] border-b border-[#E2E8F0] text-[11px]">
+      <div className="px-3 py-2 bg-[#F0F9FF] border-b border-border text-[11px]">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-[#0F172A]">Lucas G.</span>
-          <span className="text-[#94A3B8]">11/05/2026</span>
+          <span className="font-semibold text-foreground">Lucas G.</span>
+          <span className="text-muted-foreground/70">11/05/2026</span>
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[#475569]">
-          <span className="line-through text-[#94A3B8]">$ 2.00 / kg</span>
+        <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+          <span className="line-through text-muted-foreground/70">$ 2.00 / kg</span>
           <span>→</span>
-          <span className="text-[#0F172A] font-medium">$ 2.50 / kg</span>
+          <span className="text-foreground font-medium">$ 2.50 / kg</span>
         </div>
       </div>
-      <div className="px-3 py-2 text-[11px] border-b border-[#E2E8F0] bg-[#FFFBEB]">
+      <div className="px-3 py-2 text-[11px] border-b border-border bg-[#FFFBEB]">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-[#0F172A]">María R.</span>
-          <span className="text-[#94A3B8]">01/03/2026</span>
+          <span className="font-semibold text-foreground">María R.</span>
+          <span className="text-muted-foreground/70">01/03/2026</span>
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[#475569]">
-          <span className="line-through text-[#94A3B8]">$ 1.80 / kg</span>
+        <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
+          <span className="line-through text-muted-foreground/70">$ 1.80 / kg</span>
           <span>→</span>
-          <span className="text-[#0F172A] font-medium">$ 2.00 / kg</span>
+          <span className="text-foreground font-medium">$ 2.00 / kg</span>
         </div>
         <div className="mt-1.5">
           <span className="px-2 py-0.5 rounded border border-[#FBBF24] text-[#92400E] bg-[#FFFBEB] font-semibold text-[10px] cursor-pointer hover:bg-[#FEF3C7]">
@@ -771,15 +771,15 @@ function MockRevertEvent() {
           </span>
         </div>
       </div>
-      <div className="px-3 py-2 text-[11px] text-[#475569]">
+      <div className="px-3 py-2 text-[11px] text-muted-foreground">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-[#0F172A]">Lucas G.</span>
-          <span className="text-[#94A3B8]">10/01/2026</span>
+          <span className="font-semibold text-foreground">Lucas G.</span>
+          <span className="text-muted-foreground/70">10/01/2026</span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[#94A3B8]">—</span>
+          <span className="text-muted-foreground/70">—</span>
           <span>→</span>
-          <span className="text-[#0F172A] font-medium">$ 1.80 / kg</span>
+          <span className="text-foreground font-medium">$ 1.80 / kg</span>
         </div>
         <div className="mt-1.5">
           <span className="px-2 py-0.5 rounded border border-[#FBBF24] text-[#92400E] bg-[#FFFBEB] font-semibold text-[10px] cursor-pointer hover:bg-[#FEF3C7]">

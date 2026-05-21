@@ -105,7 +105,7 @@ export default function ClientesList({
                 "size-8 rounded-full text-xs font-semibold transition-colors border " +
                 (active
                   ? "bg-[#0F172A] text-white border-[#0F172A]"
-                  : "bg-white text-[#475569] border-[#E2E8F0] hover:bg-[#F1F5F9]")
+                  : "bg-card text-muted-foreground border-border hover:bg-muted")
               }
             >
               {l}
@@ -114,7 +114,7 @@ export default function ClientesList({
         })}
       </div>
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-4">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm p-4">
         <div className="flex items-center gap-3 mb-4">
           <Input
             type="search"
@@ -126,7 +126,7 @@ export default function ClientesList({
           <select
             value={estadoFiltro}
             onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
-            className="h-9 px-3 text-sm border border-[#E2E8F0] rounded-md bg-white text-[#475569] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           >
             <option value="activos">Activos</option>
             <option value="inactivos">Inactivos</option>
@@ -137,12 +137,12 @@ export default function ClientesList({
           <NewClienteSheet />
         </div>
 
-        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase mb-3">
+        <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase mb-3">
           {titulo}
         </p>
 
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[#475569]">
+          <div className="py-12 text-center text-sm text-muted-foreground">
             Sin clientes para el filtro seleccionado.
           </div>
         ) : (
@@ -155,8 +155,8 @@ export default function ClientesList({
                 <li
                   key={c.id}
                   className={
-                    "rounded-[8px] border bg-white " +
-                    (inactivo ? "border-[#E2E8F0] opacity-70" : "border-[#E2E8F0]")
+                    "rounded-[8px] border bg-card " +
+                    (inactivo ? "border-border opacity-70" : "border-border")
                   }
                 >
                   <button
@@ -165,53 +165,53 @@ export default function ClientesList({
                       setExpanded(isOpen ? null : c.id);
                       setActiveTab("info");
                     }}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[#F8FAFC] transition-colors rounded-[8px]"
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-[8px]"
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={
                           "size-10 rounded-full font-bold text-sm flex items-center justify-center " +
                           (inactivo
-                            ? "bg-[#F1F5F9] text-[#94A3B8]"
-                            : "bg-[#E1F5FE] text-[#0088D1]")
+                            ? "bg-muted text-muted-foreground/70"
+                            : "bg-[#E1F5FE] text-primary")
                         }
                       >
                         {initial}
                       </span>
                       <div>
                         <div className="flex items-center gap-2">
-                          <div className="text-[#0F172A] font-semibold text-sm">
+                          <div className="text-foreground font-semibold text-sm">
                             {c.razon_social}
                           </div>
                           {inactivo && (
-                            <span className="text-[10px] font-semibold tracking-wide uppercase bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] rounded-full px-2 py-0.5">
+                            <span className="text-[10px] font-semibold tracking-wide uppercase bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
                               Inactivo
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] text-[#475569] uppercase tracking-wide mt-0.5">
-                          <MapPin size={11} className="text-[#0088D1]" />
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5">
+                          <MapPin size={11} className="text-primary" />
                           {c.localidad ?? "Sin localidad"}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+                        <div className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
                           Identificación
                         </div>
-                        <div className="text-[#0F172A] text-sm font-mono">
+                        <div className="text-foreground text-sm font-mono">
                           {c.cuit ?? "NO DATA"}
                         </div>
                       </div>
-                      <span className="size-7 rounded-full bg-[#E1F5FE] text-[#0088D1] flex items-center justify-center">
+                      <span className="size-7 rounded-full bg-[#E1F5FE] text-primary flex items-center justify-center">
                         {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-[#E2E8F0] p-4 bg-[#F8FAFC] rounded-b-[8px]">
+                    <div className="border-t border-border p-4 bg-muted/40 rounded-b-[8px]">
                       <div className="flex items-center gap-2 mb-4 flex-wrap">
                         <TabButton
                           icon={<FileText size={14} />}
@@ -304,7 +304,7 @@ function TabButton({
         "inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-semibold uppercase tracking-wide transition-colors " +
         (active
           ? "bg-[#0088D1] text-white"
-          : "bg-white text-[#475569] border border-[#E2E8F0] hover:bg-[#F1F5F9]")
+          : "bg-card text-muted-foreground border border-border hover:bg-muted")
       }
     >
       {icon}
@@ -348,7 +348,7 @@ function InfoGeneral({
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold text-[#0088D1] border border-[#0088D1]/30 hover:bg-[#E1F5FE] transition-colors"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold text-primary border border-[#0088D1]/30 hover:bg-[#E1F5FE] transition-colors"
         >
           <Pencil size={12} />
           Editar datos
@@ -365,11 +365,11 @@ function InfoGeneral({
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3">
-      <div className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+    <div className="bg-card border border-border rounded-[8px] p-3">
+      <div className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
         {label}
       </div>
-      <div className={"text-[#0F172A] text-sm font-semibold mt-1 " + (mono ? "font-mono" : "")}>
+      <div className={"text-foreground text-sm font-semibold mt-1 " + (mono ? "font-mono" : "")}>
         {value}
       </div>
     </div>

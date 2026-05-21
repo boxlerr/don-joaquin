@@ -54,19 +54,19 @@ export default function NewClienteSheet() {
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(760px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-white rounded-[16px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(760px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
         >
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-[#E2E8F0]">
+          <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border">
             <div className="flex items-start gap-4">
-              <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-[#0088D1] shrink-0">
+              <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
                 <UserPlus size={22} />
               </div>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-lg font-bold">
+                <Dialog.Title className="text-foreground text-lg font-bold">
                   Nuevo cliente
                 </Dialog.Title>
-                <Dialog.Description className="text-[#64748B] text-xs font-medium mt-0.5">
+                <Dialog.Description className="text-muted-foreground text-xs font-medium mt-0.5">
                   Datos básicos de la cartera. Podés completar el resto luego desde la ficha.
                 </Dialog.Description>
               </div>
@@ -75,7 +75,7 @@ export default function NewClienteSheet() {
               render={
                 <button
                   type="button"
-                  className="size-8 rounded-full text-[#64748B] hover:bg-[#F1F5F9] inline-flex items-center justify-center transition-colors"
+                  className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
                   aria-label="Cerrar"
                 />
               }
@@ -181,11 +181,11 @@ export default function NewClienteSheet() {
                   error={state?.fieldErrors?.email}
                 />
                 <div className="flex items-center pt-1.5">
-                  <label className="flex items-center gap-2.5 text-sm font-semibold text-[#334155] cursor-pointer selection:bg-transparent">
+                  <label className="flex items-center gap-2.5 text-sm font-semibold text-foreground/90 cursor-pointer selection:bg-transparent">
                     <input
                       type="checkbox"
                       name="es_multinacional"
-                      className="size-4.5 rounded border-[#E2E8F0] accent-[#0088D1] cursor-pointer"
+                      className="size-4.5 rounded border-border accent-[#0088D1] cursor-pointer"
                     />
                     Es multinacional
                   </label>
@@ -211,7 +211,7 @@ export default function NewClienteSheet() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC] transition-colors"
+                className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               >
                 Cancelar
               </button>
@@ -250,11 +250,11 @@ function InputFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-semibold text-[#475569]">{label}</label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <input
@@ -265,7 +265,7 @@ function InputFieldWithIcon({
           inputMode={inputMode}
           maxLength={maxLength}
           onInput={onInput}
-          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A]"
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
         />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
@@ -293,11 +293,11 @@ function SelectFieldWithIcon({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-xs font-semibold text-[#475569]">{label}</label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <div className="relative flex-1 h-full">
@@ -305,7 +305,7 @@ function SelectFieldWithIcon({
             name={name}
             required={required}
             defaultValue={defaultValue}
-            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] appearance-none cursor-pointer"
+            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
           >
             <option value="" disabled={required}>
               Seleccionar...
@@ -318,7 +318,7 @@ function SelectFieldWithIcon({
           </select>
           <ChevronDown
             size={14}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
           />
         </div>
       </div>
@@ -345,18 +345,18 @@ function TextareaFieldWithIcon({
 }) {
   return (
     <div className="space-y-1 h-full flex flex-col justify-between">
-      <label className="text-xs font-semibold text-[#475569]">{label}</label>
-      <div className={`relative flex items-start flex-1 w-full rounded-lg border bg-white overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-[#E2E8F0] focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
+      <div className={`relative flex items-start flex-1 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
-        <div className="flex items-center justify-center w-10 h-10 border-r border-[#E2E8F0] bg-slate-50/50 text-[#0088D1] shrink-0">
+        <div className="flex items-center justify-center w-10 h-10 border-r border-border bg-muted/40/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
         <textarea
           name={name}
           placeholder={placeholder}
           required={required}
-          className="flex-1 w-full h-[85px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-[#0F172A] resize-none"
+          className="flex-1 w-full h-[85px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground resize-none"
         />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}

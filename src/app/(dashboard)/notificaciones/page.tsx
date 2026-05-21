@@ -168,17 +168,17 @@ export default async function NotificacionesPage() {
         {categorias.map(({ icon: Icon, label, description, count }) => (
           <div
             key={label}
-            className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-5"
+            className="bg-card rounded-[8px] border border-border shadow-sm p-5"
           >
             <div className="flex items-start gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#E1F5FE] shrink-0">
-                <Icon size={20} className="text-[#0088D1]" />
+                <Icon size={20} className="text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[#0F172A] text-sm font-semibold">{label}</p>
-                <p className="text-[#475569] text-xs mt-0.5">{description}</p>
+                <p className="text-foreground text-sm font-semibold">{label}</p>
+                <p className="text-muted-foreground text-xs mt-0.5">{description}</p>
               </div>
-              <span className="text-2xl font-bold text-[#0088D1]">{count}</span>
+              <span className="text-2xl font-bold text-primary">{count}</span>
             </div>
           </div>
         ))}

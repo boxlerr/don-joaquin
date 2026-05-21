@@ -60,29 +60,29 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                <Dialog.Title className="text-foreground text-sm font-bold">
                   Guía de Gestión
                 </Dialog.Title>
               </div>
             </div>
             <div className="flex items-center gap-4">
               {/* Tabs inside header */}
-              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   return (
@@ -93,8 +93,8 @@ export default function HelpTutorialButton() {
                       className={
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
-                          ? "bg-white text-[#0088D1] shadow-sm"
-                          : "text-[#64748B] hover:text-[#0F172A]")
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
                       }
                     >
                       {t.icon}
@@ -107,7 +107,7 @@ export default function HelpTutorialButton() {
                 render={
                   <button
                     type="button"
-                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                     aria-label="Cerrar"
                   />
                 }
@@ -118,7 +118,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -134,7 +134,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
                             ? "bg-[#10B981] text-white"
-                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
+                            : "bg-card text-muted-foreground/70 border border-border")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
@@ -149,7 +149,7 @@ export default function HelpTutorialButton() {
                 );
               })}
             </div>
-            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full">
               Paso {step + 1} de {totalSteps}
             </div>
           </div>
@@ -160,10 +160,10 @@ export default function HelpTutorialButton() {
             <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                  <h3 className="text-foreground text-lg font-bold leading-tight">
                     {current.title}
                   </h3>
-                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
                     {current.description}
                   </p>
                 </div>
@@ -171,7 +171,7 @@ export default function HelpTutorialButton() {
                 {current.hint && (
                   <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <Lightbulb size={14} className="text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
@@ -183,18 +183,18 @@ export default function HelpTutorialButton() {
             </div>
 
             {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
                       <div className="flex gap-1">
                         <div className="size-2 rounded-full bg-[#FF5F56]/30" />
                         <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
                         <div className="size-2 rounded-full bg-[#27C93F]/30" />
                       </div>
-                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-muted rounded-full" />
                       </div>
                     </div>
                     <div className="p-5 overflow-hidden">
@@ -207,17 +207,17 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -344,8 +344,8 @@ function MockToolbar() {
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="opacity-50 transition-opacity">
-        <div className="text-[#0F172A] text-sm font-bold uppercase tracking-tight">Choferes</div>
-        <div className="text-[#64748B] text-[10px] mt-0.5">
+        <div className="text-foreground text-sm font-bold uppercase tracking-tight">Choferes</div>
+        <div className="text-muted-foreground text-[10px] mt-0.5">
           Legajo digital — sin acceso
         </div>
       </div>
@@ -358,9 +358,9 @@ function MockToolbar() {
 
 function MockNewChoferForm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-white">
-        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Nuevo chofer</div>
+    <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-card">
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Nuevo chofer</div>
       </div>
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
@@ -376,7 +376,7 @@ function MockNewChoferForm() {
           <MockField label="Fecha ingreso" value="01/06/2024" />
         </div>
         <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center hover:bg-[#F8FAFC]">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
             Cancelar
           </div>
           <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
@@ -399,11 +399,11 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">{label}</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
         {value}
@@ -414,30 +414,30 @@ function MockField({
 
 function MockChoferCard() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-[10px] shadow-sm overflow-hidden max-w-[280px] mx-auto">
+    <div className="bg-card border border-border rounded-[10px] shadow-sm overflow-hidden max-w-[280px] mx-auto">
       <div className="h-1.5 w-full bg-gradient-to-r from-[#0088D1] to-[#4FC3F7]" />
       <div className="p-3">
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center text-[#0088D1] font-bold text-sm shrink-0">
+          <div className="w-12 h-12 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center text-primary font-bold text-sm shrink-0">
             PJ
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[#0F172A] font-semibold text-xs">Pérez, Juan</div>
-            <div className="text-[#64748B] text-[10px] font-mono mt-0.5">DNI 30.123.456</div>
+            <div className="text-foreground font-semibold text-xs">Pérez, Juan</div>
+            <div className="text-muted-foreground text-[10px] font-mono mt-0.5">DNI 30.123.456</div>
             <span className="mt-1 inline-block text-[9px] font-semibold uppercase tracking-wide bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] rounded-full px-1.5 py-0.5">
               Activo
             </span>
           </div>
         </div>
-        <div className="mt-2 pt-2 border-t border-[#F1F5F9] space-y-1 text-[10px] text-[#475569]">
+        <div className="mt-2 pt-2 border-t border-[#F1F5F9] space-y-1 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <Phone size={10} className="text-[#94A3B8]" /> +54 9 22…
+            <Phone size={10} className="text-muted-foreground/70" /> +54 9 22…
           </div>
           <div className="flex items-center gap-1.5">
-            <MapPin size={10} className="text-[#94A3B8]" /> Tres Arroyos
+            <MapPin size={10} className="text-muted-foreground/70" /> Tres Arroyos
           </div>
           <div className="flex items-center gap-1.5">
-            <Calendar size={10} className="text-[#94A3B8]" /> Ingreso: 01/06/2024
+            <Calendar size={10} className="text-muted-foreground/70" /> Ingreso: 01/06/2024
           </div>
         </div>
       </div>
@@ -449,7 +449,7 @@ function MockAvatarUpload() {
   return (
     <div className="flex items-center gap-6 justify-center">
       <div className="relative">
-        <div className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center text-[#0088D1] font-bold text-lg shadow-inner ring-4 ring-[#0088D1]/15">
+        <div className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center text-primary font-bold text-lg shadow-inner ring-4 ring-[#0088D1]/15">
           PJ
         </div>
         <div className="absolute inset-0 rounded-full bg-black/55 flex flex-col items-center justify-center text-white">
@@ -457,8 +457,8 @@ function MockAvatarUpload() {
           <span className="text-[8px] font-medium tracking-wider uppercase mt-0.5">Subir</span>
         </div>
       </div>
-      <div className="text-[#0088D1] text-lg">→</div>
-      <div className="w-16 h-16 rounded-full border-2 border-[#B3E5FC] overflow-hidden bg-[#E1F5FE] flex items-center justify-center text-[#0088D1]">
+      <div className="text-primary text-lg">→</div>
+      <div className="w-16 h-16 rounded-full border-2 border-[#B3E5FC] overflow-hidden bg-[#E1F5FE] flex items-center justify-center text-primary">
         <User size={28} />
       </div>
     </div>
@@ -467,10 +467,10 @@ function MockAvatarUpload() {
 
 function MockVerLegajo() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="bg-[#F8FAFC] px-3 py-2 border-b border-[#E2E8F0] flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[11px] text-[#0F172A]">
-          <span className="size-7 rounded-full bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center font-bold text-[10px]">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="bg-muted/40 px-3 py-2 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] text-foreground">
+          <span className="size-7 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center font-bold text-[10px]">
             PJ
           </span>
           <span className="font-semibold">Pérez, Juan</span>
@@ -479,13 +479,13 @@ function MockVerLegajo() {
           <User size={11} /> Ver legajo
         </div>
       </div>
-      <div className="px-3 py-2 flex items-center gap-2 text-[10px] border-b border-[#E2E8F0] overflow-x-auto whitespace-nowrap">
-        <span className="text-[#0088D1] font-semibold border-b-2 border-[#0088D1] pb-1">Información</span>
-        <span className="text-[#475569]">Documentación</span>
-        <span className="text-[#475569]">Historial Viajes</span>
-        <span className="text-[#475569]">Cuenta Corriente</span>
+      <div className="px-3 py-2 flex items-center gap-2 text-[10px] border-b border-border overflow-x-auto whitespace-nowrap">
+        <span className="text-primary font-semibold border-b-2 border-[#0088D1] pb-1">Información</span>
+        <span className="text-muted-foreground">Documentación</span>
+        <span className="text-muted-foreground">Historial Viajes</span>
+        <span className="text-muted-foreground">Cuenta Corriente</span>
       </div>
-      <div className="p-3 text-center text-[11px] text-[#0088D1] font-semibold">
+      <div className="p-3 text-center text-[11px] text-primary font-semibold">
         ↓ Modal con 4 tabs internas
       </div>
     </div>
@@ -494,26 +494,26 @@ function MockVerLegajo() {
 
 function MockDocumentos() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-1.5 text-[11px]">
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> Licencia de conducir
+    <div className="bg-card border border-border rounded-md p-3 space-y-1.5 text-[11px]">
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> Licencia de conducir
         </span>
         <span className="text-[10px] text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-full px-2 py-0.5">
           Vigente
         </span>
       </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> ART
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> ART
         </span>
         <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-full px-2 py-0.5">
           Vence en 20 días
         </span>
       </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-[#E2E8F0]">
-        <span className="inline-flex items-center gap-1.5 text-[#0F172A]">
-          <FileText size={11} className="text-[#0088D1]" /> Libreta sanitaria
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> Libreta sanitaria
         </span>
         <span className="text-[10px] text-[#7F1D1D] bg-[#FEF2F2] border border-[#FECACA] rounded-full px-2 py-0.5">
           Vencida
@@ -526,25 +526,25 @@ function MockDocumentos() {
 function MockViajesCuenta() {
   return (
     <div className="grid grid-cols-2 gap-2">
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 space-y-1">
-        <div className="text-[10px] font-semibold text-[#475569] uppercase tracking-wide flex items-center gap-1">
-          <MapPin size={10} className="text-[#0088D1]" /> Historial viajes
+      <div className="bg-card border border-border rounded-md p-2 space-y-1">
+        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+          <MapPin size={10} className="text-primary" /> Historial viajes
         </div>
-        <div className="text-[11px] text-[#0F172A]">Tres Arroyos → CABA</div>
-        <div className="text-[10px] text-[#475569]">12/03/2026 · 580 km</div>
-        <div className="text-[11px] text-[#0F172A]">Bahía Blanca → Mar del Plata</div>
-        <div className="text-[10px] text-[#475569]">08/03/2026 · 480 km</div>
+        <div className="text-[11px] text-foreground">Tres Arroyos → CABA</div>
+        <div className="text-[10px] text-muted-foreground">12/03/2026 · 580 km</div>
+        <div className="text-[11px] text-foreground">Bahía Blanca → Mar del Plata</div>
+        <div className="text-[10px] text-muted-foreground">08/03/2026 · 480 km</div>
       </div>
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 space-y-1">
-        <div className="text-[10px] font-semibold text-[#475569] uppercase tracking-wide flex items-center gap-1">
-          <Wallet size={10} className="text-[#0088D1]" /> Cuenta corriente
+      <div className="bg-card border border-border rounded-md p-2 space-y-1">
+        <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+          <Wallet size={10} className="text-primary" /> Cuenta corriente
         </div>
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[#0F172A]">Viático ruta</span>
+          <span className="text-foreground">Viático ruta</span>
           <span className="text-[#065F46] font-semibold">+ $ 25.000</span>
         </div>
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[#0F172A]">Anticipo</span>
+          <span className="text-foreground">Anticipo</span>
           <span className="text-[#7F1D1D] font-semibold">- $ 50.000</span>
         </div>
       </div>
@@ -555,26 +555,26 @@ function MockViajesCuenta() {
 function MockEstadoToggle() {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 flex items-center justify-between">
-        <div className="text-xs text-[#0F172A]">
+      <div className="bg-card border border-border rounded-md p-2 flex items-center justify-between">
+        <div className="text-xs text-foreground">
           <b>Pérez, Juan</b>{" "}
           <span className="ml-2 text-[10px] uppercase tracking-wide bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] rounded-full px-2 py-0.5">
             Activo
           </span>
         </div>
-        <div className="size-7 rounded-md text-amber-500 hover:bg-white border border-[#E2E8F0] inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(245,158,11,0.15)] ring-2 ring-amber-300">
+        <div className="size-7 rounded-md text-amber-500 hover:bg-card border border-border inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(245,158,11,0.15)] ring-2 ring-amber-300">
           <RefreshCw size={12} />
         </div>
       </div>
-      <div className="text-center text-[10px] text-[#475569]">↓ después del clic</div>
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-2 flex items-center justify-between opacity-80">
-        <div className="text-xs text-[#0F172A]">
+      <div className="text-center text-[10px] text-muted-foreground">↓ después del clic</div>
+      <div className="bg-card border border-border rounded-md p-2 flex items-center justify-between opacity-80">
+        <div className="text-xs text-foreground">
           <b>Pérez, Juan</b>{" "}
-          <span className="ml-2 text-[10px] uppercase tracking-wide bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0] rounded-full px-2 py-0.5">
+          <span className="ml-2 text-[10px] uppercase tracking-wide bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
             Inactivo
           </span>
         </div>
-        <div className="size-7 rounded-md text-emerald-500 border border-[#E2E8F0] inline-flex items-center justify-center">
+        <div className="size-7 rounded-md text-emerald-500 border border-border inline-flex items-center justify-center">
           <RefreshCw size={12} />
         </div>
       </div>
@@ -584,16 +584,16 @@ function MockEstadoToggle() {
 
 function MockVerViajes() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-2">
+    <div className="bg-card border border-border rounded-md p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] text-[#0F172A]"><b>Pérez, Juan</b></div>
-        <div className="size-7 rounded-md text-[#0088D1] border border-[#0088D1] inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+        <div className="text-[11px] text-foreground"><b>Pérez, Juan</b></div>
+        <div className="size-7 rounded-md text-primary border border-[#0088D1] inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
           <MapPin size={12} />
         </div>
       </div>
-      <div className="text-center text-[10px] text-[#475569]">↓ abre</div>
-      <div className="text-[11px] text-[#0F172A] bg-[#F8FAFC] border border-[#E2E8F0] rounded px-2 py-1.5">
-        <span className="font-mono text-[10px] text-[#475569]">/viajes?choferId=…</span>
+      <div className="text-center text-[10px] text-muted-foreground">↓ abre</div>
+      <div className="text-[11px] text-foreground bg-muted/40 border border-border rounded px-2 py-1.5">
+        <span className="font-mono text-[10px] text-muted-foreground">/viajes?choferId=…</span>
         <div className="mt-1">→ Listado de viajes filtrado por este chofer</div>
       </div>
     </div>
@@ -602,8 +602,8 @@ function MockVerViajes() {
 
 function MockEliminar() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-2 flex items-center justify-between">
-      <div className="text-xs text-[#0F172A]"><b>Pérez, Juan</b></div>
+    <div className="bg-card border border-border rounded-md p-2 flex items-center justify-between">
+      <div className="text-xs text-foreground"><b>Pérez, Juan</b></div>
       <div className="size-7 rounded-md text-red-500 border border-red-200 bg-red-50 inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(239,68,68,0.15)] ring-2 ring-red-300">
         <Trash2 size={12} />
       </div>

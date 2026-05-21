@@ -72,11 +72,11 @@ export default function ViajeGastosPanel({ viajeId }: { viajeId: string }) {
 
   return (
     <div
-      className="col-span-3 bg-white p-4 rounded-lg border border-[#E2E8F0]/80 shadow-2xs"
+      className="col-span-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2 mb-3">
-        <h4 className="text-xs font-semibold text-[#0F172A] uppercase tracking-wide flex items-center gap-1.5">
+      <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
+        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
           <Receipt size={14} className="text-[#EF4444]" />
           Gastos del viaje
           {count > 0 && (
@@ -102,12 +102,12 @@ export default function ViajeGastosPanel({ viajeId }: { viajeId: string }) {
       </div>
 
       {loading && gastos.length === 0 ? (
-        <div className="py-4 text-center text-xs text-[#64748B]">
+        <div className="py-4 text-center text-xs text-muted-foreground">
           <Loader2 size={12} className="inline-block animate-spin mr-1" />
           Cargando...
         </div>
       ) : gastos.length === 0 ? (
-        <div className="py-4 text-center text-xs text-[#94A3B8]">
+        <div className="py-4 text-center text-xs text-muted-foreground/70">
           Sin gastos cargados para este viaje.
         </div>
       ) : (
@@ -115,25 +115,25 @@ export default function ViajeGastosPanel({ viajeId }: { viajeId: string }) {
           {gastos.map((g) => (
             <div
               key={g.id}
-              className="flex items-center justify-between gap-3 text-xs px-2 py-1.5 rounded hover:bg-[#F8FAFC]"
+              className="flex items-center justify-between gap-3 text-xs px-2 py-1.5 rounded hover:bg-muted/40"
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="font-medium text-[#0F172A] shrink-0">
+                <span className="font-medium text-foreground shrink-0">
                   {g.tipo_gasto_nombre ?? "Gasto"}
                 </span>
-                <span className="text-[10px] text-[#94A3B8] flex items-center gap-0.5 shrink-0">
+                <span className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 shrink-0">
                   <Calendar size={9} />
                   {new Date(g.fecha).toLocaleDateString("es-AR")}
                 </span>
-                <span className="text-[#64748B] truncate">
+                <span className="text-muted-foreground truncate">
                   {g.descripcion ?? g.proveedor ?? ""}
                 </span>
                 {g.camion_patente && (
-                  <span className="text-[10px] text-[#64748B] shrink-0">{g.camion_patente}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">{g.camion_patente}</span>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[10px] uppercase tracking-wide text-[#94A3B8]">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
                   {MEDIO_LABEL[g.medio_pago] ?? g.medio_pago}
                 </span>
                 <span className="font-bold text-[#EF4444]">$ {formatARS(g.monto)}</span>
@@ -141,7 +141,7 @@ export default function ViajeGastosPanel({ viajeId }: { viajeId: string }) {
             </div>
           ))}
           {count > 5 && (
-            <p className="text-[10px] text-[#94A3B8] text-center pt-1 flex items-center justify-center gap-1">
+            <p className="text-[10px] text-muted-foreground/70 text-center pt-1 flex items-center justify-center gap-1">
               <AlertCircle size={9} />
               Mostrando los 5 más recientes — ver todos en /gastos
             </p>

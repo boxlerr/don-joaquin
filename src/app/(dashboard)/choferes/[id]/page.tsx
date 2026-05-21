@@ -44,7 +44,7 @@ export default function ChoferDetailPage() {
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <Loader2 size={36} className="animate-spin text-[#0088D1]" />
+        <Loader2 size={36} className="animate-spin text-primary" />
       </div>
     );
   }
@@ -52,7 +52,7 @@ export default function ChoferDetailPage() {
   if (!chofer) {
     return (
       <div className="p-8 text-center">
-        <p className="text-[#64748B] mb-4">Chofer no encontrado.</p>
+        <p className="text-muted-foreground mb-4">Chofer no encontrado.</p>
         <Button variant="outline" size="sm" onClick={() => router.back()}>
           <ArrowLeft size={14} className="mr-1.5" />
           Volver
@@ -67,7 +67,7 @@ export default function ChoferDetailPage() {
         variant="outline"
         size="sm"
         onClick={() => router.back()}
-        className="border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+        className="border-border text-muted-foreground hover:bg-muted/40"
       >
         <ArrowLeft size={14} className="mr-1.5" />
         Volver
@@ -75,16 +75,16 @@ export default function ChoferDetailPage() {
 
       <ChoferHeader chofer={chofer} onRefresh={loadData} />
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div className="flex items-center px-6 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+        <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "text-[#0088D1] border-[#0088D1]"
-                  : "text-[#64748B] border-transparent hover:text-[#0F172A]"
+                  ? "text-primary border-[#0088D1]"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
               }`}
             >
               {tab.label}

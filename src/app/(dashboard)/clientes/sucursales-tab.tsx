@@ -42,18 +42,18 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#94A3B8] uppercase">
+        <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
           {items.length} sucursal{items.length === 1 ? "" : "es"}
         </p>
         <AddSucursalDialog clienteId={clienteId} onAdded={refresh} />
       </div>
 
       {loading ? (
-        <div className="py-10 flex items-center justify-center text-[#475569]">
-          <Loader2 size={18} className="animate-spin text-[#0088D1]" />
+        <div className="py-10 flex items-center justify-center text-muted-foreground">
+          <Loader2 size={18} className="animate-spin text-primary" />
         </div>
       ) : items.length === 0 ? (
-        <div className="py-8 text-center text-sm text-[#475569] bg-white border border-dashed border-[#E2E8F0] rounded-[8px]">
+        <div className="py-8 text-center text-sm text-muted-foreground bg-card border border-dashed border-border rounded-[8px]">
           Aún no hay sucursales cargadas.
         </div>
       ) : (
@@ -65,14 +65,14 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
             return (
               <li
                 key={s.id}
-                className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-start gap-3 group"
+                className="bg-card border border-border rounded-[8px] p-3 flex items-start gap-3 group"
               >
-                <span className="size-9 rounded-md bg-[#E1F5FE] text-[#0088D1] flex items-center justify-center shrink-0">
+                <span className="size-9 rounded-md bg-[#E1F5FE] text-primary flex items-center justify-center shrink-0">
                   <Building size={16} />
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[#0F172A] font-semibold text-sm">{s.nombre}</span>
+                    <span className="text-foreground font-semibold text-sm">{s.nombre}</span>
                     {s.es_principal && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide bg-[#FFF8E1] text-[#92400E] border border-[#FDE68A] rounded-full px-2 py-0.5">
                         <Star size={9} fill="#F59E0B" stroke="#F59E0B" />
@@ -81,22 +81,22 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
                     )}
                   </div>
                   {direccion && (
-                    <div className="flex items-start gap-1 mt-1 text-xs text-[#475569]">
-                      <MapPin size={11} className="text-[#0088D1] mt-0.5 shrink-0" />
+                    <div className="flex items-start gap-1 mt-1 text-xs text-muted-foreground">
+                      <MapPin size={11} className="text-primary mt-0.5 shrink-0" />
                       <span>{direccion}</span>
                     </div>
                   )}
                   {s.telefono && (
                     <a
                       href={`tel:${s.telefono}`}
-                      className="inline-flex items-center gap-1 mt-1 text-xs text-[#475569] hover:text-[#0088D1]"
+                      className="inline-flex items-center gap-1 mt-1 text-xs text-muted-foreground hover:text-primary"
                     >
                       <Phone size={11} />
                       {s.telefono}
                     </a>
                   )}
                   {s.observaciones && (
-                    <p className="text-xs text-[#64748B] italic mt-1">{s.observaciones}</p>
+                    <p className="text-xs text-muted-foreground italic mt-1">{s.observaciones}</p>
                   )}
                 </div>
                 <button

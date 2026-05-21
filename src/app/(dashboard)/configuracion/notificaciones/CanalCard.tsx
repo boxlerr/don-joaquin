@@ -85,21 +85,21 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
   }
 
   return (
-    <div className="p-4 bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow">
+    <div className="p-4 bg-card rounded-[8px] border border-border shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 flex-1 min-w-0">
           <div className="w-10 h-10 rounded-lg bg-[#E1F5FE] flex items-center justify-center shrink-0">
-            <Icon size={18} className="text-[#0088D1]" />
+            <Icon size={18} className="text-primary" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-semibold text-[#0F172A]">{canal.nombre}</p>
+              <p className="text-sm font-semibold text-foreground">{canal.nombre}</p>
               <StatusBadge
                 label={activo ? "Activo" : "Inactivo"}
                 tone={activo ? "success" : "neutral"}
               />
             </div>
-            <p className="text-xs text-[#64748B]">{canal.descripcion}</p>
+            <p className="text-xs text-muted-foreground">{canal.descripcion}</p>
             {error && (
               <p className="text-xs text-[#7F1D1D] mt-1.5 flex items-center gap-1">
                 <AlertCircle size={12} />
@@ -117,7 +117,7 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
               onClick={() => onOpenChange(true)}
               title={`Configurar ${canal.nombre}`}
             >
-              <Edit2 size={14} className="text-[#0088D1]" />
+              <Edit2 size={14} className="text-primary" />
             </Button>
 
             <DialogContent className="sm:max-w-md">
@@ -186,7 +186,7 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
             aria-label={`Activar ${canal.nombre}`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
                 activo ? "translate-x-4" : "translate-x-0.5"
               }`}
             />

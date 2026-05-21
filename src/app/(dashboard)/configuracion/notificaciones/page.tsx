@@ -52,8 +52,8 @@ export default async function ConfiguracionNotificacionesPage() {
 
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <Bell size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Canales de Notificación</h2>
+          <Bell size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Canales de Notificación</h2>
         </div>
 
         <div className="mb-4 p-4 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] flex items-start gap-3">
@@ -91,10 +91,10 @@ export default async function ConfiguracionNotificacionesPage() {
         </div>
       </div>
 
-      <div className="pt-6 border-t border-[#E2E8F0]">
+      <div className="pt-6 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
-          <Bell size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Tipos de Alertas</h2>
+          <Bell size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Tipos de Alertas</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -110,15 +110,15 @@ export default async function ConfiguracionNotificacionesPage() {
         </div>
       </div>
 
-      <div className="pt-6 border-t border-[#E2E8F0]">
+      <div className="pt-6 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
-          <Users size={16} className="text-[#0088D1]" />
-          <h2 className="text-[#0F172A] text-sm font-semibold">Destinatarios de Alertas</h2>
+          <Users size={16} className="text-primary" />
+          <h2 className="text-foreground text-sm font-semibold">Destinatarios de Alertas</h2>
         </div>
 
         {(usuarios ?? []).length === 0 ? (
-          <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-6 text-center">
-            <p className="text-sm text-[#475569]">No hay usuarios activos.</p>
+          <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 text-center">
+            <p className="text-sm text-muted-foreground">No hay usuarios activos.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -129,11 +129,11 @@ export default async function ConfiguracionNotificacionesPage() {
               return (
                 <div
                   key={u.id}
-                  className="p-4 bg-white rounded-[8px] border border-[#E2E8F0] flex items-center justify-between gap-4"
+                  className="p-4 bg-card rounded-[8px] border border-border flex items-center justify-between gap-4"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-[#0F172A] truncate">{nombreCompleto}</p>
-                    <p className="text-xs text-[#64748B] truncate">
+                    <p className="text-sm font-medium text-foreground truncate">{nombreCompleto}</p>
+                    <p className="text-xs text-muted-foreground truncate">
                       {u.email}
                       {rol?.nombre ? ` • ${rol.nombre}` : ""}
                     </p>

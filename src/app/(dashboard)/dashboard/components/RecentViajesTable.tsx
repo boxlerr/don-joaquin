@@ -60,13 +60,13 @@ export default function RecentViajesTable({ initialViajes }: Props) {
 
   return (
     <Table>
-      <TableHeader className="bg-slate-50/50">
-        <TableRow className="border-b border-[#E2E8F0]">
+      <TableHeader className="bg-muted/40">
+        <TableRow className="border-b border-border">
           {["Origen → Destino", "Cliente", "Chofer", "Estado", "Facturación", ""].map(
             (col) => (
               <TableHead
                 key={col}
-                className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider h-9 px-3"
+                className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider h-9 px-3"
               >
                 {col}
               </TableHead>
@@ -79,8 +79,8 @@ export default function RecentViajesTable({ initialViajes }: Props) {
           <TableRow className="hover:bg-transparent">
             <TableCell colSpan={6} className="py-12 text-center">
               <div className="flex flex-col items-center justify-center">
-                <span className="text-slate-800 text-sm font-bold tracking-tight">Sin viajes registrados</span>
-                <span className="text-slate-400 text-xs font-medium mt-1">Los viajes que registres aparecerán aquí</span>
+                <span className="text-foreground text-sm font-bold tracking-tight">Sin viajes registrados</span>
+                <span className="text-muted-foreground/70 text-xs font-medium mt-1">Los viajes que registres aparecerán aquí</span>
               </div>
             </TableCell>
           </TableRow>
@@ -91,24 +91,24 @@ export default function RecentViajesTable({ initialViajes }: Props) {
               <React.Fragment key={v.id}>
                 <TableRow
                   onClick={() => setExpandedId(isExpanded ? null : v.id)}
-                  className={`hover:bg-slate-50/30 transition-colors border-b border-[#E2E8F0] last:border-0 cursor-pointer ${
-                    isExpanded ? "bg-slate-50/30" : ""
+                  className={`hover:bg-muted/30 transition-colors border-b border-border last:border-0 cursor-pointer ${
+                    isExpanded ? "bg-muted/30" : ""
                   }`}
                 >
                   <TableCell className="py-3 px-3">
                     <div className="flex flex-col">
-                      <span className="text-xs font-medium text-[#0F172A]">
+                      <span className="text-xs font-medium text-foreground">
                         {v.origen || "—"} → {v.destino || "—"}
                       </span>
-                      <span className="text-[10px] text-[#94A3B8] mt-0.5">
+                      <span className="text-[10px] text-muted-foreground/80 mt-0.5">
                         {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-[#334155] font-semibold py-3 px-3">
+                  <TableCell className="text-xs text-foreground/90 font-semibold py-3 px-3">
                     {v.cliente}
                   </TableCell>
-                  <TableCell className="text-xs text-[#475569] py-3 px-3">
+                  <TableCell className="text-xs text-muted-foreground py-3 px-3">
                     {v.chofer}
                   </TableCell>
                   <TableCell className="py-3 px-3">
@@ -125,64 +125,64 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                       }
                     />
                   </TableCell>
-                  <TableCell className="text-xs font-semibold text-slate-500 py-3 px-3">
+                  <TableCell className="text-xs font-semibold text-muted-foreground py-3 px-3">
                     {v.facturado ? (
-                      <span className="text-[#10B981] bg-[#ECFDF5] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 uppercase">Sí</span>
+                      <span className="text-[#10B981] bg-[#ECFDF5] dark:bg-emerald-500/15 dark:text-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 dark:border-emerald-700/30 uppercase">Sí</span>
                     ) : (
-                      <span className="text-[#64748B] bg-slate-100 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200/50 uppercase">No</span>
+                      <span className="text-muted-foreground bg-muted px-2 py-0.5 rounded-full text-[10px] font-bold border border-border uppercase">No</span>
                     )}
                   </TableCell>
                   <TableCell className="py-3 px-3 text-right w-10">
-                    <Button variant="ghost" size="icon" className="w-6 h-6 p-0 hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+                    <Button variant="ghost" size="icon" className="w-6 h-6 p-0 hover:bg-muted text-muted-foreground/70 hover:text-foreground">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </Button>
                   </TableCell>
                 </TableRow>
 
                 {isExpanded && (
-                  <TableRow className="bg-[#F8FAFC]/40 hover:bg-[#F8FAFC]/40">
-                    <TableCell colSpan={6} className="p-0 border-b border-[#E2E8F0]">
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={6} className="p-0 border-b border-border">
                       <div className="p-5 grid grid-cols-3 gap-5 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
-                        <div className="space-y-3 bg-white p-3.5 rounded-[8px] border border-[#E2E8F0] shadow-sm">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none">
                           <div>
-                            <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-1.5 mb-1.5">
-                              <User size={13} className="text-[#0088D1]" /> Chofer Asignado
+                            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
+                              <User size={13} className="text-primary" /> Chofer Asignado
                             </h4>
-                            <p className="text-xs font-semibold text-[#334155]">{v.chofer ?? "—"}</p>
+                            <p className="text-xs font-semibold text-foreground/90">{v.chofer ?? "—"}</p>
                           </div>
                           <div>
-                            <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-1.5 mb-1.5">
-                              <Truck size={13} className="text-[#0088D1]" /> Vehículo / Patente
+                            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
+                              <Truck size={13} className="text-primary" /> Vehículo / Patente
                             </h4>
-                            <p className="text-xs font-semibold text-[#334155]">{v.camion ?? "—"}</p>
+                            <p className="text-xs font-semibold text-foreground/90">{v.camion ?? "—"}</p>
                           </div>
                         </div>
 
                         {/* Finanzas y KMs */}
-                        <div className="space-y-3 bg-white p-3.5 rounded-[8px] border border-[#E2E8F0] shadow-sm text-xs">
-                          <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-1.5 mb-1.5">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none text-xs">
+                          <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
                             <Coins size={13} className="text-[#10B981]" /> Detalles Financieros
                           </h4>
                           <div className="grid grid-cols-2 gap-1.5">
-                            <span className="text-[#64748B] text-[11px]">Monto Flete:</span>
-                            <span className="font-bold text-[#0F172A] text-right">
+                            <span className="text-muted-foreground text-[11px]">Monto Flete:</span>
+                            <span className="font-bold text-foreground text-right">
                               {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
                             </span>
-                            <span className="text-[#64748B] text-[11px]">KM con Carga:</span>
-                            <span className="font-mono text-[#334155] text-right">{v.km_con_carga ?? 0} km</span>
-                            <span className="text-[#64748B] text-[11px]">KM Vacíos:</span>
-                            <span className="font-mono text-[#334155] text-right">{v.km_vacios ?? 0} km</span>
+                            <span className="text-muted-foreground text-[11px]">KM con Carga:</span>
+                            <span className="font-mono text-foreground/90 text-right">{v.km_con_carga ?? 0} km</span>
+                            <span className="text-muted-foreground text-[11px]">KM Vacíos:</span>
+                            <span className="font-mono text-foreground/90 text-right">{v.km_vacios ?? 0} km</span>
                           </div>
                         </div>
 
                         {/* Notas y Acciones de Estado */}
-                        <div className="space-y-3 bg-white p-3.5 rounded-[8px] border border-[#E2E8F0] shadow-sm flex flex-col justify-between">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none flex flex-col justify-between">
                           <div>
-                            <h4 className="text-[10px] font-extrabold text-[#64748B] uppercase tracking-wider flex items-center gap-1.5 border-b border-[#E2E8F0] pb-1.5 mb-1.5">
+                            <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
                               <FileText size={13} className="text-[#F59E0B]" /> Notas de Viaje
                             </h4>
-                            <p className="text-[11px] text-[#475569] italic line-clamp-2 leading-relaxed">
+                            <p className="text-[11px] text-muted-foreground italic line-clamp-2 leading-relaxed">
                               {v.observaciones
                                 ? v.observaciones
                                     .split("|")
@@ -193,8 +193,8 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                             </p>
                           </div>
 
-                          <div className="pt-2 border-t border-[#E2E8F0] space-y-2">
-                            <span className="text-[9px] font-bold text-[#64748B] uppercase tracking-wider block">
+                          <div className="pt-2 border-t border-border space-y-2">
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
                               Cambiar Estado Operativo:
                             </span>
                             <div className="flex items-center gap-1">
@@ -212,7 +212,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                                     variant={isCurrent ? "default" : "outline"}
                                     size="xs"
                                     disabled={isCurrent || isUpd || updatingId !== null}
-                                    className={`text-[10px] h-6 px-2 font-semibold ${isCurrent ? "bg-[#0F172A] hover:bg-[#0F172A] text-white" : "border-[#E2E8F0]"}`}
+                                    className="text-[10px] h-6 px-2 font-semibold"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleUpdateEstado(v.id, st);
@@ -228,7 +228,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                             <div className="pt-1 text-right">
                               {deletingId === v.id ? (
                                 <div className="flex items-center justify-end gap-1.5">
-                                  <span className="text-[10px] text-red-600 font-bold">¿Confirmar?</span>
+                                  <span className="text-[10px] text-destructive font-bold">¿Confirmar?</span>
                                   <Button
                                     variant="destructive"
                                     size="xs"
@@ -243,7 +243,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                                   <Button
                                     variant="outline"
                                     size="xs"
-                                    className="h-5 px-1.5 text-[9px] border-[#E2E8F0]"
+                                    className="h-5 px-1.5 text-[9px]"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setDeletingId(null);
@@ -256,7 +256,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                                 <Button
                                   variant="ghost"
                                   size="xs"
-                                  className="h-6 px-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[10px] gap-1 font-semibold"
+                                  className="h-6 px-1.5 text-destructive hover:text-destructive/80 hover:bg-destructive/10 text-[10px] gap-1 font-semibold"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setDeletingId(v.id);

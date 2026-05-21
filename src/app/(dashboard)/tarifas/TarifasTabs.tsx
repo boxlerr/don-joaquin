@@ -36,7 +36,7 @@ export default function TarifasTabs({ params, clientes, rutas, tarifas }: Props)
       <div
         role="tablist"
         aria-label="Secciones de tarifas"
-        className="flex items-center gap-1 border-b border-[#E2E8F0]"
+        className="flex items-center gap-1 border-b border-border"
       >
         {TABS.map((t) => {
           const Icon = t.icon;
@@ -50,8 +50,8 @@ export default function TarifasTabs({ params, clientes, rutas, tarifas }: Props)
               onClick={() => setTab(t.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? "text-[#0088D1]"
-                  : "text-[#475569] hover:text-[#0F172A]"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon size={14} />

@@ -70,16 +70,16 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
   return (
     <>
       <TableRow
-        className={`hover:bg-[#F8FAFC] transition-all cursor-pointer select-none ${
+        className={`hover:bg-muted/40 transition-all cursor-pointer select-none ${
           expanded ? "bg-[#F0F9FF]" : ""
         }`}
         onClick={handleExpand}
       >
-        <TableCell className="font-medium text-[#0F172A]">
+        <TableCell className="font-medium text-foreground">
           <div className="flex items-center gap-2">
-            <span className="text-[#94A3B8]">
+            <span className="text-muted-foreground/70">
               {expanded ? (
-                <ChevronDown size={15} className="text-[#0088D1]" />
+                <ChevronDown size={15} className="text-primary" />
               ) : (
                 <ChevronRight size={15} />
               )}
@@ -90,9 +90,9 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
           </div>
         </TableCell>
         <TableCell className="font-mono">{chofer.dni}</TableCell>
-        <TableCell className="text-[#475569]">{chofer.localidad ?? "—"}</TableCell>
-        <TableCell className="text-[#475569]">{chofer.telefono ?? "—"}</TableCell>
-        <TableCell className="text-[#475569] text-xs">
+        <TableCell className="text-muted-foreground">{chofer.localidad ?? "—"}</TableCell>
+        <TableCell className="text-muted-foreground">{chofer.telefono ?? "—"}</TableCell>
+        <TableCell className="text-muted-foreground text-xs">
           {new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}
         </TableCell>
         <TableCell>
@@ -101,11 +101,11 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
       </TableRow>
 
       {expanded && (
-        <TableRow className="bg-white hover:bg-white">
-          <TableCell colSpan={6} className="p-0 border-b border-[#E2E8F0]">
+        <TableRow className="bg-card hover:bg-card">
+          <TableCell colSpan={6} className="p-0 border-b border-border">
             <div className="animate-in fade-in-50 slide-in-from-top-1 duration-150">
               {/* Barra de tabs + acciones */}
-              <div className="flex items-center justify-between px-4 border-b border-[#E2E8F0] bg-[#F8FAFC] overflow-x-auto">
+              <div className="flex items-center justify-between px-4 border-b border-border bg-muted/40 overflow-x-auto">
                 <div className="flex items-center">
                   {TABS.map((tab) => (
                     <button
@@ -116,8 +116,8 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
                       }}
                       className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                         activeTab === tab.id
-                          ? "text-[#0088D1] border-[#0088D1]"
-                          : "text-[#64748B] border-transparent hover:text-[#0F172A]"
+                          ? "text-primary border-[#0088D1]"
+                          : "text-muted-foreground border-transparent hover:text-foreground"
                       }`}
                     >
                       {tab.label}
@@ -132,16 +132,16 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
                   <Link
                     href={`/viajes?choferId=${chofer.id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 h-7 px-3 text-xs font-medium rounded-md border border-[#CBD5E1] text-[#334155] hover:bg-[#F8FAFC] transition-colors"
+                    className="inline-flex items-center gap-1 h-7 px-3 text-xs font-medium rounded-md border border-[#CBD5E1] text-foreground/90 hover:bg-muted/40 transition-colors"
                     aria-label={`Ver viajes de ${chofer.apellido}, ${chofer.nombre}`}
                   >
-                    <MapPin size={12} className="text-[#0088D1]" />
+                    <MapPin size={12} className="text-primary" />
                     Ver viajes
                   </Link>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs border-[#CBD5E1] text-[#334155]"
+                    className="h-7 text-xs border-[#CBD5E1] text-foreground/90"
                     onClick={handleToggleEstado}
                     disabled={actionLoading}
                   >
@@ -173,7 +173,7 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
               >
                 {tabLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <Loader2 size={24} className="animate-spin text-[#0088D1]" />
+                    <Loader2 size={24} className="animate-spin text-primary" />
                   </div>
                 ) : detail ? (
                   <>
@@ -191,7 +191,7 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
                     )}
                   </>
                 ) : (
-                  <p className="text-center text-[#94A3B8] text-sm py-8">
+                  <p className="text-center text-muted-foreground/70 text-sm py-8">
                     No se pudo cargar el legajo.
                   </p>
                 )}

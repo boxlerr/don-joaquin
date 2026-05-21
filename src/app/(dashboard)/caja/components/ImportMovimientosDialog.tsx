@@ -95,13 +95,13 @@ export default function ImportMovimientosDialog() {
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-[#E2E8F0]">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
             <div>
-              <Dialog.Title className="text-[#0F172A] text-base font-semibold">
+              <Dialog.Title className="text-foreground text-base font-semibold">
                 Importar movimientos de caja
               </Dialog.Title>
-              <Dialog.Description className="text-[#475569] text-xs mt-0.5">
+              <Dialog.Description className="text-muted-foreground text-xs mt-0.5">
                 Subí un .xlsx o .csv con uno o varios movimientos. Se insertan en la caja general.
               </Dialog.Description>
             </div>
@@ -109,7 +109,7 @@ export default function ImportMovimientosDialog() {
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -119,9 +119,9 @@ export default function ImportMovimientosDialog() {
           </div>
 
           <div className="px-5 py-4 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-[#475569]">
-                <FileSpreadsheet size={16} className="text-[#0088D1]" />
+            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileSpreadsheet size={16} className="text-primary" />
                 <span>¿No tenés el formato? Descargá el template.</span>
               </div>
               <Button
@@ -135,7 +135,7 @@ export default function ImportMovimientosDialog() {
               </Button>
             </div>
 
-            <div className="rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-xs text-[#475569] space-y-1">
+            <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground space-y-1">
               <p className="font-semibold text-[#1E293B]">Columnas esperadas:</p>
               <p>
                 <span className="font-mono">fecha</span> (yyyy-mm-dd o dd/mm/yyyy),{" "}
@@ -150,7 +150,7 @@ export default function ImportMovimientosDialog() {
 
             <form action={formAction} className="space-y-3">
               <label className="block">
-                <span className="text-xs font-semibold text-[#475569] mb-1 block">
+                <span className="text-xs font-semibold text-muted-foreground mb-1 block">
                   Archivo .xlsx / .csv
                 </span>
                 <input
@@ -161,10 +161,10 @@ export default function ImportMovimientosDialog() {
                   onChange={(e) =>
                     setFileName(e.target.files?.[0]?.name ?? null)
                   }
-                  className="block w-full text-sm text-[#0F172A] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0088D1] file:text-white hover:file:bg-[#0277BD] file:cursor-pointer"
+                  className="block w-full text-sm text-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0088D1] file:text-white hover:file:bg-[#0277BD] file:cursor-pointer"
                 />
                 {fileName && (
-                  <p className="text-xs text-[#475569] mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Seleccionado: <span className="font-mono">{fileName}</span>
                   </p>
                 )}
@@ -200,7 +200,7 @@ export default function ImportMovimientosDialog() {
 function ResultPanel({ state }: { state: NonNullable<ImportMovimientosState> }) {
   const errs = state.errors ?? [];
   return (
-    <div className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm space-y-2">
+    <div className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-2">
       <div className="flex items-center gap-4">
         <span className="text-[#065F46] font-semibold">
           Importados: {state.imported ?? 0}
@@ -210,7 +210,7 @@ function ResultPanel({ state }: { state: NonNullable<ImportMovimientosState> }) 
         </span>
       </div>
       {errs.length > 0 && (
-        <div className="max-h-40 overflow-y-auto border-t border-[#E2E8F0] pt-2">
+        <div className="max-h-40 overflow-y-auto border-t border-border pt-2">
           <ul className="space-y-1 text-xs text-[#7F1D1D]">
             {errs.slice(0, 50).map((e, i) => (
               <li key={i}>
@@ -218,7 +218,7 @@ function ResultPanel({ state }: { state: NonNullable<ImportMovimientosState> }) 
               </li>
             ))}
             {errs.length > 50 && (
-              <li className="text-[#475569] italic">
+              <li className="text-muted-foreground italic">
                 +{errs.length - 50} errores más…
               </li>
             )}

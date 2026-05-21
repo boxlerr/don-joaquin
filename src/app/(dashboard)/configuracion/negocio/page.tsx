@@ -5,7 +5,7 @@ import { Building2, Mail, Phone, MapPin, Hash } from "lucide-react";
 import EditarEmpresaDialog, { type EmpresaData } from "./EditarEmpresaDialog";
 
 const READ_ONLY_INPUT =
-  "w-full px-3 py-2 text-sm border border-[#E2E8F0] rounded-md bg-[#F8FAFC] text-[#0F172A] placeholder-[#94A3B8] focus:outline-none";
+  "w-full px-3 py-2 text-sm border border-border rounded-md bg-muted/40 text-foreground placeholder-[#94A3B8] focus:outline-none";
 
 const EMPRESA_KEYS = [
   "empresa_razon_social",
@@ -41,11 +41,11 @@ export default async function ConfiguracionNegocioPage() {
         description="Datos de la empresa, contacto e información legal"
       />
 
-      <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Building2 size={16} className="text-[#0088D1]" />
-            <h2 className="text-[#0F172A] text-sm font-semibold">Datos de la Empresa</h2>
+            <Building2 size={16} className="text-primary" />
+            <h2 className="text-foreground text-sm font-semibold">Datos de la Empresa</h2>
           </div>
           <EditarEmpresaDialog initial={empresa} />
         </div>
@@ -124,7 +124,7 @@ export default async function ConfiguracionNegocioPage() {
             </div>
           </div>
 
-          <p className="text-xs text-[#64748B] pt-4 border-t border-[#E2E8F0]">
+          <p className="text-xs text-muted-foreground pt-4 border-t border-border">
             Los cambios quedan registrados en el historial de auditoría.
           </p>
         </div>

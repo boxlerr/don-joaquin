@@ -14,7 +14,7 @@ export default function CamionRow({ camion }: { camion: Camion }) {
     <>
       <TableRow
         key={camion.id}
-        className="cursor-pointer hover:bg-[#F8FAFC] transition-all border-b border-[#F1F5F9] last:border-0 group"
+        className="cursor-pointer hover:bg-muted/40 transition-all border-b border-[#F1F5F9] last:border-0 group"
         onClick={() => setOpen(true)}
       >
         <TableCell className="py-4 pl-6">
@@ -29,10 +29,10 @@ export default function CamionRow({ camion }: { camion: Camion }) {
                   loading="lazy"
                 />
               ) : (
-                <Truck size={18} className="text-[#0088D1]" />
+                <Truck size={18} className="text-primary" />
               )}
             </div>
-            <span className="font-mono font-medium text-[#0F172A]">{camion.patente}</span>
+            <span className="font-mono font-medium text-foreground">{camion.patente}</span>
           </div>
         </TableCell>
         <TableCell>
@@ -40,7 +40,7 @@ export default function CamionRow({ camion }: { camion: Camion }) {
         </TableCell>
         <TableCell>{camion.ano ?? "—"}</TableCell>
         <TableCell>{Number(camion.capacidad_tn).toFixed(1)} TN</TableCell>
-        <TableCell className="text-[#475569]">{camion.tipo_camion ?? "—"}</TableCell>
+        <TableCell className="text-muted-foreground">{camion.tipo_camion ?? "—"}</TableCell>
         <TableCell>
           <StatusBadge
             label={camion.estado}

@@ -59,29 +59,29 @@ export default function HelpTutorialButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ayuda"
-        className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
       >
         <HelpCircle size={18} />
       </button>
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-white rounded-[12px] shadow-2xl border border-[#E2E8F0] transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E2E8F0]">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-[#0088D1] inline-flex items-center justify-center shrink-0">
+              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
               <div>
-                <Dialog.Title className="text-[#0F172A] text-sm font-bold">
+                <Dialog.Title className="text-foreground text-sm font-bold">
                   Guía de Siniestros
                 </Dialog.Title>
               </div>
             </div>
             <div className="flex items-center gap-4">
               {/* Tabs inside header to save space */}
-              <div className="flex items-center gap-1 bg-[#F1F5F9] p-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {TABS.map((t) => {
                   const active = tab === t.id;
                   return (
@@ -92,8 +92,8 @@ export default function HelpTutorialButton() {
                       className={
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
-                          ? "bg-white text-[#0088D1] shadow-sm"
-                          : "text-[#64748B] hover:text-[#0F172A]")
+                          ? "bg-card text-primary shadow-sm"
+                          : "text-muted-foreground hover:text-foreground")
                       }
                     >
                       {t.icon}
@@ -106,7 +106,7 @@ export default function HelpTutorialButton() {
                 render={
                   <button
                     type="button"
-                    className="size-7 rounded-full text-[#475569] hover:bg-[#F1F5F9] inline-flex items-center justify-center"
+                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                     aria-label="Cerrar"
                   />
                 }
@@ -117,7 +117,7 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-[#F8FAFC]/30 flex items-center justify-between">
+          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/40/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {steps.map((_, i) => {
                 const isDone = i < step;
@@ -133,7 +133,7 @@ export default function HelpTutorialButton() {
                           ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
                           : isDone
                             ? "bg-[#10B981] text-white"
-                            : "bg-white text-[#94A3B8] border border-[#E2E8F0]")
+                            : "bg-card text-muted-foreground/70 border border-border")
                       }
                     >
                       {isDone ? <CheckCircle2 size={12} /> : i + 1}
@@ -148,7 +148,7 @@ export default function HelpTutorialButton() {
                 );
               })}
             </div>
-            <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-[#F1F5F9] px-2 py-0.5 rounded-full">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full">
               Paso {step + 1} de {totalSteps}
             </div>
           </div>
@@ -159,10 +159,10 @@ export default function HelpTutorialButton() {
             <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[#0F172A] text-lg font-bold leading-tight">
+                  <h3 className="text-foreground text-lg font-bold leading-tight">
                     {current.title}
                   </h3>
-                  <p className="text-[#64748B] text-[13px] leading-relaxed">
+                  <p className="text-muted-foreground text-[13px] leading-relaxed">
                     {current.description}
                   </p>
                 </div>
@@ -170,7 +170,7 @@ export default function HelpTutorialButton() {
                 {current.hint && (
                   <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-[#0088D1]" />
+                      <Lightbulb size={14} className="text-primary" />
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
                     </div>
                     <p className="text-xs leading-normal opacity-90">
@@ -182,18 +182,18 @@ export default function HelpTutorialButton() {
             </div>
 
             {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-[#F8FAFC] flex flex-col overflow-hidden">
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-[#E2E8F0] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-[#F8FAFC]">
+                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
                       <div className="flex gap-1">
                         <div className="size-2 rounded-full bg-[#FF5F56]/30" />
                         <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
                         <div className="size-2 rounded-full bg-[#27C93F]/30" />
                       </div>
-                      <div className="flex-1 h-4 rounded-md bg-white border border-[#E2E8F0]/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-[#F1F5F9] rounded-full" />
+                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                        <div className="w-16 h-1 bg-muted rounded-full" />
                       </div>
                     </div>
                     <div className="p-5 overflow-hidden">
@@ -206,17 +206,17 @@ export default function HelpTutorialButton() {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-[#E2E8F0] flex items-center justify-between">
+          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F1F5F9] disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
             >
               <ChevronLeft size={14} />
               Anterior
             </button>
-            <span className="text-[11px] text-[#94A3B8]">
+            <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
             {step === totalSteps - 1 ? (
@@ -263,12 +263,12 @@ const MANUAL_STEPS: TutorialStep[] = [
     hint: (
       <>
         El <b>tipo</b> puede ser{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">choque</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">robo</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">incendio</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">vandalismo</code>,{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">vuelco</code> u{" "}
-        <code className="text-[11px] bg-white border border-[#E2E8F0] px-1 rounded">otro</code>. El{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">choque</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">robo</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">incendio</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">vandalismo</code>,{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">vuelco</code> u{" "}
+        <code className="text-[11px] bg-card border border-border px-1 rounded">otro</code>. El{" "}
         <b>estado</b> arranca en <b>Abierto</b> y lo vas actualizando a medida que avanza la gestión.
       </>
     ),
@@ -322,11 +322,11 @@ function MockToolbar() {
   return (
     <div className="flex items-center justify-between gap-2 flex-wrap">
       <div>
-        <div className="text-[#0F172A] text-sm font-bold">Siniestros</div>
-        <div className="text-[10px] text-[#94A3B8]">Historial y registro de la flota</div>
+        <div className="text-foreground text-sm font-bold">Siniestros</div>
+        <div className="text-[10px] text-muted-foreground/70">Historial y registro de la flota</div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="size-9 rounded-md border border-[#E2E8F0] bg-white text-[#0088D1] inline-flex items-center justify-center opacity-50">
+        <div className="size-9 rounded-md border border-border bg-card text-primary inline-flex items-center justify-center opacity-50">
           <HelpCircle size={16} />
         </div>
         <div className="h-9 px-3 rounded-md text-xs font-semibold inline-flex items-center gap-1 bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white scale-105">
@@ -339,12 +339,12 @@ function MockToolbar() {
 
 function MockNewSiniestroForm() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-white flex items-center gap-2">
+    <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-card flex items-center gap-2">
         <span className="size-7 rounded-full bg-[#FEE2E2] text-[#EF4444] inline-flex items-center justify-center">
           <AlertTriangle size={14} />
         </span>
-        <div className="text-[#0F172A] text-xs font-bold uppercase tracking-wider">Registrar siniestro</div>
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Registrar siniestro</div>
       </div>
       <div className="p-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -361,7 +361,7 @@ function MockNewSiniestroForm() {
         </div>
         <MockField label="Compañía seguro" value="La Caja" icon={<Shield size={11} />} />
         <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-[#E2E8F0] text-[#64748B] inline-flex items-center">
+          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center">
             Cancelar
           </div>
           <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm gap-1">
@@ -386,14 +386,14 @@ function MockField({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold text-[#475569] mb-0.5">{label}</div>
+      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
       <div
         className={
-          "h-7 px-2 text-[11px] rounded border bg-white text-[#0F172A] inline-flex items-center gap-1.5 w-full " +
-          (required ? "border-[#0088D1]/60" : "border-[#E2E8F0]")
+          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center gap-1.5 w-full " +
+          (required ? "border-[#0088D1]/60" : "border-border")
         }
       >
-        {icon && <span className="text-[#0088D1]">{icon}</span>}
+        {icon && <span className="text-primary">{icon}</span>}
         {value}
       </div>
     </div>
@@ -403,19 +403,19 @@ function MockField({
 function MockSiniestroListItem() {
   return (
     <div className="space-y-2">
-      <div className="bg-white border border-[#E2E8F0] rounded-[8px] p-3 flex items-center justify-between">
+      <div className="bg-card border border-border rounded-[8px] p-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="size-9 rounded-full bg-[#FEE2E2] text-[#EF4444] inline-flex items-center justify-center border border-[#FECACA]">
             <AlertTriangle size={16} />
           </span>
           <div>
-            <div className="text-[#0F172A] font-semibold text-sm flex items-center gap-1.5">
+            <div className="text-foreground font-semibold text-sm flex items-center gap-1.5">
               AB123CD
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-red-50 text-red-700 border-red-200">
                 Choque
               </span>
             </div>
-            <div className="text-[10px] text-[#475569] mt-0.5">10/05/2026 — Juan Pérez</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">10/05/2026 — Juan Pérez</div>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -436,22 +436,22 @@ function MockSearch() {
   return (
     <div className="space-y-2.5">
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-md border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] text-[#64748B] uppercase tracking-wide">Total</div>
-          <div className="text-sm font-bold text-[#0F172A]">12</div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Total</div>
+          <div className="text-sm font-bold text-foreground">12</div>
         </div>
-        <div className="rounded-md border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] text-[#64748B] uppercase tracking-wide">Costo daños</div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Costo daños</div>
           <div className="text-sm font-bold text-red-600">$ 1.8M</div>
         </div>
-        <div className="rounded-md border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] text-[#64748B] uppercase tracking-wide">Camiones</div>
-          <div className="text-sm font-bold text-[#0F172A]">5</div>
+        <div className="rounded-md border border-border bg-card p-2">
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Camiones</div>
+          <div className="text-sm font-bold text-foreground">5</div>
         </div>
       </div>
-      <div className="h-9 px-2 rounded-md border-2 border-[#0088D1] bg-white text-[11px] text-[#475569] inline-flex items-center gap-2 w-full shadow-[0_0_0_4px_rgba(0,136,209,0.2)]">
-        <Search size={13} className="text-[#0088D1]" />
-        <span className="text-[#94A3B8]">Buscar patente, chofer, tipo, estado...</span>
+      <div className="h-9 px-2 rounded-md border-2 border-[#0088D1] bg-card text-[11px] text-muted-foreground inline-flex items-center gap-2 w-full shadow-[0_0_0_4px_rgba(0,136,209,0.2)]">
+        <Search size={13} className="text-primary" />
+        <span className="text-muted-foreground/70">Buscar patente, chofer, tipo, estado...</span>
       </div>
     </div>
   );
@@ -459,11 +459,11 @@ function MockSearch() {
 
 function MockRowExpand() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md overflow-hidden">
-      <div className="px-3 py-2 grid grid-cols-[1fr,70px,70px] gap-2 items-center bg-[#F8FAFC] ring-2 ring-[#0088D1]">
+    <div className="bg-card border border-border rounded-md overflow-hidden">
+      <div className="px-3 py-2 grid grid-cols-[1fr,70px,70px] gap-2 items-center bg-muted/40 ring-2 ring-[#0088D1]">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-[#0088D1]">AB123CD</span>
-          <span className="text-[10px] text-[#475569]">Juan Pérez</span>
+          <span className="text-[11px] font-semibold text-primary">AB123CD</span>
+          <span className="text-[10px] text-muted-foreground">Juan Pérez</span>
         </div>
         <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[9px] font-bold border bg-red-50 text-red-700 border-red-200">
           Choque
@@ -472,27 +472,27 @@ function MockRowExpand() {
           Abierto
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-2 p-2.5 bg-[#F8FAFC]/40">
-        <div className="rounded border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] font-bold text-[#64748B] uppercase flex items-center gap-1 mb-1">
-            <Truck size={10} className="text-[#0088D1]" /> Unidad
+      <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40/40">
+        <div className="rounded border border-border bg-card p-2">
+          <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
+            <Truck size={10} className="text-primary" /> Unidad
           </div>
-          <div className="text-[10px] text-[#0F172A]">Scania V200</div>
+          <div className="text-[10px] text-foreground">Scania V200</div>
         </div>
-        <div className="rounded border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] font-bold text-[#64748B] uppercase flex items-center gap-1 mb-1">
+        <div className="rounded border border-border bg-card p-2">
+          <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
             <Shield size={10} className="text-[#10B981]" /> Seguro
           </div>
-          <div className="text-[10px] text-[#0F172A]">La Caja</div>
+          <div className="text-[10px] text-foreground">La Caja</div>
         </div>
-        <div className="rounded border border-[#E2E8F0] bg-white p-2">
-          <div className="text-[9px] font-bold text-[#64748B] uppercase flex items-center gap-1 mb-1">
+        <div className="rounded border border-border bg-card p-2">
+          <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
             <FileText size={10} className="text-[#F59E0B]" /> Detalle
           </div>
-          <div className="text-[10px] text-[#475569] line-clamp-2">Roce lateral en maniobra...</div>
+          <div className="text-[10px] text-muted-foreground line-clamp-2">Roce lateral en maniobra...</div>
         </div>
       </div>
-      <div className="px-3 py-1.5 border-t border-[#E2E8F0] text-[10px] text-[#0088D1] text-center font-semibold">
+      <div className="px-3 py-1.5 border-t border-border text-[10px] text-primary text-center font-semibold">
         ↑ Clic en la fila para desplegar / ocultar
       </div>
     </div>
@@ -501,11 +501,11 @@ function MockRowExpand() {
 
 function MockEditDelete() {
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-md p-3 space-y-3">
-      <div className="text-[10px] text-[#64748B]">Panel del siniestro desplegado</div>
+    <div className="bg-card border border-border rounded-md p-3 space-y-3">
+      <div className="text-[10px] text-muted-foreground">Panel del siniestro desplegado</div>
       <div className="flex items-center justify-between pt-2 border-t border-[#F1F5F9]">
-        <div className="h-7 px-2.5 text-[11px] rounded-md border border-[#E2E8F0] text-[#475569] inline-flex items-center gap-1.5 font-bold">
-          <Edit size={11} className="text-[#0088D1]" /> Editar datos
+        <div className="h-7 px-2.5 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center gap-1.5 font-bold">
+          <Edit size={11} className="text-primary" /> Editar datos
         </div>
         <div className="h-7 px-2.5 text-[11px] rounded-md bg-red-50 text-red-600 border border-red-100 inline-flex items-center gap-1.5 font-bold">
           <Trash2 size={11} /> Eliminar

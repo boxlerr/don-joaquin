@@ -127,7 +127,7 @@ export default function TabTarifasPorCliente({
           <div className="relative">
             <Search
               size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
             />
             <Input
               type="search"
@@ -140,7 +140,7 @@ export default function TabTarifasPorCliente({
           <select
             value={modalidadFiltro}
             onChange={(e) => setModalidadFiltro(e.target.value)}
-            className="h-9 text-sm rounded-lg border border-[#E2E8F0] bg-white px-2.5 outline-none focus-visible:border-[#0088D1]"
+            className="h-9 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1]"
           >
             <option value="todas">Todas las modalidades</option>
             <option value="fija">Fija</option>
@@ -148,7 +148,7 @@ export default function TabTarifasPorCliente({
             <option value="por_kilo">Por kilo</option>
             <option value="por_km">Por kilómetro</option>
           </select>
-          <label className="flex items-center gap-2 text-sm text-[#475569] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={soloActivas}
@@ -182,8 +182,8 @@ export default function TabTarifasPorCliente({
       </div>
 
       {agrupadas.length === 0 ? (
-        <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm p-10 text-center">
-          <p className="text-[#475569] text-sm">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center">
+          <p className="text-muted-foreground text-sm">
             {tarifas.length === 0
               ? "Aún no hay tarifas registradas. Creá la primera con el botón Nueva tarifa."
               : "No se encontraron tarifas con esos filtros."}
@@ -193,17 +193,17 @@ export default function TabTarifasPorCliente({
         agrupadas.map(([cliente, items]) => (
           <div key={cliente}>
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+              <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 {cliente}
               </h3>
-              <span className="text-[10px] text-[#94A3B8]">
+              <span className="text-[10px] text-muted-foreground/70">
                 {items.length} tarifa{items.length === 1 ? "" : "s"}
               </span>
             </div>
-            <div className="bg-white rounded-[8px] border border-[#E2E8F0] shadow-sm overflow-hidden">
+            <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-[#475569]">
+                <thead className="bg-muted/40 border-b border-border">
+                  <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     <th className="px-4 py-2.5">Ruta</th>
                     <th className="px-4 py-2.5">Modalidad</th>
                     <th className="px-4 py-2.5 text-right">Valor</th>
@@ -212,29 +212,29 @@ export default function TabTarifasPorCliente({
                     <th className="px-4 py-2.5 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
+                <tbody className="divide-y divide-border">
                   {items.map((t) => {
                     const meta = getModalidadMeta(t.modalidad);
                     return (
-                      <tr key={t.id} className="hover:bg-[#F8FAFC]">
-                        <td className="px-4 py-3 text-[#0F172A]">
+                      <tr key={t.id} className="hover:bg-muted/40">
+                        <td className="px-4 py-3 text-foreground">
                           {t.ruta_label ?? (
-                            <span className="text-[#94A3B8] italic">Sin ruta específica</span>
+                            <span className="text-muted-foreground/70 italic">Sin ruta específica</span>
                           )}
                           {t.ruta_km !== null && (
-                            <p className="text-[11px] text-[#94A3B8]">{t.ruta_km} km</p>
+                            <p className="text-[11px] text-muted-foreground/70">{t.ruta_km} km</p>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs px-2 py-0.5 rounded bg-[#E1F5FE] text-[#004A99] font-medium">
                             {meta.label}
                           </span>
-                          <p className="text-[11px] text-[#94A3B8] mt-0.5">{meta.unidad}</p>
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">{meta.unidad}</p>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-semibold text-[#0F172A]">
+                        <td className="px-4 py-3 text-right font-mono font-semibold text-foreground">
                           {fmtValor(Number(t.valor), t.moneda)}
                         </td>
-                        <td className="px-4 py-3 text-[#475569] text-xs">
+                        <td className="px-4 py-3 text-muted-foreground text-xs">
                           <p>Desde: {fmtFecha(t.vigencia_desde)}</p>
                           <p>Hasta: {fmtFecha(t.vigencia_hasta)}</p>
                         </td>
@@ -245,7 +245,7 @@ export default function TabTarifasPorCliente({
                               Activa
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-[#94A3B8]">
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/70">
                               <XCircle size={12} />
                               Inactiva
                             </span>
@@ -288,7 +288,7 @@ export default function TabTarifasPorCliente({
                                 setHistorialLabel(tarifaLabel(t));
                               }}
                               aria-label="Ver historial"
-                              className="text-[#94A3B8] hover:text-[#0088D1]"
+                              className="text-muted-foreground/70 hover:text-primary"
                             >
                               <History size={12} />
                             </Button>

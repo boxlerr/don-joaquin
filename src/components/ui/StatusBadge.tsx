@@ -23,7 +23,7 @@ const toneMap: Record<StatusTone, { container: string; dot: string }> = {
     dot: "bg-[#0088D1]",
   },
   neutral: {
-    container: "bg-[#F8FAFC] text-[#475569] border-[#E2E8F0]",
+    container: "bg-muted/40 text-muted-foreground border-border",
     dot: "bg-[#94A3B8]",
   },
 };
