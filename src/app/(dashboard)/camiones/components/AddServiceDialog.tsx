@@ -188,7 +188,7 @@ export default function AddServiceDialog({
           <div className="grid grid-cols-2 gap-4">
             {!editing && (
               <div className="space-y-2">
-                <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
+                <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
                 <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
                   <SelectTrigger id="camion" className="w-full">
                     <SelectValue placeholder="Seleccionar camión..." />
@@ -204,7 +204,7 @@ export default function AddServiceDialog({
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="fecha" className="text-sm font-medium text-[#1E293B]">Fecha del service</Label>
+              <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha del service</Label>
               <Input
                 id="fecha"
                 type="date"
@@ -217,7 +217,7 @@ export default function AddServiceDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tipo_service" className="text-sm font-medium text-[#1E293B]">Tipo de Service</Label>
+              <Label htmlFor="tipo_service" className="text-sm font-medium text-foreground">Tipo de Service</Label>
               <Select value={tipo} onValueChange={(v) => setTipo((v ?? "service_preventivo") as MantenimientoTipo)}>
                 <SelectTrigger id="tipo_service" className="w-full">
                   <SelectValue placeholder="Seleccionar tipo..." />
@@ -232,7 +232,7 @@ export default function AddServiceDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="km" className="text-sm font-medium text-[#1E293B]">KM Odómetro</Label>
+              <Label htmlFor="km" className="text-sm font-medium text-foreground">KM Odómetro</Label>
               <Input
                 id="km"
                 type="number"
@@ -249,7 +249,7 @@ export default function AddServiceDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="proximo_km" className="text-sm font-medium text-[#1E293B]">Próximo Service (KM)</Label>
+              <Label htmlFor="proximo_km" className="text-sm font-medium text-foreground">Próximo Service (KM)</Label>
               <Input
                 id="proximo_km"
                 type="number"
@@ -262,7 +262,7 @@ export default function AddServiceDialog({
               {errors.proximoKm && <p className="text-xs text-red-600">{errors.proximoKm}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="costo" className="text-sm font-medium text-[#1E293B]">Costo Total ($)</Label>
+              <Label htmlFor="costo" className="text-sm font-medium text-foreground">Costo Total ($)</Label>
               <Input
                 id="costo"
                 type="number"
@@ -277,7 +277,7 @@ export default function AddServiceDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="taller" className="text-sm font-medium text-[#1E293B]">Taller / Mecánico</Label>
+            <Label htmlFor="taller" className="text-sm font-medium text-foreground">Taller / Mecánico</Label>
             <Input
               id="taller"
               placeholder="Nombre del taller"
@@ -287,7 +287,7 @@ export default function AddServiceDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="descripcion" className="text-sm font-medium text-[#1E293B]">Detalles / Observaciones</Label>
+            <Label htmlFor="descripcion" className="text-sm font-medium text-foreground">Detalles / Observaciones</Label>
             <textarea
               id="descripcion"
               className="flex min-h-[80px] w-full rounded-md border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1] disabled:cursor-not-allowed disabled:opacity-50"

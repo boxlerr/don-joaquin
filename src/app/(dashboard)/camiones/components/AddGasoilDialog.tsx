@@ -173,7 +173,7 @@ export default function AddGasoilDialog({
 
           {!editing && (
             <div className="space-y-2">
-              <Label htmlFor="camion" className="text-sm font-medium text-[#1E293B]">Camión</Label>
+              <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
               <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
                 <SelectTrigger id="camion" className="w-full">
                   <SelectValue placeholder="Seleccionar camión..." />
@@ -191,7 +191,7 @@ export default function AddGasoilDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fecha" className="text-sm font-medium text-[#1E293B]">Fecha</Label>
+              <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input
                 id="fecha"
                 type="date"
@@ -201,7 +201,7 @@ export default function AddGasoilDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="km" className="text-sm font-medium text-[#1E293B]">KM Odómetro</Label>
+              <Label htmlFor="km" className="text-sm font-medium text-foreground">KM Odómetro</Label>
               <Input
                 id="km"
                 type="number"
@@ -218,7 +218,7 @@ export default function AddGasoilDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="litros" className="text-sm font-medium text-[#1E293B]">Litros</Label>
+              <Label htmlFor="litros" className="text-sm font-medium text-foreground">Litros</Label>
               <Input
                 id="litros"
                 type="number"
@@ -233,7 +233,7 @@ export default function AddGasoilDialog({
               {errors.litros && <p className="text-xs text-red-600">{errors.litros}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="importe" className="text-sm font-medium text-[#1E293B]">Importe Total ($)</Label>
+              <Label htmlFor="importe" className="text-sm font-medium text-foreground">Importe Total ($)</Label>
               <Input
                 id="importe"
                 type="number"
@@ -250,7 +250,7 @@ export default function AddGasoilDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tipo" className="text-sm font-medium text-[#1E293B]">Tipo de combustible</Label>
+              <Label htmlFor="tipo" className="text-sm font-medium text-foreground">Tipo de combustible</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "grado_2")}>
                 <SelectTrigger id="tipo" className="w-full">
                   <SelectValue placeholder="Seleccionar..." />
@@ -262,7 +262,7 @@ export default function AddGasoilDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="estacion" className="text-sm font-medium text-[#1E293B]">Estación de Servicio</Label>
+              <Label htmlFor="estacion" className="text-sm font-medium text-foreground">Estación de Servicio</Label>
               <Input
                 id="estacion"
                 placeholder="Ej: YPF Arrecifes"
