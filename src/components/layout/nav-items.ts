@@ -5,6 +5,7 @@ import {
   Truck,
   Users,
   AlertTriangle,
+  Wrench,
   Briefcase,
   DollarSign,
   Wallet,
@@ -46,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Viajes", href: "/viajes", icon: MapPin },
       { label: "Camiones", href: "/camiones", icon: Truck },
+      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench },
       { label: "Choferes", href: "/choferes", icon: Users },
       { label: "Siniestros", href: "/siniestros", icon: AlertTriangle },
     ],
