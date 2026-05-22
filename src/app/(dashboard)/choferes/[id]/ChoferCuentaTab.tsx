@@ -88,7 +88,7 @@ export default function ChoferCuentaTab({ movimientos }: Props) {
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(m.fecha).toLocaleDateString("es-AR")}
                   </TableCell>
-                  <TableCell className="text-sm text-[#1E293B] max-w-[200px] truncate">
+                  <TableCell className="text-sm text-foreground max-w-[200px] truncate">
                     {m.concepto}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">

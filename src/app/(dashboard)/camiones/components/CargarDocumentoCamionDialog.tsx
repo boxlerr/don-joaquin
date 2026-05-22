@@ -122,7 +122,7 @@ export default function CargarDocumentoCamionDialog({
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-[#1E293B]">
+            <Label className="text-sm font-medium text-foreground">
               Tipo de documento <span className="text-red-400">*</span>
             </Label>
             {tipos.length === 0 ? (
@@ -166,7 +166,7 @@ export default function CargarDocumentoCamionDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-[#1E293B]">Número</Label>
+              <Label className="text-sm font-medium text-foreground">Número</Label>
               <Input
                 placeholder="Opcional"
                 value={numero}
@@ -174,7 +174,7 @@ export default function CargarDocumentoCamionDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-[#1E293B]">Fecha emisión</Label>
+              <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
               <Input
                 type="date"
                 value={fechaEmision}
@@ -184,7 +184,7 @@ export default function CargarDocumentoCamionDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-[#1E293B]">Fecha vencimiento</Label>
+            <Label className="text-sm font-medium text-foreground">Fecha vencimiento</Label>
             <Input
               type="date"
               value={fechaVencimiento}
@@ -193,7 +193,7 @@ export default function CargarDocumentoCamionDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-[#1E293B]">
+            <Label className="text-sm font-medium text-foreground">
               Archivo <span className="text-red-400">*</span>
             </Label>
             <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">

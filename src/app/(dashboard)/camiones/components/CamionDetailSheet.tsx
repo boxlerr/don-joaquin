@@ -414,7 +414,7 @@ export default function CamionDetailSheet({
             <div className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Patente</Label>
+                  <Label className="text-sm font-medium text-foreground">Patente</Label>
                   <Input
                     value={formData.patente}
                     onChange={(e) => updateField("patente", e.target.value.toUpperCase())}
@@ -424,7 +424,7 @@ export default function CamionDetailSheet({
                   {fieldErrors.patente && <p className="text-xs text-red-600">{fieldErrors.patente}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Estado</Label>
+                  <Label className="text-sm font-medium text-foreground">Estado</Label>
                   <Select
                     value={formData.estado}
                     onValueChange={(val) => updateField("estado", val ?? formData.estado)}
@@ -454,7 +454,7 @@ export default function CamionDetailSheet({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Marca</Label>
+                  <Label className="text-sm font-medium text-foreground">Marca</Label>
                   <Input
                     value={formData.marca}
                     onChange={(e) => updateField("marca", e.target.value)}
@@ -464,7 +464,7 @@ export default function CamionDetailSheet({
                   {fieldErrors.marca && <p className="text-xs text-red-600">{fieldErrors.marca}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Modelo</Label>
+                  <Label className="text-sm font-medium text-foreground">Modelo</Label>
                   <Input
                     value={formData.modelo}
                     onChange={(e) => updateField("modelo", e.target.value)}
@@ -477,7 +477,7 @@ export default function CamionDetailSheet({
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Año</Label>
+                  <Label className="text-sm font-medium text-foreground">Año</Label>
                   <Input
                     type="number"
                     value={formData.ano}
@@ -488,7 +488,7 @@ export default function CamionDetailSheet({
                   {fieldErrors.ano && <p className="text-xs text-red-600">{fieldErrors.ano}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Capacidad (TN)</Label>
+                  <Label className="text-sm font-medium text-foreground">Capacidad (TN)</Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -500,7 +500,7 @@ export default function CamionDetailSheet({
                   {fieldErrors.capacidad_tn && <p className="text-xs text-red-600">{fieldErrors.capacidad_tn}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-[#1E293B]">Tipo</Label>
+                  <Label className="text-sm font-medium text-foreground">Tipo</Label>
                   <Select
                     value={formData.tipo_camion}
                     onValueChange={(val) => updateField("tipo_camion", val ?? formData.tipo_camion)}

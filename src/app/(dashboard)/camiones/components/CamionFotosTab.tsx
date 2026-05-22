@@ -213,7 +213,7 @@ export default function CamionFotosTab({
                 />
                 <span
                   className={`flex-1 line-clamp-2 ${
-                    f.descripcion ? "text-[#1E293B]" : "italic text-muted-foreground/70"
+                    f.descripcion ? "text-foreground" : "italic text-muted-foreground/70"
                   }`}
                 >
                   {f.descripcion ?? "Agregar nota"}

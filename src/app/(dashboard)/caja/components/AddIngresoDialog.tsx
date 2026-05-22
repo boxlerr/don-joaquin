@@ -92,7 +92,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="ing-concepto" className="text-sm font-medium text-[#1E293B]">Concepto / Descripción</Label>
+            <Label htmlFor="ing-concepto" className="text-sm font-medium text-foreground">Concepto / Descripción</Label>
             <Input 
               id="ing-concepto" 
               placeholder="Ej: Cobro de flete de granos..." 
@@ -104,7 +104,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="ing-monto" className="text-sm font-medium text-[#1E293B]">Monto ($)</Label>
+              <Label htmlFor="ing-monto" className="text-sm font-medium text-foreground">Monto ($)</Label>
               <Input 
                 id="ing-monto" 
                 type="number" 
@@ -116,7 +116,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ing-fecha" className="text-sm font-medium text-[#1E293B]">Fecha</Label>
+              <Label htmlFor="ing-fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input 
                 id="ing-fecha" 
                 type="date" 
@@ -129,7 +129,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="ing-categoria" className="text-sm font-medium text-[#1E293B]">Categoría</Label>
+              <Label htmlFor="ing-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as any)}>
                 <SelectTrigger id="ing-categoria" className="w-full">
                   <SelectValue placeholder="Categoría">
@@ -146,7 +146,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ing-medio" className="text-sm font-medium text-[#1E293B]">Medio de cobro</Label>
+              <Label htmlFor="ing-medio" className="text-sm font-medium text-foreground">Medio de cobro</Label>
               <Select value={medio} onValueChange={(v) => setMedio(v as any)}>
                 <SelectTrigger id="ing-medio" className="w-full">
                   <SelectValue placeholder="Medio">

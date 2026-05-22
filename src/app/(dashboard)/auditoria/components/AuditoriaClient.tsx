@@ -226,7 +226,7 @@ export default function AuditoriaClient({
             type="date"
             value={filters.desde}
             onChange={(e) => handleFilterChange("desde", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
@@ -238,7 +238,7 @@ export default function AuditoriaClient({
             type="date"
             value={filters.hasta}
             onChange={(e) => handleFilterChange("hasta", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
@@ -249,7 +249,7 @@ export default function AuditoriaClient({
           <select
             value={filters.usuario_id}
             onChange={(e) => handleFilterChange("usuario_id", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
+            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
           >
             <option value="">Todos los usuarios</option>
             {usuarios.map((u) => (
@@ -314,7 +314,7 @@ export default function AuditoriaClient({
                   <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
                     {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
                   </td>
-                  <td className="px-5 py-3 text-[#1E293B]">
+                  <td className="px-5 py-3 text-foreground">
                     {entry.usuario ? (
                       `${entry.usuario.apellido}, ${entry.usuario.nombre}`
                     ) : (

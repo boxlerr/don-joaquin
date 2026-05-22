@@ -53,7 +53,7 @@ export default async function ConfiguracionNegocioPage() {
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium text-[#1E293B] block mb-2">
+              <label className="text-sm font-medium text-foreground block mb-2">
                 Razón Social
               </label>
               <input
@@ -66,7 +66,7 @@ export default async function ConfiguracionNegocioPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                 <Hash size={14} />
                 CUIT
               </label>
@@ -81,7 +81,7 @@ export default async function ConfiguracionNegocioPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+            <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
               <MapPin size={14} />
               Domicilio
             </label>
@@ -96,7 +96,7 @@ export default async function ConfiguracionNegocioPage() {
 
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                 <Mail size={14} />
                 Email de contacto
               </label>
@@ -110,7 +110,7 @@ export default async function ConfiguracionNegocioPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-[#1E293B] mb-2 flex items-center gap-2">
+              <label className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
                 <Phone size={14} />
                 Teléfono
               </label>

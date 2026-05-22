@@ -102,7 +102,7 @@ export default function AddEgresoDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="egr-concepto" className="text-sm font-medium text-[#1E293B]">Concepto / Descripción</Label>
+            <Label htmlFor="egr-concepto" className="text-sm font-medium text-foreground">Concepto / Descripción</Label>
             <Input 
               id="egr-concepto" 
               placeholder="Ej: Compra de insumos de oficina..." 
@@ -114,7 +114,7 @@ export default function AddEgresoDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="egr-monto" className="text-sm font-medium text-[#1E293B]">Monto ($)</Label>
+              <Label htmlFor="egr-monto" className="text-sm font-medium text-foreground">Monto ($)</Label>
               <Input 
                 id="egr-monto" 
                 type="number" 
@@ -126,7 +126,7 @@ export default function AddEgresoDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="egr-fecha" className="text-sm font-medium text-[#1E293B]">Fecha</Label>
+              <Label htmlFor="egr-fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input 
                 id="egr-fecha" 
                 type="date" 
@@ -139,7 +139,7 @@ export default function AddEgresoDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="egr-categoria" className="text-sm font-medium text-[#1E293B]">Categoría</Label>
+              <Label htmlFor="egr-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as any)}>
                 <SelectTrigger id="egr-categoria" className="w-full">
                   <SelectValue placeholder="Categoría">
@@ -157,7 +157,7 @@ export default function AddEgresoDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="egr-medio" className="text-sm font-medium text-[#1E293B]">Medio de pago</Label>
+              <Label htmlFor="egr-medio" className="text-sm font-medium text-foreground">Medio de pago</Label>
               <Select value={medio} onValueChange={(v) => setMedio(v as any)}>
                 <SelectTrigger id="egr-medio" className="w-full">
                   <SelectValue placeholder="Medio">
@@ -176,7 +176,7 @@ export default function AddEgresoDialog({
 
           {tiposGasto && tiposGasto.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="egr-tipogasto" className="text-sm font-medium text-[#1E293B]">Vincular a Tipo de Gasto (Opcional)</Label>
+              <Label htmlFor="egr-tipogasto" className="text-sm font-medium text-foreground">Vincular a Tipo de Gasto (Opcional)</Label>
               <Select value={tipoGastoId} onValueChange={(v) => setTipoGastoId(v ?? "")}>
                 <SelectTrigger id="egr-tipogasto" className="w-full">
                   <SelectValue placeholder="Ninguno / No asociar">

@@ -94,7 +94,7 @@ export default function AddViaticoDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="viat-chofer" className="text-sm font-medium text-[#1E293B]">Chofer receptor</Label>
+            <Label htmlFor="viat-chofer" className="text-sm font-medium text-foreground">Chofer receptor</Label>
             <Select value={choferId} onValueChange={(v) => setChoferId(v ?? "")}>
               <SelectTrigger id="viat-chofer" className="w-full">
                 <SelectValue placeholder="Seleccionar chofer...">
@@ -119,7 +119,7 @@ export default function AddViaticoDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="viat-concepto" className="text-sm font-medium text-[#1E293B]">Motivo / Destino (Opcional)</Label>
+            <Label htmlFor="viat-concepto" className="text-sm font-medium text-foreground">Motivo / Destino (Opcional)</Label>
             <Input 
               id="viat-concepto" 
               placeholder="Ej: Viaje a Rosario, peajes y comida..." 
@@ -130,7 +130,7 @@ export default function AddViaticoDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="viat-monto" className="text-sm font-medium text-[#1E293B]">Monto ($)</Label>
+              <Label htmlFor="viat-monto" className="text-sm font-medium text-foreground">Monto ($)</Label>
               <Input 
                 id="viat-monto" 
                 type="number" 
@@ -142,7 +142,7 @@ export default function AddViaticoDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="viat-fecha" className="text-sm font-medium text-[#1E293B]">Fecha de entrega</Label>
+              <Label htmlFor="viat-fecha" className="text-sm font-medium text-foreground">Fecha de entrega</Label>
               <Input 
                 id="viat-fecha" 
                 type="date" 
@@ -154,7 +154,7 @@ export default function AddViaticoDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="viat-medio" className="text-sm font-medium text-[#1E293B]">Medio de entrega</Label>
+            <Label htmlFor="viat-medio" className="text-sm font-medium text-foreground">Medio de entrega</Label>
             <Select value={medioEntrega} onValueChange={(v) => setMedioEntrega(v as any)}>
               <SelectTrigger id="viat-medio" className="w-full">
                 <SelectValue placeholder="Medio">

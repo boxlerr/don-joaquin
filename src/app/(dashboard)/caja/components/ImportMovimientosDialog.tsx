@@ -136,7 +136,7 @@ export default function ImportMovimientosDialog() {
             </div>
 
             <div className="rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground space-y-1">
-              <p className="font-semibold text-[#1E293B]">Columnas esperadas:</p>
+              <p className="font-semibold text-foreground">Columnas esperadas:</p>
               <p>
                 <span className="font-mono">fecha</span> (yyyy-mm-dd o dd/mm/yyyy),{" "}
                 <span className="font-mono">tipo</span> (ingreso/egreso),{" "}

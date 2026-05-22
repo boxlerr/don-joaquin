@@ -189,7 +189,7 @@ export default function ChequeTransitionDialog({
 
           {transicion === "entregar" && (
             <div className="space-y-2">
-              <Label htmlFor="tr-entregado-a" className="text-sm font-medium text-[#1E293B]">
+              <Label htmlFor="tr-entregado-a" className="text-sm font-medium text-foreground">
                 Entregado a <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -204,7 +204,7 @@ export default function ChequeTransitionDialog({
 
           {transicion === "depositar" && (
             <div className="space-y-2">
-              <Label htmlFor="tr-banco-dep" className="text-sm font-medium text-[#1E293B]">
+              <Label htmlFor="tr-banco-dep" className="text-sm font-medium text-foreground">
                 Banco de depósito <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -220,7 +220,7 @@ export default function ChequeTransitionDialog({
           {transicion === "rechazar" && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="tr-motivo" className="text-sm font-medium text-[#1E293B]">
+                <Label htmlFor="tr-motivo" className="text-sm font-medium text-foreground">
                   Motivo del rechazo <span className="text-red-500">*</span>
                 </Label>
                 <Select
@@ -244,7 +244,7 @@ export default function ChequeTransitionDialog({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tr-motivo-detalle" className="text-sm font-medium text-[#1E293B]">
+                <Label htmlFor="tr-motivo-detalle" className="text-sm font-medium text-foreground">
                   Detalle (opcional)
                 </Label>
                 <Input
@@ -259,7 +259,7 @@ export default function ChequeTransitionDialog({
 
           {transicion === "anular" && (
             <div className="space-y-2">
-              <Label htmlFor="tr-motivo-anul" className="text-sm font-medium text-[#1E293B]">
+              <Label htmlFor="tr-motivo-anul" className="text-sm font-medium text-foreground">
                 Motivo de anulación <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -273,7 +273,7 @@ export default function ChequeTransitionDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="tr-fecha" className="text-sm font-medium text-[#1E293B]">
+            <Label htmlFor="tr-fecha" className="text-sm font-medium text-foreground">
               Fecha <span className="text-red-500">*</span>
             </Label>
             <Input
@@ -286,7 +286,7 @@ export default function ChequeTransitionDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tr-obs" className="text-sm font-medium text-[#1E293B]">
+            <Label htmlFor="tr-obs" className="text-sm font-medium text-foreground">
               Observaciones
             </Label>
             <Input

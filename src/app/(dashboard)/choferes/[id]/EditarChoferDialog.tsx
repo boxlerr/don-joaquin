@@ -162,7 +162,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm font-medium text-[#1E293B]">
+      <Label className="text-sm font-medium text-foreground">
         {label}
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </Label>

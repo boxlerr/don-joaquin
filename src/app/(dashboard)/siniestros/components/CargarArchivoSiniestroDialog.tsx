@@ -77,7 +77,7 @@ export default function CargarArchivoSiniestroDialog({ siniestro_id, open, onOpe
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-[#1E293B]">
+            <Label className="text-sm font-medium text-foreground">
               Archivo <span className="text-red-400">*</span>
             </Label>
             <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-lg cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
@@ -99,7 +99,7 @@ export default function CargarArchivoSiniestroDialog({ siniestro_id, open, onOpe
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-[#1E293B]">Descripción (opcional)</Label>
+            <Label className="text-sm font-medium text-foreground">Descripción (opcional)</Label>
             <Input
               placeholder="Ej: Foto del frente del camión, Parte policial..."
               value={descripcion}
