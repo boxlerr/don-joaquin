@@ -136,17 +136,17 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
                   className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                     active
                       ? "bg-[#0088D1] text-white"
-                      : "text-[#1E293B] hover:bg-muted"
+                      : "text-foreground hover:bg-muted"
                   }`}
                 >
                   <Icon
                     size={16}
-                    className={active ? "text-white" : "text-muted-foreground/70"}
+                    className={active ? "text-white" : "text-muted-foreground"}
                   />
                   <span className="flex-1 text-sm font-medium">{item.label}</span>
                   <span
                     className={`text-[10px] font-semibold uppercase tracking-wider ${
-                      active ? "text-white/60" : "text-muted-foreground/70"
+                      active ? "text-white/60" : "text-muted-foreground"
                     }`}
                   >
                     {item.group}
