@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export type ChequeTipo = "comun" | "diferido" | "electronico";
@@ -66,6 +66,7 @@ export type CreateChequeInput = {
 };
 
 export async function createChequeAction(input: CreateChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -181,6 +182,7 @@ export type EntregarChequeInput = {
 };
 
 export async function entregarChequeAction(input: EntregarChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -243,6 +245,7 @@ export type DepositarChequeInput = {
 };
 
 export async function depositarChequeAction(input: DepositarChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -304,6 +307,7 @@ export type AcreditarChequeInput = {
 };
 
 export async function acreditarChequeAction(input: AcreditarChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -363,6 +367,7 @@ export type RechazarChequeInput = {
 };
 
 export async function rechazarChequeAction(input: RechazarChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -427,6 +432,7 @@ export type AnularChequeInput = {
 };
 
 export async function anularChequeAction(input: AnularChequeInput) {
+  await requireArea("finanzas", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 

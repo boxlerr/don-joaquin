@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireArea } from "@/lib/auth";
 
 const AUDIT_PAGE_SIZE = 25;
 

@@ -1,10 +1,44 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-/**
- * Datos del usuario autenticado, enriquecidos con su perfil de `public.usuarios`.
- * Devuelve `null` si no hay sesión o si el usuario está inactivo/suspendido.
- */
+// ---------------------------------------------------------------------------
+// Tipos de permisos por área
+// ---------------------------------------------------------------------------
+
+export type AreaCodigo =
+  | "logistica"
+  | "flota"
+  | "combustible"
+  | "comercial"
+  | "finanzas"
+  | "rrhh"
+  | "sistema";
+
+export type AreaNivel = "none" | "read" | "write" | "admin";
+
+const NIVEL_RANK: Record<AreaNivel, number> = {
+  none: 0,
+  read: 1,
+  write: 2,
+  admin: 3,
+};
+
+export type PermisosArea = Record<AreaCodigo, AreaNivel>;
+
+const AREAS_VACIAS: PermisosArea = {
+  logistica: "none",
+  flota: "none",
+  combustible: "none",
+  comercial: "none",
+  finanzas: "none",
+  rrhh: "none",
+  sistema: "none",
+};
+
+// ---------------------------------------------------------------------------
+// Usuario actual
+// ---------------------------------------------------------------------------
+
 export type CurrentUser = {
   id: string;
   email: string;
@@ -17,17 +51,9 @@ export type CurrentUser = {
     codigo: string;
     nombre: string;
   };
+  permisos: PermisosArea;
 };
 
-/**
- * Devuelve el usuario actual con su rol desde public.usuarios.
- *
- * Usar en Server Components / Route Handlers / Server Actions.
- * Devuelve `null` si:
- *  - No hay sesión activa
- *  - El usuario de auth no tiene fila en public.usuarios
- *  - El usuario está inactivo o suspendido
- */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
 
@@ -60,11 +86,19 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (error || !profile) return null;
   if (profile.estado !== "activo") return null;
 
-  // Supabase devuelve la relación como array si la PK del lado N no es única.
-  // Como rol_id apunta a roles.id (PK), devuelve objeto, pero TS lo tipa como array.
-  // Normalizamos:
   const rol = Array.isArray(profile.rol) ? profile.rol[0] : profile.rol;
   if (!rol) return null;
+
+  // Tabla rol_areas aún no está en los tipos generados; consulta sin tipar.
+  const { data: rolAreas } = await supabase
+    .from("rol_areas" as never)
+    .select("area_codigo, nivel")
+    .eq("rol_id", rol.id);
+
+  const permisos: PermisosArea = { ...AREAS_VACIAS };
+  for (const row of (rolAreas ?? []) as Array<{ area_codigo: AreaCodigo; nivel: AreaNivel }>) {
+    permisos[row.area_codigo] = row.nivel;
+  }
 
   return {
     id: profile.id,
@@ -78,22 +112,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       codigo: rol.codigo,
       nombre: rol.nombre,
     },
+    permisos,
   };
 }
 
-/**
- * Exige que haya un usuario autenticado activo. Si no, redirige a /login.
- * Devuelve el CurrentUser para usar directamente.
- */
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   return user;
 }
 
-/**
- * Exige que el usuario sea admin. Si no, redirige al dashboard con error.
- */
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await requireUser();
   if (user.rol.codigo !== "admin") {
@@ -102,10 +130,23 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return user;
 }
 
-/**
- * Helper booleano para checks rápidos en componentes.
- */
 export async function isAdmin(): Promise<boolean> {
   const user = await getCurrentUser();
   return user?.rol.codigo === "admin";
+}
+
+// ---------------------------------------------------------------------------
+// Permisos por área
+// ---------------------------------------------------------------------------
+
+export function hasArea(user: CurrentUser, area: AreaCodigo, minNivel: AreaNivel): boolean {
+  return NIVEL_RANK[user.permisos[area]] >= NIVEL_RANK[minNivel];
+}
+
+export async function requireArea(area: AreaCodigo, minNivel: AreaNivel): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!hasArea(user, area, minNivel)) {
+    redirect(`/dashboard?error=area_required&area=${area}&nivel=${minNivel}`);
+  }
+  return user;
 }

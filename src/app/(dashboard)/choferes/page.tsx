@@ -3,11 +3,13 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ChoferesPage() {
+  await requireArea("logistica", "read");
   const supabase = createAdminClient();
 
   const [{ data: choferes, count: total }, activos, inactivos, docs] = await Promise.all([

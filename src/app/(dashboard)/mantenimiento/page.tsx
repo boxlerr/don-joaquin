@@ -1,9 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import MantenimientoClient from "./components/MantenimientoClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function MantenimientoPage() {
+  await requireArea("flota", "read");
   const supabase = createAdminClient();
   const [camionesResult, choferesResult] = await Promise.all([
     supabase

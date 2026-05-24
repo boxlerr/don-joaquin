@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import { getValidacion, validarRestricciones } from "./validaciones";
+import { requireArea } from "@/lib/auth";
 
 type TipoDato = Database["public"]["Enums"]["parametro_tipo_dato"];
 
@@ -41,6 +42,7 @@ function validarValor(valor: string, tipo: TipoDato): { ok: true; valor: string 
 }
 
 export async function actualizarParametro(id: string, valor: string): Promise<Result> {
+  await requireArea("sistema", "write");
   const supabase = await createClient();
 
   const {
@@ -113,6 +115,7 @@ export type BulkResult = {
 export async function actualizarParametrosBulk(
   cambios: { id: string; valor: string }[],
 ): Promise<BulkResult | { error: string }> {
+  await requireArea("sistema", "write");
   const supabase = await createClient();
 
   const {
@@ -215,6 +218,7 @@ export async function revertirParametro(
   eventoId: string,
   eventoFecha: string,
 ): Promise<Result> {
+  await requireArea("sistema", "write");
   const supabase = await createClient();
 
   const {

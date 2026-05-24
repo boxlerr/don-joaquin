@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
 
@@ -14,6 +14,8 @@ export async function addChoferAction(data: {
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
 }) {
+  await requireArea("logistica", "write");
+
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -54,6 +56,8 @@ export async function updateChoferAction(id: string, data: {
   localidad?: string;
   estado: "activo" | "inactivo";
 }) {
+  await requireArea("logistica", "write");
+
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -96,6 +100,7 @@ export async function updateChoferAction(id: string, data: {
 }
 
 export async function updateChoferEstadoAction(id: string, estado: "activo" | "inactivo") {
+  await requireArea("logistica", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -133,6 +138,7 @@ export async function updateChoferEstadoAction(id: string, estado: "activo" | "i
 }
 
 export async function deleteChoferAction(id: string) {
+  await requireArea("logistica", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -180,6 +186,7 @@ function slugify(value: string): string {
 }
 
 export async function uploadFotoChoferAction(formData: FormData) {
+  await requireArea("logistica", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -279,6 +286,7 @@ export async function uploadFotoChoferAction(formData: FormData) {
 }
 
 export async function deleteFotoChoferAction(chofer_id: string) {
+  await requireArea("logistica", "write");
   const user = await requireUser();
   const supabase = createAdminClient();
 

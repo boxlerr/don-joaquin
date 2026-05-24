@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Search, ChevronRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
@@ -22,6 +23,7 @@ import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 
 export default async function CamionesPage() {
+  await requireArea("flota", "read");
   const supabase = createAdminClient();
 
   const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData] =

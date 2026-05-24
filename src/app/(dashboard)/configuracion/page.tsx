@@ -1,5 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import {
   type LucideIcon,
   Settings,
@@ -12,6 +13,7 @@ import {
 import ParametrosList from "./ParametrosList";
 
 export default async function ConfiguracionPage() {
+  await requireArea("sistema", "read");
   const supabase = createAdminClient();
   const { data: parametros } = await supabase
     .from("parametros_sistema")

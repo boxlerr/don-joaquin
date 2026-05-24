@@ -3,6 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
@@ -17,6 +18,7 @@ function formatARS(n: number): string {
 }
 
 export default async function CajaPage() {
+  await requireArea("finanzas", "read");
   const supabase = createAdminClient();
 
   const hoy = new Date();

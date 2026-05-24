@@ -3,6 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
 import ExportChequesButton from "./components/ExportChequesButton";
@@ -15,6 +16,7 @@ function formatARS(n: number): string {
 }
 
 export default async function ChequesPage() {
+  await requireArea("finanzas", "read");
   const supabase = createAdminClient();
 
   const hoy = new Date().toISOString().split("T")[0];

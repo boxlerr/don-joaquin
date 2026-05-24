@@ -2,41 +2,37 @@ import { cache } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/auth";
+import type { SidebarUser } from "@/components/layout/Sidebar";
 
 const getLayoutData = cache(async () => {
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
 
-  const [{ data: { user } }, { count: alertasCount }] = await Promise.all([
+  const [{ data: { user: authUser } }, { count: alertasCount }, currentUser] = await Promise.all([
     supabase.auth.getUser(),
     adminSupabase
       .from("alertas")
       .select("*", { count: "exact", head: true })
       .eq("estado", "pendiente"),
+    getCurrentUser(),
   ]);
 
-  let sidebarUser = null;
-  if (user) {
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("nombre, apellido, email, roles(nombre)")
-      .eq("id", user.id)
-      .maybeSingle();
+  let sidebarUser: SidebarUser | null = null;
+  if (currentUser) {
+    const avatarUrl =
+      (authUser?.user_metadata?.avatar_url as string | undefined) ??
+      (authUser?.user_metadata?.picture as string | undefined) ??
+      null;
 
-    if (usuario) {
-      const avatarUrl =
-        (user.user_metadata?.avatar_url as string | undefined) ??
-        (user.user_metadata?.picture as string | undefined) ??
-        null;
-
-      sidebarUser = {
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-        email: usuario.email,
-        rol: usuario.roles?.nombre ?? null,
-        avatarUrl,
-      };
-    }
+    sidebarUser = {
+      nombre: currentUser.nombre,
+      apellido: currentUser.apellido,
+      email: currentUser.email,
+      rol: currentUser.rol.nombre,
+      avatarUrl,
+      permisos: currentUser.permisos,
+    };
   }
 
   return { sidebarUser, alertasCount: alertasCount ?? 0 };

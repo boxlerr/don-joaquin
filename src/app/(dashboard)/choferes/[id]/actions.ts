@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "../audit";
 import type { ChoferDetail } from "./types";
@@ -188,7 +188,7 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
 export async function updateChoferInfoAction(
   chofer_id: string,
   data: Partial<{
-    nombre: string;
+  nombre: string;
     apellido: string;
     email: string;
     telefono: string;
@@ -199,6 +199,7 @@ export async function updateChoferInfoAction(
     telefono_emergencia: string;
   }>
 ) {
+
   const user = await requireUser();
   const supabase = createAdminClient();
 

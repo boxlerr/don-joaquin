@@ -1,4 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
+import { requireArea } from "@/lib/auth";
 import TarifasTabs from "./TarifasTabs";
 import {
   getTarifaParams,
@@ -7,6 +8,7 @@ import {
 } from "./actions";
 
 export default async function TarifasPage() {
+  await requireArea("comercial", "read");
   const [params, { clientes, rutas }, tarifas] = await Promise.all([
     getTarifaParams(),
     obtenerClientesYRutas(),

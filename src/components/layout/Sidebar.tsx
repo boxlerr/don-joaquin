@@ -19,6 +19,7 @@ import {
 import { NAV_GROUPS, type NavItem, type NavChild } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
 import { useTheme } from "./ThemeProvider";
+import type { PermisosArea, AreaCodigo, AreaNivel } from "@/lib/auth";
 
 export type SidebarUser = {
   nombre: string;
@@ -26,7 +27,15 @@ export type SidebarUser = {
   email: string;
   rol: string | null;
   avatarUrl: string | null;
+  permisos: PermisosArea;
 };
+
+const NIVEL_RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
+
+function canAccessArea(permisos: PermisosArea, area: AreaCodigo | undefined): boolean {
+  if (!area) return true;
+  return NIVEL_RANK[permisos[area]] >= NIVEL_RANK.read;
+}
 
 const CHILD_ICONS: Record<string, LucideIcon> = {
   General: Sliders,
@@ -73,35 +82,55 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto sidebar-scroll">
-        {NAV_GROUPS.map((group) => (
-          <div key={group.group} className="mb-4">
-            <p className="px-3 mb-1 text-[10px] font-bold tracking-[0.16em] text-muted-foreground/80 uppercase">
-              {group.group}
-            </p>
-            <ul className="space-y-px">
-              {group.items.map((item) =>
-                item.children && item.children.length > 0 ? (
-                  <CollapsibleItem
-                    key={item.href}
-                    item={item}
-                    pathname={pathname}
-                    isChildActive={isChildActive}
-                    hasActiveChild={hasActiveChild}
-                  />
-                ) : (
-                  <li key={item.href}>
-                    <NavLink
-                      href={item.href}
-                      icon={item.icon}
-                      label={item.label}
-                      active={isActive(item.href)}
-                    />
-                  </li>
+        {NAV_GROUPS.map((group) => {
+          const permisos = user?.permisos;
+          const visibleItems = permisos
+            ? group.items
+                .filter((item) => canAccessArea(permisos, item.area))
+                .map((item) =>
+                  item.children
+                    ? {
+                        ...item,
+                        children: item.children.filter((c) =>
+                          canAccessArea(permisos, c.area ?? item.area),
+                        ),
+                      }
+                    : item,
                 )
-              )}
-            </ul>
-          </div>
-        ))}
+            : group.items;
+
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.group} className="mb-4">
+              <p className="px-3 mb-1 text-[10px] font-bold tracking-[0.16em] text-muted-foreground/80 uppercase">
+                {group.group}
+              </p>
+              <ul className="space-y-px">
+                {visibleItems.map((item) =>
+                  item.children && item.children.length > 0 ? (
+                    <CollapsibleItem
+                      key={item.href}
+                      item={item}
+                      pathname={pathname}
+                      isChildActive={isChildActive}
+                      hasActiveChild={hasActiveChild}
+                    />
+                  ) : (
+                    <li key={item.href}>
+                      <NavLink
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        active={isActive(item.href)}
+                      />
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
 
       {/* User */}

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
+import { requireArea } from "@/lib/auth";
 
 export async function createSiniestroAction(data: {
   camion_id: string;
@@ -18,6 +19,8 @@ export async function createSiniestroAction(data: {
   numero_siniestro_seguro: string;
   terceros_involucrados: string;
 }): Promise<{ error?: string; success?: true }> {
+  await requireArea("logistica", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -50,6 +53,8 @@ export async function updateSiniestroAction(id: string, data: {
   numero_siniestro_seguro: string;
   terceros_involucrados: string;
 }): Promise<{ error?: string; success?: true }> {
+  await requireArea("logistica", "write");
+
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +70,7 @@ export async function updateSiniestroAction(id: string, data: {
 }
 
 export async function deleteSiniestroAction(id: string): Promise<{ error?: string; success?: true }> {
+  await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { error } = await supabase.from("siniestros").delete().eq("id", id);
@@ -86,6 +92,8 @@ export async function registrarPagoSiniestroAction(data: {
   concepto: string;
   observaciones: string | null;
 }): Promise<{ error?: string; success?: true }> {
+  await requireArea("logistica", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();

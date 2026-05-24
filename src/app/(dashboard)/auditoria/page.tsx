@@ -1,8 +1,10 @@
 import PageHeader from "@/components/layout/PageHeader";
+import { requireArea } from "@/lib/auth";
 import { getGlobalAuditLogsAction, getAuditUsuariosAction } from "./actions";
 import AuditoriaClient from "./components/AuditoriaClient";
 
 export default async function AuditoriaPage() {
+  await requireArea("sistema", "read");
   const [result, usuarios] = await Promise.all([
     getGlobalAuditLogsAction(),
     getAuditUsuariosAction(),

@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logClienteAudit } from "./audit";
+import { requireArea } from "@/lib/auth";
 
 const CONDICION_IVA_VALUES = [
   "responsable_inscripto",
@@ -47,6 +48,7 @@ export async function createClienteAction(
   _prev: CreateClienteState,
   formData: FormData,
 ): Promise<CreateClienteState> {
+  await requireArea("comercial", "write");
   const parsed = clienteSchema.safeParse({
     razon_social: formData.get("razon_social"),
     nombre_comercial: emptyToNull(formData.get("nombre_comercial")),
@@ -126,6 +128,7 @@ export async function deleteClienteAction(
   _prev: DeleteClienteState,
   formData: FormData,
 ): Promise<DeleteClienteState> {
+  await requireArea("comercial", "write");
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "ID de cliente inválido." };
 
@@ -160,6 +163,7 @@ export async function reactivateClienteAction(
   _prev: ReactivateClienteState,
   formData: FormData,
 ): Promise<ReactivateClienteState> {
+  await requireArea("comercial", "write");
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "ID de cliente inválido." };
 
@@ -270,6 +274,7 @@ export async function importClientesAction(
   _prev: ImportClientesState,
   formData: FormData,
 ): Promise<ImportClientesState> {
+  await requireArea("comercial", "write");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Adjuntá un archivo .xlsx o .csv." };
@@ -377,6 +382,7 @@ export async function updateClienteAction(
   _prev: UpdateClienteState,
   formData: FormData,
 ): Promise<UpdateClienteState> {
+  await requireArea("comercial", "write");
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "ID de cliente inválido." };
 
@@ -534,6 +540,7 @@ export async function exportCuentaCorrienteAction(): Promise<{
   filename: string;
   base64: string;
 }> {
+
   const supabase = createAdminClient();
 
   const { data: clientes } = await supabase

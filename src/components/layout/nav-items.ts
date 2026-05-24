@@ -16,16 +16,21 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import type { AreaCodigo } from "@/lib/auth";
 
 export interface NavChild {
   label: string;
   href: string;
+  /** Si se omite, hereda el área del padre. */
+  area?: AreaCodigo;
 }
 
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Área que controla la visibilidad. Si se omite, el item es visible siempre. */
+  area?: AreaCodigo;
   children?: NavChild[];
 }
 
@@ -45,36 +50,37 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "LOGÍSTICA",
     items: [
-      { label: "Viajes", href: "/viajes", icon: MapPin },
-      { label: "Camiones", href: "/camiones", icon: Truck },
-      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench },
-      { label: "Choferes", href: "/choferes", icon: Users },
-      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle },
+      { label: "Viajes", href: "/viajes", icon: MapPin, area: "logistica" },
+      { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
+      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "flota" },
+      { label: "Choferes", href: "/choferes", icon: Users, area: "logistica" },
+      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
     ],
   },
   {
     group: "COMERCIAL",
     items: [
-      { label: "Clientes", href: "/clientes", icon: Briefcase },
-      { label: "Tarifas", href: "/tarifas", icon: DollarSign },
+      { label: "Clientes", href: "/clientes", icon: Briefcase, area: "comercial" },
+      { label: "Tarifas", href: "/tarifas", icon: DollarSign, area: "comercial" },
     ],
   },
   {
     group: "FINANZAS",
     items: [
-      { label: "Caja", href: "/caja", icon: Wallet },
-      { label: "Gastos", href: "/gastos", icon: Receipt },
-      { label: "Cheques", href: "/cheques", icon: FileText },
+      { label: "Caja", href: "/caja", icon: Wallet, area: "finanzas" },
+      { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
+      { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
     ],
   },
   {
     group: "SISTEMA",
     items: [
-      { label: "Auditoría", href: "/auditoria", icon: ShieldAlert },
+      { label: "Auditoría", href: "/auditoria", icon: ShieldAlert, area: "sistema" },
       {
         label: "Configuración",
         href: "/configuracion",
         icon: Settings,
+        area: "sistema",
         children: [
           { label: "General", href: "/configuracion" },
           { label: "Negocio", href: "/configuracion/negocio" },

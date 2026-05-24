@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { ViajeBasico, PaginatedResult } from "./types";
+import { requireArea } from "@/lib/auth";
 
 const PAGE_SIZE = 20;
 
@@ -788,12 +789,13 @@ export async function updateViajeEstadoAction(
 export async function cerrarViajeAction(
   viajeId: string,
   cobro: {
-    cobrado: boolean;
+  cobrado: boolean;
     fecha: string;
     medio: "efectivo" | "transferencia" | "cheque" | "otro";
     observaciones: string | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
+
   const userClient = await createClient();
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) return { ok: false, error: "No autenticado." };
@@ -940,7 +942,7 @@ export type UpdateViajeState = {
 export async function updateViajeAction(
   id: string,
   data: {
-    fecha_viaje: string;
+  fecha_viaje: string;
     estado: string;
     cliente_id: string;
     chofer_id: string;
@@ -955,6 +957,7 @@ export async function updateViajeAction(
     monto_flete: number;
   },
 ): Promise<UpdateViajeState> {
+
   const parsed = viajeSchema.safeParse({
     fecha_viaje: data.fecha_viaje,
     estado: data.estado,

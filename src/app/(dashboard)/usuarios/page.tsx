@@ -15,6 +15,9 @@ import {
 import { Shield, Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OpenAuditButton } from "@/components/open-audit-button";
+import { getCurrentUser, requireArea } from "@/lib/auth";
+import RolesPermisosMatrix from "./RolesPermisosMatrix";
+import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -28,27 +31,57 @@ function fmtDate(iso: string | null): string {
 }
 
 export default async function UsuariosPage() {
+  await requireArea("sistema", "read");
   const supabase = createAdminClient();
+  const currentUser = await getCurrentUser();
+  const showMatriz = currentUser?.rol.codigo === "admin";
 
-  const [{ data: usuarios }, { count: total }, { count: admins }, { count: operativos }] =
-    await Promise.all([
-      supabase
-        .from("usuarios")
-        .select("*, roles(codigo, nombre)")
-        .order("created_at", { ascending: false }),
-      supabase.from("usuarios").select("*", { count: "exact", head: true }),
-      supabase
-        .from("usuarios")
-        .select("*, roles!inner(codigo)", { count: "exact", head: true })
-        .eq("roles.codigo", "admin"),
-      supabase
-        .from("usuarios")
-        .select("*, roles!inner(codigo)", { count: "exact", head: true })
-        .eq("roles.codigo", "administrativo"),
-    ]);
+  const [
+    { data: usuarios },
+    { count: total },
+    { count: admins },
+    { count: operativos },
+    rolesRes,
+    areasRes,
+    rolAreasRes,
+  ] = await Promise.all([
+    supabase
+      .from("usuarios")
+      .select("*, roles(codigo, nombre)")
+      .order("created_at", { ascending: false }),
+    supabase.from("usuarios").select("*", { count: "exact", head: true }),
+    supabase
+      .from("usuarios")
+      .select("*, roles!inner(codigo)", { count: "exact", head: true })
+      .eq("roles.codigo", "admin"),
+    supabase
+      .from("usuarios")
+      .select("*, roles!inner(codigo)", { count: "exact", head: true })
+      .eq("roles.codigo", "administrativo"),
+    showMatriz
+      ? supabase.from("roles").select("id, codigo, nombre").order("codigo")
+      : Promise.resolve({ data: null }),
+    showMatriz
+      ? supabase.from("areas" as never).select("codigo, nombre, orden").order("orden")
+      : Promise.resolve({ data: null }),
+    showMatriz
+      ? supabase.from("rol_areas" as never).select("rol_id, area_codigo, nivel")
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const roles = (rolesRes.data ?? []) as { id: string; codigo: string; nombre: string }[];
+  const areas = (areasRes.data ?? []) as { codigo: AreaCodigo; nombre: string; orden: number }[];
+  const rolAreas =
+    (rolAreasRes.data ?? []) as { rol_id: string; area_codigo: AreaCodigo; nivel: AreaNivel }[];
+
+  const matrizInicial: Record<string, Partial<Record<AreaCodigo, AreaNivel>>> = {};
+  for (const ra of rolAreas) {
+    if (!matrizInicial[ra.rol_id]) matrizInicial[ra.rol_id] = {};
+    matrizInicial[ra.rol_id][ra.area_codigo] = ra.nivel;
+  }
 
   return (
-    <div className="p-8">
+    <div className="p-8 space-y-6">
       <PageHeader
         title="Usuarios y Permisos"
         description="Acceso administrativo — choferes no acceden al sistema"
@@ -63,7 +96,7 @@ export default async function UsuariosPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4">
         <StatCard label="Usuarios totales" value={String(total ?? 0)} color="brand" />
         <StatCard label="Administradores" value={String(admins ?? 0)} sub="Acceso total" color="warning" />
         <StatCard label="Operativos" value={String(operativos ?? 0)} sub="Carga y consulta" color="success" />
@@ -129,6 +162,10 @@ export default async function UsuariosPage() {
           </TableBody>
         </Table>
       </div>
+
+      {showMatriz && roles.length > 0 && areas.length > 0 && (
+        <RolesPermisosMatrix roles={roles} areas={areas} initialMatriz={matrizInicial} />
+      )}
     </div>
   );
 }

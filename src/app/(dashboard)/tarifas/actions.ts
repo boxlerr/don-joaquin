@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import { validarTarifa, type TarifaInput } from "./validaciones";
+import { requireArea } from "@/lib/auth";
 
 type TarifaRow = Database["public"]["Tables"]["tarifas"]["Row"];
 

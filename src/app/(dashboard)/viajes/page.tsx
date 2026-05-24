@@ -4,6 +4,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { MapPin, X, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireArea } from "@/lib/auth";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import { getViajeFormData } from "./actions";
@@ -15,6 +16,7 @@ export default async function ViajesPage({
 }: {
   searchParams: Promise<{ choferId?: string }>;
 }) {
+  await requireArea("logistica", "read");
   const { choferId } = await searchParams;
   const supabase = createAdminClient();
 

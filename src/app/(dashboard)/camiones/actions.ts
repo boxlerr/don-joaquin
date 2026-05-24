@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
+import { requireArea } from "@/lib/auth";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 
@@ -38,6 +39,8 @@ export async function addCamionAction(data: {
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
 }) {
+  await requireArea("flota", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -85,6 +88,8 @@ export async function updateCamionAction(id: string, data: {
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
 }) {
+  await requireArea("flota", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -136,6 +141,7 @@ function friendlyCamionError(message: string): string {
 }
 
 export async function deleteCamionAction(id: string) {
+  await requireArea("flota", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -187,6 +193,8 @@ export async function addServiceAction(data: {
   descripcion: string;
   observaciones?: string;
 }) {
+  await requireArea("flota", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -242,6 +250,8 @@ export async function addGasoilAction(data: {
   estacion?: string;
   observaciones?: string;
 }) {
+  await requireArea("flota", "write");
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -439,6 +449,7 @@ export async function updateServiceAction(id: string, data: {
   descripcion: string;
   observaciones?: string;
 }) {
+
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("mantenimientos")
@@ -466,6 +477,7 @@ export async function updateGasoilAction(id: string, data: {
   estacion?: string;
   observaciones?: string;
 }) {
+
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("cargas_combustible")
@@ -881,6 +893,7 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
   summary?: { validas: number; invalidas: number };
   error?: string;
 }> {
+
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Adjuntá un archivo .xlsx o .csv." };
@@ -939,6 +952,7 @@ export async function confirmCamionesImportAction(rows: ParsedImportRow[]): Prom
   skipped: number;
   errors: { row: number; message: string }[];
 }> {
+
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -978,6 +992,7 @@ export async function exportCamionesAction(): Promise<{
   filename: string;
   base64: string;
 }> {
+
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("camiones")

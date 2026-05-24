@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 
@@ -188,6 +188,7 @@ export async function addIngresoAction(data: {
   categoria: "cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro";
   fecha: string;
 }) {
+
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -229,6 +230,7 @@ export async function addEgresoAction(data: {
   tipo_gasto_id?: string | null;
   fecha: string;
 }) {
+
   const user = await requireUser();
   const supabase = createAdminClient();
 
@@ -561,6 +563,7 @@ export async function addViaticoAction(data: {
   concepto: string;
   fecha: string;
 }) {
+
   const user = await requireUser();
   const supabase = createAdminClient();
 
