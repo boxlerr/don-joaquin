@@ -4,7 +4,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { MapPin, X, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import { getViajeFormData } from "./actions";
@@ -16,7 +16,9 @@ export default async function ViajesPage({
 }: {
   searchParams: Promise<{ choferId?: string }>;
 }) {
-  await requireArea("logistica", "read");
+  const user = await requireArea("logistica", "read");
+  const canWrite = hasArea(user, "logistica", "write");
+  const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const { choferId } = await searchParams;
   const supabase = createAdminClient();
 
@@ -69,18 +71,20 @@ export default async function ViajesPage({
         description="Núcleo operativo: registro, asociación y trazabilidad de viajes"
         action={
           <div className="flex items-center gap-2">
-            <AddGastoDialog
-              tiposGasto={gastoFormData.tiposGasto}
-              viajes={gastoFormData.viajes}
-              camiones={gastoFormData.camiones}
-              choferes={gastoFormData.choferes}
-            >
-              <Button variant="outline" size="sm">
-                <Receipt size={14} />
-                Registrar gasto
-              </Button>
-            </AddGastoDialog>
-            {viajeFormData && <NewViajeSheet data={viajeFormData} />}
+            {canRegistrarGasto && (
+              <AddGastoDialog
+                tiposGasto={gastoFormData.tiposGasto}
+                viajes={gastoFormData.viajes}
+                camiones={gastoFormData.camiones}
+                choferes={gastoFormData.choferes}
+              >
+                <Button variant="outline" size="sm">
+                  <Receipt size={14} />
+                  Registrar gasto
+                </Button>
+              </AddGastoDialog>
+            )}
+            {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }
       />

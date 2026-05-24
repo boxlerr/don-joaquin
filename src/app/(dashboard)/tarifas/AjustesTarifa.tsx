@@ -7,7 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { guardarAjustes, type TarifaParams } from "./actions";
 
-export default function AjustesTarifa({ params }: { params: TarifaParams }) {
+export default function AjustesTarifa({
+  params,
+  canWrite = false,
+}: {
+  params: TarifaParams;
+  canWrite?: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [tarifaBase, setTarifaBase] = useState(String(params.tarifa_base));
@@ -55,6 +61,8 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
             value={tarifaBase}
             onChange={(e) => setTarifaBase(e.target.value)}
             required
+            disabled={!canWrite}
+            readOnly={!canWrite}
             className="h-10 text-sm"
           />
         </div>
@@ -75,6 +83,8 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
             value={precioPorKg}
             onChange={(e) => setPrecioPorKg(e.target.value)}
             required
+            disabled={!canWrite}
+            readOnly={!canWrite}
             className="h-10 text-sm"
           />
         </div>
@@ -95,29 +105,37 @@ export default function AjustesTarifa({ params }: { params: TarifaParams }) {
             value={precioPorKm}
             onChange={(e) => setPrecioPorKm(e.target.value)}
             required
+            disabled={!canWrite}
+            readOnly={!canWrite}
             className="h-10 text-sm"
           />
         </div>
 
-        <Button
-          type="submit"
-          variant="brand"
-          size="lg"
-          disabled={isPending}
-          className="w-full"
-        >
-          {saved ? (
-            <>
-              <Check size={14} />
-              Guardado
-            </>
-          ) : (
-            <>
-              <Save size={14} />
-              {isPending ? "Guardando..." : "Guardar ajustes"}
-            </>
-          )}
-        </Button>
+        {canWrite ? (
+          <Button
+            type="submit"
+            variant="brand"
+            size="lg"
+            disabled={isPending}
+            className="w-full"
+          >
+            {saved ? (
+              <>
+                <Check size={14} />
+                Guardado
+              </>
+            ) : (
+              <>
+                <Save size={14} />
+                {isPending ? "Guardando..." : "Guardar ajustes"}
+              </>
+            )}
+          </Button>
+        ) : (
+          <p className="text-[11px] text-muted-foreground/70 text-center">
+            Solo lectura — pedile a un administrador permisos de edición sobre Comercial.
+          </p>
+        )}
       </form>
     </div>
   );

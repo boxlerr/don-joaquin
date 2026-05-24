@@ -88,10 +88,12 @@ export default async function UsuariosPage() {
         action={
           <div className="flex items-center gap-2">
             <OpenAuditButton />
-            <Button variant="brand" size="sm">
-              <Plus size={14} />
-              Nuevo usuario
-            </Button>
+            {showMatriz && (
+              <Button variant="brand" size="sm">
+                <Plus size={14} />
+                Nuevo usuario
+              </Button>
+            )}
           </div>
         }
       />

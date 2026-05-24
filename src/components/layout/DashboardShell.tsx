@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { PanelLeft, Search } from "lucide-react";
 import Sidebar, { type SidebarUser } from "./Sidebar";
 import CommandPalette from "./CommandPalette";
 import { AuditDrawer } from "@/components/audit-drawer";
 import NotificationBell from "./NotificationBell";
+import AreaErrorBanner from "@/components/AreaErrorBanner";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
@@ -68,7 +69,12 @@ export default function DashboardShell({
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <Suspense fallback={null}>
+            <AreaErrorBanner />
+          </Suspense>
+          {children}
+        </main>
       </div>
 
       <CommandPalette

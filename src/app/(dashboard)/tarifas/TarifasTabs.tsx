@@ -20,6 +20,7 @@ type Props = {
   clientes: ClienteOption[];
   rutas: RutaOption[];
   tarifas: TarifaConRelaciones[];
+  canWrite?: boolean;
 };
 
 const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
@@ -28,7 +29,7 @@ const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
   { id: "ajustes", label: "Ajustes globales", icon: Settings },
 ];
 
-export default function TarifasTabs({ params, clientes, rutas, tarifas }: Props) {
+export default function TarifasTabs({ params, clientes, rutas, tarifas, canWrite = false }: Props) {
   const [tab, setTab] = useState<TabId>("calculadora");
 
   return (
@@ -80,12 +81,13 @@ export default function TarifasTabs({ params, clientes, rutas, tarifas }: Props)
           tarifasIniciales={tarifas}
           clientes={clientes}
           rutas={rutas}
+          canWrite={canWrite}
         />
       )}
 
       {tab === "ajustes" && (
         <div className="max-w-md">
-          <AjustesTarifa params={params} />
+          <AjustesTarifa params={params} canWrite={canWrite} />
         </div>
       )}
     </div>

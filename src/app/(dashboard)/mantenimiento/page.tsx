@@ -1,11 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import MantenimientoClient from "./components/MantenimientoClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function MantenimientoPage() {
-  await requireArea("flota", "read");
+  const user = await requireArea("flota", "read");
+  const canWrite = hasArea(user, "flota", "write");
   const supabase = createAdminClient();
   const [camionesResult, choferesResult] = await Promise.all([
     supabase
@@ -23,6 +24,7 @@ export default async function MantenimientoPage() {
     <MantenimientoClient
       dbCamiones={camionesResult.data || []}
       dbChoferes={choferesResult.data || []}
+      canWrite={canWrite}
     />
   );
 }

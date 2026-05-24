@@ -3,7 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
@@ -18,7 +18,8 @@ function formatARS(n: number): string {
 }
 
 export default async function CajaPage() {
-  await requireArea("finanzas", "read");
+  const user = await requireArea("finanzas", "read");
+  const canWrite = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
 
   const hoy = new Date();
@@ -76,27 +77,29 @@ export default async function CajaPage() {
         title="Caja General"
         description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         action={
-          <div className="flex items-center gap-2">
-            <ImportMovimientosDialog />
-            <AddViaticoDialog choferes={choferes || []}>
-              <Button variant="outline" size="sm">
-                <Receipt size={14} />
-                Registrar viático
-              </Button>
-            </AddViaticoDialog>
-            <AddIngresoDialog>
-              <Button variant="success" size="sm">
-                <ArrowUpRight size={14} />
-                Ingreso
-              </Button>
-            </AddIngresoDialog>
-            <AddEgresoDialog tiposGasto={tiposGasto || []}>
-              <Button variant="danger" size="sm">
-                <ArrowDownRight size={14} />
-                Egreso
-              </Button>
-            </AddEgresoDialog>
-          </div>
+          canWrite ? (
+            <div className="flex items-center gap-2">
+              <ImportMovimientosDialog />
+              <AddViaticoDialog choferes={choferes || []}>
+                <Button variant="outline" size="sm">
+                  <Receipt size={14} />
+                  Registrar viático
+                </Button>
+              </AddViaticoDialog>
+              <AddIngresoDialog>
+                <Button variant="success" size="sm">
+                  <ArrowUpRight size={14} />
+                  Ingreso
+                </Button>
+              </AddIngresoDialog>
+              <AddEgresoDialog tiposGasto={tiposGasto || []}>
+                <Button variant="danger" size="sm">
+                  <ArrowDownRight size={14} />
+                  Egreso
+                </Button>
+              </AddEgresoDialog>
+            </div>
+          ) : null
         }
       />
 

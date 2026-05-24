@@ -18,6 +18,7 @@ import AddOrdenDialog from "./AddOrdenDialog";
 interface MantenimientoClientProps {
   dbCamiones: Unidad[];
   dbChoferes: Chofer[];
+  canWrite?: boolean;
 }
 
 const MOCK_DATA = [
@@ -75,7 +76,7 @@ const MOCK_DATA = [
   }
 ];
 
-export default function MantenimientoClient({ dbCamiones, dbChoferes }: MantenimientoClientProps) {
+export default function MantenimientoClient({ dbCamiones, dbChoferes, canWrite = false }: MantenimientoClientProps) {
   const [data, setData] = useState<MantenimientoOrden[]>(() => {
     const dbPatentes = new Set((dbCamiones || []).map(c => c.patente.trim().toUpperCase()));
     const filtered = MOCK_DATA.filter((item) => dbPatentes.has(item.unidad.patente.trim().toUpperCase()));
@@ -144,19 +145,21 @@ export default function MantenimientoClient({ dbCamiones, dbChoferes }: Mantenim
               <HelpCircle size={20} />
             </button>
             
-            <AddOrdenDialog
-              camiones={dbCamiones}
-              choferes={dbChoferes}
-              nextId={generateNextId()}
-              onAdd={handleAddOrden}
-            >
-              <Button
-                variant="brand"
-                className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 px-5 font-semibold shadow-sm ml-2"
+            {canWrite && (
+              <AddOrdenDialog
+                camiones={dbCamiones}
+                choferes={dbChoferes}
+                nextId={generateNextId()}
+                onAdd={handleAddOrden}
               >
-                <Plus size={16} strokeWidth={2.5} /> Nueva orden
-              </Button>
-            </AddOrdenDialog>
+                <Button
+                  variant="brand"
+                  className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 px-5 font-semibold shadow-sm ml-2"
+                >
+                  <Plus size={16} strokeWidth={2.5} /> Nueva orden
+                </Button>
+              </AddOrdenDialog>
+            )}
           </div>
         }
       />

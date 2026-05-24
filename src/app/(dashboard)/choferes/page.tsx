@@ -3,13 +3,14 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ChoferesPage() {
-  await requireArea("logistica", "read");
+  const user = await requireArea("logistica", "read");
+  const canWrite = hasArea(user, "logistica", "write");
   const supabase = createAdminClient();
 
   const [{ data: choferes, count: total }, activos, inactivos, docs] = await Promise.all([
@@ -41,12 +42,14 @@ export default async function ChoferesPage() {
         action={
           <div className="flex items-center gap-2">
             <HelpTutorialButton />
-            <AddChoferDialog>
-              <Button variant="brand" size="sm">
-                <Plus size={14} />
-                Nuevo chofer
-              </Button>
-            </AddChoferDialog>
+            {canWrite && (
+              <AddChoferDialog>
+                <Button variant="brand" size="sm">
+                  <Plus size={14} />
+                  Nuevo chofer
+                </Button>
+              </AddChoferDialog>
+            )}
           </div>
         }
       />

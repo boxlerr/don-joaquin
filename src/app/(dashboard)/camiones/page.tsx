@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Search, ChevronRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
@@ -23,7 +23,9 @@ import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 
 export default async function CamionesPage() {
-  await requireArea("flota", "read");
+  const user = await requireArea("flota", "read");
+  const canWrite = hasArea(user, "flota", "write");
+  const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
 
   const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData] =
@@ -72,39 +74,47 @@ export default async function CamionesPage() {
             <HelpTutorialButton />
             <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
             <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
-              <ImportCamionesButton />
+              {canWrite && <ImportCamionesButton />}
               <ExportCamionesButton />
             </div>
             <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
-            <AddGasoilDialog camiones={camiones || []}>
-              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Fuel size={14} className="text-primary" />
-                Cargar gasoil
-              </Button>
-            </AddGasoilDialog>
-            <AddServiceDialog camiones={camiones || []}>
-              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Wrench size={14} className="text-primary" />
-                Registrar service
-              </Button>
-            </AddServiceDialog>
-            <AddGastoDialog
-              tiposGasto={gastoFormData.tiposGasto}
-              viajes={gastoFormData.viajes}
-              camiones={gastoFormData.camiones}
-              choferes={gastoFormData.choferes}
-            >
-              <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
-                <Receipt size={14} className="text-primary" />
-                Registrar gasto
-              </Button>
-            </AddGastoDialog>
-            <AddCamionDialog>
-              <Button variant="brand" size="default" className="shadow-md shadow-[#0088D1]/20">
-                <Plus size={16} strokeWidth={3} />
-                Agregar camión
-              </Button>
-            </AddCamionDialog>
+            {canWrite && (
+              <AddGasoilDialog camiones={camiones || []}>
+                <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                  <Fuel size={14} className="text-primary" />
+                  Cargar gasoil
+                </Button>
+              </AddGasoilDialog>
+            )}
+            {canWrite && (
+              <AddServiceDialog camiones={camiones || []}>
+                <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                  <Wrench size={14} className="text-primary" />
+                  Registrar service
+                </Button>
+              </AddServiceDialog>
+            )}
+            {canRegistrarGasto && (
+              <AddGastoDialog
+                tiposGasto={gastoFormData.tiposGasto}
+                viajes={gastoFormData.viajes}
+                camiones={gastoFormData.camiones}
+                choferes={gastoFormData.choferes}
+              >
+                <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
+                  <Receipt size={14} className="text-primary" />
+                  Registrar gasto
+                </Button>
+              </AddGastoDialog>
+            )}
+            {canWrite && (
+              <AddCamionDialog>
+                <Button variant="brand" size="default" className="shadow-md shadow-[#0088D1]/20">
+                  <Plus size={16} strokeWidth={3} />
+                  Agregar camión
+                </Button>
+              </AddCamionDialog>
+            )}
           </div>
         }
       />

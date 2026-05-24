@@ -57,9 +57,11 @@ function firstLetter(name: string): string {
 export default function ClientesList({
   clientes,
   sucursalesCount,
+  canWrite = false,
 }: {
   clientes: Cliente[];
   sucursalesCount: Record<string, number>;
+  canWrite?: boolean;
 }) {
   const [letter, setLetter] = useState<string>("#");
   const [search, setSearch] = useState("");
@@ -133,8 +135,8 @@ export default function ClientesList({
             <option value="todos">Todos</option>
           </select>
           <HelpTutorialButton />
-          <ImportClientesModal />
-          <NewClienteSheet />
+          {canWrite && <ImportClientesModal />}
+          {canWrite && <NewClienteSheet />}
         </div>
 
         <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase mb-3">

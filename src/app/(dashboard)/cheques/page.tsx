@@ -3,7 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
 import ExportChequesButton from "./components/ExportChequesButton";
@@ -16,7 +16,8 @@ function formatARS(n: number): string {
 }
 
 export default async function ChequesPage() {
-  await requireArea("finanzas", "read");
+  const user = await requireArea("finanzas", "read");
+  const canWrite = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
 
   const hoy = new Date().toISOString().split("T")[0];
@@ -74,12 +75,14 @@ export default async function ChequesPage() {
         action={
           <div className="flex items-center gap-2">
             <ExportChequesButton />
-            <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>
-              <Button variant="brand" size="sm">
-                <Plus size={14} />
-                Registrar cheque
-              </Button>
-            </AddChequeDialog>
+            {canWrite && (
+              <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>
+                <Button variant="brand" size="sm">
+                  <Plus size={14} />
+                  Registrar cheque
+                </Button>
+              </AddChequeDialog>
+            )}
           </div>
         }
       />

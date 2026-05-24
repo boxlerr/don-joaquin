@@ -49,7 +49,13 @@ function formatValor(valor: string, tipo: string): string {
   return valor;
 }
 
-export default function ParametrosList({ parametros }: { parametros: Parametro[] }) {
+export default function ParametrosList({
+  parametros,
+  canWrite = false,
+}: {
+  parametros: Parametro[];
+  canWrite?: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [bulkCategoria, setBulkCategoria] = useState<string | null>(null);
   const [savedBanner, setSavedBanner] = useState<{ cat: string; count: number } | null>(null);
@@ -123,7 +129,7 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
                   {meta.titulo}
                 </h3>
               </div>
-              {!isBulk && tieneEditables && !search && (
+              {canWrite && !isBulk && tieneEditables && !search && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -161,7 +167,7 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
             ) : (
               <div className="bg-card rounded-[8px] border border-border shadow-sm divide-y divide-border">
                 {grouped[cat]!.map((p) => (
-                  <ParametroRow key={p.id} parametro={p} />
+                  <ParametroRow key={p.id} parametro={p} canWrite={canWrite} />
                 ))}
               </div>
             )}
@@ -172,7 +178,13 @@ export default function ParametrosList({ parametros }: { parametros: Parametro[]
   );
 }
 
-function ParametroRow({ parametro }: { parametro: Parametro }) {
+function ParametroRow({
+  parametro,
+  canWrite = false,
+}: {
+  parametro: Parametro;
+  canWrite?: boolean;
+}) {
   const [editing, setEditing] = useState(false);
   const [valor, setValor] = useState(parametro.valor);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +192,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
   const [historialOpen, setHistorialOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const validacion = getValidacion(parametro.clave, parametro.tipo_dato);
+  const editable = canWrite && parametro.editable;
 
   function onEdit() {
     setValor(parametro.valor);
@@ -243,7 +256,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
       />
 
       <div className="shrink-0 flex items-center gap-2">
-        {!parametro.editable && (
+        {!editable && (
           <>
             <span className="text-foreground text-sm font-semibold">
               {formatValor(parametro.valor, parametro.tipo_dato)}
@@ -254,7 +267,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
           </>
         )}
 
-        {parametro.editable && parametro.tipo_dato === "boolean" && (
+        {editable && parametro.tipo_dato === "boolean" && (
           <BooleanToggle
             value={parametro.valor === "true"}
             disabled={isPending}
@@ -263,7 +276,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
           />
         )}
 
-        {parametro.editable && parametro.tipo_dato !== "boolean" && !editing && (
+        {editable && parametro.tipo_dato !== "boolean" && !editing && (
           <>
             <span className="text-foreground text-sm font-semibold max-w-[240px] truncate">
               {formatValor(parametro.valor, parametro.tipo_dato)}
@@ -287,7 +300,7 @@ function ParametroRow({ parametro }: { parametro: Parametro }) {
           </>
         )}
 
-        {parametro.editable && parametro.tipo_dato !== "boolean" && editing && (
+        {editable && parametro.tipo_dato !== "boolean" && editing && (
           <>
             <div className="flex flex-col items-end gap-1">
               {validacion.opciones ? (

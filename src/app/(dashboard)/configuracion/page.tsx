@@ -1,6 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import {
   type LucideIcon,
   Settings,
@@ -13,7 +13,8 @@ import {
 import ParametrosList from "./ParametrosList";
 
 export default async function ConfiguracionPage() {
-  await requireArea("sistema", "read");
+  const user = await requireArea("sistema", "read");
+  const canWrite = hasArea(user, "sistema", "write");
   const supabase = createAdminClient();
   const { data: parametros } = await supabase
     .from("parametros_sistema")
@@ -30,7 +31,7 @@ export default async function ConfiguracionPage() {
 
       <div>
         <SectionTitle icon={Settings} label="Parámetros del sistema" />
-        <ParametrosList parametros={parametros ?? []} />
+        <ParametrosList parametros={parametros ?? []} canWrite={canWrite} />
       </div>
 
       <div>

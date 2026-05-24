@@ -15,9 +15,10 @@ interface SiniestrosClientProps {
   siniestros: SiniestroConRelaciones[];
   camiones: { id: string; patente: string; marca: string; modelo: string }[];
   choferes: { id: string; nombre: string; apellido: string | null }[];
+  canWrite?: boolean;
 }
 
-export default function SiniestrosClient({ siniestros, camiones, choferes }: SiniestrosClientProps) {
+export default function SiniestrosClient({ siniestros, camiones, choferes, canWrite = false }: SiniestrosClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -61,17 +62,19 @@ export default function SiniestrosClient({ siniestros, camiones, choferes }: Sin
         action={
           <div className="flex items-center gap-2.5">
             <HelpTutorialButton />
-            <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
-            <Button
-              variant="brand"
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 h-10 px-4 rounded-lg font-semibold shadow-sm transition-all hover:shadow"
-              onClick={() => {
-                setEditingSiniestro(null);
-                setDialogOpen(true);
-              }}
-            >
-              <Plus size={16} strokeWidth={2.5} /> Registrar Siniestro
-            </Button>
+            {canWrite && <div className="h-6 w-px bg-[#E2E8F0] mx-1" />}
+            {canWrite && (
+              <Button
+                variant="brand"
+                className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 h-10 px-4 rounded-lg font-semibold shadow-sm transition-all hover:shadow"
+                onClick={() => {
+                  setEditingSiniestro(null);
+                  setDialogOpen(true);
+                }}
+              >
+                <Plus size={16} strokeWidth={2.5} /> Registrar Siniestro
+              </Button>
+            )}
           </div>
         }
       />

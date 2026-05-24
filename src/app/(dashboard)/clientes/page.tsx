@@ -1,11 +1,12 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import ClientesList from "./clientes-list";
 import ExportCCButton from "./export-cc-button";
 
 export default async function ClientesPage() {
-  await requireArea("comercial", "read");
+  const user = await requireArea("comercial", "read");
+  const canWrite = hasArea(user, "comercial", "write");
   const supabase = createAdminClient();
 
   const [{ data: clientes }, { data: sucursales }] = await Promise.all([
@@ -31,7 +32,7 @@ export default async function ClientesPage() {
         action={<ExportCCButton />}
       />
 
-      <ClientesList clientes={clientes ?? []} sucursalesCount={sucursalesCount} />
+      <ClientesList clientes={clientes ?? []} sucursalesCount={sucursalesCount} canWrite={canWrite} />
     </div>
   );
 }

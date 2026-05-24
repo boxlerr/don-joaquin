@@ -27,6 +27,7 @@ type Props = {
   tarifasIniciales: TarifaConRelaciones[];
   clientes: ClienteOption[];
   rutas: RutaOption[];
+  canWrite?: boolean;
 };
 
 function fmtFecha(iso: string | null): string {
@@ -50,6 +51,7 @@ export default function TabTarifasPorCliente({
   tarifasIniciales,
   clientes,
   rutas,
+  canWrite = false,
 }: Props) {
   const [tarifas, setTarifas] = useState(tarifasIniciales);
   const [busqueda, setBusqueda] = useState("");
@@ -166,18 +168,20 @@ export default function TabTarifasPorCliente({
               {savedFlash}
             </span>
           )}
-          <Button
-            type="button"
-            variant="brand"
-            size="sm"
-            onClick={() => {
-              setTarifaEditar(null);
-              setModalOpen(true);
-            }}
-          >
-            <Plus size={13} />
-            Nueva tarifa
-          </Button>
+          {canWrite && (
+            <Button
+              type="button"
+              variant="brand"
+              size="sm"
+              onClick={() => {
+                setTarifaEditar(null);
+                setModalOpen(true);
+              }}
+            >
+              <Plus size={13} />
+              Nueva tarifa
+            </Button>
+          )}
         </div>
       </div>
 
@@ -253,32 +257,36 @@ export default function TabTarifasPorCliente({
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => {
-                                setTarifaEditar(t);
-                                setModalOpen(true);
-                              }}
-                              aria-label="Editar"
-                            >
-                              <Pencil size={12} />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => onToggleActiva(t)}
-                              aria-label={t.activa ? "Desactivar" : "Activar"}
-                              className={t.activa ? "text-[#FFB300]" : "text-[#10B981]"}
-                            >
-                              {t.activa ? (
-                                <PauseCircle size={12} />
-                              ) : (
-                                <CheckCircle2 size={12} />
-                              )}
-                            </Button>
+                            {canWrite && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => {
+                                  setTarifaEditar(t);
+                                  setModalOpen(true);
+                                }}
+                                aria-label="Editar"
+                              >
+                                <Pencil size={12} />
+                              </Button>
+                            )}
+                            {canWrite && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => onToggleActiva(t)}
+                                aria-label={t.activa ? "Desactivar" : "Activar"}
+                                className={t.activa ? "text-[#FFB300]" : "text-[#10B981]"}
+                              >
+                                {t.activa ? (
+                                  <PauseCircle size={12} />
+                                ) : (
+                                  <CheckCircle2 size={12} />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"

@@ -1,11 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import SiniestrosClient from "./components/SiniestrosClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiniestrosPage() {
-  await requireArea("logistica", "read");
+  const user = await requireArea("logistica", "read");
+  const canWrite = hasArea(user, "logistica", "write");
   const supabase = createAdminClient();
 
   const [{ data: siniestros }, { data: camiones }, { data: choferes }] =
@@ -31,6 +32,7 @@ export default async function SiniestrosPage() {
       siniestros={siniestros ?? []}
       camiones={camiones ?? []}
       choferes={choferes ?? []}
+      canWrite={canWrite}
     />
   );
 }
