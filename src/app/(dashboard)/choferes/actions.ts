@@ -137,6 +137,100 @@ export async function updateChoferEstadoAction(id: string, estado: "activo" | "i
   return { success: true };
 }
 
+export type ChoferMotivoEgreso = "renuncia" | "despido" | "jubilacion" | "otro";
+
+/**
+ * Soft delete del chofer: lo marca como "baja" con motivo + fecha de egreso.
+ * Es lo que llamamos "Egresar" en UI. Preserva el legajo y los registros asociados
+ * (viajes, gastos, etc.) y lo mueve a la sección "Historial de choferes".
+ */
+export async function egresarChoferAction(
+  id: string,
+  data: { motivo: ChoferMotivoEgreso; fecha_egreso: string; observacion?: string }
+) {
+  await requireArea("logistica", "write");
+  const user = await requireUser();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select("estado, motivo_egreso, fecha_egreso, observaciones")
+    .eq("id", id)
+    .single();
+
+  const observacionesActualizadas = data.observacion
+    ? [previo?.observaciones, `Egreso: ${data.observacion}`].filter(Boolean).join("\n")
+    : previo?.observaciones ?? null;
+
+  const { error } = await supabase
+    .from("choferes")
+    .update({
+      estado: "baja",
+      motivo_egreso: data.motivo,
+      fecha_egreso: data.fecha_egreso,
+      observaciones: observacionesActualizadas,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al egresar chofer:", error);
+    return { error: "No se pudo egresar el chofer." };
+  }
+
+  await logChoferAudit(
+    id,
+    "cambio_estado",
+    { estado: previo?.estado, motivo_egreso: previo?.motivo_egreso, fecha_egreso: previo?.fecha_egreso },
+    { estado: "baja", motivo_egreso: data.motivo, fecha_egreso: data.fecha_egreso },
+    user.id,
+  );
+
+  revalidatePath("/choferes");
+  return { success: true };
+}
+
+/**
+ * Reactiva a un chofer egresado: limpia motivo + fecha de egreso y vuelve a "activo".
+ */
+export async function reactivarChoferAction(id: string) {
+  await requireArea("logistica", "write");
+  const user = await requireUser();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("choferes")
+    .select("estado, motivo_egreso, fecha_egreso")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase
+    .from("choferes")
+    .update({
+      estado: "activo",
+      motivo_egreso: null,
+      fecha_egreso: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al reactivar chofer:", error);
+    return { error: "No se pudo reactivar el chofer." };
+  }
+
+  await logChoferAudit(
+    id,
+    "cambio_estado",
+    { estado: previo?.estado, motivo_egreso: previo?.motivo_egreso, fecha_egreso: previo?.fecha_egreso },
+    { estado: "activo", motivo_egreso: null, fecha_egreso: null },
+    user.id,
+  );
+
+  revalidatePath("/choferes");
+  return { success: true };
+}
+
 export async function deleteChoferAction(id: string) {
   await requireArea("logistica", "write");
   const user = await requireUser();

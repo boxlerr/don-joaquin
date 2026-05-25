@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Users, X } from "lucide-react";
+import { Users, X, ChevronDown, ChevronRight, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
-type EstadoFilter = "todos" | "activo" | "inactivo";
+type EstadoFilter = "todos" | "activo" | "inactivo" | "baja";
 
 type Chofer = {
   id: string;
@@ -28,6 +28,7 @@ function normalize(value: string): string {
 export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [query, setQuery] = useState("");
+  const [historialOpen, setHistorialOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = normalize(query);
@@ -39,8 +40,17 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
     });
   }, [choferes, estadoFilter, query]);
 
+  // Activos = todos los que NO estén dados de baja (incluye "activo" e "inactivo")
+  // Egresados = estado "baja". Los mostramos siempre separados al final.
+  const activos = useMemo(() => filtered.filter((c) => c.estado !== "baja"), [filtered]);
+  const egresados = useMemo(() => filtered.filter((c) => c.estado === "baja"), [filtered]);
+
   const sinFiltros = estadoFilter === "todos" && !query;
   const hayResultados = filtered.length > 0;
+  const totalEgresadosGlobal = useMemo(
+    () => choferes.filter((c) => c.estado === "baja").length,
+    [choferes],
+  );
 
   return (
     <div className="space-y-4">
@@ -63,6 +73,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
             <option value="todos">Todos los estados</option>
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
+            <option value="baja">Egresado</option>
           </select>
           <Input
             type="search"
@@ -99,11 +110,58 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((c) => (
-            <ChoferCard key={c.id} chofer={c} />
-          ))}
-        </div>
+        <>
+          {/* Activos */}
+          {activos.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {activos.map((c) => (
+                <ChoferCard key={c.id} chofer={c} />
+              ))}
+            </div>
+          )}
+
+          {/* Sección egresados — siempre al final, separada y colapsable */}
+          {egresados.length > 0 && (
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-border">
+              <button
+                type="button"
+                onClick={() => setHistorialOpen((v) => !v)}
+                className="w-full bg-card rounded-[8px] border border-border px-5 py-4 shadow-xs flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Archive size={16} className="text-muted-foreground" />
+                  <h2 className="text-foreground text-sm font-semibold">
+                    Historial de Choferes Egresados
+                  </h2>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {egresados.length} {egresados.length === 1 ? "chofer" : "choferes"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {historialOpen ? "Ocultar" : "Ver"}
+                  {historialOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </div>
+              </button>
+
+              {historialOpen && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 opacity-90">
+                  {egresados.map((c) => (
+                    <ChoferCard key={c.id} chofer={c} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Mensaje cuando no hay egresados pero sí hay totalmente filtrados */}
+          {egresados.length === 0 && totalEgresadosGlobal > 0 && estadoFilter === "todos" && !query && (
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-border">
+              <div className="text-xs text-muted-foreground text-center py-3">
+                Hay {totalEgresadosGlobal} {totalEgresadosGlobal === 1 ? "chofer egresado" : "choferes egresados"} en el historial.
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -28,6 +28,10 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
 
+  // Helpers de display
+  const fmtFecha = (s: string | null | undefined) =>
+    s ? new Date(s).toLocaleDateString("es-AR") : null;
+
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
@@ -66,7 +70,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header con toggle de edición */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
@@ -96,71 +100,103 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Datos de contacto */}
-        <section className="space-y-3">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2">
-            Datos de contacto
+      {/* 3 columnas en paralelo: Personal/Laboral, Contacto, Bancarios */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+        {/* Datos personales y laborales (solo lectura) */}
+        <section className="space-y-2.5">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+            Personal y laboral
           </h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+            <Field label="DNI"><Value v={chofer.dni} mono /></Field>
+            <Field label="CUIL"><Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono /></Field>
+            <Field label="Estado">
+              <Value v={chofer.estado === "baja" ? "egresado" : chofer.estado} />
+            </Field>
+            <Field label="Fecha nacimiento">
+              <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />
+            </Field>
+            <Field label="Fecha ingreso">
+              <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />
+            </Field>
+            {chofer.estado === "baja" && (
+              <Field label="Fecha egreso">
+                <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />
+              </Field>
+            )}
+            <Field label="Localidad"><Value v={chofer.localidad} /></Field>
+            <Field label="Provincia"><Value v={chofer.provincia} /></Field>
+          </div>
+        </section>
+
+        {/* Datos de contacto */}
+        <section className="space-y-2.5">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+            Contacto
+          </h4>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <Field label="Nombre">
               {editing
-                ? <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                ? <Input value={nombre} onChange={(e) => setNombre(e.target.value)} className="h-8 text-sm" />
                 : <Value v={chofer.nombre} />}
             </Field>
             <Field label="Apellido">
               {editing
-                ? <Input value={apellido} onChange={(e) => setApellido(e.target.value)} />
+                ? <Input value={apellido} onChange={(e) => setApellido(e.target.value)} className="h-8 text-sm" />
                 : <Value v={chofer.apellido} />}
             </Field>
-          </div>
-          <Field label="Email">
-            {editing
-              ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="—" />
-              : <Value v={chofer.email} />}
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
             <Field label="Teléfono">
               {editing
-                ? <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="—" />
+                ? <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.telefono} />}
             </Field>
             <Field label="Tel. emergencia">
               {editing
-                ? <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} placeholder="—" />
+                ? <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.telefono_emergencia} />}
             </Field>
+            <div className="col-span-2">
+              <Field label="Email">
+                {editing
+                  ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                  : <Value v={chofer.email} />}
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Domicilio">
+                {editing
+                  ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                  : <Value v={chofer.domicilio} />}
+              </Field>
+            </div>
           </div>
-          <Field label="Domicilio">
-            {editing
-              ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} placeholder="—" />
-              : <Value v={chofer.domicilio} />}
-          </Field>
         </section>
 
         {/* Datos bancarios */}
-        <section className="space-y-3">
-          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-2">
-            Datos bancarios
+        <section className="space-y-2.5 md:col-span-2 lg:col-span-1">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+            Bancarios
           </h4>
-          <Field label="Banco">
-            {editing
-              ? <Input value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="—" />
-              : <Value v={chofer.banco} />}
-          </Field>
-          <Field label="CBU">
-            {editing
-              ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono" placeholder="—" maxLength={22} />
-              : <Value v={chofer.cbu} mono />}
-          </Field>
-          <Field label="Alias CBU">
-            {editing
-              ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} placeholder="—" />
-              : <Value v={chofer.alias_cbu} />}
-          </Field>
+          <div className="space-y-2">
+            <Field label="Banco">
+              {editing
+                ? <Input value={banco} onChange={(e) => setBanco(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.banco} />}
+            </Field>
+            <Field label="CBU">
+              {editing
+                ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
+                : <Value v={chofer.cbu} mono />}
+            </Field>
+            <Field label="Alias CBU">
+              {editing
+                ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.alias_cbu} />}
+            </Field>
+          </div>
           {!editing && (
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-md px-3 py-2 border border-border">
-              Los datos bancarios se usan para liquidaciones y transferencias.
+            <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2.5 py-1.5 border border-border">
+              Se usan para liquidaciones y transferencias.
             </p>
           )}
         </section>
@@ -187,8 +223,8 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1">
-      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+    <div className="space-y-0.5">
+      <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
       {children}
     </div>
   );
@@ -196,7 +232,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Value({ v, mono }: { v?: string | null; mono?: boolean }) {
   return (
-    <p className={`text-sm py-1.5 ${mono ? "font-mono" : ""} ${!v ? "text-muted-foreground/60" : "text-foreground"}`}>
+    <p className={`text-sm py-0.5 ${mono ? "font-mono" : ""} ${!v ? "text-muted-foreground/60" : "text-foreground"} truncate`} title={v ?? undefined}>
       {v ?? "—"}
     </p>
   );
