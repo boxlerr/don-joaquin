@@ -305,6 +305,9 @@ export default function AuditoriaClient({
                 <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
                   Entidad
                 </th>
+                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Recurso afectado
+                </th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -332,6 +335,20 @@ export default function AuditoriaClient({
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
                     {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
+                  </td>
+                  <td className="px-5 py-3">
+                    {entry.entidad_label ? (
+                      <div className="leading-tight">
+                        <div className="text-foreground text-sm">{entry.entidad_label}</div>
+                        {entry.entidad_detalle && (
+                          <div className="text-[10px] font-mono text-muted-foreground">
+                            {entry.entidad_detalle}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/60 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {(entry.valores_anteriores || entry.valores_nuevos) && (
@@ -438,9 +455,24 @@ function AuditDetailDrawer({
               {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
             </span>
           </div>
+
+          {/* Recurso afectado — chofer, camión, cliente, viaje, etc. */}
+          {entry.entidad_label && (
+            <div className="bg-muted/40 border border-border rounded-md px-3 py-2 space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                {ENTIDADES_LABELS[entry.entidad_tipo] ?? "Recurso"} afectado
+              </p>
+              <p className="text-sm font-semibold text-foreground">{entry.entidad_label}</p>
+              {entry.entidad_detalle && (
+                <p className="text-[11px] font-mono text-muted-foreground">{entry.entidad_detalle}</p>
+              )}
+            </div>
+          )}
+
           {entry.usuario && (
             <p className="text-[12px] text-muted-foreground flex items-center gap-1">
               <User size={11} className="text-primary" />
+              <span className="text-muted-foreground/80">Modificado por:</span>{" "}
               {entry.usuario.apellido}, {entry.usuario.nombre}
             </p>
           )}
