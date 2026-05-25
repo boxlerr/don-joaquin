@@ -18,6 +18,7 @@ export type ChoferBasico = Pick<
   | "fecha_egreso"
   | "motivo_egreso"
   | "observaciones"
+  | "ciudad_nacimiento"
   | "cbu"
   | "alias_cbu"
   | "banco"
@@ -61,10 +62,19 @@ export type MovimientoChofer = {
   categoria: string;
 };
 
+export type CamionAsignado = {
+  id: string;
+  patente: string;
+  marca: string | null;
+  modelo: string | null;
+  ano: number | null;
+};
+
 export type ChoferDetail = ChoferBasico & {
   foto?: { bucket: string; path: string } | null;
   documentos_vigencia: DocumentoVigencia[];
   tipos_documento: TipoDocumento[];
   viajes_recientes: ViajeBasico[];
   movimientos_mes: MovimientoChofer[];
+  camion_actual: CamionAsignado | null;
 };

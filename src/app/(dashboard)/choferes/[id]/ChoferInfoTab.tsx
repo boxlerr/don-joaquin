@@ -124,8 +124,30 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
                 <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />
               </Field>
             )}
-            <Field label="Localidad"><Value v={chofer.localidad} /></Field>
+            <Field label="Ciudad de nacimiento">
+              <Value v={chofer.ciudad_nacimiento} />
+            </Field>
+            <Field label="Localidad (residencia)"><Value v={chofer.localidad} /></Field>
             <Field label="Provincia"><Value v={chofer.provincia} /></Field>
+            <div className="col-span-2">
+              <Field label="Camión actual">
+                {chofer.camion_actual ? (
+                  <p className="text-sm py-0.5 text-foreground">
+                    <span className="font-mono">{chofer.camion_actual.patente}</span>
+                    {(chofer.camion_actual.marca || chofer.camion_actual.modelo) && (
+                      <span className="text-muted-foreground">
+                        {" "}· {[chofer.camion_actual.marca, chofer.camion_actual.modelo]
+                          .filter(Boolean)
+                          .join(" ")}
+                        {chofer.camion_actual.ano ? ` (${chofer.camion_actual.ano})` : ""}
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm py-0.5 text-muted-foreground/60">Sin asignación</p>
+                )}
+              </Field>
+            </div>
           </div>
         </section>
 

@@ -12,7 +12,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   const { data: chofer } = await supabase
     .from("choferes")
     .select(
-      "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
+      "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
     )
     .eq("id", chofer_id)
     .single();
@@ -51,6 +51,13 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
         .eq("estado", "activo"),
     ]);
 
+  // Camión actualmente asignado al chofer (puede ser ninguno).
+  const { data: camionActual } = await supabase
+    .from("camiones")
+    .select("id, patente, marca, modelo, ano")
+    .eq("chofer_actual_id", chofer_id)
+    .maybeSingle();
+
   const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
 
   return {
@@ -71,6 +78,15 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       monto: m.monto,
       categoria: m.categoria,
     })),
+    camion_actual: camionActual
+      ? {
+          id: camionActual.id,
+          patente: camionActual.patente,
+          marca: camionActual.marca,
+          modelo: camionActual.modelo,
+          ano: camionActual.ano,
+        }
+      : null,
   };
 }
 
@@ -188,7 +204,7 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
 export async function updateChoferInfoAction(
   chofer_id: string,
   data: Partial<{
-  nombre: string;
+    nombre: string;
     apellido: string;
     email: string;
     telefono: string;
@@ -197,6 +213,9 @@ export async function updateChoferInfoAction(
     alias_cbu: string;
     banco: string;
     telefono_emergencia: string;
+    ciudad_nacimiento: string;
+    localidad: string;
+    provincia: string;
   }>
 ) {
 
