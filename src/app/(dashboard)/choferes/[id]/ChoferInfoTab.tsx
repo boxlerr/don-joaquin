@@ -29,8 +29,14 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
 
   // Helpers de display
-  const fmtFecha = (s: string | null | undefined) =>
-    s ? new Date(s).toLocaleDateString("es-AR") : null;
+  const fmtFecha = (s: string | null | undefined) => {
+    if (!s) return null;
+    const parts = s.split("-");
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return new Date(s).toLocaleDateString("es-AR");
+  };
 
   const handleCancel = () => {
     setNombre(chofer.nombre);

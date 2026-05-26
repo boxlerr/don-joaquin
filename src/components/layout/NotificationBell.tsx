@@ -16,6 +16,7 @@ type Alerta = {
   fecha_disparo: string;
   fecha_vencimiento: string | null;
   entidad_tipo: string | null;
+  entidad_id: string | null;
 };
 
 const severidadDot: Record<Alerta["severidad"], string> = {

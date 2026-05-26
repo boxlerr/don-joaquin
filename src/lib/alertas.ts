@@ -48,11 +48,15 @@ export async function generarAlertas() {
 
   const { data: existentes } = await supabase
     .from("alertas")
-    .select("entidad_id, tipo")
-    .eq("estado", "pendiente");
+    .select("entidad_id, entidad_tipo, tipo, fecha_vencimiento")
+    .or(`estado.eq.pendiente,fecha_vencimiento.gte.${hoyStr}`);
 
   const existentesSet = new Set(
-    (existentes ?? []).map((a) => `${a.tipo}:${a.entidad_id}`)
+    (existentes ?? []).map((a) =>
+      a.tipo === "otro"
+        ? `${a.tipo}:${a.entidad_id}:${a.entidad_tipo}:${a.fecha_vencimiento}`
+        : `${a.tipo}:${a.entidad_id}`
+    )
   );
 
   type NuevaAlerta = {
@@ -151,6 +155,121 @@ export async function generarAlertas() {
       fecha_disparo: new Date().toISOString(),
       fecha_vencimiento: cheque.fecha_vencimiento,
     });
+  }
+
+  // Cumpleaños de choferes dentro de los próximos 7 días
+  const { data: choferesBday } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido, fecha_nacimiento")
+    .eq("estado", "activo")
+    .not("fecha_nacimiento", "is", null);
+
+  const MESES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+  ];
+  const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+  for (const chofer of choferesBday ?? []) {
+    const parts = chofer.fecha_nacimiento!.split("-");
+    if (parts.length !== 3) continue;
+
+    const birthMonth = parseInt(parts[1]!, 10);
+    const birthDay = parseInt(parts[2]!, 10);
+
+    const hoyAnio = hoy.getFullYear();
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    const anios = [hoyAnio - 1, hoyAnio, hoyAnio + 1];
+    let minDiff = Infinity;
+    let nextBdayMidnight = new Date();
+
+    for (const anio of anios) {
+      const bdayMidnight = new Date(anio, birthMonth - 1, birthDay);
+      const diffTime = bdayMidnight.getTime() - hoyMidnight.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 0 && diffDays < minDiff) {
+        minDiff = diffDays;
+        nextBdayMidnight = bdayMidnight;
+      }
+    }
+
+    if (minDiff <= 7) {
+      const yyyy = nextBdayMidnight.getFullYear();
+      const mm = String(nextBdayMidnight.getMonth() + 1).padStart(2, "0");
+      const dd = String(nextBdayMidnight.getDate()).padStart(2, "0");
+      const nextBdayStr = `${yyyy}-${mm}-${dd}`;
+
+      const key = `otro:${chofer.id}:choferes_cumple:${nextBdayStr}`;
+      if (existentesSet.has(key)) continue;
+
+      const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
+      const diaMesStr = `${birthDay} de ${MESES[birthMonth - 1]}`;
+      const nombreDia = DIAS_SEMANA[nextBdayMidnight.getDay()];
+
+      nuevasAlertas.push({
+        tipo: "otro",
+        severidad: "info",
+        titulo: `Cumpleaños — ${nombreCompleto}`,
+        mensaje: `El chofer ${nombreCompleto} cumple años el ${diaMesStr} (${nombreDia}).`,
+        entidad_id: chofer.id,
+        entidad_tipo: "choferes_cumple",
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: nextBdayStr,
+      });
+    }
+  }
+
+  // Fin de período de prueba (6 meses) a los 30, 15 y 5 días antes
+  const { data: choferesIngreso } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido, fecha_ingreso")
+    .eq("estado", "activo")
+    .not("fecha_ingreso", "is", null);
+
+  for (const chofer of choferesIngreso ?? []) {
+    const parts = chofer.fecha_ingreso!.split("-");
+    if (parts.length !== 3) continue;
+
+    const ingresoYear = parseInt(parts[0]!, 10);
+    const ingresoMonth = parseInt(parts[1]!, 10);
+    const ingresoDay = parseInt(parts[2]!, 10);
+
+    const finPruebaDate = new Date(ingresoYear, ingresoMonth - 1 + 6, ingresoDay);
+    const finPruebaMidnight = new Date(finPruebaDate.getFullYear(), finPruebaDate.getMonth(), finPruebaDate.getDate());
+
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const diffTime = finPruebaMidnight.getTime() - hoyMidnight.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 30 || diffDays === 15 || diffDays === 5) {
+      const yyyy = finPruebaMidnight.getFullYear();
+      const mm = String(finPruebaMidnight.getMonth() + 1).padStart(2, "0");
+      const dd = String(finPruebaMidnight.getDate()).padStart(2, "0");
+      const finPruebaStr = `${yyyy}-${mm}-${dd}`;
+
+      const key = `otro:${chofer.id}:choferes_periodo_prueba:${finPruebaStr}`;
+      if (existentesSet.has(key)) continue;
+
+      const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
+      const severidad = diffDays === 5 ? "critica" : diffDays === 15 ? "advertencia" : "info";
+
+      const finPruebaMonthIndex = finPruebaMidnight.getMonth();
+      const finPruebaDayNumber = finPruebaMidnight.getDate();
+      const diaMesFinRealStr = `${finPruebaDayNumber} de ${MESES[finPruebaMonthIndex]}`;
+
+      nuevasAlertas.push({
+        tipo: "otro",
+        severidad,
+        titulo: `Fin período de prueba — ${nombreCompleto}`,
+        mensaje: `Al chofer ${nombreCompleto} le quedan ${diffDays} días para finalizar su período de prueba (Vence el ${diaMesFinRealStr}).`,
+        entidad_id: chofer.id,
+        entidad_tipo: "choferes_periodo_prueba",
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: finPruebaStr,
+      });
+    }
   }
 
   if (nuevasAlertas.length > 0) {

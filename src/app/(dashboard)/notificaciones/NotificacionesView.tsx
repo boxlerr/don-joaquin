@@ -325,13 +325,15 @@ function AlertaRow({
 }) {
   const href = alertaHref(alerta);
   const dias = diasRestantes(alerta.fecha_vencimiento);
+  const esCumple = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_cumple";
+  const esPrueba = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_periodo_prueba";
 
   return (
     <div className="group flex items-start gap-4 px-5 py-4 hover:bg-muted/40 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           {dias !== null && (
-            <DiasChip dias={dias} />
+            <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} />
           )}
           {href ? (
             <Link
@@ -350,8 +352,14 @@ function AlertaRow({
           Disparada: {new Date(alerta.fecha_disparo).toLocaleDateString("es-AR")}
           {alerta.fecha_vencimiento && (
             <>
-              {" · Vence: "}
-              {new Date(alerta.fecha_vencimiento).toLocaleDateString("es-AR")}
+              {esCumple ? " · Cumpleaños: " : esPrueba ? " · Fin de prueba: " : " · Vence: "}
+              {(() => {
+                const parts = alerta.fecha_vencimiento.split("-");
+                if (parts.length === 3) {
+                  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+                return new Date(alerta.fecha_vencimiento).toLocaleDateString("es-AR");
+              })()}
             </>
           )}
         </p>
@@ -370,9 +378,16 @@ function AlertaRow({
   );
 }
 
-function DiasChip({ dias }: { dias: number }) {
-  const tone = chipToneFromDias(dias);
-  const label = chipLabelFromDias(dias);
+function DiasChip({ dias, esCumple, esPrueba }: { dias: number; esCumple?: boolean; esPrueba?: boolean }) {
+  const tone = chipToneFromDias(dias, esCumple, esPrueba);
+  let label = chipLabelFromDias(dias);
+  if (esCumple) {
+    if (dias === 0) label = "Cumpleaños hoy 🎂";
+    else if (dias === 1) label = "Mañana 🎂";
+    else label = `En ${dias} días 🎂`;
+  } else if (esPrueba) {
+    label = `Prueba: ${dias}d ⏳`;
+  }
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-bold ${tone.bg} ${tone.text} ${tone.border}`}

@@ -11,6 +11,7 @@ export type AlertaItem = {
   fecha_disparo: string;
   fecha_vencimiento: string | null;
   entidad_tipo: string | null;
+  entidad_id: string | null;
 };
 
 export const SEVERIDAD_LABEL: Record<Severidad, string> = {
@@ -39,7 +40,15 @@ export function categoriaDeAlerta(tipo: string): AlertaCategoria {
   return "sistema";
 }
 
-export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo">): string | null {
+export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "entidad_id">): string | null {
+  if (
+    alerta.tipo === "otro" &&
+    alerta.entidad_tipo &&
+    alerta.entidad_tipo.startsWith("choferes") &&
+    alerta.entidad_id
+  ) {
+    return `/choferes/${alerta.entidad_id}`;
+  }
   switch (alerta.tipo) {
     case "vencimiento_doc_camion":
       return "/camiones";
@@ -57,8 +66,20 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo">): s
 
 export function diasRestantes(fechaVencimiento: string | null): number | null {
   if (!fechaVencimiento) return null;
-  const ms = new Date(fechaVencimiento).getTime() - Date.now();
-  return Math.ceil(ms / 86400000);
+  const parts = fechaVencimiento.split("-");
+  let targetDate: Date;
+  if (parts.length === 3) {
+    targetDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  } else {
+    targetDate = new Date(fechaVencimiento);
+  }
+
+  const hoy = new Date();
+  const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const targetMidnight = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+
+  const ms = targetMidnight.getTime() - hoyMidnight.getTime();
+  return Math.round(ms / 86400000);
 }
 
 export type DiasChipTone = {
@@ -67,7 +88,19 @@ export type DiasChipTone = {
   border: string;
 };
 
-export function chipToneFromDias(dias: number): DiasChipTone {
+export function chipToneFromDias(dias: number, esCumple?: boolean, esPrueba?: boolean): DiasChipTone {
+  if (esCumple) {
+    return { bg: "bg-[#F3E8FF]", text: "text-[#6B21A8]", border: "border-[#E9D5FF]" };
+  }
+  if (esPrueba) {
+    if (dias <= 5) {
+      return { bg: "bg-[#FEF2F2]", text: "text-[#991B1B]", border: "border-[#FECACA]" };
+    }
+    if (dias <= 15) {
+      return { bg: "bg-[#FFFBEB]", text: "text-[#92400E]", border: "border-[#FDE68A]" };
+    }
+    return { bg: "bg-[#F0F9FF]", text: "text-[#075985]", border: "border-[#B3E5FC]" };
+  }
   if (dias < 0) {
     return { bg: "bg-[#FEE2E2]", text: "text-[#7F1D1D]", border: "border-[#FCA5A5]" };
   }

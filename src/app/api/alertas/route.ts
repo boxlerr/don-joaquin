@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -6,7 +7,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("alertas")
-    .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo")
+    .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
     .eq("estado", "pendiente")
     .order("fecha_disparo", { ascending: false })
     .limit(8);

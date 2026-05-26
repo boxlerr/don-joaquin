@@ -1,4 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
+export const dynamic = "force-dynamic";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,7 @@ export default async function NotificacionesPage() {
       .eq("severidad", "critica"),
     supabase
       .from("alertas")
-      .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo")
+      .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
       .eq("estado", "pendiente")
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
