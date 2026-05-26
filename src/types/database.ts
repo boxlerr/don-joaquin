@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      acoplados: {
+        Row: {
+          ano: number | null
+          capacidad_tn: number | null
+          created_at: string
+          created_by: string | null
+          es_tolva: boolean
+          estado: Database["public"]["Enums"]["acoplado_estado"]
+          id: string
+          marca: string | null
+          modelo: string | null
+          observaciones: string | null
+          patente: string
+          tipo: Database["public"]["Enums"]["acoplado_tipo"] | null
+          updated_at: string
+        }
+        Insert: {
+          ano?: number | null
+          capacidad_tn?: number | null
+          created_at?: string
+          created_by?: string | null
+          es_tolva?: boolean
+          estado?: Database["public"]["Enums"]["acoplado_estado"]
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          observaciones?: string | null
+          patente: string
+          tipo?: Database["public"]["Enums"]["acoplado_tipo"] | null
+          updated_at?: string
+        }
+        Update: {
+          ano?: number | null
+          capacidad_tn?: number | null
+          created_at?: string
+          created_by?: string | null
+          es_tolva?: boolean
+          estado?: Database["public"]["Enums"]["acoplado_estado"]
+          id?: string
+          marca?: string | null
+          modelo?: string | null
+          observaciones?: string | null
+          patente?: string
+          tipo?: Database["public"]["Enums"]["acoplado_tipo"] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acoplados_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas: {
         Row: {
           created_at: string
@@ -72,6 +128,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      apercibimiento_categorias: {
+        Row: {
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          estado: Database["public"]["Enums"]["tipo_carga_estado"]
+          id: string
+          nombre: string
+          orden: number
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          nombre: string
+          orden?: number
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          nombre?: string
+          orden?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       areas: {
         Row: {
@@ -352,6 +441,68 @@ export type Database = {
           },
         ]
       }
+      camion_acoplados: {
+        Row: {
+          acoplado_id: string
+          camion_id: string
+          created_at: string
+          created_by: string | null
+          desde: string
+          hasta: string | null
+          id: string
+          observaciones: string | null
+        }
+        Insert: {
+          acoplado_id: string
+          camion_id: string
+          created_at?: string
+          created_by?: string | null
+          desde?: string
+          hasta?: string | null
+          id?: string
+          observaciones?: string | null
+        }
+        Update: {
+          acoplado_id?: string
+          camion_id?: string
+          created_at?: string
+          created_by?: string | null
+          desde?: string
+          hasta?: string | null
+          id?: string
+          observaciones?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camion_acoplados_acoplado_id_fkey"
+            columns: ["acoplado_id"]
+            isOneToOne: false
+            referencedRelation: "acoplados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camion_acoplados_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camion_acoplados_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
+            foreignKeyName: "camion_acoplados_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       camion_documentos: {
         Row: {
           archivo_id: string | null
@@ -496,12 +647,15 @@ export type Database = {
           chofer_actual_id: string | null
           created_at: string
           created_by: string | null
+          es_tolva: boolean
           estado: Database["public"]["Enums"]["camion_estado"]
           id: string
+          km_actual: number | null
           marca: string
           modelo: string
           observaciones: string | null
           patente: string
+          tercerizacion_estado: Database["public"]["Enums"]["tercerizacion_estado"]
           tipo_camion: Database["public"]["Enums"]["camion_tipo"] | null
           updated_at: string
         }
@@ -511,12 +665,15 @@ export type Database = {
           chofer_actual_id?: string | null
           created_at?: string
           created_by?: string | null
+          es_tolva?: boolean
           estado?: Database["public"]["Enums"]["camion_estado"]
           id?: string
+          km_actual?: number | null
           marca: string
           modelo: string
           observaciones?: string | null
           patente: string
+          tercerizacion_estado?: Database["public"]["Enums"]["tercerizacion_estado"]
           tipo_camion?: Database["public"]["Enums"]["camion_tipo"] | null
           updated_at?: string
         }
@@ -526,12 +683,15 @@ export type Database = {
           chofer_actual_id?: string | null
           created_at?: string
           created_by?: string | null
+          es_tolva?: boolean
           estado?: Database["public"]["Enums"]["camion_estado"]
           id?: string
+          km_actual?: number | null
           marca?: string
           modelo?: string
           observaciones?: string | null
           patente?: string
+          tercerizacion_estado?: Database["public"]["Enums"]["tercerizacion_estado"]
           tipo_camion?: Database["public"]["Enums"]["camion_tipo"] | null
           updated_at?: string
         }
@@ -926,6 +1086,139 @@ export type Database = {
           },
         ]
       }
+      chofer_apercibimientos: {
+        Row: {
+          archivo_id: string | null
+          categoria_id: string | null
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          fecha: string
+          gravedad: Database["public"]["Enums"]["apercibimiento_gravedad"]
+          id: string
+          motivo: string
+          observaciones: string | null
+        }
+        Insert: {
+          archivo_id?: string | null
+          categoria_id?: string | null
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          gravedad?: Database["public"]["Enums"]["apercibimiento_gravedad"]
+          id?: string
+          motivo: string
+          observaciones?: string | null
+        }
+        Update: {
+          archivo_id?: string | null
+          categoria_id?: string | null
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          gravedad?: Database["public"]["Enums"]["apercibimiento_gravedad"]
+          id?: string
+          motivo?: string
+          observaciones?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_apercibimientos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_apercibimientos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "apercibimiento_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_apercibimientos_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_apercibimientos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chofer_camion_historial: {
+        Row: {
+          camion_id: string
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          desde: string
+          hasta: string | null
+          id: string
+          motivo_cambio: string | null
+          observaciones: string | null
+        }
+        Insert: {
+          camion_id: string
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          desde?: string
+          hasta?: string | null
+          id?: string
+          motivo_cambio?: string | null
+          observaciones?: string | null
+        }
+        Update: {
+          camion_id?: string
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          desde?: string
+          hasta?: string | null
+          id?: string
+          motivo_cambio?: string | null
+          observaciones?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_camion_historial_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_camion_historial_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
+            foreignKeyName: "chofer_camion_historial_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_camion_historial_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chofer_documentos: {
         Row: {
           archivo_id: string | null
@@ -996,6 +1289,130 @@ export type Database = {
             columns: ["tipo_documento_id"]
             isOneToOne: false
             referencedRelation: "tipos_documento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chofer_licencias_medicas: {
+        Row: {
+          certificado_archivo_id: string | null
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          fecha_desde: string
+          fecha_hasta: string | null
+          id: string
+          motivo: string | null
+          observaciones: string | null
+          updated_at: string
+        }
+        Insert: {
+          certificado_archivo_id?: string | null
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          fecha_desde: string
+          fecha_hasta?: string | null
+          id?: string
+          motivo?: string | null
+          observaciones?: string | null
+          updated_at?: string
+        }
+        Update: {
+          certificado_archivo_id?: string | null
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          fecha_desde?: string
+          fecha_hasta?: string | null
+          id?: string
+          motivo?: string | null
+          observaciones?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_licencias_medicas_certificado_archivo_id_fkey"
+            columns: ["certificado_archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_licencias_medicas_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_licencias_medicas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chofer_prestamos: {
+        Row: {
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          cuotas: number
+          estado: Database["public"]["Enums"]["chofer_prestamo_estado"]
+          fecha: string
+          id: string
+          moneda: string
+          monto: number
+          motivo: string | null
+          observaciones: string | null
+          saldo_pendiente: number
+          updated_at: string
+        }
+        Insert: {
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          cuotas?: number
+          estado?: Database["public"]["Enums"]["chofer_prestamo_estado"]
+          fecha?: string
+          id?: string
+          moneda?: string
+          monto: number
+          motivo?: string | null
+          observaciones?: string | null
+          saldo_pendiente: number
+          updated_at?: string
+        }
+        Update: {
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          cuotas?: number
+          estado?: Database["public"]["Enums"]["chofer_prestamo_estado"]
+          fecha?: string
+          id?: string
+          moneda?: string
+          monto?: number
+          motivo?: string | null
+          observaciones?: string | null
+          saldo_pendiente?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_prestamos_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_prestamos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -1947,6 +2364,7 @@ export type Database = {
           proximo_service_km: number | null
           taller: string | null
           tipo: Database["public"]["Enums"]["mantenimiento_tipo"]
+          tipo_servicio_id: string | null
         }
         Insert: {
           camion_id: string
@@ -1964,6 +2382,7 @@ export type Database = {
           proximo_service_km?: number | null
           taller?: string | null
           tipo: Database["public"]["Enums"]["mantenimiento_tipo"]
+          tipo_servicio_id?: string | null
         }
         Update: {
           camion_id?: string
@@ -1981,6 +2400,7 @@ export type Database = {
           proximo_service_km?: number | null
           taller?: string | null
           tipo?: Database["public"]["Enums"]["mantenimiento_tipo"]
+          tipo_servicio_id?: string | null
         }
         Relationships: [
           {
@@ -2009,6 +2429,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mantenimientos_tipo_servicio_id_fkey"
+            columns: ["tipo_servicio_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_servicio"
             referencedColumns: ["id"]
           },
         ]
@@ -2464,6 +2891,97 @@ export type Database = {
         }
         Relationships: []
       }
+      roturas_gomas: {
+        Row: {
+          acoplado_id: string | null
+          camion_id: string | null
+          cantidad: number
+          chofer_id: string | null
+          costo: number | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          mantenimiento_id: string | null
+          moneda: string
+          observaciones: string | null
+          posicion: string | null
+        }
+        Insert: {
+          acoplado_id?: string | null
+          camion_id?: string | null
+          cantidad?: number
+          chofer_id?: string | null
+          costo?: number | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          mantenimiento_id?: string | null
+          moneda?: string
+          observaciones?: string | null
+          posicion?: string | null
+        }
+        Update: {
+          acoplado_id?: string | null
+          camion_id?: string | null
+          cantidad?: number
+          chofer_id?: string | null
+          costo?: number | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          mantenimiento_id?: string | null
+          moneda?: string
+          observaciones?: string | null
+          posicion?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roturas_gomas_acoplado_id_fkey"
+            columns: ["acoplado_id"]
+            isOneToOne: false
+            referencedRelation: "acoplados"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roturas_gomas_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roturas_gomas_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
+            foreignKeyName: "roturas_gomas_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roturas_gomas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roturas_gomas_mantenimiento_id_fkey"
+            columns: ["mantenimiento_id"]
+            isOneToOne: false
+            referencedRelation: "mantenimientos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rutas: {
         Row: {
           codigo_interno: string | null
@@ -2846,6 +3364,87 @@ export type Database = {
         }
         Relationships: []
       }
+      tipos_servicio: {
+        Row: {
+          aplica_a_tercerizado: boolean
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          estado: Database["public"]["Enums"]["tipo_carga_estado"]
+          id: string
+          intervalo_dias: number | null
+          intervalo_km: number | null
+          nombre: string
+          orden: number
+          requiere_fecha: boolean
+          requiere_km: boolean
+          updated_at: string
+        }
+        Insert: {
+          aplica_a_tercerizado?: boolean
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          intervalo_dias?: number | null
+          intervalo_km?: number | null
+          nombre: string
+          orden?: number
+          requiere_fecha?: boolean
+          requiere_km?: boolean
+          updated_at?: string
+        }
+        Update: {
+          aplica_a_tercerizado?: boolean
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          intervalo_dias?: number | null
+          intervalo_km?: number | null
+          nombre?: string
+          orden?: number
+          requiere_fecha?: boolean
+          requiere_km?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tonelaje_categorias: {
+        Row: {
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          estado: Database["public"]["Enums"]["tipo_carga_estado"]
+          id: string
+          nombre: string
+          orden: number
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          nombre: string
+          orden?: number
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: Database["public"]["Enums"]["tipo_carga_estado"]
+          id?: string
+          nombre?: string
+          orden?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       usuarios: {
         Row: {
           apellido: string | null
@@ -3101,6 +3700,65 @@ export type Database = {
           },
           {
             foreignKeyName: "viaje_remitos_viaje_id_fkey"
+            columns: ["viaje_id"]
+            isOneToOne: false
+            referencedRelation: "viajes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      viaje_tonelaje_detalle: {
+        Row: {
+          categoria_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          observaciones: string | null
+          toneladas: number
+          viaje_id: string
+        }
+        Insert: {
+          categoria_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observaciones?: string | null
+          toneladas: number
+          viaje_id: string
+        }
+        Update: {
+          categoria_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observaciones?: string | null
+          toneladas?: number
+          viaje_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "viaje_tonelaje_detalle_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "tonelaje_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viaje_tonelaje_detalle_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viaje_tonelaje_detalle_viaje_id_fkey"
+            columns: ["viaje_id"]
+            isOneToOne: false
+            referencedRelation: "v_viaje_resumen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viaje_tonelaje_detalle_viaje_id_fkey"
             columns: ["viaje_id"]
             isOneToOne: false
             referencedRelation: "viajes"
@@ -3529,6 +4187,16 @@ export type Database = {
       is_authenticated_active: { Args: never; Returns: boolean }
     }
     Enums: {
+      acoplado_estado: "activo" | "inactivo" | "baja" | "en_mantenimiento"
+      acoplado_tipo:
+        | "semi_tolva"
+        | "batea"
+        | "sider"
+        | "semi_furgon"
+        | "cisterna"
+        | "jaula"
+        | "plancha"
+        | "otro"
       alerta_estado: "pendiente" | "vista" | "resuelta" | "descartada"
       alerta_severidad: "info" | "advertencia" | "critica"
       alerta_tipo:
@@ -3542,6 +4210,7 @@ export type Database = {
         | "cheque_rechazado_recordatorio"
         | "auditoria_cliente"
         | "otro"
+      apercibimiento_gravedad: "leve" | "moderado" | "grave"
       area_nivel: "none" | "read" | "write" | "admin"
       audit_accion:
         | "crear"
@@ -3594,6 +4263,11 @@ export type Database = {
       cheque_tipo: "comun" | "diferido" | "electronico"
       chofer_estado: "activo" | "inactivo" | "baja"
       chofer_motivo_egreso: "renuncia" | "despido" | "jubilacion" | "otro"
+      chofer_prestamo_estado:
+        | "pendiente"
+        | "parcial"
+        | "cancelado"
+        | "incobrable"
       cliente_condicion_iva:
         | "responsable_inscripto"
         | "monotributo"
@@ -3662,6 +4336,7 @@ export type Database = {
       punto_tipo: "planta_propia" | "cliente" | "proveedor" | "puerto" | "otro"
       ruta_estado: "activa" | "inactiva"
       tarifa_modalidad: "fija" | "por_tonelada" | "por_kilo" | "por_km"
+      tercerizacion_estado: "interno" | "en_transicion" | "tercerizado"
       tipo_carga_estado: "activo" | "inactivo"
       tipo_gasto_categoria:
         | "operativo_viaje"
@@ -3807,6 +4482,17 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      acoplado_estado: ["activo", "inactivo", "baja", "en_mantenimiento"],
+      acoplado_tipo: [
+        "semi_tolva",
+        "batea",
+        "sider",
+        "semi_furgon",
+        "cisterna",
+        "jaula",
+        "plancha",
+        "otro",
+      ],
       alerta_estado: ["pendiente", "vista", "resuelta", "descartada"],
       alerta_severidad: ["info", "advertencia", "critica"],
       alerta_tipo: [
@@ -3821,6 +4507,7 @@ export const Constants = {
         "auditoria_cliente",
         "otro",
       ],
+      apercibimiento_gravedad: ["leve", "moderado", "grave"],
       area_nivel: ["none", "read", "write", "admin"],
       audit_accion: [
         "crear",
@@ -3877,6 +4564,12 @@ export const Constants = {
       cheque_tipo: ["comun", "diferido", "electronico"],
       chofer_estado: ["activo", "inactivo", "baja"],
       chofer_motivo_egreso: ["renuncia", "despido", "jubilacion", "otro"],
+      chofer_prestamo_estado: [
+        "pendiente",
+        "parcial",
+        "cancelado",
+        "incobrable",
+      ],
       cliente_condicion_iva: [
         "responsable_inscripto",
         "monotributo",
@@ -3953,6 +4646,7 @@ export const Constants = {
       punto_tipo: ["planta_propia", "cliente", "proveedor", "puerto", "otro"],
       ruta_estado: ["activa", "inactiva"],
       tarifa_modalidad: ["fija", "por_tonelada", "por_kilo", "por_km"],
+      tercerizacion_estado: ["interno", "en_transicion", "tercerizado"],
       tipo_carga_estado: ["activo", "inactivo"],
       tipo_gasto_categoria: [
         "operativo_viaje",
