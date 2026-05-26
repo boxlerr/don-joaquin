@@ -8,6 +8,19 @@ import CamionDetailSheet from "./CamionDetailSheet";
 import type { Camion } from "../types";
 import type { TipoServicio } from "../actions";
 
+// Tercerización: visual coherente con badges de estado.
+//   Interno         → verde (operado por nosotros)
+//   En transición   → ámbar (en proceso de salir hacia tercero)
+//   Tercerizado     → gris  (lo maneja concesionaria, no entra a nuestro flujo de servicios)
+const TERCERIZACION_BADGE: Record<
+  NonNullable<Camion["tercerizacion_estado"]>,
+  { label: string; cls: string }
+> = {
+  interno: { label: "Interno", cls: "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]" },
+  en_transicion: { label: "En transición", cls: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]" },
+  tercerizado: { label: "Tercerizado", cls: "bg-muted text-muted-foreground border-border" },
+};
+
 export default function CamionRow({
   camion,
   tiposServicio,
@@ -16,6 +29,8 @@ export default function CamionRow({
   tiposServicio: TipoServicio[];
 }) {
   const [open, setOpen] = useState(false);
+
+  const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
 
   return (
     <>
@@ -39,15 +54,46 @@ export default function CamionRow({
                 <Truck size={18} className="text-primary" />
               )}
             </div>
-            <span className="font-mono font-medium text-foreground">{camion.patente}</span>
+            <div className="flex flex-col gap-1">
+              <span className="font-mono font-medium text-foreground">{camion.patente}</span>
+              {camion.es_tolva && (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
+                  title="Acoplado tolva (marcado en el Excel de Bárbara)"
+                >
+                  Tolva
+                </span>
+              )}
+            </div>
           </div>
         </TableCell>
         <TableCell>
           {camion.marca} {camion.modelo}
         </TableCell>
-        <TableCell>{camion.ano ?? "—"}</TableCell>
+        <TableCell>
+          <div className="flex flex-col">
+            <span>{camion.ano ?? "—"}</span>
+            {camion.km_actual != null && (
+              <span
+                className="text-[10px] text-muted-foreground/70 font-mono"
+                title="Kilometraje actual (snapshot)"
+              >
+                {Number(camion.km_actual).toLocaleString("es-AR")} km
+              </span>
+            )}
+          </div>
+        </TableCell>
         <TableCell>{Number(camion.capacidad_tn).toFixed(1)} TN</TableCell>
         <TableCell className="text-muted-foreground">{camion.tipo_camion ?? "—"}</TableCell>
+        <TableCell>
+          {terc && (
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${terc.cls}`}
+            >
+              {terc.label}
+            </span>
+          )}
+        </TableCell>
         <TableCell>
           <StatusBadge
             label={camion.estado}

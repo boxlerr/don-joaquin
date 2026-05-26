@@ -193,9 +193,10 @@ export default async function CamionesPage() {
               {[
                 "Patente",
                 "Marca/Modelo",
-                "Año",
+                "Año / KM",
                 "Capacidad",
                 "Tipo",
+                "Tercerización",
                 "Estado",
               ].map((col) => (
                 <TableHead
