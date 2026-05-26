@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -72,6 +72,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      areas: {
+        Row: {
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          nombre: string
+          orden: number
+        }
+        Insert: {
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          nombre: string
+          orden?: number
+        }
+        Update: {
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          nombre?: string
+          orden?: number
+        }
+        Relationships: []
       }
       audit_log: {
         Row: {
@@ -149,6 +173,7 @@ export type Database = {
       }
       caja_movimientos: {
         Row: {
+          carga_combustible_id: string | null
           categoria: Database["public"]["Enums"]["caja_categoria"]
           cheque_id: string | null
           chofer_id: string | null
@@ -160,16 +185,19 @@ export type Database = {
           fecha: string
           gasto_id: string | null
           id: string
+          mantenimiento_id: string | null
           medio: Database["public"]["Enums"]["caja_medio"]
           moneda: string
           monto: number
           observaciones: string | null
           pago_cliente_id: string | null
+          siniestro_id: string | null
           tipo: Database["public"]["Enums"]["caja_movimiento_tipo"]
           viaje_id: string | null
           viatico_id: string | null
         }
         Insert: {
+          carga_combustible_id?: string | null
           categoria: Database["public"]["Enums"]["caja_categoria"]
           cheque_id?: string | null
           chofer_id?: string | null
@@ -181,16 +209,19 @@ export type Database = {
           fecha: string
           gasto_id?: string | null
           id?: string
+          mantenimiento_id?: string | null
           medio: Database["public"]["Enums"]["caja_medio"]
           moneda?: string
           monto: number
           observaciones?: string | null
           pago_cliente_id?: string | null
+          siniestro_id?: string | null
           tipo: Database["public"]["Enums"]["caja_movimiento_tipo"]
           viaje_id?: string | null
           viatico_id?: string | null
         }
         Update: {
+          carga_combustible_id?: string | null
           categoria?: Database["public"]["Enums"]["caja_categoria"]
           cheque_id?: string | null
           chofer_id?: string | null
@@ -202,16 +233,25 @@ export type Database = {
           fecha?: string
           gasto_id?: string | null
           id?: string
+          mantenimiento_id?: string | null
           medio?: Database["public"]["Enums"]["caja_medio"]
           moneda?: string
           monto?: number
           observaciones?: string | null
           pago_cliente_id?: string | null
+          siniestro_id?: string | null
           tipo?: Database["public"]["Enums"]["caja_movimiento_tipo"]
           viaje_id?: string | null
           viatico_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "caja_movimientos_carga_combustible_id_fkey"
+            columns: ["carga_combustible_id"]
+            isOneToOne: false
+            referencedRelation: "cargas_combustible"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "caja_movimientos_cheque_id_fkey"
             columns: ["cheque_id"]
@@ -269,10 +309,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "caja_movimientos_mantenimiento_id_fkey"
+            columns: ["mantenimiento_id"]
+            isOneToOne: false
+            referencedRelation: "mantenimientos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "caja_movimientos_pago_cliente_id_fkey"
             columns: ["pago_cliente_id"]
             isOneToOne: false
             referencedRelation: "pagos_cliente"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caja_movimientos_siniestro_id_fkey"
+            columns: ["siniestro_id"]
+            isOneToOne: false
+            referencedRelation: "siniestros"
             referencedColumns: ["id"]
           },
           {
@@ -420,6 +474,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "camion_fotos_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
             foreignKeyName: "camion_fotos_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -432,6 +493,7 @@ export type Database = {
         Row: {
           ano: number | null
           capacidad_tn: number
+          chofer_actual_id: string | null
           created_at: string
           created_by: string | null
           estado: Database["public"]["Enums"]["camion_estado"]
@@ -446,6 +508,7 @@ export type Database = {
         Insert: {
           ano?: number | null
           capacidad_tn: number
+          chofer_actual_id?: string | null
           created_at?: string
           created_by?: string | null
           estado?: Database["public"]["Enums"]["camion_estado"]
@@ -460,6 +523,7 @@ export type Database = {
         Update: {
           ano?: number | null
           capacidad_tn?: number
+          chofer_actual_id?: string | null
           created_at?: string
           created_by?: string | null
           estado?: Database["public"]["Enums"]["camion_estado"]
@@ -472,6 +536,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "camiones_chofer_actual_id_fkey"
+            columns: ["chofer_actual_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "camiones_created_by_fkey"
             columns: ["created_by"]
@@ -565,6 +636,64 @@ export type Database = {
           {
             foreignKeyName: "cargas_combustible_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cheque_historial_estado: {
+        Row: {
+          cheque_id: string
+          created_at: string
+          estado_anterior: Database["public"]["Enums"]["cheque_estado"] | null
+          estado_nuevo: Database["public"]["Enums"]["cheque_estado"]
+          fecha: string
+          id: string
+          motivo: string | null
+          observaciones: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          cheque_id: string
+          created_at?: string
+          estado_anterior?: Database["public"]["Enums"]["cheque_estado"] | null
+          estado_nuevo: Database["public"]["Enums"]["cheque_estado"]
+          fecha: string
+          id?: string
+          motivo?: string | null
+          observaciones?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          cheque_id?: string
+          created_at?: string
+          estado_anterior?: Database["public"]["Enums"]["cheque_estado"] | null
+          estado_nuevo?: Database["public"]["Enums"]["cheque_estado"]
+          fecha?: string
+          id?: string
+          motivo?: string | null
+          observaciones?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cheque_historial_estado_cheque_id_fkey"
+            columns: ["cheque_id"]
+            isOneToOne: false
+            referencedRelation: "cheques"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cheque_historial_estado_cheque_id_fkey"
+            columns: ["cheque_id"]
+            isOneToOne: false
+            referencedRelation: "v_cheques_por_vencer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cheque_historial_estado_usuario_id_fkey"
+            columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
@@ -877,6 +1006,7 @@ export type Database = {
           apellido: string
           banco: string | null
           cbu: string | null
+          ciudad_nacimiento: string | null
           created_at: string
           created_by: string | null
           cuil: string | null
@@ -885,7 +1015,7 @@ export type Database = {
           email: string | null
           estado: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso: string | null
-          fecha_ingreso: string
+          fecha_ingreso: string | null
           fecha_nacimiento: string | null
           foto_id: string | null
           id: string
@@ -906,6 +1036,7 @@ export type Database = {
           apellido: string
           banco?: string | null
           cbu?: string | null
+          ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
@@ -914,7 +1045,7 @@ export type Database = {
           email?: string | null
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
-          fecha_ingreso: string
+          fecha_ingreso?: string | null
           fecha_nacimiento?: string | null
           foto_id?: string | null
           id?: string
@@ -935,6 +1066,7 @@ export type Database = {
           apellido?: string
           banco?: string | null
           cbu?: string | null
+          ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
@@ -943,7 +1075,7 @@ export type Database = {
           email?: string | null
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
-          fecha_ingreso?: string
+          fecha_ingreso?: string | null
           fecha_nacimiento?: string | null
           foto_id?: string | null
           id?: string
@@ -2263,6 +2395,45 @@ export type Database = {
           },
         ]
       }
+      rol_areas: {
+        Row: {
+          area_codigo: string
+          created_at: string
+          nivel: Database["public"]["Enums"]["area_nivel"]
+          rol_id: string
+          updated_at: string
+        }
+        Insert: {
+          area_codigo: string
+          created_at?: string
+          nivel?: Database["public"]["Enums"]["area_nivel"]
+          rol_id: string
+          updated_at?: string
+        }
+        Update: {
+          area_codigo?: string
+          created_at?: string
+          nivel?: Database["public"]["Enums"]["area_nivel"]
+          rol_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_areas_area_codigo_fkey"
+            columns: ["area_codigo"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "rol_areas_rol_id_fkey"
+            columns: ["rol_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roles: {
         Row: {
           codigo: string
@@ -2391,37 +2562,30 @@ export type Database = {
       }
       siniestro_archivos: {
         Row: {
-          id: string
-          siniestro_id: string
           archivo_id: string
-          descripcion: string | null
           created_at: string
           created_by: string | null
+          descripcion: string | null
+          id: string
+          siniestro_id: string
         }
         Insert: {
+          archivo_id: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
           id?: string
           siniestro_id: string
-          archivo_id: string
-          descripcion?: string | null
-          created_at?: string
-          created_by?: string | null
         }
         Update: {
-          id?: string
-          siniestro_id?: string
           archivo_id?: string
-          descripcion?: string | null
           created_at?: string
           created_by?: string | null
+          descripcion?: string | null
+          id?: string
+          siniestro_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "siniestro_archivos_siniestro_id_fkey"
-            columns: ["siniestro_id"]
-            isOneToOne: false
-            referencedRelation: "siniestros"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "siniestro_archivos_archivo_id_fkey"
             columns: ["archivo_id"]
@@ -2436,56 +2600,66 @@ export type Database = {
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "siniestro_archivos_siniestro_id_fkey"
+            columns: ["siniestro_id"]
+            isOneToOne: false
+            referencedRelation: "siniestros"
+            referencedColumns: ["id"]
+          },
         ]
       }
       siniestros: {
         Row: {
-          id: string
           camion_id: string
           chofer_id: string | null
-          fecha: string
-          tipo_siniestro: Database["public"]["Enums"]["tipo_siniestro_enum"]
-          estado: Database["public"]["Enums"]["estado_siniestro_enum"]
-          descripcion: string
-          monto_danos: number | null
           compania_seguro: string | null
+          created_at: string
+          created_by: string | null
+          descripcion: string
+          estado: Database["public"]["Enums"]["estado_siniestro_enum"]
+          fecha: string
+          id: string
+          monto_danos: number | null
           numero_siniestro_seguro: string | null
           terceros_involucrados: string | null
-          created_at: string
+          tipo_siniestro: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          tipo_siniestro_detalle: string | null
           updated_at: string
-          created_by: string | null
         }
         Insert: {
-          id?: string
           camion_id: string
           chofer_id?: string | null
-          fecha: string
-          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
-          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
-          descripcion: string
-          monto_danos?: number | null
           compania_seguro?: string | null
+          created_at?: string
+          created_by?: string | null
+          descripcion: string
+          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
+          fecha: string
+          id?: string
+          monto_danos?: number | null
           numero_siniestro_seguro?: string | null
           terceros_involucrados?: string | null
-          created_at?: string
+          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          tipo_siniestro_detalle?: string | null
           updated_at?: string
-          created_by?: string | null
         }
         Update: {
-          id?: string
           camion_id?: string
           chofer_id?: string | null
-          fecha?: string
-          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
-          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
-          descripcion?: string
-          monto_danos?: number | null
           compania_seguro?: string | null
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string
+          estado?: Database["public"]["Enums"]["estado_siniestro_enum"]
+          fecha?: string
+          id?: string
+          monto_danos?: number | null
           numero_siniestro_seguro?: string | null
           terceros_involucrados?: string | null
-          created_at?: string
+          tipo_siniestro?: Database["public"]["Enums"]["tipo_siniestro_enum"]
+          tipo_siniestro_detalle?: string | null
           updated_at?: string
-          created_by?: string | null
         }
         Relationships: [
           {
@@ -2494,6 +2668,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "camiones"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "siniestros_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
           },
           {
             foreignKeyName: "siniestros_chofer_id_fkey"
@@ -3361,6 +3542,7 @@ export type Database = {
         | "cheque_rechazado_recordatorio"
         | "auditoria_cliente"
         | "otro"
+      area_nivel: "none" | "read" | "write" | "admin"
       audit_accion:
         | "crear"
         | "actualizar"
@@ -3387,6 +3569,9 @@ export type Database = {
         | "transferencia_interna"
         | "ajuste"
         | "otro"
+        | "siniestro"
+        | "mantenimiento"
+        | "combustible"
       caja_medio: "efectivo" | "transferencia" | "cheque" | "otro"
       caja_movimiento_tipo: "ingreso" | "egreso"
       camion_estado: "activo" | "inactivo" | "baja" | "en_mantenimiento"
@@ -3484,7 +3669,13 @@ export type Database = {
         | "administrativo"
         | "otro"
       tipo_gasto_estado: "activo" | "inactivo"
-      tipo_siniestro_enum: "choque" | "robo" | "incendio" | "vandalismo" | "vuelco" | "otro"
+      tipo_siniestro_enum:
+        | "choque"
+        | "robo"
+        | "incendio"
+        | "vandalismo"
+        | "vuelco"
+        | "otro"
       usuario_estado: "activo" | "inactivo" | "suspendido"
       viaje_estado: "pendiente" | "en_curso" | "cerrado" | "cancelado"
       viatico_estado: "pendiente_rendicion" | "rendido" | "parcialmente_rendido"
@@ -3630,6 +3821,7 @@ export const Constants = {
         "auditoria_cliente",
         "otro",
       ],
+      area_nivel: ["none", "read", "write", "admin"],
       audit_accion: [
         "crear",
         "actualizar",
@@ -3657,6 +3849,9 @@ export const Constants = {
         "transferencia_interna",
         "ajuste",
         "otro",
+        "siniestro",
+        "mantenimiento",
+        "combustible",
       ],
       caja_medio: ["efectivo", "transferencia", "cheque", "otro"],
       caja_movimiento_tipo: ["ingreso", "egreso"],
@@ -3766,7 +3961,14 @@ export const Constants = {
         "otro",
       ],
       tipo_gasto_estado: ["activo", "inactivo"],
-      tipo_siniestro_enum: ["choque", "robo", "incendio", "vandalismo", "vuelco", "otro"],
+      tipo_siniestro_enum: [
+        "choque",
+        "robo",
+        "incendio",
+        "vandalismo",
+        "vuelco",
+        "otro",
+      ],
       usuario_estado: ["activo", "inactivo", "suspendido"],
       viaje_estado: ["pendiente", "en_curso", "cerrado", "cancelado"],
       viatico_estado: [
@@ -3778,4 +3980,3 @@ export const Constants = {
     },
   },
 } as const
-

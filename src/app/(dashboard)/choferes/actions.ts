@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser, requireArea } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
 
@@ -14,9 +14,7 @@ export async function addChoferAction(data: {
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
 }) {
-  await requireArea("logistica", "write");
-
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const insertData = {
@@ -56,9 +54,7 @@ export async function updateChoferAction(id: string, data: {
   localidad?: string;
   estado: "activo" | "inactivo";
 }) {
-  await requireArea("logistica", "write");
-
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -100,8 +96,7 @@ export async function updateChoferAction(id: string, data: {
 }
 
 export async function updateChoferEstadoAction(id: string, estado: "activo" | "inactivo") {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -148,8 +143,7 @@ export async function egresarChoferAction(
   id: string,
   data: { motivo: ChoferMotivoEgreso; fecha_egreso: string; observacion?: string }
 ) {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -194,8 +188,7 @@ export async function egresarChoferAction(
  * Reactiva a un chofer egresado: limpia motivo + fecha de egreso y vuelve a "activo".
  */
 export async function reactivarChoferAction(id: string) {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -232,8 +225,7 @@ export async function reactivarChoferAction(id: string) {
 }
 
 export async function deleteChoferAction(id: string) {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -280,8 +272,7 @@ function slugify(value: string): string {
 }
 
 export async function uploadFotoChoferAction(formData: FormData) {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
@@ -380,8 +371,7 @@ export async function uploadFotoChoferAction(formData: FormData) {
 }
 
 export async function deleteFotoChoferAction(chofer_id: string) {
-  await requireArea("logistica", "write");
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: chofer, error: choferErr } = await supabase

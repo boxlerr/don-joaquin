@@ -62,10 +62,10 @@ export default async function UsuariosPage() {
       ? supabase.from("roles").select("id, codigo, nombre").order("codigo")
       : Promise.resolve({ data: null }),
     showMatriz
-      ? supabase.from("areas" as never).select("codigo, nombre, orden").order("orden")
+      ? supabase.from("areas").select("codigo, nombre, orden").order("orden")
       : Promise.resolve({ data: null }),
     showMatriz
-      ? supabase.from("rol_areas" as never).select("rol_id, area_codigo, nivel")
+      ? supabase.from("rol_areas").select("rol_id, area_codigo, nivel")
       : Promise.resolve({ data: null }),
   ]);
 

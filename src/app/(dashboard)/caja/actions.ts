@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser, requireArea } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 
@@ -189,7 +189,7 @@ export async function addIngresoAction(data: {
   fecha: string;
 }) {
 
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   const insertData = {
@@ -231,7 +231,7 @@ export async function addEgresoAction(data: {
   fecha: string;
 }) {
 
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   let gastoId: string | null = null;
@@ -473,7 +473,7 @@ export async function importMovimientosCajaAction(
     return { error: "El archivo no contiene filas." };
   }
 
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   const errors: { row: number; message: string }[] = [];
@@ -564,7 +564,7 @@ export async function addViaticoAction(data: {
   fecha: string;
 }) {
 
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   const responsable_entrega_id = user.id;

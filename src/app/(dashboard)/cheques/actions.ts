@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser, requireArea } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export type ChequeTipo = "comun" | "diferido" | "electronico";
@@ -66,8 +66,7 @@ export type CreateChequeInput = {
 };
 
 export async function createChequeAction(input: CreateChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.numero?.trim()) return { error: "El número de cheque es obligatorio." };
@@ -182,8 +181,7 @@ export type EntregarChequeInput = {
 };
 
 export async function entregarChequeAction(input: EntregarChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.entregado_a?.trim()) return { error: "Indicá a quién se entrega el cheque." };
@@ -245,8 +243,7 @@ export type DepositarChequeInput = {
 };
 
 export async function depositarChequeAction(input: DepositarChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.banco_deposito?.trim()) return { error: "Indicá el banco de depósito." };
@@ -307,8 +304,7 @@ export type AcreditarChequeInput = {
 };
 
 export async function acreditarChequeAction(input: AcreditarChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.fecha) return { error: "La fecha de acreditación es obligatoria." };
@@ -367,8 +363,7 @@ export type RechazarChequeInput = {
 };
 
 export async function rechazarChequeAction(input: RechazarChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.motivo) return { error: "Seleccioná el motivo del rechazo." };
@@ -432,8 +427,7 @@ export type AnularChequeInput = {
 };
 
 export async function anularChequeAction(input: AnularChequeInput) {
-  await requireArea("finanzas", "write");
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   if (!input.motivo?.trim()) return { error: "Indicá el motivo de la anulación." };
@@ -504,7 +498,7 @@ export type ChequeExportRow = {
 };
 
 export async function getAllChequesForExportAction(): Promise<ChequeExportRow[]> {
-  await requireUser();
+  await requireArea("finanzas", "read");
   const supabase = createAdminClient();
 
   const { data, error } = await supabase

@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser, requireArea } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 const GASTOS_PAGE_SIZE = 25;
@@ -182,7 +182,7 @@ export async function addGastoAction(data: {
     return { error: "El monto debe ser mayor a 0." };
   }
 
-  const user = await requireUser();
+  const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
   const { data: gasto, error: gastoError } = await supabase

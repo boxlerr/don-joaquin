@@ -91,7 +91,7 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
         <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
         <InfoItem
           icon={<Calendar size={13} />}
-          label={`Ingreso: ${new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}`}
+          label={`Ingreso: ${chofer.fecha_ingreso ? new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR") : "—"}`}
         />
         <InfoItem icon={<Clock size={13} />} label={`Antigüedad: ${antiguedad}`} />
       </div>

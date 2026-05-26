@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import type { ViajeBasico, PaginatedResult } from "./types";
 import { requireArea } from "@/lib/auth";
 
@@ -479,11 +478,7 @@ export async function createViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
-  const userClient = await createClient();
-  const {
-    data: { user },
-  } = await userClient.auth.getUser();
-  if (!user) return { error: "No autenticado." };
+  const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
 
@@ -570,6 +565,7 @@ export type ExportViajesParams = {
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
+  await requireArea("logistica", "read");
   const { choferId, desde, hasta, estado, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -685,12 +681,7 @@ export async function getViajeAuditTrail(
 // ============================================================================
 
 export async function deleteViajeAction(id: string): Promise<{ ok: boolean; error?: string }> {
-  const userClient = await createClient();
-  const {
-    data: { user },
-  } = await userClient.auth.getUser();
-
-  if (!user) return { ok: false, error: "No autenticado." };
+  const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
 
@@ -737,12 +728,7 @@ export async function updateViajeEstadoAction(
   id: string,
   estado: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const userClient = await createClient();
-  const {
-    data: { user },
-  } = await userClient.auth.getUser();
-
-  if (!user) return { ok: false, error: "No autenticado." };
+  const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
 
@@ -796,9 +782,7 @@ export async function cerrarViajeAction(
   },
 ): Promise<{ ok: boolean; error?: string }> {
 
-  const userClient = await createClient();
-  const { data: { user } } = await userClient.auth.getUser();
-  if (!user) return { ok: false, error: "No autenticado." };
+  const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
 
@@ -984,11 +968,7 @@ export async function updateViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
-  const userClient = await createClient();
-  const {
-    data: { user },
-  } = await userClient.auth.getUser();
-  if (!user) return { error: "No autenticado." };
+  const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
 
