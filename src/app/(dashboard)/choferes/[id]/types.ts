@@ -70,6 +70,51 @@ export type CamionAsignado = {
   ano: number | null;
 };
 
+export type ApercibimientoGravedad = "leve" | "moderado" | "grave";
+export type PrestamoEstado = "pendiente" | "parcial" | "cancelado" | "incobrable";
+
+export type CategoriaApercibimiento = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+};
+
+export type Apercibimiento = {
+  id: string;
+  fecha: string;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
+  gravedad: ApercibimientoGravedad;
+  motivo: string;
+  observaciones: string | null;
+  created_at: string;
+};
+
+export type LicenciaMedica = {
+  id: string;
+  fecha_desde: string;
+  fecha_hasta: string | null;
+  motivo: string | null;
+  observaciones: string | null;
+  dias: number | null;
+  en_curso: boolean;
+  created_at: string;
+};
+
+export type Prestamo = {
+  id: string;
+  fecha: string;
+  monto: number;
+  moneda: string;
+  cuotas: number;
+  saldo_pendiente: number;
+  estado: PrestamoEstado;
+  motivo: string | null;
+  observaciones: string | null;
+  created_at: string;
+};
+
 export type ChoferDetail = ChoferBasico & {
   foto?: { bucket: string; path: string } | null;
   documentos_vigencia: DocumentoVigencia[];
@@ -77,4 +122,9 @@ export type ChoferDetail = ChoferBasico & {
   viajes_recientes: ViajeBasico[];
   movimientos_mes: MovimientoChofer[];
   camion_actual: CamionAsignado | null;
+  apercibimientos: Apercibimiento[];
+  licencias_medicas: LicenciaMedica[];
+  prestamos: Prestamo[];
+  categorias_apercibimiento: CategoriaApercibimiento[];
+  is_admin: boolean;
 };

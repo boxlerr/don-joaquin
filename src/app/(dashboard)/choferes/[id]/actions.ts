@@ -1,13 +1,17 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "../audit";
-import type { ChoferDetail } from "./types";
+import type {
+  ChoferDetail,
+  ApercibimientoGravedad,
+  PrestamoEstado,
+} from "./types";
 
 export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
-  await requireArea("logistica", "read");
+  const user = await requireArea("logistica", "read");
   const supabase = createAdminClient();
 
   const { data: chofer } = await supabase
@@ -24,33 +28,65 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     .toISOString()
     .split("T")[0];
 
-  const [{ data: docs }, { data: viajes }, { data: movimientos }, { data: tiposDoc }] =
-    await Promise.all([
-      supabase
-        .from("v_chofer_documentos_vigencia")
-        .select("id, tipo_documento, tipo_documento_codigo, fecha_vencimiento, dias_restantes, estado_vigencia, numero")
-        .eq("chofer_id", chofer_id),
+  const [
+    { data: docs },
+    { data: viajes },
+    { data: movimientos },
+    { data: tiposDoc },
+    { data: apercibimientos },
+    { data: licencias },
+    { data: prestamos },
+    { data: categoriasApe },
+  ] = await Promise.all([
+    supabase
+      .from("v_chofer_documentos_vigencia")
+      .select("id, tipo_documento, tipo_documento_codigo, fecha_vencimiento, dias_restantes, estado_vigencia, numero")
+      .eq("chofer_id", chofer_id),
 
-      supabase
-        .from("viajes")
-        .select("id, codigo, fecha_viaje, km_con_carga, km_vacios, estado, facturado")
-        .eq("chofer_id", chofer_id)
-        .order("fecha_viaje", { ascending: false })
-        .limit(20),
+    supabase
+      .from("viajes")
+      .select("id, codigo, fecha_viaje, km_con_carga, km_vacios, estado, facturado")
+      .eq("chofer_id", chofer_id)
+      .order("fecha_viaje", { ascending: false })
+      .limit(20),
 
-      supabase
-        .from("caja_movimientos")
-        .select("id, fecha, concepto, tipo, monto, categoria")
-        .eq("chofer_id", chofer_id)
-        .gte("fecha", primerDia)
-        .order("fecha", { ascending: false }),
+    supabase
+      .from("caja_movimientos")
+      .select("id, fecha, concepto, tipo, monto, categoria")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha", primerDia)
+      .order("fecha", { ascending: false }),
 
-      supabase
-        .from("tipos_documento")
-        .select("id, nombre, codigo")
-        .eq("aplica_a", "chofer")
-        .eq("estado", "activo"),
-    ]);
+    supabase
+      .from("tipos_documento")
+      .select("id, nombre, codigo")
+      .eq("aplica_a", "chofer")
+      .eq("estado", "activo"),
+
+    supabase
+      .from("chofer_apercibimientos")
+      .select("id, fecha, categoria_id, gravedad, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre)")
+      .eq("chofer_id", chofer_id)
+      .order("fecha", { ascending: false }),
+
+    supabase
+      .from("chofer_licencias_medicas")
+      .select("id, fecha_desde, fecha_hasta, motivo, observaciones, created_at")
+      .eq("chofer_id", chofer_id)
+      .order("fecha_desde", { ascending: false }),
+
+    supabase
+      .from("chofer_prestamos")
+      .select("id, fecha, monto, moneda, cuotas, saldo_pendiente, estado, motivo, observaciones, created_at")
+      .eq("chofer_id", chofer_id)
+      .order("fecha", { ascending: false }),
+
+    supabase
+      .from("apercibimiento_categorias")
+      .select("id, codigo, nombre, descripcion")
+      .eq("estado", "activo")
+      .order("orden"),
+  ]);
 
   // Camión actualmente asignado al chofer (puede ser ninguno).
   const { data: camionActual } = await supabase
@@ -88,7 +124,332 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
           ano: camionActual.ano,
         }
       : null,
+    apercibimientos: (apercibimientos ?? []).map((a) => {
+      const cat = Array.isArray(a.categoria) ? a.categoria[0] : a.categoria;
+      return {
+        id: a.id,
+        fecha: a.fecha,
+        categoria_id: a.categoria_id,
+        categoria_nombre: (cat as { nombre?: string } | null)?.nombre ?? null,
+        gravedad: a.gravedad as ApercibimientoGravedad,
+        motivo: a.motivo,
+        observaciones: a.observaciones,
+        created_at: a.created_at,
+      };
+    }),
+    licencias_medicas: (licencias ?? []).map((l) => {
+      const desde = new Date(l.fecha_desde);
+      const hasta = l.fecha_hasta ? new Date(l.fecha_hasta) : null;
+      const dias = hasta
+        ? Math.max(1, Math.round((hasta.getTime() - desde.getTime()) / 86_400_000) + 1)
+        : null;
+      return {
+        id: l.id,
+        fecha_desde: l.fecha_desde,
+        fecha_hasta: l.fecha_hasta,
+        motivo: l.motivo,
+        observaciones: l.observaciones,
+        dias,
+        en_curso: !l.fecha_hasta,
+        created_at: l.created_at,
+      };
+    }),
+    prestamos: (prestamos ?? []).map((p) => ({
+      id: p.id,
+      fecha: p.fecha,
+      monto: Number(p.monto),
+      moneda: p.moneda,
+      cuotas: p.cuotas,
+      saldo_pendiente: Number(p.saldo_pendiente),
+      estado: p.estado as PrestamoEstado,
+      motivo: p.motivo,
+      observaciones: p.observaciones,
+      created_at: p.created_at,
+    })),
+    categorias_apercibimiento: categoriasApe ?? [],
+    is_admin: user.rol.codigo === "admin",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Apercibimientos
+// ---------------------------------------------------------------------------
+
+export async function crearApercibimientoAction(
+  chofer_id: string,
+  data: {
+    fecha: string;
+    categoria_id: string | null;
+    gravedad: ApercibimientoGravedad;
+    motivo: string;
+    observaciones?: string | null;
+  },
+) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
+
+  const { data: nuevo, error } = await supabase
+    .from("chofer_apercibimientos")
+    .insert({
+      chofer_id,
+      fecha: data.fecha,
+      categoria_id: data.categoria_id,
+      gravedad: data.gravedad,
+      motivo: data.motivo.trim(),
+      observaciones: data.observaciones?.trim() || null,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (error || !nuevo) return { error: "No se pudo registrar el apercibimiento" };
+
+  await logChoferAudit(
+    chofer_id,
+    "apercibimiento_creado",
+    null,
+    {
+      fecha: data.fecha,
+      gravedad: data.gravedad,
+      motivo: data.motivo.trim(),
+    },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function eliminarApercibimientoAction(id: string, chofer_id: string) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("chofer_apercibimientos")
+    .select("fecha, gravedad, motivo")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase.from("chofer_apercibimientos").delete().eq("id", id);
+  if (error) return { error: "No se pudo eliminar el apercibimiento" };
+
+  await logChoferAudit(chofer_id, "apercibimiento_eliminado", previo, null, user.id);
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Licencias médicas
+// ---------------------------------------------------------------------------
+
+export async function crearLicenciaAction(
+  chofer_id: string,
+  data: {
+    fecha_desde: string;
+    fecha_hasta?: string | null;
+    motivo?: string | null;
+    observaciones?: string | null;
+  },
+) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  if (data.fecha_hasta && data.fecha_hasta < data.fecha_desde)
+    return { error: "La fecha hasta no puede ser anterior a desde" };
+
+  const { error } = await supabase.from("chofer_licencias_medicas").insert({
+    chofer_id,
+    fecha_desde: data.fecha_desde,
+    fecha_hasta: data.fecha_hasta || null,
+    motivo: data.motivo?.trim() || null,
+    observaciones: data.observaciones?.trim() || null,
+    created_by: user.id,
+  });
+
+  if (error) return { error: "No se pudo registrar la licencia" };
+
+  await logChoferAudit(
+    chofer_id,
+    "licencia_creada",
+    null,
+    {
+      fecha_desde: data.fecha_desde,
+      fecha_hasta: data.fecha_hasta || null,
+      motivo: data.motivo?.trim() || null,
+    },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function cerrarLicenciaAction(id: string, chofer_id: string, fecha_hasta: string) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("chofer_licencias_medicas")
+    .select("fecha_desde, fecha_hasta")
+    .eq("id", id)
+    .single();
+
+  if (previo && fecha_hasta < previo.fecha_desde)
+    return { error: "La fecha hasta no puede ser anterior a desde" };
+
+  const { error } = await supabase
+    .from("chofer_licencias_medicas")
+    .update({ fecha_hasta, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) return { error: "No se pudo cerrar la licencia" };
+
+  await logChoferAudit(
+    chofer_id,
+    "licencia_cerrada",
+    previo,
+    { ...previo, fecha_hasta },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function eliminarLicenciaAction(id: string, chofer_id: string) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("chofer_licencias_medicas")
+    .select("fecha_desde, fecha_hasta, motivo")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase.from("chofer_licencias_medicas").delete().eq("id", id);
+  if (error) return { error: "No se pudo eliminar la licencia" };
+
+  await logChoferAudit(chofer_id, "licencia_eliminada", previo, null, user.id);
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Préstamos
+// ---------------------------------------------------------------------------
+
+export async function crearPrestamoAction(
+  chofer_id: string,
+  data: {
+    fecha: string;
+    monto: number;
+    cuotas: number;
+    motivo?: string | null;
+    observaciones?: string | null;
+  },
+) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  if (!Number.isFinite(data.monto) || data.monto <= 0)
+    return { error: "El monto debe ser mayor a cero" };
+  if (!Number.isInteger(data.cuotas) || data.cuotas < 1)
+    return { error: "Las cuotas deben ser un entero mayor o igual a 1" };
+
+  const { error } = await supabase.from("chofer_prestamos").insert({
+    chofer_id,
+    fecha: data.fecha,
+    monto: data.monto,
+    cuotas: data.cuotas,
+    saldo_pendiente: data.monto,
+    motivo: data.motivo?.trim() || null,
+    observaciones: data.observaciones?.trim() || null,
+    created_by: user.id,
+  });
+
+  if (error) return { error: "No se pudo registrar el préstamo" };
+
+  await logChoferAudit(
+    chofer_id,
+    "prestamo_creado",
+    null,
+    {
+      fecha: data.fecha,
+      monto: data.monto,
+      cuotas: data.cuotas,
+    },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function actualizarSaldoPrestamoAction(
+  id: string,
+  chofer_id: string,
+  nuevo_saldo: number,
+) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  if (!Number.isFinite(nuevo_saldo) || nuevo_saldo < 0)
+    return { error: "El saldo no puede ser negativo" };
+
+  const { data: previo } = await supabase
+    .from("chofer_prestamos")
+    .select("monto, saldo_pendiente, estado")
+    .eq("id", id)
+    .single();
+
+  if (!previo) return { error: "Préstamo no encontrado" };
+  if (nuevo_saldo > Number(previo.monto))
+    return { error: "El saldo no puede superar el monto original" };
+
+  const estado: PrestamoEstado =
+    nuevo_saldo === 0 ? "cancelado" : nuevo_saldo < Number(previo.monto) ? "parcial" : "pendiente";
+
+  const { error } = await supabase
+    .from("chofer_prestamos")
+    .update({
+      saldo_pendiente: nuevo_saldo,
+      estado,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) return { error: "No se pudo actualizar el saldo" };
+
+  await logChoferAudit(
+    chofer_id,
+    "prestamo_saldo_actualizado",
+    { saldo_pendiente: Number(previo.saldo_pendiente), estado: previo.estado },
+    { saldo_pendiente: nuevo_saldo, estado },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function eliminarPrestamoAction(id: string, chofer_id: string) {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("chofer_prestamos")
+    .select("fecha, monto, cuotas, saldo_pendiente")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase.from("chofer_prestamos").delete().eq("id", id);
+  if (error) return { error: "No se pudo eliminar el préstamo" };
+
+  await logChoferAudit(chofer_id, "prestamo_eliminado", previo, null, user.id);
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
 }
 
 export async function uploadDocumentoChoferAction(formData: FormData) {

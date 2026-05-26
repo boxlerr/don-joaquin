@@ -9,16 +9,29 @@ import ChoferInfoTab from "./ChoferInfoTab";
 import ChoferDocumentosTab from "./ChoferDocumentosTab";
 import ChoferViajesTab from "./ChoferViajesTab";
 import ChoferCuentaTab from "./ChoferCuentaTab";
+import ChoferApercibimientosTab from "./ChoferApercibimientosTab";
+import ChoferLicenciasTab from "./ChoferLicenciasTab";
+import ChoferPrestamosTab from "./ChoferPrestamosTab";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
 
-type TabId = "info" | "documentos" | "viajes" | "cuenta";
+type TabId =
+  | "info"
+  | "documentos"
+  | "viajes"
+  | "cuenta"
+  | "apercibimientos"
+  | "licencias"
+  | "prestamos";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "info", label: "Información General" },
   { id: "documentos", label: "Documentación" },
   { id: "viajes", label: "Historial Viajes" },
   { id: "cuenta", label: "Cuenta Corriente" },
+  { id: "apercibimientos", label: "Apercibimientos" },
+  { id: "licencias", label: "Licencias Médicas" },
+  { id: "prestamos", label: "Préstamos" },
 ];
 
 export default function ChoferDetailPage() {
@@ -101,6 +114,31 @@ export default function ChoferDetailPage() {
           )}
           {activeTab === "viajes" && <ChoferViajesTab viajes={chofer.viajes_recientes} />}
           {activeTab === "cuenta" && <ChoferCuentaTab movimientos={chofer.movimientos_mes} />}
+          {activeTab === "apercibimientos" && (
+            <ChoferApercibimientosTab
+              chofer_id={chofer.id}
+              apercibimientos={chofer.apercibimientos}
+              categorias={chofer.categorias_apercibimiento}
+              is_admin={chofer.is_admin}
+              onRefresh={loadData}
+            />
+          )}
+          {activeTab === "licencias" && (
+            <ChoferLicenciasTab
+              chofer_id={chofer.id}
+              licencias={chofer.licencias_medicas}
+              is_admin={chofer.is_admin}
+              onRefresh={loadData}
+            />
+          )}
+          {activeTab === "prestamos" && (
+            <ChoferPrestamosTab
+              chofer_id={chofer.id}
+              prestamos={chofer.prestamos}
+              is_admin={chofer.is_admin}
+              onRefresh={loadData}
+            />
+          )}
         </div>
       </div>
     </div>
