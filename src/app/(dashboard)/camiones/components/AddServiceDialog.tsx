@@ -221,7 +221,12 @@ export default function AddServiceDialog({
                 <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
                 <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
                   <SelectTrigger id="camion" className="w-full">
-                    <SelectValue placeholder="Seleccionar camión..." />
+                    <SelectValue placeholder="Seleccionar camión...">
+                      {(value) => {
+                        const c = camiones.find((cam) => cam.id === value);
+                        return c ? `${c.patente} - ${c.marca} ${c.modelo}` : "Seleccionar camión...";
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {camiones.map((c) => (
@@ -260,7 +265,12 @@ export default function AddServiceDialog({
                 onValueChange={(v) => setTipoServicioId(v ?? "")}
               >
                 <SelectTrigger id="tipo_service" className="w-full">
-                  <SelectValue placeholder="Seleccionar tipo..." />
+                  <SelectValue placeholder="Seleccionar tipo...">
+                    {(value) => {
+                      const t = tiposServicio.find((tipo) => tipo.id === value);
+                      return t ? t.nombre : "Seleccionar tipo...";
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {tiposVisibles.map((t) => (
