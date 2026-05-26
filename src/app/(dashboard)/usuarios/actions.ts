@@ -33,22 +33,17 @@ export async function updateRolAreaAction(
   }
 
   const { data: previo } = await supabase
-    .from("rol_areas" as never)
+    .from("rol_areas")
     .select("nivel")
     .eq("rol_id", rol_id)
     .eq("area_codigo", area_codigo)
     .maybeSingle();
 
-  const nivelAnterior = (previo as { nivel: AreaNivel } | null)?.nivel ?? "none";
+  const nivelAnterior = (previo?.nivel as AreaNivel | undefined) ?? "none";
 
   if (nivelAnterior === nivel) return { ok: true };
 
-  const { error } = await (supabase.from("rol_areas" as never) as unknown as {
-    upsert: (
-      values: Record<string, unknown>,
-      opts: { onConflict: string },
-    ) => Promise<{ error: { message: string } | null }>;
-  }).upsert(
+  const { error } = await supabase.from("rol_areas").upsert(
     { rol_id, area_codigo, nivel, updated_at: new Date().toISOString() },
     { onConflict: "rol_id,area_codigo" },
   );

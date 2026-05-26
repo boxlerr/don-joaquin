@@ -89,15 +89,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const rol = Array.isArray(profile.rol) ? profile.rol[0] : profile.rol;
   if (!rol) return null;
 
-  // Tabla rol_areas aún no está en los tipos generados; consulta sin tipar.
   const { data: rolAreas } = await supabase
-    .from("rol_areas" as never)
+    .from("rol_areas")
     .select("area_codigo, nivel")
     .eq("rol_id", rol.id);
 
   const permisos: PermisosArea = { ...AREAS_VACIAS };
-  for (const row of (rolAreas ?? []) as Array<{ area_codigo: AreaCodigo; nivel: AreaNivel }>) {
-    permisos[row.area_codigo] = row.nivel;
+  for (const row of rolAreas ?? []) {
+    permisos[row.area_codigo as AreaCodigo] = row.nivel as AreaNivel;
   }
 
   return {

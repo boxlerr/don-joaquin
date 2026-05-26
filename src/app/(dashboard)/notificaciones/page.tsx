@@ -9,12 +9,14 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireUser } from "@/lib/auth";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
 import { categoriaDeAlerta, type AlertaItem } from "./utils";
 
 export default async function NotificacionesPage() {
+  await requireUser();
   const supabase = createAdminClient();
 
   const [

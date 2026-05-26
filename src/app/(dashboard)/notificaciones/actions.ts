@@ -1,21 +1,20 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { generarAlertas } from "@/lib/alertas";
 import { revalidatePath } from "next/cache";
 
 export async function marcarAlertaVista(alertaId: string) {
+  const user = await requireUser();
   const supabase = createAdminClient();
-  const authClient = await createClient();
-  const { data: { user } } = await authClient.auth.getUser();
 
   await supabase
     .from("alertas")
     .update({
       estado: "vista",
       vista_en: new Date().toISOString(),
-      vista_por: user?.id ?? null,
+      vista_por: user.id,
     })
     .eq("id", alertaId);
 
@@ -24,16 +23,15 @@ export async function marcarAlertaVista(alertaId: string) {
 }
 
 export async function marcarTodasVistas() {
+  const user = await requireUser();
   const supabase = createAdminClient();
-  const authClient = await createClient();
-  const { data: { user } } = await authClient.auth.getUser();
 
   await supabase
     .from("alertas")
     .update({
       estado: "vista",
       vista_en: new Date().toISOString(),
-      vista_por: user?.id ?? null,
+      vista_por: user.id,
     })
     .eq("estado", "pendiente");
 
@@ -42,6 +40,7 @@ export async function marcarTodasVistas() {
 }
 
 export async function actualizarAlertas() {
+  await requireUser();
   await generarAlertas();
   revalidatePath("/notificaciones");
   revalidatePath("/");

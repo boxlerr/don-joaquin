@@ -1,12 +1,13 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireUser, requireArea } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "../audit";
 import type { ChoferDetail } from "./types";
 
 export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
+  await requireArea("logistica", "read");
   const supabase = createAdminClient();
 
   const { data: chofer } = await supabase
@@ -91,7 +92,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 }
 
 export async function uploadDocumentoChoferAction(formData: FormData) {
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const chofer_id = formData.get("chofer_id") as string;
@@ -219,7 +220,7 @@ export async function updateChoferInfoAction(
   }>
 ) {
 
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const camposEditables = Object.keys(data) as (keyof typeof data)[];
@@ -249,7 +250,7 @@ export async function updateChoferInfoAction(
 }
 
 export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {
-  const user = await requireUser();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
