@@ -20,6 +20,8 @@ import {
   Calendar,
   Weight,
   Layers,
+  Building2,
+  Gauge,
   ChevronDown,
   Check,
 } from "lucide-react";
@@ -29,6 +31,22 @@ import { addCamionAction } from "../actions";
 
 type CamionTipo = Database["public"]["Enums"]["camion_tipo"];
 type CamionEstado = Database["public"]["Enums"]["camion_estado"];
+type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
+
+const TERCERIZACIONES: { value: TercerizacionEstado; label: string }[] = [
+  { value: "interno", label: "Interno" },
+  { value: "en_transicion", label: "En transición" },
+  { value: "tercerizado", label: "Tercerizado" },
+];
+
+// Mismas reglas que el server action — auto-sugerencia al elegir marca.
+// El usuario puede sobrescribir manualmente.
+function inferTercerizacion(marca: string): TercerizacionEstado {
+  const m = marca.trim().toLowerCase();
+  if (m === "scania") return "tercerizado";
+  if (m === "iveco") return "en_transicion";
+  return "interno";
+}
 
 const PATENTE_REGEX = /^[A-Z0-9\s-]{6,10}$/;
 const CURRENT_YEAR = new Date().getFullYear();
@@ -53,6 +71,7 @@ type FieldErrors = {
   modelo?: string;
   ano?: string;
   capacidad?: string;
+  km_actual?: string;
 };
 
 export default function AddCamionDialog({ children }: { children: React.ReactNode }) {
@@ -68,7 +87,25 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
   const [ano, setAno] = useState("");
   const [capacidad, setCapacidad] = useState("");
   const [tipo, setTipo] = useState<CamionTipo>("otro");
+  const [tercerizacion, setTercerizacion] = useState<TercerizacionEstado>("interno");
+  // True hasta que el usuario tipea explícitamente en el select — controla la auto-sugerencia.
+  const [tercerizacionAutoSugerida, setTercerizacionAutoSugerida] = useState(true);
+  const [esTolva, setEsTolva] = useState(false);
+  const [kmActual, setKmActual] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  const handleMarcaChange = (value: string) => {
+    setMarca(value);
+    // Solo auto-sugerir si el usuario no eligió manualmente todavía.
+    if (tercerizacionAutoSugerida) {
+      setTercerizacion(inferTercerizacion(value));
+    }
+  };
+
+  const handleTercerizacionChange = (value: TercerizacionEstado) => {
+    setTercerizacion(value);
+    setTercerizacionAutoSugerida(false);
+  };
 
   const validate = (): FieldErrors => {
     const e: FieldErrors = {};
@@ -81,6 +118,10 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
     else if (anoN < 1900 || anoN > CURRENT_YEAR + 1) e.ano = `Año entre 1900 y ${CURRENT_YEAR + 1}`;
     const capN = parseFloat(capacidad);
     if (!Number.isFinite(capN) || capN <= 0) e.capacidad = "Capacidad mayor a 0";
+    if (kmActual.trim() !== "") {
+      const kmN = parseFloat(kmActual);
+      if (!Number.isFinite(kmN) || kmN < 0) e.km_actual = "Km debe ser ≥ 0";
+    }
     return e;
   };
 
@@ -92,6 +133,10 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
     setAno("");
     setCapacidad("");
     setTipo("otro");
+    setTercerizacion("interno");
+    setTercerizacionAutoSugerida(true);
+    setEsTolva(false);
+    setKmActual("");
     setErrors({});
     setError(null);
     setSuccess(null);
@@ -107,6 +152,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
     setSuccess(null);
 
     try {
+      const kmActualNum = kmActual.trim() === "" ? null : parseFloat(kmActual);
       const result = await addCamionAction({
         patente: patente.trim().toUpperCase(),
         marca: marca.trim(),
@@ -115,6 +161,9 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
         capacidad_tn: parseFloat(capacidad),
         tipo_camion: tipo,
         estado,
+        tercerizacion_estado: tercerizacion,
+        es_tolva: esTolva,
+        km_actual: kmActualNum,
       });
 
       if (result.error) {
@@ -231,7 +280,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
               placeholder="Ej: Mercedes Benz"
               required
               value={marca}
-              onChange={(e) => setMarca(e.target.value)}
+              onChange={(e) => handleMarcaChange(e.target.value)}
               onBlur={() => setErrors(validate())}
               icon={Tag}
               error={errors.marca}
@@ -291,6 +340,53 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
               icon={Layers}
             />
           </div>
+
+          {/* Tercerización + Km actual */}
+          <div className="grid grid-cols-2 gap-4">
+            <SelectFieldWithIcon
+              label="Tercerización *"
+              name="tercerizacion_estado"
+              value={tercerizacion}
+              onValueChange={(v) => handleTercerizacionChange(v as TercerizacionEstado)}
+              options={TERCERIZACIONES}
+              required
+              icon={Building2}
+            />
+
+            <InputFieldWithIcon
+              label="Km actual"
+              name="km_actual"
+              type="number"
+              placeholder="Opcional"
+              value={kmActual}
+              onChange={(e) => setKmActual(e.target.value)}
+              onBlur={() => setErrors(validate())}
+              icon={Gauge}
+              error={errors.km_actual}
+            />
+          </div>
+
+          {/* Es tolva */}
+          <label
+            className={`inline-flex items-center gap-2.5 h-10 px-3 rounded-lg border bg-card cursor-pointer transition-colors w-fit ${
+              esTolva
+                ? "border-[#0088D1] bg-[#E1F5FE]"
+                : "border-border hover:border-[#CBD5E1]"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={esTolva}
+              onChange={(e) => setEsTolva(e.target.checked)}
+              className="size-4 accent-[#0088D1]"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Es tolva
+            </span>
+            <span className="text-xs text-muted-foreground">
+              (acoplado especializado)
+            </span>
+          </label>
 
           {/* Footer */}
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">

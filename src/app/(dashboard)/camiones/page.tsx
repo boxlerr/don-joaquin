@@ -32,7 +32,10 @@ export default async function CamionesPage() {
     await Promise.all([
       supabase
         .from("camiones")
-        .select("id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado", { count: "exact" })
+        .select(
+          "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual",
+          { count: "exact" }
+        )
         .order("patente")
         .limit(50),
       supabase

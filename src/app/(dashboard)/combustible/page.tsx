@@ -47,7 +47,9 @@ export default async function CombustiblePage() {
     getCargasAction({ page: 0 }),
     supabase
       .from("camiones")
-      .select("id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado")
+      .select(
+        "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual"
+      )
       .eq("estado", "activo")
       .order("patente"),
   ]);

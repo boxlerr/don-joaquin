@@ -2,7 +2,17 @@ import { Database } from "@/types/database";
 
 export type Camion = Pick<
   Database["public"]["Tables"]["camiones"]["Row"],
-  "id" | "patente" | "marca" | "modelo" | "ano" | "capacidad_tn" | "tipo_camion" | "estado"
+  | "id"
+  | "patente"
+  | "marca"
+  | "modelo"
+  | "ano"
+  | "capacidad_tn"
+  | "tipo_camion"
+  | "estado"
+  | "tercerizacion_estado"
+  | "es_tolva"
+  | "km_actual"
 > & {
   foto_url?: string | null;
 };

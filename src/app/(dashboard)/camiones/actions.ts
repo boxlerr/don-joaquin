@@ -8,6 +8,18 @@ import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
+type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
+
+// Mismas reglas que el backfill por marca de la migration de Fase 1.
+// Bárbara puede sobrescribir manualmente desde la UI; esto es solo el default.
+// NOTA: no exportar — este archivo tiene "use server" y Next exige que todo
+// export sea async function. La copia client-side vive en AddCamionDialog.
+function inferTercerizacionFromMarca(marca: string): TercerizacionEstado {
+  const m = marca.trim().toLowerCase();
+  if (m === "scania") return "tercerizado";
+  if (m === "iveco") return "en_transicion";
+  return "interno";
+}
 
 const FOTOS_BUCKET = "fotos-camiones";
 const FOTO_MIME_EXT: Record<string, string> = {
@@ -38,6 +50,9 @@ export async function addCamionAction(data: {
   capacidad_tn: number;
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
+  tercerizacion_estado?: TercerizacionEstado;
+  es_tolva?: boolean;
+  km_actual?: number | null;
 }) {
   await requireArea("flota", "write");
 
@@ -53,6 +68,9 @@ export async function addCamionAction(data: {
     capacidad_tn: data.capacidad_tn,
     tipo_camion: data.tipo_camion,
     estado: data.estado,
+    tercerizacion_estado: data.tercerizacion_estado ?? inferTercerizacionFromMarca(data.marca),
+    es_tolva: data.es_tolva ?? false,
+    km_actual: data.km_actual ?? null,
     created_by: user?.id ?? null,
   };
 
@@ -87,6 +105,9 @@ export async function updateCamionAction(id: string, data: {
   capacidad_tn: number;
   tipo_camion?: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
+  tercerizacion_estado?: TercerizacionEstado;
+  es_tolva?: boolean;
+  km_actual?: number | null;
 }) {
   await requireArea("flota", "write");
 
@@ -96,7 +117,7 @@ export async function updateCamionAction(id: string, data: {
 
   const { data: previo } = await supabase
     .from("camiones")
-    .select("patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado")
+    .select("patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual")
     .eq("id", id)
     .single();
 
@@ -110,6 +131,9 @@ export async function updateCamionAction(id: string, data: {
       capacidad_tn: data.capacidad_tn,
       tipo_camion: data.tipo_camion,
       estado: data.estado,
+      tercerizacion_estado: data.tercerizacion_estado,
+      es_tolva: data.es_tolva,
+      km_actual: data.km_actual,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

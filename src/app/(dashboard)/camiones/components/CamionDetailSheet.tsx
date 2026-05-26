@@ -16,8 +16,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge,
 } from "lucide-react";
+import type { Database } from "@/types/database";
 import {
   updateCamionAction,
   deleteCamionAction,
@@ -44,6 +45,14 @@ import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
 type TabId = "info" | "fotos" | "services" | "gasoil" | "gastos" | "docs";
 
+type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
+
+const TERCERIZACIONES: { value: TercerizacionEstado; label: string }[] = [
+  { value: "interno", label: "Interno" },
+  { value: "en_transicion", label: "En transición" },
+  { value: "tercerizado", label: "Tercerizado" },
+];
+
 type FormData = {
   patente: string;
   marca: string;
@@ -52,6 +61,9 @@ type FormData = {
   capacidad_tn: string;
   tipo_camion: string;
   estado: string;
+  tercerizacion_estado: TercerizacionEstado;
+  es_tolva: boolean;
+  km_actual: string;
 };
 
 type FieldErrors = Partial<Record<keyof FormData, string>>;
@@ -93,6 +105,10 @@ function validate(data: FormData): FieldErrors {
   else if (ano < 1900 || ano > CURRENT_YEAR + 1) errs.ano = `Año entre 1900 y ${CURRENT_YEAR + 1}`;
   const cap = parseFloat(data.capacidad_tn);
   if (!Number.isFinite(cap) || cap <= 0) errs.capacidad_tn = "Capacidad mayor a 0";
+  if (data.km_actual.trim() !== "") {
+    const km = parseFloat(data.km_actual);
+    if (!Number.isFinite(km) || km < 0) errs.km_actual = "Km debe ser ≥ 0";
+  }
   return errs;
 }
 
@@ -104,7 +120,10 @@ function shallowEq(a: FormData, b: FormData): boolean {
     a.ano === b.ano &&
     a.capacidad_tn === b.capacidad_tn &&
     a.tipo_camion === b.tipo_camion &&
-    a.estado === b.estado
+    a.estado === b.estado &&
+    a.tercerizacion_estado === b.tercerizacion_estado &&
+    a.es_tolva === b.es_tolva &&
+    a.km_actual === b.km_actual
   );
 }
 
@@ -130,6 +149,9 @@ export default function CamionDetailSheet({
     capacidad_tn: "",
     tipo_camion: "otro",
     estado: "activo",
+    tercerizacion_estado: "interno",
+    es_tolva: false,
+    km_actual: "",
   };
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [initialFormData, setInitialFormData] = useState<FormData>(emptyForm);
@@ -172,6 +194,9 @@ export default function CamionDetailSheet({
         capacidad_tn: camion.capacidad_tn?.toString() || "",
         tipo_camion: camion.tipo_camion || "otro",
         estado: camion.estado || "activo",
+        tercerizacion_estado: camion.tercerizacion_estado ?? "interno",
+        es_tolva: camion.es_tolva ?? false,
+        km_actual: camion.km_actual != null ? String(camion.km_actual) : "",
       };
       setFormData(fresh);
       setInitialFormData(fresh);
@@ -259,6 +284,7 @@ export default function CamionDetailSheet({
       setTouched({
         patente: true, marca: true, modelo: true, ano: true, capacidad_tn: true,
         tipo_camion: true, estado: true,
+        tercerizacion_estado: true, es_tolva: true, km_actual: true,
       });
       return;
     }
@@ -266,6 +292,8 @@ export default function CamionDetailSheet({
     setError(null);
     setSuccess(null);
     try {
+      const kmActualNum =
+        formData.km_actual.trim() === "" ? null : parseFloat(formData.km_actual);
       const result = await updateCamionAction(camion.id, {
         patente: formData.patente.trim().toUpperCase(),
         marca: formData.marca.trim(),
@@ -274,6 +302,9 @@ export default function CamionDetailSheet({
         capacidad_tn: parseFloat(formData.capacidad_tn),
         tipo_camion: formData.tipo_camion as "tractor" | "chasis_rigido" | "batea" | "otro",
         estado: formData.estado as "activo" | "inactivo" | "baja" | "en_mantenimiento",
+        tercerizacion_estado: formData.tercerizacion_estado,
+        es_tolva: formData.es_tolva,
+        km_actual: kmActualNum,
       });
       if (result.error) {
         setError(result.error);
@@ -517,6 +548,72 @@ export default function CamionDetailSheet({
                   </Select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Building2 size={13} className="text-muted-foreground" />
+                    Tercerización
+                  </Label>
+                  <Select
+                    value={formData.tercerizacion_estado}
+                    onValueChange={(val) =>
+                      updateField(
+                        "tercerizacion_estado",
+                        (val ?? formData.tercerizacion_estado) as TercerizacionEstado
+                      )
+                    }
+                  >
+                    <SelectTrigger className={`w-full ${fieldClass("tercerizacion_estado")}`}>
+                      <SelectValue placeholder="Tercerización" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TERCERIZACIONES.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <Gauge size={13} className="text-muted-foreground" />
+                    Km actual
+                  </Label>
+                  <Input
+                    type="number"
+                    value={formData.km_actual}
+                    onChange={(e) => updateField("km_actual", e.target.value)}
+                    onBlur={() => markTouched("km_actual")}
+                    placeholder="Opcional"
+                    className={fieldClass("km_actual")}
+                  />
+                  {fieldErrors.km_actual && <p className="text-xs text-red-600">{fieldErrors.km_actual}</p>}
+                </div>
+              </div>
+
+              <label
+                className={`inline-flex items-center gap-2.5 h-10 px-3 rounded-lg border bg-card cursor-pointer transition-colors w-fit ${
+                  formData.es_tolva
+                    ? "border-[#0088D1] bg-[#E1F5FE]"
+                    : "border-border hover:border-[#CBD5E1]"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.es_tolva}
+                  onChange={(e) => updateField("es_tolva", e.target.checked)}
+                  className="size-4 accent-[#0088D1]"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Es tolva
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  (acoplado especializado)
+                </span>
+              </label>
             </div>
           )}
 
