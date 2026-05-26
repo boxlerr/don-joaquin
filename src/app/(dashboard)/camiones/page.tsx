@@ -1,22 +1,13 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
-import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Search, ChevronRight, Receipt } from "lucide-react";
+import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
-import CamionRow from "./components/CamionRow";
+import CamionesTableClient from "./components/CamionesTableClient";
 import { ExportCamionesButton, ImportCamionesButton } from "./components/CamionesIO";
 import HelpTutorialButton from "./help-tutorial-button";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
@@ -155,70 +146,7 @@ export default async function CamionesPage() {
         />
       </div>
 
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 gap-4 bg-card">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#E1F5FE] rounded-lg text-primary">
-              <Truck size={20} />
-            </div>
-            <div>
-              <h2 className="text-foreground text-lg font-bold">Listado de Unidades</h2>
-              <p className="text-muted-foreground text-xs font-medium">Gestioná el estado y documentación de tu flota</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <select className="h-10 pl-4 pr-10 text-sm border border-border rounded-lg bg-card text-muted-foreground appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[180px]">
-                <option>Todas las capacidades</option>
-                <option>TN ESC 35</option>
-                <option>TN ESC 37.5</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/70">
-                <ChevronRight size={14} className="rotate-90" />
-              </div>
-            </div>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
-              <Input 
-                type="search" 
-                placeholder="Buscar patente..." 
-                className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all" 
-              />
-            </div>
-          </div>
-        </div>
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              {[
-                "Patente",
-                "Marca/Modelo",
-                "Año / KM",
-                "Capacidad",
-                "Tipo",
-                "Tercerización",
-                "Estado",
-              ].map((col) => (
-                <TableHead
-                  key={col}
-                  className={`text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 ${col === "Patente" ? "pl-6" : ""}`}
-                >
-                  {col}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {camionesConFoto.length === 0 ? (
-              <EmptyTableRow message="Sin camiones registrados" />
-            ) : (
-              camionesConFoto.map((c) => (
-                <CamionRow key={c.id} camion={c} tiposServicio={tiposServicio} />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <CamionesTableClient camiones={camionesConFoto} tiposServicio={tiposServicio} />
     </div>
   );
 }
