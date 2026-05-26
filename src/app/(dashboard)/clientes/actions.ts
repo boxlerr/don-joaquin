@@ -193,7 +193,7 @@ export async function reactivateClienteAction(
 }
 
 // ============================================================================
-// Importación desde Excel / CSV
+// Importación desde Excel / CSV — flujo en 2 pasos (preview + commit)
 // ============================================================================
 
 export type ImportClientesState = {
@@ -205,16 +205,27 @@ export type ImportClientesState = {
 } | null;
 
 const HEADER_MAP: Record<string, keyof RawRow> = {
+  // Razón social
   "razon social": "razon_social",
   razon_social: "razon_social",
+  // Nombre comercial (la columna "CLIENTES" del nuevo formato es el nombre corto)
+  clientes: "nombre_comercial",
+  cliente: "nombre_comercial",
   "nombre comercial": "nombre_comercial",
   nombre_comercial: "nombre_comercial",
+  // CUIT
   cuit: "cuit",
+  // Condición IVA
   "condicion iva": "condicion_iva",
+  "condicion de iva": "condicion_iva",
   condicion_iva: "condicion_iva",
+  iva: "condicion_iva",
+  // Dirección
+  direccion: "domicilio_fiscal",
   "domicilio fiscal": "domicilio_fiscal",
   domicilio_fiscal: "domicilio_fiscal",
   domicilio: "domicilio_fiscal",
+  // Resto
   localidad: "localidad",
   provincia: "provincia",
   email: "email",
@@ -223,6 +234,12 @@ const HEADER_MAP: Record<string, keyof RawRow> = {
   es_multinacional: "es_multinacional",
   multinacional: "es_multinacional",
   observaciones: "observaciones",
+  // Contacto principal (mapea a cliente_contactos con es_principal=true)
+  "contrato principal": "contacto_principal",
+  contrato_principal: "contacto_principal",
+  "contacto principal": "contacto_principal",
+  contacto_principal: "contacto_principal",
+  contacto: "contacto_principal",
 };
 
 type RawRow = {
@@ -237,6 +254,7 @@ type RawRow = {
   telefono?: string;
   es_multinacional?: string;
   observaciones?: string;
+  contacto_principal?: string;
 };
 
 function normalizeKey(k: string): string {
@@ -252,6 +270,11 @@ function normalizeCondicionIva(v?: string): (typeof CONDICION_IVA_VALUES)[number
   if ((CONDICION_IVA_VALUES as readonly string[]).includes(s)) {
     return s as (typeof CONDICION_IVA_VALUES)[number];
   }
+  // Abreviaturas comunes en planillas
+  if (s === "ri" || s === "r.i" || s === "r_i") return "responsable_inscripto";
+  if (s === "mt" || s === "monotrib") return "monotributo";
+  if (s === "ex") return "exento";
+  if (s === "cf") return "consumidor_final";
   if (s.includes("responsable")) return "responsable_inscripto";
   if (s.includes("mono")) return "monotributo";
   if (s.includes("exento")) return "exento";
@@ -259,9 +282,10 @@ function normalizeCondicionIva(v?: string): (typeof CONDICION_IVA_VALUES)[number
   return "no_categorizado";
 }
 
-function normalizeBool(v?: string): boolean {
-  const s = (v ?? "").trim().toLowerCase();
-  return ["si", "sí", "true", "1", "x", "yes"].includes(s);
+function normalizeCuit(v?: string): string | undefined {
+  if (!v) return undefined;
+  const digits = v.replace(/\D/g, "");
+  return digits === "" ? undefined : digits;
 }
 
 function cell(v: unknown): string | undefined {
@@ -270,10 +294,44 @@ function cell(v: unknown): string | undefined {
   return s === "" ? undefined : s;
 }
 
-export async function importClientesAction(
-  _prev: ImportClientesState,
+// ---------------------------------------------------------------------------
+// Preview: parsea el archivo y devuelve las filas con su estado de validación.
+// No inserta nada en la base.
+// ---------------------------------------------------------------------------
+
+export type PreviewRowStatus = "ok" | "warning" | "error" | "duplicate";
+
+export type ClientePreviewRow = {
+  rowNum: number;
+  status: PreviewRowStatus;
+  messages: string[];
+  data: {
+    razon_social: string | null;
+    nombre_comercial: string | null;
+    cuit: string | null;
+    condicion_iva: (typeof CONDICION_IVA_VALUES)[number];
+    condicion_iva_raw: string | null;
+    domicilio_fiscal: string | null;
+    contacto_principal: string | null;
+  };
+};
+
+export type PreviewClientesState = {
+  ok?: boolean;
+  error?: string;
+  rows?: ClientePreviewRow[];
+  summary?: {
+    total: number;
+    importable: number;
+    duplicates: number;
+    errors: number;
+  };
+} | null;
+
+export async function previewClientesAction(
+  _prev: PreviewClientesState,
   formData: FormData,
-): Promise<ImportClientesState> {
+): Promise<PreviewClientesState> {
   await requireArea("comercial", "write");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -295,6 +353,156 @@ export async function importClientesAction(
     return { error: "El archivo no contiene filas." };
   }
 
+  const parsed: ClientePreviewRow[] = rows.map((raw, i) => {
+    const rowNum = i + 2;
+    const mapped: RawRow = {};
+    for (const [key, value] of Object.entries(raw)) {
+      const norm = normalizeKey(key);
+      const target = HEADER_MAP[norm];
+      if (target) mapped[target] = cell(value);
+    }
+
+    const messages: string[] = [];
+    const razon = cell(mapped.razon_social) ?? null;
+    const cuit = normalizeCuit(mapped.cuit) ?? null;
+    const condicionRaw = cell(mapped.condicion_iva) ?? null;
+    const condicion = normalizeCondicionIva(mapped.condicion_iva);
+
+    let status: PreviewRowStatus = "ok";
+    if (!razon) {
+      status = "error";
+      messages.push("Falta razón social.");
+    }
+    if (cuit && cuit.length !== 11) {
+      if (status !== "error") status = "warning";
+      messages.push(`CUIT con ${cuit.length} dígitos (se esperan 11).`);
+    }
+    if (condicionRaw && condicion === "no_categorizado") {
+      if (status !== "error") status = "warning";
+      messages.push(
+        `Condición IVA "${condicionRaw}" no reconocida — quedará como no_categorizado.`,
+      );
+    }
+
+    return {
+      rowNum,
+      status,
+      messages,
+      data: {
+        razon_social: razon,
+        nombre_comercial: cell(mapped.nombre_comercial) ?? null,
+        cuit,
+        condicion_iva: condicion,
+        condicion_iva_raw: condicionRaw,
+        domicilio_fiscal: cell(mapped.domicilio_fiscal) ?? null,
+        contacto_principal: cell(mapped.contacto_principal) ?? null,
+      },
+    };
+  });
+
+  // Chequeo de duplicados contra la base actual (por CUIT o por razón social exacta)
+  const adminSupabase = createAdminClient();
+  const cuits = Array.from(
+    new Set(parsed.map((r) => r.data.cuit).filter((c): c is string => !!c)),
+  );
+  const razones = Array.from(
+    new Set(parsed.map((r) => r.data.razon_social).filter((c): c is string => !!c)),
+  );
+
+  const existingCuits = new Set<string>();
+  const existingRazones = new Set<string>();
+  if (cuits.length > 0) {
+    const { data } = await adminSupabase
+      .from("clientes")
+      .select("cuit")
+      .in("cuit", cuits);
+    for (const c of data ?? []) {
+      if (c.cuit) existingCuits.add(c.cuit.replace(/\D/g, ""));
+    }
+  }
+  if (razones.length > 0) {
+    const { data } = await adminSupabase
+      .from("clientes")
+      .select("razon_social")
+      .in("razon_social", razones);
+    for (const c of data ?? []) {
+      if (c.razon_social) existingRazones.add(c.razon_social);
+    }
+  }
+
+  // Duplicados dentro del propio archivo
+  const cuitSeen = new Map<string, number>();
+  const razonSeen = new Map<string, number>();
+  for (const row of parsed) {
+    if (row.status === "error") continue;
+    const cuit = row.data.cuit;
+    const razon = row.data.razon_social;
+    if (cuit && existingCuits.has(cuit)) {
+      row.status = "duplicate";
+      row.messages.push(`Ya existe un cliente con CUIT ${cuit}.`);
+      continue;
+    }
+    if (!cuit && razon && existingRazones.has(razon)) {
+      row.status = "duplicate";
+      row.messages.push(`Ya existe un cliente con razón social "${razon}".`);
+      continue;
+    }
+    if (cuit) {
+      const prev = cuitSeen.get(cuit);
+      if (prev) {
+        row.status = "duplicate";
+        row.messages.push(`CUIT repetido en la fila ${prev}.`);
+        continue;
+      }
+      cuitSeen.set(cuit, row.rowNum);
+    } else if (razon) {
+      const prev = razonSeen.get(razon);
+      if (prev) {
+        row.status = "duplicate";
+        row.messages.push(`Razón social repetida en la fila ${prev}.`);
+        continue;
+      }
+      razonSeen.set(razon, row.rowNum);
+    }
+  }
+
+  const summary = {
+    total: parsed.length,
+    importable: parsed.filter((r) => r.status === "ok" || r.status === "warning").length,
+    duplicates: parsed.filter((r) => r.status === "duplicate").length,
+    errors: parsed.filter((r) => r.status === "error").length,
+  };
+
+  return { ok: true, rows: parsed, summary };
+}
+
+// ---------------------------------------------------------------------------
+// Commit: recibe las filas validadas (JSON) y las inserta.
+// ---------------------------------------------------------------------------
+
+export async function commitClientesImportAction(
+  _prev: ImportClientesState,
+  formData: FormData,
+): Promise<ImportClientesState> {
+  await requireArea("comercial", "write");
+
+  const payload = String(formData.get("rows") ?? "");
+  if (!payload) return { error: "No hay filas para importar." };
+
+  let rows: ClientePreviewRow[];
+  try {
+    rows = JSON.parse(payload) as ClientePreviewRow[];
+  } catch {
+    return { error: "No se pudieron leer las filas a importar." };
+  }
+
+  const importables = rows.filter(
+    (r) => r.status === "ok" || r.status === "warning",
+  );
+  if (importables.length === 0) {
+    return { error: "No hay filas válidas para importar." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -305,44 +513,19 @@ export async function importClientesAction(
   let imported = 0;
   let skipped = 0;
 
-  for (let i = 0; i < rows.length; i++) {
-    const raw = rows[i];
-    const rowNum = i + 2; // +1 por header, +1 porque Excel arranca en 1
-
-    const mapped: RawRow = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const norm = normalizeKey(key);
-      const target = HEADER_MAP[norm];
-      if (target) mapped[target] = cell(value);
-    }
-
-    const razon = cell(mapped.razon_social);
-    if (!razon) {
+  for (const row of importables) {
+    if (!row.data.razon_social) {
       skipped++;
-      errors.push({ row: rowNum, message: "Falta razón social." });
-      continue;
-    }
-
-    const cuit = cell(mapped.cuit);
-    const email = cell(mapped.email);
-    if (email && !z.string().email().safeParse(email).success) {
-      skipped++;
-      errors.push({ row: rowNum, message: `Email inválido: ${email}` });
+      errors.push({ row: row.rowNum, message: "Falta razón social." });
       continue;
     }
 
     const insertRow = {
-      razon_social: razon,
-      nombre_comercial: cell(mapped.nombre_comercial) ?? null,
-      cuit: cuit ?? null,
-      condicion_iva: normalizeCondicionIva(mapped.condicion_iva),
-      domicilio_fiscal: cell(mapped.domicilio_fiscal) ?? null,
-      localidad: cell(mapped.localidad) ?? null,
-      provincia: cell(mapped.provincia) ?? null,
-      email: email ?? null,
-      telefono: cell(mapped.telefono) ?? null,
-      es_multinacional: normalizeBool(mapped.es_multinacional),
-      observaciones: cell(mapped.observaciones) ?? null,
+      razon_social: row.data.razon_social,
+      nombre_comercial: row.data.nombre_comercial,
+      cuit: row.data.cuit,
+      condicion_iva: row.data.condicion_iva,
+      domicilio_fiscal: row.data.domicilio_fiscal,
       estado: "activo" as const,
       created_by: user.id,
     };
@@ -355,11 +538,28 @@ export async function importClientesAction(
 
     if (error) {
       skipped++;
-      errors.push({ row: rowNum, message: error.message });
-    } else {
-      imported++;
-      if (inserted?.id) {
-        await logClienteAudit(inserted.id, "crear", null, insertRow, user.id);
+      errors.push({ row: row.rowNum, message: error.message });
+      continue;
+    }
+
+    imported++;
+    if (inserted?.id) {
+      await logClienteAudit(inserted.id, "crear", null, insertRow, user.id);
+
+      const contactoNombre = row.data.contacto_principal;
+      if (contactoNombre) {
+        const { error: cErr } = await supabase.from("cliente_contactos").insert({
+          cliente_id: inserted.id,
+          nombre: contactoNombre,
+          cargo: "comercial",
+          es_principal: true,
+        });
+        if (cErr) {
+          errors.push({
+            row: row.rowNum,
+            message: `Cliente creado pero falló el contacto principal: ${cErr.message}`,
+          });
+        }
       }
     }
   }
