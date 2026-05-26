@@ -19,6 +19,7 @@ import {
   addGasoilAction,
   updateGasoilAction,
   getUltimoKmCamionAction,
+  getChoferesParaCargaAction,
 } from "../actions";
 import type { Camion } from "../types";
 
@@ -28,9 +29,12 @@ export type GasoilEditing = {
   litros: number;
   km_odometro: number;
   importe_total: number;
+  chofer_id?: string | null;
   estacion?: string | null;
   observaciones?: string | null;
 };
+
+type ChoferOption = { id: string; nombre: string; apellido: string };
 
 type FieldErrors = {
   litros?: string;
@@ -63,6 +67,8 @@ export default function AddGasoilDialog({
   const [success, setSuccess] = useState<string | null>(null);
 
   const [camionId, setCamionId] = useState(defaultCamionId ?? "");
+  const [choferId, setChoferId] = useState<string>("");
+  const [choferes, setChoferes] = useState<ChoferOption[]>([]);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [litros, setLitros] = useState("");
   const [km, setKm] = useState("");
@@ -74,8 +80,10 @@ export default function AddGasoilDialog({
 
   useEffect(() => {
     if (!open) return;
+    getChoferesParaCargaAction().then(setChoferes);
     if (editing) {
       setCamionId(defaultCamionId ?? "");
+      setChoferId(editing.chofer_id ?? "");
       setFecha(editing.fecha);
       setLitros(String(editing.litros));
       setKm(String(editing.km_odometro));
@@ -84,6 +92,7 @@ export default function AddGasoilDialog({
       setTipo(editing.observaciones?.includes("Grado 3") ? "grado_3" : "grado_2");
     } else {
       setCamionId(defaultCamionId ?? "");
+      setChoferId("");
       setFecha(new Date().toISOString().split("T")[0]);
       setLitros("");
       setKm("");
@@ -130,6 +139,7 @@ export default function AddGasoilDialog({
         litros: parseFloat(litros),
         km_odometro: parseInt(km),
         importe_total: parseFloat(importe),
+        chofer_id: choferId || null,
         estacion,
         observaciones: `Tipo de combustible: ${tipo === "grado_2" ? "Grado 2" : "Grado 3"}`,
       };
@@ -188,6 +198,25 @@ export default function AddGasoilDialog({
               </Select>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="chofer" className="text-sm font-medium text-foreground">
+              Chofer <span className="text-muted-foreground font-normal">(opcional — habilita ranking)</span>
+            </Label>
+            <Select value={choferId || "__none__"} onValueChange={(v) => setChoferId(v === "__none__" ? "" : (v ?? ""))}>
+              <SelectTrigger id="chofer" className="w-full">
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin asignar</SelectItem>
+                {choferes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.apellido}, {c.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

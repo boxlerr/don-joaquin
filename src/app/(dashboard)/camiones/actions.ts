@@ -243,6 +243,7 @@ export async function addServiceAction(data: {
 
 export async function addGasoilAction(data: {
   camion_id: string;
+  chofer_id?: string | null;
   fecha: string;
   litros: number;
   km_odometro: number;
@@ -250,14 +251,13 @@ export async function addGasoilAction(data: {
   estacion?: string;
   observaciones?: string;
 }) {
-  await requireArea("flota", "write");
+  const user = await requireArea("combustible", "write");
 
   const supabase = createAdminClient();
-  const authClient = await createClient();
-  const { data: { user } } = await authClient.auth.getUser();
 
   const { data: inserted, error } = await supabase.from("cargas_combustible").insert({
     camion_id: data.camion_id,
+    chofer_id: data.chofer_id ?? null,
     fecha: data.fecha,
     litros: data.litros,
     km_odometro: data.km_odometro,
@@ -266,7 +266,7 @@ export async function addGasoilAction(data: {
     observaciones: data.observaciones,
     moneda: "ARS",
     origen: "estacion_servicio",
-    created_by: user?.id ?? null,
+    created_by: user.id,
   }).select("id").single();
 
   if (error) {
@@ -278,8 +278,7 @@ export async function addGasoilAction(data: {
     const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
     const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
     const estacionLabel = data.estacion ? ` (${data.estacion})` : "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from("caja_movimientos").insert({
+    await supabase.from("caja_movimientos").insert({
       tipo: "egreso",
       categoria: "gasto_operativo",
       concepto: `Combustible ${data.litros}L${patenteLabel}${estacionLabel}`,
@@ -288,11 +287,13 @@ export async function addGasoilAction(data: {
       fecha: data.fecha,
       moneda: "ARS",
       carga_combustible_id: inserted.id,
-      created_by: user?.id ?? null,
+      chofer_id: data.chofer_id ?? null,
+      created_by: user.id,
     });
   }
 
   revalidatePath("/camiones");
+  revalidatePath("/combustible");
   revalidatePath("/caja");
   return { success: true };
 }
@@ -474,9 +475,11 @@ export async function updateGasoilAction(id: string, data: {
   litros: number;
   km_odometro: number;
   importe_total: number;
+  chofer_id?: string | null;
   estacion?: string;
   observaciones?: string;
 }) {
+  await requireArea("combustible", "write");
 
   const supabase = createAdminClient();
   const { error } = await supabase
@@ -486,12 +489,14 @@ export async function updateGasoilAction(id: string, data: {
       litros: data.litros,
       km_odometro: data.km_odometro,
       importe_total: data.importe_total,
+      chofer_id: data.chofer_id ?? null,
       estacion: data.estacion,
       observaciones: data.observaciones,
     })
     .eq("id", id);
   if (error) return { error: "No se pudo actualizar la carga de combustible." };
   revalidatePath("/camiones");
+  revalidatePath("/combustible");
   return { success: true };
 }
 
@@ -504,10 +509,12 @@ export async function deleteServiceAction(id: string) {
 }
 
 export async function deleteGasoilAction(id: string) {
+  await requireArea("combustible", "write");
   const supabase = createAdminClient();
   const { error } = await supabase.from("cargas_combustible").delete().eq("id", id);
   if (error) return { error: "No se pudo eliminar la carga de combustible." };
   revalidatePath("/camiones");
+  revalidatePath("/combustible");
   return { success: true };
 }
 
@@ -518,7 +525,7 @@ export async function getGasoilHistoryAction(camionId: string, page = 0) {
 
   const { data, count } = await supabase
     .from("cargas_combustible")
-    .select("id, fecha, litros, km_odometro, importe_total, estacion", { count: "exact" })
+    .select("id, fecha, litros, km_odometro, importe_total, estacion, chofer_id, observaciones", { count: "exact" })
     .eq("camion_id", camionId)
     .order("fecha", { ascending: false })
     .range(from, to);
@@ -803,6 +810,18 @@ export async function deleteFotoCamionAction(foto_id: string) {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+export async function getChoferesParaCargaAction(): Promise<
+  { id: string; nombre: string; apellido: string }[]
+> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido")
+    .eq("estado", "activo")
+    .order("apellido", { ascending: true });
+  return (data ?? []) as { id: string; nombre: string; apellido: string }[];
+}
 
 export async function getUltimoKmCamionAction(camion_id: string): Promise<number | null> {
   const supabase = createAdminClient();

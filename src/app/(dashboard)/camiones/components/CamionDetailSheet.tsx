@@ -686,6 +686,8 @@ export default function CamionDetailSheet({
                                   km_odometro: g.km_odometro,
                                   importe_total: g.importe_total,
                                   estacion: g.estacion,
+                                  chofer_id: g.chofer_id,
+                                  observaciones: g.observaciones,
                                 },
                               })
                             }

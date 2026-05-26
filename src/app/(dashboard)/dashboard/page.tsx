@@ -16,9 +16,11 @@ import {
   Users,
   ChevronRight,
   CheckCircle2,
+  Trophy,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
+import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 
 export default async function DashboardPage() {
@@ -35,6 +37,7 @@ export default async function DashboardPage() {
     totalCamiones,
     totalChoferes,
     viajesResult,
+    premioMes,
   ] = await Promise.all([
     supabase
       .from("viajes")
@@ -52,6 +55,7 @@ export default async function DashboardPage() {
     supabase.from("camiones").select("*", { count: "exact", head: true }),
     supabase.from("choferes").select("*", { count: "exact", head: true }),
     getViajesAction({ pageSize: 5 }),
+    getPremioDelMesAction(),
   ]);
 
   const alertCount = docPorVencer.count ?? 0;
@@ -201,6 +205,43 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Premio del Mes — Eficiencia de combustible */}
+      <a
+        href="/combustible"
+        className="block bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-700/30 rounded-[8px] hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-300 dark:hover:border-amber-600/50 transition-colors group"
+      >
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 shrink-0">
+            <Trophy size={15} className="text-white" />
+          </div>
+          <span className="text-amber-700 dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
+            Premio del mes
+          </span>
+          {premioMes ? (
+            <div className="flex items-baseline gap-3 flex-1 min-w-0">
+              <span className="text-amber-900 dark:text-amber-100 text-sm font-bold truncate">
+                {premioMes.chofer}
+              </span>
+              <span className="text-amber-800 dark:text-amber-200 text-sm font-semibold shrink-0">
+                {premioMes.eficiencia.toFixed(2)}
+                <span className="text-[10px] font-medium opacity-80 ml-0.5">L/100km</span>
+              </span>
+              <span className="text-amber-700/70 dark:text-amber-300/70 text-[11px] shrink-0 hidden sm:inline">
+                {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
+              </span>
+            </div>
+          ) : (
+            <span className="text-amber-700/80 dark:text-amber-300/80 text-xs flex-1">
+              Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
+            </span>
+          )}
+          <ChevronRight
+            size={14}
+            className="text-amber-600/60 dark:text-amber-300/60 group-hover:translate-x-0.5 transition-transform shrink-0"
+          />
+        </div>
+      </a>
 
       <div className="grid grid-cols-3 gap-4">
         <SummaryCard
