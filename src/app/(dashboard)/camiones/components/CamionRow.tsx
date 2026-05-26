@@ -6,8 +6,15 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import CamionDetailSheet from "./CamionDetailSheet";
 import type { Camion } from "../types";
+import type { TipoServicio } from "../actions";
 
-export default function CamionRow({ camion }: { camion: Camion }) {
+export default function CamionRow({
+  camion,
+  tiposServicio,
+}: {
+  camion: Camion;
+  tiposServicio: TipoServicio[];
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -57,6 +64,7 @@ export default function CamionRow({ camion }: { camion: Camion }) {
 
       <CamionDetailSheet
         camion={camion}
+        tiposServicio={tiposServicio}
         open={open}
         onOpenChange={setOpen}
       />

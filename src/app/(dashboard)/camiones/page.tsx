@@ -21,6 +21,7 @@ import { ExportCamionesButton, ImportCamionesButton } from "./components/Camione
 import HelpTutorialButton from "./help-tutorial-button";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
+import { getTiposServicioAction } from "./actions";
 
 export default async function CamionesPage() {
   const user = await requireArea("flota", "read");
@@ -28,7 +29,7 @@ export default async function CamionesPage() {
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
 
-  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData] =
+  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData, tiposServicio] =
     await Promise.all([
       supabase
         .from("camiones")
@@ -52,6 +53,7 @@ export default async function CamionesPage() {
         .select("camion_id, archivo:documentos_archivos!archivo_id(bucket, path)")
         .eq("es_principal", true),
       getGastoFormData(),
+      getTiposServicioAction(),
     ]);
 
   const fotosMap = new Map<string, string>();
@@ -90,7 +92,7 @@ export default async function CamionesPage() {
               </AddGasoilDialog>
             )}
             {canWrite && (
-              <AddServiceDialog camiones={camiones || []}>
+              <AddServiceDialog camiones={camiones || []} tiposServicio={tiposServicio}>
                 <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
                   <Wrench size={14} className="text-primary" />
                   Registrar service
@@ -210,7 +212,7 @@ export default async function CamionesPage() {
               <EmptyTableRow message="Sin camiones registrados" />
             ) : (
               camionesConFoto.map((c) => (
-                <CamionRow key={c.id} camion={c} />
+                <CamionRow key={c.id} camion={c} tiposServicio={tiposServicio} />
               ))
             )}
           </TableBody>

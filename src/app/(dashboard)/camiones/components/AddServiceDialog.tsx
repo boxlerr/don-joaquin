@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,16 +19,14 @@ import {
   addServiceAction,
   updateServiceAction,
   getUltimoKmCamionAction,
+  type TipoServicio,
 } from "../actions";
 import type { Camion } from "../types";
-import type { Database } from "@/types/database";
-
-type MantenimientoTipo = Database["public"]["Enums"]["mantenimiento_tipo"];
 
 export type ServiceEditing = {
   id: string;
   fecha: string;
-  tipo: MantenimientoTipo;
+  tipo_servicio_id: string | null;
   km_odometro: number;
   proximo_service_km?: number | null;
   taller?: string | null;
@@ -46,6 +44,7 @@ type FieldErrors = {
 export default function AddServiceDialog({
   children,
   camiones,
+  tiposServicio,
   defaultCamionId,
   editing,
   open: controlledOpen,
@@ -54,6 +53,7 @@ export default function AddServiceDialog({
 }: {
   children?: React.ReactNode;
   camiones: Camion[];
+  tiposServicio: TipoServicio[];
   defaultCamionId?: string;
   editing?: ServiceEditing | null;
   open?: boolean;
@@ -69,7 +69,7 @@ export default function AddServiceDialog({
 
   const [camionId, setCamionId] = useState(defaultCamionId ?? "");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [tipo, setTipo] = useState<MantenimientoTipo>("service_preventivo");
+  const [tipoServicioId, setTipoServicioId] = useState<string>("");
   const [km, setKm] = useState("");
   const [kmPlaceholder, setKmPlaceholder] = useState("Ej: 150000");
   const [proximoKm, setProximoKm] = useState("");
@@ -78,12 +78,34 @@ export default function AddServiceDialog({
   const [descripcion, setDescripcion] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
 
+  // Filtrar opciones según tercerización del camión seleccionado.
+  // Scania (tercerizado) → solo gomería/cubiertas/otro (los marcados aplica_a_tercerizado).
+  // Interno / en transición → todos los tipos activos.
+  const camionSeleccionado = useMemo(
+    () => camiones.find((c) => c.id === camionId) ?? null,
+    [camiones, camionId]
+  );
+
+  const tiposVisibles = useMemo(() => {
+    if (camionSeleccionado?.tercerizacion_estado === "tercerizado") {
+      return tiposServicio.filter((t) => t.aplica_a_tercerizado);
+    }
+    return tiposServicio;
+  }, [tiposServicio, camionSeleccionado]);
+
+  // Si el camión cambia y el tipo elegido ya no aparece en la lista visible, resetear.
+  useEffect(() => {
+    if (tipoServicioId && !tiposVisibles.some((t) => t.id === tipoServicioId)) {
+      setTipoServicioId("");
+    }
+  }, [tiposVisibles, tipoServicioId]);
+
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setCamionId(defaultCamionId ?? "");
       setFecha(editing.fecha);
-      setTipo(editing.tipo);
+      setTipoServicioId(editing.tipo_servicio_id ?? "");
       setKm(String(editing.km_odometro));
       setProximoKm(editing.proximo_service_km != null ? String(editing.proximo_service_km) : "");
       setTaller(editing.taller ?? "");
@@ -92,7 +114,7 @@ export default function AddServiceDialog({
     } else {
       setCamionId(defaultCamionId ?? "");
       setFecha(new Date().toISOString().split("T")[0]);
-      setTipo("service_preventivo");
+      setTipoServicioId("");
       setKm("");
       setProximoKm("");
       setTaller("");
@@ -133,6 +155,14 @@ export default function AddServiceDialog({
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
+    if (!tipoServicioId) {
+      setError("Elegí un tipo de servicio.");
+      return;
+    }
+    if (!editing && !camionId) {
+      setError("Elegí un camión.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -140,7 +170,7 @@ export default function AddServiceDialog({
     try {
       const payload = {
         fecha,
-        tipo,
+        tipo_servicio_id: tipoServicioId,
         km_odometro: parseInt(km),
         proximo_service_km: proximoKm ? parseInt(proximoKm) : undefined,
         taller,
@@ -217,17 +247,27 @@ export default function AddServiceDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="tipo_service" className="text-sm font-medium text-foreground">Tipo de Service</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo((v ?? "service_preventivo") as MantenimientoTipo)}>
+              <Label htmlFor="tipo_service" className="text-sm font-medium text-foreground">
+                Tipo de Service
+                {camionSeleccionado?.tercerizacion_estado === "tercerizado" && (
+                  <span className="ml-2 text-xs font-normal text-amber-600">
+                    (Camión tercerizado: solo gomería/cubiertas)
+                  </span>
+                )}
+              </Label>
+              <Select
+                value={tipoServicioId}
+                onValueChange={(v) => setTipoServicioId(v ?? "")}
+              >
                 <SelectTrigger id="tipo_service" className="w-full">
                   <SelectValue placeholder="Seleccionar tipo..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="service_preventivo">Mantenimiento Preventivo</SelectItem>
-                  <SelectItem value="reparacion">Reparación</SelectItem>
-                  <SelectItem value="cambio_aceite">Cambio de Aceite/Filtros</SelectItem>
-                  <SelectItem value="cubiertas">Neumáticos</SelectItem>
-                  <SelectItem value="otro">Otro</SelectItem>
+                  {tiposVisibles.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nombre}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

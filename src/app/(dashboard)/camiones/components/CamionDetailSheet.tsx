@@ -28,6 +28,7 @@ import {
   deleteServiceAction,
   deleteGasoilAction,
   getFotosCamionAction,
+  type TipoServicio,
 } from "../actions";
 import type {
   Camion,
@@ -129,10 +130,12 @@ function shallowEq(a: FormData, b: FormData): boolean {
 
 export default function CamionDetailSheet({
   camion,
+  tiposServicio,
   open,
   onOpenChange,
 }: {
   camion: Camion;
+  tiposServicio: TipoServicio[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -657,7 +660,7 @@ export default function CamionDetailSheet({
                             variant="secondary"
                             className="bg-[#E0F2FE] text-[#0369A1] hover:bg-[#E0F2FE]"
                           >
-                            {s.tipo.replace("_", " ")}
+                            {s.tipo_servicio?.nombre ?? s.tipo.replace("_", " ")}
                           </Badge>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar size={11} />
@@ -676,8 +679,9 @@ export default function CamionDetailSheet({
                                 editing: {
                                   id: s.id,
                                   fecha: s.fecha,
-                                  tipo: s.tipo,
+                                  tipo_servicio_id: s.tipo_servicio_id,
                                   km_odometro: s.km_odometro,
+                                  proximo_service_km: s.proximo_service_km,
                                   taller: s.taller,
                                   costo: s.costo,
                                   descripcion: s.descripcion,
@@ -863,6 +867,7 @@ export default function CamionDetailSheet({
 
       <AddServiceDialog
         camiones={[camion]}
+        tiposServicio={tiposServicio}
         defaultCamionId={camion.id}
         editing={serviceDialog.editing}
         open={serviceDialog.open}

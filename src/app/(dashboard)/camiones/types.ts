@@ -19,8 +19,23 @@ export type Camion = Pick<
 
 export type ServiceRecord = Pick<
   Database["public"]["Tables"]["mantenimientos"]["Row"],
-  "id" | "fecha" | "tipo" | "km_odometro" | "descripcion" | "costo" | "taller"
->;
+  | "id"
+  | "fecha"
+  | "tipo"
+  | "tipo_servicio_id"
+  | "km_odometro"
+  | "proximo_service_km"
+  | "descripcion"
+  | "costo"
+  | "taller"
+> & {
+  // join opcional al catálogo (cuando la fila ya tiene tipo_servicio_id)
+  tipo_servicio?: {
+    id: string;
+    codigo: string;
+    nombre: string;
+  } | null;
+};
 
 export type GasoilRecord = Pick<
   Database["public"]["Tables"]["cargas_combustible"]["Row"],

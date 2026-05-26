@@ -206,10 +206,59 @@ const MANTENIMIENTO_TIPO_LABELS: Record<string, string> = {
   otro: "Otro",
 };
 
+// Mapeo de codigo del catálogo tipos_servicio → enum mantenimiento_tipo legacy.
+// El enum se mantiene por compat: el feedback dice "todo medible" pero hay viajes,
+// caja, listados y exports que ya leen `tipo` directamente. Cuando migremos todo
+// a leer por FK, deprecaremos el enum y removeremos este mapeo.
+function codigoServicioToEnum(codigo: string): Database["public"]["Enums"]["mantenimiento_tipo"] {
+  switch (codigo) {
+    case "service_preventivo":
+    case "reparacion":
+    case "cambio_aceite":
+    case "cubiertas":
+    case "otro":
+      return codigo;
+    case "gomeria":
+      return "cubiertas";
+    default:
+      // filtro_aceite, filtro_aire, filtro_combustible, frenos, alineacion y cualquier
+      // tipo nuevo que cree Bárbara → cae en "otro" hasta deprecar el enum.
+      return "otro";
+  }
+}
+
+export type TipoServicio = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  requiere_km: boolean;
+  requiere_fecha: boolean;
+  intervalo_km: number | null;
+  intervalo_dias: number | null;
+  aplica_a_tercerizado: boolean;
+  orden: number;
+};
+
+export async function getTiposServicioAction(): Promise<TipoServicio[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("tipos_servicio")
+    .select(
+      "id, codigo, nombre, descripcion, requiere_km, requiere_fecha, intervalo_km, intervalo_dias, aplica_a_tercerizado, orden"
+    )
+    .eq("estado", "activo")
+    .order("orden");
+  return (data ?? []).map((t) => ({
+    ...t,
+    intervalo_km: t.intervalo_km != null ? Number(t.intervalo_km) : null,
+  })) as TipoServicio[];
+}
+
 export async function addServiceAction(data: {
   camion_id: string;
   fecha: string;
-  tipo: Database["public"]["Enums"]["mantenimiento_tipo"];
+  tipo_servicio_id: string;
   km_odometro: number;
   proximo_service_km?: number;
   taller?: string;
@@ -223,10 +272,23 @@ export async function addServiceAction(data: {
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
 
+  // Derivar el enum legacy a partir del codigo del catálogo (mantiene compat
+  // con el resto del código que lee `tipo` directamente).
+  const { data: ts } = await supabase
+    .from("tipos_servicio")
+    .select("codigo, nombre")
+    .eq("id", data.tipo_servicio_id)
+    .single();
+
+  if (!ts) return { error: "El tipo de servicio elegido ya no existe." };
+
+  const tipoEnum = codigoServicioToEnum(ts.codigo);
+
   const { data: inserted, error } = await supabase.from("mantenimientos").insert({
     camion_id: data.camion_id,
     fecha: data.fecha,
-    tipo: data.tipo,
+    tipo: tipoEnum,
+    tipo_servicio_id: data.tipo_servicio_id,
     km_odometro: data.km_odometro,
     proximo_service_km: data.proximo_service_km,
     taller: data.taller,
@@ -244,7 +306,8 @@ export async function addServiceAction(data: {
 
   if (data.costo && data.costo > 0 && inserted) {
     const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
-    const tipoLabel = MANTENIMIENTO_TIPO_LABELS[data.tipo] ?? data.tipo;
+    // Etiqueta para caja: preferimos el nombre del catálogo (más rico que el enum).
+    const tipoLabel = ts.nombre ?? MANTENIMIENTO_TIPO_LABELS[tipoEnum] ?? tipoEnum;
     const patenteLabel = camion?.patente ? ` - ${camion.patente}` : "";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from("caja_movimientos").insert({
@@ -453,7 +516,10 @@ export async function getServiceHistoryAction(camionId: string, page = 0) {
 
   const { data, count } = await supabase
     .from("mantenimientos")
-    .select("id, fecha, tipo, km_odometro, descripcion, costo, taller", { count: "exact" })
+    .select(
+      "id, fecha, tipo, tipo_servicio_id, km_odometro, proximo_service_km, descripcion, costo, taller, tipo_servicio:tipos_servicio(id, codigo, nombre)",
+      { count: "exact" }
+    )
     .eq("camion_id", camionId)
     .order("fecha", { ascending: false })
     .range(from, to);
@@ -466,7 +532,7 @@ export async function getServiceHistoryAction(camionId: string, page = 0) {
 
 export async function updateServiceAction(id: string, data: {
   fecha: string;
-  tipo: Database["public"]["Enums"]["mantenimiento_tipo"];
+  tipo_servicio_id: string;
   km_odometro: number;
   proximo_service_km?: number;
   taller?: string;
@@ -476,11 +542,23 @@ export async function updateServiceAction(id: string, data: {
 }) {
 
   const supabase = createAdminClient();
+
+  const { data: ts } = await supabase
+    .from("tipos_servicio")
+    .select("codigo")
+    .eq("id", data.tipo_servicio_id)
+    .single();
+
+  if (!ts) return { error: "El tipo de servicio elegido ya no existe." };
+
+  const tipoEnum = codigoServicioToEnum(ts.codigo);
+
   const { error } = await supabase
     .from("mantenimientos")
     .update({
       fecha: data.fecha,
-      tipo: data.tipo,
+      tipo: tipoEnum,
+      tipo_servicio_id: data.tipo_servicio_id,
       km_odometro: data.km_odometro,
       proximo_service_km: data.proximo_service_km,
       taller: data.taller,
