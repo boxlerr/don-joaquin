@@ -990,10 +990,56 @@ const CAMION_HEADER_MAP: Record<string, string> = {
   "tipo camion": "tipo_camion",
   tipo_camion: "tipo_camion",
   estado: "estado",
+  // Nuevos (Fase 1 — feedback Bárbara)
+  tercerizacion: "tercerizacion_estado",
+  "tercerizacion estado": "tercerizacion_estado",
+  tercerizacion_estado: "tercerizacion_estado",
+  tolva: "es_tolva",
+  "es tolva": "es_tolva",
+  es_tolva: "es_tolva",
+  "km actual": "km_actual",
+  km_actual: "km_actual",
+  kilometraje: "km_actual",
 };
 
 function normKeyCamion(k: string): string {
   return k.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function normalizeTercerizacion(
+  v: unknown,
+  fallback: TercerizacionEstado
+): TercerizacionEstado {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return fallback;
+  if (s.includes("tercer")) return "tercerizado";
+  if (s.includes("transic") || s.includes("transit")) return "en_transicion";
+  if (s.includes("intern")) return "interno";
+  return fallback;
+}
+
+function normalizeBool(v: unknown): boolean | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
+  if (["si", "sí", "yes", "true", "1", "x", "✓", "verdadero"].includes(s)) return true;
+  if (["no", "false", "0", "falso"].includes(s)) return false;
+  return null;
+}
+
+// Una celda está "resaltada" si tiene fill color distinto de blanco/transparente.
+// El xlsx community no siempre devuelve colores indexed/themed; tratamos esos
+// como no resaltados (mejor falso negativo que falso positivo).
+function isCellHighlighted(cell: XLSX.CellObject | undefined): boolean {
+  if (!cell) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const style: any = (cell as any).s;
+  if (!style) return false;
+  const fg = style.fgColor || style.fill?.fgColor || style.bgColor;
+  if (!fg || typeof fg.rgb !== "string") return false;
+  const rgb = fg.rgb.toUpperCase().replace(/^FF/, ""); // sacar alpha si viene
+  return rgb !== "FFFFFF" && rgb !== "000000" && rgb !== "FFFFFFFF";
 }
 
 export type ParsedImportRow = {
@@ -1005,13 +1051,18 @@ export type ParsedImportRow = {
   capacidad_tn: number;
   tipo_camion: Database["public"]["Enums"]["camion_tipo"];
   estado: Database["public"]["Enums"]["camion_estado"];
+  // Nuevos (Fase 1)
+  tercerizacion_estado: TercerizacionEstado;
+  es_tolva: boolean;
+  tolva_detectada_por_color: boolean; // metadata para el preview
+  km_actual: number | null;
   isValid: boolean;
   errorMsg?: string;
 };
 
 export async function previewCamionesImportAction(formData: FormData): Promise<{
   rows?: ParsedImportRow[];
-  summary?: { validas: number; invalidas: number };
+  summary?: { validas: number; invalidas: number; tolvas: number };
   error?: string;
 }> {
 
@@ -1021,10 +1072,13 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
   }
 
   let raw: Record<string, unknown>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let sheet: any;
   try {
     const buf = Buffer.from(await file.arrayBuffer());
-    const wb = XLSX.read(buf, { type: "buffer" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // cellStyles: true → permite leer fill color de las celdas (para tolva por color)
+    const wb = XLSX.read(buf, { type: "buffer", cellStyles: true });
+    sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) return { error: "El archivo no contiene hojas." };
     raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
   } catch {
@@ -1033,8 +1087,30 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
 
   if (raw.length === 0) return { error: "El archivo no contiene filas." };
 
+  // Construir map "campo destino → letra de columna" leyendo la fila de headers,
+  // para después poder consultar el estilo de la celda Patente de cada fila.
+  const headerToCol: Record<string, string> = {};
+  try {
+    const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const headerRef = XLSX.utils.encode_cell({ r: range.s.r, c });
+      const headerCell = sheet[headerRef];
+      if (!headerCell) continue;
+      const headerVal = String(headerCell.v ?? "");
+      const target = CAMION_HEADER_MAP[normKeyCamion(headerVal)];
+      if (target && !headerToCol[target]) {
+        headerToCol[target] = XLSX.utils.encode_col(c);
+      }
+    }
+  } catch {
+    // Si falla la lectura del rango, el flujo sigue funcionando — solo se pierde
+    // la detección de tolva por color.
+  }
+
+  const patenteCol = headerToCol.patente;
+
   const rows: ParsedImportRow[] = raw.map((r, i) => {
-    const rowNum = i + 2;
+    const rowNum = i + 2; // Excel: fila 1 = header, fila 2+ = datos
     const mapped: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(r)) {
       const target = CAMION_HEADER_MAP[normKeyCamion(key)];
@@ -1042,18 +1118,37 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
     }
 
     const patente = String(mapped.patente ?? "").trim().toUpperCase();
+    const marca = String(mapped.marca ?? "").trim();
     const ano = Number(mapped.ano);
     const capacidad = Number(mapped.capacidad_tn);
+    const kmRaw = mapped.km_actual;
+    const kmN = kmRaw === "" || kmRaw == null ? null : Number(kmRaw);
+
+    // es_tolva: si la columna lo trae explícito, mandar; si no, detectar color
+    // de la celda Patente. Cualquiera de las 2 fuentes da true.
+    const tolvaColValue = normalizeBool(mapped.es_tolva);
+    let tolvaByColor = false;
+    if (patenteCol && sheet) {
+      tolvaByColor = isCellHighlighted(sheet[patenteCol + rowNum]);
+    }
+    const esTolva = tolvaColValue === true || (tolvaColValue === null && tolvaByColor);
 
     const base: ParsedImportRow = {
       rowNum,
       patente,
-      marca: String(mapped.marca ?? "").trim(),
+      marca,
       modelo: String(mapped.modelo ?? "").trim(),
       ano: Number.isFinite(ano) ? ano : 0,
       capacidad_tn: Number.isFinite(capacidad) ? capacidad : 0,
       tipo_camion: normalizeTipo(mapped.tipo_camion),
       estado: normalizeEstado(mapped.estado),
+      tercerizacion_estado: normalizeTercerizacion(
+        mapped.tercerizacion_estado,
+        inferTercerizacionFromMarca(marca || "")
+      ),
+      es_tolva: esTolva,
+      tolva_detectada_por_color: tolvaColValue === null && tolvaByColor,
+      km_actual: kmN != null && Number.isFinite(kmN) && kmN >= 0 ? kmN : null,
       isValid: true,
     };
 
@@ -1065,7 +1160,8 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
   });
 
   const validas = rows.filter((r) => r.isValid).length;
-  return { rows, summary: { validas, invalidas: rows.length - validas } };
+  const tolvas = rows.filter((r) => r.isValid && r.es_tolva).length;
+  return { rows, summary: { validas, invalidas: rows.length - validas, tolvas } };
 }
 
 export async function confirmCamionesImportAction(rows: ParsedImportRow[]): Promise<{
@@ -1095,6 +1191,9 @@ export async function confirmCamionesImportAction(rows: ParsedImportRow[]): Prom
       capacidad_tn: r.capacidad_tn,
       tipo_camion: r.tipo_camion,
       estado: r.estado,
+      tercerizacion_estado: r.tercerizacion_estado,
+      es_tolva: r.es_tolva,
+      km_actual: r.km_actual,
       created_by: user?.id ?? null,
     });
     if (error) {
@@ -1117,8 +1216,16 @@ export async function exportCamionesAction(): Promise<{
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("camiones")
-    .select("patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, created_at")
+    .select(
+      "patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual, created_at"
+    )
     .order("patente");
+
+  const TERCERIZACION_LABELS: Record<string, string> = {
+    interno: "Interno",
+    en_transicion: "En transición",
+    tercerizado: "Tercerizado",
+  };
 
   const rows = (data ?? []).map((c) => ({
     Patente: c.patente,
@@ -1128,6 +1235,9 @@ export async function exportCamionesAction(): Promise<{
     "Capacidad TN": c.capacidad_tn,
     Tipo: c.tipo_camion,
     Estado: c.estado,
+    Tercerización: TERCERIZACION_LABELS[c.tercerizacion_estado] ?? c.tercerizacion_estado,
+    "Es Tolva": c.es_tolva ? "Sí" : "No",
+    "Km Actual": c.km_actual ?? "",
     Alta: c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : "",
   }));
 

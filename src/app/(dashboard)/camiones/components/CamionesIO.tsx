@@ -60,7 +60,7 @@ export function ImportCamionesButton() {
   const [step, setStep] = useState<Step>("select");
   const [loading, setLoading] = useState(false);
   const [previewRows, setPreviewRows] = useState<ParsedImportRow[]>([]);
-  const [summary, setSummary] = useState<{ validas: number; invalidas: number } | null>(null);
+  const [summary, setSummary] = useState<{ validas: number; invalidas: number; tolvas: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     imported: number;
@@ -124,20 +124,30 @@ export function ImportCamionesButton() {
           if (!v) reset();
         }}
       >
-        <DialogContent className={step === "preview" ? "sm:max-w-[860px]" : "sm:max-w-[480px]"}>
+        <DialogContent className={step === "preview" ? "sm:max-w-[1040px]" : "sm:max-w-[480px]"}>
           <DialogHeader>
             <DialogTitle className="text-foreground text-xl">
               {step === "preview" ? "Vista previa" : step === "done" ? "Importación completada" : "Importar camiones"}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               {step === "select" && (
-                <>Subí un archivo .xlsx o .csv con columnas: <strong>Patente</strong>, Marca, Modelo, Año, Capacidad TN, Tipo, Estado.</>
+                <>
+                  Subí un archivo .xlsx o .csv. Columnas reconocidas: <strong>Patente</strong>, Marca, Modelo, Año, Capacidad TN, Tipo, Estado, Tercerización, Tolva, Km Actual.
+                  <br />
+                  <span className="text-xs text-muted-foreground/80">
+                    Si dejás vacía la columna Tercerización, se infiere por marca (Scania=tercerizado, Iveco=en transición, resto=interno).
+                    Las celdas de Patente <span className="font-semibold">resaltadas con color</span> se marcan como tolva automáticamente.
+                  </span>
+                </>
               )}
               {step === "preview" && summary && (
                 <>
                   <span className="text-[#047857] font-semibold">{summary.validas} válidas</span>
                   {summary.invalidas > 0 && (
                     <> · <span className="text-red-600 font-semibold">{summary.invalidas} con error</span></>
+                  )}
+                  {summary.tolvas > 0 && (
+                    <> · <span className="text-[#0369A1] font-semibold">{summary.tolvas} tolvas</span></>
                   )}
                   {" "}· Se importarán {summary.validas} registros.
                 </>
@@ -189,6 +199,9 @@ export function ImportCamionesButton() {
                       <th className="px-3 py-2">Año</th>
                       <th className="px-3 py-2">Cap. TN</th>
                       <th className="px-3 py-2">Tipo</th>
+                      <th className="px-3 py-2">Tercerización</th>
+                      <th className="px-3 py-2">Tolva</th>
+                      <th className="px-3 py-2">Km Actual</th>
                       <th className="px-3 py-2">Estado</th>
                       <th className="px-3 py-2">Detalle</th>
                     </tr>
@@ -216,6 +229,27 @@ export function ImportCamionesButton() {
                         <td className="px-3 py-2 text-muted-foreground">{r.ano || "—"}</td>
                         <td className="px-3 py-2 text-muted-foreground">{r.capacidad_tn || "—"}</td>
                         <td className="px-3 py-2 text-muted-foreground capitalize">{r.tipo_camion.replace("_", " ")}</td>
+                        <td className="px-3 py-2 text-muted-foreground capitalize whitespace-nowrap">
+                          {r.tercerizacion_estado.replace("_", " ")}
+                        </td>
+                        <td className="px-3 py-2">
+                          {r.es_tolva ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#0369A1]">
+                              <Check size={12} />
+                              Sí
+                              {r.tolva_detectada_por_color && (
+                                <span className="text-[10px] text-muted-foreground/70 font-normal">
+                                  (color)
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/60">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
+                          {r.km_actual != null ? r.km_actual.toLocaleString("es-AR") : "—"}
+                        </td>
                         <td className="px-3 py-2 text-muted-foreground capitalize">{r.estado.replace("_", " ")}</td>
                         <td className="px-3 py-2 text-xs text-red-600">
                           {r.errorMsg ?? ""}
