@@ -51,9 +51,9 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   }
   switch (alerta.tipo) {
     case "vencimiento_doc_camion":
-      return "/camiones";
+      return alerta.entidad_id ? `/camiones?documentoId=${alerta.entidad_id}` : "/camiones";
     case "vencimiento_doc_chofer":
-      return "/choferes";
+      return alerta.entidad_id ? `/choferes?documentoId=${alerta.entidad_id}` : "/choferes";
     case "vencimiento_cheque":
     case "cheque_rechazado_recordatorio":
       return "/cheques";

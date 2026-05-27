@@ -22,6 +22,25 @@ export async function marcarAlertaVista(alertaId: string) {
   revalidatePath("/");
 }
 
+export async function marcarAlertasVistas(alertaIds: string[]) {
+  const user = await requireUser();
+  const supabase = createAdminClient();
+
+  if (!alertaIds || alertaIds.length === 0) return;
+
+  await supabase
+    .from("alertas")
+    .update({
+      estado: "vista",
+      vista_en: new Date().toISOString(),
+      vista_por: user.id,
+    })
+    .in("id", alertaIds);
+
+  revalidatePath("/notificaciones");
+  revalidatePath("/");
+}
+
 export async function marcarTodasVistas() {
   const user = await requireUser();
   const supabase = createAdminClient();

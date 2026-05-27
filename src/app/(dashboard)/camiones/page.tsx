@@ -13,12 +13,29 @@ import HelpTutorialButton from "./help-tutorial-button";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 import { getTiposServicioAction } from "./actions";
+import { redirect } from "next/navigation";
 
-export default async function CamionesPage() {
+export default async function CamionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ documentoId?: string }>;
+}) {
   const user = await requireArea("flota", "read");
   const canWrite = hasArea(user, "flota", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
+
+  const { documentoId } = await searchParams;
+  if (documentoId) {
+    const { data: docData } = await supabase
+      .from("camion_documentos")
+      .select("camion_id")
+      .eq("id", documentoId)
+      .single();
+    if (docData?.camion_id) {
+      redirect(`/camiones?camionId=${docData.camion_id}&tab=docs`);
+    }
+  }
 
   const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData, tiposServicio] =
     await Promise.all([

@@ -7,11 +7,28 @@ import { requireArea, hasArea } from "@/lib/auth";
 import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
+import { redirect } from "next/navigation";
 
-export default async function ChoferesPage() {
+export default async function ChoferesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ documentoId?: string }>;
+}) {
   const user = await requireArea("logistica", "read");
   const canWrite = hasArea(user, "logistica", "write");
   const supabase = createAdminClient();
+
+  const { documentoId } = await searchParams;
+  if (documentoId) {
+    const { data: docData } = await supabase
+      .from("chofer_documentos")
+      .select("chofer_id")
+      .eq("id", documentoId)
+      .single();
+    if (docData?.chofer_id) {
+      redirect(`/choferes/${docData.chofer_id}?tab=documentos`);
+    }
+  }
 
   const [{ data: choferes, count: total }, activos, inactivos, docs] = await Promise.all([
     supabase

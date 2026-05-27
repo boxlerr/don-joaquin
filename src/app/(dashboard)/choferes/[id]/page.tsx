@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getChoferDetailAction } from "./actions";
 import type { ChoferDetail } from "./types";
 import ChoferHeader from "./ChoferHeader";
@@ -40,11 +40,19 @@ const TABS: { id: TabId; label: string }[] = [
 export default function ChoferDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const chofer_id = params.id as string;
 
   const [chofer, setChofer] = useState<ChoferDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("info");
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") as TabId | null;
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const loadData = useCallback(async () => {
     setLoading(true);

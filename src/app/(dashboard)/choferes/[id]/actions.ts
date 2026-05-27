@@ -129,6 +129,22 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 
   const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
 
+  const docIds = (docs ?? []).map((d) => d.id).filter(Boolean) as string[];
+  let alertsQuery = supabase
+    .from("alertas")
+    .select("id, tipo, severidad, titulo, mensaje, entidad_id, entidad_tipo")
+    .eq("estado", "pendiente");
+
+  if (docIds.length > 0) {
+    alertsQuery = alertsQuery.or(
+      `entidad_id.eq.${chofer_id},and(entidad_tipo.eq.chofer_documentos,entidad_id.in.(${docIds.map(id => `"${id}"`).join(",")}))`
+    );
+  } else {
+    alertsQuery = alertsQuery.eq("entidad_id", chofer_id);
+  }
+
+  const { data: activeAlerts } = await alertsQuery;
+
   const viajesMesArr = viajesMes ?? [];
   const km_con_carga = viajesMesArr.reduce((acc, v) => acc + Number(v.km_con_carga ?? 0), 0);
   const km_vacios = viajesMesArr.reduce((acc, v) => acc + Number(v.km_vacios ?? 0), 0);
@@ -194,6 +210,13 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     ...chofer,
     foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: docs ?? [],
+    alertas: (activeAlerts ?? []).map((a) => ({
+      id: a.id,
+      tipo: a.tipo,
+      severidad: a.severidad,
+      titulo: a.titulo,
+      mensaje: a.mensaje,
+    })),
     tipos_documento: (tiposDoc ?? []).map((t) => ({
       id: t.id,
       nombre: t.nombre,

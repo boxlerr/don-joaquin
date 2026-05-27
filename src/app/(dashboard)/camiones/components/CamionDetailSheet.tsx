@@ -16,9 +16,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check,
 } from "lucide-react";
 import type { Database } from "@/types/database";
+import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import {
   updateCamionAction,
   deleteCamionAction,
@@ -133,11 +134,13 @@ export default function CamionDetailSheet({
   tiposServicio,
   open,
   onOpenChange,
+  initialTab,
 }: {
   camion: Camion;
   tiposServicio: TipoServicio[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTab?: TabId;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("info");
   const [loading, setLoading] = useState(false);
@@ -173,6 +176,7 @@ export default function CamionDetailSheet({
 
   const [documentos, setDocumentos] = useState<DocumentoVigenciaCamion[]>([]);
   const [tipos, setTipos] = useState<TipoDocumentoCamion[]>([]);
+  const [alertas, setAlertas] = useState<{ id: string; tipo: string; severidad: string; titulo: string; mensaje: string }[]>([]);
   const [docsLoaded, setDocsLoaded] = useState(false);
 
   const [fotos, setFotos] = useState<FotoCamion[]>([]);
@@ -210,12 +214,15 @@ export default function CamionDetailSheet({
       setError(null);
       setSuccess(null);
 
-      if (activeTab === "services") fetchServices(0);
-      else if (activeTab === "gasoil") fetchGasoil(0);
-      else if (activeTab === "docs") fetchDocs();
-      else if (activeTab === "fotos") fetchFotos();
+      const tabToUse = initialTab || "info";
+      setActiveTab(tabToUse);
+
+      if (tabToUse === "services") fetchServices(0);
+      else if (tabToUse === "gasoil") fetchGasoil(0);
+      else if (tabToUse === "docs") fetchDocs();
+      else if (tabToUse === "fotos") fetchFotos();
     }
-  }, [camion?.id, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id, open, initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchServices = useCallback(async (page: number) => {
     setLoadingServices(true);
@@ -245,6 +252,7 @@ export default function CamionDetailSheet({
     const result = await getCamionDocumentosAction(camion.id);
     setDocumentos(result.documentos as DocumentoVigenciaCamion[]);
     setTipos(result.tipos as TipoDocumentoCamion[]);
+    setAlertas(result.alertas || []);
     setDocsLoaded(true);
   }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -336,6 +344,21 @@ export default function CamionDetailSheet({
     }
   };
 
+  const [markingRead, setMarkingRead] = useState(false);
+
+  const handleMarcarLeidas = async () => {
+    if (!alertas || alertas.length === 0) return;
+    setMarkingRead(true);
+    try {
+      await marcarAlertasVistas(alertas.map((a) => a.id));
+      fetchDocs();
+    } catch {
+      setError("Error al marcar alertas como leídas");
+    } finally {
+      setMarkingRead(false);
+    }
+  };
+
   const handleDeleteService = async (id: string) => {
     if (!confirm("¿Eliminar este service?")) return;
     const res = await deleteServiceAction(id);
@@ -401,6 +424,18 @@ export default function CamionDetailSheet({
               <Truck size={20} />
             </div>
             {camion.patente}
+            {alertas.length > 0 && (
+              <button
+                type="button"
+                onClick={handleMarcarLeidas}
+                disabled={markingRead}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 dark:bg-sky-950/40 border border-[#BAE6FD] dark:border-sky-800/40 text-[#0369A1] dark:text-sky-300 text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none ml-2"
+                title="Marcar todas las alertas de este camión como leídas"
+              >
+                <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
+                Marcar como leídas
+              </button>
+            )}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm mt-0.5">
             {camion.marca} {camion.modelo} — {camion.ano}

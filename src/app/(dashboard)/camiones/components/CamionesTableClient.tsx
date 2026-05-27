@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Truck, ChevronRight, Search, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import CamionRow from "./CamionRow";
+import CamionDetailSheet from "./CamionDetailSheet";
 import type { Camion } from "../types";
 import type { TipoServicio } from "../actions";
 
@@ -33,6 +35,37 @@ export default function CamionesTableClient({
 }) {
   const [tercerizacion, setTercerizacion] = useState<TercerizacionFilter>("todas");
   const [busqueda, setBusqueda] = useState("");
+
+  const searchParams = useSearchParams();
+  const [selectedCamion, setSelectedCamion] = useState<Camion | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const urlTab = searchParams.get("tab") || "info";
+
+  useEffect(() => {
+    const camionId = searchParams.get("camionId");
+    if (camionId) {
+      const found = camiones.find((c) => c.id === camionId);
+      if (found) {
+        setSelectedCamion(found);
+        setIsSheetOpen(true);
+      }
+    }
+  }, [searchParams, camiones]);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setIsSheetOpen(isOpen);
+    if (!isOpen) {
+      setSelectedCamion(null);
+      // Clean up search parameters from URL
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("camionId") || params.has("tab")) {
+        params.delete("camionId");
+        params.delete("tab");
+        const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+        window.history.replaceState(null, "", newUrl);
+      }
+    }
+  };
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toUpperCase();
@@ -156,11 +189,29 @@ export default function CamionesTableClient({
             />
           ) : (
             filtrados.map((c) => (
-              <CamionRow key={c.id} camion={c} tiposServicio={tiposServicio} />
+              <CamionRow
+                key={c.id}
+                camion={c}
+                tiposServicio={tiposServicio}
+                onSelect={(camion) => {
+                  setSelectedCamion(camion);
+                  setIsSheetOpen(true);
+                }}
+              />
             ))
           )}
         </TableBody>
       </Table>
+
+      {selectedCamion && (
+        <CamionDetailSheet
+          camion={selectedCamion}
+          tiposServicio={tiposServicio}
+          open={isSheetOpen}
+          onOpenChange={handleOpenChange}
+          initialTab={urlTab as any}
+        />
+      )}
     </div>
   );
 }

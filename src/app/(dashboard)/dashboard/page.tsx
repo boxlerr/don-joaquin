@@ -22,6 +22,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
+import { alertaHref } from "@/app/(dashboard)/notificaciones/utils";
 
 export default async function DashboardPage() {
   const supabase = createAdminClient();
@@ -50,7 +51,12 @@ export default async function DashboardPage() {
     supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
     supabase.from("viaticos").select("*", { count: "exact", head: true }),
     supabase.from("cheques").select("*", { count: "exact", head: true }),
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
+    supabase
+      .from("alertas")
+      .select("id, tipo, entidad_tipo, entidad_id, severidad", { count: "exact" })
+      .eq("estado", "pendiente")
+      .order("severidad", { ascending: false })
+      .order("fecha_disparo", { ascending: false }),
     supabase.from("clientes").select("*", { count: "exact", head: true }),
     supabase.from("camiones").select("*", { count: "exact", head: true }),
     supabase.from("choferes").select("*", { count: "exact", head: true }),
@@ -59,6 +65,8 @@ export default async function DashboardPage() {
   ]);
 
   const alertCount = docPorVencer.count ?? 0;
+  const firstAlert = docPorVencer.data?.[0];
+  const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/choferes";
   const ultimosViajes = (viajesResult && "data" in viajesResult) ? viajesResult.data : [];
 
   return (
@@ -162,7 +170,7 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-[#FDE68A]/40 dark:border-amber-700/30 flex items-center justify-between z-10">
-                  <a href="/choferes" className="text-xs font-bold text-[#D97706] dark:text-amber-300 hover:text-[#92400E] dark:hover:text-amber-200 flex items-center gap-1 transition-colors">
+                  <a href={resolverHref} className="text-xs font-bold text-[#D97706] dark:text-amber-300 hover:text-[#92400E] dark:hover:text-amber-200 flex items-center gap-1 transition-colors">
                     Resolver alerta
                     <ChevronRight size={14} />
                   </a>

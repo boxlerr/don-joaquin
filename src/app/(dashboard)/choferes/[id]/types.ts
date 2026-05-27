@@ -165,4 +165,11 @@ export type ChoferDetail = ChoferBasico & {
   camiones_historial: CamionHistorialItem[];
   adelantos_mes: AdelantoMes[];
   is_admin: boolean;
+  alertas: {
+    id: string;
+    tipo: string;
+    severidad: string;
+    titulo: string;
+    mensaje: string;
+  }[];
 };

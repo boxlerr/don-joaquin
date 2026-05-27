@@ -401,9 +401,21 @@ export async function getCamionDocumentosAction(camion_id: string) {
       .eq("estado", "activo"),
   ]);
 
+  const docIds = (docs ?? []).map((d) => d.id).filter(Boolean) as string[];
+
+  const { data: alertas } = docIds.length > 0
+    ? await supabase
+        .from("alertas")
+        .select("id, tipo, severidad, titulo, mensaje")
+        .eq("estado", "pendiente")
+        .eq("entidad_tipo", "camion_documentos")
+        .in("entidad_id", docIds)
+    : { data: [] };
+
   return {
     documentos: docs ?? [],
     tipos: tipos ?? [],
+    alertas: alertas ?? [],
   };
 }
 

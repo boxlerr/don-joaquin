@@ -1,10 +1,6 @@
-"use client";
-
-import { useState } from "react";
 import { Truck } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
-import CamionDetailSheet from "./CamionDetailSheet";
 import type { Camion } from "../types";
 import type { TipoServicio } from "../actions";
 
@@ -24,21 +20,20 @@ const TERCERIZACION_BADGE: Record<
 export default function CamionRow({
   camion,
   tiposServicio,
+  onSelect,
 }: {
   camion: Camion;
   tiposServicio: TipoServicio[];
+  onSelect: (camion: Camion) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
 
   return (
-    <>
-      <TableRow
-        key={camion.id}
-        className="cursor-pointer hover:bg-muted/40 transition-all border-b border-[#F1F5F9] last:border-0 group"
-        onClick={() => setOpen(true)}
-      >
+    <TableRow
+      key={camion.id}
+      className="cursor-pointer hover:bg-muted/40 transition-all border-b border-[#F1F5F9] last:border-0 group"
+      onClick={() => onSelect(camion)}
+    >
         <TableCell className="py-4 pl-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#E1F5FE] flex items-center justify-center shrink-0 overflow-hidden border border-[#B3E5FC]">
@@ -107,13 +102,5 @@ export default function CamionRow({
           />
         </TableCell>
       </TableRow>
-
-      <CamionDetailSheet
-        camion={camion}
-        tiposServicio={tiposServicio}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
   );
 }

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditarChoferDialog from "./EditarChoferDialog";
-import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText } from "lucide-react";
+import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
+import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 
 interface Props {
   chofer: ChoferDetail;
@@ -15,6 +16,20 @@ interface Props {
 
 export default function ChoferHeader({ chofer, onRefresh }: Props) {
   const [editOpen, setEditOpen] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
+
+  const handleMarcarLeidas = async () => {
+    if (!chofer.alertas || chofer.alertas.length === 0) return;
+    setMarkingRead(true);
+    try {
+      await marcarAlertasVistas(chofer.alertas.map((a) => a.id));
+      onRefresh();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarkingRead(false);
+    }
+  };
 
   const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
 
@@ -69,6 +84,18 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
                   <AlertCircle size={11} />
                   Período de prueba: quedan {periodoPrueba} {periodoPrueba === 1 ? "día" : "días"}
                 </span>
+              )}
+              {chofer.alertas && chofer.alertas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarcarLeidas}
+                  disabled={markingRead}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 dark:bg-sky-950/40 border border-[#BAE6FD] dark:border-sky-800/40 text-[#0369A1] dark:text-sky-300 text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none"
+                  title="Marcar todas las alertas de este legajo como leídas"
+                >
+                  <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
+                  Marcar como leídas
+                </button>
               )}
             </div>
           </div>
