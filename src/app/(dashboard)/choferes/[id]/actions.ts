@@ -8,6 +8,9 @@ import type {
   ChoferDetail,
   ApercibimientoGravedad,
   PrestamoEstado,
+  ProductividadKPIs,
+  CamionHistorialItem,
+  AdelantoMes,
 } from "./types";
 
 export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
@@ -24,7 +27,11 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 
   if (!chofer) return null;
 
-  const primerDia = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  const hoy = new Date();
+  const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+    .toISOString()
+    .split("T")[0];
+  const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
     .toISOString()
     .split("T")[0];
 
@@ -37,6 +44,9 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     { data: licencias },
     { data: prestamos },
     { data: categoriasApe },
+    { data: viajesMes },
+    { data: viaticosMes },
+    { data: camionesHist },
   ] = await Promise.all([
     supabase
       .from("v_chofer_documentos_vigencia")
@@ -86,6 +96,28 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       .select("id, codigo, nombre, descripcion")
       .eq("estado", "activo")
       .order("orden"),
+
+    supabase
+      .from("viajes")
+      .select("km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha_viaje", primerDia)
+      .lte("fecha_viaje", ultimoDia),
+
+    supabase
+      .from("viaticos")
+      .select("id, fecha_entrega, monto_adelanto, moneda, viaje:viajes(codigo)")
+      .eq("chofer_id", chofer_id)
+      .gt("monto_adelanto", 0)
+      .gte("fecha_entrega", primerDia)
+      .lte("fecha_entrega", ultimoDia)
+      .order("fecha_entrega", { ascending: false }),
+
+    supabase
+      .from("chofer_camion_historial")
+      .select("id, camion_id, desde, hasta, motivo_cambio, camion:camiones(patente, marca, modelo)")
+      .eq("chofer_id", chofer_id)
+      .order("desde", { ascending: false }),
   ]);
 
   // Camión actualmente asignado al chofer (puede ser ninguno).
@@ -96,6 +128,67 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     .maybeSingle();
 
   const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
+
+  const viajesMesArr = viajesMes ?? [];
+  const km_con_carga = viajesMesArr.reduce((acc, v) => acc + Number(v.km_con_carga ?? 0), 0);
+  const km_vacios = viajesMesArr.reduce((acc, v) => acc + Number(v.km_vacios ?? 0), 0);
+  const km_total = km_con_carga + km_vacios;
+  const toneladas = viajesMesArr.reduce((acc, v) => acc + Number(v.tonelaje_real ?? 0), 0);
+  const facturacion_ars = viajesMesArr
+    .filter((v) => v.moneda === "ARS")
+    .reduce((acc, v) => acc + Number(v.monto_flete ?? 0), 0);
+  const facturacion_usd = viajesMesArr
+    .filter((v) => v.moneda === "USD")
+    .reduce((acc, v) => acc + Number(v.monto_flete ?? 0), 0);
+
+  const viaticosArr = viaticosMes ?? [];
+  const adelantos_viaticos_ars = viaticosArr
+    .filter((v) => v.moneda === "ARS")
+    .reduce((acc, v) => acc + Number(v.monto_adelanto ?? 0), 0);
+  const adelantos_viaticos_usd = viaticosArr
+    .filter((v) => v.moneda === "USD")
+    .reduce((acc, v) => acc + Number(v.monto_adelanto ?? 0), 0);
+
+  const productividad_kpis: ProductividadKPIs = {
+    periodo_desde: primerDia,
+    periodo_hasta: ultimoDia,
+    viajes_count: viajesMesArr.length,
+    km_con_carga,
+    km_vacios,
+    km_total,
+    pct_vacios: km_total > 0 ? (km_vacios / km_total) * 100 : 0,
+    toneladas,
+    facturacion_ars,
+    facturacion_usd,
+    adelantos_viaticos_ars,
+    adelantos_viaticos_usd,
+  };
+
+  const camiones_historial: CamionHistorialItem[] = (camionesHist ?? []).map((h) => {
+    const cam = Array.isArray(h.camion) ? h.camion[0] : h.camion;
+    const c = cam as { patente?: string; marca?: string | null; modelo?: string | null } | null;
+    return {
+      id: h.id,
+      camion_id: h.camion_id,
+      patente: c?.patente ?? "—",
+      marca: c?.marca ?? null,
+      modelo: c?.modelo ?? null,
+      desde: h.desde,
+      hasta: h.hasta,
+      motivo_cambio: h.motivo_cambio,
+    };
+  });
+
+  const adelantos_mes: AdelantoMes[] = viaticosArr.map((v) => {
+    const vj = Array.isArray(v.viaje) ? v.viaje[0] : v.viaje;
+    return {
+      id: v.id,
+      fecha_entrega: v.fecha_entrega,
+      monto_adelanto: Number(v.monto_adelanto),
+      moneda: v.moneda,
+      viaje_codigo: (vj as { codigo?: string } | null)?.codigo ?? null,
+    };
+  });
 
   return {
     ...chofer,
@@ -167,6 +260,9 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       created_at: p.created_at,
     })),
     categorias_apercibimiento: categoriasApe ?? [],
+    productividad_kpis,
+    camiones_historial,
+    adelantos_mes,
     is_admin: user.rol.codigo === "admin",
   };
 }

@@ -115,6 +115,41 @@ export type Prestamo = {
   created_at: string;
 };
 
+export type CamionHistorialItem = {
+  id: string;
+  camion_id: string;
+  patente: string;
+  marca: string | null;
+  modelo: string | null;
+  desde: string;
+  hasta: string | null;
+  motivo_cambio: string | null;
+};
+
+export type AdelantoMes = {
+  id: string;
+  fecha_entrega: string;
+  monto_adelanto: number;
+  moneda: string;
+  viaje_codigo: string | null;
+};
+
+// KPIs operativos del mes en curso. Calculados server-side a partir de viajes y viáticos.
+export type ProductividadKPIs = {
+  periodo_desde: string;
+  periodo_hasta: string;
+  viajes_count: number;
+  km_con_carga: number;
+  km_vacios: number;
+  km_total: number;
+  pct_vacios: number;
+  toneladas: number;
+  facturacion_ars: number;
+  facturacion_usd: number;
+  adelantos_viaticos_ars: number;
+  adelantos_viaticos_usd: number;
+};
+
 export type ChoferDetail = ChoferBasico & {
   foto?: { bucket: string; path: string } | null;
   documentos_vigencia: DocumentoVigencia[];
@@ -126,5 +161,8 @@ export type ChoferDetail = ChoferBasico & {
   licencias_medicas: LicenciaMedica[];
   prestamos: Prestamo[];
   categorias_apercibimiento: CategoriaApercibimiento[];
+  productividad_kpis: ProductividadKPIs;
+  camiones_historial: CamionHistorialItem[];
+  adelantos_mes: AdelantoMes[];
   is_admin: boolean;
 };

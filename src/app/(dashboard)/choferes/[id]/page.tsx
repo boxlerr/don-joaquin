@@ -9,6 +9,7 @@ import ChoferInfoTab from "./ChoferInfoTab";
 import ChoferDocumentosTab from "./ChoferDocumentosTab";
 import ChoferViajesTab from "./ChoferViajesTab";
 import ChoferCuentaTab from "./ChoferCuentaTab";
+import ChoferProductividadTab from "./ChoferProductividadTab";
 import ChoferApercibimientosTab from "./ChoferApercibimientosTab";
 import ChoferLicenciasTab from "./ChoferLicenciasTab";
 import ChoferPrestamosTab from "./ChoferPrestamosTab";
@@ -20,6 +21,7 @@ type TabId =
   | "documentos"
   | "viajes"
   | "cuenta"
+  | "productividad"
   | "apercibimientos"
   | "licencias"
   | "prestamos";
@@ -29,6 +31,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "documentos", label: "Documentación" },
   { id: "viajes", label: "Historial Viajes" },
   { id: "cuenta", label: "Cuenta Corriente" },
+  { id: "productividad", label: "Productividad" },
   { id: "apercibimientos", label: "Apercibimientos" },
   { id: "licencias", label: "Licencias Médicas" },
   { id: "prestamos", label: "Préstamos" },
@@ -114,6 +117,13 @@ export default function ChoferDetailPage() {
           )}
           {activeTab === "viajes" && <ChoferViajesTab viajes={chofer.viajes_recientes} />}
           {activeTab === "cuenta" && <ChoferCuentaTab movimientos={chofer.movimientos_mes} />}
+          {activeTab === "productividad" && (
+            <ChoferProductividadTab
+              kpis={chofer.productividad_kpis}
+              historial={chofer.camiones_historial}
+              adelantos={chofer.adelantos_mes}
+            />
+          )}
           {activeTab === "apercibimientos" && (
             <ChoferApercibimientosTab
               chofer_id={chofer.id}
