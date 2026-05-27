@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
-type EstadoFilter = "todos" | "activo" | "inactivo" | "baja";
+type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
 
 type Chofer = {
   id: string;
@@ -14,8 +14,20 @@ type Chofer = {
   apellido: string;
   dni: string;
   estado: string;
+  fecha_ingreso?: string | null;
   [key: string]: unknown;
 };
+
+const PRUEBA_MESES = 6;
+
+function enPeriodoPrueba(fechaIngreso?: string | null): boolean {
+  if (!fechaIngreso) return false;
+  const ingreso = new Date(fechaIngreso);
+  if (Number.isNaN(ingreso.getTime())) return false;
+  const fin = new Date(ingreso);
+  fin.setMonth(fin.getMonth() + PRUEBA_MESES);
+  return Date.now() < fin.getTime();
+}
 
 function normalize(value: string): string {
   return value
@@ -33,7 +45,11 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const filtered = useMemo(() => {
     const q = normalize(query);
     return choferes.filter((c) => {
-      if (estadoFilter !== "todos" && c.estado !== estadoFilter) return false;
+      if (estadoFilter === "periodo_prueba") {
+        if (c.estado === "baja" || !enPeriodoPrueba(c.fecha_ingreso)) return false;
+      } else if (estadoFilter !== "todos" && c.estado !== estadoFilter) {
+        return false;
+      }
       if (!q) return true;
       const haystack = normalize(`${c.apellido} ${c.nombre} ${c.dni}`);
       return haystack.includes(q);
@@ -73,6 +89,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
             <option value="todos">Todos los estados</option>
             <option value="activo">Activo</option>
             <option value="inactivo">Inactivo</option>
+            <option value="periodo_prueba">En período de prueba</option>
             <option value="baja">Egresado</option>
           </select>
           <Input
