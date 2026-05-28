@@ -4,6 +4,12 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import type { Camion } from "../types";
 import type { TipoServicio } from "../actions";
 
+// Centinela que usa el seed de carga inicial (scripts/seed-camiones-acoplados.ts)
+// para los tractores que en el Excel vinieron solo con patente. Las unidades con
+// datos completos (marca real) son la "primera tanda" — las 11 resaltadas en
+// amarillo por Bárbara.
+const SIN_DATOS = "Sin datos";
+
 // Tercerización: visual coherente con badges de estado.
 //   Interno         → verde (operado por nosotros)
 //   En transición   → ámbar (en proceso de salir hacia tercero)
@@ -27,6 +33,7 @@ export default function CamionRow({
   onSelect: (camion: Camion) => void;
 }) {
   const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
+  const datosCompletos = !!camion.marca && camion.marca !== SIN_DATOS;
 
   return (
     <TableRow
@@ -51,19 +58,40 @@ export default function CamionRow({
             </div>
             <div className="flex flex-col gap-1">
               <span className="font-mono font-medium text-foreground">{camion.patente}</span>
-              {camion.es_tolva && (
-                <span
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
-                  title="Acoplado tolva (marcado en el Excel de Bárbara)"
-                >
-                  Tolva
-                </span>
-              )}
+              <div className="flex items-center gap-1">
+                {datosCompletos ? (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#0369A1] text-[10px] font-bold uppercase tracking-wide w-fit"
+                    title="Unidad con datos completos — primera tanda (las 11 resaltadas en amarillo por Bárbara)"
+                  >
+                    Datos completos
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-wide w-fit"
+                    title="Cargado solo con patente — faltan marca, modelo, año y demás datos"
+                  >
+                    Solo patente
+                  </span>
+                )}
+                {camion.es_tolva && (
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
+                    title="Acoplado tolva (marcado en el Excel de Bárbara)"
+                  >
+                    Tolva
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </TableCell>
         <TableCell>
-          {camion.marca} {camion.modelo}
+          {datosCompletos ? (
+            <span>{camion.marca} {camion.modelo}</span>
+          ) : (
+            <span className="text-muted-foreground/50 italic">Sin datos</span>
+          )}
         </TableCell>
         <TableCell>
           <div className="flex flex-col">
