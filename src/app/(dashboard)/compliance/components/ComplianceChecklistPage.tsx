@@ -28,6 +28,7 @@ import {
 } from "../types";
 import CargarComplianceDocDialog from "./CargarComplianceDocDialog";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   cliente: ComplianceCliente;
@@ -492,7 +493,7 @@ function RequisitoCard({
       </div>
       <div className="text-xs text-muted-foreground space-y-0.5">
         {row?.fecha_vencimiento && (
-          <p>Vence: {new Date(row.fecha_vencimiento).toLocaleDateString("es-AR")}</p>
+          <p>Vence: {formatFecha(row.fecha_vencimiento)}</p>
         )}
         {row?.dias_restantes !== null && row?.dias_restantes !== undefined && (
           <p>
@@ -676,7 +677,7 @@ function CellBadge({
       disabled={disabled}
       title={
         row?.fecha_vencimiento
-          ? `Vence: ${new Date(row.fecha_vencimiento).toLocaleDateString("es-AR")}`
+          ? `Vence: ${formatFecha(row.fecha_vencimiento)}`
           : ""
       }
       className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[10px] font-semibold uppercase tracking-wider transition-colors ${bg} ${disabled ? "cursor-default opacity-70" : "cursor-pointer"}`}

@@ -12,6 +12,7 @@ import {
   type ComplianceEstadoRow,
   type ComplianceNivel,
 } from "../types";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   rows: ComplianceEstadoRow[];
@@ -209,7 +210,7 @@ function RowItem({ row }: { row: ComplianceEstadoRow }) {
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
         <span className="text-xs text-muted-foreground">
-          {row.fecha_vencimiento ? new Date(row.fecha_vencimiento).toLocaleDateString("es-AR") : ""}
+          {row.fecha_vencimiento ? formatFecha(row.fecha_vencimiento) : ""}
         </span>
         <StatusBadge
           label={

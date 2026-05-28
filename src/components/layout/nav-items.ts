@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   CalendarClock,
   Settings,
+  Flame,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -59,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
       { label: "Choferes", href: "/choferes", icon: Users, area: "logistica" },
       { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
+      { label: "Extintores", href: "/extintores", icon: Flame, area: "flota" },
     ],
   },
   {

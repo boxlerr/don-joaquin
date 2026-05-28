@@ -8,6 +8,7 @@ import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileTe
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   chofer: ChoferDetail;
@@ -161,7 +162,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
         <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
         <InfoItem
           icon={<Calendar size={13} />}
-          label={`Ingreso: ${chofer.fecha_ingreso ? new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR") : "—"}`}
+          label={`Ingreso: ${formatFecha(chofer.fecha_ingreso)}`}
         />
         <InfoItem icon={<Clock size={13} />} label={`Antigüedad: ${antiguedad}`} />
       </div>
@@ -185,9 +186,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
             <div>
               <div className="text-xs text-muted-foreground mb-0.5">Fecha de egreso</div>
               <div className="font-medium text-foreground">
-                {chofer.fecha_egreso
-                  ? new Date(chofer.fecha_egreso).toLocaleDateString("es-AR")
-                  : "—"}
+                {formatFecha(chofer.fecha_egreso)}
               </div>
             </div>
             <div>

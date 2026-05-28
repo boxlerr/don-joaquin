@@ -8,6 +8,7 @@ import CargarDocumentoCamionDialog from "./CargarDocumentoCamionDialog";
 import { deleteDocumentoCamionAction } from "../actions";
 import { FileText, Plus, Trash2 } from "lucide-react";
 import type { DocumentoVigenciaCamion, TipoDocumentoCamion } from "../types";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   camion_id: string;
@@ -130,7 +131,7 @@ function DocCard({
         {doc.fecha_vencimiento && (
           <p>
             <span className="text-muted-foreground/70">Vence:</span>{" "}
-            {new Date(doc.fecha_vencimiento).toLocaleDateString("es-AR")}
+            {formatFecha(doc.fecha_vencimiento)}
           </p>
         )}
       </div>

@@ -8,6 +8,7 @@ import { Banknote, Plus, Trash2, Pencil } from "lucide-react";
 import CargarPrestamoDialog from "./CargarPrestamoDialog";
 import { actualizarSaldoPrestamoAction, eliminarPrestamoAction } from "./actions";
 import type { Prestamo, PrestamoEstado } from "./types";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   chofer_id: string;
@@ -54,7 +55,7 @@ export default function ChoferPrestamosTab({
   );
 
   const handleDelete = async (p: Prestamo) => {
-    if (!confirm(`¿Eliminar el préstamo del ${new Date(p.fecha).toLocaleDateString("es-AR")}?`))
+    if (!confirm(`¿Eliminar el préstamo del ${formatFecha(p.fecha)}?`))
       return;
     setBusyId(p.id);
     await eliminarPrestamoAction(p.id, chofer_id);
@@ -125,7 +126,7 @@ export default function ChoferPrestamosTab({
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-sm font-medium text-foreground">
-                    {new Date(p.fecha).toLocaleDateString("es-AR")}
+                    {formatFecha(p.fecha)}
                   </span>
                   <StatusBadge label={estadoLabel(p.estado)} tone={estadoTone(p.estado)} />
                   <span className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-full px-2 py-0.5">

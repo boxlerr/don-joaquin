@@ -2140,6 +2140,45 @@ export type Database = {
           },
         ]
       }
+      extintores: {
+        Row: {
+          capacidad: string | null
+          categoria: string
+          created_at: string
+          dominio: string
+          fecha_vencimiento: string | null
+          id: string
+          n_extintor: string
+          n_interno: string | null
+          observaciones: string | null
+          updated_at: string
+        }
+        Insert: {
+          capacidad?: string | null
+          categoria: string
+          created_at?: string
+          dominio: string
+          fecha_vencimiento?: string | null
+          id?: string
+          n_extintor: string
+          n_interno?: string | null
+          observaciones?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capacidad?: string | null
+          categoria?: string
+          created_at?: string
+          dominio?: string
+          fecha_vencimiento?: string | null
+          id?: string
+          n_extintor?: string
+          n_interno?: string | null
+          observaciones?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gastos: {
         Row: {
           camion_id: string | null

@@ -8,6 +8,7 @@ import { AlertOctagon, Plus, Trash2 } from "lucide-react";
 import CargarApercibimientoDialog from "./CargarApercibimientoDialog";
 import { eliminarApercibimientoAction } from "./actions";
 import type { Apercibimiento, ApercibimientoGravedad, CategoriaApercibimiento } from "./types";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   chofer_id: string;
@@ -40,7 +41,7 @@ export default function ChoferApercibimientosTab({
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const handleDelete = async (a: Apercibimiento) => {
-    if (!confirm(`¿Eliminar el apercibimiento del ${new Date(a.fecha).toLocaleDateString("es-AR")}?`))
+    if (!confirm(`¿Eliminar el apercibimiento del ${formatFecha(a.fecha)}?`))
       return;
     setDeleting(a.id);
     await eliminarApercibimientoAction(a.id, chofer_id);
@@ -82,7 +83,7 @@ export default function ChoferApercibimientosTab({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-sm font-medium text-foreground">
-                    {new Date(a.fecha).toLocaleDateString("es-AR")}
+                    {formatFecha(a.fecha)}
                   </span>
                   <StatusBadge label={gravedadLabel(a.gravedad)} tone={gravedadTone(a.gravedad)} />
                   {a.categoria_nombre && (

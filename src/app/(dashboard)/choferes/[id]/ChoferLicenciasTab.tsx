@@ -8,6 +8,7 @@ import { HeartPulse, Plus, Trash2, CheckCircle2 } from "lucide-react";
 import CargarLicenciaDialog from "./CargarLicenciaDialog";
 import { cerrarLicenciaAction, eliminarLicenciaAction } from "./actions";
 import type { LicenciaMedica } from "./types";
+import { formatFecha } from "@/lib/utils";
 
 interface Props {
   chofer_id: string;
@@ -26,7 +27,7 @@ export default function ChoferLicenciasTab({
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const handleDelete = async (l: LicenciaMedica) => {
-    if (!confirm(`¿Eliminar la licencia desde ${new Date(l.fecha_desde).toLocaleDateString("es-AR")}?`))
+    if (!confirm(`¿Eliminar la licencia desde ${formatFecha(l.fecha_desde)}?`))
       return;
     setBusyId(l.id);
     await eliminarLicenciaAction(l.id, chofer_id);
@@ -82,11 +83,11 @@ export default function ChoferLicenciasTab({
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-sm font-medium text-foreground">
-                    {new Date(l.fecha_desde).toLocaleDateString("es-AR")}
+                    {formatFecha(l.fecha_desde)}
                     {l.fecha_hasta && (
                       <>
                         <span className="text-muted-foreground mx-1.5">→</span>
-                        {new Date(l.fecha_hasta).toLocaleDateString("es-AR")}
+                        {formatFecha(l.fecha_hasta)}
                       </>
                     )}
                   </span>
