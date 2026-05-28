@@ -554,19 +554,19 @@ function SheetDetail({
 
       {/* Items table */}
       <div className="overflow-auto flex-1 min-h-0">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/40 sticky top-0">
-            <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wide">
-              <th className="px-2 py-1.5">Día</th>
-              <th className="px-2 py-1.5">Origen</th>
-              <th className="px-2 py-1.5">Destino</th>
-              <th className="px-2 py-1.5 text-right">KM</th>
-              <th className="px-2 py-1.5 text-right">29t</th>
-              <th className="px-2 py-1.5 text-right">35t</th>
-              <th className="px-2 py-1.5 text-right">37.5t</th>
-              <th className="px-2 py-1.5">Remito</th>
-              <th className="px-2 py-1.5">Material</th>
-              <th className="px-2 py-1.5 text-right">$</th>
+        <table className="w-full text-xs border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10">
+            <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wide bg-card">
+              <th className="px-2 py-1.5 border-b border-border bg-card">Día</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card">Origen</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card">Destino</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card text-right">KM</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card text-right">29t</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card text-right">35t</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card text-right">37.5t</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card">Remito</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card">Material</th>
+              <th className="px-2 py-1.5 border-b border-border bg-card text-right">$</th>
             </tr>
           </thead>
           <tbody>
