@@ -6,6 +6,12 @@ import { revalidatePath } from "next/cache";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
+import {
+  buildHeaderToColMap,
+  isCellHighlighted,
+  normalizeBool,
+  normKey as normKeyExcel,
+} from "@/lib/excel-utils";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
@@ -1014,10 +1020,6 @@ const CAMION_HEADER_MAP: Record<string, string> = {
   kilometraje: "km_actual",
 };
 
-function normKeyCamion(k: string): string {
-  return k.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
 function normalizeTercerizacion(
   v: unknown,
   fallback: TercerizacionEstado
@@ -1028,30 +1030,6 @@ function normalizeTercerizacion(
   if (s.includes("transic") || s.includes("transit")) return "en_transicion";
   if (s.includes("intern")) return "interno";
   return fallback;
-}
-
-function normalizeBool(v: unknown): boolean | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "boolean") return v;
-  if (typeof v === "number") return v !== 0;
-  const s = String(v).trim().toLowerCase();
-  if (["si", "sí", "yes", "true", "1", "x", "✓", "verdadero"].includes(s)) return true;
-  if (["no", "false", "0", "falso"].includes(s)) return false;
-  return null;
-}
-
-// Una celda está "resaltada" si tiene fill color distinto de blanco/transparente.
-// El xlsx community no siempre devuelve colores indexed/themed; tratamos esos
-// como no resaltados (mejor falso negativo que falso positivo).
-function isCellHighlighted(cell: XLSX.CellObject | undefined): boolean {
-  if (!cell) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const style: any = (cell as any).s;
-  if (!style) return false;
-  const fg = style.fgColor || style.fill?.fgColor || style.bgColor;
-  if (!fg || typeof fg.rgb !== "string") return false;
-  const rgb = fg.rgb.toUpperCase().replace(/^FF/, ""); // sacar alpha si viene
-  return rgb !== "FFFFFF" && rgb !== "000000" && rgb !== "FFFFFFFF";
 }
 
 export type ParsedImportRow = {
@@ -1101,31 +1079,14 @@ export async function previewCamionesImportAction(formData: FormData): Promise<{
 
   // Construir map "campo destino → letra de columna" leyendo la fila de headers,
   // para después poder consultar el estilo de la celda Patente de cada fila.
-  const headerToCol: Record<string, string> = {};
-  try {
-    const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const headerRef = XLSX.utils.encode_cell({ r: range.s.r, c });
-      const headerCell = sheet[headerRef];
-      if (!headerCell) continue;
-      const headerVal = String(headerCell.v ?? "");
-      const target = CAMION_HEADER_MAP[normKeyCamion(headerVal)];
-      if (target && !headerToCol[target]) {
-        headerToCol[target] = XLSX.utils.encode_col(c);
-      }
-    }
-  } catch {
-    // Si falla la lectura del rango, el flujo sigue funcionando — solo se pierde
-    // la detección de tolva por color.
-  }
-
+  const headerToCol = buildHeaderToColMap(sheet, CAMION_HEADER_MAP);
   const patenteCol = headerToCol.patente;
 
   const rows: ParsedImportRow[] = raw.map((r, i) => {
     const rowNum = i + 2; // Excel: fila 1 = header, fila 2+ = datos
     const mapped: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(r)) {
-      const target = CAMION_HEADER_MAP[normKeyCamion(key)];
+      const target = CAMION_HEADER_MAP[normKeyExcel(key)];
       if (target) mapped[target] = value;
     }
 
