@@ -130,6 +130,7 @@ export default function ChoferDetailPage() {
               kpis={chofer.productividad_kpis}
               historial={chofer.camiones_historial}
               adelantos={chofer.adelantos_mes}
+              evolucion={chofer.evolucion_6meses}
             />
           )}
           {activeTab === "apercibimientos" && (

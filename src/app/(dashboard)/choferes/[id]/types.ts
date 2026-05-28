@@ -148,6 +148,23 @@ export type ProductividadKPIs = {
   facturacion_usd: number;
   adelantos_viaticos_ars: number;
   adelantos_viaticos_usd: number;
+  roturas_mes: number;
+  roturas_cantidad_mes: number;
+  apercibimientos_mes: number;
+  apercibimientos_graves_mes: number;
+  licencias_activas: number;
+  licencias_dias_mes: number;
+  prestamos_activos: number;
+  score: number | null;
+};
+
+export type EvolucionMes = {
+  mes: string;
+  label: string;
+  viajes: number;
+  km_total: number;
+  facturacion_ars: number;
+  toneladas: number;
 };
 
 export type ChoferDetail = ChoferBasico & {
@@ -164,6 +181,7 @@ export type ChoferDetail = ChoferBasico & {
   productividad_kpis: ProductividadKPIs;
   camiones_historial: CamionHistorialItem[];
   adelantos_mes: AdelantoMes[];
+  evolucion_6meses: EvolucionMes[];
   is_admin: boolean;
   alertas: {
     id: string;

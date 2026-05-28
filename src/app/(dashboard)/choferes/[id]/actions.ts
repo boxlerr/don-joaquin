@@ -11,6 +11,7 @@ import type {
   ProductividadKPIs,
   CamionHistorialItem,
   AdelantoMes,
+  EvolucionMes,
 } from "./types";
 
 export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
@@ -34,6 +35,9 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
     .toISOString()
     .split("T")[0];
+  const seisMesesAtras = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1)
+    .toISOString()
+    .split("T")[0];
 
   const [
     { data: docs },
@@ -47,6 +51,8 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     { data: viajesMes },
     { data: viaticosMes },
     { data: camionesHist },
+    { data: roturasMes },
+    { data: viajes6meses },
   ] = await Promise.all([
     supabase
       .from("v_chofer_documentos_vigencia")
@@ -118,6 +124,23 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       .select("id, camion_id, desde, hasta, motivo_cambio, camion:camiones(patente, marca, modelo)")
       .eq("chofer_id", chofer_id)
       .order("desde", { ascending: false }),
+
+    // Roturas vinculadas directamente a este chofer.
+    // Roturas registradas solo contra camion/acoplado sin chofer_id no se cuentan aquí.
+    supabase
+      .from("roturas_gomas")
+      .select("id, cantidad, costo, moneda, fecha")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia),
+
+    supabase
+      .from("viajes")
+      .select("fecha_viaje, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha_viaje", seisMesesAtras)
+      .order("fecha_viaje", { ascending: true })
+      .limit(300),
   ]);
 
   // Camión actualmente asignado al chofer (puede ser ninguno).
@@ -165,20 +188,107 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     .filter((v) => v.moneda === "USD")
     .reduce((acc, v) => acc + Number(v.monto_adelanto ?? 0), 0);
 
+  // Roturas del mes
+  const roturasMesArr = roturasMes ?? [];
+  const roturas_mes = roturasMesArr.length;
+  const roturas_cantidad_mes = roturasMesArr.reduce((acc, r) => acc + (r.cantidad ?? 1), 0);
+
+  // Apercibimientos del mes (filtrar del array ya traído)
+  const apercibimientosMesArr = (apercibimientos ?? []).filter(
+    (a) => a.fecha >= primerDia && a.fecha <= ultimoDia,
+  );
+  const apercibimientos_mes = apercibimientosMesArr.length;
+  const apercibimientos_graves_mes = apercibimientosMesArr.filter((a) => a.gravedad === "grave").length;
+  const apercibimientos_moderados_mes = apercibimientosMesArr.filter((a) => a.gravedad === "moderado").length;
+  const apercibimientos_leves_mes = apercibimientosMesArr.filter((a) => a.gravedad === "leve").length;
+
+  // Licencias médicas
+  const licenciasArr = licencias ?? [];
+  const licenciasMes = licenciasArr.filter(
+    (l) => l.fecha_desde <= ultimoDia && (!l.fecha_hasta || l.fecha_hasta >= primerDia),
+  );
+  const licencias_activas = licenciasArr.filter((l) => !l.fecha_hasta).length;
+  let licencias_dias_mes = 0;
+  const primerDiaMs = new Date(primerDia + "T00:00:00").getTime();
+  const ultimoDiaMs = new Date(ultimoDia + "T00:00:00").getTime();
+  for (const l of licenciasMes) {
+    const desdeMs = Math.max(new Date(l.fecha_desde + "T00:00:00").getTime(), primerDiaMs);
+    const hastaMs = l.fecha_hasta
+      ? Math.min(new Date(l.fecha_hasta + "T00:00:00").getTime(), ultimoDiaMs)
+      : ultimoDiaMs;
+    if (hastaMs >= desdeMs) {
+      licencias_dias_mes += Math.round((hastaMs - desdeMs) / 86_400_000) + 1;
+    }
+  }
+
+  // Préstamos activos (pendiente o parcial)
+  const prestamos_activos = (prestamos ?? []).filter(
+    (p) => p.estado === "pendiente" || p.estado === "parcial",
+  ).length;
+
+  // Score operativo provisional (0-100, null si sin actividad)
+  let score: number | null = null;
+  const viajes_count = viajesMesArr.length;
+  const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
+  if (viajes_count > 0) {
+    let s = 100;
+    if (pct_vacios > 40) s -= 20;
+    else if (pct_vacios > 30) s -= 15;
+    else if (pct_vacios > 20) s -= 8;
+    s -= apercibimientos_graves_mes * 15;
+    s -= apercibimientos_moderados_mes * 8;
+    s -= apercibimientos_leves_mes * 3;
+    s -= roturas_mes * 5;
+    if (licencias_activas > 0) s -= 10;
+    score = Math.max(0, Math.min(100, s));
+  }
+
   const productividad_kpis: ProductividadKPIs = {
     periodo_desde: primerDia,
     periodo_hasta: ultimoDia,
-    viajes_count: viajesMesArr.length,
+    viajes_count,
     km_con_carga,
     km_vacios,
     km_total,
-    pct_vacios: km_total > 0 ? (km_vacios / km_total) * 100 : 0,
+    pct_vacios,
     toneladas,
     facturacion_ars,
     facturacion_usd,
     adelantos_viaticos_ars,
     adelantos_viaticos_usd,
+    roturas_mes,
+    roturas_cantidad_mes,
+    apercibimientos_mes,
+    apercibimientos_graves_mes,
+    licencias_activas,
+    licencias_dias_mes,
+    prestamos_activos,
+    score,
   };
+
+  // Evolución 6 meses
+  const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const mesesMap = new Map<string, { viajes: number; km_total: number; facturacion_ars: number; toneladas: number }>();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    mesesMap.set(key, { viajes: 0, km_total: 0, facturacion_ars: 0, toneladas: 0 });
+  }
+  for (const v of viajes6meses ?? []) {
+    const key = v.fecha_viaje.slice(0, 7);
+    const entry = mesesMap.get(key);
+    if (entry) {
+      entry.viajes += 1;
+      entry.km_total += Number(v.km_con_carga ?? 0) + Number(v.km_vacios ?? 0);
+      if (v.moneda === "ARS") entry.facturacion_ars += Number(v.monto_flete ?? 0);
+      entry.toneladas += Number(v.tonelaje_real ?? 0);
+    }
+  }
+  const evolucion_6meses: EvolucionMes[] = Array.from(mesesMap.entries()).map(([mes, datos]) => {
+    const [y, m] = mes.split("-");
+    const label = `${MESES_CORTOS[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+    return { mes, label, ...datos };
+  });
 
   const camiones_historial: CamionHistorialItem[] = (camionesHist ?? []).map((h) => {
     const cam = Array.isArray(h.camion) ? h.camion[0] : h.camion;
@@ -286,6 +396,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     productividad_kpis,
     camiones_historial,
     adelantos_mes,
+    evolucion_6meses,
     is_admin: user.rol.codigo === "admin",
   };
 }
