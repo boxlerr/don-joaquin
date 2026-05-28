@@ -76,6 +76,11 @@ export const ALERTAS = [
     nombre: "Nuevo Viaje",
     descripcion: "Notificación de viajes asignados a chofer",
   },
+  {
+    key: "vencimiento_compliance",
+    nombre: "Compliance Loma Negra / YPF",
+    descripcion: "Documentos por vencer o vencidos a presentar a clientes principales",
+  },
 ] as const;
 
 export type AlertaKey = (typeof ALERTAS)[number]["key"];

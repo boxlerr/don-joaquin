@@ -12,6 +12,7 @@ export type AreaCodigo =
   | "comercial"
   | "finanzas"
   | "rrhh"
+  | "compliance"
   | "sistema";
 
 export type AreaNivel = "none" | "read" | "write" | "admin";
@@ -32,6 +33,7 @@ const AREAS_VACIAS: PermisosArea = {
   comercial: "none",
   finanzas: "none",
   rrhh: "none",
+  compliance: "none",
   sistema: "none",
 };
 

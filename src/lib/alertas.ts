@@ -272,6 +272,55 @@ export async function generarAlertas() {
     }
   }
 
+  // Compliance — documentos por vencer o vencidos a presentar a Loma Negra / YPF
+  const { data: compliance } = await supabase
+    .from("v_compliance_estado")
+    .select(
+      "requisito_id, requisito_codigo, requisito_nombre, cliente_aplica, nivel, dias_alerta, chofer_id, chofer_nombre, camion_id, camion_patente, documento_id, documento_fuente, fecha_vencimiento, estado, dias_restantes",
+    )
+    .in("estado", ["por_vencer", "vencido"]);
+
+  for (const row of compliance ?? []) {
+    if (!row.fecha_vencimiento) continue;
+    if (!row.requisito_id || !row.requisito_nombre) continue;
+
+    // Dedupe key — una alerta única por documento (o requisito faltante) + fecha
+    const entidadKey =
+      row.documento_id ??
+      `${row.requisito_id}:${row.chofer_id ?? ""}:${row.camion_id ?? ""}`;
+    const key = `vencimiento_compliance:${entidadKey}`;
+    if (existentesSet.has(key)) continue;
+
+    const target =
+      row.chofer_nombre ?? row.camion_patente ?? "Empresa";
+    const clienteLabel =
+      row.cliente_aplica === "AMBOS"
+        ? "Loma Negra y YPF"
+        : row.cliente_aplica === "YPF"
+        ? "YPF"
+        : "Loma Negra";
+
+    const dias = row.dias_restantes ?? 0;
+    const severidad =
+      row.estado === "vencido" || dias <= umbrales.diasCritico ? "critica" : "advertencia";
+
+    const mensaje =
+      row.estado === "vencido"
+        ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
+        : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+
+    nuevasAlertas.push({
+      tipo: "vencimiento_compliance",
+      severidad,
+      titulo: `Compliance ${clienteLabel} — ${row.requisito_nombre} (${target})`,
+      mensaje,
+      entidad_id: row.documento_id ?? row.requisito_id,
+      entidad_tipo: row.documento_fuente ?? "compliance_requisitos",
+      fecha_disparo: new Date().toISOString(),
+      fecha_vencimiento: row.fecha_vencimiento,
+    });
+  }
+
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);

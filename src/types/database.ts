@@ -1427,9 +1427,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           cuil: string | null
-          dni: string
+          dni: string | null
           domicilio: string | null
           email: string | null
+          es_demo: boolean
           estado: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso: string | null
           fecha_ingreso: string | null
@@ -1457,9 +1458,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          dni: string
+          dni?: string | null
           domicilio?: string | null
           email?: string | null
+          es_demo?: boolean
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
           fecha_ingreso?: string | null
@@ -1487,9 +1489,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          dni?: string
+          dni?: string | null
           domicilio?: string | null
           email?: string | null
+          es_demo?: boolean
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
           fecha_ingreso?: string | null
@@ -1767,6 +1770,150 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_documentos: {
+        Row: {
+          archivo_id: string | null
+          camion_id: string | null
+          chofer_id: string | null
+          created_at: string
+          created_by: string | null
+          fecha_emision: string | null
+          fecha_vencimiento: string
+          id: string
+          observaciones: string | null
+          periodo: string | null
+          requisito_id: string
+          updated_at: string
+        }
+        Insert: {
+          archivo_id?: string | null
+          camion_id?: string | null
+          chofer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha_emision?: string | null
+          fecha_vencimiento: string
+          id?: string
+          observaciones?: string | null
+          periodo?: string | null
+          requisito_id: string
+          updated_at?: string
+        }
+        Update: {
+          archivo_id?: string | null
+          camion_id?: string | null
+          chofer_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha_emision?: string | null
+          fecha_vencimiento?: string
+          id?: string
+          observaciones?: string | null
+          periodo?: string | null
+          requisito_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_documentos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_documentos_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_documentos_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
+            foreignKeyName: "compliance_documentos_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_documentos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_documentos_requisito_id_fkey"
+            columns: ["requisito_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_requisitos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compliance_requisitos: {
+        Row: {
+          activo: boolean
+          cliente_aplica: Database["public"]["Enums"]["compliance_cliente_aplica"]
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          dias_alerta: number
+          id: string
+          nivel: Database["public"]["Enums"]["compliance_nivel"]
+          nombre: string
+          orden: number
+          periodicidad: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_documento_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          cliente_aplica: Database["public"]["Enums"]["compliance_cliente_aplica"]
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          dias_alerta?: number
+          id?: string
+          nivel: Database["public"]["Enums"]["compliance_nivel"]
+          nombre: string
+          orden?: number
+          periodicidad: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_documento_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          cliente_aplica?: Database["public"]["Enums"]["compliance_cliente_aplica"]
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          dias_alerta?: number
+          id?: string
+          nivel?: Database["public"]["Enums"]["compliance_nivel"]
+          nombre?: string
+          orden?: number
+          periodicidad?: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_documento_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_requisitos_tipo_documento_id_fkey"
+            columns: ["tipo_documento_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_documento"
             referencedColumns: ["id"]
           },
         ]
@@ -2138,6 +2285,7 @@ export type Database = {
           orden: number
           remito_numero: string | null
           sale_de: string
+          tn_com_29: number | null
           tn_esc_35: number | null
           tn_esc_37_5: number | null
           viaje_id: string | null
@@ -2159,6 +2307,7 @@ export type Database = {
           orden: number
           remito_numero?: string | null
           sale_de: string
+          tn_com_29?: number | null
           tn_esc_35?: number | null
           tn_esc_37_5?: number | null
           viaje_id?: string | null
@@ -2180,6 +2329,7 @@ export type Database = {
           orden?: number
           remito_numero?: string | null
           sale_de?: string
+          tn_com_29?: number | null
           tn_esc_35?: number | null
           tn_esc_37_5?: number | null
           viaje_id?: string | null
@@ -2211,6 +2361,8 @@ export type Database = {
       hojas_ruta: {
         Row: {
           archivo_excel_id: string | null
+          archivo_origen: string | null
+          camion_id: string | null
           cantidad_viajes: number
           chofer_id: string
           codigo: string
@@ -2233,12 +2385,15 @@ export type Database = {
           periodo_desde: string
           periodo_hasta: string
           periodo_tipo: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen: string | null
           tarifa_km_aplicada: number | null
           tonelaje_total: number
           updated_at: string
         }
         Insert: {
           archivo_excel_id?: string | null
+          archivo_origen?: string | null
+          camion_id?: string | null
           cantidad_viajes?: number
           chofer_id: string
           codigo: string
@@ -2261,12 +2416,15 @@ export type Database = {
           periodo_desde: string
           periodo_hasta: string
           periodo_tipo: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen?: string | null
           tarifa_km_aplicada?: number | null
           tonelaje_total?: number
           updated_at?: string
         }
         Update: {
           archivo_excel_id?: string | null
+          archivo_origen?: string | null
+          camion_id?: string | null
           cantidad_viajes?: number
           chofer_id?: string
           codigo?: string
@@ -2289,6 +2447,7 @@ export type Database = {
           periodo_desde?: string
           periodo_hasta?: string
           periodo_tipo?: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen?: string | null
           tarifa_km_aplicada?: number | null
           tonelaje_total?: number
           updated_at?: string
@@ -2300,6 +2459,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documentos_archivos"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hojas_ruta_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hojas_ruta_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
           },
           {
             foreignKeyName: "hojas_ruta_chofer_id_fkey"
@@ -4130,6 +4303,32 @@ export type Database = {
           },
         ]
       }
+      v_compliance_estado: {
+        Row: {
+          archivo_id: string | null
+          camion_id: string | null
+          camion_patente: string | null
+          chofer_id: string | null
+          chofer_nombre: string | null
+          cliente_aplica:
+            | Database["public"]["Enums"]["compliance_cliente_aplica"]
+            | null
+          dias_alerta: number | null
+          dias_restantes: number | null
+          documento_fuente: string | null
+          documento_id: string | null
+          estado: string | null
+          fecha_vencimiento: string | null
+          nivel: Database["public"]["Enums"]["compliance_nivel"] | null
+          periodicidad:
+            | Database["public"]["Enums"]["compliance_periodicidad"]
+            | null
+          requisito_codigo: string | null
+          requisito_id: string | null
+          requisito_nombre: string | null
+        }
+        Relationships: []
+      }
       v_factura_saldo: {
         Row: {
           estado_cobro: string | null
@@ -4210,6 +4409,7 @@ export type Database = {
         | "cheque_rechazado_recordatorio"
         | "auditoria_cliente"
         | "otro"
+        | "vencimiento_compliance"
       apercibimiento_gravedad: "leve" | "moderado" | "grave"
       area_nivel: "none" | "read" | "write" | "admin"
       audit_accion:
@@ -4289,6 +4489,9 @@ export type Database = {
         | "reporte_periodico"
         | "auditoria"
         | "otro"
+      compliance_cliente_aplica: "AMBOS" | "YPF" | "LOMA_NEGRA"
+      compliance_nivel: "chofer" | "unidad" | "empresa"
+      compliance_periodicidad: "mensual" | "anual" | "renovable" | "unica"
       contacto_cargo: "comercial" | "administrativo" | "logistica" | "otro"
       cta_cte_categoria:
         | "factura"
@@ -4506,6 +4709,7 @@ export const Constants = {
         "cheque_rechazado_recordatorio",
         "auditoria_cliente",
         "otro",
+        "vencimiento_compliance",
       ],
       apercibimiento_gravedad: ["leve", "moderado", "grave"],
       area_nivel: ["none", "read", "write", "admin"],
@@ -4594,6 +4798,9 @@ export const Constants = {
         "auditoria",
         "otro",
       ],
+      compliance_cliente_aplica: ["AMBOS", "YPF", "LOMA_NEGRA"],
+      compliance_nivel: ["chofer", "unidad", "empresa"],
+      compliance_periodicidad: ["mensual", "anual", "renovable", "unica"],
       contacto_cargo: ["comercial", "administrativo", "logistica", "otro"],
       cta_cte_categoria: [
         "factura",

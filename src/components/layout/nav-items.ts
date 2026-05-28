@@ -14,6 +14,8 @@ import {
   Receipt,
   Shield,
   ShieldAlert,
+  ShieldCheck,
+  CalendarClock,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -72,6 +74,14 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Caja", href: "/caja", icon: Wallet, area: "finanzas" },
       { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
       { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
+    ],
+  },
+  {
+    group: "COMPLIANCE",
+    items: [
+      { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, area: "compliance" },
+      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, area: "compliance" },
+      { label: "Próximas presentaciones", href: "/compliance/proximas", icon: CalendarClock, area: "compliance" },
     ],
   },
   {

@@ -35,6 +35,7 @@ export const CATEGORIA_LABEL: Record<AlertaCategoria, string> = {
 
 export function categoriaDeAlerta(tipo: string): AlertaCategoria {
   if (tipo.startsWith("vencimiento_doc_")) return "documentacion";
+  if (tipo === "vencimiento_compliance") return "documentacion";
   if (tipo.includes("cheque")) return "cheques";
   if (tipo.includes("viaje") || tipo.includes("viatico")) return "viajes";
   return "sistema";
@@ -54,6 +55,8 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
       return alerta.entidad_id ? `/camiones?documentoId=${alerta.entidad_id}` : "/camiones";
     case "vencimiento_doc_chofer":
       return alerta.entidad_id ? `/choferes?documentoId=${alerta.entidad_id}` : "/choferes";
+    case "vencimiento_compliance":
+      return "/compliance/proximas";
     case "vencimiento_cheque":
     case "cheque_rechazado_recordatorio":
       return "/cheques";
