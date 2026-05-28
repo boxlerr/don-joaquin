@@ -97,7 +97,7 @@ export default function ChoferDetailPage() {
         Volver
       </Button>
 
-      <ChoferHeader chofer={chofer} onRefresh={loadData} />
+      <ChoferHeader chofer={chofer} onRefresh={loadData} onSelectTab={setActiveTab} />
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto">

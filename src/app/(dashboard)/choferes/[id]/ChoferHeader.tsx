@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditarChoferDialog from "./EditarChoferDialog";
-import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check } from "lucide-react";
+import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
@@ -12,9 +12,10 @@ import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 interface Props {
   chofer: ChoferDetail;
   onRefresh: () => void;
+  onSelectTab?: (tabId: "documentos") => void;
 }
 
-export default function ChoferHeader({ chofer, onRefresh }: Props) {
+export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
 
@@ -44,6 +45,11 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
   const esBaja = chofer.estado === "baja";
   const antiguedad = formatAntiguedad(chofer.fecha_ingreso, esBaja ? chofer.fecha_egreso : null);
   const periodoPrueba = !esBaja ? diasRestantesPeriodoPrueba(chofer.fecha_ingreso) : null;
+  const cumple = !esBaja ? proximoCumpleanos(chofer.fecha_nacimiento) : null;
+  const docsResumen = !esBaja ? resumirVencimientos(chofer.documentos_vigencia) : null;
+  const camionLabel = chofer.camion_actual
+    ? [chofer.camion_actual.marca, chofer.camion_actual.patente].filter(Boolean).join(" · ")
+    : null;
   const tiempoEnEmpresa =
     esBaja && chofer.fecha_ingreso && chofer.fecha_egreso
       ? formatDuracion(chofer.fecha_ingreso, chofer.fecha_egreso)
@@ -79,11 +85,48 @@ export default function ChoferHeader({ chofer, onRefresh }: Props) {
             <p className="text-muted-foreground text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <StatusBadge label={estadoLabel} tone={estadoTone} />
+              {!esBaja && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 border ${
+                    camionLabel
+                      ? "bg-sky-50 dark:bg-sky-500/10 border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300"
+                      : "bg-muted/50 border-border text-muted-foreground"
+                  }`}
+                  title={camionLabel ? "Camión asignado actualmente" : "Sin camión asignado"}
+                >
+                  <Truck size={11} />
+                  {camionLabel ?? "Sin camión asignado"}
+                </span>
+              )}
               {periodoPrueba !== null && periodoPrueba > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] font-medium px-2 py-0.5">
                   <AlertCircle size={11} />
                   Período de prueba: quedan {periodoPrueba} {periodoPrueba === 1 ? "día" : "días"}
                 </span>
+              )}
+              {cumple && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-fuchsia-50 dark:bg-fuchsia-500/10 border border-fuchsia-200 dark:border-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-300 text-[11px] font-medium px-2 py-0.5"
+                  title={`Fecha de nacimiento: ${cumple.fechaLabel}`}
+                >
+                  <Cake size={11} />
+                  {cumple.label}
+                </span>
+              )}
+              {docsResumen && (
+                <button
+                  type="button"
+                  onClick={() => onSelectTab?.("documentos")}
+                  className={`inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-0.5 border transition-all hover:scale-[1.02] cursor-pointer ${
+                    docsResumen.vencidos > 0
+                      ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300"
+                      : "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300"
+                  }`}
+                  title="Ver documentación"
+                >
+                  <AlertTriangle size={11} />
+                  {docsResumen.label}
+                </button>
               )}
               {chofer.alertas && chofer.alertas.length > 0 && (
                 <button
@@ -244,4 +287,46 @@ function diasRestantesPeriodoPrueba(fechaIngreso: string | null): number | null 
   fin.setMonth(fin.getMonth() + 6);
   const diff = fin.getTime() - Date.now();
   return Math.ceil(diff / 86400000);
+}
+
+function proximoCumpleanos(
+  fechaNacimiento: string | null,
+): { label: string; fechaLabel: string } | null {
+  if (!fechaNacimiento) return null;
+  // Parseo manual para evitar que YYYY-MM-DD sea interpretado como UTC y se corra un día.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaNacimiento);
+  if (!match) return null;
+  const nacMes = parseInt(match[2], 10) - 1;
+  const nacDia = parseInt(match[3], 10);
+  const hoy = new Date();
+  const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  let proximo = new Date(hoy.getFullYear(), nacMes, nacDia);
+  if (proximo.getTime() < inicioHoy.getTime()) {
+    proximo = new Date(hoy.getFullYear() + 1, nacMes, nacDia);
+  }
+  const dias = Math.round((proximo.getTime() - inicioHoy.getTime()) / 86400000);
+  const fechaLabel = `${String(nacDia).padStart(2, "0")}/${String(nacMes + 1).padStart(2, "0")}`;
+  if (dias === 0) return { label: "Cumple hoy 🎉", fechaLabel };
+  if (dias <= 30)
+    return { label: `Cumple en ${dias} ${dias === 1 ? "día" : "días"}`, fechaLabel };
+  return null;
+}
+
+function resumirVencimientos(
+  documentos: { dias_restantes: number | null }[] | undefined,
+): { label: string; vencidos: number; proximos: number } | null {
+  if (!documentos || documentos.length === 0) return null;
+  let vencidos = 0;
+  let proximos = 0;
+  for (const doc of documentos) {
+    const d = doc.dias_restantes;
+    if (d === null || d === undefined) continue;
+    if (d < 0) vencidos += 1;
+    else if (d <= 30) proximos += 1;
+  }
+  if (vencidos === 0 && proximos === 0) return null;
+  const partes: string[] = [];
+  if (vencidos > 0) partes.push(`${vencidos} vencido${vencidos === 1 ? "" : "s"}`);
+  if (proximos > 0) partes.push(`${proximos} por vencer`);
+  return { label: partes.join(" · "), vencidos, proximos };
 }
