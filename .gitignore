@@ -45,3 +45,6 @@ next-env.d.ts
 /.claude/
 CLAUDE.md
 CLAUDE.local.md
+
+# Fixtures locales con datos reales (Excels de Bárbara, etc.)
+/__fixtures__/

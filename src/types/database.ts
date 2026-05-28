@@ -1427,9 +1427,10 @@ export type Database = {
           created_at: string
           created_by: string | null
           cuil: string | null
-          dni: string
+          dni: string | null
           domicilio: string | null
           email: string | null
+          es_demo: boolean
           estado: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso: string | null
           fecha_ingreso: string | null
@@ -1457,9 +1458,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          dni: string
+          dni?: string | null
           domicilio?: string | null
           email?: string | null
+          es_demo?: boolean
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
           fecha_ingreso?: string | null
@@ -1487,9 +1489,10 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          dni?: string
+          dni?: string | null
           domicilio?: string | null
           email?: string | null
+          es_demo?: boolean
           estado?: Database["public"]["Enums"]["chofer_estado"]
           fecha_egreso?: string | null
           fecha_ingreso?: string | null
@@ -2138,6 +2141,7 @@ export type Database = {
           orden: number
           remito_numero: string | null
           sale_de: string
+          tn_com_29: number | null
           tn_esc_35: number | null
           tn_esc_37_5: number | null
           viaje_id: string | null
@@ -2159,6 +2163,7 @@ export type Database = {
           orden: number
           remito_numero?: string | null
           sale_de: string
+          tn_com_29?: number | null
           tn_esc_35?: number | null
           tn_esc_37_5?: number | null
           viaje_id?: string | null
@@ -2180,6 +2185,7 @@ export type Database = {
           orden?: number
           remito_numero?: string | null
           sale_de?: string
+          tn_com_29?: number | null
           tn_esc_35?: number | null
           tn_esc_37_5?: number | null
           viaje_id?: string | null
@@ -2211,6 +2217,8 @@ export type Database = {
       hojas_ruta: {
         Row: {
           archivo_excel_id: string | null
+          archivo_origen: string | null
+          camion_id: string | null
           cantidad_viajes: number
           chofer_id: string
           codigo: string
@@ -2233,12 +2241,15 @@ export type Database = {
           periodo_desde: string
           periodo_hasta: string
           periodo_tipo: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen: string | null
           tarifa_km_aplicada: number | null
           tonelaje_total: number
           updated_at: string
         }
         Insert: {
           archivo_excel_id?: string | null
+          archivo_origen?: string | null
+          camion_id?: string | null
           cantidad_viajes?: number
           chofer_id: string
           codigo: string
@@ -2261,12 +2272,15 @@ export type Database = {
           periodo_desde: string
           periodo_hasta: string
           periodo_tipo: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen?: string | null
           tarifa_km_aplicada?: number | null
           tonelaje_total?: number
           updated_at?: string
         }
         Update: {
           archivo_excel_id?: string | null
+          archivo_origen?: string | null
+          camion_id?: string | null
           cantidad_viajes?: number
           chofer_id?: string
           codigo?: string
@@ -2289,6 +2303,7 @@ export type Database = {
           periodo_desde?: string
           periodo_hasta?: string
           periodo_tipo?: Database["public"]["Enums"]["hoja_ruta_periodo_tipo"]
+          sheet_origen?: string | null
           tarifa_km_aplicada?: number | null
           tonelaje_total?: number
           updated_at?: string
@@ -2300,6 +2315,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "documentos_archivos"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hojas_ruta_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hojas_ruta_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
           },
           {
             foreignKeyName: "hojas_ruta_chofer_id_fkey"
