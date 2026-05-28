@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
+import ImportHojasRutaModal from "./components/ImportHojasRutaModal";
 import { getViajeFormData } from "./actions";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
@@ -84,6 +85,7 @@ export default async function ViajesPage({
                 </Button>
               </AddGastoDialog>
             )}
+            {canWrite && <ImportHojasRutaModal />}
             {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }
