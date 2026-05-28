@@ -58,7 +58,16 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
       { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "flota" },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
-      { label: "Choferes", href: "/choferes", icon: Users, area: "logistica" },
+      {
+        label: "Choferes",
+        href: "/choferes",
+        icon: Users,
+        area: "logistica",
+        children: [
+          { label: "Legajos", href: "/choferes" },
+          { label: "Ranking", href: "/choferes/ranking" },
+        ],
+      },
       { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
       { label: "Extintores", href: "/extintores", icon: Flame, area: "flota" },
     ],
