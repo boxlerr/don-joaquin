@@ -82,7 +82,7 @@ function parseDominio(raw: string, categoria: string): { dominio: string; observ
 async function main() {
   console.log(`Modo: ${DRY_RUN ? "DRY-RUN (Vista Previa)" : "ESCRITURA REAL"}`);
 
-  const excelPath = "D:\\Descargas windows\\VENCIMIENTO_EXTINTORES.xlsx";
+  const excelPath = path.join(__dirname, "data", "venc-extintores.xlsx");
   console.log(`Leyendo Excel desde: ${excelPath}`);
 
   let workbook: XLSX.WorkBook;
