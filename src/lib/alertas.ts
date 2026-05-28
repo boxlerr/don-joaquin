@@ -53,7 +53,7 @@ export async function generarAlertas() {
 
   const existentesSet = new Set(
     (existentes ?? []).map((a) =>
-      a.tipo === "otro"
+      a.tipo === "otro" || a.tipo === "vencimiento_compliance"
         ? `${a.tipo}:${a.entidad_id}:${a.entidad_tipo}:${a.fecha_vencimiento}`
         : `${a.tipo}:${a.entidad_id}`
     )
@@ -272,27 +272,34 @@ export async function generarAlertas() {
     }
   }
 
-  // Compliance — documentos por vencer o vencidos a presentar a Loma Negra / YPF
+  // Compliance — 3 disparos discretos (30 / 15 / 5 días) + vencido.
+  // Cada disparo es una alerta distinta con su propia severidad. Se diferencian
+  // por entidad_tipo ('compliance:T30' | 'T15' | 'T5' | 'vencido') para que el
+  // dedup deje pasar uno por umbral.
   const { data: compliance } = await supabase
     .from("v_compliance_estado")
     .select(
-      "requisito_id, requisito_codigo, requisito_nombre, cliente_aplica, nivel, dias_alerta, chofer_id, chofer_nombre, camion_id, camion_patente, documento_id, documento_fuente, fecha_vencimiento, estado, dias_restantes",
+      "requisito_id, requisito_codigo, requisito_nombre, cliente_aplica, nivel, chofer_id, chofer_nombre, camion_id, camion_patente, documento_id, fecha_vencimiento, estado, dias_restantes",
     )
-    .in("estado", ["por_vencer", "vencido"]);
+    .not("fecha_vencimiento", "is", null);
 
   for (const row of compliance ?? []) {
     if (!row.fecha_vencimiento) continue;
     if (!row.requisito_id || !row.requisito_nombre) continue;
 
-    // Dedupe key — una alerta única por documento (o requisito faltante) + fecha
-    const entidadKey =
-      row.documento_id ??
-      `${row.requisito_id}:${row.chofer_id ?? ""}:${row.camion_id ?? ""}`;
-    const key = `vencimiento_compliance:${entidadKey}`;
-    if (existentesSet.has(key)) continue;
+    const dias = row.dias_restantes;
+    if (dias === null || dias === undefined) continue;
 
-    const target =
-      row.chofer_nombre ?? row.camion_patente ?? "Empresa";
+    // Definimos qué disparos aplican para este row
+    type Disparo = { umbral: "vencido" | "T5" | "T15" | "T30"; severidad: "info" | "advertencia" | "critica" };
+    const disparos: Disparo[] = [];
+    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    if (dias === 5) disparos.push({ umbral: "T5", severidad: "critica" });
+    if (dias === 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
+    if (dias === 30) disparos.push({ umbral: "T30", severidad: "info" });
+    if (disparos.length === 0) continue;
+
+    const target = row.chofer_nombre ?? row.camion_patente ?? "Empresa";
     const clienteLabel =
       row.cliente_aplica === "AMBOS"
         ? "Loma Negra y YPF"
@@ -300,25 +307,29 @@ export async function generarAlertas() {
         ? "YPF"
         : "Loma Negra";
 
-    const dias = row.dias_restantes ?? 0;
-    const severidad =
-      row.estado === "vencido" || dias <= umbrales.diasCritico ? "critica" : "advertencia";
+    const entidad_id = row.documento_id ?? row.requisito_id;
 
-    const mensaje =
-      row.estado === "vencido"
-        ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
-        : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+    for (const d of disparos) {
+      const entidad_tipo = `compliance:${d.umbral}`;
+      const key = `vencimiento_compliance:${entidad_id}:${entidad_tipo}:${row.fecha_vencimiento}`;
+      if (existentesSet.has(key)) continue;
 
-    nuevasAlertas.push({
-      tipo: "vencimiento_compliance",
-      severidad,
-      titulo: `Compliance ${clienteLabel} — ${row.requisito_nombre} (${target})`,
-      mensaje,
-      entidad_id: row.documento_id ?? row.requisito_id,
-      entidad_tipo: row.documento_fuente ?? "compliance_requisitos",
-      fecha_disparo: new Date().toISOString(),
-      fecha_vencimiento: row.fecha_vencimiento,
-    });
+      const mensaje =
+        d.umbral === "vencido"
+          ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
+          : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+
+      nuevasAlertas.push({
+        tipo: "vencimiento_compliance",
+        severidad: d.severidad,
+        titulo: `Compliance ${clienteLabel} — ${row.requisito_nombre} (${target})`,
+        mensaje,
+        entidad_id,
+        entidad_tipo,
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: row.fecha_vencimiento,
+      });
+    }
   }
 
   if (nuevasAlertas.length > 0) {
