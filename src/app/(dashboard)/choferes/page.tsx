@@ -8,6 +8,7 @@ import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
 import { redirect } from "next/navigation";
+import { ImportChoferesButton } from "./components/ChoferesIO";
 
 export default async function ChoferesPage({
   searchParams,
@@ -57,8 +58,13 @@ export default async function ChoferesPage({
         title="Choferes"
         description="Legajo digital — sin acceso al sistema (gestión administrativa)"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <HelpTutorialButton />
+            {canWrite && (
+              <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
+                <ImportChoferesButton />
+              </div>
+            )}
             {canWrite && (
               <AddChoferDialog>
                 <Button variant="brand" size="sm">

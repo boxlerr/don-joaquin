@@ -2,12 +2,14 @@ import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Flame, ShieldAlert, ShieldCheck, AlertTriangle, ShieldX } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import ExtintoresTable from "./components/ExtintoresTable";
+import { ExportExtintoresButton, ImportExtintoresButton } from "./components/ExtintoresIO";
 
 export default async function ExtintoresPage() {
   // Verificar permisos (requiere lectura de flota)
-  await requireArea("flota", "read");
+  const user = await requireArea("flota", "read");
+  const canWrite = hasArea(user, "flota", "write");
 
   const supabase = createAdminClient();
 
@@ -61,6 +63,14 @@ export default async function ExtintoresPage() {
       <PageHeader
         title="Extintores"
         description="Vencimientos, ubicaciones y estado de vigencia de matafuegos de la flota y establecimientos"
+        action={
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
+              {canWrite && <ImportExtintoresButton />}
+              <ExportExtintoresButton />
+            </div>
+          </div>
+        }
       />
 
       {/* Grid de estadísticas */}
