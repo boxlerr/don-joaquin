@@ -22,6 +22,14 @@ export default async function RankingChoferes({
     hasta: periodo.hasta,
   });
 
+  const periodoUrl = new URLSearchParams();
+  periodoUrl.set("rango", periodo.rango);
+  if (periodo.rango === "custom") {
+    periodoUrl.set("desde", periodo.desde);
+    periodoUrl.set("hasta", periodo.hasta);
+  }
+  const periodoQuery = periodoUrl.toString();
+
   return (
     <div className="p-8 space-y-5">
       <PageHeader
@@ -49,7 +57,7 @@ export default async function RankingChoferes({
         desdeActual={periodo.desde}
         hastaActual={periodo.hasta}
       />
-      <RankingTable ranking={ranking} />
+      <RankingTable ranking={ranking} periodoQuery={periodoQuery} />
     </div>
   );
 }
