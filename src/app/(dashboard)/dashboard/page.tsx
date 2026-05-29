@@ -22,6 +22,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
+import TopBottomChoferes from "./components/TopBottomChoferes";
+import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import { alertaHref } from "@/app/(dashboard)/notificaciones/utils";
 
 export default async function DashboardPage() {
@@ -39,6 +41,7 @@ export default async function DashboardPage() {
     totalChoferes,
     viajesResult,
     premioMes,
+    ranking,
   ] = await Promise.all([
     supabase
       .from("viajes")
@@ -62,12 +65,20 @@ export default async function DashboardPage() {
     supabase.from("choferes").select("*", { count: "exact", head: true }),
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
+    computeRanking(resolverRango({})),
   ]);
 
   const alertCount = docPorVencer.count ?? 0;
   const firstAlert = docPorVencer.data?.[0];
   const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/choferes";
   const ultimosViajes = (viajesResult && "data" in viajesResult) ? viajesResult.data : [];
+
+  const conScore = ranking.filter((r) => r.score !== null);
+  const topChoferes = conScore.slice(0, 5);
+  // Bottom: choferes que no entran en el top, últimos 5 invertidos.
+  // Si hay <=5 con actividad, no hay bottom (no tendría sentido repetir).
+  const bottomChoferes =
+    conScore.length > 5 ? conScore.slice(5).slice(-5).reverse() : [];
 
   return (
     <div className="p-8 space-y-6 w-full">
@@ -213,6 +224,8 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <TopBottomChoferes top={topChoferes} bottom={bottomChoferes} />
 
       {/* Premio del Mes — Eficiencia de combustible */}
       <a
