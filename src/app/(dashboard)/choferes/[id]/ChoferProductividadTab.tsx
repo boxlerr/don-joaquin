@@ -117,14 +117,36 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           />
           <KPI label="Toneladas" value={fmtNum(kpis.toneladas)} color="text-foreground" />
           <KPI
-            label="Facturación ARS"
-            value={fmtMoneda(kpis.facturacion_ars, "ARS")}
+            label="Liquidación al chofer"
+            value={fmtMoneda(kpis.liquidacion_chofer_mes, "ARS")}
+            sub="$ de la hoja de ruta"
             color="text-[#10B981]"
           />
+          {kpis.facturacion_ars > 0 && (
+            <KPI
+              label="Facturación ARS"
+              value={fmtMoneda(kpis.facturacion_ars, "ARS")}
+              color="text-[#10B981]"
+            />
+          )}
           <KPI
             label="Adelantos ARS"
             value={fmtMoneda(kpis.adelantos_viaticos_ars, "ARS")}
             color="text-[#EF4444]"
+          />
+          {kpis.eficiencia_combustible !== null && (
+            <KPI
+              label="Eficiencia gasoil"
+              value={`${kpis.eficiencia_combustible.toFixed(1)} L/100km`}
+              sub={`${fmtNum(kpis.litros_mes)} L cargados`}
+              color="text-foreground"
+            />
+          )}
+          <KPI
+            label="Veces al taller"
+            value={String(kpis.taller_visitas_mes)}
+            sub={kpis.taller_visitas_mes > 0 ? "reparación / gomería" : undefined}
+            color={kpis.taller_visitas_mes > 0 ? "text-[#F59E0B]" : "text-foreground"}
           />
           <KPI
             label="Roturas de gomas"
@@ -170,12 +192,27 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           </div>
         )}
 
-        {/* Combustible — pendiente de módulo */}
+        {/* Eficiencia de combustible: placeholder solo si no hay datos suficientes este mes */}
+        {kpis.eficiencia_combustible === null && (
+          <div className="flex items-start gap-2 bg-muted/20 rounded-[8px] border border-dashed border-border px-4 py-3">
+            <Lock size={12} className="text-muted-foreground/70 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Eficiencia combustible (L/100km)</p>
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                {kpis.cargas_combustible_count > 0
+                  ? "Falta una segunda carga del mismo camión para calcular el consumo"
+                  : "Disponible cuando se carguen consumos de gasoil del chofer"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* % sueldo / facturación: pendiente del módulo de Sueldos (F4) */}
         <div className="flex items-start gap-2 bg-muted/20 rounded-[8px] border border-dashed border-border px-4 py-3">
           <Lock size={12} className="text-muted-foreground/70 mt-0.5 shrink-0" />
           <div>
-            <p className="text-xs font-medium text-muted-foreground">Eficiencia combustible (L/100km)</p>
-            <p className="text-[11px] text-muted-foreground/70 mt-0.5">Disponible cuando se carguen consumos de gasoil</p>
+            <p className="text-xs font-medium text-muted-foreground">% sueldo / facturación</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5">Disponible cuando se cargue el módulo de Sueldos</p>
           </div>
         </div>
       </section>

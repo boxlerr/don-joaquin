@@ -1,10 +1,9 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 
 const PAGE_SIZE = 25;
-const DELTA_KM_MAX_RAZONABLE = 5000; // descarta deltas absurdos (resets de odómetro, datos cargados mal)
-const DELTA_KM_MIN = 1;
 
 type CargaRow = {
   id: string;
@@ -87,27 +86,9 @@ export async function getStatsMesAction(): Promise<StatsMes> {
   const cargasConChofer = cargas.filter((c) => c.chofer_id).length;
 
   // Eficiencia promedio global: agrupar por camión, sumar deltas válidos
-  let litrosUsados = 0;
-  let kmRecorridos = 0;
-
-  const porCamion = new Map<string, typeof cargas>();
-  for (const c of cargas) {
-    if (!porCamion.has(c.camion_id)) porCamion.set(c.camion_id, []);
-    porCamion.get(c.camion_id)!.push(c);
-  }
-
-  for (const grupo of porCamion.values()) {
-    grupo.sort((a, b) => a.km_odometro - b.km_odometro);
-    for (let i = 1; i < grupo.length; i++) {
-      const delta = grupo[i].km_odometro - grupo[i - 1].km_odometro;
-      if (delta >= DELTA_KM_MIN && delta <= DELTA_KM_MAX_RAZONABLE) {
-        litrosUsados += Number(grupo[i].litros);
-        kmRecorridos += delta;
-      }
-    }
-  }
-
-  const eficienciaPromedio = kmRecorridos > 0 ? (litrosUsados / kmRecorridos) * 100 : null;
+  const { eficiencia: eficienciaPromedio } = calcularEficienciaPorDeltas(
+    cargas.map((c) => ({ camion_id: c.camion_id, km_odometro: c.km_odometro, litros: Number(c.litros) })),
+  );
 
   return {
     cargasTotales: cargas.length,
@@ -150,7 +131,7 @@ export async function getRankingEficienciaMesAction(): Promise<RankingEntry[]> {
 
   if (cargas.length === 0) return [];
 
-  // Agrupar por (chofer, camion) → calcular deltas → acumular por chofer
+  // Agrupar por chofer → el helper calcula deltas agrupando por camión internamente
   type Acum = {
     cargas: number;
     litros: number;
@@ -159,30 +140,23 @@ export async function getRankingEficienciaMesAction(): Promise<RankingEntry[]> {
   };
   const acum = new Map<string, Acum>();
 
-  const porChoferCamion = new Map<string, typeof cargas>();
+  const porChofer = new Map<string, typeof cargas>();
   for (const c of cargas) {
     if (!c.chofer_id) continue;
-    const key = `${c.chofer_id}::${c.camion_id}`;
-    if (!porChoferCamion.has(key)) porChoferCamion.set(key, []);
-    porChoferCamion.get(key)!.push(c);
+    if (!porChofer.has(c.chofer_id)) porChofer.set(c.chofer_id, []);
+    porChofer.get(c.chofer_id)!.push(c);
   }
 
-  for (const [key, grupo] of porChoferCamion.entries()) {
-    const chofer_id = key.split("::")[0];
-    grupo.sort((a, b) => a.km_odometro - b.km_odometro);
-
-    const cur = acum.get(chofer_id) ?? { cargas: 0, litros: 0, km: 0, importe: 0 };
-    cur.cargas += grupo.length;
-    cur.importe += grupo.reduce((a, c) => a + Number(c.importe_total), 0);
-
-    for (let i = 1; i < grupo.length; i++) {
-      const delta = grupo[i].km_odometro - grupo[i - 1].km_odometro;
-      if (delta >= DELTA_KM_MIN && delta <= DELTA_KM_MAX_RAZONABLE) {
-        cur.litros += Number(grupo[i].litros);
-        cur.km += delta;
-      }
-    }
-    acum.set(chofer_id, cur);
+  for (const [chofer_id, grupo] of porChofer.entries()) {
+    const { litrosUsados, kmRecorridos } = calcularEficienciaPorDeltas(
+      grupo.map((c) => ({ camion_id: c.camion_id, km_odometro: c.km_odometro, litros: Number(c.litros) })),
+    );
+    acum.set(chofer_id, {
+      cargas: grupo.length,
+      litros: litrosUsados,
+      km: kmRecorridos,
+      importe: grupo.reduce((a, c) => a + Number(c.importe_total), 0),
+    });
   }
 
   const choferIds = Array.from(acum.keys());

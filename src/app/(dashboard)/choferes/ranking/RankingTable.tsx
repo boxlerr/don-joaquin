@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, GitCompare, X } from "lucide-react";
 import type { RankingChofer } from "./lib";
 import ScoreBadge from "./ScoreBadge";
+import ScoreInfoButton from "./ScoreInfoButton";
 
 interface Props {
   ranking: RankingChofer[];
@@ -74,9 +75,12 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
             <p className="text-sm font-medium text-foreground">
               {conActividad.length} choferes con actividad
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Score calculado en base a km vacíos, apercibimientos y roturas del período · Tildá 2 para comparar
-            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-muted-foreground">
+                Score calculado en base a km vacíos, apercibimientos y roturas del período · Tildá 2 para comparar
+              </p>
+              <ScoreInfoButton />
+            </div>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">

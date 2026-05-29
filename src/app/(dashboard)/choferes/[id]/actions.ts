@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { logChoferAudit } from "../audit";
 import type {
   ChoferDetail,
@@ -53,6 +54,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     { data: camionesHist },
     { data: roturasMes },
     { data: viajes6meses },
+    { data: cargasCombustibleMes },
   ] = await Promise.all([
     supabase
       .from("v_chofer_documentos_vigencia")
@@ -105,7 +107,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 
     supabase
       .from("viajes")
-      .select("km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda")
+      .select("id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda")
       .eq("chofer_id", chofer_id)
       .gte("fecha_viaje", primerDia)
       .lte("fecha_viaje", ultimoDia),
@@ -141,6 +143,16 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       .gte("fecha_viaje", seisMesesAtras)
       .order("fecha_viaje", { ascending: true })
       .limit(300),
+
+    // Cargas de gasoil del chofer en el mes (para eficiencia L/100km).
+    // Solo cuenta cargas con chofer_id seteado; necesita ≥2 cargas del mismo
+    // camión para tener delta de odómetro. Mismo criterio que el ranking de /combustible.
+    supabase
+      .from("cargas_combustible")
+      .select("camion_id, km_odometro, litros")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia),
   ]);
 
   // Camión actualmente asignado al chofer (puede ser ninguno).
@@ -149,6 +161,32 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     .select("id, patente, marca, modelo, ano")
     .eq("chofer_actual_id", chofer_id)
     .maybeSingle();
+
+  // Camiones que el chofer manejó en el mes: historial que solapa el período + el actual.
+  const camionIdsDelMes = new Set<string>();
+  for (const h of camionesHist ?? []) {
+    const solapa = h.desde <= ultimoDia && (!h.hasta || h.hasta >= primerDia);
+    if (solapa && h.camion_id) camionIdsDelMes.add(h.camion_id);
+  }
+  if (camionActual?.id) camionIdsDelMes.add(camionActual.id);
+
+  const viajeIdsDelMes = (viajesMes ?? []).map((v) => v.id).filter(Boolean) as string[];
+
+  // Queries que dependen de los ids resueltos arriba:
+  //   - mantenimientos de esos camiones en el mes (para "veces al taller")
+  //   - items de hoja de ruta de esos viajes (para "liquidación al chofer")
+  const [{ data: mantenimientosMes }, { data: itemsLiquidacion }] = await Promise.all([
+    supabase
+      .from("mantenimientos")
+      .select("id, tipo, tipo_servicio:tipos_servicio(codigo)")
+      .in("camion_id", [...camionIdsDelMes])
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia),
+    supabase
+      .from("hoja_ruta_items")
+      .select("monto_chofer")
+      .in("viaje_id", viajeIdsDelMes),
+  ]);
 
   const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
 
@@ -243,6 +281,31 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     score = Math.max(0, Math.min(100, s));
   }
 
+  // Liquidación al chofer del mes: suma del "$" del Excel de hoja de ruta (monto_chofer).
+  const liquidacion_chofer_mes = (itemsLiquidacion ?? []).reduce(
+    (acc, it) => acc + Number(it.monto_chofer ?? 0),
+    0,
+  );
+
+  // Veces al taller: solo eventos no programados (reparación/avería + gomería).
+  const TALLER_CODIGOS = new Set(["reparacion", "gomeria"]);
+  const taller_visitas_mes = (mantenimientosMes ?? []).filter((m) => {
+    const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+    const codigo = (ts as { codigo?: string } | null)?.codigo;
+    if (codigo) return TALLER_CODIGOS.has(codigo);
+    return m.tipo === "reparacion"; // fallback enum legacy (no tiene 'gomeria')
+  }).length;
+
+  // Eficiencia de combustible del mes (L/100km).
+  const cargasComb = (cargasCombustibleMes ?? []).map((c) => ({
+    camion_id: c.camion_id,
+    km_odometro: c.km_odometro,
+    litros: Number(c.litros),
+  }));
+  const { eficiencia: eficiencia_combustible } = calcularEficienciaPorDeltas(cargasComb);
+  const litros_mes = cargasComb.reduce((a, c) => a + c.litros, 0);
+  const cargas_combustible_count = cargasComb.length;
+
   const productividad_kpis: ProductividadKPIs = {
     periodo_desde: primerDia,
     periodo_hasta: ultimoDia,
@@ -254,8 +317,13 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     toneladas,
     facturacion_ars,
     facturacion_usd,
+    liquidacion_chofer_mes,
     adelantos_viaticos_ars,
     adelantos_viaticos_usd,
+    eficiencia_combustible,
+    litros_mes,
+    cargas_combustible_count,
+    taller_visitas_mes,
     roturas_mes,
     roturas_cantidad_mes,
     apercibimientos_mes,

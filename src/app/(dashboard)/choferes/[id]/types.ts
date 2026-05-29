@@ -146,8 +146,13 @@ export type ProductividadKPIs = {
   toneladas: number;
   facturacion_ars: number;
   facturacion_usd: number;
+  liquidacion_chofer_mes: number; // suma de monto_chofer (el "$" del Excel de hoja de ruta) de los viajes del mes
   adelantos_viaticos_ars: number;
   adelantos_viaticos_usd: number;
+  eficiencia_combustible: number | null; // L/100km del mes; null si no hay cargas suficientes
+  litros_mes: number; // litros de gasoil cargados en el mes
+  cargas_combustible_count: number;
+  taller_visitas_mes: number; // reparaciones/averías + gomería del/los camión(es) del chofer en el mes
   roturas_mes: number;
   roturas_cantidad_mes: number;
   apercibimientos_mes: number;
