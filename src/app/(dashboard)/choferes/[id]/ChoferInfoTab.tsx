@@ -31,6 +31,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [banco, setBanco] = useState(chofer.banco ?? "");
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
+  const [cvu, setCvu] = useState(chofer.cvu ?? "");
 
   // Helpers de display
   const fmtFecha = (s: string | null | undefined) => {
@@ -52,6 +53,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     setBanco(chofer.banco ?? "");
     setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
+    setCvu(chofer.cvu ?? "");
     setError(null);
     setEditing(false);
   };
@@ -69,6 +71,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
+        cvu: cvu.trim() || undefined,
       });
       if (res.error) {
         setError(res.error);
@@ -228,6 +231,11 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
               {editing
                 ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.alias_cbu} />}
+            </Field>
+            <Field label="CVU">
+              {editing
+                ? <Input value={cvu} onChange={(e) => setCvu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
+                : <Value v={chofer.cvu} mono />}
             </Field>
           </div>
           {!editing && (

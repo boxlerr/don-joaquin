@@ -1423,6 +1423,7 @@ export type Database = {
           apellido: string
           banco: string | null
           cbu: string | null
+          cvu: string | null
           ciudad_nacimiento: string | null
           created_at: string
           created_by: string | null
@@ -1454,6 +1455,7 @@ export type Database = {
           apellido: string
           banco?: string | null
           cbu?: string | null
+          cvu?: string | null
           ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null
@@ -1485,6 +1487,7 @@ export type Database = {
           apellido?: string
           banco?: string | null
           cbu?: string | null
+          cvu?: string | null
           ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null

@@ -22,6 +22,7 @@ export type ChoferBasico = Pick<
   | "cbu"
   | "alias_cbu"
   | "banco"
+  | "cvu"
   | "telefono_emergencia"
   | "updated_at"
   | "foto_id"

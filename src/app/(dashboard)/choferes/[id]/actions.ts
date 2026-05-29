@@ -22,7 +22,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   const { data: chofer } = await supabase
     .from("choferes")
     .select(
-      "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
+      "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, cvu, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
     )
     .eq("id", chofer_id)
     .single();
@@ -1055,6 +1055,7 @@ export async function updateChoferInfoAction(
     cbu: string;
     alias_cbu: string;
     banco: string;
+    cvu: string;
     telefono_emergencia: string;
     ciudad_nacimiento: string;
     localidad: string;
