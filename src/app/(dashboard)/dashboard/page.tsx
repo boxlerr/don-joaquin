@@ -42,6 +42,9 @@ export default async function DashboardPage() {
     viajesResult,
     premioMes,
     ranking,
+    tiposDocRes,
+    camionDocsRes,
+    choferDocsRes,
   ] = await Promise.all([
     supabase
       .from("viajes")
@@ -66,11 +69,37 @@ export default async function DashboardPage() {
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
     computeRanking(resolverRango({})),
+    supabase
+      .from("tipos_documento")
+      .select("id, dias_alerta_vencimiento")
+      .eq("estado", "activo"),
+    supabase.from("camion_documentos").select("tipo_documento_id, fecha_vencimiento"),
+    supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
   ]);
 
-  const alertCount = docPorVencer.count ?? 0;
+  // Vencimientos reales calculados desde los documentos (igual que en Notificaciones),
+  // no desde la tabla `alertas` (que puede no estar poblada).
+  const diasAlertaPorTipo = new Map<string, number>();
+  for (const t of tiposDocRes.data ?? []) {
+    diasAlertaPorTipo.set(t.id, t.dias_alerta_vencimiento);
+  }
+  const hoyDoc = new Date();
+  hoyDoc.setHours(0, 0, 0, 0);
+  let docVencidos = 0;
+  let docProximos = 0;
+  for (const d of [...(camionDocsRes.data ?? []), ...(choferDocsRes.data ?? [])]) {
+    if (!d.fecha_vencimiento) continue;
+    const diasAlerta = diasAlertaPorTipo.get(d.tipo_documento_id) ?? 30;
+    const venc = new Date(d.fecha_vencimiento);
+    venc.setHours(0, 0, 0, 0);
+    const diasRest = Math.ceil((venc.getTime() - hoyDoc.getTime()) / 86400000);
+    if (diasRest < 0) docVencidos++;
+    else if (diasRest <= diasAlerta) docProximos++;
+  }
+
+  const alertCount = (docPorVencer.count ?? 0) + docVencidos + docProximos;
   const firstAlert = docPorVencer.data?.[0];
-  const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/choferes";
+  const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/notificaciones";
   const ultimosViajes = (viajesResult && "data" in viajesResult) ? viajesResult.data : [];
 
   const conScore = ranking.filter((r) => r.score !== null);
@@ -175,7 +204,11 @@ export default async function DashboardPage() {
                     <p className="text-[#92400E] dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">Documentación Crítica</p>
                     <p className="text-[#B45309] dark:text-amber-200 text-sm font-bold mt-0.5 leading-snug">Se requiere atención</p>
                     <p className="text-[#B45309]/80 dark:text-amber-200/80 text-[11px] font-semibold mt-1 leading-relaxed">
-                      Hay {alertCount} legajo de documentación próximo a vencer. Revise el módulo de conductores o camiones.
+                      {[
+                        docVencidos > 0 ? `${docVencidos} documento${docVencidos !== 1 ? "s" : ""} vencido${docVencidos !== 1 ? "s" : ""}` : null,
+                        docProximos > 0 ? `${docProximos} próximo${docProximos !== 1 ? "s" : ""} a vencer` : null,
+                      ].filter(Boolean).join(" y ")}
+                      . Revisá Notificaciones para gestionarlos.
                     </p>
                   </div>
                 </div>
