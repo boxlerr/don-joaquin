@@ -1,4 +1,5 @@
-import { Truck, User, ShieldAlert, Info } from "lucide-react";
+import Link from "next/link";
+import { Truck, User, ShieldAlert, Info, ChevronRight } from "lucide-react";
 import { chipToneFromDias } from "./utils";
 
 type Tipo = {
@@ -145,47 +146,54 @@ function TipoColumna({
 
 function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
   const tieneAlertas = conteo.vencidos > 0 || conteo.proximos > 0;
+  const href = tipo.aplica_a === "camion" ? "/camiones" : "/choferes";
 
   return (
-    <div className="px-5 py-3 hover:bg-muted/40 transition-colors">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-foreground truncate">
-              {tipo.nombre}
-            </p>
-            {tipo.obligatorio && (
-              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
-                Obligatorio
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Avisa con <span className="font-semibold">{tipo.dias_alerta_vencimiento} días</span> de
-            anticipación
-            <span className="text-[#CBD5E1] mx-1.5">·</span>
-            <span>
-              {conteo.total} documento{conteo.total !== 1 ? "s" : ""} cargado
-              {conteo.total !== 1 ? "s" : ""}
-            </span>
+    <Link
+      href={href}
+      className="group flex items-center justify-between gap-3 px-5 py-3 hover:bg-muted/40 transition-colors"
+      title={`Ir a ${tipo.aplica_a === "camion" ? "Camiones" : "Choferes"} para cargar o actualizar este documento`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+            {tipo.nombre}
           </p>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {conteo.vencidos > 0 && (
-            <ConteoChip n={conteo.vencidos} label="vencido" tone="vencido" />
-          )}
-          {conteo.proximos > 0 && (
-            <ConteoChip n={conteo.proximos} label="próximo" tone="proximo" />
-          )}
-          {!tieneAlertas && conteo.total > 0 && (
-            <span className="text-[11px] text-[#22C55E] font-medium">Al día</span>
-          )}
-          {conteo.total === 0 && (
-            <span className="text-[11px] text-[#CBD5E1] font-medium">Sin cargas</span>
+          {tipo.obligatorio && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
+              Obligatorio
+            </span>
           )}
         </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Avisa con <span className="font-semibold">{tipo.dias_alerta_vencimiento} días</span> de
+          anticipación
+          <span className="text-[#CBD5E1] mx-1.5">·</span>
+          <span>
+            {conteo.total} documento{conteo.total !== 1 ? "s" : ""} cargado
+            {conteo.total !== 1 ? "s" : ""}
+          </span>
+        </p>
       </div>
-    </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {conteo.vencidos > 0 && (
+          <ConteoChip n={conteo.vencidos} label="vencido" tone="vencido" />
+        )}
+        {conteo.proximos > 0 && (
+          <ConteoChip n={conteo.proximos} label="próximo" tone="proximo" />
+        )}
+        {!tieneAlertas && conteo.total > 0 && (
+          <span className="text-[11px] text-[#22C55E] font-medium">Al día</span>
+        )}
+        {conteo.total === 0 && (
+          <span className="text-[11px] text-[#CBD5E1] font-medium">Sin cargas</span>
+        )}
+        <ChevronRight
+          size={15}
+          className="text-muted-foreground/30 group-hover:text-primary transition-colors"
+        />
+      </div>
+    </Link>
   );
 }
 
