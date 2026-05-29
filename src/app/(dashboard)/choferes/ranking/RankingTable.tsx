@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Minus } from "lucide-react";
-import type { RankingChofer } from "./page";
+import { AlertTriangle } from "lucide-react";
+import type { RankingChofer } from "./lib";
+import ScoreBadge from "./ScoreBadge";
 
 interface Props {
   ranking: RankingChofer[];
@@ -10,36 +11,6 @@ interface Props {
 
 function fmtNum(n: number) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-}
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
-        <Minus size={10} />
-        Sin actividad
-      </span>
-    );
-  }
-  if (score >= 80) {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-[#ECFDF5] text-[#064E3B]">
-        {score}
-      </span>
-    );
-  }
-  if (score >= 60) {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-[#FFFBEB] text-[#78350F]">
-        {score}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold bg-[#FEF2F2] text-[#7F1D1D]">
-      {score}
-    </span>
-  );
 }
 
 function PctBadge({ pct, viajes }: { pct: number; viajes: number }) {
