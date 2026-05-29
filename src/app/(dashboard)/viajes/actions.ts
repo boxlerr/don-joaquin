@@ -12,7 +12,9 @@ async function buildSearchOrFilter(
   supabase: ReturnType<typeof createAdminClient>,
   search: string,
 ): Promise<string> {
-  const term = `%${search}%`;
+  // Las comas y paréntesis rompen el parser de filtros `.or()` de PostgREST.
+  const sanitized = search.replace(/[(),]/g, " ").trim();
+  const term = `%${sanitized}%`;
   const [choferes, camiones, clientes] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
@@ -45,6 +47,16 @@ async function buildSearchOrFilter(
   return parts.join(",");
 }
 
+// Columnas reales por las que se puede ordenar (km_totales es una suma derivada,
+// no una columna, por eso no se incluye).
+const ORDERABLE_COLUMNS = {
+  fecha: "fecha_viaje",
+  toneladas: "tonelaje_real",
+  monto: "monto_flete",
+} as const;
+
+export type ViajeOrderBy = keyof typeof ORDERABLE_COLUMNS;
+
 export type GetViajesParams = {
   choferId?: string;
   page?: number;
@@ -53,6 +65,8 @@ export type GetViajesParams = {
   hasta?: string;
   estado?: string[];
   search?: string;
+  orderBy?: ViajeOrderBy;
+  orderDir?: "asc" | "desc";
 };
 
 export async function getViajesAction(
@@ -66,7 +80,11 @@ export async function getViajesAction(
     hasta,
     estado,
     search,
+    orderBy = "fecha",
+    orderDir = "desc",
   } = params;
+
+  const orderColumn = ORDERABLE_COLUMNS[orderBy] ?? ORDERABLE_COLUMNS.fecha;
 
   const supabase = createAdminClient();
   const from = page * pageSize;
@@ -84,7 +102,7 @@ export async function getViajesAction(
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
       { count: "exact" }
     )
-    .order("fecha_viaje", { ascending: false })
+    .order(orderColumn, { ascending: orderDir === "asc" })
     .range(from, to);
 
   if (choferId) {
@@ -506,18 +524,16 @@ export async function createViajeAction(
     }
   }
 
+  // Origen/destino se persisten en sus columnas (origen_id/destino_id), que son la
+  // fuente de verdad. No se duplican en observaciones.
   let origen_id: string | null = null;
   if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
-    const valTrimmed = parsed.data.origen_nombre.trim();
-    origen_id = await getOrCreatePuntoRuta(supabase, valTrimmed);
-    notasAdicionales.push(`Origen: ${valTrimmed}`);
+    origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
   }
 
   let destino_id: string | null = null;
   if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
-    const valTrimmed = parsed.data.destino_nombre.trim();
-    destino_id = await getOrCreatePuntoRuta(supabase, valTrimmed);
-    notasAdicionales.push(`Destino: ${valTrimmed}`);
+    destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
   }
 
   const observacionesDB = notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
@@ -688,12 +704,19 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: viajeActual, error: fetchError } = await (supabase as any)
     .from("viajes")
-    .select("estado")
+    .select("estado, facturado")
     .eq("id", id)
     .single();
 
   if (fetchError || !viajeActual) {
     return { ok: false, error: "Viaje no encontrado." };
+  }
+
+  if (viajeActual.facturado) {
+    return {
+      ok: false,
+      error: "El viaje está facturado: revertí el cobro en Caja antes de cancelarlo.",
+    };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -724,10 +747,16 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
 // Actualizar estado de viaje + auditoría
 // ============================================================================
 
+const ESTADOS_VALIDOS = ["pendiente", "en_curso", "cerrado", "cancelado"] as const;
+
 export async function updateViajeEstadoAction(
   id: string,
   estado: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (!ESTADOS_VALIDOS.includes(estado as (typeof ESTADOS_VALIDOS)[number])) {
+    return { ok: false, error: "Estado inválido." };
+  }
+
   const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
@@ -735,12 +764,23 @@ export async function updateViajeEstadoAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: viajeActual, error: fetchError } = await (supabase as any)
     .from("viajes")
-    .select("estado")
+    .select("estado, facturado")
     .eq("id", id)
     .single();
 
   if (fetchError || !viajeActual) {
     return { ok: false, error: "Viaje no encontrado." };
+  }
+
+  if (viajeActual.facturado) {
+    return {
+      ok: false,
+      error: "El viaje está facturado: revertí el cobro en Caja antes de cambiar su estado.",
+    };
+  }
+
+  if (viajeActual.estado === "cancelado") {
+    return { ok: false, error: "El viaje está cancelado y no puede cambiar de estado." };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -795,22 +835,26 @@ export async function cerrarViajeAction(
 
   if (fetchError || !viaje) return { ok: false, error: "Viaje no encontrado." };
 
+  // Sin monto de flete no hay nada que impacte en caja: no se marca como facturado
+  // para no dejar un cobro "fantasma" sin movimiento asociado.
+  const facturadoFinal = cobro.cobrado && viaje.monto_flete > 0;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (supabase as any)
     .from("viajes")
-    .update({ estado: "cerrado", facturado: cobro.cobrado })
+    .update({ estado: "cerrado", facturado: facturadoFinal })
     .eq("id", viajeId);
 
   if (updateError) return { ok: false, error: "No se pudo cerrar el viaje." };
 
   await logViajeAudit(supabase, viajeId, "cambio_estado", { estado: viaje.estado }, {
     estado: "cerrado",
-    cobrado: cobro.cobrado,
-    ...(cobro.cobrado && { medio_cobro: cobro.medio }),
+    cobrado: facturadoFinal,
+    ...(facturadoFinal && { medio_cobro: cobro.medio }),
     ...(cobro.observaciones && { observaciones: cobro.observaciones }),
   }, user.id);
 
-  if (cobro.cobrado && viaje.monto_flete > 0) {
+  if (facturadoFinal) {
     const { count } = await supabase
       .from("caja_movimientos")
       .select("id", { count: "exact", head: true })
@@ -994,18 +1038,15 @@ export async function updateViajeAction(
     }
   }
 
+  // Origen/destino viven en origen_id/destino_id (fuente de verdad), no en observaciones.
   let origen_id: string | null = null;
   if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
-    const v = parsed.data.origen_nombre.trim();
-    origen_id = await getOrCreatePuntoRuta(supabase, v);
-    notasAdicionales.push(`Origen: ${v}`);
+    origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
   }
 
   let destino_id: string | null = null;
   if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
-    const v = parsed.data.destino_nombre.trim();
-    destino_id = await getOrCreatePuntoRuta(supabase, v);
-    notasAdicionales.push(`Destino: ${v}`);
+    destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
   }
 
   const observacionesDB =

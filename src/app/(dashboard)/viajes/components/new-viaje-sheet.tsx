@@ -124,7 +124,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             key={open ? "open" : "closed"}
             className="flex-1 overflow-y-auto px-6 py-5 space-y-4"
           >
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Fecha */}
               <InputFieldWithIcon
                 label="Fecha del viaje *"
@@ -175,7 +175,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               error={state?.fieldErrors?.cliente_id}
             />
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Chofer */}
               <SelectFieldWithIcon
                 label="Chofer *"
@@ -227,7 +227,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             </datalist>
 
             {/* Ruta Origen / Destino */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputFieldWithIcon
                 label="Origen"
                 name="origen_nombre"
@@ -247,7 +247,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             </div>
 
             {/* Kms / Tonelaje */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <InputFieldWithIcon
                 label="Km con carga"
                 name="km_con_carga"

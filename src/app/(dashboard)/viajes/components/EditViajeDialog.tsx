@@ -216,7 +216,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             )}
 
             {/* Fecha y Estado */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CField
                 label="Fecha del viaje *"
                 icon={Calendar}
@@ -260,7 +260,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             </CField>
 
             {/* Chofer y Camión */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CField label="Chofer *" icon={LifeBuoy} error={fieldErrors.chofer_id}>
                 <select
                   value={choferId}
@@ -326,7 +326,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             </datalist>
 
             {/* Origen y Destino */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CField label="Origen" icon={MapPin} error={fieldErrors.origen_nombre}>
                 <input
                   type="text"
@@ -350,7 +350,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             </div>
 
             {/* KM y Tonelaje */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <CField label="Km con carga" icon={Navigation} error={fieldErrors.km_con_carga}>
                 <input
                   type="number"

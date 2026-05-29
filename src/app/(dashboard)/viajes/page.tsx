@@ -91,7 +91,7 @@ export default async function ViajesPage({
         }
       />
 
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <StatCard label="Total viajes" value={String(total.count ?? 0)} color="brand" />
         <StatCard label="En curso" value={String(enCurso.count ?? 0)} color="success" />
         <StatCard label="Pendientes" value={String(pendientes.count ?? 0)} color="warning" />

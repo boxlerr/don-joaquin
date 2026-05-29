@@ -54,7 +54,9 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
       setError(result.error ?? "Error al cerrar el viaje");
       return;
     }
-    onSuccess(cobrado);
+    // Sin monto de flete el viaje se cierra pero no queda facturado (no impacta en caja).
+    const facturado = cobrado && !!viaje.monto_flete && viaje.monto_flete > 0;
+    onSuccess(facturado);
     onOpenChange(false);
   };
 
@@ -118,7 +120,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
           {/* Campos de cobro — solo si cobrado */}
           {cobrado && (
             <div className="space-y-3 p-3 bg-green-50/50 rounded-lg border border-green-100">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">Fecha de cobro</Label>
                   <div className="relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">

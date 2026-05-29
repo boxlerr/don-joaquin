@@ -29,6 +29,9 @@ import {
   User,
   Pencil,
   AlertTriangle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -37,7 +40,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { getViajesAction, deleteViajeAction, updateViajeEstadoAction } from "../actions";
+import {
+  getViajesAction,
+  deleteViajeAction,
+  updateViajeEstadoAction,
+  type ViajeOrderBy,
+} from "../actions";
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
@@ -57,16 +65,25 @@ const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "
   cancelado: "error",
 };
 
-const COLUMNS = [
-  "Fecha",
-  "Cliente",
-  "Origen",
-  "Destino",
-  "KM",
-  "Toneladas",
-  "Estado",
-  "Facturado",
-  "",
+type ColumnDef = {
+  label: string;
+  sortKey?: ViajeOrderBy;
+  /** Clases responsive aplicadas tanto al <th> como a la <td> correspondiente. */
+  cellClass?: string;
+  align?: "left" | "right";
+};
+
+const COLUMNS: ColumnDef[] = [
+  { label: "Fecha", sortKey: "fecha" },
+  { label: "Cliente" },
+  { label: "Chofer", cellClass: "hidden lg:table-cell" },
+  { label: "Origen", cellClass: "hidden sm:table-cell" },
+  { label: "Destino", cellClass: "hidden sm:table-cell" },
+  { label: "KM", cellClass: "hidden sm:table-cell" },
+  { label: "Toneladas", sortKey: "toneladas", cellClass: "hidden sm:table-cell" },
+  { label: "Estado" },
+  { label: "Facturado", cellClass: "hidden sm:table-cell" },
+  { label: "" },
 ];
 
 export default function ViajesTable({ choferId }: Props) {
@@ -95,6 +112,8 @@ export default function ViajesTable({ choferId }: Props) {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [orderBy, setOrderBy] = useState<ViajeOrderBy>("fecha");
+  const [orderDir, setOrderDir] = useState<"asc" | "desc">("desc");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -122,6 +141,8 @@ export default function ViajesTable({ choferId }: Props) {
       hasta: hasta || undefined,
       estado: estadoFiltro ? [estadoFiltro] : undefined,
       search: debouncedSearch || undefined,
+      orderBy,
+      orderDir,
     }).then((result) => {
       if (cancelled) return;
       if ("error" in result) {
@@ -138,7 +159,7 @@ export default function ViajesTable({ choferId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, debouncedSearch, refreshToken]);
+  }, [choferId, desde, hasta, estadoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -150,6 +171,8 @@ export default function ViajesTable({ choferId }: Props) {
         hasta: hasta || undefined,
         estado: estadoFiltro ? [estadoFiltro] : undefined,
         search: debouncedSearch || undefined,
+        orderBy,
+        orderDir,
       });
       if ("data" in result) {
         setRows((prev) => [...prev, ...result.data]);
@@ -168,6 +191,26 @@ export default function ViajesTable({ choferId }: Props) {
     setSearch("");
     setEstadoFiltro("");
   };
+
+  const toggleOrden = (key: ViajeOrderBy) => {
+    if (orderBy === key) {
+      setOrderDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setOrderBy(key);
+      setOrderDir(key === "fecha" ? "desc" : "asc");
+    }
+  };
+
+  // Totales sobre las filas ya cargadas (no sobre el total del filtro completo).
+  const totales = rows.reduce(
+    (acc, v) => {
+      acc.km += v.km_totales ?? 0;
+      acc.toneladas += v.toneladas ?? 0;
+      acc.flete += v.monto_flete ?? 0;
+      return acc;
+    },
+    { km: 0, toneladas: 0, flete: 0 },
+  );
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none">
@@ -193,7 +236,7 @@ export default function ViajesTable({ choferId }: Props) {
           placeholder="Buscar por código, chofer, camión..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="text-sm w-44"
+          className="text-sm flex-1 min-w-[11rem]"
           aria-label="Buscar viaje por código"
         />
         <select
@@ -233,17 +276,41 @@ export default function ViajesTable({ choferId }: Props) {
       </div>
 
       {/* Tabla */}
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
-            {COLUMNS.map((col, i) => (
-              <TableHead
-                key={i}
-                className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-              >
-                {col}
-              </TableHead>
-            ))}
+            {COLUMNS.map((col, i) => {
+              const isSorted = col.sortKey && orderBy === col.sortKey;
+              return (
+                <TableHead
+                  key={i}
+                  className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${col.cellClass ?? ""}`}
+                >
+                  {col.sortKey ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleOrden(col.sortKey!)}
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      aria-label={`Ordenar por ${col.label}`}
+                    >
+                      {col.label}
+                      {isSorted ? (
+                        orderDir === "asc" ? (
+                          <ArrowUp size={12} />
+                        ) : (
+                          <ArrowDown size={12} />
+                        )
+                      ) : (
+                        <ArrowUpDown size={12} className="opacity-40" />
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
+                </TableHead>
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -285,16 +352,19 @@ export default function ViajesTable({ choferId }: Props) {
                   <TableCell className="text-sm font-medium text-foreground">
                     {v.cliente ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+                    {v.chofer ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                     {v.origen ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                     {v.destino ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono">
+                  <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
                     {v.km_totales.toLocaleString("es-AR")} km
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono">
+                  <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
                     {v.toneladas ?? 0} tn
                   </TableCell>
                   <TableCell>
@@ -303,7 +373,7 @@ export default function ViajesTable({ choferId }: Props) {
                       tone={ESTADO_TONE[v.estado] ?? "neutral"}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <span
                       className={`text-xs font-medium ${
                         v.facturado ? "text-[#10B981]" : "text-muted-foreground/70"
@@ -331,7 +401,7 @@ export default function ViajesTable({ choferId }: Props) {
                 {expandedId === v.id && (
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
-                      <div className="p-6 grid grid-cols-3 gap-6 animate-in fade-in-50 duration-200">
+                      <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
                         <div className="space-y-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
                           <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
@@ -562,6 +632,34 @@ export default function ViajesTable({ choferId }: Props) {
           )}
         </TableBody>
       </Table>
+      </div>
+
+      {/* Resumen de totales sobre los viajes cargados */}
+      {!loading && !error && rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 border-t border-border bg-muted/30 text-xs">
+          <span className="text-muted-foreground/80 font-semibold uppercase tracking-wide">
+            Totales <span className="font-normal normal-case">(sobre {rows.length} cargados)</span>
+          </span>
+          <span className="text-muted-foreground">
+            KM:{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {totales.km.toLocaleString("es-AR")}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            Toneladas:{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {totales.toneladas.toLocaleString("es-AR")} tn
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            Flete:{" "}
+            <span className="font-mono font-semibold text-[#10B981]">
+              $ {totales.flete.toLocaleString("es-AR")}
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* Cargar más / fin de resultados */}
       {!loading && (hasMore || allLoaded) && (
