@@ -52,20 +52,6 @@ export default function StatCard({
   onClick,
 }: StatCardProps) {
   const styles = colorMap[color];
-  const clickableProps = onClick
-    ? {
-        onClick,
-        role: "button" as const,
-        tabIndex: 0,
-        onKeyDown: (e: React.KeyboardEvent) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onClick();
-          }
-        },
-      }
-    : {};
-  const clickableClass = onClick ? "cursor-pointer hover:ring-2 hover:ring-[#0088D1]/20" : "";
 
   const len = value.length;
   const valueSizeClass =
@@ -73,7 +59,12 @@ export default function StatCard({
 
   if (variant === "dashboard") {
     return (
-      <div className={`relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4`}>
+      <div
+        onClick={onClick}
+        className={`relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
+          onClick ? "cursor-pointer hover:border-primary/50" : ""
+        }`}
+      >
         {Icon && (
           <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${
             color === "brand" ? "from-[#0088D1] to-[#004A99]" :
@@ -149,8 +140,10 @@ export default function StatCard({
 
   return (
     <div
-      {...clickableProps}
-      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${clickableClass}`}
+      onClick={onClick}
+      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${
+        onClick ? "cursor-pointer hover:border-primary/50" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0 flex-1">

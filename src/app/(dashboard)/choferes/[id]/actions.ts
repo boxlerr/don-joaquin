@@ -206,6 +206,71 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 
   const { data: activeAlerts } = await alertsQuery;
 
+  // Consultar archivos y campos adicionales asociados a los documentos
+  const { data: dbDocsWithFields } = docIds.length > 0
+    ? await supabase
+        .from("chofer_documentos")
+        .select("id, tipo_documento_id, fecha_emision, archivo:documentos_archivos(bucket, path, nombre_original)")
+        .in("id", docIds)
+    : { data: [] };
+
+  const docsExtraMap = new Map<string, { tipo_documento_id: string; fecha_emision: string | null; url: string | null; nombre_original: string | null }>();
+  const bucketFiles = new Map<string, { id: string; path: string; nombre_original: string }[]>();
+
+  for (const item of dbDocsWithFields || []) {
+    const arch = Array.isArray(item.archivo) ? item.archivo[0] : item.archivo;
+    if (arch) {
+      if (!bucketFiles.has(arch.bucket)) {
+        bucketFiles.set(arch.bucket, []);
+      }
+      bucketFiles.get(arch.bucket)!.push({
+        id: item.id,
+        path: arch.path,
+        nombre_original: arch.nombre_original,
+      });
+    }
+    docsExtraMap.set(item.id, {
+      tipo_documento_id: item.tipo_documento_id,
+      fecha_emision: item.fecha_emision,
+      url: null,
+      nombre_original: arch?.nombre_original ?? null,
+    });
+  }
+
+  // Solicitar URLs firmadas en lote por bucket
+  for (const [bucket, files] of bucketFiles.entries()) {
+    const paths = files.map((f) => f.path);
+    const { data: signedData, error: signError } = await supabase.storage
+      .from(bucket)
+      .createSignedUrls(paths, 3600); // Expiración de 1 hora
+
+    if (!signError && signedData) {
+      for (const signedItem of signedData) {
+        const fileObj = files.find((f) => f.path === signedItem.path);
+        if (fileObj) {
+          const prevEntry = docsExtraMap.get(fileObj.id);
+          if (prevEntry) {
+            docsExtraMap.set(fileObj.id, {
+              ...prevEntry,
+              url: signedItem.signedUrl ?? null,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const mappedDocs = (docs ?? []).map((d) => {
+    const extra = d.id ? docsExtraMap.get(d.id) : null;
+    return {
+      ...d,
+      tipo_documento_id: extra?.tipo_documento_id ?? null,
+      fecha_emision: extra?.fecha_emision ?? null,
+      archivo_url: extra?.url ?? null,
+      archivo_nombre: extra?.nombre_original ?? null,
+    };
+  });
+
   const viajesMesArr = viajesMes ?? [];
   const km_con_carga = viajesMesArr.reduce((acc, v) => acc + Number(v.km_con_carga ?? 0), 0);
   const km_vacios = viajesMesArr.reduce((acc, v) => acc + Number(v.km_vacios ?? 0), 0);
@@ -387,7 +452,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   return {
     ...chofer,
     foto: fotoObj as { bucket: string; path: string } | null,
-    documentos_vigencia: docs ?? [],
+    documentos_vigencia: mappedDocs,
     alertas: (activeAlerts ?? []).map((a) => ({
       id: a.id,
       tipo: a.tipo,
@@ -850,6 +915,124 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
     {
       tipo_documento: tipoDoc?.nombre ?? null,
       archivo: file.name,
+      numero: numero || null,
+      fecha_emision: fecha_emision || null,
+      fecha_vencimiento: fecha_vencimiento || null,
+    },
+    user.id,
+  );
+
+  revalidatePath(`/choferes/${chofer_id}`);
+  return { success: true };
+}
+
+export async function updateDocumentoChoferAction(formData: FormData) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  const id = formData.get("id") as string;
+  const chofer_id = formData.get("chofer_id") as string;
+  const tipo_documento_id = formData.get("tipo_documento_id") as string;
+  const file = formData.get("file") as File | null;
+  const numero = formData.get("numero") as string | null;
+  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
+  const fecha_emision = formData.get("fecha_emision") as string | null;
+  const eliminar_archivo = formData.get("eliminar_archivo") === "true";
+
+  if (!id) return { error: "ID de documento requerido" };
+
+  const { data: previo } = await supabase
+    .from("chofer_documentos")
+    .select("archivo_id, numero, fecha_emision, fecha_vencimiento, tipo_documento_id")
+    .eq("id", id)
+    .single();
+
+  if (!previo) return { error: "Documento no encontrado" };
+
+  let archivo_id = previo.archivo_id;
+
+  if (eliminar_archivo) {
+    archivo_id = null;
+    if (previo.archivo_id) {
+      const { data: oldFile } = await supabase
+        .from("documentos_archivos")
+        .select("bucket, path")
+        .eq("id", previo.archivo_id)
+        .single();
+      
+      if (oldFile) {
+        await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
+        await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
+      }
+    }
+  } else if (file && file.size > 0) {
+    if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+
+    const ext = file.name.split(".").pop();
+    const storagePath = `choferes/${chofer_id}/${tipo_documento_id}_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("documentos-personal")
+      .upload(storagePath, file);
+    if (uploadError) return { error: "Error al subir el archivo" };
+
+    const { data: archivoData, error: archivoError } = await supabase
+      .from("documentos_archivos")
+      .insert({
+        bucket: "documentos-personal",
+        nombre_original: file.name,
+        path: storagePath,
+        tamano_bytes: file.size,
+        mime_type: file.type,
+      })
+      .select("id")
+      .single();
+
+    if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+
+    archivo_id = archivoData.id;
+
+    // Delete previous file from storage and database if replaced
+    if (previo.archivo_id) {
+      const { data: oldFile } = await supabase
+        .from("documentos_archivos")
+        .select("bucket, path")
+        .eq("id", previo.archivo_id)
+        .single();
+      
+      if (oldFile) {
+        await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
+        await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
+      }
+    }
+  }
+
+  const { error: dbError } = await supabase
+    .from("chofer_documentos")
+    .update({
+      numero: numero || null,
+      fecha_emision: fecha_emision || null,
+      fecha_vencimiento: fecha_vencimiento || null,
+      archivo_id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (dbError) return { error: "Error al actualizar el documento" };
+
+  const { data: tipoDoc } = await supabase
+    .from("tipos_documento")
+    .select("nombre")
+    .eq("id", tipo_documento_id)
+    .single();
+
+  await logChoferAudit(
+    chofer_id,
+    "documento_actualizado",
+    previo,
+    {
+      tipo_documento: tipoDoc?.nombre ?? null,
+      archivo: file ? file.name : null,
       numero: numero || null,
       fecha_emision: fecha_emision || null,
       fecha_vencimiento: fecha_vencimiento || null,

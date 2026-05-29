@@ -6,7 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import CargarDocumentoDialog from "./CargarDocumentoDialog";
 import { deleteDocumentoAction } from "./actions";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2, ExternalLink, Pencil } from "lucide-react";
 import type { ChoferDetail, DocumentoVigencia } from "./types";
 import { formatFecha } from "@/lib/utils";
 
@@ -33,6 +33,7 @@ function vigenciaLabel(estado: string | null, dias: number | null): string {
 
 export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
+  const [selectedDocForEdit, setSelectedDocForEdit] = useState<DocumentoVigencia | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const docs = chofer.documentos_vigencia.filter((d) => d.id !== null);
@@ -59,7 +60,10 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
           variant="outline"
           size="sm"
           className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
-          onClick={() => setCargarOpen(true)}
+          onClick={() => {
+            setSelectedDocForEdit(null);
+            setCargarOpen(true);
+          }}
         >
           <Plus size={13} className="mr-1.5 text-primary" />
           Cargar documento
@@ -74,6 +78,10 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
             <DocCard
               key={doc.id}
               doc={doc}
+              onEdit={() => {
+                setSelectedDocForEdit(doc);
+                setCargarOpen(true);
+              }}
               onDelete={() => handleDelete(doc)}
               deleting={deleting === doc.id}
             />
@@ -85,9 +93,14 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
         chofer_id={chofer.id}
         tipos={chofer.tipos_documento}
         open={cargarOpen}
-        onOpenChange={setCargarOpen}
+        onOpenChange={(v) => {
+          setCargarOpen(v);
+          if (!v) setSelectedDocForEdit(null);
+        }}
+        documento={selectedDocForEdit}
         onSuccess={() => {
           setCargarOpen(false);
+          setSelectedDocForEdit(null);
           onRefresh();
         }}
       />
@@ -97,10 +110,12 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
 
 function DocCard({
   doc,
+  onEdit,
   onDelete,
   deleting,
 }: {
   doc: DocumentoVigencia;
+  onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
 }) {
@@ -134,15 +149,38 @@ function DocCard({
         )}
       </div>
 
-      <div className="mt-auto pt-2 border-t border-[#F1F5F9]">
-        <button
-          onClick={onDelete}
-          disabled={deleting}
-          className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
-        >
-          <Trash2 size={11} />
-          {deleting ? "Eliminando..." : "Eliminar"}
-        </button>
+      <div className="mt-auto pt-2 border-t border-[#F1F5F9] flex items-center gap-3">
+        {doc.archivo_url ? (
+          <a
+            href={doc.archivo_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[#0088D1] hover:underline flex items-center gap-1 font-semibold"
+          >
+            <ExternalLink size={11} />
+            Ver documento
+          </a>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/60 italic">Sin archivo</span>
+        )}
+        
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={onEdit}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 font-medium"
+          >
+            <Pencil size={11} />
+            Modificar
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+          >
+            <Trash2 size={11} />
+            {deleting ? "..." : "Eliminar"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -286,7 +286,7 @@ const LEGAJO_STEPS: TutorialStep[] = [
   {
     title: 'Abrí el "Legajo digital"',
     description:
-      'En cada card hay un botón "Ver legajo" que abre un modal grande con 4 tabs internas: Información, Documentación, Historial Viajes y Cuenta Corriente.',
+      'En cada card hay un botón "Ver legajo" (o podés hacer clic en su nombre) que te redirige a su página dedicada con toda su información detallada y organizada en pestañas.',
     mockup: <MockVerLegajo />,
   },
   {
@@ -475,18 +475,12 @@ function MockVerLegajo() {
           </span>
           <span className="font-semibold">Pérez, Juan</span>
         </div>
-        <div className="h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 bg-[#0088D1] text-white shadow-[0_0_0_3px_rgba(0,136,209,0.25)] ring-2 ring-[#0088D1]">
+        <div className="h-7 px-2 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 bg-[#0088D1] text-white">
           <User size={11} /> Ver legajo
         </div>
       </div>
-      <div className="px-3 py-2 flex items-center gap-2 text-[10px] border-b border-border overflow-x-auto whitespace-nowrap">
-        <span className="text-primary font-semibold border-b-2 border-[#0088D1] pb-1">Información</span>
-        <span className="text-muted-foreground">Documentación</span>
-        <span className="text-muted-foreground">Historial Viajes</span>
-        <span className="text-muted-foreground">Cuenta Corriente</span>
-      </div>
       <div className="p-3 text-center text-[11px] text-primary font-semibold">
-        ↓ Modal con 4 tabs internas
+        ↓ Abre la página dedicada del chofer
       </div>
     </div>
   );

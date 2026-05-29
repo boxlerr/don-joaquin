@@ -1,5 +1,4 @@
 import PageHeader from "@/components/layout/PageHeader";
-import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,6 +8,7 @@ import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
 import { redirect } from "next/navigation";
 import { ImportChoferesButton } from "./components/ChoferesIO";
+import ChoferesStats from "./components/ChoferesStats";
 
 export default async function ChoferesPage({
   searchParams,
@@ -31,7 +31,14 @@ export default async function ChoferesPage({
     }
   }
 
-  const [{ data: choferes, count: total }, activos, inactivos, docs] = await Promise.all([
+  const [
+    { data: choferes, count: total },
+    activos,
+    inactivos,
+    docs,
+    { data: vencidosDocs },
+    { data: porVencerDocs },
+  ] = await Promise.all([
     supabase
       .from("choferes")
       .select("*, foto:documentos_archivos(bucket, path)", { count: "exact" })
@@ -45,10 +52,21 @@ export default async function ChoferesPage({
       .select("*", { count: "exact", head: true })
       .eq("estado", "inactivo"),
     supabase.from("chofer_documentos").select("*", { count: "exact", head: true }),
+    supabase
+      .from("v_chofer_documentos_vigencia")
+      .select("id, chofer, chofer_id, tipo_documento, fecha_vencimiento, dias_restantes, estado_vigencia")
+      .eq("estado_vigencia", "vencido")
+      .order("fecha_vencimiento", { ascending: true }),
+    supabase
+      .from("v_chofer_documentos_vigencia")
+      .select("id, chofer, chofer_id, tipo_documento, fecha_vencimiento, dias_restantes, estado_vigencia")
+      .eq("estado_vigencia", "por_vencer")
+      .order("fecha_vencimiento", { ascending: true }),
   ]);
 
   const choferesMapeados = choferes?.map((c) => ({
     ...c,
+    dni: c.dni ?? "",
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
   }));
 
@@ -77,17 +95,16 @@ export default async function ChoferesPage({
         }
       />
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total choferes" value={String(total ?? 0)} sub="En planilla" color="brand" />
-        <StatCard label="Activos" value={String(activos.count ?? 0)} color="success" />
-        <StatCard label="Inactivos" value={String(inactivos.count ?? 0)} color="warning" />
-        <StatCard
-          label="Documentos"
-          value={String(docs.count ?? 0)}
-          sub="Registrados en legajos"
-          color="error"
-        />
-      </div>
+      <ChoferesStats
+        total={total ?? 0}
+        activos={activos.count ?? 0}
+        inactivos={inactivos.count ?? 0}
+        totalDocs={docs.count ?? 0}
+        vencidosCount={vencidosDocs?.length ?? 0}
+        porVencerCount={porVencerDocs?.length ?? 0}
+        vencidosDocs={vencidosDocs ?? []}
+        porVencerDocs={porVencerDocs ?? []}
+      />
 
       <ChoferesList choferes={choferesMapeados ?? []} />
     </div>

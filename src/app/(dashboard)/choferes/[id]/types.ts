@@ -31,10 +31,14 @@ export type DocumentoVigencia = {
   id: string | null;
   tipo_documento: string | null;
   tipo_documento_codigo: string | null;
+  tipo_documento_id?: string | null;
   fecha_vencimiento: string | null;
+  fecha_emision?: string | null;
   dias_restantes: number | null;
   estado_vigencia: string | null;
   numero: string | null;
+  archivo_url?: string | null;
+  archivo_nombre?: string | null;
 };
 
 export type TipoDocumento = {
