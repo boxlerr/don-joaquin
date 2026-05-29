@@ -31,7 +31,7 @@ export default async function RankingChoferes({
   const periodoQuery = periodoUrl.toString();
 
   return (
-    <div className="p-8 space-y-5">
+    <div className="p-8 space-y-4">
       <PageHeader
         title="Ranking de Choferes"
         description={`Período: ${periodo.label}`}
