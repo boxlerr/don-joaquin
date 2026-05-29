@@ -12,6 +12,9 @@ export type AlertaItem = {
   fecha_vencimiento: string | null;
   entidad_tipo: string | null;
   entidad_id: string | null;
+  // false para alertas calculadas en vivo desde los documentos: no se "marcan como
+  // leídas" (se resuelven actualizando el documento), así que se ocultan ese botón.
+  marcable?: boolean;
 };
 
 export const SEVERIDAD_LABEL: Record<Severidad, string> = {

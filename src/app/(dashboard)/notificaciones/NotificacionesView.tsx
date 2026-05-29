@@ -13,6 +13,7 @@ import {
   Settings,
   ShieldAlert,
   CheckCircle2,
+  CalendarClock,
 } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { marcarAlertaVista } from "./actions";
@@ -31,6 +32,24 @@ import {
 } from "./utils";
 
 const SEVERIDAD_ORDER: Severidad[] = ["critica", "advertencia", "info"];
+
+const SEV_ACCENT: Record<Severidad, { border: string; headerBg: string; count: string }> = {
+  critica: {
+    border: "border-l-[#EF4444]",
+    headerBg: "bg-[#FEF2F2]/60 hover:bg-[#FEF2F2] dark:bg-red-950/20 dark:hover:bg-red-950/30",
+    count: "text-[#DC2626] dark:text-red-300",
+  },
+  advertencia: {
+    border: "border-l-[#F59E0B]",
+    headerBg: "bg-[#FFFBEB]/60 hover:bg-[#FFFBEB] dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
+    count: "text-[#D97706] dark:text-amber-300",
+  },
+  info: {
+    border: "border-l-[#0088D1]",
+    headerBg: "bg-[#F0F9FF]/60 hover:bg-[#F0F9FF] dark:bg-sky-950/20 dark:hover:bg-sky-950/30",
+    count: "text-[#0369A1] dark:text-sky-300",
+  },
+};
 
 const CATEGORIA_ICON: Record<AlertaCategoria, typeof ShieldAlert> = {
   documentacion: ShieldAlert,
@@ -205,17 +224,18 @@ export default function NotificacionesView({
             const items = grouped[sev];
             if (items.length === 0) return null;
             const isCollapsed = collapsed[sev];
+            const accent = SEV_ACCENT[sev];
             return (
               <div
                 key={sev}
-                className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden"
+                className={`bg-card rounded-xl border border-border border-l-[3px] ${accent.border} shadow-sm overflow-hidden`}
               >
                 <button
                   type="button"
                   onClick={() =>
                     setCollapsed((prev) => ({ ...prev, [sev]: !prev[sev] }))
                   }
-                  className="w-full flex items-center justify-between px-5 py-3.5 border-b border-border hover:bg-muted/40 transition-colors"
+                  className={`w-full flex items-center justify-between px-5 py-3.5 border-b border-border transition-colors ${accent.headerBg}`}
                 >
                   <div className="flex items-center gap-2.5">
                     {isCollapsed ? (
@@ -231,9 +251,10 @@ export default function NotificacionesView({
                       {items.length} {items.length === 1 ? "alerta" : "alertas"}
                     </span>
                   </div>
+                  <span className={`text-lg font-black ${accent.count}`}>{items.length}</span>
                 </button>
                 {!isCollapsed && (
-                  <div className="divide-y divide-[#F1F5F9]">
+                  <div className="divide-y divide-[#F1F5F9] dark:divide-border">
                     {items.map((alerta) => (
                       <AlertaRow
                         key={alerta.id}
@@ -328,8 +349,17 @@ function AlertaRow({
   const esCumple = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_cumple";
   const esPrueba = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_periodo_prueba";
 
+  const fechaVencFmt = alerta.fecha_vencimiento
+    ? (() => {
+        const parts = alerta.fecha_vencimiento.split("-");
+        return parts.length === 3
+          ? `${parts[2]}/${parts[1]}/${parts[0]}`
+          : new Date(alerta.fecha_vencimiento).toLocaleDateString("es-AR");
+      })()
+    : null;
+
   return (
-    <div className="group flex items-start gap-4 px-5 py-4 hover:bg-muted/40 transition-colors">
+    <div className="group flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           {dias !== null && (
@@ -338,42 +368,45 @@ function AlertaRow({
           {href ? (
             <Link
               href={href}
-              className="text-foreground text-sm font-semibold hover:text-primary hover:underline inline-flex items-center gap-1"
+              className="text-foreground text-sm font-semibold hover:text-primary transition-colors inline-flex items-center gap-1"
             >
               {alerta.titulo}
-              <ExternalLink size={11} className="opacity-50" />
+              <ExternalLink size={11} className="opacity-40" />
             </Link>
           ) : (
             <span className="text-foreground text-sm font-semibold">{alerta.titulo}</span>
           )}
         </div>
         <p className="text-muted-foreground text-xs mt-1">{alerta.mensaje}</p>
-        <p className="text-muted-foreground/70 text-[11px] mt-1">
-          Disparada: {new Date(alerta.fecha_disparo).toLocaleDateString("es-AR")}
-          {alerta.fecha_vencimiento && (
-            <>
-              {esCumple ? " · Cumpleaños: " : esPrueba ? " · Fin de prueba: " : " · Vence: "}
-              {(() => {
-                const parts = alerta.fecha_vencimiento.split("-");
-                if (parts.length === 3) {
-                  return `${parts[2]}/${parts[1]}/${parts[0]}`;
-                }
-                return new Date(alerta.fecha_vencimiento).toLocaleDateString("es-AR");
-              })()}
-            </>
-          )}
-        </p>
+        {fechaVencFmt && (
+          <p className="text-muted-foreground/60 text-[11px] mt-1 inline-flex items-center gap-1">
+            <CalendarClock size={11} className="opacity-70" />
+            {esCumple ? "Cumpleaños" : esPrueba ? "Fin de prueba" : "Vence"} el {fechaVencFmt}
+          </p>
+        )}
       </div>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => onMarcarVista(alerta.id)}
-        className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-muted-foreground hover:text-primary hover:bg-[#E1F5FE] transition-all shrink-0 disabled:opacity-30"
-        aria-label="Marcar como leída"
-      >
-        <Check size={13} />
-        Marcar leída
-      </button>
+      {alerta.marcable === false ? (
+        href ? (
+          <Link
+            href={href}
+            className="flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold text-primary border border-[#BAE6FD] bg-[#F0F9FF] hover:bg-[#E1F5FE] dark:bg-sky-950/30 dark:border-sky-800/40 transition-colors shrink-0"
+          >
+            Actualizar
+            <ChevronRight size={13} />
+          </Link>
+        ) : null
+      ) : (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => onMarcarVista(alerta.id)}
+          className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-primary hover:border-[#BAE6FD] hover:bg-[#E1F5FE] transition-all shrink-0 disabled:opacity-30"
+          aria-label="Marcar como leída"
+        >
+          <Check size={13} />
+          Marcar leída
+        </button>
+      )}
     </div>
   );
 }

@@ -2,38 +2,24 @@ import PageHeader from "@/components/layout/PageHeader";
 export const dynamic = "force-dynamic";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import {
-  ShieldAlert,
-  FileText,
-  MapPin,
-  Settings,
-  RefreshCw,
-} from "lucide-react";
+import { RefreshCw, AlertOctagon, Clock, ShieldCheck } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
-import { categoriaDeAlerta, type AlertaItem } from "./utils";
+import { diasRestantes, type AlertaItem } from "./utils";
 
 export default async function NotificacionesPage() {
   await requireUser();
   const supabase = createAdminClient();
 
   const [
-    { count: totalPendientes },
-    { count: totalCriticas },
     { data: alertasRaw },
     { data: tiposDoc },
     { data: camionDocs },
     { data: choferDocs },
   ] = await Promise.all([
-    supabase.from("alertas").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
-    supabase
-      .from("alertas")
-      .select("*", { count: "exact", head: true })
-      .eq("estado", "pendiente")
-      .eq("severidad", "critica"),
     supabase
       .from("alertas")
       .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
@@ -47,10 +33,10 @@ export default async function NotificacionesPage() {
       .eq("estado", "activo"),
     supabase
       .from("camion_documentos")
-      .select("tipo_documento_id, fecha_vencimiento"),
+      .select("id, tipo_documento_id, fecha_vencimiento, camiones(patente)"),
     supabase
       .from("chofer_documentos")
-      .select("tipo_documento_id, fecha_vencimiento"),
+      .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
   ]);
 
   const alertas = (alertasRaw ?? []) as AlertaItem[];
@@ -67,60 +53,79 @@ export default async function NotificacionesPage() {
   const conteos: Record<string, { total: number; proximos: number; vencidos: number }> = {};
   for (const t of tipos) conteos[t.id] = { total: 0, proximos: 0, vencidos: 0 };
 
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
+  const DIAS_CRITICO = 7;
+  const nowIso = new Date().toISOString();
 
-  function acumular(docs: { tipo_documento_id: string; fecha_vencimiento: string | null }[] | null | undefined) {
+  // Alertas de documentos calculadas EN VIVO desde camion_documentos / chofer_documentos.
+  // Incluye vencidos (que el generador de alertas omitía) y próximos según los días
+  // de anticipación de cada tipo. Son auto-resolutivas: se actualizan al renovar el doc.
+  const docAlertas: AlertaItem[] = [];
+
+  function procesar(
+    docs:
+      | {
+          id: string;
+          tipo_documento_id: string;
+          fecha_vencimiento: string | null;
+          camiones?: { patente: string } | null;
+          choferes?: { nombre: string; apellido: string } | null;
+        }[]
+      | null
+      | undefined,
+    ambito: "camion" | "chofer",
+  ) {
     for (const d of docs ?? []) {
       const tipo = tipoById.get(d.tipo_documento_id);
       if (!tipo) continue;
       const c = conteos[d.tipo_documento_id]!;
       c.total++;
       if (!d.fecha_vencimiento) continue;
-      const venc = new Date(d.fecha_vencimiento);
-      venc.setHours(0, 0, 0, 0);
-      const diasRest = Math.ceil((venc.getTime() - hoy.getTime()) / 86400000);
-      if (diasRest < 0) c.vencidos++;
-      else if (diasRest <= tipo.dias_alerta_vencimiento) c.proximos++;
+      // Misma lógica que el chip (parseo por partes, sin desfase de timezone).
+      const diasRest = diasRestantes(d.fecha_vencimiento);
+      if (diasRest === null) continue;
+
+      const vencido = diasRest < 0;
+      const proximo = !vencido && diasRest <= tipo.dias_alerta_vencimiento;
+      if (vencido) c.vencidos++;
+      else if (proximo) c.proximos++;
+
+      if (!vencido && !proximo) continue;
+
+      const entidad = ambito === "camion"
+        ? (d.camiones?.patente ?? "Camión")
+        : d.choferes
+          ? `${d.choferes.apellido} ${d.choferes.nombre}`
+          : "Chofer";
+
+      docAlertas.push({
+        id: `docvenc-${d.id}`,
+        tipo: ambito === "camion" ? "vencimiento_doc_camion" : "vencimiento_doc_chofer",
+        severidad: vencido || diasRest <= DIAS_CRITICO ? "critica" : "advertencia",
+        titulo: `${tipo.nombre} — ${entidad}`,
+        mensaje: vencido
+          ? `${tipo.nombre} venció hace ${Math.abs(diasRest)} día${Math.abs(diasRest) !== 1 ? "s" : ""}.`
+          : `${tipo.nombre} vence en ${diasRest} día${diasRest !== 1 ? "s" : ""}.`,
+        fecha_disparo: nowIso,
+        fecha_vencimiento: d.fecha_vencimiento,
+        entidad_tipo: ambito === "camion" ? "camion_documentos" : "chofer_documentos",
+        entidad_id: d.id,
+        marcable: false,
+      });
     }
   }
-  acumular(camionDocs);
-  acumular(choferDocs);
+  procesar(camionDocs, "camion");
+  procesar(choferDocs, "chofer");
 
-  const catCounts = {
-    documentacion: 0,
-    cheques: 0,
-    viajes: 0,
-    sistema: 0,
-  };
-  for (const a of alertas) catCounts[categoriaDeAlerta(a.tipo)]++;
+  // Alertas reales de la tabla (cheques, cumpleaños, prueba, compliance). Excluimos las
+  // de documentos porque ya las calculamos arriba en vivo (evita duplicados).
+  const otrasAlertas = alertas.filter(
+    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
+  );
 
-  const categorias = [
-    {
-      icon: ShieldAlert,
-      label: "Documentación",
-      description: "Vencimientos de VTV, seguro, licencias, RUTA/LINTI",
-      count: catCounts.documentacion,
-    },
-    {
-      icon: FileText,
-      label: "Cheques",
-      description: "Próximos a vencer, vencidos o rechazados",
-      count: catCounts.cheques,
-    },
-    {
-      icon: MapPin,
-      label: "Viajes y viáticos",
-      description: "Viajes pendientes de cierre, viáticos sin rendir",
-      count: catCounts.viajes,
-    },
-    {
-      icon: Settings,
-      label: "Sistema",
-      description: "Backups, sesiones y eventos administrativos",
-      count: catCounts.sistema,
-    },
-  ];
+  const alertasMerged: AlertaItem[] = [...docAlertas, ...otrasAlertas];
+
+  const docVencidos = docAlertas.filter((a) => a.mensaje.includes("venció")).length;
+  const docProximos = docAlertas.length - docVencidos;
 
   return (
     <div className="p-8">
@@ -135,7 +140,7 @@ export default async function NotificacionesPage() {
                 Actualizar alertas
               </Button>
             </form>
-            {(totalPendientes ?? 0) > 0 && (
+            {otrasAlertas.length > 0 && (
               <form action={marcarTodasVistas}>
                 <Button type="submit" variant="outline" size="sm">
                   Marcar todas como leídas
@@ -148,46 +153,32 @@ export default async function NotificacionesPage() {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <StatCard
-          label="Pendientes"
-          value={String(totalPendientes ?? 0)}
-          sub="Sin revisar"
-          color="warning"
+          label="Vencidos"
+          value={String(docVencidos)}
+          sub="Documentos vencidos"
+          color="error"
+          icon={AlertOctagon}
+          variant="dashboard"
         />
         <StatCard
-          label="Críticas"
-          value={String(totalCriticas ?? 0)}
-          sub="Requieren acción inmediata"
-          color="error"
+          label="Próximos a vencer"
+          value={String(docProximos)}
+          sub="Dentro del plazo de alerta"
+          color="warning"
+          icon={Clock}
+          variant="dashboard"
         />
         <StatCard
           label="Tipos monitoreados"
           value={String(tipos.length)}
-          sub="Documentos con alerta"
+          sub="Documentos vigilados"
           color="success"
+          icon={ShieldCheck}
+          variant="dashboard"
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {categorias.map(({ icon: Icon, label, description, count }) => (
-          <div
-            key={label}
-            className="bg-card rounded-[8px] border border-border shadow-sm p-5"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#E1F5FE] shrink-0">
-                <Icon size={20} className="text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-foreground text-sm font-semibold">{label}</p>
-                <p className="text-muted-foreground text-xs mt-0.5">{description}</p>
-              </div>
-              <span className="text-2xl font-bold text-primary">{count}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <NotificacionesView alertas={alertas} />
+      <NotificacionesView alertas={alertasMerged} />
 
       <div className="mt-6">
         <TiposMonitoreados tipos={tipos} conteos={conteos} />
