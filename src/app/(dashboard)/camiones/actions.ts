@@ -512,6 +512,73 @@ export async function uploadDocumentoCamionAction(formData: FormData) {
   return { success: true };
 }
 
+export async function updateDocumentoCamionAction(formData: FormData) {
+  const supabase = createAdminClient();
+
+  const doc_id = formData.get("doc_id") as string;
+  const numero = formData.get("numero") as string | null;
+  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
+  const fecha_emision = formData.get("fecha_emision") as string | null;
+  const file = formData.get("file") as File | null;
+
+  if (!doc_id) return { error: "Documento requerido" };
+
+  const updates: {
+    numero: string | null;
+    fecha_vencimiento: string | null;
+    fecha_emision?: string | null;
+    archivo_id?: string;
+  } = {
+    numero: numero || null,
+    fecha_vencimiento: fecha_vencimiento || null,
+  };
+  if (fecha_emision !== null) updates.fecha_emision = fecha_emision || null;
+
+  // Reemplazo de archivo opcional
+  if (file && file.size) {
+    if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+
+    const { data: docRow } = await supabase
+      .from("camion_documentos")
+      .select("camion_id, tipo_documento_id")
+      .eq("id", doc_id)
+      .single();
+    if (!docRow) return { error: "No se encontró el documento" };
+
+    const ext = file.name.split(".").pop();
+    const storagePath = `camiones/${docRow.camion_id}/${docRow.tipo_documento_id}_${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("documentos-personal")
+      .upload(storagePath, file);
+    if (uploadError) return { error: "Error al subir el archivo" };
+
+    const { data: archivoData, error: archivoError } = await supabase
+      .from("documentos_archivos")
+      .insert({
+        bucket: "documentos-personal",
+        nombre_original: file.name,
+        path: storagePath,
+        tamano_bytes: file.size,
+        mime_type: file.type,
+      })
+      .select("id")
+      .single();
+    if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+
+    updates.archivo_id = archivoData.id;
+  }
+
+  const { error } = await supabase
+    .from("camion_documentos")
+    .update(updates)
+    .eq("id", doc_id);
+  if (error) return { error: "No se pudo actualizar el documento" };
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
 export async function deleteDocumentoCamionAction(doc_id: string) {
   const supabase = createAdminClient();
 

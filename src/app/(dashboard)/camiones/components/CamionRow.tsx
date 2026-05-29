@@ -109,6 +109,22 @@ export default function CamionRow({
         <TableCell>{Number(camion.capacidad_tn).toFixed(1)} TN</TableCell>
         <TableCell className="text-muted-foreground">{camion.tipo_camion ?? "—"}</TableCell>
         <TableCell>
+          <div className="flex flex-col gap-0.5">
+            {camion.acoplados_vinculados && camion.acoplados_vinculados.length > 0 ? (
+              <span className="font-mono text-xs text-foreground">
+                {camion.acoplados_vinculados.join(", ")}
+              </span>
+            ) : (
+              <span className="text-muted-foreground/50 italic text-xs">Sin acoplado</span>
+            )}
+            {camion.chofer_nombre ? (
+              <span className="text-[11px] text-muted-foreground">{camion.chofer_nombre}</span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground/50 italic">Sin chofer</span>
+            )}
+          </div>
+        </TableCell>
+        <TableCell>
           {terc && (
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${terc.cls}`}

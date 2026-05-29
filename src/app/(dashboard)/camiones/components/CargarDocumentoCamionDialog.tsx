@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,9 +19,16 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { uploadDocumentoCamionAction } from "../actions";
+import { uploadDocumentoCamionAction, updateDocumentoCamionAction } from "../actions";
 import type { TipoDocumentoCamion } from "../types";
 import { Upload } from "lucide-react";
+
+export type DocumentoEditing = {
+  id: string;
+  tipo_documento: string | null;
+  numero: string | null;
+  fecha_vencimiento: string | null;
+};
 
 interface Props {
   camion_id: string;
@@ -29,6 +36,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
+  editing?: DocumentoEditing | null;
 }
 
 export default function CargarDocumentoCamionDialog({
@@ -37,7 +45,9 @@ export default function CargarDocumentoCamionDialog({
   open,
   onOpenChange,
   onSuccess,
+  editing,
 }: Props) {
+  const isEdit = !!editing;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipoId, setTipoId] = useState("");
@@ -49,6 +59,18 @@ export default function CargarDocumentoCamionDialog({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isOtro = tipoId === "__otro__";
+
+  // Prefill al abrir en modo edición
+  useEffect(() => {
+    if (open && editing) {
+      setNumero(editing.numero ?? "");
+      setFechaVencimiento(editing.fecha_vencimiento ?? "");
+      setFechaEmision("");
+      setFileName(null);
+      setError(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }, [open, editing]);
 
   const reset = () => {
     setTipoId("");
@@ -63,13 +85,41 @@ export default function CargarDocumentoCamionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tipoId) return setError("Seleccioná un tipo de documento");
-    if (isOtro && !tipoNombreCustom.trim())
-      return setError("Escribí el nombre del tipo de documento");
-    if (!fileRef.current?.files?.[0]) return setError("Seleccioná un archivo");
 
     setLoading(true);
     setError(null);
+
+    if (isEdit && editing) {
+      const formData = new FormData();
+      formData.set("doc_id", editing.id);
+      formData.set("numero", numero);
+      formData.set("fecha_vencimiento", fechaVencimiento);
+      if (fechaEmision) formData.set("fecha_emision", fechaEmision);
+      const nuevoArchivo = fileRef.current?.files?.[0];
+      if (nuevoArchivo) formData.set("file", nuevoArchivo);
+
+      const res = await updateDocumentoCamionAction(formData);
+      setLoading(false);
+      if (res.error) setError(res.error);
+      else {
+        reset();
+        onSuccess();
+      }
+      return;
+    }
+
+    if (!tipoId) {
+      setLoading(false);
+      return setError("Seleccioná un tipo de documento");
+    }
+    if (isOtro && !tipoNombreCustom.trim()) {
+      setLoading(false);
+      return setError("Escribí el nombre del tipo de documento");
+    }
+    if (!fileRef.current?.files?.[0]) {
+      setLoading(false);
+      return setError("Seleccioná un archivo");
+    }
 
     const formData = new FormData();
     formData.set("camion_id", camion_id);
@@ -108,9 +158,13 @@ export default function CargarDocumentoCamionDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Cargar documento</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">
+            {isEdit ? "Actualizar documento" : "Cargar documento"}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Cualquier formato — máximo 10 MB.
+            {isEdit
+              ? "Actualizá la fecha de vencimiento y, si renovaste, reemplazá el archivo."
+              : "Cualquier formato — máximo 10 MB."}
           </DialogDescription>
         </DialogHeader>
 
@@ -122,10 +176,12 @@ export default function CargarDocumentoCamionDialog({
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">
-              Tipo de documento <span className="text-red-400">*</span>
-            </Label>
-            {tipos.length === 0 ? (
+            <Label className="text-sm font-medium text-foreground">Tipo de documento</Label>
+            {isEdit ? (
+              <div className="h-10 px-3 flex items-center rounded-lg border border-border bg-muted/40 text-sm text-foreground">
+                {editing?.tipo_documento ?? "Documento"}
+              </div>
+            ) : tipos.length === 0 ? (
               <p className="text-sm text-muted-foreground/70">No hay tipos de documento disponibles</p>
             ) : (
               <>
@@ -194,12 +250,17 @@ export default function CargarDocumentoCamionDialog({
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">
-              Archivo <span className="text-red-400">*</span>
+              Archivo {!isEdit && <span className="text-red-400">*</span>}
+              {isEdit && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (opcional — solo si renovaste)
+                </span>
+              )}
             </Label>
             <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
               <Upload size={16} className="text-muted-foreground/70" />
               <span className="text-sm text-muted-foreground">
-                {fileName ?? "Elegir archivo..."}
+                {fileName ?? (isEdit ? "Mantener archivo actual" : "Elegir archivo...")}
               </span>
               <input
                 ref={fileRef}
@@ -224,7 +285,7 @@ export default function CargarDocumentoCamionDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Subiendo..." : "Cargar"}
+              {loading ? "Guardando..." : isEdit ? "Actualizar" : "Cargar"}
             </Button>
           </DialogFooter>
         </form>

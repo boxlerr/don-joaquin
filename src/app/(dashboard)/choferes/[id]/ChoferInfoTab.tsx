@@ -8,6 +8,10 @@ import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
 import { Check, Pencil, X } from "lucide-react";
 
+// Centinela de la carga inicial (scripts/seed-camiones-acoplados.ts): los tractores
+// que vinieron solo con patente tienen marca/modelo = "Sin datos". No mostrarlo como texto.
+const SIN_DATOS = "Sin datos";
+
 interface Props {
   chofer: ChoferDetail;
   onSaved?: () => void;
@@ -140,13 +144,17 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
                 {chofer.camion_actual ? (
                   <p className="text-sm py-0.5 text-foreground">
                     <span className="font-mono">{chofer.camion_actual.patente}</span>
-                    {(chofer.camion_actual.marca || chofer.camion_actual.modelo) && (
+                    {[chofer.camion_actual.marca, chofer.camion_actual.modelo].some(
+                      (x) => x && x !== SIN_DATOS
+                    ) ? (
                       <span className="text-muted-foreground">
                         {" "}· {[chofer.camion_actual.marca, chofer.camion_actual.modelo]
-                          .filter(Boolean)
+                          .filter((x) => x && x !== SIN_DATOS)
                           .join(" ")}
                         {chofer.camion_actual.ano ? ` (${chofer.camion_actual.ano})` : ""}
                       </span>
+                    ) : (
+                      <span className="text-muted-foreground/50 italic">{" "}· sin datos del modelo</span>
                     )}
                   </p>
                 ) : (

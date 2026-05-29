@@ -15,6 +15,24 @@ export type Camion = Pick<
   | "km_actual"
 > & {
   foto_url?: string | null;
+  chofer_nombre?: string | null;
+  acoplados_vinculados?: string[];
+};
+
+export type Acoplado = Pick<
+  Database["public"]["Tables"]["acoplados"]["Row"],
+  | "id"
+  | "patente"
+  | "marca"
+  | "modelo"
+  | "ano"
+  | "capacidad_tn"
+  | "tipo"
+  | "es_tolva"
+  | "estado"
+> & {
+  camion_patente?: string | null;
+  chofer_nombre?: string | null;
 };
 
 export type ServiceRecord = Pick<

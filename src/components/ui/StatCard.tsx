@@ -1,3 +1,4 @@
+import type React from "react";
 import { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
@@ -7,6 +8,7 @@ interface StatCardProps {
   color?: "brand" | "success" | "warning" | "error";
   icon?: LucideIcon;
   variant?: "default" | "dashboard";
+  onClick?: () => void;
 }
 
 const colorMap = {
@@ -47,8 +49,23 @@ export default function StatCard({
   color = "brand",
   icon: Icon,
   variant = "default",
+  onClick,
 }: StatCardProps) {
   const styles = colorMap[color];
+  const clickableProps = onClick
+    ? {
+        onClick,
+        role: "button" as const,
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick();
+          }
+        },
+      }
+    : {};
+  const clickableClass = onClick ? "cursor-pointer hover:ring-2 hover:ring-[#0088D1]/20" : "";
 
   const len = value.length;
   const valueSizeClass =
@@ -131,7 +148,10 @@ export default function StatCard({
   }
 
   return (
-    <div className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group`}>
+    <div
+      {...clickableProps}
+      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${clickableClass}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0 flex-1">
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider">{label}</p>

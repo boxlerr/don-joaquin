@@ -438,7 +438,14 @@ export default function CamionDetailSheet({
             )}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm mt-0.5">
-            {camion.marca} {camion.modelo} — {camion.ano}
+            {camion.marca && camion.marca !== "Sin datos" ? (
+              <>
+                {camion.marca} {camion.modelo}
+                {camion.ano ? ` — ${camion.ano}` : ""}
+              </>
+            ) : (
+              <span className="italic">Sin datos de marca/modelo cargados</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

@@ -1,13 +1,14 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, FileText, Receipt } from "lucide-react";
+import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
 import CamionesTableClient from "./components/CamionesTableClient";
+import DocVencimientosCard from "./components/DocVencimientosCard";
 import { ExportCamionesButton, ImportCamionesButton } from "./components/CamionesIO";
 import HelpTutorialButton from "./help-tutorial-button";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
@@ -37,16 +38,15 @@ export default async function CamionesPage({
     }
   }
 
-  const [{ data: camiones, count: total }, operativos, mantenimiento, docVencer, { data: fotosPrincipales }, gastoFormData, tiposServicio] =
+  const [{ data: camiones, count: total }, operativos, mantenimiento, { data: docsVencer }, { data: fotosPrincipales }, gastoFormData, tiposServicio, { data: acoplados }, { data: vinculos }, { data: choferesData }] =
     await Promise.all([
       supabase
         .from("camiones")
         .select(
-          "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual",
+          "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual, chofer_actual_id",
           { count: "exact" }
         )
-        .order("patente")
-        .limit(50),
+        .order("patente"),
       supabase
         .from("camiones")
         .select("*", { count: "exact", head: true })
@@ -55,13 +55,26 @@ export default async function CamionesPage({
         .from("camiones")
         .select("*", { count: "exact", head: true })
         .eq("estado", "en_mantenimiento"),
-      supabase.from("camion_documentos").select("*", { count: "exact", head: true }),
+      supabase
+        .from("v_camion_documentos_vigencia")
+        .select("id, camion_id, patente, tipo_documento, fecha_vencimiento, dias_restantes, estado_vigencia")
+        .in("estado_vigencia", ["por_vencer", "vencido"])
+        .order("dias_restantes", { ascending: true }),
       supabase
         .from("camion_fotos")
         .select("camion_id, archivo:documentos_archivos!archivo_id(bucket, path)")
         .eq("es_principal", true),
       getGastoFormData(),
       getTiposServicioAction(),
+      supabase
+        .from("acoplados")
+        .select("id, patente, marca, modelo, ano, capacidad_tn, tipo, es_tolva, estado")
+        .order("patente"),
+      supabase
+        .from("camion_acoplados")
+        .select("camion_id, acoplado_id")
+        .is("hasta", null),
+      supabase.from("choferes").select("id, nombre, apellido"),
     ]);
 
   const fotosMap = new Map<string, string>();
@@ -72,10 +85,50 @@ export default async function CamionesPage({
     fotosMap.set(f.camion_id, pub.publicUrl);
   }
 
+  // Nombre de chofer por id (apellido + nombre, compacto para la tabla)
+  const choferNombre = new Map<string, string>();
+  for (const ch of choferesData ?? []) {
+    choferNombre.set(ch.id, `${ch.apellido}${ch.nombre ? ` ${ch.nombre}` : ""}`.trim());
+  }
+
+  // Patente de camión por id (para mostrar el lado camión en la lista de acoplados)
+  const camionPatente = new Map<string, string>();
+  const camionChofer = new Map<string, string | null>();
+  for (const c of camiones ?? []) {
+    camionPatente.set(c.id, c.patente);
+    camionChofer.set(c.id, c.chofer_actual_id ? choferNombre.get(c.chofer_actual_id) ?? null : null);
+  }
+
+  // Vinculación camión ↔ acoplado (vigente: hasta IS NULL)
+  const acoplPatente = new Map<string, string>();
+  for (const a of acoplados ?? []) acoplPatente.set(a.id, a.patente);
+  const acoplsDeCamion = new Map<string, string[]>(); // camion_id -> [patente acoplado]
+  const camionDeAcopl = new Map<string, string>(); // acoplado_id -> camion_id
+  for (const v of vinculos ?? []) {
+    if (v.camion_id && v.acoplado_id) {
+      const arr = acoplsDeCamion.get(v.camion_id) ?? [];
+      const pat = acoplPatente.get(v.acoplado_id);
+      if (pat) arr.push(pat);
+      acoplsDeCamion.set(v.camion_id, arr);
+      camionDeAcopl.set(v.acoplado_id, v.camion_id);
+    }
+  }
+
   const camionesConFoto = (camiones ?? []).map((c) => ({
     ...c,
     foto_url: fotosMap.get(c.id) ?? null,
+    chofer_nombre: c.chofer_actual_id ? choferNombre.get(c.chofer_actual_id) ?? null : null,
+    acoplados_vinculados: acoplsDeCamion.get(c.id) ?? [],
   }));
+
+  const acopladosVinculados = (acoplados ?? []).map((a) => {
+    const camionId = camionDeAcopl.get(a.id) ?? null;
+    return {
+      ...a,
+      camion_patente: camionId ? camionPatente.get(camionId) ?? null : null,
+      chofer_nombre: camionId ? camionChofer.get(camionId) ?? null : null,
+    };
+  });
 
   return (
     <div className="p-8">
@@ -154,16 +207,14 @@ export default async function CamionesPage({
           color="warning" 
           icon={AlertCircle}
         />
-        <StatCard
-          label="Documentación"
-          value={String(docVencer.count ?? 0)}
-          sub="Vencimientos próximos"
-          color="error"
-          icon={FileText}
-        />
+        <DocVencimientosCard documentos={docsVencer ?? []} />
       </div>
 
-      <CamionesTableClient camiones={camionesConFoto} tiposServicio={tiposServicio} />
+      <CamionesTableClient
+        camiones={camionesConFoto}
+        acoplados={acopladosVinculados}
+        tiposServicio={tiposServicio}
+      />
     </div>
   );
 }
