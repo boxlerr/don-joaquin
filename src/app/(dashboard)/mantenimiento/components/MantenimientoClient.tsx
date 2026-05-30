@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ResponsiveContainer,
   BarChart,
@@ -22,15 +23,26 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Wrench, CircleDot, BellRing, Plus, AlertTriangle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import InlineFeedback from "@/components/ui/InlineFeedback";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog from "./AddRoturaDialog";
 import type { AcopladoOption, CamionOption, ChoferOption, TipoServicioOption } from "../types";
-import type {
-  ServicioRow,
-  RoturaRow,
-  RoturaPorChofer,
-  AlertaServicio,
+import {
+  deleteServicioAction,
+  deleteRoturaAction,
+  type ServicioRow,
+  type RoturaRow,
+  type RoturaPorChofer,
+  type AlertaServicio,
 } from "../actions";
 
 type Tab = "servicios" | "roturas" | "alertas";
@@ -71,7 +83,37 @@ export default function MantenimientoClient({
   tiposServicio: TipoServicioOption[];
   canWrite: boolean;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("servicios");
+
+  // Edición
+  const [editServicio, setEditServicio] = useState<ServicioRow | null>(null);
+  const [editRotura, setEditRotura] = useState<RoturaRow | null>(null);
+  // Borrado (confirmación)
+  const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura"; id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    if (!confirmDel) return;
+    setDeleting(true);
+    setDelError(null);
+    try {
+      const res = confirmDel.tipo === "servicio"
+        ? await deleteServicioAction(confirmDel.id)
+        : await deleteRoturaAction(confirmDel.id);
+      if (res.error) {
+        setDelError(res.error);
+      } else {
+        setConfirmDel(null);
+        router.refresh();
+      }
+    } catch {
+      setDelError("Ocurrió un error inesperado.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const totalGomasRotas = roturas.reduce((acc, r) => acc + (r.cantidad ?? 0), 0);
   const alertasVencidas = alertas.filter((a) => a.estado === "vencido").length;
@@ -91,19 +133,26 @@ export default function MantenimientoClient({
         description="Servicios, gomería y roturas de la flota — simple y al día"
         action={
           canWrite ? (
-            tab === "roturas" ? (
-              <AddRoturaDialog camiones={camiones} acoplados={acoplados} choferes={choferes}>
-                <Button variant="brand" className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2">
-                  <Plus size={16} strokeWidth={2.5} /> Registrar rotura
-                </Button>
-              </AddRoturaDialog>
-            ) : (
-              <AddServicioDialog camiones={camiones} tiposServicio={tiposServicio}>
-                <Button variant="brand" className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2">
-                  <Plus size={16} strokeWidth={2.5} /> Cargar servicio
+            <div className="flex items-center gap-2">
+              <AddServicioDialog camiones={camiones} acoplados={acoplados} tiposServicio={tiposServicio}>
+                <Button
+                  variant="brand"
+                  className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 shadow-sm"
+                  title="Service preventivo, reparación o gomería programada"
+                >
+                  <Wrench size={15} strokeWidth={2.5} /> Cargar servicio
                 </Button>
               </AddServicioDialog>
-            )
+              <AddRoturaDialog camiones={camiones} acoplados={acoplados} choferes={choferes}>
+                <Button
+                  variant="brand"
+                  className="bg-[#F59E0B] hover:bg-[#D97706] text-white gap-2 shadow-sm"
+                  title="Rotura de goma no programada (pinchadura, reventón)"
+                >
+                  <CircleDot size={15} strokeWidth={2.5} /> Registrar rotura
+                </Button>
+              </AddRoturaDialog>
+            </div>
           ) : null
         }
       />
@@ -141,11 +190,12 @@ export default function MantenimientoClient({
             <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Camión</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Servicio</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Taller</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
+                {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-20">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,13 +206,30 @@ export default function MantenimientoClient({
                   <TableRow key={s.id}>
                     <TableCell className="pl-6 text-muted-foreground">{fmtFecha(s.fecha)}</TableCell>
                     <TableCell className="font-medium">
-                      {s.camion_patente}
-                      {s.camion_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{s.camion_marca_modelo}</span>}
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                          {s.unidad_tipo === "camion" ? "Cam" : "Acop"}
+                        </span>
+                        <span className="font-mono">{s.unidad_patente}</span>
+                      </span>
+                      {s.unidad_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{s.unidad_marca_modelo}</span>}
                     </TableCell>
                     <TableCell>{s.tipo_servicio_nombre ?? s.descripcion}</TableCell>
                     <TableCell className="text-muted-foreground">{s.taller ?? "—"}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{fmtNum(s.km_odometro)}</TableCell>
-                    <TableCell className="text-right pr-6 font-medium">{fmtMoneda(s.costo)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{s.unidad_tipo === "acoplado" ? "—" : fmtNum(s.km_odometro)}</TableCell>
+                    <TableCell className="text-right font-medium">{fmtMoneda(s.costo)}</TableCell>
+                    {canWrite && (
+                      <TableCell className="text-right pr-6">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => setEditServicio(s)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => setConfirmDel({ tipo: "servicio", id: s.id, label: `${s.tipo_servicio_nombre ?? s.descripcion} — ${s.unidad_patente}` })} className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]" title="Borrar">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -205,7 +272,8 @@ export default function MantenimientoClient({
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Posición / notas</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cantidad</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
+                  {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-20">Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -232,7 +300,19 @@ export default function MantenimientoClient({
                       </TableCell>
                       <TableCell className="text-muted-foreground">{r.posicion ?? r.observaciones ?? "—"}</TableCell>
                       <TableCell className="text-right font-medium text-[#F59E0B]">{r.cantidad}</TableCell>
-                      <TableCell className="text-right pr-6 text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
+                      {canWrite && (
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => setEditRotura(r)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` })} className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]" title="Borrar">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))
                 )}
@@ -247,14 +327,14 @@ export default function MantenimientoClient({
           <div className="px-5 py-4 border-b border-border">
             <h2 className="text-foreground text-sm font-semibold">Próximos services</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Camiones con un próximo service cargado que vence pronto (≤30 días o ≤5.000 km).
+              Unidades con un próximo service cargado que vence pronto (≤30 días o ≤5.000 km).
             </p>
           </div>
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Estado</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Camión</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Servicio</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Vence</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Falta</TableHead>
@@ -265,7 +345,7 @@ export default function MantenimientoClient({
                 <EmptyTableRow message="Sin alertas. Cargá un servicio con 'próximo service' para que aparezca acá." />
               ) : (
                 alertas.map((a, i) => (
-                  <TableRow key={`${a.camion_id}-${a.servicio}-${i}`}>
+                  <TableRow key={`${a.unidad_id}-${a.servicio}-${i}`}>
                     <TableCell className="pl-6">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -278,8 +358,13 @@ export default function MantenimientoClient({
                       </span>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {a.camion_patente}
-                      {a.camion_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{a.camion_marca_modelo}</span>}
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                          {a.unidad_tipo === "camion" ? "Cam" : "Acop"}
+                        </span>
+                        <span className="font-mono">{a.unidad_patente}</span>
+                      </span>
+                      {a.unidad_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{a.unidad_marca_modelo}</span>}
                     </TableCell>
                     <TableCell>{a.servicio}</TableCell>
                     <TableCell className="text-muted-foreground">
@@ -303,6 +388,50 @@ export default function MantenimientoClient({
           </Table>
         </div>
       )}
+
+      {/* Diálogos de edición (controlados) */}
+      {editServicio && (
+        <AddServicioDialog
+          camiones={camiones}
+          acoplados={acoplados}
+          tiposServicio={tiposServicio}
+          editing={editServicio}
+          open={!!editServicio}
+          onOpenChange={(v) => { if (!v) setEditServicio(null); }}
+        />
+      )}
+      {editRotura && (
+        <AddRoturaDialog
+          camiones={camiones}
+          acoplados={acoplados}
+          choferes={choferes}
+          editing={editRotura}
+          open={!!editRotura}
+          onOpenChange={(v) => { if (!v) setEditRotura(null); }}
+        />
+      )}
+
+      {/* Confirmación de borrado */}
+      <Dialog open={!!confirmDel} onOpenChange={(v) => { if (!v) { setConfirmDel(null); setDelError(null); } }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-foreground text-lg">¿Borrar registro?</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {confirmDel?.label}. Esta acción no se puede deshacer.
+              {confirmDel?.tipo === "servicio" && " Si tenía un gasto asociado en Caja, también se elimina."}
+            </DialogDescription>
+          </DialogHeader>
+          {delError && <InlineFeedback variant="error" message={delError} onDismiss={() => setDelError(null)} autoHideMs={0} />}
+          <DialogFooter className="pt-2 sm:justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmDel(null)} disabled={deleting} className="text-muted-foreground border-border hover:bg-muted/40">
+              Cancelar
+            </Button>
+            <Button onClick={handleDelete} disabled={deleting} className="bg-[#EF4444] hover:bg-[#DC2626] text-white">
+              {deleting ? "Borrando..." : "Borrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

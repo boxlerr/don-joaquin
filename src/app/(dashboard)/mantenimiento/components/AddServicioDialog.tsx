@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import UnidadPicker, { type UnidadValue } from "./UnidadPicker";
-import { addServicioAction } from "../actions";
-import type { CamionOption, TipoServicioOption } from "../types";
+import { addServicioAction, updateServicioAction, type ServicioRow } from "../actions";
+import type { AcopladoOption, CamionOption, TipoServicioOption } from "../types";
 
 const ESTADO_LABEL: Record<string, string> = {
   interno: "Interno",
@@ -30,20 +30,32 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function AddServicioDialog({
   children,
   camiones,
+  acoplados,
   tiposServicio,
+  editing,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   children?: React.ReactNode;
   camiones: CamionOption[];
+  acoplados: AcopladoOption[];
   tiposServicio: TipoServicioOption[];
+  editing?: ServicioRow | null;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const [unidad, setUnidad] = useState<UnidadValue>("");
   const camionId = unidad.startsWith("c:") ? unidad.slice(2) : "";
+  const acopladoId = unidad.startsWith("a:") ? unidad.slice(2) : "";
+  const esAcoplado = !!acopladoId;
   const [tipoServicioId, setTipoServicioId] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [km, setKm] = useState("");
@@ -66,18 +78,30 @@ export default function AddServicioDialog({
 
   useEffect(() => {
     if (!open) return;
-    setUnidad("");
-    setTipoServicioId("");
-    setFecha(new Date().toISOString().split("T")[0]);
-    setKm("");
-    setTaller("");
-    setCosto("");
-    setObservaciones("");
-    setProxFecha("");
-    setProxKm("");
+    if (editing) {
+      setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
+      setTipoServicioId(editing.tipo_servicio_id ?? "");
+      setFecha(editing.fecha);
+      setKm(editing.km_odometro ? String(editing.km_odometro) : "");
+      setTaller(editing.taller ?? "");
+      setCosto(editing.costo != null ? String(editing.costo) : "");
+      setObservaciones(editing.observaciones ?? "");
+      setProxFecha(editing.proximo_service_fecha ?? "");
+      setProxKm(editing.proximo_service_km != null ? String(editing.proximo_service_km) : "");
+    } else {
+      setUnidad("");
+      setTipoServicioId("");
+      setFecha(new Date().toISOString().split("T")[0]);
+      setKm("");
+      setTaller("");
+      setCosto("");
+      setObservaciones("");
+      setProxFecha("");
+      setProxKm("");
+    }
     setError(null);
     setSuccess(null);
-  }, [open]);
+  }, [open, editing]);
 
   // Si cambia el camión a tercerizado y el tipo elegido ya no aplica, resetearlo.
   useEffect(() => {
@@ -88,30 +112,33 @@ export default function AddServicioDialog({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!camionId) return setError("Elegí un camión.");
+    if (!camionId && !acopladoId) return setError("Elegí un camión o acoplado.");
     if (!tipoServicioId) return setError("Elegí el tipo de servicio.");
-    const kmN = parseInt(km);
-    if (!Number.isFinite(kmN) || kmN <= 0) return setError("Cargá el KM del camión.");
+    // El acoplado no tiene odómetro; el KM solo es obligatorio para camiones.
+    const kmN = km ? parseInt(km) : 0;
+    if (!esAcoplado && (!Number.isFinite(kmN) || kmN <= 0)) return setError("Cargá el KM del camión.");
 
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const result = await addServicioAction({
-        camion_id: camionId,
+      const payload = {
         tipo_servicio_id: tipoServicioId,
         fecha,
-        km_odometro: kmN,
+        km_odometro: Number.isFinite(kmN) ? kmN : 0,
         taller: taller || null,
         costo: costo ? parseFloat(costo) : null,
         observaciones: observaciones || null,
         proximo_service_fecha: proxFecha || null,
-        proximo_service_km: proxKm ? parseInt(proxKm) : null,
-      });
+        proximo_service_km: !esAcoplado && proxKm ? parseInt(proxKm) : null,
+      };
+      const result = editing
+        ? await updateServicioAction(editing.id, payload)
+        : await addServicioAction({ camion_id: camionId || null, acoplado_id: acopladoId || null, ...payload });
       if (result.error) {
         setError(result.error);
       } else {
-        setSuccess("Servicio registrado");
+        setSuccess(editing ? "Cambios guardados" : "Servicio registrado");
         router.refresh();
         setTimeout(() => setOpen(false), 800);
       }
@@ -127,9 +154,9 @@ export default function AddServicioDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Cargar servicio</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">{editing ? "Editar servicio" : "Cargar servicio"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Registrá un service, reparación o gomería de un camión.
+            Registrá un service, reparación o gomería de un camión o acoplado.
           </DialogDescription>
         </DialogHeader>
 
@@ -138,13 +165,14 @@ export default function AddServicioDialog({
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           <div className="space-y-2">
-            <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
+            <Label htmlFor="camion" className="text-sm font-medium text-foreground">Unidad</Label>
             <UnidadPicker
               id="camion"
-              mode="camion"
+              mode="ambos"
               value={unidad}
               onChange={setUnidad}
               camiones={camiones}
+              acoplados={acoplados}
               placeholder="Buscar por patente, marca o modelo…"
             />
             {camionSel && (
@@ -152,6 +180,11 @@ export default function AddServicioDialog({
                 {esTercerizado
                   ? `Tercerizado — solo se cargan gomería y cubiertas (el resto lo controla la concesionaria).`
                   : `Estado: ${ESTADO_LABEL[camionSel.tercerizacion_estado] ?? camionSel.tercerizacion_estado} — se pueden cargar todos los servicios.`}
+              </p>
+            )}
+            {esAcoplado && (
+              <p className="text-[11px] text-muted-foreground">
+                Acoplado — gomería, cubiertas o frenos del semi. El KM no aplica.
               </p>
             )}
           </div>
@@ -179,10 +212,12 @@ export default function AddServicioDialog({
               <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input id="fecha" type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="km" className="text-sm font-medium text-foreground">KM del camión</Label>
-              <Input id="km" type="number" placeholder="Ej: 150000" required value={km} onChange={(e) => setKm(e.target.value)} />
-            </div>
+            {!esAcoplado && (
+              <div className="space-y-2">
+                <Label htmlFor="km" className="text-sm font-medium text-foreground">KM del camión</Label>
+                <Input id="km" type="number" placeholder="Ej: 150000" required value={km} onChange={(e) => setKm(e.target.value)} />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -216,10 +251,12 @@ export default function AddServicioDialog({
                 <Label htmlFor="proxFecha" className="text-xs font-medium text-muted-foreground">Fecha estimada</Label>
                 <Input id="proxFecha" type="date" value={proxFecha} onChange={(e) => setProxFecha(e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="proxKm" className="text-xs font-medium text-muted-foreground">KM estimado</Label>
-                <Input id="proxKm" type="number" placeholder="Ej: 170000" value={proxKm} onChange={(e) => setProxKm(e.target.value)} />
-              </div>
+              {!esAcoplado && (
+                <div className="space-y-2">
+                  <Label htmlFor="proxKm" className="text-xs font-medium text-muted-foreground">KM estimado</Label>
+                  <Input id="proxKm" type="number" placeholder="Ej: 170000" value={proxKm} onChange={(e) => setProxKm(e.target.value)} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -228,7 +265,7 @@ export default function AddServicioDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
-              {loading ? "Guardando..." : "Registrar servicio"}
+              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar servicio"}
             </Button>
           </DialogFooter>
         </form>

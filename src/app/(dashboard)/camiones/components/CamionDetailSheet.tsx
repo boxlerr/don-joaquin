@@ -16,7 +16,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check, CircleDot,
 } from "lucide-react";
 import type { Database } from "@/types/database";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
@@ -29,7 +29,9 @@ import {
   deleteServiceAction,
   deleteGasoilAction,
   getFotosCamionAction,
+  getRoturasCamionAction,
   type TipoServicio,
+  type RoturaCamionRecord,
 } from "../actions";
 import type {
   Camion,
@@ -45,7 +47,7 @@ import CamionGastosTab from "./CamionGastosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-type TabId = "info" | "fotos" | "services" | "gasoil" | "gastos" | "docs";
+type TabId = "info" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs";
 
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
 
@@ -169,6 +171,11 @@ export default function CamionDetailSheet({
   const [servicesHasMore, setServicesHasMore] = useState(false);
   const [loadingServices, setLoadingServices] = useState(false);
 
+  const [roturas, setRoturas] = useState<RoturaCamionRecord[]>([]);
+  const [roturasPage, setRoturasPage] = useState(0);
+  const [roturasHasMore, setRoturasHasMore] = useState(false);
+  const [loadingRoturas, setLoadingRoturas] = useState(false);
+
   const [gasoil, setGasoil] = useState<GasoilRecord[]>([]);
   const [gasoilPage, setGasoilPage] = useState(0);
   const [gasoilHasMore, setGasoilHasMore] = useState(false);
@@ -236,6 +243,18 @@ export default function CamionDetailSheet({
     }
   }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchRoturas = useCallback(async (page: number) => {
+    setLoadingRoturas(true);
+    try {
+      const result = await getRoturasCamionAction(camion.id, page);
+      setRoturas((prev) => page === 0 ? result.data : [...prev, ...result.data]);
+      setRoturasHasMore(result.hasMore);
+      setRoturasPage(page);
+    } finally {
+      setLoadingRoturas(false);
+    }
+  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchGasoil = useCallback(async (page: number) => {
     setLoadingGasoil(true);
     try {
@@ -265,6 +284,7 @@ export default function CamionDetailSheet({
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
     if (tab === "services") fetchServices(0);
+    if (tab === "roturas") fetchRoturas(0);
     if (tab === "gasoil") fetchGasoil(0);
     if (tab === "docs") fetchDocs();
     if (tab === "fotos") fetchFotos();
@@ -454,6 +474,7 @@ export default function CamionDetailSheet({
             { id: "info" as TabId, label: "Información", icon: Truck },
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
             { id: "services" as TabId, label: "Services", icon: Wrench },
+            { id: "roturas" as TabId, label: "Roturas", icon: CircleDot },
             { id: "gasoil" as TabId, label: "Gasoil", icon: Fuel },
             { id: "gastos" as TabId, label: "Gastos", icon: Receipt },
             { id: "docs" as TabId, label: "Documentos", icon: FileText },
@@ -769,6 +790,65 @@ export default function CamionDetailSheet({
                       onClick={() => fetchServices(servicesPage + 1)}
                     >
                       {loadingServices ? "Cargando..." : "Cargar más"}
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === "roturas" && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Las roturas se cargan desde el módulo Mantenimiento. Acá ves el historial de este camión.
+              </p>
+              {loadingRoturas && roturas.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">Cargando historial...</div>
+              ) : roturas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <CircleDot size={40} className="mb-3 opacity-20" />
+                  <p className="text-sm">No hay roturas registradas.</p>
+                </div>
+              ) : (
+                <>
+                  {roturas.map((r) => (
+                    <div key={r.id} className="rounded-[8px] border border-border p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar size={11} />
+                          {new Date(r.fecha).toLocaleDateString("es-AR")}
+                        </span>
+                        <span className="text-sm font-semibold text-[#F59E0B]">
+                          {r.cantidad} {r.cantidad === 1 ? "goma" : "gomas"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-border">
+                        {r.chofer_nombre && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Truck size={11} />
+                            {r.chofer_nombre}
+                          </span>
+                        )}
+                        {(r.posicion || r.observaciones) && (
+                          <span className="text-xs text-muted-foreground">{r.posicion ?? r.observaciones}</span>
+                        )}
+                        {r.costo != null && (
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            ${Number(r.costo).toLocaleString("es-AR")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {roturasHasMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={loadingRoturas}
+                      onClick={() => fetchRoturas(roturasPage + 1)}
+                    >
+                      {loadingRoturas ? "Cargando..." : "Cargar más"}
                     </Button>
                   )}
                 </>

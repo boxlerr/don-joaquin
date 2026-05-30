@@ -310,6 +310,15 @@ export async function addServiceAction(data: {
     return { error: "No se pudo registrar el service." };
   }
 
+  // Actualizar km_actual del camión si el odómetro del service es mayor (mantiene
+  // al día las alertas por km).
+  if (inserted && data.km_odometro > 0) {
+    const { data: cam } = await supabase.from("camiones").select("km_actual").eq("id", data.camion_id).single();
+    if (cam && (cam.km_actual == null || data.km_odometro > cam.km_actual)) {
+      await supabase.from("camiones").update({ km_actual: data.km_odometro }).eq("id", data.camion_id);
+    }
+  }
+
   if (data.costo && data.costo > 0 && inserted) {
     const { data: camion } = await supabase.from("camiones").select("patente").eq("id", data.camion_id).single();
     // Etiqueta para caja: preferimos el nombre del catálogo (más rico que el enum).
@@ -611,6 +620,109 @@ export async function getServiceHistoryAction(camionId: string, page = 0) {
 
   return {
     data: data || [],
+    hasMore: (count ?? 0) > (page + 1) * HISTORY_PAGE_SIZE,
+  };
+}
+
+export type RoturaCamionRecord = {
+  id: string;
+  fecha: string;
+  cantidad: number;
+  costo: number | null;
+  moneda: string;
+  posicion: string | null;
+  observaciones: string | null;
+  chofer_nombre: string | null;
+};
+
+// Historial de roturas de gomas de un camión (para el tab Roturas de su ficha).
+export async function getRoturasCamionAction(camionId: string, page = 0) {
+  const supabase = createAdminClient();
+  const from = page * HISTORY_PAGE_SIZE;
+  const to = from + HISTORY_PAGE_SIZE - 1;
+
+  const { data, count } = await supabase
+    .from("roturas_gomas")
+    .select(
+      "id, fecha, cantidad, costo, moneda, posicion, observaciones, chofer:choferes(nombre, apellido)",
+      { count: "exact" }
+    )
+    .eq("camion_id", camionId)
+    .order("fecha", { ascending: false })
+    .range(from, to);
+
+  const rows: RoturaCamionRecord[] = (data ?? []).map((r) => {
+    const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
+    return {
+      id: r.id,
+      fecha: r.fecha,
+      cantidad: r.cantidad,
+      costo: r.costo,
+      moneda: r.moneda,
+      posicion: r.posicion,
+      observaciones: r.observaciones,
+      chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
+    };
+  });
+
+  return {
+    data: rows,
+    hasMore: (count ?? 0) > (page + 1) * HISTORY_PAGE_SIZE,
+  };
+}
+
+// Historial de roturas de gomas de un acoplado.
+export async function getRoturasAcopladoAction(acopladoId: string, page = 0) {
+  const supabase = createAdminClient();
+  const from = page * HISTORY_PAGE_SIZE;
+  const to = from + HISTORY_PAGE_SIZE - 1;
+
+  const { data, count } = await supabase
+    .from("roturas_gomas")
+    .select(
+      "id, fecha, cantidad, costo, moneda, posicion, observaciones, chofer:choferes(nombre, apellido)",
+      { count: "exact" }
+    )
+    .eq("acoplado_id", acopladoId)
+    .order("fecha", { ascending: false })
+    .range(from, to);
+
+  const rows: RoturaCamionRecord[] = (data ?? []).map((r) => {
+    const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
+    return {
+      id: r.id,
+      fecha: r.fecha,
+      cantidad: r.cantidad,
+      costo: r.costo,
+      moneda: r.moneda,
+      posicion: r.posicion,
+      observaciones: r.observaciones,
+      chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
+    };
+  });
+
+  // Servicios del acoplado (gomería/cubiertas/frenos del semi).
+  const { data: servData } = await supabase
+    .from("mantenimientos")
+    .select("id, fecha, descripcion, costo, taller, tipo_servicio:tipos_servicio(nombre)")
+    .eq("acoplado_id", acopladoId)
+    .order("fecha", { ascending: false })
+    .limit(50);
+
+  const servicios = (servData ?? []).map((s) => {
+    const ts = Array.isArray(s.tipo_servicio) ? s.tipo_servicio[0] : s.tipo_servicio;
+    return {
+      id: s.id,
+      fecha: s.fecha,
+      nombre: (ts as { nombre?: string } | null)?.nombre ?? s.descripcion,
+      costo: s.costo,
+      taller: s.taller,
+    };
+  });
+
+  return {
+    data: rows,
+    servicios,
     hasMore: (count ?? 0) > (page + 1) * HISTORY_PAGE_SIZE,
   };
 }

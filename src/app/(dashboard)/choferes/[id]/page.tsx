@@ -131,6 +131,7 @@ export default function ChoferDetailPage() {
               historial={chofer.camiones_historial}
               adelantos={chofer.adelantos_mes}
               evolucion={chofer.evolucion_6meses}
+              roturas={chofer.roturas_detalle}
             />
           )}
           {activeTab === "apercibimientos" && (

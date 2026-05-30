@@ -2564,7 +2564,8 @@ export type Database = {
       }
       mantenimientos: {
         Row: {
-          camion_id: string
+          acoplado_id: string | null
+          camion_id: string | null
           comprobante_id: string | null
           costo: number | null
           created_at: string
@@ -2582,7 +2583,8 @@ export type Database = {
           tipo_servicio_id: string | null
         }
         Insert: {
-          camion_id: string
+          acoplado_id?: string | null
+          camion_id?: string | null
           comprobante_id?: string | null
           costo?: number | null
           created_at?: string
@@ -2600,7 +2602,8 @@ export type Database = {
           tipo_servicio_id?: string | null
         }
         Update: {
-          camion_id?: string
+          acoplado_id?: string | null
+          camion_id?: string | null
           comprobante_id?: string | null
           costo?: number | null
           created_at?: string
@@ -2618,6 +2621,13 @@ export type Database = {
           tipo_servicio_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "mantenimientos_acoplado_id_fkey"
+            columns: ["acoplado_id"]
+            isOneToOne: false
+            referencedRelation: "acoplados"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mantenimientos_camion_id_fkey"
             columns: ["camion_id"]

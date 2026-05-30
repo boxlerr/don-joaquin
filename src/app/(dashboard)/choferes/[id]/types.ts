@@ -139,6 +139,18 @@ export type AdelantoMes = {
   viaje_codigo: string | null;
 };
 
+export type RoturaDetalle = {
+  id: string;
+  fecha: string;
+  cantidad: number;
+  costo: number | null;
+  moneda: string;
+  posicion: string | null;
+  observaciones: string | null;
+  unidad_patente: string | null;
+  unidad_tipo: "camion" | "acoplado" | null;
+};
+
 // KPIs operativos del mes en curso. Calculados server-side a partir de viajes y viáticos.
 export type ProductividadKPIs = {
   periodo_desde: string;
@@ -190,6 +202,7 @@ export type ChoferDetail = ChoferBasico & {
   categorias_apercibimiento: CategoriaApercibimiento[];
   productividad_kpis: ProductividadKPIs;
   camiones_historial: CamionHistorialItem[];
+  roturas_detalle: RoturaDetalle[];
   adelantos_mes: AdelantoMes[];
   evolucion_6meses: EvolucionMes[];
   is_admin: boolean;

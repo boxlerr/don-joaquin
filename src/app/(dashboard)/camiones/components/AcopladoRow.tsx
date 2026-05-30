@@ -3,11 +3,14 @@ import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import type { Acoplado } from "../types";
 
-export default function AcopladoRow({ acoplado }: { acoplado: Acoplado }) {
+export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado; onSelect?: (a: Acoplado) => void }) {
   const datosCompletos = !!acoplado.marca;
 
   return (
-    <TableRow className="hover:bg-muted/40 transition-all border-b border-[#F1F5F9] last:border-0 group">
+    <TableRow
+      onClick={() => onSelect?.(acoplado)}
+      className="hover:bg-muted/40 transition-all border-b border-[#F1F5F9] last:border-0 group cursor-pointer"
+    >
       <TableCell className="py-4 pl-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-[#F1F5F9] flex items-center justify-center shrink-0 border border-border">

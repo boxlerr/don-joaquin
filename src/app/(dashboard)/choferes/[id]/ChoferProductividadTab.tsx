@@ -25,6 +25,7 @@ import type {
   CamionHistorialItem,
   AdelantoMes,
   EvolucionMes,
+  RoturaDetalle,
 } from "./types";
 
 interface Props {
@@ -32,6 +33,7 @@ interface Props {
   historial: CamionHistorialItem[];
   adelantos: AdelantoMes[];
   evolucion: EvolucionMes[];
+  roturas: RoturaDetalle[];
 }
 
 const MESES = [
@@ -69,7 +71,7 @@ function scoreConfig(score: number | null): {
   return { color: "text-[#EF4444]", bg: "bg-[#EF4444]/10", border: "border-[#EF4444]/30", label: "Bajo" };
 }
 
-export default function ChoferProductividadTab({ kpis, historial, adelantos, evolucion }: Props) {
+export default function ChoferProductividadTab({ kpis, historial, adelantos, evolucion, roturas }: Props) {
   const periodoLabel = nombreMes(kpis.periodo_desde);
   const sc = scoreConfig(kpis.score);
   const mesActual = kpis.periodo_desde.slice(0, 7);
@@ -383,6 +385,63 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
                     </TableCell>
                     <TableCell className="text-sm font-semibold text-[#EF4444]">
                       {fmtMoneda(a.monto_adelanto, a.moneda)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* Roturas de gomas — historial detallado (últimas 20) */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-foreground">
+          Roturas de gomas
+          <span className="ml-2 text-xs font-normal text-muted-foreground/70">
+            {roturas.length} registro{roturas.length !== 1 ? "s" : ""}
+          </span>
+        </h3>
+
+        <div className="rounded-[8px] border border-border overflow-hidden">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                {["Fecha", "Unidad", "Posición / notas", "Cantidad", "Costo"].map((col) => (
+                  <TableHead
+                    key={col}
+                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                  >
+                    {col}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {roturas.length === 0 ? (
+                <EmptyTableRow message="Sin roturas registradas" />
+              ) : (
+                roturas.map((r) => (
+                  <TableRow key={r.id} className="hover:bg-muted/40">
+                    <TableCell className="text-sm text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
+                    <TableCell className="text-sm">
+                      {r.unidad_patente ? (
+                        <span className="inline-flex items-baseline gap-1.5">
+                          {r.unidad_tipo && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                              {r.unidad_tipo === "camion" ? "Cam" : "Acop"}
+                            </span>
+                          )}
+                          <span className="font-mono text-foreground">{r.unidad_patente}</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.posicion ?? r.observaciones ?? "—"}</TableCell>
+                    <TableCell className="text-sm font-semibold text-[#F59E0B]">{r.cantidad}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.costo != null ? fmtMoneda(Number(r.costo), r.moneda) : "—"}
                     </TableCell>
                   </TableRow>
                 ))

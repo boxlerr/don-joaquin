@@ -42,6 +42,7 @@ export type ServicioRow = {
   id: string;
   fecha: string;
   tipo: MantenimientoTipo;
+  tipo_servicio_id: string | null;
   tipo_servicio_nombre: string | null;
   tipo_servicio_codigo: string | null;
   descripcion: string;
@@ -52,9 +53,11 @@ export type ServicioRow = {
   observaciones: string | null;
   proximo_service_fecha: string | null;
   proximo_service_km: number | null;
-  camion_id: string;
-  camion_patente: string;
-  camion_marca_modelo: string;
+  camion_id: string | null;
+  acoplado_id: string | null;
+  unidad_patente: string;
+  unidad_marca_modelo: string;
+  unidad_tipo: "camion" | "acoplado";
 };
 
 export async function getServiciosAction(): Promise<ServicioRow[]> {
@@ -63,18 +66,23 @@ export async function getServiciosAction(): Promise<ServicioRow[]> {
   const { data } = await supabase
     .from("mantenimientos")
     .select(
-      "id, fecha, tipo, descripcion, km_odometro, costo, moneda, taller, observaciones, proximo_service_fecha, proximo_service_km, camion_id, tipo_servicio:tipos_servicio(nombre, codigo), camion:camiones(patente, marca, modelo)"
+      "id, fecha, tipo, tipo_servicio_id, descripcion, km_odometro, costo, moneda, taller, observaciones, proximo_service_fecha, proximo_service_km, camion_id, acoplado_id, tipo_servicio:tipos_servicio(nombre, codigo), camion:camiones(patente, marca, modelo), acoplado:acoplados(patente, marca, modelo)"
     )
     .order("fecha", { ascending: false })
     .limit(200);
 
   return (data ?? []).map((m) => {
     const camion = Array.isArray(m.camion) ? m.camion[0] : m.camion;
+    const acoplado = Array.isArray(m.acoplado) ? m.acoplado[0] : m.acoplado;
     const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+    const unidad = camion ?? acoplado ?? null;
+    const unidad_tipo: ServicioRow["unidad_tipo"] = camion ? "camion" : "acoplado";
+    const marcaModelo = unidad ? [unidad.marca, unidad.modelo].filter(Boolean).join(" ").trim() : "";
     return {
       id: m.id,
       fecha: m.fecha,
       tipo: m.tipo,
+      tipo_servicio_id: m.tipo_servicio_id ?? null,
       tipo_servicio_nombre: ts?.nombre ?? null,
       tipo_servicio_codigo: ts?.codigo ?? null,
       descripcion: m.descripcion,
@@ -85,15 +93,18 @@ export async function getServiciosAction(): Promise<ServicioRow[]> {
       observaciones: m.observaciones,
       proximo_service_fecha: m.proximo_service_fecha,
       proximo_service_km: m.proximo_service_km,
-      camion_id: m.camion_id,
-      camion_patente: camion?.patente ?? "—",
-      camion_marca_modelo: camion ? `${camion.marca} ${camion.modelo}`.trim() : "",
+      camion_id: m.camion_id ?? null,
+      acoplado_id: m.acoplado_id ?? null,
+      unidad_patente: unidad?.patente ?? "—",
+      unidad_marca_modelo: marcaModelo,
+      unidad_tipo,
     };
   });
 }
 
 export async function addServicioAction(data: {
-  camion_id: string;
+  camion_id?: string | null;
+  acoplado_id?: string | null;
   tipo_servicio_id: string;
   fecha: string;
   km_odometro: number;
@@ -110,7 +121,8 @@ export async function addServicioAction(data: {
     data: { user },
   } = await authClient.auth.getUser();
 
-  if (!data.camion_id) return { error: "Elegí un camión." };
+  if (!data.camion_id && !data.acoplado_id) return { error: "Elegí un camión o acoplado." };
+  if (data.camion_id && data.acoplado_id) return { error: "Elegí solo una unidad." };
   if (!data.tipo_servicio_id) return { error: "Elegí el tipo de servicio." };
 
   const { data: ts } = await supabase
@@ -124,7 +136,8 @@ export async function addServicioAction(data: {
   const { data: inserted, error } = await supabase
     .from("mantenimientos")
     .insert({
-      camion_id: data.camion_id,
+      camion_id: data.camion_id || null,
+      acoplado_id: data.acoplado_id || null,
       tipo_servicio_id: data.tipo_servicio_id,
       tipo: tipoEnumFromCodigo(ts.codigo),
       descripcion: ts.nombre,
@@ -146,6 +159,38 @@ export async function addServicioAction(data: {
     return { error: "No se pudo guardar el servicio." };
   }
 
+  // Resolver patente de la unidad (camión o acoplado) para la caja / concepto.
+  let unidadPatente: string | null = null;
+  if (data.camion_id) {
+    const { data: c } = await supabase.from("camiones").select("patente, km_actual").eq("id", data.camion_id).single();
+    unidadPatente = c?.patente ?? null;
+    // Actualizar km_actual del camión si el odómetro cargado es mayor (mantiene
+    // las alertas por km al día). Solo aplica a camiones (los acoplados no tienen).
+    if (c && data.km_odometro > 0 && (c.km_actual == null || data.km_odometro > c.km_actual)) {
+      await supabase.from("camiones").update({ km_actual: data.km_odometro }).eq("id", data.camion_id);
+    }
+  } else if (data.acoplado_id) {
+    const { data: a } = await supabase.from("acoplados").select("patente").eq("id", data.acoplado_id).single();
+    unidadPatente = a?.patente ?? null;
+  }
+
+  // Registrar el costo en Caja como egreso (mismo comportamiento que el alta
+  // desde la ficha del camión, para que no dependa de por dónde se cargue).
+  if (data.costo && data.costo > 0 && inserted) {
+    const patenteLabel = unidadPatente ? ` - ${unidadPatente}` : "";
+    await supabase.from("caja_movimientos").insert({
+      tipo: "egreso",
+      categoria: "gasto_operativo",
+      concepto: `${ts.nombre}${patenteLabel}${data.taller ? ` (${data.taller})` : ""}`,
+      monto: data.costo,
+      medio: "otro",
+      fecha: data.fecha,
+      moneda: "ARS",
+      mantenimiento_id: inserted.id,
+      created_by: user?.id ?? null,
+    } as never);
+  }
+
   await supabase.from("audit_log").insert({
     accion: "crear",
     entidad_tipo: "mantenimiento",
@@ -158,6 +203,8 @@ export async function addServicioAction(data: {
   });
 
   revalidatePath("/mantenimiento");
+  revalidatePath("/caja");
+  revalidatePath("/camiones");
   return { success: true };
 }
 
@@ -169,6 +216,9 @@ export type RoturaRow = {
   moneda: string;
   posicion: string | null;
   observaciones: string | null;
+  chofer_id: string | null;
+  camion_id: string | null;
+  acoplado_id: string | null;
   unidad_patente: string | null;
   unidad_tipo: "camion" | "acoplado" | null;
   chofer_nombre: string | null;
@@ -180,7 +230,7 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
   const { data } = await supabase
     .from("roturas_gomas")
     .select(
-      "id, fecha, cantidad, costo, moneda, posicion, observaciones, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
+      "id, fecha, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
     )
     .order("fecha", { ascending: false })
     .limit(200);
@@ -199,6 +249,9 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
       moneda: r.moneda,
       posicion: r.posicion,
       observaciones: r.observaciones,
+      chofer_id: r.chofer_id ?? null,
+      camion_id: r.camion_id ?? null,
+      acoplado_id: r.acoplado_id ?? null,
       unidad_patente,
       unidad_tipo,
       chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
@@ -291,10 +344,177 @@ export async function addRoturaAction(data: {
   return { success: true };
 }
 
+// ── Editar / borrar servicios ────────────────────────────────────────────────
+
+export async function updateServicioAction(
+  id: string,
+  data: {
+    tipo_servicio_id: string;
+    fecha: string;
+    km_odometro: number;
+    taller?: string | null;
+    costo?: number | null;
+    observaciones?: string | null;
+    proximo_service_fecha?: string | null;
+    proximo_service_km?: number | null;
+  },
+) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: ts } = await supabase
+    .from("tipos_servicio")
+    .select("codigo, nombre")
+    .eq("id", data.tipo_servicio_id)
+    .single();
+  if (!ts) return { error: "El tipo de servicio no existe." };
+
+  const { error } = await supabase
+    .from("mantenimientos")
+    .update({
+      tipo_servicio_id: data.tipo_servicio_id,
+      tipo: tipoEnumFromCodigo(ts.codigo),
+      descripcion: ts.nombre,
+      fecha: data.fecha,
+      km_odometro: data.km_odometro,
+      taller: data.taller || null,
+      costo: data.costo ?? null,
+      observaciones: data.observaciones || null,
+      proximo_service_fecha: data.proximo_service_fecha || null,
+      proximo_service_km: data.proximo_service_km ?? null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar servicio:", error);
+    return { error: "No se pudo actualizar el servicio." };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "actualizar",
+    entidad_tipo: "mantenimiento",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+    valores_nuevos: { ...data, tipo_servicio: ts.nombre } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
+
+  revalidatePath("/mantenimiento");
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+export async function deleteServicioAction(id: string) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  // Borrar el egreso de caja asociado (si lo hay), para no dejar el gasto huérfano.
+  await supabase.from("caja_movimientos").delete().eq("mantenimiento_id", id);
+
+  const { error } = await supabase.from("mantenimientos").delete().eq("id", id);
+  if (error) {
+    console.error("Error al eliminar servicio:", error);
+    return { error: "No se pudo eliminar el servicio." };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "eliminar",
+    entidad_tipo: "mantenimiento",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+  });
+
+  revalidatePath("/mantenimiento");
+  revalidatePath("/caja");
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+// ── Editar / borrar roturas ──────────────────────────────────────────────────
+
+export async function updateRoturaAction(
+  id: string,
+  data: {
+    camion_id?: string | null;
+    acoplado_id?: string | null;
+    chofer_id?: string | null;
+    fecha: string;
+    cantidad: number;
+    costo?: number | null;
+    posicion?: string | null;
+    observaciones?: string | null;
+  },
+) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  if (!data.camion_id && !data.acoplado_id && !data.chofer_id)
+    return { error: "Indicá al menos el camión, el acoplado o el chofer." };
+
+  const { error } = await supabase
+    .from("roturas_gomas")
+    .update({
+      camion_id: data.camion_id || null,
+      acoplado_id: data.acoplado_id || null,
+      chofer_id: data.chofer_id || null,
+      fecha: data.fecha,
+      cantidad: data.cantidad > 0 ? data.cantidad : 1,
+      costo: data.costo ?? null,
+      posicion: data.posicion || null,
+      observaciones: data.observaciones || null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar rotura:", error);
+    return { error: "No se pudo actualizar la rotura." };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "actualizar",
+    entidad_tipo: "rotura_goma",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
+export async function deleteRoturaAction(id: string) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { error } = await supabase.from("roturas_gomas").delete().eq("id", id);
+  if (error) {
+    console.error("Error al eliminar rotura:", error);
+    return { error: "No se pudo eliminar la rotura." };
+  }
+
+  await supabase.from("audit_log").insert({
+    accion: "eliminar",
+    entidad_tipo: "rotura_goma",
+    entidad_id: id,
+    usuario_id: user?.id ?? null,
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
 export type AlertaServicio = {
-  camion_id: string;
-  camion_patente: string;
-  camion_marca_modelo: string;
+  unidad_id: string;
+  unidad_patente: string;
+  unidad_marca_modelo: string;
+  unidad_tipo: "camion" | "acoplado";
   servicio: string;
   proximo_service_fecha: string | null;
   proximo_service_km: number | null;
@@ -314,7 +534,7 @@ export async function getAlertasProximosServicesAction(): Promise<AlertaServicio
   const { data: servicios } = await supabase
     .from("mantenimientos")
     .select(
-      "fecha, proximo_service_fecha, proximo_service_km, camion_id, tipo_servicio:tipos_servicio(nombre), camion:camiones(patente, marca, modelo, km_actual)"
+      "fecha, proximo_service_fecha, proximo_service_km, camion_id, acoplado_id, tipo_servicio:tipos_servicio(nombre), camion:camiones(patente, marca, modelo, km_actual), acoplado:acoplados(patente, marca, modelo)"
     )
     .or("proximo_service_fecha.not.is.null,proximo_service_km.not.is.null")
     .order("fecha", { ascending: false });
@@ -324,18 +544,24 @@ export async function getAlertasProximosServicesAction(): Promise<AlertaServicio
   const DIAS_AVISO = 30;
   const KM_AVISO = 5000;
 
-  // Quedarse con el último servicio por (camión + tipo) que tenga próximo programado.
+  // Quedarse con el último servicio por (unidad + tipo) que tenga próximo programado.
   const vistos = new Set<string>();
   const alertas: AlertaServicio[] = [];
 
   for (const s of servicios ?? []) {
     const camion = Array.isArray(s.camion) ? s.camion[0] : s.camion;
+    const acoplado = Array.isArray(s.acoplado) ? s.acoplado[0] : s.acoplado;
     const ts = Array.isArray(s.tipo_servicio) ? s.tipo_servicio[0] : s.tipo_servicio;
     const servicioNombre = ts?.nombre ?? "Service";
-    const key = `${s.camion_id}::${servicioNombre}`;
+
+    const unidad = camion ?? acoplado ?? null;
+    const unidad_id = s.camion_id ?? s.acoplado_id ?? "";
+    const unidad_tipo: AlertaServicio["unidad_tipo"] = camion ? "camion" : "acoplado";
+    const key = `${unidad_id}::${servicioNombre}`;
     if (vistos.has(key)) continue;
     vistos.add(key);
 
+    // Solo los camiones tienen km_actual; para acoplados el aviso es por fecha.
     const kmActual = camion?.km_actual ?? null;
 
     let diasRestantes: number | null = null;
@@ -358,9 +584,10 @@ export async function getAlertasProximosServicesAction(): Promise<AlertaServicio
       (diasRestantes != null && diasRestantes < 0) || (kmRestantes != null && kmRestantes < 0);
 
     alertas.push({
-      camion_id: s.camion_id,
-      camion_patente: camion?.patente ?? "—",
-      camion_marca_modelo: camion ? `${camion.marca} ${camion.modelo}`.trim() : "",
+      unidad_id,
+      unidad_patente: unidad?.patente ?? "—",
+      unidad_marca_modelo: unidad ? [unidad.marca, unidad.modelo].filter(Boolean).join(" ").trim() : "",
+      unidad_tipo,
       servicio: servicioNombre,
       proximo_service_fecha: s.proximo_service_fecha,
       proximo_service_km: s.proximo_service_km,

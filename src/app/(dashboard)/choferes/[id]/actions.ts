@@ -175,7 +175,8 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
   // Queries que dependen de los ids resueltos arriba:
   //   - mantenimientos de esos camiones en el mes (para "veces al taller")
   //   - items de hoja de ruta de esos viajes (para "liquidación al chofer")
-  const [{ data: mantenimientosMes }, { data: itemsLiquidacion }] = await Promise.all([
+  //   - roturas de gomas del chofer (lista detallada, últimas 20, cualquier período)
+  const [{ data: mantenimientosMes }, { data: itemsLiquidacion }, { data: roturasDetalle }] = await Promise.all([
     supabase
       .from("mantenimientos")
       .select("id, tipo, tipo_servicio:tipos_servicio(codigo)")
@@ -186,6 +187,12 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
       .from("hoja_ruta_items")
       .select("monto_chofer")
       .in("viaje_id", viajeIdsDelMes),
+    supabase
+      .from("roturas_gomas")
+      .select("id, fecha, cantidad, costo, moneda, posicion, observaciones, camion:camiones(patente), acoplado:acoplados(patente)")
+      .eq("chofer_id", chofer_id)
+      .order("fecha", { ascending: false })
+      .limit(20),
   ]);
 
   const fotoObj = chofer.foto ? (Array.isArray(chofer.foto) ? chofer.foto[0] : chofer.foto) : null;
@@ -528,6 +535,23 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     categorias_apercibimiento: categoriasApe ?? [],
     productividad_kpis,
     camiones_historial,
+    roturas_detalle: (roturasDetalle ?? []).map((r) => {
+      const cam = Array.isArray(r.camion) ? r.camion[0] : r.camion;
+      const aco = Array.isArray(r.acoplado) ? r.acoplado[0] : r.acoplado;
+      const camPat = (cam as { patente?: string } | null)?.patente ?? null;
+      const acoPat = (aco as { patente?: string } | null)?.patente ?? null;
+      return {
+        id: r.id,
+        fecha: r.fecha,
+        cantidad: r.cantidad,
+        costo: r.costo,
+        moneda: r.moneda,
+        posicion: r.posicion,
+        observaciones: r.observaciones,
+        unidad_patente: camPat ?? acoPat ?? null,
+        unidad_tipo: (camPat ? "camion" : acoPat ? "acoplado" : null) as "camion" | "acoplado" | null,
+      };
+    }),
     adelantos_mes,
     evolucion_6meses,
     is_admin: user.rol.codigo === "admin",

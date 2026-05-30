@@ -332,6 +332,59 @@ export async function generarAlertas() {
     }
   }
 
+  // Próximos services de mantenimiento (por fecha programada) — vencidos o por vencer.
+  // Solo mira los services que dejaron un `proximo_service_fecha`. Las alertas por
+  // km se ven en el tab del módulo; acá generamos las de fecha para la campana.
+  const { data: proximosServices } = await supabase
+    .from("mantenimientos")
+    .select(
+      "proximo_service_fecha, camion_id, acoplado_id, tipo_servicio:tipos_servicio(nombre), camion:camiones(patente), acoplado:acoplados(patente)"
+    )
+    .not("proximo_service_fecha", "is", null)
+    .lte("proximo_service_fecha", enDocStr)
+    .order("fecha", { ascending: false });
+
+  const vistosServices = new Set<string>();
+  for (const s of proximosServices ?? []) {
+    if (!s.proximo_service_fecha) continue;
+    const camion = s.camion as { patente: string } | null;
+    const acoplado = s.acoplado as { patente: string } | null;
+    const tsServ = s.tipo_servicio as { nombre: string } | null;
+    const servicioNombre = tsServ?.nombre ?? "Service";
+    const unidadId = s.camion_id ?? s.acoplado_id;
+    if (!unidadId) continue;
+
+    // Un aviso por unidad + tipo de servicio (el más reciente, por el order).
+    const dedupUnidad = `${unidadId}::${servicioNombre}`;
+    if (vistosServices.has(dedupUnidad)) continue;
+    vistosServices.add(dedupUnidad);
+
+    const patente = camion?.patente ?? acoplado?.patente ?? "Unidad";
+    const diasRestantes = Math.ceil(
+      (new Date(s.proximo_service_fecha).getTime() - hoy.getTime()) / 86400000
+    );
+
+    const key = `otro:${unidadId}:mantenimiento_proximo_service:${s.proximo_service_fecha}`;
+    if (existentesSet.has(key)) continue;
+
+    const vencido = diasRestantes < 0;
+    const severidad = vencido || diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia";
+    const mensaje = vencido
+      ? `El service "${servicioNombre}" de ${patente} está vencido hace ${Math.abs(diasRestantes)} día${Math.abs(diasRestantes) !== 1 ? "s" : ""}.`
+      : `El service "${servicioNombre}" de ${patente} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`;
+
+    nuevasAlertas.push({
+      tipo: "otro",
+      severidad,
+      titulo: `Service ${vencido ? "vencido" : "próximo"} — ${patente}`,
+      mensaje,
+      entidad_id: unidadId,
+      entidad_tipo: "mantenimiento_proximo_service",
+      fecha_disparo: new Date().toISOString(),
+      fecha_vencimiento: s.proximo_service_fecha,
+    });
+  }
+
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);

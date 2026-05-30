@@ -15,6 +15,7 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 import CamionRow from "./CamionRow";
 import AcopladoRow from "./AcopladoRow";
 import CamionDetailSheet from "./CamionDetailSheet";
+import AcopladoDetailSheet from "./AcopladoDetailSheet";
 import type { Camion, Acoplado } from "../types";
 import type { TipoServicio } from "../actions";
 
@@ -65,6 +66,8 @@ export default function CamionesTableClient({
   const searchParams = useSearchParams();
   const [selectedCamion, setSelectedCamion] = useState<Camion | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [selectedAcoplado, setSelectedAcoplado] = useState<Acoplado | null>(null);
+  const [isAcopladoSheetOpen, setIsAcopladoSheetOpen] = useState(false);
   const urlTab = searchParams.get("tab") || "info";
 
   useEffect(() => {
@@ -256,7 +259,16 @@ export default function CamionesTableClient({
               }
             />
           ) : (
-            acopladosFiltrados.map((a) => <AcopladoRow key={a.id} acoplado={a} />)
+            acopladosFiltrados.map((a) => (
+              <AcopladoRow
+                key={a.id}
+                acoplado={a}
+                onSelect={(ac) => {
+                  setSelectedAcoplado(ac);
+                  setIsAcopladoSheetOpen(true);
+                }}
+              />
+            ))
           )}
         </TableBody>
       </Table>
@@ -268,6 +280,14 @@ export default function CamionesTableClient({
           open={isSheetOpen}
           onOpenChange={handleOpenChange}
           initialTab={urlTab as any}
+        />
+      )}
+
+      {selectedAcoplado && (
+        <AcopladoDetailSheet
+          acoplado={selectedAcoplado}
+          open={isAcopladoSheetOpen}
+          onOpenChange={setIsAcopladoSheetOpen}
         />
       )}
     </div>

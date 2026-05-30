@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import UnidadPicker, { type UnidadValue } from "./UnidadPicker";
-import { addRoturaAction } from "../actions";
+import { addRoturaAction, updateRoturaAction, type RoturaRow } from "../actions";
 import type { AcopladoOption, CamionOption, ChoferOption } from "../types";
 
 export default function AddRoturaDialog({
@@ -25,14 +25,22 @@ export default function AddRoturaDialog({
   camiones,
   acoplados,
   choferes,
+  editing,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   children?: React.ReactNode;
   camiones: CamionOption[];
   acoplados: AcopladoOption[];
   choferes: ChoferOption[];
+  editing?: RoturaRow | null;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = controlledOnOpenChange ?? setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -48,15 +56,24 @@ export default function AddRoturaDialog({
 
   useEffect(() => {
     if (!open) return;
-    setChoferId("");
-    setUnidad("");
-    setFecha(new Date().toISOString().split("T")[0]);
-    setCantidad("1");
-    setCosto("");
-    setPosicion("");
+    if (editing) {
+      setChoferId(editing.chofer_id ?? "");
+      setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
+      setFecha(editing.fecha);
+      setCantidad(String(editing.cantidad ?? 1));
+      setCosto(editing.costo != null ? String(editing.costo) : "");
+      setPosicion(editing.posicion ?? "");
+    } else {
+      setChoferId("");
+      setUnidad("");
+      setFecha(new Date().toISOString().split("T")[0]);
+      setCantidad("1");
+      setCosto("");
+      setPosicion("");
+    }
     setError(null);
     setSuccess(null);
-  }, [open]);
+  }, [open, editing]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -70,7 +87,7 @@ export default function AddRoturaDialog({
       if (unidad.startsWith("c:")) camion_id = unidad.slice(2);
       else if (unidad.startsWith("a:")) acoplado_id = unidad.slice(2);
 
-      const result = await addRoturaAction({
+      const payload = {
         chofer_id: choferId || null,
         camion_id,
         acoplado_id,
@@ -78,11 +95,14 @@ export default function AddRoturaDialog({
         cantidad: parseInt(cantidad) || 1,
         costo: costo ? parseFloat(costo) : null,
         posicion: posicion || null,
-      });
+      };
+      const result = editing
+        ? await updateRoturaAction(editing.id, payload)
+        : await addRoturaAction(payload);
       if (result.error) {
         setError(result.error);
       } else {
-        setSuccess("Rotura registrada");
+        setSuccess(editing ? "Cambios guardados" : "Rotura registrada");
         router.refresh();
         setTimeout(() => setOpen(false), 800);
       }
@@ -98,7 +118,7 @@ export default function AddRoturaDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Registrar rotura de goma</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">{editing ? "Editar rotura de goma" : "Registrar rotura de goma"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             La unidad puede ser un camión (chasis) o un acoplado. Si cargás el chofer, suma a su productividad.
           </DialogDescription>
@@ -171,7 +191,7 @@ export default function AddRoturaDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
-              {loading ? "Guardando..." : "Registrar rotura"}
+              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar rotura"}
             </Button>
           </DialogFooter>
         </form>
