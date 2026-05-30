@@ -143,10 +143,7 @@ export default async function RankingPrintPage({
                 <td className="num">{r.viajes_count}</td>
                 <td className="num">{fmtNum(r.km_total)}</td>
                 <td className="num">{r.pct_vacios.toFixed(0)}%</td>
-                <td className="ctr">
-                  {r.apercibimientos_total}
-                  {r.apercibimientos_graves > 0 && ` (${r.apercibimientos_graves} grave${r.apercibimientos_graves > 1 ? "s" : ""})`}
-                </td>
+                <td className="ctr">{r.apercibimientos_count}</td>
                 <td className="ctr">{r.roturas_count}</td>
                 <td className="ctr">{r.licencias_activas}</td>
               </tr>

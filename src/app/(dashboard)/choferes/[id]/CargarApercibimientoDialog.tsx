@@ -20,7 +20,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { crearApercibimientoAction } from "./actions";
-import type { CategoriaApercibimiento, ApercibimientoGravedad } from "./types";
+import type { CategoriaApercibimiento } from "./types";
 
 interface Props {
   chofer_id: string;
@@ -29,12 +29,6 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
 }
-
-const GRAVEDADES: { value: ApercibimientoGravedad; label: string }[] = [
-  { value: "leve", label: "Leve" },
-  { value: "moderado", label: "Moderado" },
-  { value: "grave", label: "Grave" },
-];
 
 export default function CargarApercibimientoDialog({
   chofer_id,
@@ -47,14 +41,12 @@ export default function CargarApercibimientoDialog({
   const [error, setError] = useState<string | null>(null);
   const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0]);
   const [categoriaId, setCategoriaId] = useState<string>("");
-  const [gravedad, setGravedad] = useState<ApercibimientoGravedad>("leve");
   const [motivo, setMotivo] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
   const reset = () => {
     setFecha(new Date().toISOString().split("T")[0]);
     setCategoriaId("");
-    setGravedad("leve");
     setMotivo("");
     setObservaciones("");
     setError(null);
@@ -70,7 +62,6 @@ export default function CargarApercibimientoDialog({
     const res = await crearApercibimientoAction(chofer_id, {
       fecha,
       categoria_id: categoriaId || null,
-      gravedad,
       motivo,
       observaciones: observaciones || null,
     });
@@ -107,35 +98,16 @@ export default function CargarApercibimientoDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">
-                Fecha <span className="text-red-400">*</span>
-              </Label>
-              <Input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">
-                Gravedad <span className="text-red-400">*</span>
-              </Label>
-              <Select value={gravedad} onValueChange={(v) => setGravedad(v as ApercibimientoGravedad)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GRAVEDADES.map((g) => (
-                    <SelectItem key={g.value} value={g.value}>
-                      {g.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">
+              Fecha <span className="text-red-400">*</span>
+            </Label>
+            <Input
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              required
+            />
           </div>
 
           <div className="space-y-1.5">

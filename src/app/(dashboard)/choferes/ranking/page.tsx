@@ -1,25 +1,29 @@
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import RankingTable from "./RankingTable";
 import PeriodoSelector from "./PeriodoSelector";
 import ExportButton from "./ExportButton";
-import { computeRanking, resolverRango } from "./lib";
+import CriteriosButton from "./CriteriosButton";
+import { computeRanking, resolverRango, getRankingCriterios } from "./lib";
 
 export default async function RankingChoferes({
   searchParams,
 }: {
   searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
 }) {
-  await requireArea("logistica", "read");
+  const user = await requireArea("logistica", "read");
+  const canWrite = hasArea(user, "logistica", "write");
 
   const params = await searchParams;
   const periodo = resolverRango(params);
 
+  const criterios = await getRankingCriterios();
   const ranking = await computeRanking({
     desde: periodo.desde,
     hasta: periodo.hasta,
+    criterios,
   });
 
   const periodoUrl = new URLSearchParams();
@@ -37,6 +41,7 @@ export default async function RankingChoferes({
         description={`Período: ${periodo.label}`}
         action={
           <div className="flex items-center gap-2">
+            {canWrite && <CriteriosButton criterios={criterios} />}
             <ExportButton
               rangoActual={periodo.rango}
               desdeActual={periodo.desde}

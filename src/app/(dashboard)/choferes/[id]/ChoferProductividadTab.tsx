@@ -19,7 +19,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Truck, Lock, AlertTriangle, Activity } from "lucide-react";
+import { Truck, Lock, Activity } from "lucide-react";
 import type {
   ProductividadKPIs,
   CamionHistorialItem,
@@ -159,7 +159,6 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           <KPI
             label="Apercibimientos"
             value={String(kpis.apercibimientos_mes)}
-            sub={kpis.apercibimientos_graves_mes > 0 ? `${kpis.apercibimientos_graves_mes} graves` : undefined}
             color={kpis.apercibimientos_mes > 0 ? "text-[#EF4444]" : "text-foreground"}
           />
           <KPI
@@ -282,18 +281,6 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           </div>
         )}
       </section>
-
-      {/* Apercibimientos graves del mes — alerta visual */}
-      {kpis.apercibimientos_graves_mes > 0 && (
-        <div className="flex items-start gap-3 rounded-[8px] border border-[#EF4444]/30 bg-[#EF4444]/5 px-4 py-3">
-          <AlertTriangle size={14} className="text-[#EF4444] mt-0.5 shrink-0" />
-          <p className="text-sm text-[#EF4444]">
-            {kpis.apercibimientos_graves_mes === 1
-              ? "1 apercibimiento grave este mes."
-              : `${kpis.apercibimientos_graves_mes} apercibimientos graves este mes.`}
-          </p>
-        </div>
-      )}
 
       {/* Cronología camiones */}
       <section className="space-y-3">

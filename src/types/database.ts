@@ -1094,7 +1094,6 @@ export type Database = {
           created_at: string
           created_by: string | null
           fecha: string
-          gravedad: Database["public"]["Enums"]["apercibimiento_gravedad"]
           id: string
           motivo: string
           observaciones: string | null
@@ -1106,7 +1105,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha?: string
-          gravedad?: Database["public"]["Enums"]["apercibimiento_gravedad"]
           id?: string
           motivo: string
           observaciones?: string | null
@@ -1118,7 +1116,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha?: string
-          gravedad?: Database["public"]["Enums"]["apercibimiento_gravedad"]
           id?: string
           motivo?: string
           observaciones?: string | null
@@ -4462,7 +4459,6 @@ export type Database = {
         | "auditoria_cliente"
         | "otro"
         | "vencimiento_compliance"
-      apercibimiento_gravedad: "leve" | "moderado" | "grave"
       area_nivel: "none" | "read" | "write" | "admin"
       audit_accion:
         | "crear"
@@ -4763,7 +4759,6 @@ export const Constants = {
         "otro",
         "vencimiento_compliance",
       ],
-      apercibimiento_gravedad: ["leve", "moderado", "grave"],
       area_nivel: ["none", "read", "write", "admin"],
       audit_accion: [
         "crear",

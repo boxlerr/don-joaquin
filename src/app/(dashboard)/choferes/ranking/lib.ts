@@ -1,5 +1,9 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CRITERIO_CLAVE, RANKING_CRITERIOS_DEFAULT, type RankingCriterios } from "./criterios";
+
+export { RANKING_CRITERIOS_DEFAULT, CRITERIO_CLAVE };
+export type { RankingCriterios };
 
 export type RankingChofer = {
   id: string;
@@ -11,23 +15,40 @@ export type RankingChofer = {
   km_vacios: number;
   km_total: number;
   pct_vacios: number;
-  apercibimientos_leves: number;
-  apercibimientos_moderados: number;
-  apercibimientos_graves: number;
-  apercibimientos_total: number;
+  apercibimientos_count: number;
   roturas_count: number;
+  taller_count: number;
   licencias_activas: number;
   score: number | null;
 };
 
+export async function getRankingCriterios(): Promise<RankingCriterios> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("clave, valor")
+    .in("clave", Object.values(CRITERIO_CLAVE));
+
+  const map = new Map((data ?? []).map((r) => [r.clave, Number(r.valor)]));
+  const criterios = { ...RANKING_CRITERIOS_DEFAULT };
+  for (const k of Object.keys(CRITERIO_CLAVE) as (keyof RankingCriterios)[]) {
+    const v = map.get(CRITERIO_CLAVE[k]);
+    if (Number.isFinite(v)) criterios[k] = v as number;
+  }
+  return criterios;
+}
+
 export async function computeRanking({
   desde,
   hasta,
+  criterios,
 }: {
   desde: string;
   hasta: string;
+  criterios?: RankingCriterios;
 }): Promise<RankingChofer[]> {
   const supabase = createAdminClient();
+  const p = criterios ?? (await getRankingCriterios());
 
   const [
     { data: choferes },
@@ -35,6 +56,8 @@ export async function computeRanking({
     { data: apercibimientos },
     { data: roturas },
     { data: licencias },
+    { data: camionActuales },
+    { data: historial },
   ] = await Promise.all([
     supabase
       .from("choferes")
@@ -51,7 +74,7 @@ export async function computeRanking({
 
     supabase
       .from("chofer_apercibimientos")
-      .select("chofer_id, gravedad")
+      .select("chofer_id")
       .gte("fecha", desde)
       .lte("fecha", hasta),
 
@@ -67,7 +90,52 @@ export async function computeRanking({
       .select("chofer_id")
       .lte("fecha_desde", hasta)
       .or(`fecha_hasta.is.null,fecha_hasta.gte.${desde}`),
+
+    // Camión asignado actualmente a cada chofer.
+    supabase
+      .from("camiones")
+      .select("id, chofer_actual_id")
+      .not("chofer_actual_id", "is", null),
+
+    // Historial de camiones que solape el período (para contar visitas al taller).
+    supabase
+      .from("chofer_camion_historial")
+      .select("chofer_id, camion_id, desde, hasta"),
   ]);
+
+  // Mapa chofer → camiones que manejó en el período (actual + historial que solapa).
+  const camionesPorChofer = new Map<string, Set<string>>();
+  const add = (choferId: string | null, camionId: string | null) => {
+    if (!choferId || !camionId) return;
+    if (!camionesPorChofer.has(choferId)) camionesPorChofer.set(choferId, new Set());
+    camionesPorChofer.get(choferId)!.add(camionId);
+  };
+  for (const c of camionActuales ?? []) add(c.chofer_actual_id, c.id);
+  for (const h of historial ?? []) {
+    const solapa = h.desde <= hasta && (!h.hasta || h.hasta >= desde);
+    if (solapa) add(h.chofer_id, h.camion_id);
+  }
+
+  // Visitas al taller (reparación/avería + gomería) por camión en el período.
+  const todosCamionIds = [...new Set([...camionesPorChofer.values()].flatMap((s) => [...s]))];
+  const tallerPorCamion = new Map<string, number>();
+  if (todosCamionIds.length > 0) {
+    const { data: mantenimientos } = await supabase
+      .from("mantenimientos")
+      .select("camion_id, tipo, tipo_servicio:tipos_servicio(codigo)")
+      .in("camion_id", todosCamionIds)
+      .gte("fecha", desde)
+      .lte("fecha", hasta);
+    const TALLER_CODIGOS = new Set(["reparacion", "gomeria"]);
+    for (const m of mantenimientos ?? []) {
+      const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+      const codigo = (ts as { codigo?: string } | null)?.codigo;
+      const esTaller = codigo ? TALLER_CODIGOS.has(codigo) : m.tipo === "reparacion";
+      if (esTaller && m.camion_id) {
+        tallerPorCamion.set(m.camion_id, (tallerPorCamion.get(m.camion_id) ?? 0) + 1);
+      }
+    }
+  }
 
   const ranking: RankingChofer[] = (choferes ?? []).map((c) => {
     const cv = (viajes ?? []).filter((v) => v.chofer_id === c.id);
@@ -80,23 +148,27 @@ export async function computeRanking({
     const km_total = km_con_carga + km_vacios;
     const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
 
-    const apercibimientos_graves = ca.filter((a) => a.gravedad === "grave").length;
-    const apercibimientos_moderados = ca.filter((a) => a.gravedad === "moderado").length;
-    const apercibimientos_leves = ca.filter((a) => a.gravedad === "leve").length;
+    const apercibimientos_count = ca.length;
     const roturas_count = cr.length;
     const licencias_activas = cl.length;
+
+    // Visitas al taller de todos los camiones que manejó el chofer en el período.
+    let taller_count = 0;
+    const camsChofer = camionesPorChofer.get(c.id);
+    if (camsChofer) {
+      for (const camId of camsChofer) taller_count += tallerPorCamion.get(camId) ?? 0;
+    }
 
     let score: number | null = null;
     if (cv.length > 0) {
       let s = 100;
-      if (pct_vacios > 40) s -= 20;
-      else if (pct_vacios > 30) s -= 15;
-      else if (pct_vacios > 20) s -= 8;
-      s -= apercibimientos_graves * 15;
-      s -= apercibimientos_moderados * 8;
-      s -= apercibimientos_leves * 3;
-      s -= roturas_count * 5;
-      if (licencias_activas > 0) s -= 10;
+      if (pct_vacios > 40) s -= p.vacios_alto;
+      else if (pct_vacios > 30) s -= p.vacios_moderado;
+      else if (pct_vacios > 20) s -= p.vacios_leve;
+      s -= apercibimientos_count * p.aperc;
+      s -= roturas_count * p.rotura;
+      s -= taller_count * p.taller;
+      if (licencias_activas > 0) s -= p.licencia;
       score = Math.max(0, Math.min(100, s));
     }
 
@@ -110,11 +182,9 @@ export async function computeRanking({
       km_vacios,
       km_total,
       pct_vacios,
-      apercibimientos_leves,
-      apercibimientos_moderados,
-      apercibimientos_graves,
-      apercibimientos_total: ca.length,
+      apercibimientos_count,
       roturas_count,
+      taller_count,
       licencias_activas,
       score,
     };

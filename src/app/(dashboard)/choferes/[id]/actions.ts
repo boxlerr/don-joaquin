@@ -7,7 +7,6 @@ import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { logChoferAudit } from "../audit";
 import type {
   ChoferDetail,
-  ApercibimientoGravedad,
   PrestamoEstado,
   ProductividadKPIs,
   CamionHistorialItem,
@@ -83,7 +82,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
 
     supabase
       .from("chofer_apercibimientos")
-      .select("id, fecha, categoria_id, gravedad, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre)")
+      .select("id, fecha, categoria_id, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre)")
       .eq("chofer_id", chofer_id)
       .order("fecha", { ascending: false }),
 
@@ -308,9 +307,6 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     (a) => a.fecha >= primerDia && a.fecha <= ultimoDia,
   );
   const apercibimientos_mes = apercibimientosMesArr.length;
-  const apercibimientos_graves_mes = apercibimientosMesArr.filter((a) => a.gravedad === "grave").length;
-  const apercibimientos_moderados_mes = apercibimientosMesArr.filter((a) => a.gravedad === "moderado").length;
-  const apercibimientos_leves_mes = apercibimientosMesArr.filter((a) => a.gravedad === "leve").length;
 
   // Licencias médicas
   const licenciasArr = licencias ?? [];
@@ -345,9 +341,7 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     if (pct_vacios > 40) s -= 20;
     else if (pct_vacios > 30) s -= 15;
     else if (pct_vacios > 20) s -= 8;
-    s -= apercibimientos_graves_mes * 15;
-    s -= apercibimientos_moderados_mes * 8;
-    s -= apercibimientos_leves_mes * 3;
+    s -= apercibimientos_mes * 8;
     s -= roturas_mes * 5;
     if (licencias_activas > 0) s -= 10;
     score = Math.max(0, Math.min(100, s));
@@ -399,7 +393,6 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
     roturas_mes,
     roturas_cantidad_mes,
     apercibimientos_mes,
-    apercibimientos_graves_mes,
     licencias_activas,
     licencias_dias_mes,
     prestamos_activos,
@@ -497,7 +490,6 @@ export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDe
         fecha: a.fecha,
         categoria_id: a.categoria_id,
         categoria_nombre: (cat as { nombre?: string } | null)?.nombre ?? null,
-        gravedad: a.gravedad as ApercibimientoGravedad,
         motivo: a.motivo,
         observaciones: a.observaciones,
         created_at: a.created_at,
@@ -567,7 +559,6 @@ export async function crearApercibimientoAction(
   data: {
     fecha: string;
     categoria_id: string | null;
-    gravedad: ApercibimientoGravedad;
     motivo: string;
     observaciones?: string | null;
   },
@@ -583,7 +574,6 @@ export async function crearApercibimientoAction(
       chofer_id,
       fecha: data.fecha,
       categoria_id: data.categoria_id,
-      gravedad: data.gravedad,
       motivo: data.motivo.trim(),
       observaciones: data.observaciones?.trim() || null,
       created_by: user.id,
@@ -599,7 +589,6 @@ export async function crearApercibimientoAction(
     null,
     {
       fecha: data.fecha,
-      gravedad: data.gravedad,
       motivo: data.motivo.trim(),
     },
     user.id,
@@ -615,7 +604,7 @@ export async function eliminarApercibimientoAction(id: string, chofer_id: string
 
   const { data: previo } = await supabase
     .from("chofer_apercibimientos")
-    .select("fecha, gravedad, motivo")
+    .select("fecha, motivo")
     .eq("id", id)
     .single();
 

@@ -3,7 +3,6 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   GitCompare,
   X,
   Search,
@@ -241,7 +240,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground">
-                Score en base a km vacíos, apercibimientos y roturas · Tildá 2 para comparar
+                Score en base a km vacíos, apercibimientos, roturas y taller (criterios configurables) · Tildá 2 para comparar
               </p>
               <ScoreInfoButton />
             </div>
@@ -318,8 +317,11 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                 <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Apercib.
                 </th>
-                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pr-5">
+                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Roturas
+                </th>
+                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pr-5">
+                  Taller
                 </th>
               </tr>
             </thead>
@@ -399,28 +401,29 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                     </td>
                     {/* Apercibimientos */}
                     <td className="px-4 py-3.5 text-center">
-                      {r.apercibimientos_total > 0 ? (
-                        <span
-                          className={`inline-flex items-center gap-1 font-semibold ${
-                            r.apercibimientos_graves > 0
-                              ? "text-[#EF4444]"
-                              : "text-[#F59E0B]"
-                          }`}
-                        >
-                          {r.apercibimientos_graves > 0 && (
-                            <AlertTriangle size={12} />
-                          )}
-                          {r.apercibimientos_total}
+                      {r.apercibimientos_count > 0 ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[#F59E0B]">
+                          {r.apercibimientos_count}
                         </span>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </td>
                     {/* Roturas */}
-                    <td className="px-4 py-3.5 text-center pr-5">
+                    <td className="px-4 py-3.5 text-center">
                       {r.roturas_count > 0 ? (
                         <span className="text-[#EF4444] font-semibold">
                           {r.roturas_count}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* Visitas al taller */}
+                    <td className="px-4 py-3.5 text-center pr-5">
+                      {r.taller_count > 0 ? (
+                        <span className="text-[#F59E0B] font-semibold">
+                          {r.taller_count}
                         </span>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
@@ -433,7 +436,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
               {/* Sin resultados de búsqueda */}
               {filteredActivos.length === 0 && filteredSinActividad.length === 0 && query && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-10 text-center">
+                  <td colSpan={10} className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">
                       Sin coincidencias para &ldquo;{query}&rdquo;
                     </p>

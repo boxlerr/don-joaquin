@@ -75,7 +75,6 @@ export type CamionAsignado = {
   ano: number | null;
 };
 
-export type ApercibimientoGravedad = "leve" | "moderado" | "grave";
 export type PrestamoEstado = "pendiente" | "parcial" | "cancelado" | "incobrable";
 
 export type CategoriaApercibimiento = {
@@ -90,7 +89,6 @@ export type Apercibimiento = {
   fecha: string;
   categoria_id: string | null;
   categoria_nombre: string | null;
-  gravedad: ApercibimientoGravedad;
   motivo: string;
   observaciones: string | null;
   created_at: string;
@@ -173,7 +171,6 @@ export type ProductividadKPIs = {
   roturas_mes: number;
   roturas_cantidad_mes: number;
   apercibimientos_mes: number;
-  apercibimientos_graves_mes: number;
   licencias_activas: number;
   licencias_dias_mes: number;
   prestamos_activos: number;

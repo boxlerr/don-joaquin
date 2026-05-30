@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AlertOctagon, Plus, Trash2 } from "lucide-react";
 import CargarApercibimientoDialog from "./CargarApercibimientoDialog";
 import { eliminarApercibimientoAction } from "./actions";
-import type { Apercibimiento, ApercibimientoGravedad, CategoriaApercibimiento } from "./types";
+import type { Apercibimiento, CategoriaApercibimiento } from "./types";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -16,18 +15,6 @@ interface Props {
   categorias: CategoriaApercibimiento[];
   is_admin: boolean;
   onRefresh: () => void;
-}
-
-function gravedadTone(g: ApercibimientoGravedad): "success" | "warning" | "error" | "neutral" {
-  if (g === "leve") return "neutral";
-  if (g === "moderado") return "warning";
-  return "error";
-}
-
-function gravedadLabel(g: ApercibimientoGravedad): string {
-  if (g === "leve") return "Leve";
-  if (g === "moderado") return "Moderado";
-  return "Grave";
 }
 
 export default function ChoferApercibimientosTab({
@@ -85,7 +72,6 @@ export default function ChoferApercibimientosTab({
                   <span className="text-sm font-medium text-foreground">
                     {formatFecha(a.fecha)}
                   </span>
-                  <StatusBadge label={gravedadLabel(a.gravedad)} tone={gravedadTone(a.gravedad)} />
                   {a.categoria_nombre && (
                     <span className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-full px-2 py-0.5">
                       {a.categoria_nombre}
