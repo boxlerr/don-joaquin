@@ -41,7 +41,7 @@ export default function ChoferDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const chofer_id = params.id as string;
+  const slugOrId = params.slug as string;
 
   const [chofer, setChofer] = useState<ChoferDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,10 +56,10 @@ export default function ChoferDetailPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const data = await getChoferDetailAction(chofer_id);
+    const data = await getChoferDetailAction(slugOrId);
     setChofer(data);
     setLoading(false);
-  }, [chofer_id]);
+  }, [slugOrId]);
 
   useEffect(() => {
     loadData();

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, requireAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
+import { choferSlug, isUuid } from "@/lib/chofer-slug";
 import { logChoferAudit } from "../audit";
 import type {
   ChoferDetail,
@@ -14,19 +15,27 @@ import type {
   EvolucionMes,
 } from "./types";
 
-export async function getChoferDetailAction(chofer_id: string): Promise<ChoferDetail | null> {
+export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
   const user = await requireArea("logistica", "read");
   const supabase = createAdminClient();
 
-  const { data: chofer } = await supabase
-    .from("choferes")
-    .select(
-      "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, cvu, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)"
-    )
-    .eq("id", chofer_id)
-    .single();
+  const baseSelect =
+    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, cvu, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
+
+  type ChoferRow = { id: string; apellido: string; nombre: string } & Record<string, unknown>;
+  let chofer: ChoferRow | null = null;
+
+  if (isUuid(slugOrId)) {
+    const { data } = await supabase.from("choferes").select(baseSelect).eq("id", slugOrId).single();
+    chofer = (data as ChoferRow) ?? null;
+  } else {
+    const { data: candidates } = await supabase.from("choferes").select(baseSelect);
+    chofer =
+      (candidates as ChoferRow[] | null)?.find((c) => c && choferSlug(c) === slugOrId) ?? null;
+  }
 
   if (!chofer) return null;
+  const chofer_id = chofer.id;
 
   const hoy = new Date();
   const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
@@ -594,7 +603,7 @@ export async function crearApercibimientoAction(
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -612,7 +621,7 @@ export async function eliminarApercibimientoAction(id: string, chofer_id: string
   if (error) return { error: "No se pudo eliminar el apercibimiento" };
 
   await logChoferAudit(chofer_id, "apercibimiento_eliminado", previo, null, user.id);
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -658,7 +667,7 @@ export async function crearLicenciaAction(
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -690,7 +699,7 @@ export async function cerrarLicenciaAction(id: string, chofer_id: string, fecha_
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -708,7 +717,7 @@ export async function eliminarLicenciaAction(id: string, chofer_id: string) {
   if (error) return { error: "No se pudo eliminar la licencia" };
 
   await logChoferAudit(chofer_id, "licencia_eliminada", previo, null, user.id);
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -759,7 +768,7 @@ export async function crearPrestamoAction(
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -806,7 +815,7 @@ export async function actualizarSaldoPrestamoAction(
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -824,7 +833,7 @@ export async function eliminarPrestamoAction(id: string, chofer_id: string) {
   if (error) return { error: "No se pudo eliminar el préstamo" };
 
   await logChoferAudit(chofer_id, "prestamo_eliminado", previo, null, user.id);
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -935,7 +944,7 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -1053,7 +1062,7 @@ export async function updateDocumentoChoferAction(formData: FormData) {
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -1101,7 +1110,7 @@ export async function updateChoferInfoAction(
     valores_nuevos: data,
   });
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -1156,6 +1165,6 @@ export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {
     user.id,
   );
 
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }

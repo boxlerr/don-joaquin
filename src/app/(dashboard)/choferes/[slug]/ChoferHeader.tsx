@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EditarChoferDialog from "./EditarChoferDialog";
-import { Edit, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle } from "lucide-react";
+import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2 } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
+import { uploadFotoChoferAction, deleteFotoChoferAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -19,6 +20,53 @@ interface Props {
 export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [markingRead, setMarkingRead] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [fotoError, setFotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setFotoError("Solo se permiten imágenes (JPG, PNG, WEBP, GIF, HEIC).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFotoError(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(2)} MB. Máximo 5 MB.`);
+      return;
+    }
+
+    setUploadingFoto(true);
+    setFotoError(null);
+    try {
+      const formData = new FormData();
+      formData.set("chofer_id", chofer.id);
+      formData.set("file", file);
+      const res = await uploadFotoChoferAction(formData);
+      if (res.error) setFotoError(res.error);
+      else onRefresh();
+    } catch (err) {
+      console.error(err);
+      setFotoError("No se pudo subir la foto. Probá con otra imagen o formato.");
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
+
+  const handleFotoDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setUploadingFoto(true);
+    setFotoError(null);
+    try {
+      const res = await deleteFotoChoferAction(chofer.id);
+      if (res.error) setFotoError(res.error);
+      else onRefresh();
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
 
   const handleMarcarLeidas = async () => {
     if (!chofer.alertas || chofer.alertas.length === 0) return;
@@ -73,11 +121,49 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[#B3E5FC]">
-            {fotoUrl ? (
-              <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
-            ) : (
-              <span className="text-primary text-xl font-bold">{initials}</span>
+          <div className="relative flex-shrink-0 group/avatar">
+            <div
+              className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center overflow-hidden border border-[#B3E5FC] cursor-pointer relative"
+              onClick={() => fileInputRef.current?.click()}
+              title={fotoUrl ? "Hacer clic para cambiar la foto" : "Hacer clic para subir una foto"}
+            >
+              {fotoUrl ? (
+                <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+              ) : (
+                <span className="text-primary text-xl font-bold">{initials}</span>
+              )}
+
+              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                <Camera size={14} className="text-white" />
+                <span className="text-[9px] font-medium text-white tracking-wider uppercase">
+                  {fotoUrl ? "Cambiar" : "Subir"}
+                </span>
+              </div>
+
+              {uploadingFoto && (
+                <div className="absolute inset-0 bg-card/80 flex items-center justify-center z-10">
+                  <Loader2 size={18} className="animate-spin text-primary" />
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFotoChange}
+              />
+            </div>
+
+            {fotoUrl && !uploadingFoto && (
+              <button
+                type="button"
+                onClick={handleFotoDelete}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white opacity-0 group-hover/avatar:opacity-100 transition-opacity z-20"
+                title="Eliminar foto"
+              >
+                <Trash2 size={10} />
+              </button>
             )}
           </div>
           <div>
@@ -85,6 +171,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
               {chofer.apellido}, {chofer.nombre}
             </h1>
             <p className="text-muted-foreground text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
+            {fotoError && (
+              <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{fotoError}</p>
+            )}
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <StatusBadge label={estadoLabel} tone={estadoTone} />
               {!esBaja && (

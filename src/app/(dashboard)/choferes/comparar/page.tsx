@@ -8,6 +8,7 @@ import {
   type RankingChofer,
 } from "../ranking/lib";
 import ChoferSwap from "./ChoferSwap";
+import { choferSlug } from "@/lib/chofer-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -284,7 +285,7 @@ function ChoferCard({
           </div>
 
           <Link
-            href={`/choferes/${chofer.id}?tab=productividad`}
+            href={`/choferes/${choferSlug(chofer)}?tab=productividad`}
             className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
           >
             Ver legajo completo →

@@ -15,6 +15,7 @@ import {
 import type { RankingChofer } from "./lib";
 import ScoreBadge from "./ScoreBadge";
 import ScoreInfoButton from "./ScoreInfoButton";
+import { choferSlug } from "@/lib/chofer-slug";
 
 interface Props {
   ranking: RankingChofer[];
@@ -334,7 +335,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                 return (
                   <tr
                     key={r.id}
-                    onClick={() => router.push(`/choferes/${r.id}?tab=productividad`)}
+                    onClick={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
                     className={`group cursor-pointer transition-colors border-l-[3px] ${borderColor} ${
                       isSelected
                         ? "bg-primary/5 hover:bg-primary/8"
@@ -479,7 +480,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                     <button
                       key={r.id}
                       type="button"
-                      onClick={() => router.push(`/choferes/${r.id}`)}
+                      onClick={() => router.push(`/choferes/${choferSlug(r)}`)}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/60 hover:bg-muted text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <span className="w-5 h-5 rounded-full bg-muted-foreground/10 flex items-center justify-center text-[10px] font-semibold">

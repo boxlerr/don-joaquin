@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Trophy, TriangleAlert, ChevronRight } from "lucide-react";
 import type { RankingChofer } from "@/app/(dashboard)/choferes/ranking/lib";
 import ScoreBadge from "@/app/(dashboard)/choferes/ranking/ScoreBadge";
+import { choferSlug } from "@/lib/chofer-slug";
 
 interface Props {
   top: RankingChofer[];
@@ -99,7 +100,7 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: L
           {items.map((r, idx) => (
             <li key={r.id}>
               <Link
-                href={`/choferes/${r.id}?tab=productividad`}
+                href={`/choferes/${choferSlug(r)}?tab=productividad`}
                 className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors group"
               >
                 <span className="w-5 text-center text-sm font-semibold text-muted-foreground">

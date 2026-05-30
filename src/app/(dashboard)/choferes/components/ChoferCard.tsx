@@ -26,6 +26,7 @@ import {
 } from "../actions";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { createClient } from "@/lib/supabase/client";
+import { choferSlug } from "@/lib/chofer-slug";
 
 export default function ChoferCard({ chofer }: { chofer: any }) {
   const router = useRouter();
@@ -198,7 +199,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <Link href={`/choferes/${chofer.id}`}>
+              <Link href={`/choferes/${choferSlug(chofer)}`}>
                 <h3 className="text-foreground font-semibold text-base leading-snug truncate group-hover:text-primary transition-colors hover:underline cursor-pointer">
                   {chofer.apellido}, {chofer.nombre}
                 </h3>
@@ -263,7 +264,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
         </div>
 
         <div className="bg-muted/40 px-4 py-3 border-t border-border flex items-center justify-between gap-1">
-          <Link href={`/choferes/${chofer.id}`}>
+          <Link href={`/choferes/${choferSlug(chofer)}`}>
             <Button
               variant="brand"
               size="sm"

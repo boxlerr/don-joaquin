@@ -368,7 +368,7 @@ export async function uploadFotoChoferAction(formData: FormData) {
   );
 
   revalidatePath("/choferes");
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 
@@ -415,7 +415,7 @@ export async function deleteFotoChoferAction(chofer_id: string) {
   );
 
   revalidatePath("/choferes");
-  revalidatePath(`/choferes/${chofer_id}`);
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 

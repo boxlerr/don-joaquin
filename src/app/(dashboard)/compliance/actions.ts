@@ -133,7 +133,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
       created_by: user.id,
     });
     if (dbError) return { error: "Error al guardar el documento" };
-    revalidatePath(`/choferes/${chofer_id}`);
+    revalidatePath("/choferes/[slug]", "page");
   } else if (usaLegajo && req.nivel === "unidad") {
     const { error: dbError } = await supabase.from("camion_documentos").insert({
       camion_id: camion_id!,
