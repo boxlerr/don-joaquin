@@ -29,9 +29,10 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
   const [banco, setBanco] = useState(chofer.banco ?? "");
-  const [cbu, setCbu] = useState(chofer.cbu ?? "");
+  // CVU y CBU unificados en un solo campo. Se persiste en `cbu`; se precarga
+  // desde el que tenga valor (cbu o el cvu legacy).
+  const [cbu, setCbu] = useState(chofer.cbu ?? chofer.cvu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
-  const [cvu, setCvu] = useState(chofer.cvu ?? "");
 
   // Helpers de display
   const fmtFecha = (s: string | null | undefined) => {
@@ -43,6 +44,18 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     return new Date(s).toLocaleDateString("es-AR");
   };
 
+  // Edad calculada desde la fecha de nacimiento.
+  const edad = (() => {
+    if (!chofer.fecha_nacimiento) return null;
+    const nac = new Date(chofer.fecha_nacimiento);
+    if (Number.isNaN(nac.getTime())) return null;
+    const hoy = new Date();
+    let e = hoy.getFullYear() - nac.getFullYear();
+    const m = hoy.getMonth() - nac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) e -= 1;
+    return e >= 0 && e < 120 ? e : null;
+  })();
+
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
@@ -51,9 +64,8 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
     setBanco(chofer.banco ?? "");
-    setCbu(chofer.cbu ?? "");
+    setCbu(chofer.cbu ?? chofer.cvu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
-    setCvu(chofer.cvu ?? "");
     setError(null);
     setEditing(false);
   };
@@ -71,7 +83,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
-        cvu: cvu.trim() || undefined,
       });
       if (res.error) {
         setError(res.error);
@@ -128,6 +139,9 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             </Field>
             <Field label="Fecha nacimiento">
               <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />
+            </Field>
+            <Field label="Edad">
+              <Value v={edad != null ? `${edad} años` : "—"} />
             </Field>
             <Field label="Fecha ingreso">
               <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />
@@ -222,20 +236,15 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
                 ? <Input value={banco} onChange={(e) => setBanco(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.banco} />}
             </Field>
-            <Field label="CBU">
+            <Field label="CVU/CBU">
               {editing
                 ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
-                : <Value v={chofer.cbu} mono />}
+                : <Value v={chofer.cbu ?? chofer.cvu} mono />}
             </Field>
             <Field label="Alias CBU">
               {editing
                 ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.alias_cbu} />}
-            </Field>
-            <Field label="CVU">
-              {editing
-                ? <Input value={cvu} onChange={(e) => setCvu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
-                : <Value v={chofer.cvu} mono />}
             </Field>
           </div>
           {!editing && (

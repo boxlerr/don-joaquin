@@ -45,6 +45,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
 
   const esBaja = chofer.estado === "baja";
   const antiguedad = formatAntiguedad(chofer.fecha_ingreso, esBaja ? chofer.fecha_egreso : null);
+  const edad = calcularEdad(chofer.fecha_nacimiento);
   const periodoPrueba = !esBaja ? diasRestantesPeriodoPrueba(chofer.fecha_ingreso) : null;
   const cumple = !esBaja ? proximoCumpleanos(chofer.fecha_nacimiento) : null;
   const docsResumen = !esBaja ? resumirVencimientos(chofer.documentos_vigencia) : null;
@@ -156,7 +157,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
         </Button>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <InfoItem icon={<Phone size={13} />} label={chofer.telefono ?? "—"} />
         <InfoItem icon={<Mail size={13} />} label={chofer.email ?? "—"} />
         <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
@@ -165,6 +166,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
           label={`Ingreso: ${formatFecha(chofer.fecha_ingreso)}`}
         />
         <InfoItem icon={<Clock size={13} />} label={`Antigüedad: ${antiguedad}`} />
+        <InfoItem icon={<Cake size={13} />} label={`Edad: ${edad != null ? `${edad} años` : "—"}`} />
       </div>
 
       {/* Panel de egreso destacado — solo si está dado de baja */}
@@ -222,6 +224,17 @@ function InfoItem({ icon, label }: { icon: React.ReactNode; label: string }) {
       <span className="truncate">{label}</span>
     </div>
   );
+}
+
+function calcularEdad(fechaNacimiento: string | null): number | null {
+  if (!fechaNacimiento) return null;
+  const nac = new Date(fechaNacimiento);
+  if (Number.isNaN(nac.getTime())) return null;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad -= 1;
+  return edad >= 0 && edad < 120 ? edad : null;
 }
 
 function formatAntiguedad(fechaIngreso: string | null, hasta: string | null = null): string {
