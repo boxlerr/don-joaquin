@@ -9,6 +9,7 @@ import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
 import ImportMovimientosDialog from "./components/ImportMovimientosDialog";
 import MovimientosCajaTable from "./components/MovimientosCajaTable";
+import HelpTutorialButton from "./help-tutorial-button";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -77,9 +78,11 @@ export default async function CajaPage() {
         title="Caja General"
         description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         action={
-          canWrite ? (
-            <div className="flex items-center gap-2">
-              <ImportMovimientosDialog />
+          <div className="flex items-center gap-2">
+            <HelpTutorialButton />
+            {canWrite && (
+              <>
+                <ImportMovimientosDialog />
               <AddViaticoDialog choferes={choferes || []}>
                 <Button variant="outline" size="sm">
                   <Receipt size={14} />
@@ -98,8 +101,9 @@ export default async function CajaPage() {
                   Egreso
                 </Button>
               </AddEgresoDialog>
-            </div>
-          ) : null
+              </>
+            )}
+          </div>
         }
       />
 

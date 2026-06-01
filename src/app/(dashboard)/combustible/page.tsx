@@ -14,6 +14,7 @@ import { Fuel, Trophy, Gauge, DollarSign, TrendingDown } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import AddGasoilDialog from "../camiones/components/AddGasoilDialog";
+import HelpTutorialButton from "./help-tutorial-button";
 import {
   getStatsMesAction,
   getRankingEficienciaMesAction,
@@ -62,14 +63,17 @@ export default async function CombustiblePage() {
         title="Combustible & Gasoil"
         description="Carga, eficiencia y ranking de choferes del mes en curso"
         action={
-          canWrite ? (
-            <AddGasoilDialog camiones={camiones ?? []}>
-              <Button variant="brand" size="default">
-                <Fuel size={14} />
-                Cargar gasoil
-              </Button>
-            </AddGasoilDialog>
-          ) : null
+          <div className="flex items-center gap-2.5">
+            <HelpTutorialButton />
+            {canWrite && (
+              <AddGasoilDialog camiones={camiones ?? []}>
+                <Button variant="brand" size="default">
+                  <Fuel size={14} />
+                  Cargar gasoil
+                </Button>
+              </AddGasoilDialog>
+            )}
+          </div>
         }
       />
 

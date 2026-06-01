@@ -15,11 +15,16 @@ import {
   PauseCircle,
   Clock,
   Lightbulb,
+  Calculator,
+  Users,
+  Settings,
+  Layers,
 } from "lucide-react";
 
-type TabId = "crear" | "busqueda" | "auditoria";
+type TabId = "secciones" | "crear" | "busqueda" | "auditoria";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: "secciones", label: "Secciones", icon: <Layers size={14} /> },
   { id: "crear", label: "Crear / Editar", icon: <Plus size={14} /> },
   { id: "busqueda", label: "Búsqueda y Filtros", icon: <Search size={14} /> },
   { id: "auditoria", label: "Editar y Auditoría", icon: <History size={14} /> },
@@ -27,11 +32,17 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 export default function HelpTutorialButton() {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>("crear");
+  const [tab, setTab] = useState<TabId>("secciones");
   const [step, setStep] = useState(0);
 
   const steps =
-    tab === "crear" ? MANUAL_STEPS : tab === "busqueda" ? SEARCH_STEPS : AUDIT_STEPS;
+    tab === "secciones"
+      ? SECCIONES_STEPS
+      : tab === "crear"
+        ? MANUAL_STEPS
+        : tab === "busqueda"
+          ? SEARCH_STEPS
+          : AUDIT_STEPS;
   const totalSteps = steps.length;
   const current = steps[step];
 
@@ -46,7 +57,7 @@ export default function HelpTutorialButton() {
       onOpenChange={(v) => {
         setOpen(v);
         if (!v) {
-          setTab("crear");
+          setTab("secciones");
           setStep(0);
         }
       }}
@@ -252,6 +263,40 @@ type TutorialStep = {
 };
 
 // =============================================================================
+// Pasos: Secciones de la página
+// =============================================================================
+
+const SECCIONES_STEPS: TutorialStep[] = [
+  {
+    title: "Las 3 pestañas de Tarifas",
+    description:
+      'La página se divide en 3 secciones arriba: "Calculadora", "Tarifas por cliente" y "Ajustes globales". Cada una cumple un rol distinto.',
+    mockup: <MockSeccionesTabs />,
+    hint: "La página abre en Calculadora. El alta y la gestión de tarifas viven en Tarifas por cliente.",
+  },
+  {
+    title: "Calculadora",
+    description:
+      "Es la pestaña inicial. Elegís cliente, ruta, peso (kg) y km, y te dice cuánto cobrar. Si el cliente tiene una tarifa propia para esa ruta, la usa; si no, cae a los valores globales.",
+    mockup: <MockCalculadora />,
+    hint: "Para los KM prevalecen los KM oficiales de la ruta por sobre el valor que ingreses a mano.",
+  },
+  {
+    title: "Tarifas por cliente",
+    description:
+      'Es el listado de tarifas con el botón "Nueva tarifa", el buscador y los filtros. Todo lo que ves en las pestañas "Crear / Editar", "Búsqueda y Filtros" y "Editar y Auditoría" de esta guía ocurre acá.',
+    mockup: <MockTarifaTable highlight="none" />,
+  },
+  {
+    title: "Ajustes globales",
+    description:
+      "Define los valores base de respaldo: tarifa base, precio por kg y precio por km. La calculadora los usa cuando un cliente no tiene una tarifa propia cargada.",
+    mockup: <MockAjustesGlobales />,
+    hint: "Es solo lectura si no tenés permiso de edición sobre Comercial.",
+  },
+];
+
+// =============================================================================
 // Pasos: Crear / Editar
 // =============================================================================
 
@@ -259,8 +304,9 @@ const MANUAL_STEPS: TutorialStep[] = [
   {
     title: 'Abrí "Nueva tarifa"',
     description:
-      'Arriba a la derecha del panel, hacé clic en "Nueva tarifa". Se abre un modal centrado.',
+      'Entrá a la pestaña "Tarifas por cliente" y, arriba a la derecha del panel, hacé clic en "Nueva tarifa". Se abre un modal centrado.',
     mockup: <MockToolbarTarifas highlight="new" />,
+    hint: 'El botón "Nueva tarifa" solo aparece si tenés permiso de edición sobre Comercial.',
   },
   {
     title: "Elegí un cliente",
@@ -386,6 +432,77 @@ const AUDIT_STEPS: TutorialStep[] = [
 // =============================================================================
 // Mocks
 // =============================================================================
+
+function MockSeccionesTabs() {
+  const tabs = [
+    { label: "Calculadora", icon: <Calculator size={12} />, active: true },
+    { label: "Tarifas por cliente", icon: <Users size={12} />, active: false },
+    { label: "Ajustes globales", icon: <Settings size={12} />, active: false },
+  ];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1 border-b border-border">
+        {tabs.map((t) => (
+          <div
+            key={t.label}
+            className={
+              "relative flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium " +
+              (t.active ? "text-primary" : "text-muted-foreground")
+            }
+          >
+            {t.icon}
+            {t.label}
+            {t.active && <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />}
+          </div>
+        ))}
+      </div>
+      <div className="text-[10px] text-muted-foreground/80 px-1">
+        ↑ Cambiás de sección desde estas pestañas.
+      </div>
+    </div>
+  );
+}
+
+function MockCalculadora() {
+  return (
+    <div className="bg-card border border-border rounded-md p-3 space-y-2 max-w-[400px] mx-auto">
+      <div className="grid grid-cols-2 gap-2">
+        <MockField label="Cliente" value="Don Joaquín SA" />
+        <MockField label="Ruta" value="CABA – Tres Arroyos" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <MockField label="Peso (kg)" value="30.000" />
+        <MockField label="Km" value="510" />
+      </div>
+      <div className="rounded-md bg-[#ECFDF5] border border-[#A7F3D0] px-3 py-2 flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-[#065F46] uppercase tracking-wide">Total a cobrar</span>
+        <span className="text-sm font-bold text-[#065F46]">$ 75.000,00</span>
+      </div>
+      <div className="text-[10px] text-muted-foreground/80">
+        Tarifa del cliente — Por kilo · $ 2,50 × 30.000 kg
+      </div>
+    </div>
+  );
+}
+
+function MockAjustesGlobales() {
+  return (
+    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[340px] mx-auto">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Settings size={13} className="text-primary" />
+        <div className="text-foreground text-xs font-semibold">Ajustes de tarifa</div>
+      </div>
+      <div className="p-3 space-y-2">
+        <MockField label="Tarifa base ($)" value="500,00" />
+        <MockField label="Precio por kg ($)" value="2,00" />
+        <MockField label="Precio por km ($)" value="180,00" />
+        <div className="h-7 rounded-md bg-[#0088D1] text-white text-[11px] font-semibold inline-flex items-center justify-center w-full">
+          Guardar ajustes
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MockToolbarTarifas({ highlight }: { highlight: "new" }) {
   return (

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import ExtintoresTable from "./components/ExtintoresTable";
 import { ExportExtintoresButton, ImportExtintoresButton } from "./components/ExtintoresIO";
+import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ExtintoresPage() {
   // Verificar permisos (requiere lectura de flota)
@@ -65,6 +66,7 @@ export default async function ExtintoresPage() {
         description="Vencimientos, ubicaciones y estado de vigencia de matafuegos de la flota y establecimientos"
         action={
           <div className="flex items-center gap-2.5">
+            <HelpTutorialButton />
             <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
               {canWrite && <ImportExtintoresButton />}
               <ExportExtintoresButton />

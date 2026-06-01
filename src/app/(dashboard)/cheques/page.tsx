@@ -7,6 +7,7 @@ import { requireArea, hasArea } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
 import ExportChequesButton from "./components/ExportChequesButton";
+import HelpTutorialButton from "./help-tutorial-button";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -74,6 +75,7 @@ export default async function ChequesPage() {
         description="Cartera completa con trazabilidad por estado"
         action={
           <div className="flex items-center gap-2">
+            <HelpTutorialButton />
             <ExportChequesButton />
             {canWrite && (
               <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>

@@ -19,6 +19,7 @@ import {
   Wrench,
   FileText,
   Star,
+  Receipt,
 } from "lucide-react";
 
 type TabId = "manual" | "import" | "detalle";
@@ -324,7 +325,7 @@ const DETALLE_STEPS: TutorialStep[] = [
   {
     title: "Clic en una fila para abrir el detalle",
     description:
-      "Cada camión de la lista es clickeable. Se abre un panel con 5 tabs: Información, Fotos, Services, Gasoil y Documentos.",
+      "Cada camión de la lista es clickeable. Se abre un panel con 6 tabs: Información, Fotos, Services, Gasoil, Gastos y Documentos. En Información también ves el chofer asignado, el acoplado vinculado y el estado de tercerización.",
     mockup: <MockRowClick />,
   },
   {
@@ -335,9 +336,9 @@ const DETALLE_STEPS: TutorialStep[] = [
     hint: "Las fotos pesan máximo 5MB cada una. Acepta JPG, PNG, WEBP, GIF y HEIC.",
   },
   {
-    title: "Registrá services y cargas de gasoil",
+    title: "Registrá services, gasoil y gastos",
     description:
-      "Desde los tabs Services y Gasoil podés cargar mantenimientos y cargas de combustible. El KM se autocompleta con el último registrado para que no tengas que mirarlo.",
+      "Desde los tabs Services y Gasoil cargás mantenimientos y cargas de combustible (el KM se autocompleta con el último registrado). El tab Gastos lista todos los gastos imputados a esa unidad. También podés cargar gasoil, service o un gasto desde los botones de la barra superior, sin abrir el detalle.",
     mockup: <MockServiceGasoil />,
   },
   {
@@ -380,6 +381,9 @@ function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
       </div>
       <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1 opacity-50">
         <Wrench size={12} /> Registrar service
+      </div>
+      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center gap-1 opacity-50">
+        <Receipt size={12} /> Registrar gasto
       </div>
       <div
         className={

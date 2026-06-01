@@ -249,9 +249,9 @@ const NUEVO_STEPS: TutorialStep[] = [
     mockup: <MockRuta />,
   },
   {
-    title: "Cargá los kilómetros y tonelaje",
+    title: "Cargá los kilómetros, tonelaje y flete",
     description:
-      "Km con carga + km vacíos = total recorrido del viaje. El tonelaje real es el peso efectivamente transportado.",
+      "Km con carga + km vacíos = total recorrido del viaje. El tonelaje real es el peso efectivamente transportado. Más abajo podés cargar el monto de flete (ARS) del viaje.",
     mockup: <MockMetricas />,
     hint: "El sistema suma km con carga + km vacíos para el total. Si hay desvíos no computables (ej. regreso a domicilio del chofer), se cargan desde la ficha del viaje.",
   },

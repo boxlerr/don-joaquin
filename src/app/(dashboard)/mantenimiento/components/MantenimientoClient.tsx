@@ -35,6 +35,7 @@ import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog from "./AddRoturaDialog";
+import HelpTutorialButton from "../help-tutorial-button";
 import type { AcopladoOption, CamionOption, ChoferOption, TipoServicioOption } from "../types";
 import {
   deleteServicioAction,
@@ -132,8 +133,10 @@ export default function MantenimientoClient({
         title="Mantenimiento"
         description="Servicios, gomería y roturas de la flota — simple y al día"
         action={
-          canWrite ? (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <HelpTutorialButton />
+            {canWrite && (
+              <>
               <AddServicioDialog camiones={camiones} acoplados={acoplados} tiposServicio={tiposServicio}>
                 <Button
                   variant="brand"
@@ -152,8 +155,9 @@ export default function MantenimientoClient({
                   <CircleDot size={15} strokeWidth={2.5} /> Registrar rotura
                 </Button>
               </AddRoturaDialog>
-            </div>
-          ) : null
+              </>
+            )}
+          </div>
         }
       />
 

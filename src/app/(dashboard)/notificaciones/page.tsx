@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
+import HelpTutorialButton from "./help-tutorial-button";
 import { diasRestantes, type AlertaItem } from "./utils";
 
 export default async function NotificacionesPage() {
@@ -134,6 +135,7 @@ export default async function NotificacionesPage() {
         description="Alertas del sistema sobre vencimientos, documentos y operaciones"
         action={
           <div className="flex items-center gap-2">
+            <HelpTutorialButton />
             <form action={actualizarAlertas}>
               <Button type="submit" variant="outline" size="sm">
                 <RefreshCw size={14} />

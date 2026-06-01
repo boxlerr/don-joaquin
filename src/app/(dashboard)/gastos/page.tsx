@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import AddGastoDialog from "./components/AddGastoDialog";
 import GastosTable from "./components/GastosTable";
+import HelpTutorialButton from "./help-tutorial-button";
 import { getGastoFormData } from "./actions";
 
 function formatARS(n: number): string {
@@ -70,19 +71,22 @@ export default async function GastosPage() {
         title="Gastos"
         description="Lente operativo de gastos — trazabilidad por viaje, camión y chofer"
         action={
-          canWrite ? (
-            <AddGastoDialog
-              tiposGasto={formData.tiposGasto}
-              viajes={formData.viajes}
-              camiones={formData.camiones}
-              choferes={formData.choferes}
-            >
-              <Button variant="brand" size="sm">
-                <Plus size={14} />
-                Registrar gasto
-              </Button>
-            </AddGastoDialog>
-          ) : null
+          <div className="flex items-center gap-2.5">
+            <HelpTutorialButton />
+            {canWrite && (
+              <AddGastoDialog
+                tiposGasto={formData.tiposGasto}
+                viajes={formData.viajes}
+                camiones={formData.camiones}
+                choferes={formData.choferes}
+              >
+                <Button variant="brand" size="sm">
+                  <Plus size={14} />
+                  Registrar gasto
+                </Button>
+              </AddGastoDialog>
+            )}
+          </div>
         }
       />
 
