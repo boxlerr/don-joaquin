@@ -7,24 +7,55 @@ import { logChoferAudit } from "./audit";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
 
+const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
+
+function serverValidateChofer(data: {
+  nombre: string;
+  apellido: string;
+  dni: string;
+  cuil: string;
+  telefono: string;
+  localidad: string;
+  fecha_ingreso: string;
+}): string | null {
+  if (!data.nombre.trim()) return "El nombre es requerido.";
+  if (!data.apellido.trim()) return "El apellido es requerido.";
+  if (!data.dni.trim()) return "El DNI es requerido.";
+  const cuilDigits = data.cuil.replace(/\D/g, "");
+  if (!cuilDigits) return "El CUIL es requerido.";
+  if (cuilDigits.length !== 11) return "El CUIL debe tener 11 dígitos.";
+  if (!CUIL_PREFIXES.includes(cuilDigits.slice(0, 2))) return "Prefijo de CUIL inválido.";
+  const telDigits = data.telefono.replace(/\D/g, "");
+  if (!telDigits) return "El teléfono es requerido.";
+  if (telDigits.length < 10) return "El teléfono debe tener al menos 10 dígitos.";
+  if (!data.localidad.trim()) return "La localidad es requerida.";
+  if (!data.fecha_ingreso) return "La fecha de ingreso es requerida.";
+  return null;
+}
+
 export async function addChoferAction(data: {
   nombre: string;
   apellido: string;
   dni: string;
-  telefono?: string;
-  localidad?: string;
+  cuil: string;
+  telefono: string;
+  localidad: string;
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  const validationError = serverValidateChofer(data);
+  if (validationError) return { error: validationError };
+
   const insertData = {
-    nombre: data.nombre,
-    apellido: data.apellido,
-    dni: data.dni,
-    telefono: data.telefono || null,
-    localidad: data.localidad || null,
+    nombre: data.nombre.trim(),
+    apellido: data.apellido.trim(),
+    dni: data.dni.trim(),
+    cuil: data.cuil.trim(),
+    telefono: data.telefono.trim(),
+    localidad: data.localidad.trim(),
     fecha_ingreso: data.fecha_ingreso,
     estado: data.estado,
   };

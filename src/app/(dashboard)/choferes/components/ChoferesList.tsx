@@ -13,8 +13,12 @@ type Chofer = {
   nombre: string;
   apellido: string;
   dni: string;
+  cuil?: string | null;
+  telefono?: string | null;
+  localidad?: string | null;
   estado: string;
   fecha_ingreso?: string | null;
+  foto?: { bucket: string; path: string } | null;
   [key: string]: unknown;
 };
 
@@ -51,7 +55,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
         return false;
       }
       if (!q) return true;
-      const haystack = normalize(`${c.apellido} ${c.nombre} ${c.dni}`);
+      const haystack = normalize(`${c.apellido} ${c.nombre} ${c.dni} ${c.cuil ?? ""} ${c.telefono ?? ""}`);
       return haystack.includes(q);
     });
   }, [choferes, estadoFilter, query]);
@@ -96,7 +100,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre o DNI..."
+            placeholder="Nombre, DNI, CUIL o teléfono..."
             className="w-64 text-sm"
           />
           {!sinFiltros && (

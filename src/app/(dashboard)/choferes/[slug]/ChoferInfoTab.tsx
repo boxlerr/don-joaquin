@@ -21,6 +21,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
@@ -67,10 +68,24 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     setCbu(chofer.cbu ?? chofer.cvu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
     setError(null);
+    setFieldErrors({});
     setEditing(false);
   };
 
+  const validateEdicion = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!nombre.trim()) errs.nombre = "El nombre es requerido.";
+    if (!apellido.trim()) errs.apellido = "El apellido es requerido.";
+    const telDigits = telefono.replace(/\D/g, "");
+    if (telDigits && telDigits.length < 10) errs.telefono = "El teléfono debe tener al menos 10 dígitos.";
+    const telEmerDigits = telefonoEmergencia.replace(/\D/g, "");
+    if (telEmerDigits && telEmerDigits.length < 10) errs.telefono_emergencia = "Debe tener al menos 10 dígitos.";
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleSave = () => {
+    if (!validateEdicion()) return;
     setError(null);
     startTransition(async () => {
       const res = await updateChoferInfoAction(chofer.id, {
@@ -188,28 +203,40 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             Contacto
           </h4>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-            <Field label="Nombre">
-              {editing
-                ? <Input value={nombre} onChange={(e) => setNombre(e.target.value)} className="h-8 text-sm" />
-                : <Value v={chofer.nombre} />}
+            <Field label="Nombre *">
+              {editing ? (
+                <div className="space-y-0.5">
+                  <Input value={nombre} onChange={(e) => setNombre(e.target.value)} className={`h-8 text-sm ${fieldErrors.nombre ? "border-red-400" : ""}`} />
+                  {fieldErrors.nombre && <p className="text-red-500 text-[11px]">{fieldErrors.nombre}</p>}
+                </div>
+              ) : <Value v={chofer.nombre} />}
             </Field>
-            <Field label="Apellido">
-              {editing
-                ? <Input value={apellido} onChange={(e) => setApellido(e.target.value)} className="h-8 text-sm" />
-                : <Value v={chofer.apellido} />}
+            <Field label="Apellido *">
+              {editing ? (
+                <div className="space-y-0.5">
+                  <Input value={apellido} onChange={(e) => setApellido(e.target.value)} className={`h-8 text-sm ${fieldErrors.apellido ? "border-red-400" : ""}`} />
+                  {fieldErrors.apellido && <p className="text-red-500 text-[11px]">{fieldErrors.apellido}</p>}
+                </div>
+              ) : <Value v={chofer.apellido} />}
             </Field>
             <Field label="Teléfono">
-              {editing
-                ? <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                : <Value v={chofer.telefono} />}
+              {editing ? (
+                <div className="space-y-0.5">
+                  <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className={`h-8 text-sm ${fieldErrors.telefono ? "border-red-400" : ""}`} placeholder="—" />
+                  {fieldErrors.telefono && <p className="text-red-500 text-[11px]">{fieldErrors.telefono}</p>}
+                </div>
+              ) : <Value v={chofer.telefono} />}
             </Field>
             <Field label="Tel. emergencia">
-              {editing
-                ? <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                : <Value v={chofer.telefono_emergencia} />}
+              {editing ? (
+                <div className="space-y-0.5">
+                  <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} className={`h-8 text-sm ${fieldErrors.telefono_emergencia ? "border-red-400" : ""}`} placeholder="—" />
+                  {fieldErrors.telefono_emergencia && <p className="text-red-500 text-[11px]">{fieldErrors.telefono_emergencia}</p>}
+                </div>
+              ) : <Value v={chofer.telefono_emergencia} />}
             </Field>
             <div className="col-span-2">
-              <Field label="Email">
+              <Field label="Email (opcional)">
                 {editing
                   ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-8 text-sm" placeholder="—" />
                   : <Value v={chofer.email} />}

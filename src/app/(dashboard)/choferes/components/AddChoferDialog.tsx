@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,83 +19,155 @@ import {
   Calendar,
   ChevronDown,
   Check,
+  Hash,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
+
+// ---------------------------------------------------------------------------
+// Localidades
+// ---------------------------------------------------------------------------
+const LOCALIDADES_AR = [
+  "Arrecifes", "Azul", "Bahía Blanca", "Balcarce", "Baradero",
+  "Brandsen", "Buenos Aires (CABA)", "Cañuelas", "Carmen de Areco",
+  "Chivilcoy", "Chacabuco", "Chascomús", "Daireaux", "Dolores",
+  "Ensenada", "Escobar", "Exaltación de la Cruz", "Florencio Varela",
+  "General Alvear", "General Las Heras", "General Pueyrredón (Mar del Plata)",
+  "General Rodríguez", "General San Martín", "González Catán",
+  "Junín", "La Matanza", "La Plata", "Lanús", "Las Flores",
+  "Leandro N. Alem", "Lincoln", "Lobos", "Lomas de Zamora",
+  "Luján", "Magdalena", "Marcos Paz", "Mercedes", "Merlo",
+  "Monte Hermoso", "Moreno", "Morón", "Navarro", "Necochea",
+  "Nueve de Julio", "Olavarría", "Partido de La Costa", "Pehuajó",
+  "Pergamino", "Pilar", "Quilmes", "Ramallo", "Ranchos", "Rauch",
+  "Rivadavia", "Rojas", "Salto", "San Andrés de Giles", "San Antonio de Areco",
+  "San Cayetano", "San Fernando", "San Isidro", "San Miguel",
+  "San Nicolás de los Arroyos", "San Pedro", "Saladillo", "Suipacha",
+  "Tandil", "Tigre", "Trenque Lauquen", "Tres Arroyos", "Veinticinco de Mayo",
+  "Vicente López", "Zárate",
+  // Otras provincias (ciudades grandes)
+  "Córdoba", "Rosario", "Santa Fe", "Mendoza", "Tucumán",
+  "Salta", "Resistencia", "Corrientes", "Paraná", "Posadas",
+  "Neuquén", "Río Cuarto", "Mar del Plata", "San Juan", "San Luis",
+  "Santiago del Estero", "La Rioja", "Catamarca", "Jujuy",
+  "Formosa", "Santa Rosa (La Pampa)", "Viedma", "Rawson",
+  "Ushuaia", "Río Gallegos", "Comodoro Rivadavia", "Bariloche",
+];
 
 const ESTADOS = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
 ];
 
+// ---------------------------------------------------------------------------
+// Validaciones
+// ---------------------------------------------------------------------------
+const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
+
+function formatCuil(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 10) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
+}
+
+function validateCuil(value: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "El CUIL es requerido.";
+  if (digits.length !== 11) return "El CUIL debe tener 11 dígitos.";
+  if (!CUIL_PREFIXES.includes(digits.slice(0, 2))) return "Prefijo de CUIL inválido.";
+  return null;
+}
+
+function validateTelefono(value: string): string | null {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "El teléfono es requerido.";
+  if (digits.length < 10) return "El teléfono debe tener al menos 10 dígitos.";
+  return null;
+}
+
+function validateLocalidad(value: string): string | null {
+  if (!value.trim()) return "La localidad es requerida.";
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function AddChoferDialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  // Form states
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [dni, setDni] = useState("");
+  const [cuil, setCuil] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
   const [telefono, setTelefono] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   const reset = () => {
-    setNombre("");
-    setApellido("");
-    setDni("");
-    setEstado("activo");
-    setTelefono("");
-    setLocalidad("");
+    setNombre(""); setApellido(""); setDni(""); setCuil("");
+    setEstado("activo"); setTelefono(""); setLocalidad("");
     setFechaIngreso(new Date().toISOString().split("T")[0]);
-    setError(null);
+    setServerError(null); setFieldErrors({});
+  };
+
+  const validate = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!nombre.trim()) errors.nombre = "El nombre es requerido.";
+    if (!apellido.trim()) errors.apellido = "El apellido es requerido.";
+    if (!dni.trim()) errors.dni = "El DNI es requerido.";
+    const cuilErr = validateCuil(cuil);
+    if (cuilErr) errors.cuil = cuilErr;
+    const telErr = validateTelefono(telefono);
+    if (telErr) errors.telefono = telErr;
+    const locErr = validateLocalidad(localidad);
+    if (locErr) errors.localidad = locErr;
+    if (!fechaIngreso) errors.fecha_ingreso = "La fecha de ingreso es requerida.";
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!validate()) return;
     setLoading(true);
-    setError(null);
-
+    setServerError(null);
     try {
       const result = await addChoferAction({
         nombre,
         apellido,
         dni,
+        cuil,
         estado,
         telefono,
         localidad,
         fecha_ingreso: fechaIngreso,
       });
-
       if (result.error) {
-        setError(result.error);
+        setServerError(result.error);
       } else {
         setOpen(false);
         reset();
       }
     } catch {
-      setError("Ocurrió un error inesperado.");
+      setServerError("Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
     }
   };
 
-  const getEstadoDotColor = (val: string) => {
-    return val === "activo" ? "bg-[#10B981]" : "bg-[#94A3B8]";
-  };
+  const getEstadoDotColor = (val: string) =>
+    val === "activo" ? "bg-[#10B981]" : "bg-[#94A3B8]";
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) reset();
-      }}
-    >
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[500px] p-6 gap-0">
-        {/* Header */}
+      <DialogContent className="sm:max-w-[520px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
@@ -112,51 +184,68 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
           </div>
         </DialogHeader>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
-          {error && (
+          {serverError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
-              {error}
+              {serverError}
             </div>
           )}
 
+          {/* Nombre + Apellido */}
           <div className="grid grid-cols-2 gap-4">
-            {/* Nombre */}
             <InputFieldWithIcon
               label="Nombre *"
               name="nombre"
               placeholder="Ej: Juan"
-              required
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               icon={User}
+              error={fieldErrors.nombre}
             />
-
-            {/* Apellido */}
             <InputFieldWithIcon
               label="Apellido *"
               name="apellido"
               placeholder="Ej: Pérez"
-              required
               value={apellido}
               onChange={(e) => setApellido(e.target.value)}
               icon={User}
+              error={fieldErrors.apellido}
             />
           </div>
 
+          {/* DNI + CUIL */}
           <div className="grid grid-cols-2 gap-4">
-            {/* DNI */}
             <InputFieldWithIcon
               label="DNI *"
               name="dni"
               placeholder="Ej: 12345678"
-              required
               value={dni}
               onChange={(e) => setDni(e.target.value)}
               icon={Fingerprint}
+              error={fieldErrors.dni}
             />
+            <InputFieldWithIcon
+              label="CUIL *"
+              name="cuil"
+              placeholder="Ej: 20-12345678-9"
+              value={cuil}
+              onChange={(e) => setCuil(formatCuil(e.target.value))}
+              icon={Hash}
+              error={fieldErrors.cuil}
+            />
+          </div>
 
-            {/* Estado */}
+          {/* Teléfono + Estado */}
+          <div className="grid grid-cols-2 gap-4">
+            <InputFieldWithIcon
+              label="Teléfono *"
+              name="telefono"
+              placeholder="Ej: +54 9 341 000 0000"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              icon={Phone}
+              error={fieldErrors.telefono}
+            />
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-muted-foreground">Estado *</Label>
               <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
@@ -171,54 +260,33 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
                     onChange={(e) => setEstado(e.target.value as "activo" | "inactivo")}
                   >
                     {ESTADOS.map((e) => (
-                      <option key={e.value} value={e.value}>
-                        {e.label}
-                      </option>
+                      <option key={e.value} value={e.value}>{e.label}</option>
                     ))}
                   </select>
-                  <ChevronDown
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                  />
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Telefono */}
-            <InputFieldWithIcon
-              label="Teléfono"
-              name="telefono"
-              placeholder="Ej: +54 9 11 ..."
-              value={telefono}
-              onChange={(e) => setTelefono(e.target.value)}
-              icon={Phone}
-            />
-
-            {/* Localidad */}
-            <InputFieldWithIcon
-              label="Localidad"
-              name="localidad"
-              placeholder="Ej: Arrecifes"
-              value={localidad}
-              onChange={(e) => setLocalidad(e.target.value)}
-              icon={MapPin}
-            />
-          </div>
+          {/* Localidad */}
+          <LocalidadCombobox
+            value={localidad}
+            onChange={setLocalidad}
+            error={fieldErrors.localidad}
+          />
 
           {/* Fecha de ingreso */}
           <InputFieldWithIcon
             label="Fecha de ingreso *"
             name="fecha_ingreso"
             type="date"
-            required
             value={fechaIngreso}
             onChange={(e) => setFechaIngreso(e.target.value)}
             icon={Calendar}
+            error={fieldErrors.fecha_ingreso}
           />
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button
               type="button"
@@ -234,13 +302,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? (
-                "Guardando..."
-              ) : (
-                <>
-                  <Check size={16} strokeWidth={2.5} /> Guardar chofer
-                </>
-              )}
+              {loading ? "Guardando..." : (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)}
             </Button>
           </div>
         </form>
@@ -249,14 +311,103 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
   );
 }
 
-// Subcomponente Input con Icono incorporado
+// ---------------------------------------------------------------------------
+// LocalidadCombobox
+// ---------------------------------------------------------------------------
+function LocalidadCombobox({
+  value,
+  onChange,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const filtered = query.trim()
+    ? LOCALIDADES_AR.filter((l) =>
+        l.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
+          .includes(
+            query.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
+          )
+      ).slice(0, 8)
+    : [];
+
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value);
+    onChange(e.target.value);
+    setOpen(true);
+  };
+
+  const handleSelect = (loc: string) => {
+    setQuery(loc);
+    onChange(loc);
+    setOpen(false);
+  };
+
+  return (
+    <div className="space-y-1" ref={containerRef}>
+      <Label className="text-xs font-semibold text-muted-foreground">Localidad *</Label>
+      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-visible focus-within:ring-2 transition-all ${
+        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      }`}>
+        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0 rounded-l-lg">
+          <MapPin size={15} />
+        </div>
+        <input
+          type="text"
+          placeholder="Ej: Arrecifes"
+          value={query}
+          onChange={handleInput}
+          onFocus={() => setOpen(true)}
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
+          autoComplete="off"
+        />
+        {open && filtered.length > 0 && (
+          <ul className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+            {filtered.map((loc) => (
+              <li
+                key={loc}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(loc); }}
+                className="px-3 py-2 text-sm cursor-pointer hover:bg-muted/60 text-foreground"
+              >
+                {loc}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {error && <p className="text-red-500 text-xs mt-0.5">{error}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// InputFieldWithIcon
+// ---------------------------------------------------------------------------
 function InputFieldWithIcon({
   label,
   name,
   id,
   type = "text",
   placeholder,
-  required,
   value,
   onChange,
   error,
@@ -267,11 +418,10 @@ function InputFieldWithIcon({
   id?: string;
   type?: string;
   placeholder?: string;
-  required?: boolean;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ size?: number }>;
 }) {
   return (
     <div className="space-y-1">
@@ -287,12 +437,12 @@ function InputFieldWithIcon({
           name={name}
           type={type}
           placeholder={placeholder}
-          required={required}
           value={value}
           onChange={onChange}
           className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
         />
       </div>
+      {error && <p className="text-red-500 text-xs mt-0.5">{error}</p>}
     </div>
   );
 }

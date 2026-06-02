@@ -204,7 +204,12 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   {chofer.apellido}, {chofer.nombre}
                 </h3>
               </Link>
-              <p className="text-muted-foreground text-xs font-mono mt-0.5">DNI {chofer.dni}</p>
+              <p className="text-muted-foreground text-xs font-mono mt-0.5">
+                DNI {chofer.dni}
+                {chofer.cuil && (
+                  <span className="ml-2 text-muted-foreground/60">· CUIL {chofer.cuil}</span>
+                )}
+              </p>
               <div className="mt-2 flex items-center gap-2">
                 <StatusBadge label={estadoLabel} tone={estadoTone} />
               </div>
