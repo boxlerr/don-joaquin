@@ -30,9 +30,8 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
   const [banco, setBanco] = useState(chofer.banco ?? "");
-  // CVU y CBU unificados en un solo campo. Se persiste en `cbu`; se precarga
-  // desde el que tenga valor (cbu o el cvu legacy).
-  const [cbu, setCbu] = useState(chofer.cbu ?? chofer.cvu ?? "");
+  // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
+  const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
 
   // Helpers de display
@@ -65,7 +64,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
     setBanco(chofer.banco ?? "");
-    setCbu(chofer.cbu ?? chofer.cvu ?? "");
+    setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
     setError(null);
     setFieldErrors({});
@@ -266,7 +265,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             <Field label="CVU/CBU">
               {editing
                 ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
-                : <Value v={chofer.cbu ?? chofer.cvu} mono />}
+                : <Value v={chofer.cbu} mono />}
             </Field>
             <Field label="Alias CBU">
               {editing

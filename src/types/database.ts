@@ -1424,7 +1424,6 @@ export type Database = {
           created_at: string
           created_by: string | null
           cuil: string | null
-          cvu: string | null
           dni: string | null
           domicilio: string | null
           email: string | null
@@ -1456,7 +1455,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
@@ -1488,7 +1486,6 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
