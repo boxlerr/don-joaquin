@@ -165,6 +165,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
   revalidatePath("/compliance/loma-negra");
   revalidatePath("/compliance/ypf");
   revalidatePath("/compliance/proximas");
+  revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
 
@@ -176,6 +177,7 @@ export async function deleteComplianceDocAction(doc_id: string) {
   revalidatePath("/compliance/loma-negra");
   revalidatePath("/compliance/ypf");
   revalidatePath("/compliance/proximas");
+  revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
 

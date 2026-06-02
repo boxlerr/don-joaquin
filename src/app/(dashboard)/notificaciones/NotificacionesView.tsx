@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
+  Gift,
   MapPin,
   Settings,
   ShieldAlert,
@@ -55,6 +56,7 @@ const CATEGORIA_ICON: Record<AlertaCategoria, typeof ShieldAlert> = {
   documentacion: ShieldAlert,
   cheques: FileText,
   viajes: MapPin,
+  personal: Gift,
   sistema: Settings,
 };
 
@@ -62,6 +64,7 @@ const CATEGORIA_EMPTY_MSG: Record<AlertaCategoria, string> = {
   documentacion: "No hay documentos próximos a vencer",
   cheques: "No hay cheques con alertas activas",
   viajes: "Sin viajes pendientes de cerrar ni viáticos sin rendir",
+  personal: "Sin cumpleaños, aniversarios ni períodos de prueba próximos",
   sistema: "Sin eventos administrativos pendientes",
 };
 
@@ -90,7 +93,7 @@ export default function NotificacionesView({
     const q = query.trim().toLowerCase();
     return alertas.filter((a) => {
       if (sevFilter !== "todas" && a.severidad !== sevFilter) return false;
-      if (catFilter !== "todas" && categoriaDeAlerta(a.tipo) !== catFilter) return false;
+      if (catFilter !== "todas" && categoriaDeAlerta(a.tipo, a.entidad_tipo) !== catFilter) return false;
       if (q && !a.titulo.toLowerCase().includes(q) && !a.mensaje.toLowerCase().includes(q)) {
         return false;
       }
@@ -128,9 +131,10 @@ export default function NotificacionesView({
     documentacion: 0,
     cheques: 0,
     viajes: 0,
+    personal: 0,
     sistema: 0,
   };
-  for (const a of alertas) catCounts[categoriaDeAlerta(a.tipo)]++;
+  for (const a of alertas) catCounts[categoriaDeAlerta(a.tipo, a.entidad_tipo)]++;
 
   const totalFiltered = filtered.length;
   const hasAnyAlertas = alertas.length > 0;
@@ -348,6 +352,7 @@ function AlertaRow({
   const dias = diasRestantes(alerta.fecha_vencimiento);
   const esCumple = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_cumple";
   const esPrueba = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_periodo_prueba";
+  const esAniversario = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_aniversario";
 
   const fechaVencFmt = alerta.fecha_vencimiento
     ? (() => {
@@ -363,7 +368,7 @@ function AlertaRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           {dias !== null && (
-            <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} />
+            <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} esAniversario={esAniversario} />
           )}
           {href ? (
             <Link
@@ -381,7 +386,7 @@ function AlertaRow({
         {fechaVencFmt && (
           <p className="text-muted-foreground/60 text-[11px] mt-1 inline-flex items-center gap-1">
             <CalendarClock size={11} className="opacity-70" />
-            {esCumple ? "Cumpleaños" : esPrueba ? "Fin de prueba" : "Vence"} el {fechaVencFmt}
+            {esCumple ? "Cumpleaños" : esPrueba ? "Fin de prueba" : esAniversario ? "Aniversario" : "Vence"} el {fechaVencFmt}
           </p>
         )}
       </div>
@@ -411,13 +416,17 @@ function AlertaRow({
   );
 }
 
-function DiasChip({ dias, esCumple, esPrueba }: { dias: number; esCumple?: boolean; esPrueba?: boolean }) {
-  const tone = chipToneFromDias(dias, esCumple, esPrueba);
+function DiasChip({ dias, esCumple, esPrueba, esAniversario }: { dias: number; esCumple?: boolean; esPrueba?: boolean; esAniversario?: boolean }) {
+  const tone = chipToneFromDias(dias, esCumple, esPrueba, esAniversario);
   let label = chipLabelFromDias(dias);
   if (esCumple) {
     if (dias === 0) label = "Cumpleaños hoy 🎂";
     else if (dias === 1) label = "Mañana 🎂";
     else label = `En ${dias} días 🎂`;
+  } else if (esAniversario) {
+    if (dias === 0) label = "Aniversario hoy 🎉";
+    else if (dias === 1) label = "Mañana 🎉";
+    else label = `En ${dias} días 🎉`;
   } else if (esPrueba) {
     label = `Prueba: ${dias}d ⏳`;
   }

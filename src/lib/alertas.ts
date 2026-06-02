@@ -1,6 +1,10 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// Hitos de antigüedad (en años) para los que se emite una alerta de aniversario.
+// Los hitos más "rutinarios" (1/2/3/4) se omiten a propósito para no sobrecargar alertas.
+const HITOS_ANIVERSARIO = [5, 10, 15, 20, 25, 30, 35, 40];
+
 async function getUmbralesAlertas() {
   const supabase = createAdminClient();
   const claves = [
@@ -9,6 +13,8 @@ async function getUmbralesAlertas() {
     "alerta_critico_dias",
     "alerta_viatico_pendiente_dias",
     "alerta_viaje_sin_cerrar_horas",
+    "alerta_cumple_dias_preaviso",
+    "alerta_aniversario_dias_preaviso",
   ];
 
   const { data } = await supabase
@@ -28,6 +34,8 @@ async function getUmbralesAlertas() {
     diasCritico: map["alerta_critico_dias"] ?? 7,
     diasViaticoPendiente: map["alerta_viatico_pendiente_dias"] ?? 7,
     horasViajeSinCerrar: map["alerta_viaje_sin_cerrar_horas"] ?? 48,
+    diasCumplePreaviso: map["alerta_cumple_dias_preaviso"] ?? 30,
+    diasAniversarioPreaviso: map["alerta_aniversario_dias_preaviso"] ?? 30,
   };
 }
 
@@ -195,7 +203,7 @@ export async function generarAlertas() {
       }
     }
 
-    if (minDiff <= 7) {
+    if (minDiff <= umbrales.diasCumplePreaviso) {
       const yyyy = nextBdayMidnight.getFullYear();
       const mm = String(nextBdayMidnight.getMonth() + 1).padStart(2, "0");
       const dd = String(nextBdayMidnight.getDate()).padStart(2, "0");
@@ -268,6 +276,148 @@ export async function generarAlertas() {
         entidad_tipo: "choferes_periodo_prueba",
         fecha_disparo: new Date().toISOString(),
         fecha_vencimiento: finPruebaStr,
+      });
+    }
+  }
+
+  // Aniversarios de antigüedad de choferes — solo en hitos (HITOS_ANIVERSARIO).
+  // Reutiliza choferesIngreso (ya cargado arriba). Emite alerta cuando faltan
+  // ≤ diasAniversarioPreaviso días para el próximo aniversario-hito.
+  for (const chofer of choferesIngreso ?? []) {
+    const parts = chofer.fecha_ingreso!.split("-");
+    if (parts.length !== 3) continue;
+
+    const ingresoYear = parseInt(parts[0]!, 10);
+    const ingresoMonth = parseInt(parts[1]!, 10);
+    const ingresoDay = parseInt(parts[2]!, 10);
+
+    const hoyAnio = hoy.getFullYear();
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    // Buscamos el próximo aniversario-hito (puede ser este año o el siguiente)
+    for (const hitoCandidatoAnio of [hoyAnio, hoyAnio + 1]) {
+      const aniosEnHito = hitoCandidatoAnio - ingresoYear;
+      if (!HITOS_ANIVERSARIO.includes(aniosEnHito)) continue;
+
+      const anivoMidnight = new Date(hitoCandidatoAnio, ingresoMonth - 1, ingresoDay);
+      const diffTime = anivoMidnight.getTime() - hoyMidnight.getTime();
+      const minDiff = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      // Solo preaviso hacia adelante, dentro del umbral configurado
+      if (minDiff < 0 || minDiff > umbrales.diasAniversarioPreaviso) continue;
+
+      const yyyy = anivoMidnight.getFullYear();
+      const mm = String(anivoMidnight.getMonth() + 1).padStart(2, "0");
+      const dd = String(anivoMidnight.getDate()).padStart(2, "0");
+      const anivoStr = `${yyyy}-${mm}-${dd}`;
+
+      const key = `otro:${chofer.id}:choferes_aniversario:${anivoStr}`;
+      if (existentesSet.has(key)) continue;
+
+      const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
+      const diaStr = ingresoDay;
+      const mesStr = MESES[ingresoMonth - 1];
+
+      nuevasAlertas.push({
+        tipo: "otro",
+        severidad: "info",
+        titulo: `Aniversario ${aniosEnHito} años — ${nombreCompleto}`,
+        mensaje: `El chofer ${nombreCompleto} cumple ${aniosEnHito} ${aniosEnHito === 1 ? "año" : "años"} en la empresa el ${diaStr} de ${mesStr}.`,
+        entidad_id: chofer.id,
+        entidad_tipo: "choferes_aniversario",
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: anivoStr,
+      });
+
+      // Solo procesamos el hito más próximo por chofer en esta ejecución
+      break;
+    }
+  }
+
+  // Compliance — organismos previos (SICOP, Secondi, etc.)
+  // Consulta directa sobre compliance_documentos + compliance_requisitos (sin depender de la vista).
+  // Solo procesa documentos con fecha_vencimiento; los sin vencimiento se ignoran.
+  // `as any` porque columnas tipo_destinatario/destinatario_id son nuevas — actualizar al regenerar tipos.
+  type OrgDocRow = {
+    id: string;
+    requisito_id: string;
+    fecha_vencimiento: string | null;
+    compliance_requisitos: {
+      nombre: string;
+      dias_alerta: number | null;
+      tipo_destinatario: string;
+      destinatario_id: string | null;
+      compliance_destinatarios: { nombre: string } | null;
+    } | null;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orgDocsRes = await (supabase as any)
+    .from("compliance_documentos")
+    .select(`
+      id,
+      requisito_id,
+      fecha_vencimiento,
+      compliance_requisitos!inner(
+        nombre,
+        dias_alerta,
+        tipo_destinatario,
+        destinatario_id,
+        compliance_destinatarios(nombre)
+      )
+    `)
+    .not("fecha_vencimiento", "is", null)
+    .eq("compliance_requisitos.tipo_destinatario", "organismo");
+  const orgDocs = (orgDocsRes.data ?? []) as OrgDocRow[];
+
+  // Tomamos solo el doc más reciente por requisito (mismo patrón que la vista)
+  const latestOrgDoc = new Map<string, OrgDocRow>();
+  for (const doc of orgDocs) {
+    if (!latestOrgDoc.has(doc.requisito_id)) {
+      latestOrgDoc.set(doc.requisito_id, doc);
+    }
+  }
+
+  for (const doc of latestOrgDoc.values()) {
+    if (!doc.fecha_vencimiento) continue;
+
+    const req = doc.compliance_requisitos;
+    if (!req) continue;
+
+    const organismoNombre = req.compliance_destinatarios?.nombre ?? "Organismo";
+    const diasAlertaReq = req.dias_alerta ?? umbrales.diasVencimientoDoc;
+
+    const [y, m, d] = doc.fecha_vencimiento.split("-").map(Number);
+    const venceMidnight = new Date(y!, m! - 1, d!);
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const dias = Math.round((venceMidnight.getTime() - hoyMidnight.getTime()) / 86400000);
+
+    type DisparoOrg = { umbral: "vencido" | "T5" | "T15" | "T30"; severidad: "info" | "advertencia" | "critica" };
+    const disparos: DisparoOrg[] = [];
+    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    if (dias === 5 && diasAlertaReq >= 5) disparos.push({ umbral: "T5", severidad: "critica" });
+    if (dias === 15 && diasAlertaReq >= 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
+    if (dias === 30 && diasAlertaReq >= 30) disparos.push({ umbral: "T30", severidad: "info" });
+    if (disparos.length === 0) continue;
+
+    for (const disparo of disparos) {
+      const entidad_tipo = `organismo_compliance:${disparo.umbral}`;
+      const key = `vencimiento_compliance:${doc.id}:${entidad_tipo}:${doc.fecha_vencimiento}`;
+      if (existentesSet.has(key)) continue;
+
+      const mensaje =
+        disparo.umbral === "vencido"
+          ? `El documento "${req.nombre}" presentado a ${organismoNombre} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
+          : `El documento "${req.nombre}" presentado a ${organismoNombre} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+
+      nuevasAlertas.push({
+        tipo: "vencimiento_compliance",
+        severidad: disparo.severidad,
+        titulo: `Compliance ${organismoNombre} — ${req.nombre}`,
+        mensaje,
+        entidad_id: doc.id,
+        entidad_tipo,
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: doc.fecha_vencimiento,
       });
     }
   }

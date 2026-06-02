@@ -17,14 +17,14 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 export interface Extintor {
   id: string;
   dominio: string;
-  n_extintor: string;
+  n_extintor: string | null;
   n_interno: string | null;
   capacidad: string | null;
   fecha_vencimiento: string | null;
   categoria: string; // 'chasis', 'acoplado', 'otros'
   observaciones: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
 }
 
 interface CamionLookup {
@@ -99,7 +99,7 @@ export default function ExtintoresTable({
       // Filtro por búsqueda
       if (q) {
         const inDom = item.dominio.toLowerCase().includes(q);
-        const inExt = item.n_extintor.toLowerCase().includes(q);
+        const inExt = (item.n_extintor ?? "").toLowerCase().includes(q);
         const inInt = item.n_interno?.toLowerCase().includes(q) ?? false;
         const inObs = item.observaciones?.toLowerCase().includes(q) ?? false;
         return inDom || inExt || inInt || inObs;

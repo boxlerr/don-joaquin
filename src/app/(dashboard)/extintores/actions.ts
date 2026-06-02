@@ -308,7 +308,7 @@ export async function confirmExtintoresImportAction(rows: ParsedExtintorImportRo
 
   const existingMap = new Map<string, string>(); // n_extintor normalizado -> id
   for (const item of existingList || []) {
-    const key = item.n_extintor.trim().toLowerCase();
+    const key = (item.n_extintor ?? "").trim().toLowerCase();
     existingMap.set(key, item.id);
   }
 
@@ -331,7 +331,6 @@ export async function confirmExtintoresImportAction(rows: ParsedExtintorImportRo
       fecha_vencimiento: r.fecha_vencimiento,
       categoria: r.categoria,
       observaciones: r.observaciones,
-      updated_at: new Date().toISOString(),
     };
 
     const key = r.n_extintor.trim().toLowerCase();

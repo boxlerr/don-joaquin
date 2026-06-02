@@ -1,6 +1,6 @@
 export type Severidad = "critica" | "advertencia" | "info";
 
-export type AlertaCategoria = "documentacion" | "cheques" | "viajes" | "sistema";
+export type AlertaCategoria = "documentacion" | "cheques" | "viajes" | "personal" | "sistema";
 
 export type AlertaItem = {
   id: string;
@@ -33,10 +33,20 @@ export const CATEGORIA_LABEL: Record<AlertaCategoria, string> = {
   documentacion: "Documentación",
   cheques: "Cheques",
   viajes: "Viajes y viáticos",
+  personal: "Personal",
   sistema: "Sistema",
 };
 
-export function categoriaDeAlerta(tipo: string): AlertaCategoria {
+export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): AlertaCategoria {
+  // Alertas "soft" de RRHH: cumpleaños, aniversarios y fin de período de prueba
+  if (
+    tipo === "otro" &&
+    (entidadTipo === "choferes_cumple" ||
+      entidadTipo === "choferes_aniversario" ||
+      entidadTipo === "choferes_periodo_prueba")
+  ) {
+    return "personal";
+  }
   if (tipo.startsWith("vencimiento_doc_")) return "documentacion";
   if (tipo === "vencimiento_compliance") return "documentacion";
   if (tipo.includes("cheque")) return "cheques";
@@ -94,9 +104,12 @@ export type DiasChipTone = {
   border: string;
 };
 
-export function chipToneFromDias(dias: number, esCumple?: boolean, esPrueba?: boolean): DiasChipTone {
+export function chipToneFromDias(dias: number, esCumple?: boolean, esPrueba?: boolean, esAniversario?: boolean): DiasChipTone {
   if (esCumple) {
     return { bg: "bg-[#F3E8FF]", text: "text-[#6B21A8]", border: "border-[#E9D5FF]" };
+  }
+  if (esAniversario) {
+    return { bg: "bg-[#FFF7ED]", text: "text-[#9A3412]", border: "border-[#FED7AA]" };
   }
   if (esPrueba) {
     if (dias <= 5) {

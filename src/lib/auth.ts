@@ -101,6 +101,25 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     permisos[row.area_codigo as AreaCodigo] = row.nivel as AreaNivel;
   }
 
+  // Overrides por usuario individual: solo pueden SUMAR permisos, nunca restar.
+  // Los overrides vencidos (vence_en < now) se ignoran.
+  // `as any` porque `usuario_areas` es tabla nueva; se actualiza al regenerar database.ts
+  type UsuarioAreaOverride = { area_codigo: string; nivel: string; vence_en: string | null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: userAreas } = (await (supabase as any)
+    .from("usuario_areas")
+    .select("area_codigo, nivel, vence_en")
+    .eq("usuario_id", profile.id)) as { data: UsuarioAreaOverride[] | null };
+
+  const nowMs = Date.now();
+  for (const row of userAreas ?? []) {
+    if (row.vence_en && new Date(row.vence_en).getTime() <= nowMs) continue;
+    const area = row.area_codigo as AreaCodigo;
+    if (NIVEL_RANK[row.nivel as AreaNivel] > NIVEL_RANK[permisos[area]]) {
+      permisos[area] = row.nivel as AreaNivel;
+    }
+  }
+
   return {
     id: profile.id,
     email: profile.email,

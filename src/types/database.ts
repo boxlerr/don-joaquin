@@ -1420,11 +1420,11 @@ export type Database = {
           apellido: string
           banco: string | null
           cbu: string | null
-          cvu: string | null
           ciudad_nacimiento: string | null
           created_at: string
           created_by: string | null
           cuil: string | null
+          cvu: string | null
           dni: string | null
           domicilio: string | null
           email: string | null
@@ -1452,11 +1452,11 @@ export type Database = {
           apellido: string
           banco?: string | null
           cbu?: string | null
-          cvu?: string | null
           ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
+          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
@@ -1484,11 +1484,11 @@ export type Database = {
           apellido?: string
           banco?: string | null
           cbu?: string | null
-          cvu?: string | null
           ciudad_nacimiento?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
+          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
@@ -1774,6 +1774,39 @@ export type Database = {
           },
         ]
       }
+      compliance_destinatarios: {
+        Row: {
+          activo: boolean
+          codigo: string
+          created_at: string
+          descripcion: string | null
+          id: string
+          nombre: string
+          orden: number
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          nombre: string
+          orden?: number
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          nombre?: string
+          orden?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       compliance_documentos: {
         Row: {
           archivo_id: string | null
@@ -1782,7 +1815,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           fecha_emision: string | null
-          fecha_vencimiento: string
+          fecha_vencimiento: string | null
           id: string
           observaciones: string | null
           periodo: string | null
@@ -1796,7 +1829,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha_emision?: string | null
-          fecha_vencimiento: string
+          fecha_vencimiento?: string | null
           id?: string
           observaciones?: string | null
           periodo?: string | null
@@ -1810,7 +1843,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha_emision?: string | null
-          fecha_vencimiento?: string
+          fecha_vencimiento?: string | null
           id?: string
           observaciones?: string | null
           periodo?: string | null
@@ -1869,12 +1902,14 @@ export type Database = {
           codigo: string
           created_at: string
           descripcion: string | null
+          destinatario_id: string | null
           dias_alerta: number
           id: string
           nivel: Database["public"]["Enums"]["compliance_nivel"]
           nombre: string
           orden: number
           periodicidad: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_destinatario: string
           tipo_documento_id: string | null
           updated_at: string
         }
@@ -1884,12 +1919,14 @@ export type Database = {
           codigo: string
           created_at?: string
           descripcion?: string | null
+          destinatario_id?: string | null
           dias_alerta?: number
           id?: string
           nivel: Database["public"]["Enums"]["compliance_nivel"]
           nombre: string
           orden?: number
           periodicidad: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_destinatario?: string
           tipo_documento_id?: string | null
           updated_at?: string
         }
@@ -1899,16 +1936,25 @@ export type Database = {
           codigo?: string
           created_at?: string
           descripcion?: string | null
+          destinatario_id?: string | null
           dias_alerta?: number
           id?: string
           nivel?: Database["public"]["Enums"]["compliance_nivel"]
           nombre?: string
           orden?: number
           periodicidad?: Database["public"]["Enums"]["compliance_periodicidad"]
+          tipo_destinatario?: string
           tipo_documento_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "compliance_requisitos_destinatario_id_fkey"
+            columns: ["destinatario_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_destinatarios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "compliance_requisitos_tipo_documento_id_fkey"
             columns: ["tipo_documento_id"]
@@ -2148,10 +2194,9 @@ export type Database = {
           dominio: string
           fecha_vencimiento: string | null
           id: string
-          n_extintor: string
+          n_extintor: string | null
           n_interno: string | null
           observaciones: string | null
-          updated_at: string
         }
         Insert: {
           capacidad?: string | null
@@ -2160,10 +2205,9 @@ export type Database = {
           dominio: string
           fecha_vencimiento?: string | null
           id?: string
-          n_extintor: string
+          n_extintor?: string | null
           n_interno?: string | null
           observaciones?: string | null
-          updated_at?: string
         }
         Update: {
           capacidad?: string | null
@@ -2172,10 +2216,9 @@ export type Database = {
           dominio?: string
           fecha_vencimiento?: string | null
           id?: string
-          n_extintor?: string
+          n_extintor?: string | null
           n_interno?: string | null
           observaciones?: string | null
-          updated_at?: string
         }
         Relationships: []
       }
@@ -3666,6 +3709,64 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      usuario_areas: {
+        Row: {
+          area_codigo: string
+          created_at: string
+          id: string
+          motivo: string | null
+          nivel: Database["public"]["Enums"]["area_nivel"]
+          otorgado_por: string | null
+          updated_at: string
+          usuario_id: string
+          vence_en: string | null
+        }
+        Insert: {
+          area_codigo: string
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          nivel: Database["public"]["Enums"]["area_nivel"]
+          otorgado_por?: string | null
+          updated_at?: string
+          usuario_id: string
+          vence_en?: string | null
+        }
+        Update: {
+          area_codigo?: string
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          nivel?: Database["public"]["Enums"]["area_nivel"]
+          otorgado_por?: string | null
+          updated_at?: string
+          usuario_id?: string
+          vence_en?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usuario_areas_area_codigo_fkey"
+            columns: ["area_codigo"]
+            isOneToOne: false
+            referencedRelation: "areas"
+            referencedColumns: ["codigo"]
+          },
+          {
+            foreignKeyName: "usuario_areas_otorgado_por_fkey"
+            columns: ["otorgado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usuario_areas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usuarios: {
         Row: {

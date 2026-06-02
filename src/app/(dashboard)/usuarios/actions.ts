@@ -176,3 +176,104 @@ export async function updateRolAreaAction(
   revalidatePath("/usuarios");
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// Overrides de permiso por usuario individual
+// ---------------------------------------------------------------------------
+
+export async function setUsuarioAreaAction(
+  usuario_id: string,
+  area_codigo: AreaCodigo,
+  nivel: AreaNivel | "quitar",
+  vence_en: string | null, // ISO string o null (permanente)
+  motivo?: string,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireAdmin();
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any; // `usuario_areas` es nueva; se actualiza al regenerar database.ts
+  type UA = { nivel: string; vence_en: string | null };
+
+  // Limpiar overrides vencidos como higiene oportunística
+  await sb
+    .from("usuario_areas")
+    .delete()
+    .lt("vence_en", new Date().toISOString())
+    .not("vence_en", "is", null);
+
+  if (nivel === "quitar") {
+    // Eliminar el override (el usuario queda solo con el nivel de su rol)
+    const { data: previo } = (await sb
+      .from("usuario_areas")
+      .select("nivel, vence_en")
+      .eq("usuario_id", usuario_id)
+      .eq("area_codigo", area_codigo)
+      .maybeSingle()) as { data: UA | null };
+
+    const { error } = await sb
+      .from("usuario_areas")
+      .delete()
+      .eq("usuario_id", usuario_id)
+      .eq("area_codigo", area_codigo);
+
+    if (error) return { error: (error as { message: string }).message };
+
+    if (previo) {
+      await supabase.from("audit_log").insert({
+        usuario_id: admin.id,
+        accion: "eliminar",
+        entidad_tipo: "usuario_areas",
+        entidad_id: usuario_id,
+        valores_anteriores: { area_codigo, nivel: previo.nivel, vence_en: previo.vence_en },
+        valores_nuevos: null,
+        metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
+      });
+    }
+
+    revalidatePath("/usuarios");
+    return { ok: true };
+  }
+
+  if (!NIVELES_VALIDOS.includes(nivel)) {
+    return { error: "Nivel inválido" };
+  }
+
+  // Leer estado anterior para auditoría
+  const { data: previo } = (await sb
+    .from("usuario_areas")
+    .select("nivel, vence_en")
+    .eq("usuario_id", usuario_id)
+    .eq("area_codigo", area_codigo)
+    .maybeSingle()) as { data: UA | null };
+
+  const { error } = await sb.from("usuario_areas").upsert(
+    {
+      usuario_id,
+      area_codigo,
+      nivel,
+      vence_en: vence_en ?? null,
+      otorgado_por: admin.id,
+      motivo: motivo ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "usuario_id,area_codigo" },
+  ) as { error: { message: string } | null };
+
+  if (error) return { error: error.message };
+
+  await supabase.from("audit_log").insert({
+    usuario_id: admin.id,
+    accion: previo ? "actualizar" : "crear",
+    entidad_tipo: "usuario_areas",
+    entidad_id: usuario_id,
+    valores_anteriores: previo
+      ? { area_codigo, nivel: previo.nivel, vence_en: previo.vence_en }
+      : null,
+    valores_nuevos: { area_codigo, nivel, vence_en: vence_en ?? null },
+    metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}

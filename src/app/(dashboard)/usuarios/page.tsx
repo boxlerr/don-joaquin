@@ -6,6 +6,7 @@ import { getCurrentUser, requireArea } from "@/lib/auth";
 import RolesPermisosMatrix from "./RolesPermisosMatrix";
 import UsuariosListaClient, { type UsuarioRow } from "./UsuariosListaClient";
 import NuevoUsuarioDialog from "./NuevoUsuarioDialog";
+import UsuarioPermisosOverrides from "./UsuarioPermisosOverrides";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 
 export default async function UsuariosPage() {
@@ -22,6 +23,7 @@ export default async function UsuariosPage() {
     rolesRes,
     areasRes,
     rolAreasRes,
+    usuarioAreasRes,
   ] = await Promise.all([
     supabase
       .from("usuarios")
@@ -45,18 +47,41 @@ export default async function UsuariosPage() {
     showMatriz
       ? supabase.from("rol_areas").select("rol_id, area_codigo, nivel")
       : Promise.resolve({ data: null }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    showMatriz
+      ? (supabase as any)
+          .from("usuario_areas")
+          .select("usuario_id, area_codigo, nivel, vence_en, motivo")
+      : Promise.resolve({ data: null }),
   ]);
 
   const roles = (rolesRes.data ?? []) as { id: string; codigo: string; nombre: string }[];
   const areas = (areasRes.data ?? []) as { codigo: AreaCodigo; nombre: string; orden: number }[];
   const rolAreas =
     (rolAreasRes.data ?? []) as { rol_id: string; area_codigo: AreaCodigo; nivel: AreaNivel }[];
+  const usuarioAreas = (usuarioAreasRes.data ?? []) as {
+    usuario_id: string;
+    area_codigo: AreaCodigo;
+    nivel: AreaNivel;
+    vence_en: string | null;
+    motivo: string | null;
+  }[];
 
   const matrizInicial: Record<string, Partial<Record<AreaCodigo, AreaNivel>>> = {};
   for (const ra of rolAreas) {
     if (!matrizInicial[ra.rol_id]) matrizInicial[ra.rol_id] = {};
     matrizInicial[ra.rol_id][ra.area_codigo] = ra.nivel;
   }
+
+  const usuariosFila = (usuarios ?? []).map((u) => {
+    const rol = (u.roles as unknown as { codigo: string; nombre: string } | null) ?? null;
+    return {
+      id: u.id,
+      nombre: u.nombre,
+      apellido: u.apellido as string | null,
+      rol_nombre: rol?.nombre ?? null,
+    };
+  });
 
   const usuariosRows: UsuarioRow[] = (usuarios ?? []).map((u) => {
     const rol = (u.roles as unknown as { codigo: string; nombre: string } | null) ?? null;
@@ -101,6 +126,14 @@ export default async function UsuariosPage() {
 
       {showMatriz && roles.length > 0 && areas.length > 0 && (
         <RolesPermisosMatrix roles={roles} areas={areas} initialMatriz={matrizInicial} />
+      )}
+
+      {showMatriz && areas.length > 0 && (
+        <UsuarioPermisosOverrides
+          usuarios={usuariosFila}
+          areas={areas}
+          overrides={usuarioAreas}
+        />
       )}
     </div>
   );
