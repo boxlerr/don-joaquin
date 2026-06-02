@@ -438,6 +438,11 @@ export default function ViajesTable({ choferId }: Props) {
                             <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
                               <FileText size={14} className="text-[#F59E0B]" /> Notas / Descripción
                             </h4>
+                            {v.nro_viaje_ypf && (
+                              <p className="text-xs font-semibold text-primary pt-1.5">
+                                Nº YPF: <span className="font-mono">{v.nro_viaje_ypf}</span>
+                              </p>
+                            )}
                             <p className="text-xs text-muted-foreground pt-1.5 italic line-clamp-3">
                               {v.observaciones
                                 ? v.observaciones

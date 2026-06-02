@@ -2,7 +2,7 @@ import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
-import { MapPin, X, Receipt } from "lucide-react";
+import { MapPin, X, Receipt, Zap } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import ViajesTable from "./components/ViajesTable";
@@ -84,6 +84,14 @@ export default async function ViajesPage({
                   Registrar gasto
                 </Button>
               </AddGastoDialog>
+            )}
+            {canWrite && (
+              <Link href="/viajes/carga-rapida">
+                <Button variant="outline" size="sm">
+                  <Zap size={14} />
+                  Carga rápida
+                </Button>
+              </Link>
             )}
             {canWrite && <ImportHojasRutaModal />}
             {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}

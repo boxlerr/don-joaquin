@@ -54,7 +54,17 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "LOGÍSTICA",
     items: [
-      { label: "Viajes", href: "/viajes", icon: MapPin, area: "logistica" },
+      {
+        label: "Viajes",
+        href: "/viajes",
+        icon: MapPin,
+        area: "logistica",
+        children: [
+          { label: "Listado", href: "/viajes" },
+          { label: "Carga rápida", href: "/viajes/carga-rapida" },
+          { label: "Por chofer (mes)", href: "/viajes/mensual" },
+        ],
+      },
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
       { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "flota" },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },

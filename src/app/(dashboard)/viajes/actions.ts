@@ -33,7 +33,7 @@ async function buildSearchOrFilter(
       .ilike("razon_social", term),
   ]);
 
-  const parts: string[] = [`codigo.ilike.${term}`];
+  const parts: string[] = [`codigo.ilike.${term}`, `nro_viaje_ypf.ilike.${term}`];
 
   const choferIds: string[] = (choferes.data ?? []).map((r: { id: string }) => r.id);
   if (choferIds.length) parts.push(`chofer_id.in.(${choferIds.join(",")})`);
@@ -94,7 +94,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -184,6 +184,7 @@ export async function getViajesAction(
       monto_flete: v.monto_flete ?? null,
       moneda: v.moneda ?? "ARS",
       observaciones: v.observaciones ?? null,
+      nro_viaje_ypf: v.nro_viaje_ypf ?? null,
     };
   });
 
@@ -200,9 +201,12 @@ export async function getViajesAction(
 
 export type ViajeFormOption = { id: string; label: string };
 
+/** Igual que ViajeFormOption pero con el camión asignado al chofer (puede ser null). */
+export type ChoferFormOption = ViajeFormOption & { camionId: string | null };
+
 export type ViajeFormData = {
   clientes: ViajeFormOption[];
-  choferes: ViajeFormOption[];
+  choferes: ChoferFormOption[];
   camiones: ViajeFormOption[];
   tipos_carga: ViajeFormOption[];
   puntos_ruta: ViajeFormOption[];
@@ -225,7 +229,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         .order("apellido", { ascending: true }),
       supabase
         .from("camiones")
-        .select("id, patente")
+        .select("id, patente, chofer_actual_id")
         .eq("estado", "activo")
         .order("patente", { ascending: true }),
       supabase
@@ -298,6 +302,17 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     tiposCargaList.push({ id: "otros", label: "Otros" });
   }
 
+  // Mapa chofer_id → camión asignado (para auto-completar en el form)
+  const camionPorChofer = new Map<string, string>();
+  for (const cam of camionesRes.data ?? []) {
+    if ((cam as { chofer_actual_id?: string | null }).chofer_actual_id) {
+      camionPorChofer.set(
+        (cam as { chofer_actual_id: string }).chofer_actual_id,
+        cam.id,
+      );
+    }
+  }
+
   return {
     clientes: (clientesRes.data ?? []).map((c) => ({
       id: c.id,
@@ -306,6 +321,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     choferes: (choferesRes.data ?? []).map((c) => ({
       id: c.id,
       label: `${c.apellido}, ${c.nombre}`,
+      camionId: camionPorChofer.get(c.id) ?? null,
     })),
     camiones: (camionesRes.data ?? []).map((c) => ({
       id: c.id,
@@ -342,6 +358,7 @@ const viajeSchema = z
     km_vacios: z.number().int().min(0, "Debe ser ≥ 0."),
     tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
     monto_flete: z.number().min(0, "Debe ser ≥ 0."),
+    nro_viaje_ypf: z.string().max(60, "Máximo 60 caracteres.").optional().nullable(),
   })
   .refine(
     (d) =>
@@ -483,6 +500,7 @@ export async function createViajeAction(
     km_vacios: parseNumber(formData.get("km_vacios")),
     tonelaje_real: parseNumber(formData.get("tonelaje_real")),
     monto_flete: parseNumber(formData.get("monto_flete")),
+    nro_viaje_ypf: emptyOrNull(formData.get("nro_viaje_ypf")),
   });
 
   if (!parsed.success) {
@@ -555,6 +573,7 @@ export async function createViajeAction(
     monto_flete: parsed.data.monto_flete,
     moneda: "ARS",
     observaciones: observacionesDB,
+    nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
     facturado: false,
     created_by: user.id,
   });
@@ -588,7 +607,7 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, monto_flete, moneda, observaciones,
+      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, monto_flete, moneda, observaciones, nro_viaje_ypf,
        clientes(razon_social),
        chofer:choferes(nombre, apellido),
        camion:camiones(patente, marca, modelo),
@@ -906,6 +925,7 @@ export type ViajeParaEditar = {
   tonelaje_real: number;
   monto_flete: number;
   descripcion_otros: string | null;
+  nro_viaje_ypf: string | null;
 };
 
 export async function getViajeParaEditarAction(
@@ -921,6 +941,7 @@ export async function getViajeParaEditarAction(
        cliente_id, chofer_id, camion_id, tipo_carga_id,
        origen_id, destino_id,
        km_con_carga, km_vacios, tonelaje_real, monto_flete, observaciones,
+       nro_viaje_ypf,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -954,6 +975,7 @@ export async function getViajeParaEditarAction(
     tonelaje_real: data.tonelaje_real ?? 0,
     monto_flete: data.monto_flete ?? 0,
     descripcion_otros: otrosMatch ? otrosMatch[1].trim() : null,
+    nro_viaje_ypf: data.nro_viaje_ypf ?? null,
   };
 }
 
@@ -983,6 +1005,7 @@ export async function updateViajeAction(
     km_vacios: number;
     tonelaje_real: number;
     monto_flete: number;
+    nro_viaje_ypf: string | null;
   },
 ): Promise<UpdateViajeState> {
 
@@ -999,6 +1022,7 @@ export async function updateViajeAction(
     km_vacios: data.km_vacios,
     tonelaje_real: data.tonelaje_real,
     monto_flete: data.monto_flete,
+    nro_viaje_ypf: data.nro_viaje_ypf,
   });
 
   if (!parsed.success) {
@@ -1069,6 +1093,7 @@ export async function updateViajeAction(
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
       observaciones: observacionesDB,
+      nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
     })
     .eq("id", id);
 
@@ -1101,4 +1126,258 @@ export async function updateViajeAction(
 
   revalidatePath("/viajes");
   return { ok: true };
+}
+
+// ============================================================================
+// Carga rápida — batch de viajes
+// ============================================================================
+
+export type ViajeFilaRapida = {
+  fecha_viaje: string;
+  estado: string;
+  cliente_id: string;
+  chofer_id: string;
+  camion_id: string;
+  tipo_carga_id: string;
+  origen_nombre: string | null;
+  destino_nombre: string | null;
+  km_con_carga: number;
+  km_vacios: number;
+  tonelaje_real: number;
+  monto_flete: number;
+  nro_viaje_ypf: string | null;
+};
+
+export type BatchViajesResult = {
+  ok?: boolean;
+  creados?: number;
+  errores?: { fila: number; mensaje: string }[];
+  error?: string;
+};
+
+export async function createViajesBatchAction(
+  filas: ViajeFilaRapida[],
+): Promise<BatchViajesResult> {
+  if (!filas.length) return { error: "No hay filas para importar." };
+
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  // Validar todas las filas antes de insertar ninguna
+  const erroresValidacion: { fila: number; mensaje: string }[] = [];
+  const parseadas: (typeof viajeSchema._output)[] = [];
+
+  for (let i = 0; i < filas.length; i++) {
+    const fila = filas[i];
+    const parsed = viajeSchema.safeParse(fila);
+    if (!parsed.success) {
+      const msg = parsed.error.issues.map((e) => e.message).join("; ");
+      erroresValidacion.push({ fila: i + 1, mensaje: msg });
+    } else {
+      parseadas.push(parsed.data);
+    }
+  }
+
+  if (erroresValidacion.length) {
+    return {
+      ok: false,
+      errores: erroresValidacion,
+      error: `${erroresValidacion.length} fila(s) con errores de validación.`,
+    };
+  }
+
+  // Generar códigos en serie (patrón del importador de hojas de ruta)
+  const year = new Date().getFullYear();
+  const prefix = `V-${year}-`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lastRow } = await (supabase as any)
+    .from("viajes")
+    .select("codigo")
+    .like("codigo", `${prefix}%`)
+    .order("codigo", { ascending: false })
+    .limit(1);
+
+  let seq = 0;
+  if (lastRow?.length) {
+    const tail = (lastRow[0].codigo as string).slice(prefix.length);
+    const n = parseInt(tail, 10);
+    if (Number.isFinite(n)) seq = n;
+  }
+
+  // Resolver tipo de carga "otros" si se necesita
+  let realTipoCargaOtrosId: string | null = null;
+  const needsOtros = parseadas.some((p) => p.tipo_carga_id === "otros");
+  if (needsOtros) {
+    try {
+      realTipoCargaOtrosId = await getOrCreateTipoCargaOtros(supabase);
+    } catch {
+      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
+    }
+  }
+
+  // Construir payload batch
+  const payload = await Promise.all(
+    parseadas.map(async (p) => {
+      seq++;
+      const codigo = `${prefix}${String(seq).padStart(5, "0")}`;
+      const tipoCargaId =
+        p.tipo_carga_id === "otros" ? (realTipoCargaOtrosId ?? p.tipo_carga_id) : p.tipo_carga_id;
+
+      const origen_id = p.origen_nombre ? await getOrCreatePuntoRuta(supabase, p.origen_nombre) : null;
+      const destino_id = p.destino_nombre ? await getOrCreatePuntoRuta(supabase, p.destino_nombre) : null;
+
+      return {
+        codigo,
+        fecha_viaje: p.fecha_viaje,
+        estado: p.estado,
+        cliente_id: p.cliente_id,
+        chofer_id: p.chofer_id,
+        camion_id: p.camion_id,
+        tipo_carga_id: tipoCargaId,
+        origen_id,
+        destino_id,
+        km_con_carga: p.km_con_carga,
+        km_vacios: p.km_vacios,
+        tonelaje_real: p.tonelaje_real,
+        monto_flete: p.monto_flete,
+        moneda: "ARS",
+        nro_viaje_ypf: p.nro_viaje_ypf ?? null,
+        facturado: false,
+        created_by: user.id,
+      };
+    }),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: insertedRows, error: insertError } = await (supabase as any)
+    .from("viajes")
+    .insert(payload)
+    .select("id, codigo");
+
+  if (insertError) {
+    console.error("Error en carga rápida batch:", insertError);
+    return { error: insertError.message };
+  }
+
+  const creados = insertedRows?.length ?? 0;
+
+  // Auditoría del lote
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("audit_log").insert({
+    usuario_id: user.id,
+    accion: "crear_viajes_lote",
+    entidad_tipo: "viaje",
+    entidad_id: (insertedRows as { id: string }[])?.[0]?.id ?? null,
+    valores_nuevos: {
+      cantidad: creados,
+      codigos: (insertedRows as { codigo: string }[] ?? []).map((r) => r.codigo),
+    },
+  });
+
+  revalidatePath("/viajes");
+  return { ok: true, creados };
+}
+
+// ============================================================================
+// Vista mensual — viajes por chofer
+// ============================================================================
+
+export type ViajesChoferMes = {
+  chofer_id: string;
+  chofer: string;
+  cantidad_viajes: number;
+  km_totales: number;
+  tonelaje_total: number;
+  monto_flete_total: number;
+};
+
+export type ViajesMensualResult = {
+  data?: ViajesChoferMes[];
+  totales?: { viajes: number; km: number; tonelaje: number; flete: number };
+  error?: string;
+};
+
+export async function getViajesMensualPorChoferAction(
+  mes: string, // formato "YYYY-MM"
+): Promise<ViajesMensualResult> {
+  await requireArea("logistica", "read");
+
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    return { error: "Formato de mes inválido. Usar YYYY-MM." };
+  }
+
+  const [year, month] = mes.split("-");
+  const desde = `${year}-${month}-01`;
+  // Último día del mes
+  const hasta = new Date(Number(year), Number(month), 0).toISOString().slice(0, 10);
+
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("viajes")
+    .select(
+      `chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete,
+       choferes(nombre, apellido)`,
+    )
+    .gte("fecha_viaje", desde)
+    .lte("fecha_viaje", hasta)
+    .neq("estado", "cancelado");
+
+  if (error) {
+    console.error("Error getViajesMensualPorChoferAction:", error);
+    return { error: "No se pudieron cargar los viajes del mes." };
+  }
+
+  // Agregar por chofer en memoria
+  const map = new Map<
+    string,
+    { chofer: string; cantidad: number; km: number; tonelaje: number; flete: number }
+  >();
+
+  for (const v of data ?? []) {
+    const id: string = v.chofer_id;
+    const nombreChofer = v.choferes
+      ? `${v.choferes.apellido}, ${v.choferes.nombre}`
+      : "—";
+    const existing = map.get(id);
+    if (existing) {
+      existing.cantidad++;
+      existing.km += (v.km_con_carga ?? 0) + (v.km_vacios ?? 0);
+      existing.tonelaje += Number(v.tonelaje_real) || 0;
+      existing.flete += v.monto_flete ?? 0;
+    } else {
+      map.set(id, {
+        chofer: nombreChofer,
+        cantidad: 1,
+        km: (v.km_con_carga ?? 0) + (v.km_vacios ?? 0),
+        tonelaje: Number(v.tonelaje_real) || 0,
+        flete: v.monto_flete ?? 0,
+      });
+    }
+  }
+
+  const rows: ViajesChoferMes[] = Array.from(map.entries())
+    .map(([chofer_id, val]) => ({
+      chofer_id,
+      chofer: val.chofer,
+      cantidad_viajes: val.cantidad,
+      km_totales: val.km,
+      tonelaje_total: val.tonelaje,
+      monto_flete_total: val.flete,
+    }))
+    .sort((a, b) => a.chofer.localeCompare(b.chofer));
+
+  const totales = rows.reduce(
+    (acc, r) => {
+      acc.viajes += r.cantidad_viajes;
+      acc.km += r.km_totales;
+      acc.tonelaje += r.tonelaje_total;
+      acc.flete += r.monto_flete_total;
+      return acc;
+    },
+    { viajes: 0, km: 0, tonelaje: 0, flete: 0 },
+  );
+
+  return { data: rows, totales };
 }

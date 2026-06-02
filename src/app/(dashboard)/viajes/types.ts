@@ -16,6 +16,7 @@ export type ViajeBasico = {
   monto_flete: number | null;
   moneda: string | null;
   observaciones: string | null;
+  nro_viaje_ypf: string | null;
 };
 
 export type PaginatedResult<T> = {

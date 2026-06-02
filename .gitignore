@@ -48,3 +48,6 @@ CLAUDE.local.md
 
 # Fixtures locales con datos reales (Excels de Bárbara, etc.)
 /__fixtures__/
+
+# Playwright screenshots y snapshots de pruebas manuales
+/.playwright-mcp/

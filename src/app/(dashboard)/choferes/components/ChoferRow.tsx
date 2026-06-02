@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, RefreshCw, Trash2, Loader2, MapPin } from "lucide-react";
 import { updateChoferEstadoAction, deleteChoferAction } from "../actions";
-import { getChoferDetailAction } from "../[id]/actions";
-import ChoferInfoTab from "../[id]/ChoferInfoTab";
-import ChoferDocumentosTab from "../[id]/ChoferDocumentosTab";
-import ChoferViajesTab from "../[id]/ChoferViajesTab";
-import ChoferCuentaTab from "../[id]/ChoferCuentaTab";
-import type { ChoferDetail } from "../[id]/types";
+import { getChoferDetailAction } from "../[slug]/actions";
+import ChoferInfoTab from "../[slug]/ChoferInfoTab";
+import ChoferDocumentosTab from "../[slug]/ChoferDocumentosTab";
+import ChoferViajesTab from "../[slug]/ChoferViajesTab";
+import ChoferCuentaTab from "../[slug]/ChoferCuentaTab";
+import type { ChoferDetail } from "../[slug]/types";
 
 type TabId = "info" | "documentos" | "viajes" | "cuenta";
 

@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Loader2,
   FileText,
+  Hash,
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
@@ -69,6 +70,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const [kmVacios, setKmVacios] = useState("0");
   const [tonelaje, setTonelaje] = useState("0");
   const [montoFlete, setMontoFlete] = useState("0");
+  const [nroViajeYpf, setNroViajeYpf] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       setKmVacios(String(vd.km_vacios));
       setTonelaje(String(vd.tonelaje_real));
       setMontoFlete(String(vd.monto_flete));
+      setNroViajeYpf(vd.nro_viaje_ypf ?? "");
     }).finally(() => setLoadingData(false));
   }, [open, viaje.id]);
 
@@ -132,6 +135,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       km_vacios: Number(kmVacios) || 0,
       tonelaje_real: Number(tonelaje) || 0,
       monto_flete: Number(montoFlete) || 0,
+      nro_viaje_ypf: nroViajeYpf.trim() || null,
     });
 
     setSubmitting(false);
@@ -157,6 +161,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       km_totales: (Number(kmConCarga) || 0) + (Number(kmVacios) || 0),
       toneladas: Number(tonelaje) || 0,
       monto_flete: Number(montoFlete) || null,
+      nro_viaje_ypf: nroViajeYpf.trim() || null,
     });
     onOpenChange(false);
   };
@@ -264,7 +269,13 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               <CField label="Chofer *" icon={LifeBuoy} error={fieldErrors.chofer_id}>
                 <select
                   value={choferId}
-                  onChange={(e) => setChoferId(e.target.value)}
+                  onChange={(e) => {
+                    const nid = e.target.value;
+                    setChoferId(nid);
+                    // Auto-completar camión asignado si el camión no fue tocado manualmente
+                    const chofer = formOptions?.choferes.find((c) => c.id === nid);
+                    if (chofer?.camionId) setCamionId(chofer.camionId);
+                  }}
                   required
                   className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
                 >
@@ -388,6 +399,18 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 value={montoFlete}
                 onChange={(e) => setMontoFlete(e.target.value)}
                 min="0"
+                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
+              />
+            </CField>
+
+            {/* Nº Viaje YPF (opcional) */}
+            <CField label="Nº viaje YPF" icon={Hash} error={fieldErrors.nro_viaje_ypf}>
+              <input
+                type="text"
+                value={nroViajeYpf}
+                onChange={(e) => setNroViajeYpf(e.target.value)}
+                placeholder="Ej: 123456 (opcional)"
+                maxLength={60}
                 className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
               />
             </CField>

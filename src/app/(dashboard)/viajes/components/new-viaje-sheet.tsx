@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Check,
   FileText,
+  Hash,
 } from "lucide-react";
 import {
   createViajeAction,
@@ -38,6 +39,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
   const [tipoCarga, setTipoCarga] = useState("");
   const [estado, setEstado] = useState("pendiente");
+  // Auto-camión: al elegir chofer, se pre-selecciona su camión asignado
+  const [selectedCamionId, setSelectedCamionId] = useState("");
   const router = useRouter();
 
   const [state, formAction] = useActionState<CreateViajeState, FormData>(
@@ -60,6 +63,15 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     if (!isOpen) {
       setTipoCarga("");
       setEstado("pendiente");
+      setSelectedCamionId("");
+    }
+  };
+
+  const handleChoferChange = (choferId: string) => {
+    // Autocompletar el camión asignado a este chofer
+    const chofer = data.choferes.find((c) => c.id === choferId);
+    if (chofer?.camionId) {
+      setSelectedCamionId(chofer.camionId);
     }
   };
 
@@ -184,8 +196,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 required
                 icon={LifeBuoy}
                 error={state?.fieldErrors?.chofer_id}
+                onChange={(e) => handleChoferChange(e.target.value)}
               />
-              {/* Camion */}
+              {/* Camion — controlado para recibir auto-completado */}
               <SelectFieldWithIcon
                 label="Camión *"
                 name="camion_id"
@@ -193,6 +206,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 required
                 icon={Truck}
                 error={state?.fieldErrors?.camion_id}
+                value={selectedCamionId}
+                onChange={(e) => setSelectedCamionId(e.target.value)}
               />
             </div>
 
@@ -284,6 +299,15 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               error={state?.fieldErrors?.monto_flete}
             />
 
+            {/* Nº Viaje YPF (opcional) */}
+            <InputFieldWithIcon
+              label="Nº viaje YPF"
+              name="nro_viaje_ypf"
+              placeholder="Ej: 123456 (opcional)"
+              icon={Hash}
+              error={state?.fieldErrors?.nro_viaje_ypf}
+            />
+
             {state?.error && (
               <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-xs rounded-lg px-3 py-2 font-medium">
                 {state.error}
@@ -354,7 +378,8 @@ function InputFieldWithIcon({
   );
 }
 
-// Subcomponente Select con Icono y Chevron
+// Subcomponente Select con Icono y Chevron.
+// Soporta modo controlado (value + onChange) o no-controlado (solo onChange).
 function SelectFieldWithIcon({
   label,
   name,
@@ -362,6 +387,7 @@ function SelectFieldWithIcon({
   required,
   error,
   onChange,
+  value,
   icon: Icon,
 }: {
   label: string;
@@ -370,8 +396,11 @@ function SelectFieldWithIcon({
   required?: boolean;
   error?: string;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  /** Pasar para modo controlado (e.g. auto-completado de camión). */
+  value?: string;
   icon: React.ComponentType<any>;
 }) {
+  const isControlled = value !== undefined;
   return (
     <div className="space-y-1">
       <label className="text-xs font-semibold text-muted-foreground">{label}</label>
@@ -385,7 +414,7 @@ function SelectFieldWithIcon({
           <select
             name={name}
             required={required}
-            defaultValue=""
+            {...(isControlled ? { value } : { defaultValue: "" })}
             className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
             onChange={onChange}
           >

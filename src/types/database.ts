@@ -4116,6 +4116,7 @@ export type Database = {
           ruta_id: string | null
           tarifa_id: string | null
           tipo_cambio: number | null
+          nro_viaje_ypf: string | null
           tipo_carga_id: string
           tonelaje_real: number | null
           updated_at: string
@@ -4140,6 +4141,7 @@ export type Database = {
           km_vacios?: number
           moneda?: string
           monto_flete?: number
+          nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null
           requiere_doble_facturacion?: boolean
@@ -4170,6 +4172,7 @@ export type Database = {
           km_vacios?: number
           moneda?: string
           monto_flete?: number
+          nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null
           requiere_doble_facturacion?: boolean

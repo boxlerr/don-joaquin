@@ -458,7 +458,8 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     };
   });
 
-  return {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ({
     ...chofer,
     foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: mappedDocs,
@@ -556,7 +557,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     adelantos_mes,
     evolucion_6meses,
     is_admin: user.rol.codigo === "admin",
-  };
+  }) as unknown as ChoferDetail;
 }
 
 // ---------------------------------------------------------------------------

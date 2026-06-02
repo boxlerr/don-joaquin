@@ -18,6 +18,7 @@ export interface ViajeExportable {
   moneda?: string;
   observaciones?: string | null;
   notas?: string | null;
+  nro_viaje_ypf?: string | null;
   // Permitir flexibilidad para objetos anidados o resultados de joins directos
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
@@ -146,6 +147,11 @@ export function exportViajesToExcel(
     { header: "Estado", key: (v) => formatEstado(v.estado), width: 15 },
     { header: "Facturado", key: (v) => (v.facturado ? "Sí" : "No"), width: 12 },
     { header: "Monto", key: (v) => formatMonto(v.monto_flete ?? v.monto, v.moneda), width: 18 },
+    {
+      header: "Nº YPF",
+      key: (v) => v.nro_viaje_ypf ?? "—",
+      width: 14,
+    },
     {
       header: "Notas",
       key: (v) => {
