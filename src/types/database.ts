@@ -1417,10 +1417,12 @@ export type Database = {
       choferes: {
         Row: {
           alias_cbu: string | null
+          alta_afip: string | null
           apellido: string
           banco: string | null
           cbu: string | null
           ciudad_nacimiento: string | null
+          clave_fiscal: string | null
           created_at: string
           created_by: string | null
           cuil: string | null
@@ -1439,6 +1441,7 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre: string
+          nro_tramite_dni: string | null
           observaciones: string | null
           provincia: string | null
           tarifa_km: number | null
@@ -1448,10 +1451,12 @@ export type Database = {
         }
         Insert: {
           alias_cbu?: string | null
+          alta_afip?: string | null
           apellido: string
           banco?: string | null
           cbu?: string | null
           ciudad_nacimiento?: string | null
+          clave_fiscal?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
@@ -1470,6 +1475,7 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre: string
+          nro_tramite_dni?: string | null
           observaciones?: string | null
           provincia?: string | null
           tarifa_km?: number | null
@@ -1479,10 +1485,12 @@ export type Database = {
         }
         Update: {
           alias_cbu?: string | null
+          alta_afip?: string | null
           apellido?: string
           banco?: string | null
           cbu?: string | null
           ciudad_nacimiento?: string | null
+          clave_fiscal?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
@@ -1501,6 +1509,7 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre?: string
+          nro_tramite_dni?: string | null
           observaciones?: string | null
           provincia?: string | null
           tarifa_km?: number | null

@@ -25,7 +25,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
-  const [email, setEmail] = useState(chofer.email ?? "");
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
@@ -33,6 +32,9 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
+  const [nroTramiteDni, setNroTramiteDni] = useState(chofer.nro_tramite_dni ?? "");
+  const [claveFiscal, setClaveFiscal] = useState(chofer.clave_fiscal ?? "");
+  const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
 
   // Helpers de display
   const fmtFecha = (s: string | null | undefined) => {
@@ -59,13 +61,15 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
-    setEmail(chofer.email ?? "");
     setTelefono(chofer.telefono ?? "");
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
     setBanco(chofer.banco ?? "");
     setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
+    setNroTramiteDni(chofer.nro_tramite_dni ?? "");
+    setClaveFiscal(chofer.clave_fiscal ?? "");
+    setAltaAfip(chofer.alta_afip ?? "");
     setError(null);
     setFieldErrors({});
     setEditing(false);
@@ -90,13 +94,15 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       const res = await updateChoferInfoAction(chofer.id, {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
-        email: email.trim() || undefined,
         telefono: telefono.trim() || undefined,
         telefono_emergencia: telefonoEmergencia.trim() || undefined,
         domicilio: domicilio.trim() || undefined,
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
+        nro_tramite_dni: nroTramiteDni.trim() || undefined,
+        clave_fiscal: claveFiscal.trim() || undefined,
+        alta_afip: altaAfip || undefined,
       });
       if (res.error) {
         setError(res.error);
@@ -235,13 +241,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
               ) : <Value v={chofer.telefono_emergencia} />}
             </Field>
             <div className="col-span-2">
-              <Field label="Email (opcional)">
-                {editing
-                  ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                  : <Value v={chofer.email} />}
-              </Field>
-            </div>
-            <div className="col-span-2">
               <Field label="Domicilio">
                 {editing
                   ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className="h-8 text-sm" placeholder="—" />
@@ -278,6 +277,30 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
               Se usan para liquidaciones y transferencias.
             </p>
           )}
+        </section>
+
+        {/* AFIP / Documentación impositiva */}
+        <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+            AFIP / Documentación impositiva
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+            <Field label="Nº trámite DNI">
+              {editing
+                ? <Input value={nroTramiteDni} onChange={(e) => setNroTramiteDni(e.target.value)} className="h-8 text-sm font-mono" placeholder="—" />
+                : <Value v={chofer.nro_tramite_dni} mono />}
+            </Field>
+            <Field label="Clave fiscal (nivel)">
+              {editing
+                ? <Input value={claveFiscal} onChange={(e) => setClaveFiscal(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.clave_fiscal} />}
+            </Field>
+            <Field label="Alta AFIP">
+              {editing
+                ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
+                : <Value v={altaAfip ? fmtFecha(altaAfip) : null} />}
+            </Field>
+          </div>
         </section>
       </div>
 

@@ -43,7 +43,6 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
-  const [email, setEmail] = useState(chofer.email ?? "");
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
@@ -102,7 +101,6 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
     const res = await updateChoferInfoAction(chofer.id, {
       nombre: nombre.trim(),
       apellido: apellido.trim(),
-      email: email.trim() || undefined,
       telefono: telefono.trim() || undefined,
       telefono_emergencia: telefonoEmergencia.trim() || undefined,
       domicilio: domicilio.trim() || undefined,
@@ -200,9 +198,6 @@ export default function EditarChoferDialog({ chofer, open, onOpenChange, onSucce
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Email">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
             <Field label="Teléfono">
               <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} />
             </Field>
