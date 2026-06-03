@@ -26,6 +26,7 @@ export type ChoferBasico = Pick<
   | "nro_tramite_dni"
   | "clave_fiscal"
   | "alta_afip"
+  | "rol"
   | "updated_at"
   | "foto_id"
 >;

@@ -42,6 +42,7 @@ export async function addChoferAction(data: {
   localidad: string;
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
+  rol: "chofer" | "administrativo" | "mantenimiento";
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
@@ -58,6 +59,7 @@ export async function addChoferAction(data: {
     localidad: data.localidad.trim(),
     fecha_ingreso: data.fecha_ingreso,
     estado: data.estado,
+    rol: data.rol,
   };
 
   const { data: inserted, error } = await supabase

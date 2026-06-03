@@ -1444,6 +1444,7 @@ export type Database = {
           nro_tramite_dni: string | null
           observaciones: string | null
           provincia: string | null
+          rol: string | null
           tarifa_km: number | null
           telefono: string | null
           telefono_emergencia: string | null
@@ -1478,6 +1479,7 @@ export type Database = {
           nro_tramite_dni?: string | null
           observaciones?: string | null
           provincia?: string | null
+          rol?: string | null
           tarifa_km?: number | null
           telefono?: string | null
           telefono_emergencia?: string | null
@@ -1512,6 +1514,7 @@ export type Database = {
           nro_tramite_dni?: string | null
           observaciones?: string | null
           provincia?: string | null
+          rol?: string | null
           tarifa_km?: number | null
           telefono?: string | null
           telefono_emergencia?: string | null

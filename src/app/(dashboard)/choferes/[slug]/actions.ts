@@ -20,7 +20,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const supabase = createAdminClient();
 
   const baseSelect =
-    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, nro_tramite_dni, clave_fiscal, alta_afip, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
+    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, nro_tramite_dni, clave_fiscal, alta_afip, rol, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
 
   type ChoferRow = { id: string; apellido: string; nombre: string } & Record<string, unknown>;
   let chofer: ChoferRow | null = null;

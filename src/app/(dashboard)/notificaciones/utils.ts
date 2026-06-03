@@ -38,12 +38,14 @@ export const CATEGORIA_LABEL: Record<AlertaCategoria, string> = {
 };
 
 export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): AlertaCategoria {
-  // Alertas "soft" de RRHH: cumpleaños, aniversarios y fin de período de prueba
+  // Alertas de RRHH: cumpleaños, aniversarios y período de prueba (choferes y adm/mant)
   if (
     tipo === "otro" &&
     (entidadTipo === "choferes_cumple" ||
       entidadTipo === "choferes_aniversario" ||
-      entidadTipo === "choferes_periodo_prueba")
+      entidadTipo === "choferes_periodo_prueba" ||
+      entidadTipo === "personal_cumple" ||
+      entidadTipo === "personal_aniversario")
   ) {
     return "personal";
   }
@@ -58,7 +60,7 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   if (
     alerta.tipo === "otro" &&
     alerta.entidad_tipo &&
-    alerta.entidad_tipo.startsWith("choferes") &&
+    (alerta.entidad_tipo.startsWith("choferes") || alerta.entidad_tipo.startsWith("personal_")) &&
     alerta.entidad_id
   ) {
     return `/choferes/${alerta.entidad_id}`;

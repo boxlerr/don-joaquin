@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Check,
   Hash,
+  Briefcase,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
 
@@ -56,6 +57,12 @@ const LOCALIDADES_AR = [
 const ESTADOS = [
   { value: "activo", label: "Activo" },
   { value: "inactivo", label: "Inactivo" },
+];
+
+const ROLES = [
+  { value: "chofer", label: "Chofer" },
+  { value: "administrativo", label: "Administrativo" },
+  { value: "mantenimiento", label: "Mantenimiento" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -103,6 +110,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
   const [dni, setDni] = useState("");
   const [cuil, setCuil] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
+  const [rol, setRol] = useState<"chofer" | "administrativo" | "mantenimiento">("chofer");
   const [telefono, setTelefono] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
@@ -111,7 +119,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
 
   const reset = () => {
     setNombre(""); setApellido(""); setDni(""); setCuil("");
-    setEstado("activo"); setTelefono(""); setLocalidad("");
+    setEstado("activo"); setRol("chofer"); setTelefono(""); setLocalidad("");
     setFechaIngreso(new Date().toISOString().split("T")[0]);
     setServerError(null); setFieldErrors({});
   };
@@ -144,6 +152,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
         dni,
         cuil,
         estado,
+        rol,
         telefono,
         localidad,
         fecha_ingreso: fechaIngreso,
@@ -276,16 +285,39 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             error={fieldErrors.localidad}
           />
 
-          {/* Fecha de ingreso */}
-          <InputFieldWithIcon
-            label="Fecha de ingreso *"
-            name="fecha_ingreso"
-            type="date"
-            value={fechaIngreso}
-            onChange={(e) => setFechaIngreso(e.target.value)}
-            icon={Calendar}
-            error={fieldErrors.fecha_ingreso}
-          />
+          {/* Fecha de ingreso + Rol */}
+          <div className="grid grid-cols-2 gap-4">
+            <InputFieldWithIcon
+              label="Fecha de ingreso *"
+              name="fecha_ingreso"
+              type="date"
+              value={fechaIngreso}
+              onChange={(e) => setFechaIngreso(e.target.value)}
+              icon={Calendar}
+              error={fieldErrors.fecha_ingreso}
+            />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-muted-foreground">Rol</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
+                  <Briefcase size={15} />
+                </div>
+                <div className="relative flex-1 h-full">
+                  <select
+                    name="rol"
+                    value={rol}
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
+                    onChange={(e) => setRol(e.target.value as "chofer" | "administrativo" | "mantenimiento")}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button
