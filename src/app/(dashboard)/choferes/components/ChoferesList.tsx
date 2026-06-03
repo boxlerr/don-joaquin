@@ -7,6 +7,18 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
 type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
+type RolFilter = "chofer" | "administrativo" | "mantenimiento";
+
+const ROL_LABELS: Record<RolFilter, string> = {
+  chofer: "Choferes",
+  administrativo: "Administración",
+  mantenimiento: "Mantenimiento",
+};
+
+const rolDe = (c: { rol?: unknown }): RolFilter => {
+  const r = typeof c.rol === "string" ? c.rol : "chofer";
+  return r === "administrativo" || r === "mantenimiento" ? r : "chofer";
+};
 
 type Chofer = {
   id: string;
@@ -17,6 +29,7 @@ type Chofer = {
   telefono?: string | null;
   localidad?: string | null;
   estado: string;
+  rol?: string | null;
   fecha_ingreso?: string | null;
   foto?: { bucket: string; path: string } | null;
   [key: string]: unknown;
@@ -43,12 +56,14 @@ function normalize(value: string): string {
 
 export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
+  const [rolFilter, setRolFilter] = useState<RolFilter>("chofer");
   const [query, setQuery] = useState("");
   const [historialOpen, setHistorialOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = normalize(query);
     return choferes.filter((c) => {
+      if (rolDe(c) !== rolFilter) return false;
       if (estadoFilter === "periodo_prueba") {
         if (c.estado === "baja" || !enPeriodoPrueba(c.fecha_ingreso)) return false;
       } else if (estadoFilter !== "todos" && c.estado !== estadoFilter) {
@@ -58,7 +73,13 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
       const haystack = normalize(`${c.apellido} ${c.nombre} ${c.dni} ${c.cuil ?? ""} ${c.telefono ?? ""}`);
       return haystack.includes(q);
     });
-  }, [choferes, estadoFilter, query]);
+  }, [choferes, estadoFilter, rolFilter, query]);
+
+  const conteoPorRol = useMemo(() => {
+    const acc: Record<RolFilter, number> = { chofer: 0, administrativo: 0, mantenimiento: 0 };
+    for (const c of choferes) acc[rolDe(c)]++;
+    return acc;
+  }, [choferes]);
 
   // Activos = todos los que NO estén dados de baja (incluye "activo" e "inactivo")
   // Egresados = estado "baja". Los mostramos siempre separados al final.
@@ -77,14 +98,26 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
       <div className="bg-card rounded-[8px] border border-border px-5 py-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Users size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Listado de Choferes en Plantilla</h2>
+          <h2 className="text-foreground text-sm font-semibold">{ROL_LABELS[rolFilter]} en plantilla</h2>
           <span className="text-xs text-muted-foreground ml-2">
-            {hayResultados
-              ? `${filtered.length} de ${choferes.length}`
-              : `0 de ${choferes.length}`}
+            {filtered.length} de {conteoPorRol[rolFilter]}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+            {(["chofer", "administrativo", "mantenimiento"] as RolFilter[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRolFilter(r)}
+                className={`px-3 h-7 text-xs font-medium rounded-md transition-all ${
+                  rolFilter === r ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {ROL_LABELS[r]} ({conteoPorRol[r]})
+              </button>
+            ))}
+          </div>
           <select
             value={estadoFilter}
             onChange={(e) => setEstadoFilter(e.target.value as EstadoFilter)}
