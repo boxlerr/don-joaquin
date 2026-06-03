@@ -19,8 +19,8 @@ function formatARS(n: number): string {
 }
 
 export default async function CajaPage() {
-  const user = await requireArea("finanzas", "read");
-  const canWrite = hasArea(user, "finanzas", "write");
+  const user = await requireArea("caja", "read");
+  const canWrite = hasArea(user, "caja", "write");
   const supabase = createAdminClient();
 
   const hoy = new Date();

@@ -91,7 +91,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "FINANZAS",
     items: [
-      { label: "Caja", href: "/caja", icon: Wallet, area: "finanzas" },
+      { label: "Caja", href: "/caja", icon: Wallet, area: "caja" },
       { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
       { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
     ],
