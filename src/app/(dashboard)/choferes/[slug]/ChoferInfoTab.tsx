@@ -32,8 +32,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
-  const [nroTramiteDni, setNroTramiteDni] = useState(chofer.nro_tramite_dni ?? "");
-  const [claveFiscal, setClaveFiscal] = useState(chofer.clave_fiscal ?? "");
   const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
 
   // Helpers de display
@@ -67,8 +65,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     setBanco(chofer.banco ?? "");
     setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
-    setNroTramiteDni(chofer.nro_tramite_dni ?? "");
-    setClaveFiscal(chofer.clave_fiscal ?? "");
     setAltaAfip(chofer.alta_afip ?? "");
     setError(null);
     setFieldErrors({});
@@ -100,8 +96,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
-        nro_tramite_dni: nroTramiteDni.trim() || undefined,
-        clave_fiscal: claveFiscal.trim() || undefined,
         alta_afip: altaAfip || undefined,
       });
       if (res.error) {
@@ -279,27 +273,30 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
           )}
         </section>
 
-        {/* AFIP / Documentación impositiva */}
+        {/* AFIP + Período de prueba */}
         <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
           <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
-            AFIP / Documentación impositiva
+            AFIP / Período de prueba
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
-            <Field label="Nº trámite DNI">
-              {editing
-                ? <Input value={nroTramiteDni} onChange={(e) => setNroTramiteDni(e.target.value)} className="h-8 text-sm font-mono" placeholder="—" />
-                : <Value v={chofer.nro_tramite_dni} mono />}
-            </Field>
-            <Field label="Clave fiscal (nivel)">
-              {editing
-                ? <Input value={claveFiscal} onChange={(e) => setClaveFiscal(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                : <Value v={chofer.clave_fiscal} />}
-            </Field>
             <Field label="Alta AFIP">
               {editing
                 ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
                 : <Value v={altaAfip ? fmtFecha(altaAfip) : null} />}
             </Field>
+            <PeriodoPruebaField
+              fechaIngreso={chofer.fecha_ingreso}
+              periodoPruebaFin={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+              editing={editing}
+              onActivar={() => {
+                const fin = chofer.fecha_ingreso
+                  ? addMonthsStr(chofer.fecha_ingreso, 6)
+                  : addMonthsStr(new Date().toISOString().split("T")[0], 6);
+                updateChoferInfoAction(chofer.id, { periodo_prueba_fin: fin }).then((res) => {
+                  if (!res.error) onSaved?.();
+                });
+              }}
+            />
           </div>
         </section>
       </div>
@@ -320,6 +317,73 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function addMonthsStr(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function PeriodoPruebaField({
+  fechaIngreso,
+  periodoPruebaFin,
+  editing,
+  onActivar,
+}: {
+  fechaIngreso: string | null | undefined;
+  periodoPruebaFin: string | null;
+  editing: boolean;
+  onActivar: () => void;
+}) {
+  const fmtFecha = (s: string) => {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  };
+
+  if (!periodoPruebaFin) {
+    return (
+      <div className="col-span-2 flex items-center gap-3">
+        <div className="space-y-0.5">
+          <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
+          <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
+        </div>
+        {editing && (
+          <button
+            type="button"
+            onClick={onActivar}
+            className="mt-4 text-xs font-semibold text-[#0088D1] hover:underline"
+          >
+            + Iniciar
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const hoy = new Date();
+  const fin = new Date(periodoPruebaFin + "T00:00:00");
+  const diasRestantes = Math.ceil((fin.getTime() - hoy.getTime()) / 86_400_000);
+  const vencido = diasRestantes < 0;
+  const porVencer = !vencido && diasRestantes <= 30;
+
+  return (
+    <>
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — inicio</Label>
+        <p className="text-sm py-0.5 text-foreground">{fechaIngreso ? fmtFecha(fechaIngreso) : "—"}</p>
+      </div>
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — fin</Label>
+        <p className={`text-sm py-0.5 font-semibold ${vencido ? "text-red-500" : porVencer ? "text-amber-500" : "text-[#0088D1]"}`}>
+          {fmtFecha(periodoPruebaFin)}
+          <span className="ml-1.5 font-normal text-muted-foreground text-xs">
+            {vencido ? `(venció hace ${Math.abs(diasRestantes)}d)` : `(${diasRestantes}d restantes)`}
+          </span>
+        </p>
+      </div>
+    </>
   );
 }
 

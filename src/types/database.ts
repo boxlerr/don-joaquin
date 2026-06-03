@@ -1443,6 +1443,7 @@ export type Database = {
           nombre: string
           nro_tramite_dni: string | null
           observaciones: string | null
+          periodo_prueba_fin: string | null
           provincia: string | null
           rol: string | null
           tarifa_km: number | null
@@ -1478,6 +1479,7 @@ export type Database = {
           nombre: string
           nro_tramite_dni?: string | null
           observaciones?: string | null
+          periodo_prueba_fin?: string | null
           provincia?: string | null
           rol?: string | null
           tarifa_km?: number | null
@@ -1513,6 +1515,7 @@ export type Database = {
           nombre?: string
           nro_tramite_dni?: string | null
           observaciones?: string | null
+          periodo_prueba_fin?: string | null
           provincia?: string | null
           rol?: string | null
           tarifa_km?: number | null

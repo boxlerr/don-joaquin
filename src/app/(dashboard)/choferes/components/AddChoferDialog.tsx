@@ -21,6 +21,8 @@ import {
   Check,
   Hash,
   Briefcase,
+  Mail,
+  ClipboardCheck,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
 
@@ -97,6 +99,17 @@ function validateLocalidad(value: string): string | null {
   return null;
 }
 
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function fmtDate(iso: string): string {
+  const [y, m, day] = iso.split("-");
+  return `${day}/${m}/${y}`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -112,15 +125,19 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
   const [rol, setRol] = useState<"chofer" | "administrativo" | "mantenimiento">("chofer");
   const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
+  const [altaAfip, setAltaAfip] = useState(new Date().toISOString().split("T")[0]);
+  const [iniciaPeriodoPrueba, setIniciaPeriodoPrueba] = useState(true);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const reset = () => {
     setNombre(""); setApellido(""); setDni(""); setCuil("");
-    setEstado("activo"); setRol("chofer"); setTelefono(""); setLocalidad("");
-    setFechaIngreso(new Date().toISOString().split("T")[0]);
+    const hoy = new Date().toISOString().split("T")[0];
+    setEstado("activo"); setRol("chofer"); setTelefono(""); setEmail(""); setLocalidad("");
+    setFechaIngreso(hoy); setAltaAfip(hoy); setIniciaPeriodoPrueba(true);
     setServerError(null); setFieldErrors({});
   };
 
@@ -154,8 +171,11 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
         estado,
         rol,
         telefono,
+        email: email.trim() || undefined,
         localidad,
         fecha_ingreso: fechaIngreso,
+        alta_afip: altaAfip || undefined,
+        periodo_prueba_fin: iniciaPeriodoPrueba ? addMonths(fechaIngreso, 6) : undefined,
       });
       if (result.error) {
         setServerError(result.error);
@@ -278,6 +298,17 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             </div>
           </div>
 
+          {/* Email */}
+          <InputFieldWithIcon
+            label="Email"
+            name="email"
+            type="email"
+            placeholder="Ej: juan@mail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            icon={Mail}
+          />
+
           {/* Localidad */}
           <LocalidadCombobox
             value={localidad}
@@ -317,6 +348,39 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Alta AFIP */}
+          <InputFieldWithIcon
+            label="Alta AFIP"
+            name="alta_afip"
+            type="date"
+            value={altaAfip}
+            onChange={(e) => setAltaAfip(e.target.value)}
+            icon={Calendar}
+          />
+
+          {/* Período de prueba */}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={iniciaPeriodoPrueba}
+                onChange={(e) => setIniciaPeriodoPrueba(e.target.checked)}
+                className="size-4 rounded accent-[#0088D1] cursor-pointer"
+              />
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <ClipboardCheck size={15} className="text-primary" />
+                Iniciar período de prueba
+              </span>
+            </label>
+            {iniciaPeriodoPrueba && (
+              <div className="flex items-center gap-4 pl-6 text-xs text-muted-foreground">
+                <span>Inicio: <span className="font-mono text-foreground">{fmtDate(fechaIngreso)}</span></span>
+                <span className="text-border">→</span>
+                <span>Fin: <span className="font-mono font-semibold text-[#0088D1]">{fmtDate(addMonths(fechaIngreso, 6))}</span></span>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">

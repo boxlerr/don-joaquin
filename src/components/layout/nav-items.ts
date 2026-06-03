@@ -62,7 +62,6 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: "Listado", href: "/viajes" },
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
-          { label: "Por chofer (mes)", href: "/viajes/mensual" },
         ],
       },
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },

@@ -39,10 +39,13 @@ export async function addChoferAction(data: {
   dni: string;
   cuil: string;
   telefono: string;
+  email?: string;
   localidad: string;
   fecha_ingreso: string;
   estado: "activo" | "inactivo";
   rol: "chofer" | "administrativo" | "mantenimiento";
+  alta_afip?: string;
+  periodo_prueba_fin?: string;
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
@@ -56,10 +59,13 @@ export async function addChoferAction(data: {
     dni: data.dni.trim(),
     cuil: data.cuil.trim(),
     telefono: data.telefono.trim(),
+    email: data.email?.trim() || null,
     localidad: data.localidad.trim(),
     fecha_ingreso: data.fecha_ingreso,
     estado: data.estado,
     rol: data.rol,
+    alta_afip: data.alta_afip || null,
+    periodo_prueba_fin: data.periodo_prueba_fin || null,
   };
 
   const { data: inserted, error } = await supabase
