@@ -3,26 +3,51 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
-import EditarChoferDialog from "./EditarChoferDialog";
-import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2 } from "lucide-react";
+import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2, X } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import { uploadFotoChoferAction, deleteFotoChoferAction } from "../actions";
+import { updateEgresoAction } from "./actions";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
   chofer: ChoferDetail;
   onRefresh: () => void;
   onSelectTab?: (tabId: "documentos") => void;
+  editing?: boolean;
+  onEditar?: () => void;
 }
 
-export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) {
-  const [editOpen, setEditOpen] = useState(false);
+export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, onEditar }: Props) {
   const [markingRead, setMarkingRead] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoError, setFotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edición de la información del egreso (solo para choferes dados de baja).
+  const [editandoEgreso, setEditandoEgreso] = useState(false);
+  const [savingEgreso, setSavingEgreso] = useState(false);
+  const [egMotivo, setEgMotivo] = useState<string>(chofer.motivo_egreso ?? "");
+  const [egFecha, setEgFecha] = useState<string>(chofer.fecha_egreso ?? "");
+  const [egObs, setEgObs] = useState<string>(chofer.observaciones ?? "");
+
+  const handleGuardarEgreso = async () => {
+    setSavingEgreso(true);
+    try {
+      const res = await updateEgresoAction(chofer.id, {
+        motivo_egreso: egMotivo || null,
+        fecha_egreso: egFecha || null,
+        observaciones: egObs.trim() || null,
+      });
+      if (!res.error) {
+        setEditandoEgreso(false);
+        onRefresh();
+      }
+    } finally {
+      setSavingEgreso(false);
+    }
+  };
 
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -235,15 +260,17 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40 flex-shrink-0"
-          onClick={() => setEditOpen(true)}
-        >
-          <Edit size={13} className="mr-1.5 text-primary" />
-          Editar
-        </Button>
+        {!editing && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40 flex-shrink-0"
+            onClick={() => onEditar?.()}
+          >
+            <Edit size={13} className="mr-1.5 text-primary" />
+            Editar
+          </Button>
+        )}
       </div>
 
       <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
@@ -265,47 +292,107 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
       {/* Panel de egreso destacado — solo si está dado de baja */}
       {esBaja && (
         <div className="mt-5 p-4 bg-amber-100/60 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 rounded-lg">
-          <div className="flex items-center gap-2 mb-3">
-            <LogOut size={14} className="text-amber-700 dark:text-amber-400" />
-            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
-              Información del egreso
-            </h3>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <LogOut size={14} className="text-amber-700 dark:text-amber-400" />
+              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+                Información del egreso
+              </h3>
+            </div>
+            {!editandoEgreso ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs bg-card/60"
+                onClick={() => {
+                  setEgMotivo(chofer.motivo_egreso ?? "");
+                  setEgFecha(chofer.fecha_egreso ?? "");
+                  setEgObs(chofer.observaciones ?? "");
+                  setEditandoEgreso(true);
+                }}
+              >
+                <Edit size={12} className="mr-1.5 text-primary" /> Editar
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs bg-card/60" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
+                  <X size={12} className="mr-1" /> Cancelar
+                </Button>
+                <Button variant="brand" size="sm" className="h-7 text-xs" onClick={handleGuardarEgreso} disabled={savingEgreso}>
+                  {savingEgreso ? "Guardando..." : <><Check size={12} className="mr-1" /> Guardar</>}
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div>
-              <div className="text-xs text-muted-foreground mb-0.5">Motivo</div>
-              <div className="font-medium text-foreground capitalize">
-                {chofer.motivo_egreso ?? "No especificado"}
+          {!editandoEgreso ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Motivo</div>
+                  <div className="font-medium text-foreground capitalize">
+                    {chofer.motivo_egreso ?? "No especificado"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Fecha de egreso</div>
+                  <div className="font-medium text-foreground">
+                    {chofer.fecha_egreso ? formatFecha(chofer.fecha_egreso) : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">Tiempo en la empresa</div>
+                  <div className="font-medium text-foreground">{tiempoEnEmpresa ?? "—"}</div>
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-0.5">Fecha de egreso</div>
-              <div className="font-medium text-foreground">
-                {formatFecha(chofer.fecha_egreso)}
+              {observacionEgreso && (
+                <div className="mt-3 pt-3 border-t border-amber-300/60 dark:border-amber-500/30">
+                  <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+                    <FileText size={11} /> Observaciones del egreso
+                  </div>
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap">{observacionEgreso}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Motivo</div>
+                <select
+                  value={egMotivo}
+                  onChange={(e) => setEgMotivo(e.target.value)}
+                  className="w-full text-sm border border-border rounded px-2 py-1.5 bg-background"
+                >
+                  <option value="">— Sin especificar —</option>
+                  <option value="renuncia">Renuncia</option>
+                  <option value="despido">Despido</option>
+                  <option value="jubilacion">Jubilación</option>
+                  <option value="otro">Otro</option>
+                </select>
               </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-0.5">Tiempo en la empresa</div>
-              <div className="font-medium text-foreground">{tiempoEnEmpresa ?? "—"}</div>
-            </div>
-          </div>
-          {observacionEgreso && (
-            <div className="mt-3 pt-3 border-t border-amber-300/60 dark:border-amber-500/30">
-              <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
-                <FileText size={11} /> Observaciones del egreso
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Fecha de egreso</div>
+                <input
+                  type="date"
+                  value={egFecha}
+                  onChange={(e) => setEgFecha(e.target.value)}
+                  className="w-full text-sm border border-border rounded px-2 py-1.5 bg-background"
+                />
               </div>
-              <p className="text-sm text-foreground/90 whitespace-pre-wrap">{observacionEgreso}</p>
+              <div className="sm:col-span-3">
+                <div className="text-xs text-muted-foreground mb-1">Observaciones</div>
+                <textarea
+                  value={egObs}
+                  onChange={(e) => setEgObs(e.target.value)}
+                  rows={2}
+                  className="w-full text-sm border border-border rounded px-2 py-1.5 bg-background"
+                  placeholder="Detalle del egreso…"
+                />
+              </div>
             </div>
           )}
         </div>
       )}
 
-      <EditarChoferDialog
-        chofer={chofer}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        onSuccess={onRefresh}
-      />
     </div>
   );
 }

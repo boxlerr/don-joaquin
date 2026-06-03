@@ -13,10 +13,20 @@ import CamionAsignacion from "./CamionAsignacion";
 interface Props {
   chofer: ChoferDetail;
   onSaved?: () => void;
+  // Edición controlada (legajo, el botón vive en el header). Si no se pasan, el
+  // tab maneja su propio estado y muestra el botón "Editar datos" (uso en la lista).
+  editing?: boolean;
+  onEditingChange?: (v: boolean) => void;
 }
 
-export default function ChoferInfoTab({ chofer, onSaved }: Props) {
-  const [editing, setEditing] = useState(false);
+export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, onEditingChange }: Props) {
+  const controlled = onEditingChange !== undefined;
+  const [editingLocal, setEditingLocal] = useState(false);
+  const editing = controlled ? editingProp ?? false : editingLocal;
+  const setEditing = (v: boolean) => {
+    if (controlled) onEditingChange?.(v);
+    else setEditingLocal(v);
+  };
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -137,31 +147,15 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         </div>
       )}
 
-      {/* Header con toggle de edición */}
+      {/* Estado de edición. En el legajo el botón "Editar" vive en el encabezado;
+          en la lista (uso no-controlado) mostramos el botón acá. */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {editing ? "Editando — los cambios no se guardan hasta confirmar." : "Vista de solo lectura."}
         </span>
-        {!editing ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil size={12} className="mr-1.5 text-primary" />
-            Editar datos
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={handleCancel}
-            disabled={isPending}
-          >
-            <X size={12} className="mr-1" />
-            Cancelar
+        {!controlled && !editing && (
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditing(true)}>
+            <Pencil size={12} className="mr-1.5 text-primary" /> Editar datos
           </Button>
         )}
       </div>
@@ -322,7 +316,10 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       )}
 
       {editing && (
-        <div className="flex items-center justify-end pt-3 border-t border-border">
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isPending}>
+            <X size={13} className="mr-1.5" />Cancelar
+          </Button>
           <Button variant="brand" size="sm" onClick={handleSave} disabled={isPending}>
             {isPending ? "Guardando..." : (
               <><Check size={13} className="mr-1.5" />Guardar cambios</>

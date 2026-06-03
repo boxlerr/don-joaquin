@@ -46,6 +46,7 @@ export default function ChoferDetailPage() {
   const [chofer, setChofer] = useState<ChoferDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("info");
+  const [editingInfo, setEditingInfo] = useState(false);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabId | null;
@@ -104,7 +105,16 @@ export default function ChoferDetailPage() {
         Volver
       </Button>
 
-      <ChoferHeader chofer={chofer} onRefresh={loadData} onSelectTab={setActiveTab} />
+      <ChoferHeader
+        chofer={chofer}
+        onRefresh={loadData}
+        onSelectTab={setActiveTab}
+        editing={editingInfo}
+        onEditar={() => {
+          setActiveTab("info");
+          setEditingInfo(true);
+        }}
+      />
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto">
@@ -125,7 +135,13 @@ export default function ChoferDetailPage() {
 
         <div className="p-6 bg-card min-h-[50vh]">
           {activeTab === "info" && (
-            <ChoferInfoTab key={chofer.updated_at} chofer={chofer} onSaved={loadData} />
+            <ChoferInfoTab
+              key={chofer.updated_at}
+              chofer={chofer}
+              onSaved={loadData}
+              editing={editingInfo}
+              onEditingChange={setEditingInfo}
+            />
           )}
           {activeTab === "documentos" && (
             <ChoferDocumentosTab chofer={chofer} onRefresh={loadData} />

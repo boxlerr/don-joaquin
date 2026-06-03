@@ -1183,6 +1183,30 @@ export async function desasignarCamionAction(
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Editar información del egreso (motivo, fecha, observaciones) de un chofer dado
+// de baja. Permite corregir el egreso cargado al dar la baja.
+// ---------------------------------------------------------------------------
+export async function updateEgresoAction(
+  chofer_id: string,
+  data: { motivo_egreso?: string | null; fecha_egreso?: string | null; observaciones?: string | null },
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+  const payload: Record<string, unknown> = {};
+  if (data.motivo_egreso !== undefined) payload.motivo_egreso = data.motivo_egreso || null;
+  if (data.fecha_egreso !== undefined) payload.fecha_egreso = data.fecha_egreso || null;
+  if (data.observaciones !== undefined) payload.observaciones = data.observaciones || null;
+  if (Object.keys(payload).length === 0) return { ok: true };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("choferes").update(payload).eq("id", chofer_id);
+  if (error) return { error: error.message };
+  await logChoferAudit(chofer_id, "egreso_editado", null, payload, user.id);
+  revalidatePath("/choferes");
+  return { ok: true };
+}
+
 export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
