@@ -65,6 +65,13 @@ export default function ChoferDetailPage() {
     loadData();
   }, [loadData]);
 
+  // Si se abrió en pestaña nueva (ej. desde el importador de YPF) no hay historial
+  // para "atrás": en ese caso vamos al listado de legajos.
+  const volver = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else router.push("/choferes");
+  }, [router]);
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[60vh]">
@@ -77,7 +84,7 @@ export default function ChoferDetailPage() {
     return (
       <div className="p-8 text-center">
         <p className="text-muted-foreground mb-4">Chofer no encontrado.</p>
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
+        <Button variant="outline" size="sm" onClick={volver}>
           <ArrowLeft size={14} className="mr-1.5" />
           Volver
         </Button>
@@ -90,7 +97,7 @@ export default function ChoferDetailPage() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => router.back()}
+        onClick={volver}
         className="border-border text-muted-foreground hover:bg-muted/40"
       >
         <ArrowLeft size={14} className="mr-1.5" />

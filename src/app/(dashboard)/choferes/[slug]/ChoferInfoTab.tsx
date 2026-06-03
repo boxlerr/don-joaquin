@@ -8,10 +8,7 @@ import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
 import { Check, Pencil, X, AlertTriangle } from "lucide-react";
 import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
-
-// Centinela de la carga inicial (scripts/seed-camiones-acoplados.ts): los tractores
-// que vinieron solo con patente tienen marca/modelo = "Sin datos". No mostrarlo como texto.
-const SIN_DATOS = "Sin datos";
+import CamionAsignacion from "./CamionAsignacion";
 
 interface Props {
   chofer: ChoferDetail;
@@ -203,25 +200,11 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             <Field label="Provincia"><Value v={chofer.provincia} /></Field>
             <div className="col-span-2">
               <Field label="Camión actual">
-                {chofer.camion_actual ? (
-                  <p className="text-sm py-0.5 text-foreground">
-                    <span className="font-mono">{chofer.camion_actual.patente}</span>
-                    {[chofer.camion_actual.marca, chofer.camion_actual.modelo].some(
-                      (x) => x && x !== SIN_DATOS
-                    ) ? (
-                      <span className="text-muted-foreground">
-                        {" "}· {[chofer.camion_actual.marca, chofer.camion_actual.modelo]
-                          .filter((x) => x && x !== SIN_DATOS)
-                          .join(" ")}
-                        {chofer.camion_actual.ano ? ` (${chofer.camion_actual.ano})` : ""}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/50 italic">{" "}· sin datos del modelo</span>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-sm py-0.5 text-muted-foreground/60">Sin asignación</p>
-                )}
+                <CamionAsignacion
+                  choferId={chofer.id}
+                  camionActual={chofer.camion_actual}
+                  historial={chofer.camiones_historial}
+                />
               </Field>
             </div>
           </div>

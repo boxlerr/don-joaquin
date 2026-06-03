@@ -246,10 +246,14 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab }: Props) 
         </Button>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <InfoItem icon={<Phone size={13} />} label={chofer.telefono ?? "—"} />
         <InfoItem icon={<Mail size={13} />} label={chofer.email ?? "—"} />
         <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
+        <InfoItem
+          icon={<Truck size={13} />}
+          label={chofer.camion_actual ? `Camión: ${chofer.camion_actual.patente}` : "Sin camión"}
+        />
         <InfoItem
           icon={<Calendar size={13} />}
           label={`Ingreso: ${formatFecha(chofer.fecha_ingreso)}`}
