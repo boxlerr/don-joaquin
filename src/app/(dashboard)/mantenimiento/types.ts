@@ -12,6 +12,10 @@ export type ChoferOption = {
   id: string;
   nombre: string;
   apellido: string;
+  // Calculados desde lib/chofer-validation: si `disabled` es true, no se
+  // permite seleccionar el chofer en ningún formulario (legajo incompleto).
+  disabled?: boolean;
+  motivo?: string;
 };
 
 export type AcopladoOption = {

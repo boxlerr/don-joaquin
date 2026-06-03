@@ -82,7 +82,7 @@ export default function AddSiniestroDialog({
 }: {
   children?: React.ReactNode;
   camiones: { id: string; patente: string; marca: string; modelo: string }[];
-  choferes: { id: string; nombre: string; apellido: string | null }[];
+  choferes: { id: string; nombre: string; apellido: string | null; disabled?: boolean; motivo?: string }[];
   defaultCamionId?: string;
   editing?: SiniestroEditing | null;
   open?: boolean;
@@ -239,7 +239,14 @@ export default function AddSiniestroDialog({
               onValueChange={setChoferId}
               options={[
                 { value: "none", label: "Sin chofer / Otro" },
-                ...choferes.map((ch) => ({ value: ch.id, label: `${ch.nombre} ${ch.apellido || ""}` })),
+                ...choferes.map((ch) => ({
+                  value: ch.id,
+                  label: ch.disabled
+                    ? `⚠ ${ch.nombre} ${ch.apellido || ""} — legajo incompleto`
+                    : `${ch.nombre} ${ch.apellido || ""}`,
+                  disabled: ch.disabled,
+                  title: ch.motivo,
+                })),
               ]}
               icon={User}
             />
@@ -397,7 +404,7 @@ function SelectFieldWithIcon({
   label, name, id, value, onValueChange, options, required, error, icon: Icon,
 }: {
   label: string; name: string; id?: string; value: string; onValueChange: (v: string) => void;
-  options: { value: string; label: string }[]; required?: boolean; error?: string;
+  options: { value: string; label: string; disabled?: boolean; title?: string }[]; required?: boolean; error?: string;
   icon: React.ComponentType<{ size?: number }>;
 }) {
   return (
@@ -417,7 +424,7 @@ function SelectFieldWithIcon({
           >
             <option value="" disabled={required}>Seleccionar...</option>
             {options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value} disabled={o.disabled} title={o.title}>{o.label}</option>
             ))}
           </select>
           <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />

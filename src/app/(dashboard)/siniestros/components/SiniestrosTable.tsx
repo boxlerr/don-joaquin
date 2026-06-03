@@ -83,7 +83,7 @@ const ESTADO_STYLES: Record<EstadoSiniestro, string> = {
 interface SiniestrosTableProps {
   siniestros: SiniestroConRelaciones[];
   camiones: { id: string; patente: string; marca: string; modelo: string }[];
-  choferes: { id: string; nombre: string; apellido: string | null }[];
+  choferes: { id: string; nombre: string; apellido: string | null; disabled?: boolean; motivo?: string }[];
   onEdit: (siniestro: SiniestroConRelaciones) => void;
   onDelete: (id: string) => void;
 }

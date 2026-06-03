@@ -28,7 +28,7 @@ export default function AddViaticoDialog({
   choferes,
 }: {
   children: React.ReactNode;
-  choferes?: { id: string; nombre: string; apellido: string }[];
+  choferes?: { id: string; nombre: string; apellido: string; disabled?: boolean; motivo?: string }[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -107,8 +107,9 @@ export default function AddViaticoDialog({
               <SelectContent>
                 {choferes && choferes.length > 0 ? (
                   choferes.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.apellido}, {c.nombre}
+                    <SelectItem key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
+                      {c.disabled ? "⚠ " : ""}{c.apellido}, {c.nombre}
+                      {c.disabled ? " — legajo incompleto" : ""}
                     </SelectItem>
                   ))
                 ) : (

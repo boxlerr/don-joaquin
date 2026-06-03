@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 import SiniestrosClient from "./components/SiniestrosClient";
 
 export const dynamic = "force-dynamic";
@@ -23,15 +24,26 @@ export default async function SiniestrosPage() {
         .order("patente"),
       supabase
         .from("choferes")
-        .select("id, nombre, apellido")
+        .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
         .order("nombre"),
     ]);
+
+  const choferesParaSelector = (choferes ?? []).map((c) => {
+    const estado = getLegajoEstado(c);
+    return {
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido,
+      disabled: !estado.completo,
+      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
+    };
+  });
 
   return (
     <SiniestrosClient
       siniestros={siniestros ?? []}
       camiones={camiones ?? []}
-      choferes={choferes ?? []}
+      choferes={choferesParaSelector}
       canWrite={canWrite}
     />
   );

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
@@ -31,7 +32,7 @@ export default async function CajaPage() {
   const [
     { data: tiposGasto },
     { count: totalMovimientos },
-    { data: choferes },
+    { data: choferesRaw },
     { data: ingresosMesData },
     { data: egresosMesData },
     { data: saldoData },
@@ -45,7 +46,7 @@ export default async function CajaPage() {
     supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
     supabase
       .from("choferes")
-      .select("id, nombre, apellido")
+      .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
       .eq("estado", "activo")
       .order("apellido"),
     supabase
@@ -60,6 +61,17 @@ export default async function CajaPage() {
       .gte("fecha", inicioMes),
     supabase.from("caja_movimientos").select("tipo, monto"),
   ]);
+
+  const choferes = (choferesRaw ?? []).map((c) => {
+    const estado = getLegajoEstado(c);
+    return {
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido,
+      disabled: !estado.completo,
+      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
+    };
+  });
 
   const ingresosMes =
     ingresosMesData?.reduce((acc, m) => acc + Number(m.monto || 0), 0) ?? 0;
@@ -83,7 +95,7 @@ export default async function CajaPage() {
             {canWrite && (
               <>
                 <ImportMovimientosDialog />
-              <AddViaticoDialog choferes={choferes || []}>
+              <AddViaticoDialog choferes={choferes}>
                 <Button variant="outline" size="sm">
                   <Receipt size={14} />
                   Registrar viático

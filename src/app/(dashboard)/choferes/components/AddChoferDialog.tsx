@@ -25,6 +25,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 
 // ---------------------------------------------------------------------------
 // Localidades
@@ -141,21 +142,29 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
     setServerError(null); setFieldErrors({});
   };
 
+  // Solo bloquean campos sin los que no se puede identificar al chofer ni
+  // los datos con formato inválido. Lo demás se guarda igual y queda como
+  // "legajo incompleto" (banner + bloqueo en selectores de otros módulos).
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!nombre.trim()) errors.nombre = "El nombre es requerido.";
     if (!apellido.trim()) errors.apellido = "El apellido es requerido.";
-    if (!dni.trim()) errors.dni = "El DNI es requerido.";
-    const cuilErr = validateCuil(cuil);
-    if (cuilErr) errors.cuil = cuilErr;
-    const telErr = validateTelefono(telefono);
-    if (telErr) errors.telefono = telErr;
-    const locErr = validateLocalidad(localidad);
-    if (locErr) errors.localidad = locErr;
-    if (!fechaIngreso) errors.fecha_ingreso = "La fecha de ingreso es requerida.";
+    // CUIL/teléfono: solo se validan si el usuario ingresó algo (formato).
+    if (cuil.replace(/\D/g, "").length > 0) {
+      const cuilErr = validateCuil(cuil);
+      if (cuilErr) errors.cuil = cuilErr;
+    }
+    if (telefono.replace(/\D/g, "").length > 0) {
+      const telErr = validateTelefono(telefono);
+      if (telErr) errors.telefono = telErr;
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  const legajoEstado = getLegajoEstado({
+    nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso: fechaIngreso,
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -166,16 +175,16 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
       const result = await addChoferAction({
         nombre,
         apellido,
-        dni,
-        cuil,
+        dni: dni.trim() || undefined,
+        cuil: cuil.trim() || undefined,
         estado,
         rol,
-        telefono,
+        telefono: telefono.trim() || undefined,
         email: email.trim() || undefined,
-        localidad,
-        fecha_ingreso: fechaIngreso,
+        localidad: localidad.trim() || undefined,
+        fecha_ingreso: fechaIngreso || undefined,
         alta_afip: altaAfip || undefined,
-        periodo_prueba_fin: iniciaPeriodoPrueba ? addMonths(fechaIngreso, 6) : undefined,
+        periodo_prueba_fin: iniciaPeriodoPrueba && fechaIngreso ? addMonths(fechaIngreso, 6) : undefined,
       });
       if (result.error) {
         setServerError(result.error);
@@ -217,6 +226,16 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
           {serverError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
               {serverError}
+            </div>
+          )}
+
+          {!legajoEstado.completo && (nombre.trim() || apellido.trim()) && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg space-y-1">
+              <p className="font-semibold">Vas a guardar el legajo incompleto.</p>
+              <p>
+                Faltan: <span className="font-medium">{legajoEstado.faltantes.join(", ")}</span>.
+                El chofer queda en el listado pero no podrá ser asignado a viajes ni siniestros hasta completar los datos.
+              </p>
             </div>
           )}
 
@@ -398,7 +417,11 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? "Guardando..." : (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)}
+              {loading
+                ? "Guardando..."
+                : legajoEstado.completo
+                  ? (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)
+                  : (<><Check size={16} strokeWidth={2.5} /> Guardar incompleto</>)}
             </Button>
           </div>
         </form>

@@ -14,7 +14,7 @@ import { createSiniestroAction, updateSiniestroAction, deleteSiniestroAction } f
 interface SiniestrosClientProps {
   siniestros: SiniestroConRelaciones[];
   camiones: { id: string; patente: string; marca: string; modelo: string }[];
-  choferes: { id: string; nombre: string; apellido: string | null }[];
+  choferes: { id: string; nombre: string; apellido: string | null; disabled?: boolean; motivo?: string }[];
   canWrite?: boolean;
 }
 

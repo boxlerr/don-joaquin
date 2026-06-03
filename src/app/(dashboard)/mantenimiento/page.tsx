@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 import MantenimientoClient from "./components/MantenimientoClient";
 import {
   getServiciosAction,
@@ -43,10 +44,21 @@ export default async function MantenimientoPage() {
       .order("patente"),
     supabase
       .from("choferes")
-      .select("id, nombre, apellido")
+      .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
       .eq("estado", "activo")
       .order("apellido"),
   ]);
+
+  const choferesParaSelector = (choferesResult.data ?? []).map((c) => {
+    const estado = getLegajoEstado(c);
+    return {
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido,
+      disabled: !estado.completo,
+      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
+    };
+  });
 
   return (
     <MantenimientoClient
@@ -57,7 +69,7 @@ export default async function MantenimientoPage() {
       tiposServicio={tiposServicio}
       camiones={camionesResult.data ?? []}
       acoplados={acopladosResult.data ?? []}
-      choferes={choferesResult.data ?? []}
+      choferes={choferesParaSelector}
       canWrite={canWrite}
     />
   );

@@ -392,7 +392,7 @@ function SelectFieldWithIcon({
 }: {
   label: string;
   name: string;
-  options: { id: string; label: string }[];
+  options: { id: string; label: string; disabled?: boolean; motivo?: string }[];
   required?: boolean;
   error?: string;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
@@ -422,7 +422,7 @@ function SelectFieldWithIcon({
               Seleccioná una opción...
             </option>
             {options.map((o) => (
-              <option key={o.id} value={o.id}>
+              <option key={o.id} value={o.id} disabled={o.disabled} title={o.motivo}>
                 {o.label}
               </option>
             ))}

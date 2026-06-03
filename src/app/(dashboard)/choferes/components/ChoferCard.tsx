@@ -27,6 +27,7 @@ import {
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 
 export default function ChoferCard({ chofer }: { chofer: any }) {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
   const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
   const esBaja = chofer.estado === "baja";
+  const legajoEstado = getLegajoEstado(chofer);
   const estadoTone: "success" | "warning" | "neutral" =
     chofer.estado === "activo" ? "success" : esBaja ? "warning" : "neutral";
   const estadoLabel = esBaja ? "egresado" : chofer.estado;
@@ -234,6 +236,21 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               </span>
             </div>
           </div>
+
+          {!legajoEstado.completo && !esBaja && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md space-y-1 text-xs">
+              <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300 font-semibold">
+                <AlertTriangle size={12} />
+                <span className="uppercase tracking-wide">Legajo incompleto</span>
+              </div>
+              <p className="text-red-700/90 dark:text-red-200/90">
+                Falta: <span className="font-medium">{legajoEstado.faltantes.join(", ")}</span>.
+              </p>
+              <p className="text-red-700/80 dark:text-red-200/80">
+                No puede ser asignado a viajes, siniestros ni otros movimientos hasta completarse.
+              </p>
+            </div>
+          )}
 
           {esBaja && (
             <div className="mt-3 p-3 bg-amber-50/70 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md space-y-1.5 text-xs">

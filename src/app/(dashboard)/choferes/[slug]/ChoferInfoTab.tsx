@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
-import { Check, Pencil, X } from "lucide-react";
+import { Check, Pencil, X, AlertTriangle } from "lucide-react";
+import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
 
 // Centinela de la carga inicial (scripts/seed-camiones-acoplados.ts): los tractores
 // que vinieron solo con patente tienen marca/modelo = "Sin datos". No mostrarlo como texto.
@@ -107,8 +108,38 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     });
   };
 
+  const legajoEstado = getLegajoEstado({
+    nombre: chofer.nombre,
+    apellido: chofer.apellido,
+    dni: chofer.dni,
+    cuil: (chofer as { cuil?: string | null }).cuil ?? null,
+    telefono: chofer.telefono,
+    localidad: chofer.localidad,
+    fecha_ingreso: chofer.fecha_ingreso,
+  });
+
   return (
     <div className="space-y-4">
+      {!legajoEstado.completo && (
+        <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-500/10 dark:border-red-500/40 p-4 flex items-start gap-3">
+          <div className="flex items-center justify-center size-9 rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300 shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+              Legajo incompleto
+            </p>
+            <p className="text-xs text-red-700/90 dark:text-red-200/90">
+              Faltan los siguientes datos obligatorios:{" "}
+              <span className="font-semibold">{legajoEstado.faltantes.join(", ")}</span>.
+            </p>
+            <p className="text-xs text-red-700/80 dark:text-red-200/80">
+              {MENSAJE_LEGAJO_INCOMPLETO}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header con toggle de edición */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
