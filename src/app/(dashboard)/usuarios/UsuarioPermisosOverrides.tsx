@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { setUsuarioAreaAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldPlus, Trash2, Clock, AlertCircle } from "lucide-react";
+import { areaTitulo } from "./area-meta";
 
 interface Area {
   codigo: AreaCodigo;
@@ -187,7 +188,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
             >
               <option value="">Seleccionar…</option>
               {areasOrdered.map((a) => (
-                <option key={a.codigo} value={a.codigo}>{a.nombre}</option>
+                <option key={a.codigo} value={a.codigo}>{areaTitulo(a.codigo, a.nombre)}</option>
               ))}
             </select>
           </div>
@@ -284,7 +285,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
                           {NIVEL_LABEL[row.nivel]}
                         </span>
                         <span className="font-semibold">
-                          {areas.find((a) => a.codigo === row.area_codigo)?.nombre ?? row.area_codigo}
+                          {areaTitulo(row.area_codigo)}
                         </span>
                         <span className="text-muted-foreground font-normal">
                           {vencido ? "· Expirado" : `· ${formatVence(row.vence_en)}`}

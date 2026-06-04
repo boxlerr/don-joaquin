@@ -7,6 +7,7 @@ import RolesPermisosMatrix from "./RolesPermisosMatrix";
 import UsuariosListaClient, { type UsuarioRow } from "./UsuariosListaClient";
 import NuevoUsuarioDialog from "./NuevoUsuarioDialog";
 import UsuarioPermisosOverrides from "./UsuarioPermisosOverrides";
+import HelpUsuariosDialog from "./HelpUsuariosDialog";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 
 export default async function UsuariosPage() {
@@ -105,6 +106,7 @@ export default async function UsuariosPage() {
         description="Acceso administrativo — choferes no acceden al sistema"
         action={
           <div className="flex items-center gap-2">
+            <HelpUsuariosDialog />
             <OpenAuditButton />
             {showMatriz && <NuevoUsuarioDialog roles={roles} />}
           </div>
