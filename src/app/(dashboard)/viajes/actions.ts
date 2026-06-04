@@ -1342,6 +1342,11 @@ export type ViajesChoferMes = {
   km_totales: number;
   tonelaje_total: number;
   monto_flete_total: number;
+  // tonelaje_total / cantidad_viajes (solo considerando viajes con tonelaje > 0)
+  tonelaje_promedio: number;
+  // Σ tonelaje / Σ capacidad_camion (en %). null si no se pudo determinar la
+  // capacidad de ningún viaje (camión sin capacidad_tn cargada).
+  utilizacion_pct: number | null;
 };
 
 export type ViajesMensualResult = {
@@ -1371,7 +1376,8 @@ export async function getViajesMensualPorChoferAction(
     .from("viajes")
     .select(
       `chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete,
-       choferes(nombre, apellido)`,
+       choferes(nombre, apellido),
+       camiones(capacidad_tn)`,
     )
     .gte("fecha_viaje", desde)
     .lte("fecha_viaje", hasta)
@@ -1382,10 +1388,24 @@ export async function getViajesMensualPorChoferAction(
     return { error: "No se pudieron cargar los viajes del mes." };
   }
 
-  // Agregar por chofer en memoria
+  // Agregar por chofer en memoria.
+  //
+  // Para el promedio y la utilización contamos por separado:
+  //   - viajesConTn: cuántos viajes tuvieron tonelaje > 0 (los "VACIO" no
+  //     deberían bajar el promedio del chofer).
+  //   - capacidadAcum: Σ capacidad_camion para esos mismos viajes con tn > 0,
+  //     así la utilización compara peras con peras (sólo cuando se cargó algo).
   const map = new Map<
     string,
-    { chofer: string; cantidad: number; km: number; tonelaje: number; flete: number }
+    {
+      chofer: string;
+      cantidad: number;
+      km: number;
+      tonelaje: number;
+      flete: number;
+      viajesConTn: number;
+      capacidadAcum: number;
+    }
   >();
 
   for (const v of data ?? []) {
@@ -1393,19 +1413,27 @@ export async function getViajesMensualPorChoferAction(
     const nombreChofer = v.choferes
       ? `${v.choferes.apellido}, ${v.choferes.nombre}`
       : "—";
+    const tn = Number(v.tonelaje_real) || 0;
+    const cap = Number(v.camiones?.capacidad_tn) || 0;
     const existing = map.get(id);
     if (existing) {
       existing.cantidad++;
       existing.km += (v.km_con_carga ?? 0) + (v.km_vacios ?? 0);
-      existing.tonelaje += Number(v.tonelaje_real) || 0;
+      existing.tonelaje += tn;
       existing.flete += v.monto_flete ?? 0;
+      if (tn > 0) {
+        existing.viajesConTn++;
+        if (cap > 0) existing.capacidadAcum += cap;
+      }
     } else {
       map.set(id, {
         chofer: nombreChofer,
         cantidad: 1,
         km: (v.km_con_carga ?? 0) + (v.km_vacios ?? 0),
-        tonelaje: Number(v.tonelaje_real) || 0,
+        tonelaje: tn,
         flete: v.monto_flete ?? 0,
+        viajesConTn: tn > 0 ? 1 : 0,
+        capacidadAcum: tn > 0 && cap > 0 ? cap : 0,
       });
     }
   }
@@ -1418,6 +1446,10 @@ export async function getViajesMensualPorChoferAction(
       km_totales: val.km,
       tonelaje_total: val.tonelaje,
       monto_flete_total: val.flete,
+      tonelaje_promedio:
+        val.viajesConTn > 0 ? val.tonelaje / val.viajesConTn : 0,
+      utilizacion_pct:
+        val.capacidadAcum > 0 ? (val.tonelaje / val.capacidadAcum) * 100 : null,
     }))
     .sort((a, b) => a.chofer.localeCompare(b.chofer));
 

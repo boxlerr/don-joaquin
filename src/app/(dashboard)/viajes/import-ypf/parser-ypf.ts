@@ -165,5 +165,21 @@ export async function parseYpfPdf(buffer: Buffer | ArrayBuffer): Promise<YpfPars
   const sinPrecio = viajes.filter((v) => v.precioUnitario == null).length;
   if (sinPrecio > 0) warnings.push(`${sinPrecio} viaje(s) sin tarifa para su destino — revisar.`);
 
+  // Precios sospechosos: las tarifas reales rondan los 100k/tn. Si una viene
+  // por debajo de 1000 es muy probable que el regex haya capturado mal (p.ej.
+  // un "1,00" residual). Lo marcamos para que el usuario lo revise antes de
+  // confirmar la importación.
+  const SOSPECHOSO_MAX = 1000;
+  const tarifasSospechosas = tarifas.filter((t) => t.precioUnitario < SOSPECHOSO_MAX);
+  if (tarifasSospechosas.length > 0) {
+    const detalle = tarifasSospechosas
+      .map((t) => `${t.destino} (${t.precioUnitario})`)
+      .join(", ");
+    warnings.push(
+      `Precio unitario sospechosamente bajo en: ${detalle}. Revisar el PDF — ` +
+        `las tarifas reales suelen superar los $${SOSPECHOSO_MAX.toLocaleString("es-AR")}/tn.`,
+    );
+  }
+
   return { quincenaDesde, quincenaHasta, tarifas, viajes, warnings };
 }

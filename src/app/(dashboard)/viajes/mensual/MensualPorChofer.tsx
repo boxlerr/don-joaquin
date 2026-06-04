@@ -33,6 +33,23 @@ function labelMes(mes: string): string {
   );
 }
 
+// Pinta el % de utilización con color: verde si va lleno, ámbar si bajo del
+// 80%, rojo si bajo del 60%. Sirve como semáforo rápido para Nicolás.
+function UtilizacionCell({ pct }: { pct: number | null }) {
+  if (pct == null)
+    return (
+      <span
+        className="text-muted-foreground/60"
+        title="Sin capacidad de camión cargada para los viajes de este chofer."
+      >
+        —
+      </span>
+    );
+  const cls =
+    pct >= 90 ? "text-[#10B981]" : pct >= 75 ? "text-[#F59E0B]" : "text-red-500";
+  return <span className={cls}>{pct.toFixed(0)}%</span>;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function MensualPorChofer() {
@@ -103,18 +120,30 @@ export default function MensualPorChofer() {
           <TableHeader className="bg-muted/40">
             <TableRow>
               {[
-                "Chofer",
-                "Viajes",
-                "KM totales",
-                "Tonelaje",
-                "Flete",
-                "",
+                { label: "Chofer", title: undefined },
+                { label: "Viajes", title: undefined },
+                { label: "KM totales", title: undefined },
+                { label: "Tonelaje", title: undefined },
+                {
+                  label: "Tn/viaje",
+                  title:
+                    "Promedio de toneladas por viaje cargado (excluye viajes en vacío).",
+                },
+                {
+                  label: "% Cap.",
+                  title:
+                    "Utilización: Σ toneladas / Σ capacidad del camión asignado a cada viaje. " +
+                    "Compara el peso real con el máximo que admite el camión (29 / 35 / 37,5 tn).",
+                },
+                { label: "Flete", title: undefined },
+                { label: "", title: undefined },
               ].map((col) => (
                 <TableHead
-                  key={col}
+                  key={col.label || "actions"}
+                  title={col.title}
                   className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
-                  {col}
+                  {col.label}
                 </TableHead>
               ))}
             </TableRow>
@@ -123,7 +152,7 @@ export default function MensualPorChofer() {
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -132,7 +161,7 @@ export default function MensualPorChofer() {
               ))
             ) : error ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-red-500">
+                <TableCell colSpan={8} className="py-10 text-center text-sm text-red-500">
                   {error}
                 </TableCell>
               </TableRow>
@@ -152,6 +181,14 @@ export default function MensualPorChofer() {
                   </TableCell>
                   <TableCell className="text-sm font-mono text-muted-foreground">
                     {r.tonelaje_total.toLocaleString("es-AR", { maximumFractionDigits: 1 })} tn
+                  </TableCell>
+                  <TableCell className="text-sm font-mono text-foreground">
+                    {r.tonelaje_promedio > 0
+                      ? `${r.tonelaje_promedio.toLocaleString("es-AR", { maximumFractionDigits: 1 })} tn`
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm font-mono">
+                    <UtilizacionCell pct={r.utilizacion_pct} />
                   </TableCell>
                   <TableCell className="text-sm font-mono text-[#10B981]">
                     $ {r.monto_flete_total.toLocaleString("es-AR")}
@@ -178,6 +215,7 @@ export default function MensualPorChofer() {
         <p className="text-xs text-muted-foreground/70">
           Incluye viajes pendientes, en curso y cerrados. Excluye cancelados.
           El flete refleja el monto registrado (puede variar si hay cobros parciales).
+          La utilización compara el tonelaje cargado contra la capacidad del camión asignado al viaje.
         </p>
       )}
     </div>
