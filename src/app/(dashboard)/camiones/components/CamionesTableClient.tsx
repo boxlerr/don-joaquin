@@ -2,8 +2,9 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Truck, Container, ChevronRight, Search, Building2 } from "lucide-react";
+import { Truck, Container, Search, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table,
   TableHeader,
@@ -183,25 +184,21 @@ export default function CamionesTableClient({
         <div className="flex items-center gap-3 flex-wrap">
           {/* Filtro de tercerización (solo camiones) */}
           {esCamiones && (
-            <div className="relative group">
+            <div className="relative">
               <Building2
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none"
               />
-              <select
+              <Combobox
                 value={tercerizacion}
-                onChange={(e) => setTercerizacion(e.target.value as TercerizacionFilter)}
-                className="h-10 pl-9 pr-10 text-sm border border-border rounded-lg bg-card text-muted-foreground appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[220px]"
-              >
-                {TERCERIZACION_FILTROS.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label} ({conteoPorTerc[f.value]})
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/70">
-                <ChevronRight size={14} className="rotate-90" />
-              </div>
+                onValueChange={(v) => setTercerizacion(v as TercerizacionFilter)}
+                options={TERCERIZACION_FILTROS.map((f) => ({
+                  id: f.value,
+                  label: `${f.label} (${conteoPorTerc[f.value]})`,
+                }))}
+                searchable={false}
+                triggerClassName="h-10 min-w-[220px] pl-9"
+              />
             </div>
           )}
 

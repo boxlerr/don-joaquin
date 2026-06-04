@@ -22,6 +22,7 @@ import {
   type AuditLogsResult,
   type GetAuditLogsParams,
 } from "../actions";
+import { Combobox } from "@/components/ui/combobox";
 
 const PAGE_SIZE = 25;
 
@@ -246,18 +247,19 @@ export default function AuditoriaClient({
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Usuario
           </label>
-          <select
+          <Combobox
             value={filters.usuario_id}
-            onChange={(e) => handleFilterChange("usuario_id", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[180px]"
-          >
-            <option value="">Todos los usuarios</option>
-            {usuarios.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.apellido ? `${u.apellido}, ${u.nombre}` : u.nombre}
-              </option>
-            ))}
-          </select>
+            onValueChange={(v) => handleFilterChange("usuario_id", v)}
+            options={[
+              { id: "", label: "Todos los usuarios" },
+              ...usuarios.map((u) => ({
+                id: u.id,
+                label: u.apellido ? `${u.apellido}, ${u.nombre}` : u.nombre,
+              })),
+            ]}
+            searchPlaceholder="Buscar usuario..."
+            triggerClassName="h-9 min-w-[180px]"
+          />
         </div>
 
         {hasFilters && (

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   ChevronDown,
   ChevronUp,
@@ -125,15 +126,17 @@ export default function ClientesList({
             placeholder="Buscar cliente por nombre..."
             className="flex-1 text-sm"
           />
-          <select
+          <Combobox
             value={estadoFiltro}
-            onChange={(e) => setEstadoFiltro(e.target.value as EstadoFiltro)}
-            className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-          >
-            <option value="activos">Activos</option>
-            <option value="inactivos">Inactivos</option>
-            <option value="todos">Todos</option>
-          </select>
+            onValueChange={(v) => setEstadoFiltro(v as EstadoFiltro)}
+            options={[
+              { id: "activos", label: "Activos" },
+              { id: "inactivos", label: "Inactivos" },
+              { id: "todos", label: "Todos" },
+            ]}
+            searchable={false}
+            triggerClassName="h-9 w-36"
+          />
           <HelpTutorialButton />
           {canWrite && <ImportClientesModal />}
           {canWrite && <NewClienteSheet />}

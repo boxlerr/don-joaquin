@@ -3,12 +3,12 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Plus,
   Trash2,
   CheckCircle2,
   Loader2,
-  ChevronDown,
   AlertTriangle,
 } from "lucide-react";
 import { createViajesBatchAction, type ViajeFormData, type ViajeFilaRapida } from "../actions";
@@ -169,38 +169,28 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
           <label className="text-xs font-semibold text-muted-foreground">
             Cliente <span className="text-red-500">*</span>
           </label>
-          <div className="relative flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]">
-            <select
-              value={globalClienteId}
-              onChange={(e) => setGlobalClienteId(e.target.value)}
-              className="w-full h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-foreground appearance-none cursor-pointer"
-            >
-              <option value="" disabled>Seleccioná un cliente...</option>
-              {data.clientes.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-            <ChevronDown size={13} className="absolute right-2 text-muted-foreground/70 pointer-events-none" />
-          </div>
+          <Combobox
+            value={globalClienteId}
+            onValueChange={setGlobalClienteId}
+            options={data.clientes}
+            placeholder="Seleccioná un cliente..."
+            searchPlaceholder="Buscar cliente..."
+            triggerClassName="h-9"
+          />
         </div>
 
         <div className="space-y-1 min-w-[180px]">
           <label className="text-xs font-semibold text-muted-foreground">
             Tipo de carga <span className="text-red-500">*</span>
           </label>
-          <div className="relative flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]">
-            <select
-              value={globalTipoCargaId}
-              onChange={(e) => setGlobalTipoCargaId(e.target.value)}
-              className="w-full h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-foreground appearance-none cursor-pointer"
-            >
-              <option value="" disabled>Seleccioná...</option>
-              {data.tipos_carga.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
-            <ChevronDown size={13} className="absolute right-2 text-muted-foreground/70 pointer-events-none" />
-          </div>
+          <Combobox
+            value={globalTipoCargaId}
+            onValueChange={setGlobalTipoCargaId}
+            options={data.tipos_carga}
+            placeholder="Seleccioná..."
+            searchable={false}
+            triggerClassName="h-9"
+          />
         </div>
 
         <p className="text-xs text-muted-foreground/80 self-center">
@@ -264,52 +254,37 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
                     {/* Estado */}
                     <td className="px-1 py-1">
-                      <div className="relative">
-                        <select
-                          value={fila.estado}
-                          onChange={(e) => actualizarFila(fila.id, "estado", e.target.value)}
-                          className="h-8 w-28 pl-2 pr-6 text-xs rounded border border-border bg-card text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-                        >
-                          {ESTADOS.map((e) => (
-                            <option key={e.value} value={e.value}>{e.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={11} className="absolute right-1.5 top-2 text-muted-foreground/70 pointer-events-none" />
-                      </div>
+                      <Combobox
+                        value={fila.estado}
+                        onValueChange={(v) => actualizarFila(fila.id, "estado", v)}
+                        options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
+                        searchable={false}
+                        triggerClassName="h-8 w-28 text-xs"
+                      />
                     </td>
 
                     {/* Chofer */}
                     <td className="px-1 py-1">
-                      <div className="relative">
-                        <select
-                          value={fila.chofer_id}
-                          onChange={(e) => actualizarFila(fila.id, "chofer_id", e.target.value)}
-                          className={`h-8 w-40 pl-2 pr-6 text-xs rounded border bg-card text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] ${!fila.chofer_id ? "border-amber-300" : "border-border"}`}
-                        >
-                          <option value="">— Elegí —</option>
-                          {data.choferes.map((c) => (
-                            <option key={c.id} value={c.id}>{c.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={11} className="absolute right-1.5 top-2 text-muted-foreground/70 pointer-events-none" />
-                      </div>
+                      <Combobox
+                        value={fila.chofer_id}
+                        onValueChange={(v) => actualizarFila(fila.id, "chofer_id", v)}
+                        options={data.choferes}
+                        placeholder="— Elegí —"
+                        searchPlaceholder="Buscar chofer..."
+                        triggerClassName={`h-8 w-40 text-xs ${!fila.chofer_id ? "border-amber-300" : ""}`}
+                      />
                     </td>
 
                     {/* Camión */}
                     <td className="px-1 py-1">
-                      <div className="relative">
-                        <select
-                          value={fila.camion_id}
-                          onChange={(e) => actualizarFila(fila.id, "camion_id", e.target.value)}
-                          className={`h-8 w-32 pl-2 pr-6 text-xs rounded border bg-card text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] ${!fila.camion_id ? "border-amber-300" : "border-border"}`}
-                        >
-                          <option value="">— Elegí —</option>
-                          {data.camiones.map((c) => (
-                            <option key={c.id} value={c.id}>{c.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={11} className="absolute right-1.5 top-2 text-muted-foreground/70 pointer-events-none" />
-                      </div>
+                      <Combobox
+                        value={fila.camion_id}
+                        onValueChange={(v) => actualizarFila(fila.id, "camion_id", v)}
+                        options={data.camiones}
+                        placeholder="— Elegí —"
+                        searchPlaceholder="Buscar patente..."
+                        triggerClassName={`h-8 w-32 text-xs ${!fila.camion_id ? "border-amber-300" : ""}`}
+                      />
                     </td>
 
                     {/* Origen */}

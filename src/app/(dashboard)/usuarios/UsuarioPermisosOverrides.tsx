@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldPlus, Trash2, Clock, AlertCircle } from "lucide-react";
@@ -164,47 +165,46 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
           {/* Usuario */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Usuario</label>
-            <select
+            <Combobox
               value={selectedUsuario}
-              onChange={(e) => setSelectedUsuario(e.target.value)}
-              className="w-full text-xs rounded-md px-2 py-1.5 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
-            >
-              <option value="">Seleccionar…</option>
-              {usuarios.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nombre} {u.apellido ?? ""} ({u.rol_nombre ?? "sin rol"})
-                </option>
-              ))}
-            </select>
+              onValueChange={setSelectedUsuario}
+              options={[
+                { id: "", label: "Seleccionar…" },
+                ...usuarios.map((u) => ({
+                  id: u.id,
+                  label: `${u.nombre} ${u.apellido ?? ""} (${u.rol_nombre ?? "sin rol"})`,
+                })),
+              ]}
+              searchPlaceholder="Buscar usuario..."
+              triggerClassName="h-9 w-full text-xs"
+            />
           </div>
 
           {/* Área */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Área</label>
-            <select
+            <Combobox
               value={newArea}
-              onChange={(e) => setNewArea(e.target.value as AreaCodigo)}
-              className="w-full text-xs rounded-md px-2 py-1.5 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
-            >
-              <option value="">Seleccionar…</option>
-              {areasOrdered.map((a) => (
-                <option key={a.codigo} value={a.codigo}>{areaTitulo(a.codigo, a.nombre)}</option>
-              ))}
-            </select>
+              onValueChange={(v) => setNewArea(v as AreaCodigo)}
+              options={[
+                { id: "", label: "Seleccionar…" },
+                ...areasOrdered.map((a) => ({ id: a.codigo, label: areaTitulo(a.codigo, a.nombre) })),
+              ]}
+              searchPlaceholder="Buscar área..."
+              triggerClassName="h-9 w-full text-xs"
+            />
           </div>
 
           {/* Nivel */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Nivel</label>
-            <select
+            <Combobox
               value={newNivel}
-              onChange={(e) => setNewNivel(e.target.value as AreaNivel)}
-              className={`w-full text-xs rounded-md px-2 py-1.5 border border-border focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 ${NIVEL_CLASS[newNivel]}`}
-            >
-              {(["read", "write", "admin"] as AreaNivel[]).map((n) => (
-                <option key={n} value={n}>{NIVEL_LABEL[n]}</option>
-              ))}
-            </select>
+              onValueChange={(v) => setNewNivel(v as AreaNivel)}
+              options={(["read", "write", "admin"] as AreaNivel[]).map((n) => ({ id: n, label: NIVEL_LABEL[n] }))}
+              searchable={false}
+              triggerClassName={`h-9 w-full text-xs ${NIVEL_CLASS[newNivel]}`}
+            />
           </div>
 
           {/* Vencimiento */}

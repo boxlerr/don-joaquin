@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import { Plus } from "lucide-react";
 import { crearUsuarioAction } from "./actions";
 
@@ -133,17 +134,13 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
               <Label className="text-sm font-medium text-foreground">
                 Rol <span className="text-red-400">*</span>
               </Label>
-              <select
+              <Combobox
                 value={rolId}
-                onChange={(e) => setRolId(e.target.value)}
-                className="w-full h-10 px-3 text-sm border border-border rounded-md bg-card text-foreground focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none cursor-pointer"
-              >
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setRolId}
+                options={roles.map((r) => ({ id: r.id, label: r.nombre }))}
+                searchable={false}
+                triggerClassName="h-10 w-full"
+              />
             </div>
 
             <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">

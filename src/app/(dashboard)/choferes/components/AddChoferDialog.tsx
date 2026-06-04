@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
   User,
   Fingerprint,
   Phone,
   MapPin,
   Calendar,
-  ChevronDown,
   Check,
   Hash,
   Briefcase,
@@ -25,6 +25,9 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
+
+const FIELD_COMBO_TRIGGER =
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 
 // ---------------------------------------------------------------------------
@@ -301,17 +304,14 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
                   <span className={`size-2.5 rounded-full ${getEstadoDotColor(estado)}`} />
                 </div>
                 <div className="relative flex-1 h-full">
-                  <select
+                  <Combobox
                     name="estado"
                     value={estado}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
-                    onChange={(e) => setEstado(e.target.value as "activo" | "inactivo")}
-                  >
-                    {ESTADOS.map((e) => (
-                      <option key={e.value} value={e.value}>{e.label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
+                    onValueChange={(v) => setEstado(v as "activo" | "inactivo")}
+                    options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
+                    searchable={false}
+                    triggerClassName={`${FIELD_COMBO_TRIGGER} font-medium`}
+                  />
                 </div>
               </div>
             </div>
@@ -353,17 +353,14 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
                   <Briefcase size={15} />
                 </div>
                 <div className="relative flex-1 h-full">
-                  <select
+                  <Combobox
                     name="rol"
                     value={rol}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
-                    onChange={(e) => setRol(e.target.value as "chofer" | "administrativo" | "mantenimiento")}
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
+                    onValueChange={(v) => setRol(v as "chofer" | "administrativo" | "mantenimiento")}
+                    options={ROLES.map((r) => ({ id: r.value, label: r.label }))}
+                    searchable={false}
+                    triggerClassName={`${FIELD_COMBO_TRIGGER} font-medium`}
+                  />
                 </div>
               </div>
             </div>

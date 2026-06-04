@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Combobox } from "@/components/ui/combobox";
 import { updateRolAreaAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldCheck, AlertCircle } from "lucide-react";
@@ -119,16 +120,14 @@ export default function RolesPermisosMatrix({ roles, areas, initialMatriz }: Pro
                             Admin
                           </span>
                         ) : (
-                          <select
+                          <Combobox
                             value={nivel}
                             disabled={saving}
-                            onChange={(e) => handleChange(rol.id, a.codigo, e.target.value as AreaNivel)}
-                            className={`text-xs rounded px-2 py-1 border border-border font-medium cursor-pointer transition-colors ${NIVEL_INFO[nivel].clase} ${saving ? "opacity-60" : ""}`}
-                          >
-                            {NIVELES.map((n) => (
-                              <option key={n} value={n}>{NIVEL_INFO[n].label}</option>
-                            ))}
-                          </select>
+                            onValueChange={(v) => handleChange(rol.id, a.codigo, v as AreaNivel)}
+                            options={NIVELES.map((n) => ({ id: n, label: NIVEL_INFO[n].label }))}
+                            searchable={false}
+                            triggerClassName={`h-8 w-32 text-xs font-medium ${NIVEL_INFO[nivel].clase} ${saving ? "opacity-60" : ""}`}
+                          />
                         )}
                       </td>
                     );

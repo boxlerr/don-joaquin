@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, DollarSign, Calendar, CreditCard, Check } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import { Combobox } from "@/components/ui/combobox";
 import { cerrarViajeAction } from "../actions";
 import type { ViajeBasico } from "../types";
 
@@ -143,15 +144,13 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                     <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                       <CreditCard size={13} />
                     </div>
-                    <select
+                    <Combobox
                       value={medio}
-                      onChange={(e) => setMedio(e.target.value as Medio)}
-                      className="flex-1 h-full px-2.5 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
-                    >
-                      {MEDIO_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
+                      onValueChange={(v) => setMedio(v as Medio)}
+                      options={MEDIO_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
+                      searchable={false}
+                      triggerClassName="h-full border-0 rounded-none bg-transparent px-2.5 hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
+                    />
                   </div>
                 </div>
               </div>

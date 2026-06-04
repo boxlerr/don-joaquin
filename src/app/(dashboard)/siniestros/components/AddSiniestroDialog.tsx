@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
   AlertTriangle,
   Truck,
@@ -21,12 +22,14 @@ import {
   FileText,
   Users,
   MessageSquare,
-  ChevronDown,
   Check,
   Tag,
   Activity,
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+
+const FIELD_COMBO_TRIGGER =
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
 import type { TipoSiniestro, EstadoSiniestro } from "./SiniestrosTable";
 
 export type SiniestroFormPayload = {
@@ -416,19 +419,16 @@ function SelectFieldWithIcon({
         <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
           <Icon size={15} />
         </div>
-        <div className="relative flex-1 h-full">
-          <select
-            id={id} name={name} value={value} required={required}
-            className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
-            onChange={(e) => onValueChange(e.target.value)}
-          >
-            <option value="" disabled={required}>Seleccionar...</option>
-            {options.map((o) => (
-              <option key={o.value} value={o.value} disabled={o.disabled} title={o.title}>{o.label}</option>
-            ))}
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
-        </div>
+        <Combobox
+          id={id}
+          name={name}
+          value={value}
+          required={required}
+          onValueChange={onValueChange}
+          options={options.map((o) => ({ id: o.value, label: o.label, disabled: o.disabled, hint: o.title }))}
+          placeholder="Seleccionar..."
+          triggerClassName={FIELD_COMBO_TRIGGER}
+        />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>

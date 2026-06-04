@@ -29,6 +29,10 @@ import {
   Hash,
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import { Combobox } from "@/components/ui/combobox";
+
+const FIELD_COMBO_TRIGGER =
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
 import {
   getViajeParaEditarAction,
   getViajeFormData,
@@ -237,85 +241,71 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               </CField>
 
               <CField label="Estado *" icon={ChevronDown} error={fieldErrors.estado}>
-                <select
+                <Combobox
                   value={estado}
-                  onChange={(e) => setEstado(e.target.value)}
-                  className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
-                >
-                  {ESTADOS.map((e) => (
-                    <option key={e.value} value={e.value}>{e.label}</option>
-                  ))}
-                </select>
+                  onValueChange={setEstado}
+                  options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
+                  searchable={false}
+                  triggerClassName={FIELD_COMBO_TRIGGER}
+                />
               </CField>
             </div>
 
             {/* Cliente */}
             <CField label="Cliente *" icon={User} error={fieldErrors.cliente_id}>
-              <select
+              <Combobox
                 value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
+                onValueChange={setClienteId}
+                options={formOptions?.clientes ?? []}
+                placeholder="Seleccioná un cliente..."
+                searchPlaceholder="Buscar cliente..."
                 required
-                className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
-              >
-                <option value="" disabled>Seleccioná un cliente...</option>
-                {formOptions?.clientes.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+                triggerClassName={FIELD_COMBO_TRIGGER}
+              />
             </CField>
 
             {/* Chofer y Camión */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <CField label="Chofer *" icon={LifeBuoy} error={fieldErrors.chofer_id}>
-                <select
+                <Combobox
                   value={choferId}
-                  onChange={(e) => {
-                    const nid = e.target.value;
+                  onValueChange={(nid) => {
                     setChoferId(nid);
                     // Auto-completar camión asignado si el camión no fue tocado manualmente
                     const chofer = formOptions?.choferes.find((c) => c.id === nid);
                     if (chofer?.camionId) setCamionId(chofer.camionId);
                   }}
+                  options={formOptions?.choferes ?? []}
+                  placeholder="Seleccioná..."
+                  searchPlaceholder="Buscar chofer..."
                   required
-                  className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
-                >
-                  <option value="" disabled>Seleccioná...</option>
-                  {formOptions?.choferes.map((c) => (
-                    <option key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+                  triggerClassName={FIELD_COMBO_TRIGGER}
+                />
               </CField>
 
               <CField label="Camión *" icon={Truck} error={fieldErrors.camion_id}>
-                <select
+                <Combobox
                   value={camionId}
-                  onChange={(e) => setCamionId(e.target.value)}
+                  onValueChange={setCamionId}
+                  options={formOptions?.camiones ?? []}
+                  placeholder="Seleccioná..."
+                  searchPlaceholder="Buscar patente..."
                   required
-                  className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
-                >
-                  <option value="" disabled>Seleccioná...</option>
-                  {formOptions?.camiones.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                  triggerClassName={FIELD_COMBO_TRIGGER}
+                />
               </CField>
             </div>
 
             {/* Tipo de carga */}
             <CField label="Tipo de carga *" icon={Package} error={fieldErrors.tipo_carga_id}>
-              <select
+              <Combobox
                 value={tipoCargaId}
-                onChange={(e) => setTipoCargaId(e.target.value)}
+                onValueChange={setTipoCargaId}
+                options={formOptions?.tipos_carga ?? []}
+                placeholder="Seleccioná..."
                 required
-                className="flex-1 h-full px-3 pr-8 text-sm bg-transparent border-0 outline-none text-[#0F172A] appearance-none cursor-pointer"
-              >
-                <option value="" disabled>Seleccioná...</option>
-                {formOptions?.tipos_carga.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
+                triggerClassName={FIELD_COMBO_TRIGGER}
+              />
             </CField>
 
             {isOtros && (

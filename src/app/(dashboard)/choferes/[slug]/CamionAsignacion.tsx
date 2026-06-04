@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Truck, Loader2, Pencil, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import {
   asignarCamionAction,
   desasignarCamionAction,
@@ -115,19 +116,19 @@ export default function CamionAsignacion({
               <Loader2 size={12} className="animate-spin" /> Cargando camiones…
             </span>
           ) : (
-            <select
+            <Combobox
               value={sel}
-              onChange={(e) => setSel(e.target.value)}
-              className="text-xs border border-border rounded px-2 py-1 bg-background min-w-[280px]"
-            >
-              <option value="">— Elegí un camión —</option>
-              {(opciones ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.patente}
-                  {c.chofer_nombre ? ` — ocupado por ${c.chofer_nombre}` : " — libre"}
-                </option>
-              ))}
-            </select>
+              onValueChange={setSel}
+              options={[
+                { id: "", label: "— Elegí un camión —" },
+                ...(opciones ?? []).map((c) => ({
+                  id: c.id,
+                  label: `${c.patente}${c.chofer_nombre ? ` — ocupado por ${c.chofer_nombre}` : " — libre"}`,
+                })),
+              ]}
+              searchPlaceholder="Buscar patente..."
+              triggerClassName="h-8 min-w-[280px] text-xs"
+            />
           )}
           <Button type="button" variant="brand" size="sm" className="h-7 text-xs" onClick={confirmar} disabled={pending || !sel}>
             {pending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirmar

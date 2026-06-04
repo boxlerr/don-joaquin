@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table,
   TableHeader,
@@ -179,18 +180,16 @@ export default function ChequesList({
             <h2 className="text-foreground text-sm font-semibold">Listado de Cheques</h2>
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <Combobox
               value={bancoId}
-              onChange={(e) => setBancoId(e.target.value)}
-              className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground"
-            >
-              <option value="">Todos los bancos ({bancos.length})</option>
-              {bancos.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.nombre}
-                </option>
-              ))}
-            </select>
+              onValueChange={setBancoId}
+              options={[
+                { id: "", label: `Todos los bancos (${bancos.length})` },
+                ...bancos.map((b) => ({ id: b.id, label: b.nombre })),
+              ]}
+              searchPlaceholder="Buscar banco..."
+              triggerClassName="h-9 w-56"
+            />
             <Input
               type="search"
               placeholder="N° de cheque o librador..."

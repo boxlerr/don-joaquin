@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Loader2,
   Plus,
@@ -313,17 +314,13 @@ function AddRequisitoDialog({
 
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">Tipo *</label>
-              <select
+              <Combobox
                 name="tipo"
                 defaultValue="otro"
-                className="w-full h-9 px-3 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-              >
-                {TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+                options={TIPOS.map((t) => ({ id: t.value, label: t.label }))}
+                searchable={false}
+                triggerClassName="h-9 w-full"
+              />
             </div>
 
             <Field
@@ -338,17 +335,13 @@ function AddRequisitoDialog({
                 <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                   Frecuencia
                 </label>
-                <select
+                <Combobox
                   name="frecuencia"
                   defaultValue=""
-                  className="w-full h-9 px-3 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-                >
-                  {FRECUENCIAS.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
+                  options={FRECUENCIAS.map((f) => ({ id: f.value, label: f.label }))}
+                  searchable={false}
+                  triggerClassName="h-9 w-full"
+                />
               </div>
               <Field label="Próxima fecha" name="proxima_fecha" type="date" />
             </div>
@@ -364,15 +357,17 @@ function AddRequisitoDialog({
 
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">Estado</label>
-              <select
+              <Combobox
                 name="estado"
                 defaultValue="pendiente"
-                className="w-full h-9 px-3 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-              >
-                <option value="pendiente">Pendiente</option>
-                <option value="cumplido">Cumplido</option>
-                <option value="vencido">Vencido</option>
-              </select>
+                options={[
+                  { id: "pendiente", label: "Pendiente" },
+                  { id: "cumplido", label: "Cumplido" },
+                  { id: "vencido", label: "Vencido" },
+                ]}
+                searchable={false}
+                triggerClassName="h-9 w-full"
+              />
             </div>
 
             <div>

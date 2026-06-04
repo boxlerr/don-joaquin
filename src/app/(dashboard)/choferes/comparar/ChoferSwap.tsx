@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { Combobox } from "@/components/ui/combobox";
 
 interface Props {
   side: "a" | "b";
@@ -20,9 +21,8 @@ export default function ChoferSwap({
   const router = useRouter();
   const pathname = usePathname();
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newId = e.target.value;
-    if (newId === otherId) return;
+  const onValueChange = (newId: string) => {
+    if (!newId || newId === otherId) return;
     const params = new URLSearchParams(periodoQuery);
     params.set("a", side === "a" ? newId : otherId);
     params.set("b", side === "b" ? newId : otherId);
@@ -30,17 +30,16 @@ export default function ChoferSwap({
   };
 
   return (
-    <select
+    <Combobox
       value={selectedId}
-      onChange={onChange}
-      className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm cursor-pointer hover:bg-muted transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
-    >
-      {choferes.map((c) => (
-        <option key={c.id} value={c.id} disabled={c.id === otherId}>
-          {c.apellido}, {c.nombre}
-          {c.id === otherId ? " (ya elegido)" : ""}
-        </option>
-      ))}
-    </select>
+      onValueChange={onValueChange}
+      options={choferes.map((c) => ({
+        id: c.id,
+        label: `${c.apellido}, ${c.nombre}${c.id === otherId ? " (ya elegido)" : ""}`,
+        disabled: c.id === otherId,
+      }))}
+      searchPlaceholder="Buscar chofer..."
+      triggerClassName="h-8 w-full"
+    />
   );
 }

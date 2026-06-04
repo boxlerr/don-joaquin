@@ -5,6 +5,7 @@ import { Shield, Loader2 } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table,
   TableHeader,
@@ -90,18 +91,16 @@ export default function UsuariosListaClient({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <Combobox
             value={rolFiltro}
-            onChange={(e) => setRolFiltro(e.target.value)}
-            className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground"
-          >
-            <option value="">Todos los roles</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.codigo}>
-                {r.nombre}
-              </option>
-            ))}
-          </select>
+            onValueChange={setRolFiltro}
+            options={[
+              { id: "", label: "Todos los roles" },
+              ...roles.map((r) => ({ id: r.codigo, label: r.nombre })),
+            ]}
+            searchable={false}
+            triggerClassName="h-9 w-44"
+          />
           <Input
             type="search"
             placeholder="Buscar usuario..."
@@ -146,18 +145,14 @@ export default function UsuariosListaClient({
                   <TableCell>
                     {canEdit && !esMismo ? (
                       <div className="flex items-center gap-2">
-                        <select
+                        <Combobox
                           value={u.rol_id ?? ""}
                           disabled={savingId === u.id}
-                          onChange={(e) => handleRolChange(u.id, e.target.value)}
-                          className="h-8 px-2 text-sm border border-border rounded-md bg-card text-foreground focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none disabled:opacity-50 cursor-pointer"
-                        >
-                          {roles.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.nombre}
-                            </option>
-                          ))}
-                        </select>
+                          onValueChange={(v) => handleRolChange(u.id, v)}
+                          options={roles.map((r) => ({ id: r.id, label: r.nombre }))}
+                          searchable={false}
+                          triggerClassName="h-8 w-40"
+                        />
                         {savingId === u.id && (
                           <Loader2 size={14} className="animate-spin text-primary" />
                         )}

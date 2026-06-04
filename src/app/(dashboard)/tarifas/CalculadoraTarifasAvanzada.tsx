@@ -5,6 +5,7 @@ import { Calculator, DollarSign, Info, Route, Weight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
   buscarTarifaAplicable,
   type ClienteOption,
@@ -157,38 +158,37 @@ export default function CalculadoraTarifasAvanzada({
             <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Cliente
             </Label>
-            <select
+            <Combobox
               value={clienteId}
-              onChange={(e) => setClienteId(e.target.value)}
+              onValueChange={setClienteId}
               disabled={isPending}
-              className="h-11 w-full text-sm rounded-lg border border-border bg-card px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-            >
-              <option value="">Sin cliente (usa parámetros globales)</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+              options={[
+                { id: "", label: "Sin cliente (usa parámetros globales)" },
+                ...clientes.map((c) => ({ id: c.id, label: c.nombre })),
+              ]}
+              searchPlaceholder="Buscar cliente..."
+              triggerClassName="h-11 w-full"
+            />
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Ruta
             </Label>
-            <select
+            <Combobox
               value={rutaId}
-              onChange={(e) => setRutaId(e.target.value)}
+              onValueChange={setRutaId}
               disabled={isPending}
-              className="h-11 w-full text-sm rounded-lg border border-border bg-card px-3 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-            >
-              <option value="">Sin ruta predefinida</option>
-              {rutas.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.origen} → {r.destino} ({r.km_oficiales} km)
-                </option>
-              ))}
-            </select>
+              options={[
+                { id: "", label: "Sin ruta predefinida" },
+                ...rutas.map((r) => ({
+                  id: r.id,
+                  label: `${r.origen} → ${r.destino} (${r.km_oficiales} km)`,
+                })),
+              ]}
+              searchPlaceholder="Buscar ruta..."
+              triggerClassName="h-11 w-full"
+            />
             {rutaSel && (
               <p className="text-[10px] text-muted-foreground/70">
                 KM oficiales: {rutaSel.km_oficiales}

@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { Pencil, X } from "lucide-react";
 import { updateClienteAction, type UpdateClienteState } from "./actions";
 import { formatCuit } from "@/lib/utils/cuit";
@@ -116,17 +117,13 @@ export default function EditClienteSheet({
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                 Condición IVA *
               </label>
-              <select
+              <Combobox
                 name="condicion_iva"
                 defaultValue={cliente.condicion_iva}
-                className="w-full h-9 px-3 text-sm border border-border rounded-md bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-              >
-                {CONDICIONES_IVA.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+                options={CONDICIONES_IVA.map((c) => ({ id: c.value, label: c.label }))}
+                searchable={false}
+                triggerClassName="h-9 w-full"
+              />
             </div>
 
             <Field

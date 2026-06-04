@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Loader2,
   X,
@@ -239,18 +240,20 @@ export default function ViajesTable({ choferId }: Props) {
           className="text-sm flex-1 min-w-[11rem]"
           aria-label="Buscar viaje por código"
         />
-        <select
+        <Combobox
           value={estadoFiltro}
-          onChange={(e) => setEstadoFiltro(e.target.value)}
-          className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground"
+          onValueChange={setEstadoFiltro}
+          options={[
+            { id: "", label: "Todos los estados" },
+            { id: "pendiente", label: "Pendiente" },
+            { id: "en_curso", label: "En curso" },
+            { id: "cerrado", label: "Cerrado" },
+            { id: "cancelado", label: "Cancelado" },
+          ]}
+          searchable={false}
+          triggerClassName="h-9 w-44"
           aria-label="Filtrar por estado"
-        >
-          <option value="">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="en_curso">En curso</option>
-          <option value="cerrado">Cerrado</option>
-          <option value="cancelado">Cancelado</option>
-        </select>
+        />
         {hayFiltros && (
           <Button
             variant="ghost"

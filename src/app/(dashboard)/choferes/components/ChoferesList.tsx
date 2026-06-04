@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Users, X, ChevronDown, ChevronRight, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
@@ -118,17 +119,19 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
               </button>
             ))}
           </div>
-          <select
+          <Combobox
             value={estadoFilter}
-            onChange={(e) => setEstadoFilter(e.target.value as EstadoFilter)}
-            className="h-9 px-3 text-sm border border-border rounded-md bg-card text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-          >
-            <option value="todos">Todos los estados</option>
-            <option value="activo">Activo</option>
-            <option value="inactivo">Inactivo</option>
-            <option value="periodo_prueba">En período de prueba</option>
-            <option value="baja">Egresado</option>
-          </select>
+            onValueChange={(v) => setEstadoFilter(v as EstadoFilter)}
+            options={[
+              { id: "todos", label: "Todos los estados" },
+              { id: "activo", label: "Activo" },
+              { id: "inactivo", label: "Inactivo" },
+              { id: "periodo_prueba", label: "En período de prueba" },
+              { id: "baja", label: "Egresado" },
+            ]}
+            searchable={false}
+            triggerClassName="h-9 w-52"
+          />
           <Input
             type="search"
             value={query}

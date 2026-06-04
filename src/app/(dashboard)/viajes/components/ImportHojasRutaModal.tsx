@@ -21,6 +21,7 @@ import {
   Truck,
   User,
 } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 import {
   previewHojaRutaImportAction,
   confirmHojaRutaImportAction,
@@ -518,36 +519,34 @@ function SheetDetail({
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1">
               <User size={10} /> Chofer
             </span>
-            <select
+            <Combobox
               value={asignacion?.chofer_id ?? ""}
-              onChange={(e) => handleChoferChange(e.target.value)}
-              className="text-xs border border-border rounded px-2 py-1 bg-background"
-            >
-              <option value="">— Saltear este sheet —</option>
-              {choferesList.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.apellido}, {c.nombre}
-                  {c.camion && ` [${c.camion.patente}]`}
-                </option>
-              ))}
-            </select>
+              onValueChange={handleChoferChange}
+              options={[
+                { id: "", label: "— Saltear este sheet —" },
+                ...choferesList.map((c) => ({
+                  id: c.id,
+                  label: `${c.apellido}, ${c.nombre}${c.camion ? ` [${c.camion.patente}]` : ""}`,
+                })),
+              ]}
+              searchPlaceholder="Buscar chofer..."
+              triggerClassName="h-8 text-xs"
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1">
               <Truck size={10} /> Camión
             </span>
-            <select
+            <Combobox
               value={asignacion?.camion_id ?? ""}
-              onChange={(e) => handleCamionChange(e.target.value)}
-              className="text-xs border border-border rounded px-2 py-1 bg-background"
-            >
-              <option value="">— Sin camión, saltear —</option>
-              {camionesList.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.patente}
-                </option>
-              ))}
-            </select>
+              onValueChange={handleCamionChange}
+              options={[
+                { id: "", label: "— Sin camión, saltear —" },
+                ...camionesList.map((c) => ({ id: c.id, label: c.patente })),
+              ]}
+              searchPlaceholder="Buscar patente..."
+              triggerClassName="h-8 text-xs"
+            />
           </label>
         </div>
       </div>

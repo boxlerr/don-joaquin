@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { Combobox } from "@/components/ui/combobox";
 import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2, X } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
@@ -357,17 +358,19 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Motivo</div>
-                <select
+                <Combobox
                   value={egMotivo}
-                  onChange={(e) => setEgMotivo(e.target.value)}
-                  className="w-full text-sm border border-border rounded px-2 py-1.5 bg-background"
-                >
-                  <option value="">— Sin especificar —</option>
-                  <option value="renuncia">Renuncia</option>
-                  <option value="despido">Despido</option>
-                  <option value="jubilacion">Jubilación</option>
-                  <option value="otro">Otro</option>
-                </select>
+                  onValueChange={setEgMotivo}
+                  options={[
+                    { id: "", label: "— Sin especificar —" },
+                    { id: "renuncia", label: "Renuncia" },
+                    { id: "despido", label: "Despido" },
+                    { id: "jubilacion", label: "Jubilación" },
+                    { id: "otro", label: "Otro" },
+                  ]}
+                  searchable={false}
+                  triggerClassName="h-9 w-full"
+                />
               </div>
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Fecha de egreso</div>

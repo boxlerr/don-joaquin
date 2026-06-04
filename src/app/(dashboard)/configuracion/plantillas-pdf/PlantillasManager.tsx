@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import {
@@ -227,17 +228,15 @@ export default function PlantillasManager({ plantillas }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nueva-tipo">Tipo</Label>
-              <select
+              <Combobox
                 id="nueva-tipo"
                 value={formTipo}
-                onChange={(e) => setFormTipo(e.target.value as PlantillaTipo)}
+                onValueChange={(v) => setFormTipo(v as PlantillaTipo)}
                 disabled={createPending}
-                className="h-8 w-full text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-              >
-                {TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+                options={TIPOS.map((t) => ({ id: t.value, label: t.label }))}
+                searchable={false}
+                triggerClassName="h-8 w-full text-sm"
+              />
             </div>
             {formError && (
               <div className="text-xs text-[#7F1D1D] bg-[#FEF2F2] border border-[#FEE2E2] rounded-md px-3 py-2 flex items-start gap-2">

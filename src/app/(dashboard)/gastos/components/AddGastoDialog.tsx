@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
-  X,
   Lock,
   Receipt,
   Tag,
@@ -26,10 +26,12 @@ import {
   Navigation,
   Truck,
   User,
-  ChevronDown,
   Check,
 } from "lucide-react";
 import { addGastoAction, type GastoMedioPago } from "../actions";
+
+const FIELD_COMBO_TRIGGER =
+  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
 
 const MEDIO_PAGO_OPTIONS: { value: GastoMedioPago; label: string; hint: string }[] = [
   { value: "efectivo_caja", label: "Efectivo (caja)", hint: "Sale de caja" },
@@ -139,12 +141,6 @@ export default function AddGastoDialog({
     }
   };
 
-  const tiposPorCategoria = tiposGasto.reduce<Record<string, TipoGastoOption[]>>((acc, t) => {
-    const key = t.categoria ?? "otros";
-    (acc[key] = acc[key] ?? []).push(t);
-    return acc;
-  }, {});
-
   const viajeLocked = Boolean(contextViajeId);
   const camionLocked = Boolean(contextCamionId);
   const choferLocked = Boolean(contextChoferId);
@@ -213,31 +209,18 @@ export default function AddGastoDialog({
                 <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                   <Tag size={15} />
                 </div>
-                <div className="relative flex-1 h-full">
-                  <select
-                    value={tipoGastoId}
-                    onChange={(e) => setTipoGastoId(e.target.value)}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
-                    required
-                  >
-                    <option value="" disabled>
-                      Seleccioná un tipo
-                    </option>
-                    {Object.entries(tiposPorCategoria).map(([cat, items]) => (
-                      <optgroup key={cat} label={cat.toUpperCase()}>
-                        {items.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.nombre}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                  />
-                </div>
+                <Combobox
+                  value={tipoGastoId}
+                  onValueChange={setTipoGastoId}
+                  options={tiposGasto.map((t) => ({
+                    id: t.id,
+                    label: t.categoria ? `${t.nombre} · ${t.categoria}` : t.nombre,
+                  }))}
+                  placeholder="Seleccioná un tipo"
+                  searchPlaceholder="Buscar tipo..."
+                  required
+                  triggerClassName={FIELD_COMBO_TRIGGER}
+                />
               </div>
             </div>
 
@@ -276,24 +259,17 @@ export default function AddGastoDialog({
                 <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                   <CreditCard size={15} />
                 </div>
-                <div className="relative flex-1 h-full">
-                  <select
-                    value={medioPago}
-                    onChange={(e) => setMedioPago(e.target.value as GastoMedioPago)}
-                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
-                    required
-                  >
-                    {MEDIO_PAGO_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label} ({o.hint})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                  />
-                </div>
+                <Combobox
+                  value={medioPago}
+                  onValueChange={(v) => setMedioPago(v as GastoMedioPago)}
+                  options={MEDIO_PAGO_OPTIONS.map((o) => ({
+                    id: o.value,
+                    label: `${o.label} (${o.hint})`,
+                  }))}
+                  searchable={false}
+                  required
+                  triggerClassName={FIELD_COMBO_TRIGGER}
+                />
               </div>
             </div>
 
@@ -341,25 +317,17 @@ export default function AddGastoDialog({
                   <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <Navigation size={15} />
                   </div>
-                  <div className="relative flex-1 h-full">
-                    <select
-                      value={viajeId || "__none__"}
-                      onChange={(e) => setViajeId(e.target.value === "__none__" ? "" : e.target.value)}
-                      disabled={viajeLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
-                    >
-                      <option value="__none__">Sin asignar</option>
-                      {viajes.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.codigo}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                    />
-                  </div>
+                  <Combobox
+                    value={viajeId}
+                    onValueChange={setViajeId}
+                    disabled={viajeLocked}
+                    options={[
+                      { id: "", label: "Sin asignar" },
+                      ...viajes.map((v) => ({ id: v.id, label: v.codigo })),
+                    ]}
+                    searchPlaceholder="Buscar viaje..."
+                    triggerClassName={FIELD_COMBO_TRIGGER}
+                  />
                 </div>
               </div>
 
@@ -370,25 +338,17 @@ export default function AddGastoDialog({
                   <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <Truck size={15} />
                   </div>
-                  <div className="relative flex-1 h-full">
-                    <select
-                      value={camionId || "__none__"}
-                      onChange={(e) => setCamionId(e.target.value === "__none__" ? "" : e.target.value)}
-                      disabled={camionLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
-                    >
-                      <option value="__none__">Sin asignar</option>
-                      {camiones.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.patente}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                    />
-                  </div>
+                  <Combobox
+                    value={camionId}
+                    onValueChange={setCamionId}
+                    disabled={camionLocked}
+                    options={[
+                      { id: "", label: "Sin asignar" },
+                      ...camiones.map((c) => ({ id: c.id, label: c.patente })),
+                    ]}
+                    searchPlaceholder="Buscar patente..."
+                    triggerClassName={FIELD_COMBO_TRIGGER}
+                  />
                 </div>
               </div>
 
@@ -399,25 +359,22 @@ export default function AddGastoDialog({
                   <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                     <User size={15} />
                   </div>
-                  <div className="relative flex-1 h-full">
-                    <select
-                      value={choferId || "__none__"}
-                      onChange={(e) => setChoferId(e.target.value === "__none__" ? "" : e.target.value)}
-                      disabled={choferLocked}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium disabled:cursor-not-allowed"
-                    >
-                      <option value="__none__">Sin asignar</option>
-                      {choferes.map((c) => (
-                        <option key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
-                          {c.disabled ? "⚠ " : ""}{c.apellido}, {c.nombre}{c.disabled ? " — legajo incompleto" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                    />
-                  </div>
+                  <Combobox
+                    value={choferId}
+                    onValueChange={setChoferId}
+                    disabled={choferLocked}
+                    options={[
+                      { id: "", label: "Sin asignar" },
+                      ...choferes.map((c) => ({
+                        id: c.id,
+                        label: `${c.disabled ? "⚠ " : ""}${c.apellido}, ${c.nombre}${c.disabled ? " — legajo incompleto" : ""}`,
+                        disabled: c.disabled,
+                        motivo: c.motivo,
+                      })),
+                    ]}
+                    searchPlaceholder="Buscar chofer..."
+                    triggerClassName={FIELD_COMBO_TRIGGER}
+                  />
                 </div>
               </div>
             </div>

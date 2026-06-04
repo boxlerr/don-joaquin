@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Flame, Search, ChevronRight, HelpCircle, Truck, FileText, Settings, ExternalLink } from "lucide-react";
+import { Flame, Search, Truck, FileText, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table,
   TableHeader,
@@ -190,39 +191,37 @@ export default function ExtintoresTable({
         <div className="flex flex-wrap items-center gap-3">
           {/* Filtro por Categoría */}
           <div className="relative">
-            <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
-            <select
+            <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
+            <Combobox
               value={categoria}
-              onChange={(e) => setCategoria(e.target.value as CategoriaFilter)}
-              className="h-10 pl-9 pr-10 text-sm border border-border rounded-lg bg-card text-muted-foreground appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[200px]"
-            >
-              <option value="todos">Todas las ubicaciones ({conteosCategoria.todos})</option>
-              <option value="chasis">Chasis/Camiones ({conteosCategoria.chasis})</option>
-              <option value="acoplado">Acoplados ({conteosCategoria.acoplado})</option>
-              <option value="otros">Otros/Edificios ({conteosCategoria.otros})</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/70">
-              <ChevronRight size={14} className="rotate-90" />
-            </div>
+              onValueChange={(v) => setCategoria(v as CategoriaFilter)}
+              options={[
+                { id: "todos", label: `Todas las ubicaciones (${conteosCategoria.todos})` },
+                { id: "chasis", label: `Chasis/Camiones (${conteosCategoria.chasis})` },
+                { id: "acoplado", label: `Acoplados (${conteosCategoria.acoplado})` },
+                { id: "otros", label: `Otros/Edificios (${conteosCategoria.otros})` },
+              ]}
+              searchable={false}
+              triggerClassName="h-10 min-w-[200px] pl-9"
+            />
           </div>
 
           {/* Filtro por Vencimiento */}
           <div className="relative">
-            <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
-            <select
+            <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
+            <Combobox
               value={vencimiento}
-              onChange={(e) => setVencimiento(e.target.value as VencimientoFilter)}
-              className="h-10 pl-9 pr-10 text-sm border border-border rounded-lg bg-card text-muted-foreground appearance-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] outline-none transition-all cursor-pointer min-w-[200px]"
-            >
-              <option value="todos">Todos los vencimientos ({conteosVencimiento.todos})</option>
-              <option value="vigente">Vigentes ({conteosVencimiento.vigente})</option>
-              <option value="por_vencer">Por vencer (30 días) ({conteosVencimiento.por_vencer})</option>
-              <option value="vencido">Vencidos ({conteosVencimiento.vencido})</option>
-              <option value="sin_fecha">Sin fecha ({conteosVencimiento.sin_fecha})</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/70">
-              <ChevronRight size={14} className="rotate-90" />
-            </div>
+              onValueChange={(v) => setVencimiento(v as VencimientoFilter)}
+              options={[
+                { id: "todos", label: `Todos los vencimientos (${conteosVencimiento.todos})` },
+                { id: "vigente", label: `Vigentes (${conteosVencimiento.vigente})` },
+                { id: "por_vencer", label: `Por vencer (30 días) (${conteosVencimiento.por_vencer})` },
+                { id: "vencido", label: `Vencidos (${conteosVencimiento.vencido})` },
+                { id: "sin_fecha", label: `Sin fecha (${conteosVencimiento.sin_fecha})` },
+              ]}
+              searchable={false}
+              triggerClassName="h-10 min-w-[200px] pl-9"
+            />
           </div>
 
           {/* Buscador Global */}

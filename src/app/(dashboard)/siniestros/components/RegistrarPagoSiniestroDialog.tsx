@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import { DollarSign, Calendar, CreditCard, Check, Banknote } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { registrarPagoSiniestroAction } from "../actions";
@@ -138,15 +139,13 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
               <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
                 <CreditCard size={15} />
               </div>
-              <select
+              <Combobox
                 value={medio}
-                onChange={(e) => setMedio(e.target.value as Medio)}
-                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
-              >
-                {MEDIO_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
+                onValueChange={(v) => setMedio(v as Medio)}
+                options={MEDIO_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
+                searchable={false}
+                triggerClassName="h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
+              />
             </div>
           </div>
 

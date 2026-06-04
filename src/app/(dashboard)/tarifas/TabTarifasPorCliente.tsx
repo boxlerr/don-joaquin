@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import ModalNuevaTarifa from "./ModalNuevaTarifa";
 import TarifaHistorialDrawer from "./TarifaHistorialDrawer";
 import {
@@ -139,17 +140,19 @@ export default function TabTarifasPorCliente({
               className="h-9 pl-8 text-sm w-72"
             />
           </div>
-          <select
+          <Combobox
             value={modalidadFiltro}
-            onChange={(e) => setModalidadFiltro(e.target.value)}
-            className="h-9 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1]"
-          >
-            <option value="todas">Todas las modalidades</option>
-            <option value="fija">Fija</option>
-            <option value="por_tonelada">Por tonelada</option>
-            <option value="por_kilo">Por kilo</option>
-            <option value="por_km">Por kilómetro</option>
-          </select>
+            onValueChange={setModalidadFiltro}
+            options={[
+              { id: "todas", label: "Todas las modalidades" },
+              { id: "fija", label: "Fija" },
+              { id: "por_tonelada", label: "Por tonelada" },
+              { id: "por_kilo", label: "Por kilo" },
+              { id: "por_km", label: "Por kilómetro" },
+            ]}
+            searchable={false}
+            triggerClassName="h-9 w-48"
+          />
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"

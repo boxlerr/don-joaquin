@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { actualizarParametrosBulk } from "./actions";
 import { getValidacion } from "./validaciones";
 import type { Database } from "@/types/database";
@@ -112,20 +113,15 @@ export default function BulkEditForm({
                     }
                   />
                 ) : validacion.opciones ? (
-                  <select
+                  <Combobox
                     value={values[p.id]}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [p.id]: e.target.value }))
+                    onValueChange={(v) =>
+                      setValues((prev) => ({ ...prev, [p.id]: v }))
                     }
                     disabled={isPending}
-                    className="h-8 w-52 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1]"
-                  >
-                    {validacion.opciones.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    options={validacion.opciones.map((opt) => ({ id: opt, label: opt }))}
+                    triggerClassName="h-8 w-52 text-sm"
+                  />
                 ) : (
                   <Input
                     type={p.tipo_dato === "number" ? "number" : "text"}

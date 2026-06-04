@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { actualizarParametro } from "./actions";
 import HistorialDrawer from "./HistorialDrawer";
 import BulkEditForm from "./BulkEditForm";
@@ -304,19 +305,13 @@ function ParametroRow({
           <>
             <div className="flex flex-col items-end gap-1">
               {validacion.opciones ? (
-                <select
+                <Combobox
                   value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  autoFocus
+                  onValueChange={setValor}
                   disabled={isPending}
-                  className="h-8 w-48 text-sm rounded-lg border border-border bg-card px-2.5 outline-none focus-visible:border-[#0088D1] focus-visible:ring-3 focus-visible:ring-[#0088D1]/30"
-                >
-                  {validacion.opciones.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                  options={validacion.opciones.map((opt) => ({ id: opt, label: opt }))}
+                  triggerClassName="h-8 w-48 text-sm"
+                />
               ) : (
                 <Input
                   type={parametro.tipo_dato === "number" ? "number" : "text"}
