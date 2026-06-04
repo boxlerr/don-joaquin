@@ -29,16 +29,9 @@ import {
   type ViajeFormData,
 } from "../actions";
 
-const ESTADOS: { value: string; label: string }[] = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "en_curso", label: "En curso" },
-  { value: "cerrado", label: "Cerrado" },
-];
-
 export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
   const [tipoCarga, setTipoCarga] = useState("");
-  const [estado, setEstado] = useState("pendiente");
   // Auto-camión: al elegir chofer, se pre-selecciona su camión asignado
   const [selectedCamionId, setSelectedCamionId] = useState("");
   const router = useRouter();
@@ -52,7 +45,6 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     if (state?.ok) {
       setOpen(false);
       setTipoCarga("");
-      setEstado("pendiente");
       window.dispatchEvent(new Event("viaje-created"));
       router.refresh();
     }
@@ -62,7 +54,6 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setOpen(isOpen);
     if (!isOpen) {
       setTipoCarga("");
-      setEstado("pendiente");
       setSelectedCamionId("");
     }
   };
@@ -76,19 +67,6 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   };
 
   const today = new Date().toISOString().slice(0, 10);
-
-  const getEstadoDotColor = (val: string) => {
-    switch (val) {
-      case "pendiente":
-        return "bg-[#F59E0B]";
-      case "en_curso":
-        return "bg-[#0088D1]";
-      case "cerrado":
-        return "bg-[#10B981]";
-      default:
-        return "bg-slate-400";
-    }
-  };
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -136,46 +114,17 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             key={open ? "open" : "closed"}
             className="flex-1 overflow-y-auto px-6 py-5 space-y-4"
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Fecha */}
-              <InputFieldWithIcon
-                label="Fecha del viaje *"
-                name="fecha_viaje"
-                type="date"
-                defaultValue={today}
-                required
-                icon={Calendar}
-                error={state?.fieldErrors?.fecha_viaje}
-              />
+            <input type="hidden" name="estado" value="pendiente" />
 
-              {/* Estado */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">Estado *</label>
-                <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                  <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 shrink-0">
-                    <span className={`size-2.5 rounded-full ${getEstadoDotColor(estado)}`} />
-                  </div>
-                  <div className="relative flex-1 h-full">
-                    <select
-                      name="estado"
-                      value={estado}
-                      className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer"
-                      onChange={(e) => setEstado(e.target.value)}
-                    >
-                      {ESTADOS.map((e) => (
-                        <option key={e.value} value={e.value}>
-                          {e.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <InputFieldWithIcon
+              label="Fecha del viaje *"
+              name="fecha_viaje"
+              type="date"
+              defaultValue={today}
+              required
+              icon={Calendar}
+              error={state?.fieldErrors?.fecha_viaje}
+            />
 
             {/* Cliente */}
             <SelectFieldWithIcon
