@@ -34,7 +34,7 @@ export type GasoilEditing = {
   observaciones?: string | null;
 };
 
-type ChoferOption = { id: string; nombre: string; apellido: string };
+type ChoferOption = { id: string; nombre: string; apellido: string; disabled?: boolean; motivo?: string };
 
 type FieldErrors = {
   litros?: string;
@@ -210,8 +210,9 @@ export default function AddGasoilDialog({
               <SelectContent>
                 <SelectItem value="__none__">Sin asignar</SelectItem>
                 {choferes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.apellido}, {c.nombre}
+                  <SelectItem key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
+                    {c.disabled ? "⚠ " : ""}{c.apellido}, {c.nombre}
+                    {c.disabled ? " — legajo incompleto" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

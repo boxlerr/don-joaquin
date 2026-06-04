@@ -62,7 +62,6 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: "Listado", href: "/viajes" },
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
-          { label: "Por chofer (mes)", href: "/viajes/mensual" },
         ],
       },
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
@@ -92,7 +91,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "FINANZAS",
     items: [
-      { label: "Caja", href: "/caja", icon: Wallet, area: "finanzas" },
+      { label: "Caja", href: "/caja", icon: Wallet, area: "caja" },
       { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
       { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
     ],

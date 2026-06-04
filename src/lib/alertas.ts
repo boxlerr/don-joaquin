@@ -165,10 +165,10 @@ export async function generarAlertas() {
     });
   }
 
-  // Cumpleaños de choferes dentro de los próximos 7 días
+  // Cumpleaños de todo el personal dentro del preaviso configurado
   const { data: choferesBday } = await supabase
     .from("choferes")
-    .select("id, nombre, apellido, fecha_nacimiento")
+    .select("id, nombre, apellido, fecha_nacimiento, rol")
     .eq("estado", "activo")
     .not("fecha_nacimiento", "is", null);
 
@@ -209,35 +209,43 @@ export async function generarAlertas() {
       const dd = String(nextBdayMidnight.getDate()).padStart(2, "0");
       const nextBdayStr = `${yyyy}-${mm}-${dd}`;
 
-      const key = `otro:${chofer.id}:choferes_cumple:${nextBdayStr}`;
+      // Adm/mant tienen prioridad sobre choferes → entidad_tipo distinto para ordenar en UI
+      const esAdmMant = chofer.rol === "administrativo" || chofer.rol === "mantenimiento";
+      const entidadTipoCumple = esAdmMant ? "personal_cumple" : "choferes_cumple";
+
+      const key = `otro:${chofer.id}:${entidadTipoCumple}:${nextBdayStr}`;
       if (existentesSet.has(key)) continue;
 
       const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
       const diaMesStr = `${birthDay} de ${MESES[birthMonth - 1]}`;
       const nombreDia = DIAS_SEMANA[nextBdayMidnight.getDay()];
+      const rolLabel = chofer.rol === "administrativo" ? "Admin" : chofer.rol === "mantenimiento" ? "Mantenimiento" : "Chofer";
 
       nuevasAlertas.push({
         tipo: "otro",
         severidad: "info",
         titulo: `Cumpleaños — ${nombreCompleto}`,
-        mensaje: `El chofer ${nombreCompleto} cumple años el ${diaMesStr} (${nombreDia}).`,
+        mensaje: `${rolLabel} ${nombreCompleto} cumple años el ${diaMesStr} (${nombreDia}).`,
         entidad_id: chofer.id,
-        entidad_tipo: "choferes_cumple",
+        entidad_tipo: entidadTipoCumple,
         fecha_disparo: new Date().toISOString(),
         fecha_vencimiento: nextBdayStr,
       });
     }
   }
 
-  // Fin de período de prueba (6 meses) a los 30, 15 y 5 días antes
+  // Fin de período de prueba (6 meses desde alta_afip o, si no hay, desde fecha_ingreso)
   const { data: choferesIngreso } = await supabase
     .from("choferes")
-    .select("id, nombre, apellido, fecha_ingreso")
+    .select("id, nombre, apellido, fecha_ingreso, alta_afip, rol")
     .eq("estado", "activo")
     .not("fecha_ingreso", "is", null);
 
   for (const chofer of choferesIngreso ?? []) {
-    const parts = chofer.fecha_ingreso!.split("-");
+    // alta_afip tiene prioridad: es la fecha oficial de inicio del período de prueba
+    const fechaBase = chofer.alta_afip ?? chofer.fecha_ingreso;
+    if (!fechaBase) continue;
+    const parts = fechaBase.split("-");
     if (parts.length !== 3) continue;
 
     const ingresoYear = parseInt(parts[0]!, 10);
@@ -280,9 +288,9 @@ export async function generarAlertas() {
     }
   }
 
-  // Aniversarios de antigüedad de choferes — solo en hitos (HITOS_ANIVERSARIO).
-  // Reutiliza choferesIngreso (ya cargado arriba). Emite alerta cuando faltan
-  // ≤ diasAniversarioPreaviso días para el próximo aniversario-hito.
+  // Aniversarios de antigüedad:
+  // - Choferes: solo en HITOS_ANIVERSARIO (5/10/15…)
+  // - Adm/Mant: todos los años (≥ 1)
   for (const chofer of choferesIngreso ?? []) {
     const parts = chofer.fecha_ingreso!.split("-");
     if (parts.length !== 3) continue;
@@ -291,19 +299,23 @@ export async function generarAlertas() {
     const ingresoMonth = parseInt(parts[1]!, 10);
     const ingresoDay = parseInt(parts[2]!, 10);
 
+    const esAdmMant = chofer.rol === "administrativo" || chofer.rol === "mantenimiento";
+    const entidadTipoAniv = esAdmMant ? "personal_aniversario" : "choferes_aniversario";
+    const rolLabel = chofer.rol === "administrativo" ? "Admin" : chofer.rol === "mantenimiento" ? "Mantenimiento" : "Chofer";
+
     const hoyAnio = hoy.getFullYear();
     const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
-    // Buscamos el próximo aniversario-hito (puede ser este año o el siguiente)
-    for (const hitoCandidatoAnio of [hoyAnio, hoyAnio + 1]) {
-      const aniosEnHito = hitoCandidatoAnio - ingresoYear;
-      if (!HITOS_ANIVERSARIO.includes(aniosEnHito)) continue;
+    for (const candidatoAnio of [hoyAnio, hoyAnio + 1]) {
+      const aniosEnHito = candidatoAnio - ingresoYear;
+      // Choferes: solo hitos; adm/mant: cualquier año >= 1
+      const anioValido = esAdmMant ? aniosEnHito >= 1 : HITOS_ANIVERSARIO.includes(aniosEnHito);
+      if (!anioValido) continue;
 
-      const anivoMidnight = new Date(hitoCandidatoAnio, ingresoMonth - 1, ingresoDay);
+      const anivoMidnight = new Date(candidatoAnio, ingresoMonth - 1, ingresoDay);
       const diffTime = anivoMidnight.getTime() - hoyMidnight.getTime();
       const minDiff = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-      // Solo preaviso hacia adelante, dentro del umbral configurado
       if (minDiff < 0 || minDiff > umbrales.diasAniversarioPreaviso) continue;
 
       const yyyy = anivoMidnight.getFullYear();
@@ -311,26 +323,24 @@ export async function generarAlertas() {
       const dd = String(anivoMidnight.getDate()).padStart(2, "0");
       const anivoStr = `${yyyy}-${mm}-${dd}`;
 
-      const key = `otro:${chofer.id}:choferes_aniversario:${anivoStr}`;
+      const key = `otro:${chofer.id}:${entidadTipoAniv}:${anivoStr}`;
       if (existentesSet.has(key)) continue;
 
       const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
-      const diaStr = ingresoDay;
       const mesStr = MESES[ingresoMonth - 1];
 
       nuevasAlertas.push({
         tipo: "otro",
         severidad: "info",
-        titulo: `Aniversario ${aniosEnHito} años — ${nombreCompleto}`,
-        mensaje: `El chofer ${nombreCompleto} cumple ${aniosEnHito} ${aniosEnHito === 1 ? "año" : "años"} en la empresa el ${diaStr} de ${mesStr}.`,
+        titulo: `Aniversario ${aniosEnHito} año${aniosEnHito === 1 ? "" : "s"} — ${nombreCompleto}`,
+        mensaje: `${rolLabel} ${nombreCompleto} cumple ${aniosEnHito} ${aniosEnHito === 1 ? "año" : "años"} en la empresa el ${ingresoDay} de ${mesStr}.`,
         entidad_id: chofer.id,
-        entidad_tipo: "choferes_aniversario",
+        entidad_tipo: entidadTipoAniv,
         fecha_disparo: new Date().toISOString(),
         fecha_vencimiento: anivoStr,
       });
 
-      // Solo procesamos el hito más próximo por chofer en esta ejecución
-      break;
+      break; // solo el hito más próximo por persona
     }
   }
 

@@ -20,7 +20,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const supabase = createAdminClient();
 
   const baseSelect =
-    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, cvu, telefono_emergencia, ciudad_nacimiento, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
+    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, nro_tramite_dni, clave_fiscal, alta_afip, periodo_prueba_fin, rol, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
 
   type ChoferRow = { id: string; apellido: string; nombre: string } & Record<string, unknown>;
   let chofer: ChoferRow | null = null;
@@ -1072,17 +1072,17 @@ export async function updateChoferInfoAction(
   data: Partial<{
     nombre: string;
     apellido: string;
-    email: string;
     telefono: string;
     domicilio: string;
     cbu: string;
     alias_cbu: string;
     banco: string;
-    cvu: string;
     telefono_emergencia: string;
     ciudad_nacimiento: string;
     localidad: string;
     provincia: string;
+    alta_afip: string;
+    periodo_prueba_fin: string;
   }>
 ) {
 
@@ -1113,6 +1113,98 @@ export async function updateChoferInfoAction(
 
   revalidatePath("/choferes/[slug]", "page");
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Asignación de camión (chofer ↔ camión)
+// El trigger `camiones_sync_chofer_historial` mantiene chofer_camion_historial
+// automáticamente cuando cambia camiones.chofer_actual_id, así que acá solo
+// tocamos ese campo.
+// ---------------------------------------------------------------------------
+
+export type CamionAsignable = { id: string; patente: string; chofer_nombre: string | null };
+
+export async function listCamionesAsignablesAction(): Promise<CamionAsignable[]> {
+  await requireArea("logistica", "read");
+  const supabase = createAdminClient();
+  const [{ data: camiones }, { data: choferes }] = await Promise.all([
+    supabase.from("camiones").select("id, patente, chofer_actual_id").order("patente"),
+    supabase.from("choferes").select("id, nombre, apellido"),
+  ]);
+  const nombrePorId = new Map<string, string>();
+  for (const c of choferes ?? []) nombrePorId.set(c.id, `${c.apellido}, ${c.nombre}`);
+  return (camiones ?? []).map((c) => ({
+    id: c.id,
+    patente: c.patente,
+    chofer_nombre: c.chofer_actual_id ? nombrePorId.get(c.chofer_actual_id) ?? null : null,
+  }));
+}
+
+export async function asignarCamionAction(
+  chofer_id: string,
+  camion_id: string,
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  // El chofer no puede quedar en dos camiones: liberar cualquier otro que tenga.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from("camiones")
+    .update({ chofer_actual_id: null })
+    .eq("chofer_actual_id", chofer_id)
+    .neq("id", camion_id);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("camiones")
+    .update({ chofer_actual_id: chofer_id })
+    .eq("id", camion_id);
+  if (error) return { error: error.message };
+
+  await logChoferAudit(chofer_id, "camion_asignado", null, { camion_id }, user.id);
+  revalidatePath("/camiones");
+  return { ok: true };
+}
+
+export async function desasignarCamionAction(
+  chofer_id: string,
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("camiones")
+    .update({ chofer_actual_id: null })
+    .eq("chofer_actual_id", chofer_id);
+  if (error) return { error: error.message };
+  await logChoferAudit(chofer_id, "camion_desasignado", null, null, user.id);
+  revalidatePath("/camiones");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Editar información del egreso (motivo, fecha, observaciones) de un chofer dado
+// de baja. Permite corregir el egreso cargado al dar la baja.
+// ---------------------------------------------------------------------------
+export async function updateEgresoAction(
+  chofer_id: string,
+  data: { motivo_egreso?: string | null; fecha_egreso?: string | null; observaciones?: string | null },
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+  const payload: Record<string, unknown> = {};
+  if (data.motivo_egreso !== undefined) payload.motivo_egreso = data.motivo_egreso || null;
+  if (data.fecha_egreso !== undefined) payload.fecha_egreso = data.fecha_egreso || null;
+  if (data.observaciones !== undefined) payload.observaciones = data.observaciones || null;
+  if (Object.keys(payload).length === 0) return { ok: true };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("choferes").update(payload).eq("id", chofer_id);
+  if (error) return { error: error.message };
+  await logChoferAudit(chofer_id, "egreso_editado", null, payload, user.id);
+  revalidatePath("/choferes");
+  return { ok: true };
 }
 
 export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {

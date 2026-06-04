@@ -9,6 +9,8 @@ import HelpTutorialButton from "./help-tutorial-button";
 import { redirect } from "next/navigation";
 import { ImportChoferesButton } from "./components/ChoferesIO";
 import ChoferesStats from "./components/ChoferesStats";
+import ChoferesLocalidadChart from "./components/ChoferesLocalidadChart";
+import type { LocalidadData } from "./components/ChoferesLocalidadChart";
 
 export default async function ChoferesPage({
   searchParams,
@@ -70,6 +72,18 @@ export default async function ChoferesPage({
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
   }));
 
+  // Distribución por localidad (excluye baja, agrupa y ordena desc)
+  const localidadMap = new Map<string, number>();
+  for (const c of choferes ?? []) {
+    if (c.estado === "baja") continue;
+    const loc = c.localidad?.trim() || "Sin datos";
+    localidadMap.set(loc, (localidadMap.get(loc) ?? 0) + 1);
+  }
+  const localidadData: LocalidadData[] = Array.from(localidadMap.entries())
+    .map(([localidad, cantidad]) => ({ localidad, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 12);
+
   return (
     <div className="p-8">
       <PageHeader
@@ -105,6 +119,8 @@ export default async function ChoferesPage({
         vencidosDocs={vencidosDocs ?? []}
         porVencerDocs={porVencerDocs ?? []}
       />
+
+      <ChoferesLocalidadChart data={localidadData} />
 
       <ChoferesList choferes={choferesMapeados ?? []} />
     </div>

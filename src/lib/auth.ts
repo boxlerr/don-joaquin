@@ -11,6 +11,7 @@ export type AreaCodigo =
   | "combustible"
   | "comercial"
   | "finanzas"
+  | "caja"
   | "rrhh"
   | "compliance"
   | "sistema";
@@ -32,6 +33,7 @@ const AREAS_VACIAS: PermisosArea = {
   combustible: "none",
   comercial: "none",
   finanzas: "none",
+  caja: "none",
   rrhh: "none",
   compliance: "none",
   sistema: "none",

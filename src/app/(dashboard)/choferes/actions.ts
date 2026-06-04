@@ -9,39 +9,43 @@ import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
 
 const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
 
+// Solo bloqueamos lo mínimo para tener un registro identificable + formato
+// inválido (si vino con datos basura). Lo demás se guarda como "legajo
+// incompleto" y el chofer queda sin poder ser asignado a movimientos hasta
+// que se complete (ver lib/chofer-validation.ts).
 function serverValidateChofer(data: {
   nombre: string;
   apellido: string;
-  dni: string;
-  cuil: string;
-  telefono: string;
-  localidad: string;
-  fecha_ingreso: string;
+  cuil?: string;
+  telefono?: string;
 }): string | null {
   if (!data.nombre.trim()) return "El nombre es requerido.";
   if (!data.apellido.trim()) return "El apellido es requerido.";
-  if (!data.dni.trim()) return "El DNI es requerido.";
-  const cuilDigits = data.cuil.replace(/\D/g, "");
-  if (!cuilDigits) return "El CUIL es requerido.";
-  if (cuilDigits.length !== 11) return "El CUIL debe tener 11 dígitos.";
-  if (!CUIL_PREFIXES.includes(cuilDigits.slice(0, 2))) return "Prefijo de CUIL inválido.";
-  const telDigits = data.telefono.replace(/\D/g, "");
-  if (!telDigits) return "El teléfono es requerido.";
-  if (telDigits.length < 10) return "El teléfono debe tener al menos 10 dígitos.";
-  if (!data.localidad.trim()) return "La localidad es requerida.";
-  if (!data.fecha_ingreso) return "La fecha de ingreso es requerida.";
+  const cuilDigits = (data.cuil ?? "").replace(/\D/g, "");
+  if (cuilDigits.length > 0) {
+    if (cuilDigits.length !== 11) return "El CUIL debe tener 11 dígitos.";
+    if (!CUIL_PREFIXES.includes(cuilDigits.slice(0, 2))) return "Prefijo de CUIL inválido.";
+  }
+  const telDigits = (data.telefono ?? "").replace(/\D/g, "");
+  if (telDigits.length > 0 && telDigits.length < 10) {
+    return "El teléfono debe tener al menos 10 dígitos.";
+  }
   return null;
 }
 
 export async function addChoferAction(data: {
   nombre: string;
   apellido: string;
-  dni: string;
-  cuil: string;
-  telefono: string;
-  localidad: string;
-  fecha_ingreso: string;
+  dni?: string;
+  cuil?: string;
+  telefono?: string;
+  email?: string;
+  localidad?: string;
+  fecha_ingreso?: string;
   estado: "activo" | "inactivo";
+  rol: "chofer" | "administrativo" | "mantenimiento";
+  alta_afip?: string;
+  periodo_prueba_fin?: string;
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
@@ -52,12 +56,16 @@ export async function addChoferAction(data: {
   const insertData = {
     nombre: data.nombre.trim(),
     apellido: data.apellido.trim(),
-    dni: data.dni.trim(),
-    cuil: data.cuil.trim(),
-    telefono: data.telefono.trim(),
-    localidad: data.localidad.trim(),
-    fecha_ingreso: data.fecha_ingreso,
+    dni: data.dni?.trim() || null,
+    cuil: data.cuil?.trim() || null,
+    telefono: data.telefono?.trim() || null,
+    email: data.email?.trim() || null,
+    localidad: data.localidad?.trim() || null,
+    fecha_ingreso: data.fecha_ingreso || null,
     estado: data.estado,
+    rol: data.rol,
+    alta_afip: data.alta_afip || null,
+    periodo_prueba_fin: data.periodo_prueba_fin || null,
   };
 
   const { data: inserted, error } = await supabase

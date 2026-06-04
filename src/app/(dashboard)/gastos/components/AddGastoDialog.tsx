@@ -41,7 +41,7 @@ const MEDIO_PAGO_OPTIONS: { value: GastoMedioPago; label: string; hint: string }
 export type TipoGastoOption = { id: string; nombre: string; categoria: string | null };
 export type ViajeOption = { id: string; codigo: string; fecha_viaje?: string | null };
 export type CamionOption = { id: string; patente: string };
-export type ChoferOption = { id: string; nombre: string; apellido: string };
+export type ChoferOption = { id: string; nombre: string; apellido: string; disabled?: boolean; motivo?: string };
 
 interface Props {
   children: React.ReactNode;
@@ -408,8 +408,8 @@ export default function AddGastoDialog({
                     >
                       <option value="__none__">Sin asignar</option>
                       {choferes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.apellido}, {c.nombre}
+                        <option key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
+                          {c.disabled ? "⚠ " : ""}{c.apellido}, {c.nombre}{c.disabled ? " — legajo incompleto" : ""}
                         </option>
                       ))}
                     </select>

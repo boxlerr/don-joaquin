@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ViajeBasico, PaginatedResult } from "./types";
 import { requireArea } from "@/lib/auth";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 
 const PAGE_SIZE = 20;
 
@@ -201,8 +202,15 @@ export async function getViajesAction(
 
 export type ViajeFormOption = { id: string; label: string };
 
-/** Igual que ViajeFormOption pero con el camión asignado al chofer (puede ser null). */
-export type ChoferFormOption = ViajeFormOption & { camionId: string | null };
+/** Igual que ViajeFormOption pero con el camión asignado al chofer (puede ser null).
+ *  - `disabled` true cuando el legajo del chofer está incompleto (no puede
+ *    ser asignado a un viaje hasta que se complete; ver lib/chofer-validation.ts).
+ *  - `motivo` resume qué falta. */
+export type ChoferFormOption = ViajeFormOption & {
+  camionId: string | null;
+  disabled?: boolean;
+  motivo?: string;
+};
 
 export type ViajeFormData = {
   clientes: ViajeFormOption[];
@@ -224,7 +232,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         .order("razon_social", { ascending: true }),
       supabase
         .from("choferes")
-        .select("id, nombre, apellido")
+        .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
         .eq("estado", "activo")
         .order("apellido", { ascending: true }),
       supabase
@@ -318,11 +326,18 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
       id: c.id,
       label: c.razon_social,
     })),
-    choferes: (choferesRes.data ?? []).map((c) => ({
-      id: c.id,
-      label: `${c.apellido}, ${c.nombre}`,
-      camionId: camionPorChofer.get(c.id) ?? null,
-    })),
+    choferes: (choferesRes.data ?? []).map((c) => {
+      const estado = getLegajoEstado(c);
+      return {
+        id: c.id,
+        label: estado.completo
+          ? `${c.apellido}, ${c.nombre}`
+          : `⚠ ${c.apellido}, ${c.nombre} — legajo incompleto`,
+        camionId: camionPorChofer.get(c.id) ?? null,
+        disabled: !estado.completo,
+        motivo: estado.completo ? undefined : `Falta: ${estado.faltantes.join(", ")}`,
+      };
+    }),
     camiones: (camionesRes.data ?? []).map((c) => ({
       id: c.id,
       label: c.patente,
@@ -552,6 +567,26 @@ export async function createViajeAction(
   let destino_id: string | null = null;
   if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
     destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
+  }
+
+  // Defensa: aunque la UI bloquea las opciones incompletas, validar acá por
+  // si alguien envía el id directo.
+  {
+    const { data: choferRow } = await supabase
+      .from("choferes")
+      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
+      .eq("id", parsed.data.chofer_id)
+      .single();
+    if (choferRow) {
+      const estadoLegajo = getLegajoEstado(choferRow);
+      if (!estadoLegajo.completo) {
+        return {
+          ok: false,
+          error: `El chofer tiene el legajo incompleto (falta: ${estadoLegajo.faltantes.join(", ")}). Completá los datos en el legajo antes de asignarlo a un viaje.`,
+          fieldErrors: { chofer_id: "Legajo incompleto." },
+        };
+      }
+    }
   }
 
   const observacionesDB = notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
@@ -1039,6 +1074,24 @@ export async function updateViajeAction(
   const user = await requireArea("logistica", "write");
 
   const supabase = createAdminClient();
+
+  // Defensa: legajo del chofer debe estar completo.
+  {
+    const { data: choferRow } = await supabase
+      .from("choferes")
+      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
+      .eq("id", parsed.data.chofer_id)
+      .single();
+    if (choferRow) {
+      const estadoLegajo = getLegajoEstado(choferRow);
+      if (!estadoLegajo.completo) {
+        return {
+          error: `El chofer tiene el legajo incompleto (falta: ${estadoLegajo.faltantes.join(", ")}). Completá los datos antes de asignarlo a este viaje.`,
+          fieldErrors: { chofer_id: "Legajo incompleto." },
+        };
+      }
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previo } = await (supabase as any)

@@ -20,8 +20,12 @@ import {
   ChevronDown,
   Check,
   Hash,
+  Briefcase,
+  Mail,
+  ClipboardCheck,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 
 // ---------------------------------------------------------------------------
 // Localidades
@@ -58,6 +62,12 @@ const ESTADOS = [
   { value: "inactivo", label: "Inactivo" },
 ];
 
+const ROLES = [
+  { value: "chofer", label: "Chofer" },
+  { value: "administrativo", label: "Administrativo" },
+  { value: "mantenimiento", label: "Mantenimiento" },
+];
+
 // ---------------------------------------------------------------------------
 // Validaciones
 // ---------------------------------------------------------------------------
@@ -90,6 +100,17 @@ function validateLocalidad(value: string): string | null {
   return null;
 }
 
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function fmtDate(iso: string): string {
+  const [y, m, day] = iso.split("-");
+  return `${day}/${m}/${y}`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -103,34 +124,47 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
   const [dni, setDni] = useState("");
   const [cuil, setCuil] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
+  const [rol, setRol] = useState<"chofer" | "administrativo" | "mantenimiento">("chofer");
   const [telefono, setTelefono] = useState("");
+  const [email, setEmail] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState(new Date().toISOString().split("T")[0]);
+  const [altaAfip, setAltaAfip] = useState(new Date().toISOString().split("T")[0]);
+  const [iniciaPeriodoPrueba, setIniciaPeriodoPrueba] = useState(true);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const reset = () => {
     setNombre(""); setApellido(""); setDni(""); setCuil("");
-    setEstado("activo"); setTelefono(""); setLocalidad("");
-    setFechaIngreso(new Date().toISOString().split("T")[0]);
+    const hoy = new Date().toISOString().split("T")[0];
+    setEstado("activo"); setRol("chofer"); setTelefono(""); setEmail(""); setLocalidad("");
+    setFechaIngreso(hoy); setAltaAfip(hoy); setIniciaPeriodoPrueba(true);
     setServerError(null); setFieldErrors({});
   };
 
+  // Solo bloquean campos sin los que no se puede identificar al chofer ni
+  // los datos con formato inválido. Lo demás se guarda igual y queda como
+  // "legajo incompleto" (banner + bloqueo en selectores de otros módulos).
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!nombre.trim()) errors.nombre = "El nombre es requerido.";
     if (!apellido.trim()) errors.apellido = "El apellido es requerido.";
-    if (!dni.trim()) errors.dni = "El DNI es requerido.";
-    const cuilErr = validateCuil(cuil);
-    if (cuilErr) errors.cuil = cuilErr;
-    const telErr = validateTelefono(telefono);
-    if (telErr) errors.telefono = telErr;
-    const locErr = validateLocalidad(localidad);
-    if (locErr) errors.localidad = locErr;
-    if (!fechaIngreso) errors.fecha_ingreso = "La fecha de ingreso es requerida.";
+    // CUIL/teléfono: solo se validan si el usuario ingresó algo (formato).
+    if (cuil.replace(/\D/g, "").length > 0) {
+      const cuilErr = validateCuil(cuil);
+      if (cuilErr) errors.cuil = cuilErr;
+    }
+    if (telefono.replace(/\D/g, "").length > 0) {
+      const telErr = validateTelefono(telefono);
+      if (telErr) errors.telefono = telErr;
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
+
+  const legajoEstado = getLegajoEstado({
+    nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso: fechaIngreso,
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -141,12 +175,16 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
       const result = await addChoferAction({
         nombre,
         apellido,
-        dni,
-        cuil,
+        dni: dni.trim() || undefined,
+        cuil: cuil.trim() || undefined,
         estado,
-        telefono,
-        localidad,
-        fecha_ingreso: fechaIngreso,
+        rol,
+        telefono: telefono.trim() || undefined,
+        email: email.trim() || undefined,
+        localidad: localidad.trim() || undefined,
+        fecha_ingreso: fechaIngreso || undefined,
+        alta_afip: altaAfip || undefined,
+        periodo_prueba_fin: iniciaPeriodoPrueba && fechaIngreso ? addMonths(fechaIngreso, 6) : undefined,
       });
       if (result.error) {
         setServerError(result.error);
@@ -188,6 +226,16 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
           {serverError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
               {serverError}
+            </div>
+          )}
+
+          {!legajoEstado.completo && (nombre.trim() || apellido.trim()) && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg space-y-1">
+              <p className="font-semibold">Vas a guardar el legajo incompleto.</p>
+              <p>
+                Faltan: <span className="font-medium">{legajoEstado.faltantes.join(", ")}</span>.
+                El chofer queda en el listado pero no podrá ser asignado a viajes ni siniestros hasta completar los datos.
+              </p>
             </div>
           )}
 
@@ -269,6 +317,17 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             </div>
           </div>
 
+          {/* Email */}
+          <InputFieldWithIcon
+            label="Email"
+            name="email"
+            type="email"
+            placeholder="Ej: juan@mail.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            icon={Mail}
+          />
+
           {/* Localidad */}
           <LocalidadCombobox
             value={localidad}
@@ -276,16 +335,72 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             error={fieldErrors.localidad}
           />
 
-          {/* Fecha de ingreso */}
+          {/* Fecha de ingreso + Rol */}
+          <div className="grid grid-cols-2 gap-4">
+            <InputFieldWithIcon
+              label="Fecha de ingreso *"
+              name="fecha_ingreso"
+              type="date"
+              value={fechaIngreso}
+              onChange={(e) => setFechaIngreso(e.target.value)}
+              icon={Calendar}
+              error={fieldErrors.fecha_ingreso}
+            />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-muted-foreground">Rol</Label>
+              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
+                  <Briefcase size={15} />
+                </div>
+                <div className="relative flex-1 h-full">
+                  <select
+                    name="rol"
+                    value={rol}
+                    className="w-full h-full px-3 pr-10 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground appearance-none cursor-pointer font-medium"
+                    onChange={(e) => setRol(e.target.value as "chofer" | "administrativo" | "mantenimiento")}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alta AFIP */}
           <InputFieldWithIcon
-            label="Fecha de ingreso *"
-            name="fecha_ingreso"
+            label="Alta AFIP"
+            name="alta_afip"
             type="date"
-            value={fechaIngreso}
-            onChange={(e) => setFechaIngreso(e.target.value)}
+            value={altaAfip}
+            onChange={(e) => setAltaAfip(e.target.value)}
             icon={Calendar}
-            error={fieldErrors.fecha_ingreso}
           />
+
+          {/* Período de prueba */}
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={iniciaPeriodoPrueba}
+                onChange={(e) => setIniciaPeriodoPrueba(e.target.checked)}
+                className="size-4 rounded accent-[#0088D1] cursor-pointer"
+              />
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <ClipboardCheck size={15} className="text-primary" />
+                Iniciar período de prueba
+              </span>
+            </label>
+            {iniciaPeriodoPrueba && (
+              <div className="flex items-center gap-4 pl-6 text-xs text-muted-foreground">
+                <span>Inicio: <span className="font-mono text-foreground">{fmtDate(fechaIngreso)}</span></span>
+                <span className="text-border">→</span>
+                <span>Fin: <span className="font-mono font-semibold text-[#0088D1]">{fmtDate(addMonths(fechaIngreso, 6))}</span></span>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button
@@ -302,7 +417,11 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? "Guardando..." : (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)}
+              {loading
+                ? "Guardando..."
+                : legajoEstado.completo
+                  ? (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)
+                  : (<><Check size={16} strokeWidth={2.5} /> Guardar incompleto</>)}
             </Button>
           </div>
         </form>

@@ -6,34 +6,41 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
-import { Check, Pencil, X } from "lucide-react";
-
-// Centinela de la carga inicial (scripts/seed-camiones-acoplados.ts): los tractores
-// que vinieron solo con patente tienen marca/modelo = "Sin datos". No mostrarlo como texto.
-const SIN_DATOS = "Sin datos";
+import { Check, Pencil, X, AlertTriangle } from "lucide-react";
+import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
+import CamionAsignacion from "./CamionAsignacion";
 
 interface Props {
   chofer: ChoferDetail;
   onSaved?: () => void;
+  // Edición controlada (legajo, el botón vive en el header). Si no se pasan, el
+  // tab maneja su propio estado y muestra el botón "Editar datos" (uso en la lista).
+  editing?: boolean;
+  onEditingChange?: (v: boolean) => void;
 }
 
-export default function ChoferInfoTab({ chofer, onSaved }: Props) {
-  const [editing, setEditing] = useState(false);
+export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, onEditingChange }: Props) {
+  const controlled = onEditingChange !== undefined;
+  const [editingLocal, setEditingLocal] = useState(false);
+  const editing = controlled ? editingProp ?? false : editingLocal;
+  const setEditing = (v: boolean) => {
+    if (controlled) onEditingChange?.(v);
+    else setEditingLocal(v);
+  };
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
-  const [email, setEmail] = useState(chofer.email ?? "");
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
   const [banco, setBanco] = useState(chofer.banco ?? "");
-  // CVU y CBU unificados en un solo campo. Se persiste en `cbu`; se precarga
-  // desde el que tenga valor (cbu o el cvu legacy).
-  const [cbu, setCbu] = useState(chofer.cbu ?? chofer.cvu ?? "");
+  // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
+  const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
+  const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
 
   // Helpers de display
   const fmtFecha = (s: string | null | undefined) => {
@@ -60,13 +67,13 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
-    setEmail(chofer.email ?? "");
     setTelefono(chofer.telefono ?? "");
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
     setBanco(chofer.banco ?? "");
-    setCbu(chofer.cbu ?? chofer.cvu ?? "");
+    setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
+    setAltaAfip(chofer.alta_afip ?? "");
     setError(null);
     setFieldErrors({});
     setEditing(false);
@@ -91,13 +98,13 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       const res = await updateChoferInfoAction(chofer.id, {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
-        email: email.trim() || undefined,
         telefono: telefono.trim() || undefined,
         telefono_emergencia: telefonoEmergencia.trim() || undefined,
         domicilio: domicilio.trim() || undefined,
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
+        alta_afip: altaAfip || undefined,
       });
       if (res.error) {
         setError(res.error);
@@ -108,33 +115,47 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
     });
   };
 
+  const legajoEstado = getLegajoEstado({
+    nombre: chofer.nombre,
+    apellido: chofer.apellido,
+    dni: chofer.dni,
+    cuil: (chofer as { cuil?: string | null }).cuil ?? null,
+    telefono: chofer.telefono,
+    localidad: chofer.localidad,
+    fecha_ingreso: chofer.fecha_ingreso,
+  });
+
   return (
     <div className="space-y-4">
-      {/* Header con toggle de edición */}
+      {!legajoEstado.completo && (
+        <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-500/10 dark:border-red-500/40 p-4 flex items-start gap-3">
+          <div className="flex items-center justify-center size-9 rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300 shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div className="flex-1 space-y-1.5">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+              Legajo incompleto
+            </p>
+            <p className="text-xs text-red-700/90 dark:text-red-200/90">
+              Faltan los siguientes datos obligatorios:{" "}
+              <span className="font-semibold">{legajoEstado.faltantes.join(", ")}</span>.
+            </p>
+            <p className="text-xs text-red-700/80 dark:text-red-200/80">
+              {MENSAJE_LEGAJO_INCOMPLETO}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Estado de edición. En el legajo el botón "Editar" vive en el encabezado;
+          en la lista (uso no-controlado) mostramos el botón acá. */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {editing ? "Editando — los cambios no se guardan hasta confirmar." : "Vista de solo lectura."}
         </span>
-        {!editing ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil size={12} className="mr-1.5 text-primary" />
-            Editar datos
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={handleCancel}
-            disabled={isPending}
-          >
-            <X size={12} className="mr-1" />
-            Cancelar
+        {!controlled && !editing && (
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditing(true)}>
+            <Pencil size={12} className="mr-1.5 text-primary" /> Editar datos
           </Button>
         )}
       </div>
@@ -173,25 +194,11 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             <Field label="Provincia"><Value v={chofer.provincia} /></Field>
             <div className="col-span-2">
               <Field label="Camión actual">
-                {chofer.camion_actual ? (
-                  <p className="text-sm py-0.5 text-foreground">
-                    <span className="font-mono">{chofer.camion_actual.patente}</span>
-                    {[chofer.camion_actual.marca, chofer.camion_actual.modelo].some(
-                      (x) => x && x !== SIN_DATOS
-                    ) ? (
-                      <span className="text-muted-foreground">
-                        {" "}· {[chofer.camion_actual.marca, chofer.camion_actual.modelo]
-                          .filter((x) => x && x !== SIN_DATOS)
-                          .join(" ")}
-                        {chofer.camion_actual.ano ? ` (${chofer.camion_actual.ano})` : ""}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/50 italic">{" "}· sin datos del modelo</span>
-                    )}
-                  </p>
-                ) : (
-                  <p className="text-sm py-0.5 text-muted-foreground/60">Sin asignación</p>
-                )}
+                <CamionAsignacion
+                  choferId={chofer.id}
+                  camionActual={chofer.camion_actual}
+                  historial={chofer.camiones_historial}
+                />
               </Field>
             </div>
           </div>
@@ -236,13 +243,6 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
               ) : <Value v={chofer.telefono_emergencia} />}
             </Field>
             <div className="col-span-2">
-              <Field label="Email (opcional)">
-                {editing
-                  ? <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                  : <Value v={chofer.email} />}
-              </Field>
-            </div>
-            <div className="col-span-2">
               <Field label="Domicilio">
                 {editing
                   ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className="h-8 text-sm" placeholder="—" />
@@ -266,7 +266,7 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             <Field label="CVU/CBU">
               {editing
                 ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
-                : <Value v={chofer.cbu ?? chofer.cvu} mono />}
+                : <Value v={chofer.cbu} mono />}
             </Field>
             <Field label="Alias CBU">
               {editing
@@ -280,6 +280,33 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
             </p>
           )}
         </section>
+
+        {/* AFIP + Período de prueba */}
+        <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
+          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+            AFIP / Período de prueba
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+            <Field label="Alta AFIP">
+              {editing
+                ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
+                : <Value v={altaAfip ? fmtFecha(altaAfip) : null} />}
+            </Field>
+            <PeriodoPruebaField
+              fechaIngreso={chofer.fecha_ingreso}
+              periodoPruebaFin={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+              editing={editing}
+              onActivar={() => {
+                const fin = chofer.fecha_ingreso
+                  ? addMonthsStr(chofer.fecha_ingreso, 6)
+                  : addMonthsStr(new Date().toISOString().split("T")[0], 6);
+                updateChoferInfoAction(chofer.id, { periodo_prueba_fin: fin }).then((res) => {
+                  if (!res.error) onSaved?.();
+                });
+              }}
+            />
+          </div>
+        </section>
       </div>
 
       {error && (
@@ -289,7 +316,10 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
       )}
 
       {editing && (
-        <div className="flex items-center justify-end pt-3 border-t border-border">
+        <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isPending}>
+            <X size={13} className="mr-1.5" />Cancelar
+          </Button>
           <Button variant="brand" size="sm" onClick={handleSave} disabled={isPending}>
             {isPending ? "Guardando..." : (
               <><Check size={13} className="mr-1.5" />Guardar cambios</>
@@ -298,6 +328,73 @@ export default function ChoferInfoTab({ chofer, onSaved }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function addMonthsStr(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+function PeriodoPruebaField({
+  fechaIngreso,
+  periodoPruebaFin,
+  editing,
+  onActivar,
+}: {
+  fechaIngreso: string | null | undefined;
+  periodoPruebaFin: string | null;
+  editing: boolean;
+  onActivar: () => void;
+}) {
+  const fmtFecha = (s: string) => {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  };
+
+  if (!periodoPruebaFin) {
+    return (
+      <div className="col-span-2 flex items-center gap-3">
+        <div className="space-y-0.5">
+          <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
+          <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
+        </div>
+        {editing && (
+          <button
+            type="button"
+            onClick={onActivar}
+            className="mt-4 text-xs font-semibold text-[#0088D1] hover:underline"
+          >
+            + Iniciar
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const hoy = new Date();
+  const fin = new Date(periodoPruebaFin + "T00:00:00");
+  const diasRestantes = Math.ceil((fin.getTime() - hoy.getTime()) / 86_400_000);
+  const vencido = diasRestantes < 0;
+  const porVencer = !vencido && diasRestantes <= 30;
+
+  return (
+    <>
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — inicio</Label>
+        <p className="text-sm py-0.5 text-foreground">{fechaIngreso ? fmtFecha(fechaIngreso) : "—"}</p>
+      </div>
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — fin</Label>
+        <p className={`text-sm py-0.5 font-semibold ${vencido ? "text-red-500" : porVencer ? "text-amber-500" : "text-[#0088D1]"}`}>
+          {fmtFecha(periodoPruebaFin)}
+          <span className="ml-1.5 font-normal text-muted-foreground text-xs">
+            {vencido ? `(venció hace ${Math.abs(diasRestantes)}d)` : `(${diasRestantes}d restantes)`}
+          </span>
+        </p>
+      </div>
+    </>
   );
 }
 

@@ -281,7 +281,9 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 >
                   <option value="" disabled>Seleccioná...</option>
                   {formOptions?.choferes.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
+                    <option key={c.id} value={c.id} disabled={c.disabled} title={c.motivo}>
+                      {c.label}
+                    </option>
                   ))}
                 </select>
               </CField>

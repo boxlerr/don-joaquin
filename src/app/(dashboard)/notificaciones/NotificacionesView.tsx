@@ -34,6 +34,15 @@ import {
 
 const SEVERIDAD_ORDER: Severidad[] = ["critica", "advertencia", "info"];
 
+// Dentro de cada grupo de severidad: adm/mant primero, luego choferes
+const ENTIDAD_TIPO_PRIORITY: Record<string, number> = {
+  personal_cumple: 0,
+  personal_aniversario: 1,
+  choferes_cumple: 2,
+  choferes_aniversario: 3,
+  choferes_periodo_prueba: 4,
+};
+
 const SEV_ACCENT: Record<Severidad, { border: string; headerBg: string; count: string }> = {
   critica: {
     border: "border-l-[#EF4444]",
@@ -108,6 +117,14 @@ export default function NotificacionesView({
       info: [],
     };
     for (const a of filtered) map[a.severidad].push(a);
+    // Adm/mant antes que choferes dentro de la misma severidad
+    for (const sev of SEVERIDAD_ORDER) {
+      map[sev].sort((a, b) => {
+        const pa = ENTIDAD_TIPO_PRIORITY[a.entidad_tipo ?? ""] ?? 99;
+        const pb = ENTIDAD_TIPO_PRIORITY[b.entidad_tipo ?? ""] ?? 99;
+        return pa - pb;
+      });
+    }
     return map;
   }, [filtered]);
 
@@ -350,9 +367,9 @@ function AlertaRow({
 }) {
   const href = alertaHref(alerta);
   const dias = diasRestantes(alerta.fecha_vencimiento);
-  const esCumple = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_cumple";
+  const esCumple = alerta.tipo === "otro" && (alerta.entidad_tipo === "choferes_cumple" || alerta.entidad_tipo === "personal_cumple");
   const esPrueba = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_periodo_prueba";
-  const esAniversario = alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_aniversario";
+  const esAniversario = alerta.tipo === "otro" && (alerta.entidad_tipo === "choferes_aniversario" || alerta.entidad_tipo === "personal_aniversario");
 
   const fechaVencFmt = alerta.fecha_vencimiento
     ? (() => {

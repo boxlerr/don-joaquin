@@ -99,7 +99,12 @@ export default function CamionesTableClient({
     const q = busqueda.trim().toUpperCase();
     return camiones.filter((c) => {
       if (tercerizacion !== "todas" && c.tercerizacion_estado !== tercerizacion) return false;
-      if (q && !c.patente.toUpperCase().includes(q)) return false;
+      if (
+        q &&
+        !c.patente.toUpperCase().includes(q) &&
+        !(c.chofer_nombre ?? "").toUpperCase().includes(q)
+      )
+        return false;
       return true;
     });
   }, [camiones, tercerizacion, busqueda]);
@@ -207,7 +212,7 @@ export default function CamionesTableClient({
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar patente..."
+              placeholder="Buscar patente o chofer..."
               className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all"
             />
           </div>

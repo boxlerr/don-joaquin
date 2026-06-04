@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getLegajoEstado } from "@/lib/chofer-validation";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
@@ -1111,15 +1112,24 @@ export async function deleteFotoCamionAction(foto_id: string) {
 // ============================================================================
 
 export async function getChoferesParaCargaAction(): Promise<
-  { id: string; nombre: string; apellido: string }[]
+  { id: string; nombre: string; apellido: string; disabled?: boolean; motivo?: string }[]
 > {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("choferes")
-    .select("id, nombre, apellido")
+    .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
     .eq("estado", "activo")
     .order("apellido", { ascending: true });
-  return (data ?? []) as { id: string; nombre: string; apellido: string }[];
+  return (data ?? []).map((c) => {
+    const estado = getLegajoEstado(c);
+    return {
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido,
+      disabled: !estado.completo,
+      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
+    };
+  });
 }
 
 export async function getUltimoKmCamionAction(camion_id: string): Promise<number | null> {

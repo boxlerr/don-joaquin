@@ -1417,14 +1417,15 @@ export type Database = {
       choferes: {
         Row: {
           alias_cbu: string | null
+          alta_afip: string | null
           apellido: string
           banco: string | null
           cbu: string | null
           ciudad_nacimiento: string | null
+          clave_fiscal: string | null
           created_at: string
           created_by: string | null
           cuil: string | null
-          cvu: string | null
           dni: string | null
           domicilio: string | null
           email: string | null
@@ -1440,8 +1441,11 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre: string
+          nro_tramite_dni: string | null
           observaciones: string | null
+          periodo_prueba_fin: string | null
           provincia: string | null
+          rol: string | null
           tarifa_km: number | null
           telefono: string | null
           telefono_emergencia: string | null
@@ -1449,14 +1453,15 @@ export type Database = {
         }
         Insert: {
           alias_cbu?: string | null
+          alta_afip?: string | null
           apellido: string
           banco?: string | null
           cbu?: string | null
           ciudad_nacimiento?: string | null
+          clave_fiscal?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
@@ -1472,8 +1477,11 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre: string
+          nro_tramite_dni?: string | null
           observaciones?: string | null
+          periodo_prueba_fin?: string | null
           provincia?: string | null
+          rol?: string | null
           tarifa_km?: number | null
           telefono?: string | null
           telefono_emergencia?: string | null
@@ -1481,14 +1489,15 @@ export type Database = {
         }
         Update: {
           alias_cbu?: string | null
+          alta_afip?: string | null
           apellido?: string
           banco?: string | null
           cbu?: string | null
           ciudad_nacimiento?: string | null
+          clave_fiscal?: string | null
           created_at?: string
           created_by?: string | null
           cuil?: string | null
-          cvu?: string | null
           dni?: string | null
           domicilio?: string | null
           email?: string | null
@@ -1504,8 +1513,11 @@ export type Database = {
             | Database["public"]["Enums"]["chofer_motivo_egreso"]
             | null
           nombre?: string
+          nro_tramite_dni?: string | null
           observaciones?: string | null
+          periodo_prueba_fin?: string | null
           provincia?: string | null
+          rol?: string | null
           tarifa_km?: number | null
           telefono?: string | null
           telefono_emergencia?: string | null
