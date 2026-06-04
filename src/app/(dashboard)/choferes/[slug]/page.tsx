@@ -155,6 +155,9 @@ export default function ChoferDetailPage() {
               adelantos={chofer.adelantos_mes}
               evolucion={chofer.evolucion_6meses}
               roturas={chofer.roturas_detalle}
+              pesos={chofer.pesos_score}
+              is_admin={chofer.is_admin}
+              onRefresh={loadData}
             />
           )}
           {activeTab === "apercibimientos" && (

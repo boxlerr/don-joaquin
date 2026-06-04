@@ -34,7 +34,7 @@ export default async function MantenimientoPage() {
     getTiposServicioAction(),
     supabase
       .from("camiones")
-      .select("id, patente, marca, modelo, tercerizacion_estado")
+      .select("id, patente, marca, modelo, tercerizacion_estado, km_actual")
       .eq("estado", "activo")
       .order("patente"),
     supabase

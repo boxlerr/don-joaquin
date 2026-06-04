@@ -110,6 +110,31 @@ export default function AddServicioDialog({
     }
   }, [esTercerizado, tipoSel]);
 
+  // Auto-calcular próximo service cuando cambia tipo, km o fecha.
+  // Solo cuando no estamos editando un registro existente.
+  useEffect(() => {
+    if (editing) return;
+    if (!tipoSel) return;
+    const kmN = parseInt(km);
+    if (tipoSel.intervalo_km) {
+      if (Number.isFinite(kmN) && kmN > 0) {
+        setProxKm(String(kmN + tipoSel.intervalo_km));
+      }
+    } else {
+      setProxKm("");
+    }
+    if (tipoSel.intervalo_dias) {
+      if (fecha) {
+        const d = new Date(fecha + "T00:00:00");
+        d.setDate(d.getDate() + tipoSel.intervalo_dias);
+        setProxFecha(d.toISOString().split("T")[0]);
+      }
+    } else {
+      setProxFecha("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoServicioId, km, fecha]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!camionId && !acopladoId) return setError("Elegí un camión o acoplado.");
@@ -216,6 +241,11 @@ export default function AddServicioDialog({
               <div className="space-y-2">
                 <Label htmlFor="km" className="text-sm font-medium text-foreground">KM del camión</Label>
                 <Input id="km" type="number" placeholder="Ej: 150000" required value={km} onChange={(e) => setKm(e.target.value)} />
+                {camionSel?.km_actual != null && (
+                  <p className="text-[11px] text-muted-foreground/70">
+                    Último registrado: {camionSel.km_actual.toLocaleString("es-AR")} km
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -243,9 +273,16 @@ export default function AddServicioDialog({
           </div>
 
           <div className="rounded-[8px] border border-dashed border-border bg-muted/20 px-4 py-3 space-y-3">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-              Próximo service <span className="font-normal normal-case">(opcional — genera alerta)</span>
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Próximo service <span className="font-normal normal-case">(genera alerta)</span>
+              </p>
+              {tipoSel && (tipoSel.intervalo_km || tipoSel.intervalo_dias) && (
+                <p className="text-[10px] text-primary/70">
+                  Calculado según intervalo del servicio — editabile
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="proxFecha" className="text-xs font-medium text-muted-foreground">Fecha estimada</Label>

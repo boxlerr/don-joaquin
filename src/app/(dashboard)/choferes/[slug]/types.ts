@@ -153,6 +153,19 @@ export type RoturaDetalle = {
   unidad_tipo: "camion" | "acoplado" | null;
 };
 
+export type PesosScore = {
+  id: string;
+  peso_vacios_bajo: number;
+  peso_vacios_medio: number;
+  peso_vacios_alto: number;
+  umbral_vacios_bajo: number;
+  umbral_vacios_medio: number;
+  umbral_vacios_alto: number;
+  peso_apercibimiento: number;
+  peso_rotura: number;
+  peso_licencia: number;
+};
+
 // KPIs operativos del mes en curso. Calculados server-side a partir de viajes y viáticos.
 export type ProductividadKPIs = {
   periodo_desde: string;
@@ -165,20 +178,23 @@ export type ProductividadKPIs = {
   toneladas: number;
   facturacion_ars: number;
   facturacion_usd: number;
-  liquidacion_chofer_mes: number; // suma de monto_chofer (el "$" del Excel de hoja de ruta) de los viajes del mes
+  liquidacion_chofer_mes: number;
   adelantos_viaticos_ars: number;
   adelantos_viaticos_usd: number;
-  eficiencia_combustible: number | null; // L/100km del mes; null si no hay cargas suficientes
-  litros_mes: number; // litros de gasoil cargados en el mes
+  eficiencia_combustible: number | null;
+  litros_mes: number;
   cargas_combustible_count: number;
-  taller_visitas_mes: number; // reparaciones/averías + gomería del/los camión(es) del chofer en el mes
+  taller_visitas_mes: number;
   roturas_mes: number;
   roturas_cantidad_mes: number;
   apercibimientos_mes: number;
   licencias_activas: number;
   licencias_dias_mes: number;
   prestamos_activos: number;
+  facturacion_por_km: number | null; // facturacion_ars / km_con_carga
   score: number | null;
+  ranking_pos: number | null;
+  ranking_total: number;
 };
 
 export type EvolucionMes = {
@@ -206,6 +222,7 @@ export type ChoferDetail = ChoferBasico & {
   roturas_detalle: RoturaDetalle[];
   adelantos_mes: AdelantoMes[];
   evolucion_6meses: EvolucionMes[];
+  pesos_score: PesosScore | null;
   is_admin: boolean;
   alertas: {
     id: string;

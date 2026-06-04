@@ -6,6 +6,7 @@ export type CamionOption = {
   marca: string;
   modelo: string;
   tercerizacion_estado: Database["public"]["Enums"]["tercerizacion_estado"];
+  km_actual: number | null;
 };
 
 export type ChoferOption = {
@@ -30,4 +31,6 @@ export type TipoServicioOption = {
   codigo: string;
   nombre: string;
   aplica_a_tercerizado: boolean;
+  intervalo_km: number | null;
+  intervalo_dias: number | null;
 };

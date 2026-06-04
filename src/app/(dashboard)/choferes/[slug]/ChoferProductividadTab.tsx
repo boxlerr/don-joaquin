@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -18,14 +19,24 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Truck, Lock, Activity } from "lucide-react";
+import { Truck, Lock, Activity, Settings, Trophy } from "lucide-react";
+import { updatePesosScoreAction } from "./actions";
 import type {
   ProductividadKPIs,
   CamionHistorialItem,
   AdelantoMes,
   EvolucionMes,
   RoturaDetalle,
+  PesosScore,
 } from "./types";
 
 interface Props {
@@ -34,7 +45,12 @@ interface Props {
   adelantos: AdelantoMes[];
   evolucion: EvolucionMes[];
   roturas: RoturaDetalle[];
+  pesos: PesosScore | null;
+  is_admin: boolean;
+  onRefresh: () => void;
 }
+
+type ChartMetric = "km" | "toneladas" | "facturacion";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -71,16 +87,26 @@ function scoreConfig(score: number | null): {
   return { color: "text-[#EF4444]", bg: "bg-[#EF4444]/10", border: "border-[#EF4444]/30", label: "Bajo" };
 }
 
-export default function ChoferProductividadTab({ kpis, historial, adelantos, evolucion, roturas }: Props) {
+export default function ChoferProductividadTab({
+  kpis,
+  historial,
+  adelantos,
+  evolucion,
+  roturas,
+  pesos,
+  is_admin,
+  onRefresh,
+}: Props) {
   const periodoLabel = nombreMes(kpis.periodo_desde);
   const sc = scoreConfig(kpis.score);
   const mesActual = kpis.periodo_desde.slice(0, 7);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("km");
 
   return (
     <div className="space-y-6">
-      {/* Score operativo */}
-      <div className={`rounded-[8px] border px-5 py-4 flex items-center justify-between ${sc.bg} ${sc.border}`}>
-        <div>
+      {/* Score operativo + ranking */}
+      <div className={`rounded-[8px] border px-5 py-4 flex items-start justify-between gap-4 ${sc.bg} ${sc.border}`}>
+        <div className="flex-1">
           <p className="text-xs uppercase tracking-wide text-muted-foreground/70 mb-1">
             Score operativo — {periodoLabel}
           </p>
@@ -92,9 +118,29 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           ) : (
             <p className="text-sm text-muted-foreground">Sin viajes registrados este mes.</p>
           )}
+
+          {/* Ranking */}
+          {kpis.ranking_pos !== null && kpis.ranking_total > 1 && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <Trophy size={12} className="text-muted-foreground/70" />
+              <span className="text-xs text-muted-foreground">
+                Posición{" "}
+                <span className="font-semibold text-foreground">
+                  #{kpis.ranking_pos}
+                </span>{" "}
+                de {kpis.ranking_total} choferes activos este mes
+              </span>
+            </div>
+          )}
         </div>
-        <div className={`text-sm font-semibold px-3 py-1.5 rounded-md border ${sc.color} ${sc.bg} ${sc.border}`}>
-          {sc.label}
+
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className={`text-sm font-semibold px-3 py-1.5 rounded-md border ${sc.color} ${sc.bg} ${sc.border}`}>
+            {sc.label}
+          </div>
+          {is_admin && (
+            <ConfigPesosDialog pesos={pesos} onSaved={onRefresh} />
+          )}
         </div>
       </div>
 
@@ -121,13 +167,21 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           <KPI
             label="Liquidación al chofer"
             value={fmtMoneda(kpis.liquidacion_chofer_mes, "ARS")}
-            sub="$ de la hoja de ruta"
+            sub="$ de hoja de ruta"
             color="text-[#10B981]"
           />
           {kpis.facturacion_ars > 0 && (
             <KPI
               label="Facturación ARS"
               value={fmtMoneda(kpis.facturacion_ars, "ARS")}
+              color="text-[#10B981]"
+            />
+          )}
+          {kpis.facturacion_por_km !== null && (
+            <KPI
+              label="$ por km cargado"
+              value={fmtMoneda(kpis.facturacion_por_km, "ARS")}
+              sub="facturación / km c/carga"
               color="text-[#10B981]"
             />
           )}
@@ -193,7 +247,6 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           </div>
         )}
 
-        {/* Eficiencia de combustible: placeholder solo si no hay datos suficientes este mes */}
         {kpis.eficiencia_combustible === null && (
           <div className="flex items-start gap-2 bg-muted/20 rounded-[8px] border border-dashed border-border px-4 py-3">
             <Lock size={12} className="text-muted-foreground/70 mt-0.5 shrink-0" />
@@ -208,7 +261,6 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
           </div>
         )}
 
-        {/* % sueldo / facturación: pendiente del módulo de Sueldos (F4) */}
         <div className="flex items-start gap-2 bg-muted/20 rounded-[8px] border border-dashed border-border px-4 py-3">
           <Lock size={12} className="text-muted-foreground/70 mt-0.5 shrink-0" />
           <div>
@@ -220,20 +272,47 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
 
       {/* Gráfico evolución 6 meses */}
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Activity size={14} className="text-muted-foreground" />
-          Evolución — últimos 6 meses
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <Activity size={14} className="text-muted-foreground" />
+            Evolución — últimos 6 meses
+          </h3>
+          <div className="flex items-center gap-1">
+            {(["km", "toneladas", "facturacion"] as ChartMetric[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setChartMetric(m)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                  chartMetric === m
+                    ? "bg-primary text-white"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                }`}
+              >
+                {m === "km" ? "KM" : m === "toneladas" ? "Toneladas" : "Facturación"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {evolucion.every((m) => m.km_total === 0) ? (
+        {evolucion.every((m) => {
+          if (chartMetric === "km") return m.km_total === 0;
+          if (chartMetric === "toneladas") return m.toneladas === 0;
+          return m.facturacion_ars === 0;
+        }) ? (
           <div className="rounded-[8px] border border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            Sin datos de viajes en los últimos 6 meses.
+            Sin datos en los últimos 6 meses.
           </div>
         ) : (
           <div className="rounded-[8px] border border-border bg-card p-4">
-            <p className="text-[11px] text-muted-foreground/70 mb-3 uppercase tracking-wide">KM recorridos por mes</p>
+            <p className="text-[11px] text-muted-foreground/70 mb-3 uppercase tracking-wide">
+              {chartMetric === "km" ? "KM recorridos por mes" : chartMetric === "toneladas" ? "Toneladas transportadas por mes" : "Facturación ARS por mes"}
+            </p>
             <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={evolucion} barSize={28} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+              <BarChart
+                data={evolucion}
+                barSize={28}
+                margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="label"
@@ -246,7 +325,12 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
                   axisLine={false}
                   tickLine={false}
                   width={48}
-                  tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
+                  tickFormatter={(v) => {
+                    if (chartMetric === "facturacion") {
+                      return v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
+                    }
+                    return v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v);
+                  }}
                 />
                 <Tooltip
                   contentStyle={{
@@ -255,11 +339,19 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
                     borderRadius: "6px",
                     fontSize: 12,
                   }}
-                  formatter={(value: unknown) => `${fmtNum(Number(value))} km`}
+                  formatter={(value: unknown) => {
+                    const n = Number(value);
+                    if (chartMetric === "facturacion") return `$ ${fmtNum(n)}`;
+                    if (chartMetric === "toneladas") return `${fmtNum(n)} tn`;
+                    return `${fmtNum(n)} km`;
+                  }}
                   labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
                   cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                 />
-                <Bar dataKey="km_total" radius={[3, 3, 0, 0]}>
+                <Bar
+                  dataKey={chartMetric === "km" ? "km_total" : chartMetric === "toneladas" ? "toneladas" : "facturacion_ars"}
+                  radius={[3, 3, 0, 0]}
+                >
                   {evolucion.map((entry) => (
                     <Cell
                       key={entry.mes}
@@ -381,7 +473,7 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
         </div>
       </section>
 
-      {/* Roturas de gomas — historial detallado (últimas 20) */}
+      {/* Roturas de gomas */}
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">
           Roturas de gomas
@@ -441,6 +533,10 @@ export default function ChoferProductividadTab({ kpis, historial, adelantos, evo
   );
 }
 
+// ---------------------------------------------------------------------------
+// KPI card
+// ---------------------------------------------------------------------------
+
 function KPI({
   label,
   value,
@@ -459,6 +555,191 @@ function KPI({
       {sub && (
         <p className="text-xs text-muted-foreground/70 mt-0.5">{sub}</p>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dialog configuración de pesos (solo admin)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_PESOS: Omit<PesosScore, "id"> = {
+  peso_vacios_bajo: 8,
+  peso_vacios_medio: 15,
+  peso_vacios_alto: 20,
+  umbral_vacios_bajo: 20,
+  umbral_vacios_medio: 30,
+  umbral_vacios_alto: 40,
+  peso_apercibimiento: 8,
+  peso_rotura: 5,
+  peso_licencia: 10,
+};
+
+function ConfigPesosDialog({
+  pesos,
+  onSaved,
+}: {
+  pesos: PesosScore | null;
+  onSaved: () => void;
+}) {
+  const initial = pesos ?? DEFAULT_PESOS;
+  const [form, setForm] = useState({ ...initial });
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleOpen(val: boolean) {
+    if (val) setForm({ ...(pesos ?? DEFAULT_PESOS) });
+    setError(null);
+    setOpen(val);
+  }
+
+  function handleChange(field: keyof typeof form, raw: string) {
+    const n = parseFloat(raw);
+    setForm((prev) => ({ ...prev, [field]: Number.isFinite(n) ? n : 0 }));
+  }
+
+  function handleSave() {
+    startTransition(async () => {
+      setError(null);
+      const res = await updatePesosScoreAction(form);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      setOpen(false);
+      onSaved();
+    });
+  }
+
+  const triggerBtn = (
+    <button className="flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors">
+      <Settings size={11} />
+      Configurar pesos
+    </button>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <DialogTrigger render={triggerBtn} />
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-base">Pesos del score operativo</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-1 mb-1">
+          Cada penalidad descuenta puntos del score de 100. Configuración global — aplica a todos los choferes.
+        </p>
+
+        <div className="space-y-4">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Km vacíos (umbrales y penalidades)
+            </legend>
+            <PesoRow
+              label={`Penalidad si vacíos > ${form.umbral_vacios_bajo}%`}
+              field="peso_vacios_bajo"
+              value={form.peso_vacios_bajo}
+              onChange={handleChange}
+            />
+            <PesoRow
+              label={`Penalidad si vacíos > ${form.umbral_vacios_medio}%`}
+              field="peso_vacios_medio"
+              value={form.peso_vacios_medio}
+              onChange={handleChange}
+            />
+            <PesoRow
+              label={`Penalidad si vacíos > ${form.umbral_vacios_alto}%`}
+              field="peso_vacios_alto"
+              value={form.peso_vacios_alto}
+              onChange={handleChange}
+            />
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              {([
+                ["umbral_vacios_bajo", "Umbral bajo (%)"],
+                ["umbral_vacios_medio", "Umbral medio (%)"],
+                ["umbral_vacios_alto", "Umbral alto (%)"],
+              ] as [keyof typeof form, string][]).map(([field, label]) => (
+                <div key={field}>
+                  <p className="text-[10px] text-muted-foreground/70 mb-0.5">{label}</p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={form[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full text-sm border border-border rounded-[8px] px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Otras penalidades
+            </legend>
+            <PesoRow
+              label="Por apercibimiento (c/u)"
+              field="peso_apercibimiento"
+              value={form.peso_apercibimiento}
+              onChange={handleChange}
+            />
+            <PesoRow
+              label="Por evento de rotura (c/u)"
+              field="peso_rotura"
+              value={form.peso_rotura}
+              onChange={handleChange}
+            />
+            <PesoRow
+              label="Por licencia médica activa"
+              field="peso_licencia"
+              value={form.peso_licencia}
+              onChange={handleChange}
+            />
+          </fieldset>
+        </div>
+
+        {error && (
+          <p className="text-xs text-[#EF4444]">{error}</p>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={isPending}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={isPending}>
+            {isPending ? "Guardando…" : "Guardar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PesoRow({
+  label,
+  field,
+  value,
+  onChange,
+}: {
+  label: string;
+  field: string;
+  value: number;
+  onChange: (field: keyof Omit<PesosScore, "id">, raw: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-xs text-muted-foreground flex-1">{label}</p>
+      <input
+        type="number"
+        min={0}
+        max={100}
+        step={0.5}
+        value={value}
+        onChange={(e) => onChange(field as keyof Omit<PesosScore, "id">, e.target.value)}
+        className="w-16 text-sm text-right border border-border rounded-[8px] px-2 py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
     </div>
   );
 }

@@ -13,6 +13,7 @@ import type {
   CamionHistorialItem,
   AdelantoMes,
   EvolucionMes,
+  PesosScore,
 } from "./types";
 
 export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
@@ -63,6 +64,11 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     { data: roturasMes },
     { data: viajes6meses },
     { data: cargasCombustibleMes },
+    { data: pesosRow },
+    { data: rankingViajes },
+    { data: rankingApercs },
+    { data: rankingRoturas },
+    { data: rankingLicencias },
   ] = await Promise.all([
     supabase
       .from("v_chofer_documentos_vigencia")
@@ -161,6 +167,43 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .eq("chofer_id", chofer_id)
       .gte("fecha", primerDia)
       .lte("fecha", ultimoDia),
+
+    // Configuración de pesos del score (singleton)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("pesos_score_chofer")
+      .select("id, peso_vacios_bajo, peso_vacios_medio, peso_vacios_alto, umbral_vacios_bajo, umbral_vacios_medio, umbral_vacios_alto, peso_apercibimiento, peso_rotura, peso_licencia")
+      .limit(1)
+      .maybeSingle(),
+
+    // Ranking: viajes de todos los choferes activos este mes (para calcular posición)
+    supabase
+      .from("viajes")
+      .select("chofer_id, km_con_carga, km_vacios")
+      .gte("fecha_viaje", primerDia)
+      .lte("fecha_viaje", ultimoDia)
+      .not("chofer_id", "is", null),
+
+    // Apercibimientos del mes de todos los choferes (para score ranking)
+    supabase
+      .from("chofer_apercibimientos")
+      .select("chofer_id")
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia),
+
+    // Roturas del mes de todos los choferes (para score ranking)
+    supabase
+      .from("roturas_gomas")
+      .select("chofer_id")
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia)
+      .not("chofer_id", "is", null),
+
+    // Licencias médicas activas de todos los choferes (para score ranking)
+    supabase
+      .from("chofer_licencias_medicas")
+      .select("chofer_id")
+      .is("fecha_hasta", null),
   ]);
 
   // Camión actualmente asignado al chofer (puede ser ninguno).
@@ -341,20 +384,111 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     (p) => p.estado === "pendiente" || p.estado === "parcial",
   ).length;
 
-  // Score operativo provisional (0-100, null si sin actividad)
-  let score: number | null = null;
+  // Pesos configurados (con fallback a defaults si la tabla está vacía)
+  const pesos: PesosScore = pesosRow
+    ? {
+        id: pesosRow.id,
+        peso_vacios_bajo: Number(pesosRow.peso_vacios_bajo),
+        peso_vacios_medio: Number(pesosRow.peso_vacios_medio),
+        peso_vacios_alto: Number(pesosRow.peso_vacios_alto),
+        umbral_vacios_bajo: Number(pesosRow.umbral_vacios_bajo),
+        umbral_vacios_medio: Number(pesosRow.umbral_vacios_medio),
+        umbral_vacios_alto: Number(pesosRow.umbral_vacios_alto),
+        peso_apercibimiento: Number(pesosRow.peso_apercibimiento),
+        peso_rotura: Number(pesosRow.peso_rotura),
+        peso_licencia: Number(pesosRow.peso_licencia),
+      }
+    : {
+        id: "",
+        peso_vacios_bajo: 8,
+        peso_vacios_medio: 15,
+        peso_vacios_alto: 20,
+        umbral_vacios_bajo: 20,
+        umbral_vacios_medio: 30,
+        umbral_vacios_alto: 40,
+        peso_apercibimiento: 8,
+        peso_rotura: 5,
+        peso_licencia: 10,
+      };
+
+  function calcScore(
+    p: { km_con_carga: number; km_vacios: number },
+    apercs: number,
+    roturas: number,
+    licActivas: number,
+    pw: PesosScore,
+  ): number | null {
+    const total = p.km_con_carga + p.km_vacios;
+    if (total === 0 && apercs === 0) return null;
+    const pct = total > 0 ? (p.km_vacios / total) * 100 : 0;
+    let s = 100;
+    if (pct > pw.umbral_vacios_alto) s -= pw.peso_vacios_alto;
+    else if (pct > pw.umbral_vacios_medio) s -= pw.peso_vacios_medio;
+    else if (pct > pw.umbral_vacios_bajo) s -= pw.peso_vacios_bajo;
+    s -= apercs * pw.peso_apercibimiento;
+    s -= roturas * pw.peso_rotura;
+    if (licActivas > 0) s -= pw.peso_licencia;
+    return Math.max(0, Math.min(100, s));
+  }
+
+  // Score operativo del chofer actual (0-100, null si sin actividad)
   const viajes_count = viajesMesArr.length;
   const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
-  if (viajes_count > 0) {
-    let s = 100;
-    if (pct_vacios > 40) s -= 20;
-    else if (pct_vacios > 30) s -= 15;
-    else if (pct_vacios > 20) s -= 8;
-    s -= apercibimientos_mes * 8;
-    s -= roturas_mes * 5;
-    if (licencias_activas > 0) s -= 10;
-    score = Math.max(0, Math.min(100, s));
+  const score =
+    viajes_count > 0
+      ? calcScore(
+          { km_con_carga, km_vacios },
+          apercibimientos_mes,
+          roturas_mes,
+          licencias_activas,
+          pesos,
+        )
+      : null;
+
+  // Ranking: calcular score para todos los choferes activos con viajes este mes
+  const rvArr = rankingViajes ?? [];
+  const raArr = rankingApercs ?? [];
+  const rrArr = rankingRoturas ?? [];
+  const rlArr = rankingLicencias ?? [];
+
+  // Agregar datos por chofer_id
+  const rankMap = new Map<string, { km_con_carga: number; km_vacios: number; apercs: number; roturas: number; lic: number }>();
+  for (const v of rvArr) {
+    if (!v.chofer_id) continue;
+    const e = rankMap.get(v.chofer_id) ?? { km_con_carga: 0, km_vacios: 0, apercs: 0, roturas: 0, lic: 0 };
+    e.km_con_carga += Number(v.km_con_carga ?? 0);
+    e.km_vacios += Number(v.km_vacios ?? 0);
+    rankMap.set(v.chofer_id, e);
   }
+  for (const a of raArr) {
+    if (!a.chofer_id) continue;
+    const e = rankMap.get(a.chofer_id) ?? { km_con_carga: 0, km_vacios: 0, apercs: 0, roturas: 0, lic: 0 };
+    e.apercs += 1;
+    rankMap.set(a.chofer_id, e);
+  }
+  for (const r of rrArr) {
+    if (!r.chofer_id) continue;
+    const e = rankMap.get(r.chofer_id) ?? { km_con_carga: 0, km_vacios: 0, apercs: 0, roturas: 0, lic: 0 };
+    e.roturas += 1;
+    rankMap.set(r.chofer_id, e);
+  }
+  for (const l of rlArr) {
+    if (!l.chofer_id) continue;
+    const e = rankMap.get(l.chofer_id) ?? { km_con_carga: 0, km_vacios: 0, apercs: 0, roturas: 0, lic: 0 };
+    e.lic += 1;
+    rankMap.set(l.chofer_id, e);
+  }
+
+  // Calcular scores y ordenar
+  const rankScores: { chofer_id: string; score: number }[] = [];
+  for (const [cid, stats] of rankMap.entries()) {
+    const s = calcScore(stats, stats.apercs, stats.roturas, stats.lic, pesos);
+    if (s !== null) rankScores.push({ chofer_id: cid, score: s });
+  }
+  rankScores.sort((a, b) => b.score - a.score);
+  const ranking_total = rankScores.length;
+  const rankIdx = rankScores.findIndex((r) => r.chofer_id === chofer_id);
+  const ranking_pos = score !== null && rankIdx !== -1 ? rankIdx + 1 : null;
 
   // Liquidación al chofer del mes: suma del "$" del Excel de hoja de ruta (monto_chofer).
   const liquidacion_chofer_mes = (itemsLiquidacion ?? []).reduce(
@@ -381,6 +515,11 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const litros_mes = cargasComb.reduce((a, c) => a + c.litros, 0);
   const cargas_combustible_count = cargasComb.length;
 
+  const facturacion_por_km =
+    facturacion_ars > 0 && km_con_carga > 0
+      ? Math.round(facturacion_ars / km_con_carga)
+      : null;
+
   const productividad_kpis: ProductividadKPIs = {
     periodo_desde: primerDia,
     periodo_hasta: ultimoDia,
@@ -405,7 +544,10 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     licencias_activas,
     licencias_dias_mes,
     prestamos_activos,
+    facturacion_por_km,
     score,
+    ranking_pos,
+    ranking_total,
   };
 
   // Evolución 6 meses
@@ -556,6 +698,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     }),
     adelantos_mes,
     evolucion_6meses,
+    pesos_score: pesos.id ? pesos : null,
     is_admin: user.rol.codigo === "admin",
   }) as unknown as ChoferDetail;
 }
@@ -1204,6 +1347,56 @@ export async function updateEgresoAction(
   if (error) return { error: error.message };
   await logChoferAudit(chofer_id, "egreso_editado", null, payload, user.id);
   revalidatePath("/choferes");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Configuración de pesos del score de productividad (solo admin)
+// ---------------------------------------------------------------------------
+
+export async function updatePesosScoreAction(
+  data: Omit<PesosScore, "id">,
+): Promise<{ ok?: boolean; error?: string }> {
+  const user = await requireAdmin();
+  const supabase = createAdminClient();
+
+  const vals = [
+    data.peso_vacios_bajo, data.peso_vacios_medio, data.peso_vacios_alto,
+    data.peso_apercibimiento, data.peso_rotura, data.peso_licencia,
+  ];
+  if (vals.some((v) => !Number.isFinite(v) || v < 0))
+    return { error: "Los pesos deben ser números no negativos" };
+  if (!(data.umbral_vacios_bajo < data.umbral_vacios_medio && data.umbral_vacios_medio < data.umbral_vacios_alto))
+    return { error: "Los umbrales de km vacíos deben ser ascendentes" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+
+  const { data: existing } = await sb.from("pesos_score_chofer").select("id").limit(1).maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await sb
+      .from("pesos_score_chofer")
+      .update({ ...data, actualizado_por: user.id })
+      .eq("id", existing.id);
+    if (error) return { error: "No se pudieron guardar los pesos" };
+  } else {
+    const { error } = await sb
+      .from("pesos_score_chofer")
+      .insert({ ...data, actualizado_por: user.id });
+    if (error) return { error: "No se pudieron guardar los pesos" };
+  }
+
+  await supabase.from("audit_log").insert({
+    usuario_id: user.id,
+    accion: "actualizar",
+    entidad_tipo: "pesos_score_chofer",
+    entidad_id: existing?.id ?? null,
+    valores_anteriores: null,
+    valores_nuevos: data,
+  });
+
+  revalidatePath("/choferes/[slug]", "page");
   return { ok: true };
 }
 
