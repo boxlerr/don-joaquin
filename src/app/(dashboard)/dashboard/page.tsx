@@ -24,7 +24,7 @@ import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 import TopBottomChoferes from "./components/TopBottomChoferes";
 import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
-import { alertaHref } from "@/app/(dashboard)/notificaciones/utils";
+import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 
 export default async function DashboardPage() {
   const supabase = createAdminClient();
@@ -77,27 +77,69 @@ export default async function DashboardPage() {
     supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
   ]);
 
-  // Vencimientos reales calculados desde los documentos (igual que en Notificaciones),
-  // no desde la tabla `alertas` (que puede no estar poblada).
+  // Vencimientos reales calculados desde los documentos, con la MISMA lógica
+  // que /notificaciones (mismo diasRestantes + filtro por tipos activos), para
+  // que los totales coincidan. Antes usábamos parsing distinto (Date(string)
+  // en UTC + ceil) que daba ±1 día, y caíamos en un default de 30 días para
+  // tipos no encontrados — eso inflaba el contador del dashboard contra el de
+  // notificaciones.
   const diasAlertaPorTipo = new Map<string, number>();
   for (const t of tiposDocRes.data ?? []) {
     diasAlertaPorTipo.set(t.id, t.dias_alerta_vencimiento);
   }
-  const hoyDoc = new Date();
-  hoyDoc.setHours(0, 0, 0, 0);
   let docVencidos = 0;
   let docProximos = 0;
   for (const d of [...(camionDocsRes.data ?? []), ...(choferDocsRes.data ?? [])]) {
-    if (!d.fecha_vencimiento) continue;
-    const diasAlerta = diasAlertaPorTipo.get(d.tipo_documento_id) ?? 30;
-    const venc = new Date(d.fecha_vencimiento);
-    venc.setHours(0, 0, 0, 0);
-    const diasRest = Math.ceil((venc.getTime() - hoyDoc.getTime()) / 86400000);
+    // Si el tipo no está activo, lo ignoramos (mismo criterio que /notificaciones).
+    const diasAlerta = diasAlertaPorTipo.get(d.tipo_documento_id);
+    if (diasAlerta == null) continue;
+    const diasRest = diasRestantes(d.fecha_vencimiento);
+    if (diasRest === null) continue;
     if (diasRest < 0) docVencidos++;
     else if (diasRest <= diasAlerta) docProximos++;
   }
 
-  const alertCount = (docPorVencer.count ?? 0) + docVencidos + docProximos;
+  // Desglose por categoría (documentación, cheques, viajes, personal, sistema).
+  // Para no contar dos veces las alertas de documentos, ignoramos las del tipo
+  // `vencimiento_doc_*` de la tabla (mismo criterio que /notificaciones, donde
+  // las reemplaza por las calculadas en vivo desde camion_documentos / chofer_documentos).
+  const dbAlertasOtras = (docPorVencer.data ?? []).filter(
+    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
+  );
+
+  const catCounts: Record<string, number> = {
+    documentacion: docVencidos + docProximos,
+    cheques: 0,
+    viajes: 0,
+    personal_cumple: 0,
+    personal_aniversario: 0,
+    personal_prueba: 0,
+    sistema: 0,
+  };
+  for (const a of dbAlertasOtras) {
+    const cat = categoriaDeAlerta(a.tipo, a.entidad_tipo);
+    if (cat === "personal") {
+      // Subdividimos "personal" para que se vean cumple / aniversario / prueba
+      // por separado, que es lo que pide explícitamente el feedback.
+      if (a.entidad_tipo === "choferes_periodo_prueba") catCounts.personal_prueba++;
+      else if (a.entidad_tipo?.endsWith("_aniversario")) catCounts.personal_aniversario++;
+      else catCounts.personal_cumple++;
+    } else if (cat === "documentacion") {
+      // vencimiento_compliance (SICOP/Secondi) cae acá; sumamos al bucket de docs.
+      catCounts.documentacion++;
+    } else {
+      catCounts[cat] = (catCounts[cat] ?? 0) + 1;
+    }
+  }
+
+  const alertCount =
+    catCounts.documentacion +
+    catCounts.cheques +
+    catCounts.viajes +
+    catCounts.personal_cumple +
+    catCounts.personal_aniversario +
+    catCounts.personal_prueba +
+    catCounts.sistema;
   const firstAlert = docPorVencer.data?.[0];
   const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/notificaciones";
   const ultimosViajes = (viajesResult && "data" in viajesResult) ? viajesResult.data : [];
@@ -195,21 +237,49 @@ export default async function DashboardPage() {
           </div>
           <div className="p-5 flex-1 flex items-center justify-center bg-gradient-to-b from-card to-muted/10">
             {alertCount > 0 ? (
-              // Active Alerts Warning Card (Amber Theme)
+              // Active Alerts Warning Card (Amber Theme) — desglose por categoría
+              // para no entrar legajo por legajo (pedido explícito del feedback).
               <div className="w-full bg-gradient-to-br from-[#FFFBEB] to-[#FFFDF5] dark:from-amber-950/40 dark:to-amber-900/20 rounded-[8px] p-4.5 border border-[#FDE68A]/60 dark:border-amber-700/40 shadow-[0_2px_8px_rgba(245,158,11,0.02)] dark:shadow-none flex flex-col justify-between relative overflow-hidden h-full">
                 <div className="flex items-start gap-3 z-10">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 animate-ping absolute" />
                   <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 z-10" />
-                  <div className="flex flex-col">
-                    <p className="text-[#92400E] dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">Documentación Crítica</p>
-                    <p className="text-[#B45309] dark:text-amber-200 text-sm font-bold mt-0.5 leading-snug">Se requiere atención</p>
-                    <p className="text-[#B45309]/80 dark:text-amber-200/80 text-[11px] font-semibold mt-1 leading-relaxed">
-                      {[
-                        docVencidos > 0 ? `${docVencidos} documento${docVencidos !== 1 ? "s" : ""} vencido${docVencidos !== 1 ? "s" : ""}` : null,
-                        docProximos > 0 ? `${docProximos} próximo${docProximos !== 1 ? "s" : ""} a vencer` : null,
-                      ].filter(Boolean).join(" y ")}
-                      . Revisá Notificaciones para gestionarlos.
+                  <div className="flex flex-col flex-1">
+                    <p className="text-[#92400E] dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">Por categoría</p>
+                    <p className="text-[#B45309] dark:text-amber-200 text-sm font-bold mt-0.5 leading-snug">
+                      Se requiere atención
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          { id: "documentacion", label: "Documentación", icon: "📋", count: catCounts.documentacion },
+                          { id: "personal_prueba", label: "Fin de prueba", icon: "🔓", count: catCounts.personal_prueba },
+                          { id: "personal_cumple", label: "Cumpleaños", icon: "🎂", count: catCounts.personal_cumple },
+                          { id: "personal_aniversario", label: "Aniversarios", icon: "🎉", count: catCounts.personal_aniversario },
+                          { id: "cheques", label: "Cheques", icon: "💰", count: catCounts.cheques },
+                          { id: "viajes", label: "Viajes", icon: "🚚", count: catCounts.viajes },
+                          { id: "sistema", label: "Sistema", icon: "⚙️", count: catCounts.sistema },
+                        ] as const
+                      )
+                        .filter((c) => c.count > 0)
+                        .map((c) => {
+                          // "personal_*" son subcategorías del filtro real "personal";
+                          // lo que sí podemos pasar es la categoría base + un hash a
+                          // futuro. Por ahora link a /notificaciones?categoria=<base>.
+                          const base = c.id.startsWith("personal_") ? "personal" : c.id;
+                          return (
+                            <a
+                              key={c.id}
+                              href={`/notificaciones?categoria=${base}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF3C7] dark:bg-amber-900/40 border border-[#FCD34D] dark:border-amber-700/50 text-[11px] font-semibold text-[#92400E] dark:text-amber-200 hover:bg-[#FDE68A] dark:hover:bg-amber-900/60 transition-colors"
+                              title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
+                            >
+                              <span aria-hidden>{c.icon}</span>
+                              <span>{c.label}</span>
+                              <span className="ml-0.5 font-bold tabular-nums">{c.count}</span>
+                            </a>
+                          );
+                        })}
+                    </div>
                   </div>
                 </div>
 
@@ -218,9 +288,12 @@ export default async function DashboardPage() {
                     Resolver alerta
                     <ChevronRight size={14} />
                   </a>
-                  <span className="bg-[#FEF3C7] dark:bg-amber-900/40 text-[#92400E] dark:text-amber-200 border border-[#FDE68A] dark:border-amber-700/50 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                    Vencimiento
-                  </span>
+                  <a
+                    href="/notificaciones"
+                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#92400E] dark:text-amber-200 hover:underline"
+                  >
+                    Ver todas →
+                  </a>
                 </div>
 
                 <svg className="w-16 h-16 text-[#F59E0B]/10 dark:text-amber-300/15 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">

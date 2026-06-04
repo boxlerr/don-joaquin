@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ChevronDown,
@@ -86,9 +86,17 @@ export default function NotificacionesView({
   alertas: AlertaItem[];
 }) {
   const router = useRouter();
+  // Permite que el dashboard linkee directo a una categoría: ?categoria=personal
+  // pre-selecciona el filtro. El usuario después puede cambiarlo libremente.
+  const searchParams = useSearchParams();
+  const initialCat = ((): CatFilter => {
+    const raw = searchParams.get("categoria");
+    const validas: CatFilter[] = ["documentacion", "cheques", "viajes", "personal", "sistema", "todas"];
+    return (validas as string[]).includes(raw ?? "") ? (raw as CatFilter) : "todas";
+  })();
   const [alertas, setAlertas] = useState(initialAlertas);
   const [sevFilter, setSevFilter] = useState<SevFilter>("todas");
-  const [catFilter, setCatFilter] = useState<CatFilter>("todas");
+  const [catFilter, setCatFilter] = useState<CatFilter>(initialCat);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>({
     critica: false,
