@@ -18,8 +18,8 @@ export default async function ViajesPage({
 }: {
   searchParams: Promise<{ choferId?: string }>;
 }) {
-  const user = await requireArea("logistica", "read");
-  const canWrite = hasArea(user, "logistica", "write");
+  const user = await requireArea("viajes", "read");
+  const canWrite = hasArea(user, "viajes", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const { choferId } = await searchParams;
   const supabase = createAdminClient();

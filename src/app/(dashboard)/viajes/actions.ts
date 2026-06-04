@@ -529,7 +529,7 @@ export async function createViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
 
@@ -635,7 +635,7 @@ export type ExportViajesParams = {
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
-  await requireArea("logistica", "read");
+  await requireArea("viajes", "read");
   const { choferId, desde, hasta, estado, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -751,7 +751,7 @@ export async function getViajeAuditTrail(
 // ============================================================================
 
 export async function deleteViajeAction(id: string): Promise<{ ok: boolean; error?: string }> {
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
 
@@ -811,7 +811,7 @@ export async function updateViajeEstadoAction(
     return { ok: false, error: "Estado inválido." };
   }
 
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
 
@@ -876,7 +876,7 @@ export async function cerrarViajeAction(
   },
 ): Promise<{ ok: boolean; error?: string }> {
 
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
 
@@ -1071,7 +1071,7 @@ export async function updateViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
 
@@ -1213,7 +1213,7 @@ export async function createViajesBatchAction(
 ): Promise<BatchViajesResult> {
   if (!filas.length) return { error: "No hay filas para importar." };
 
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
   const supabase = createAdminClient();
 
   // Validar todas las filas antes de insertar ninguna
@@ -1358,7 +1358,7 @@ export type ViajesMensualResult = {
 export async function getViajesMensualPorChoferAction(
   mes: string, // formato "YYYY-MM"
 ): Promise<ViajesMensualResult> {
-  await requireArea("logistica", "read");
+  await requireArea("viajes", "read");
 
   if (!/^\d{4}-\d{2}$/.test(mes)) {
     return { error: "Formato de mes inválido. Usar YYYY-MM." };

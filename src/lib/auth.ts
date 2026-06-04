@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export type AreaCodigo =
   | "logistica"
+  | "viajes"
   | "flota"
+  | "mantenimiento"
   | "combustible"
   | "comercial"
   | "finanzas"
@@ -29,7 +31,9 @@ export type PermisosArea = Record<AreaCodigo, AreaNivel>;
 
 const AREAS_VACIAS: PermisosArea = {
   logistica: "none",
+  viajes: "none",
   flota: "none",
+  mantenimiento: "none",
   combustible: "none",
   comercial: "none",
   finanzas: "none",

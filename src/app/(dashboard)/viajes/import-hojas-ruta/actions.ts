@@ -78,7 +78,7 @@ const PATENTE_PLANTILLA_THRESHOLD = 5; // si aparece en ≥5 sheets, probable pl
 export async function previewHojaRutaImportAction(
   formData: FormData,
 ): Promise<HojaRutaPreviewState> {
-  await requireArea("logistica", "write");
+  await requireArea("viajes", "write");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -357,7 +357,7 @@ const CLIENTE_SIN_ASIGNAR = "Sin asignar (import)";
 export async function confirmHojaRutaImportAction(
   formData: FormData,
 ): Promise<ConfirmImportState> {
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {

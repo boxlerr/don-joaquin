@@ -13,8 +13,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function MantenimientoPage() {
-  const user = await requireArea("flota", "read");
-  const canWrite = hasArea(user, "flota", "write");
+  const user = await requireArea("mantenimiento", "read");
+  const canWrite = hasArea(user, "mantenimiento", "write");
   const supabase = createAdminClient();
 
   const [

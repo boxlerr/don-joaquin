@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 export default async function CargaRapidaPage() {
-  await requireArea("logistica", "write");
+  await requireArea("viajes", "write");
   const formData = await getViajeFormData();
 
   if ("error" in formData) {

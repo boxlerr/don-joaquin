@@ -28,7 +28,7 @@ function tipoEnumFromCodigo(codigo: string): MantenimientoTipo {
 }
 
 export async function getTiposServicioAction() {
-  await requireArea("flota", "read");
+  await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("tipos_servicio")
@@ -61,7 +61,7 @@ export type ServicioRow = {
 };
 
 export async function getServiciosAction(): Promise<ServicioRow[]> {
-  await requireArea("flota", "read");
+  await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("mantenimientos")
@@ -114,7 +114,7 @@ export async function addServicioAction(data: {
   proximo_service_fecha?: string | null;
   proximo_service_km?: number | null;
 }) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const {
@@ -225,7 +225,7 @@ export type RoturaRow = {
 };
 
 export async function getRoturasAction(): Promise<RoturaRow[]> {
-  await requireArea("flota", "read");
+  await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("roturas_gomas")
@@ -266,7 +266,7 @@ export type RoturaPorChofer = {
 };
 
 export async function getRoturasPorChoferAction(): Promise<RoturaPorChofer[]> {
-  await requireArea("flota", "read");
+  await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
   // Últimos 6 meses, agrupado por chofer.
   const desde = new Date();
@@ -300,7 +300,7 @@ export async function addRoturaAction(data: {
   posicion?: string | null;
   observaciones?: string | null;
 }) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const {
@@ -359,7 +359,7 @@ export async function updateServicioAction(
     proximo_service_km?: number | null;
   },
 ) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -406,7 +406,7 @@ export async function updateServicioAction(
 }
 
 export async function deleteServicioAction(id: string) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -448,7 +448,7 @@ export async function updateRoturaAction(
     observaciones?: string | null;
   },
 ) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -488,7 +488,7 @@ export async function updateRoturaAction(
 }
 
 export async function deleteRoturaAction(id: string) {
-  await requireArea("flota", "write");
+  await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
   const authClient = await createClient();
   const { data: { user } } = await authClient.auth.getUser();
@@ -528,7 +528,7 @@ export type AlertaServicio = {
 // programado un próximo (por fecha o km). No duplica las alertas tipo VTV del
 // navbar — solo mira mantenimientos cargados acá.
 export async function getAlertasProximosServicesAction(): Promise<AlertaServicio[]> {
-  await requireArea("flota", "read");
+  await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
 
   const { data: servicios } = await supabase

@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import MensualPorChofer from "./MensualPorChofer";
 
 export default async function ViajesMensualPage() {
-  await requireArea("logistica", "read");
+  await requireArea("viajes", "read");
 
   return (
     <div className="p-8">

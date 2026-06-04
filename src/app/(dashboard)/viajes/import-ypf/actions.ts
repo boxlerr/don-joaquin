@@ -53,7 +53,7 @@ const dedupKey = (choferId: string, fecha: string, neto: number) => `${choferId}
 // ============================================================================
 
 export async function previewYpfImportAction(formData: FormData): Promise<YpfPreviewState> {
-  await requireArea("logistica", "write");
+  await requireArea("viajes", "write");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -143,7 +143,7 @@ export type ConfirmYpfState = {
 } | null;
 
 export async function confirmYpfImportAction(formData: FormData): Promise<ConfirmYpfState> {
-  const user = await requireArea("logistica", "write");
+  const user = await requireArea("viajes", "write");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Adjuntá el PDF para confirmar." };

@@ -59,14 +59,14 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Viajes",
         href: "/viajes",
         icon: MapPin,
-        area: "logistica",
+        area: "viajes",
         children: [
           { label: "Listado", href: "/viajes" },
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
         ],
       },
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
-      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "flota" },
+      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "mantenimiento" },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
       {
         label: "Choferes",
