@@ -2198,6 +2198,48 @@ export type Database = {
           },
         ]
       }
+      entrevistas: {
+        Row: {
+          created_at: string
+          edad: number | null
+          fecha_entrevista: string | null
+          id: string
+          localidad: string | null
+          nombre: string
+          observaciones: string | null
+          preocupacional: string
+          resultado: string
+          telefono: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          edad?: number | null
+          fecha_entrevista?: string | null
+          id?: string
+          localidad?: string | null
+          nombre: string
+          observaciones?: string | null
+          preocupacional?: string
+          resultado?: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          edad?: number | null
+          fecha_entrevista?: string | null
+          id?: string
+          localidad?: string | null
+          nombre?: string
+          observaciones?: string | null
+          preocupacional?: string
+          resultado?: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       extintores: {
         Row: {
           capacidad: string | null
