@@ -1,6 +1,10 @@
 import { Truck } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
+import {
+  categoriaCapacidad,
+  labelCategoriaCapacidad,
+} from "@/lib/capacidad-camion";
 import type { Camion } from "../types";
 import type { TipoServicio } from "../actions";
 
@@ -106,7 +110,12 @@ export default function CamionRow({
             )}
           </div>
         </TableCell>
-        <TableCell>{Number(camion.capacidad_tn).toFixed(1)} TN</TableCell>
+        <TableCell>
+          <div className="flex flex-col">
+            <span>{Number(camion.capacidad_tn).toFixed(1)} TN</span>
+            <CategoriaCapacidadChip capacidad={camion.capacidad_tn} />
+          </div>
+        </TableCell>
         <TableCell className="text-muted-foreground">{camion.tipo_camion ?? "—"}</TableCell>
         <TableCell>
           <div className="flex flex-col gap-0.5">
@@ -146,5 +155,28 @@ export default function CamionRow({
           />
         </TableCell>
       </TableRow>
+  );
+}
+
+// Pequeño chip que muestra a qué categoría (29/35/37,5) cae la capacidad.
+// Sirve para filtrar visualmente la flota sin tener que mirar el número crudo
+// (p.ej. los ~10 camiones de 37,5 que cargan más que el resto).
+function CategoriaCapacidadChip({ capacidad }: { capacidad: number | null | undefined }) {
+  const cat = categoriaCapacidad(capacidad);
+  const label = labelCategoriaCapacidad(cat);
+  if (!label) return null;
+  const cls =
+    cat === "37.5"
+      ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
+      : cat === "35"
+        ? "bg-[#EFF6FF] text-[#1E40AF] border-[#BFDBFE]"
+        : "bg-muted text-muted-foreground border-border";
+  return (
+    <span
+      className={`mt-0.5 inline-flex items-center self-start px-1.5 py-0 rounded border text-[10px] font-medium ${cls}`}
+      title="Categoría de capacidad (agrupa modelos similares)"
+    >
+      {label}
+    </span>
   );
 }
