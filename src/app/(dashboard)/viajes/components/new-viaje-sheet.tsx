@@ -33,8 +33,18 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
   const [tipoCarga, setTipoCarga] = useState("");
   // Auto-camión: al elegir chofer, se pre-selecciona su camión asignado
+  // (pero el usuario puede cambiarlo: los choferes rotan unidades).
+  const [selectedChoferId, setSelectedChoferId] = useState("");
   const [selectedCamionId, setSelectedCamionId] = useState("");
   const router = useRouter();
+
+  // Camión "habitual" del chofer seleccionado (puede no haber).
+  const camionHabitualId =
+    data.choferes.find((c) => c.id === selectedChoferId)?.camionId ?? null;
+  const usandoCamionHabitual =
+    !!camionHabitualId && selectedCamionId === camionHabitualId;
+  const cambioDeCamion =
+    !!selectedChoferId && !!selectedCamionId && !!camionHabitualId && !usandoCamionHabitual;
 
   const [state, formAction] = useActionState<CreateViajeState, FormData>(
     createViajeAction,
@@ -54,12 +64,15 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setOpen(isOpen);
     if (!isOpen) {
       setTipoCarga("");
+      setSelectedChoferId("");
       setSelectedCamionId("");
     }
   };
 
   const handleChoferChange = (choferId: string) => {
-    // Autocompletar el camión asignado a este chofer
+    setSelectedChoferId(choferId);
+    // Pre-llenar con el camión habitual del chofer (es solo un default —
+    // los choferes rotan unidades cuando hay enfermos o roturas).
     const chofer = data.choferes.find((c) => c.id === choferId);
     if (chofer?.camionId) {
       setSelectedCamionId(chofer.camionId);
@@ -149,18 +162,31 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 onValueChange={handleChoferChange}
                 searchPlaceholder="Buscar chofer..."
               />
-              {/* Camion — controlado para recibir auto-completado */}
-              <SelectField
-                label="Camión *"
-                name="camion_id"
-                options={data.camiones}
-                required
-                icon={Truck}
-                error={state?.fieldErrors?.camion_id}
-                value={selectedCamionId}
-                onValueChange={setSelectedCamionId}
-                searchPlaceholder="Buscar patente..."
-              />
+              {/* Camion — controlado para recibir auto-completado.
+                  El chofer-camión es flexible: rotan unidades. */}
+              <div>
+                <SelectField
+                  label="Camión *"
+                  name="camion_id"
+                  options={data.camiones}
+                  required
+                  icon={Truck}
+                  error={state?.fieldErrors?.camion_id}
+                  value={selectedCamionId}
+                  onValueChange={setSelectedCamionId}
+                  searchPlaceholder="Buscar patente..."
+                />
+                {usandoCamionHabitual && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Es el camión habitual de este chofer. Cambialo si esta vez manejó otro.
+                  </p>
+                )}
+                {cambioDeCamion && (
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                    Distinto al camión habitual de este chofer.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Tipo de Carga */}

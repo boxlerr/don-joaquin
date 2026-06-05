@@ -65,9 +65,26 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
         ],
       },
+      { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
+    ],
+  },
+  {
+    group: "FLOTA",
+    items: [
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
       { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "mantenimiento" },
-      { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
+    ],
+  },
+  {
+    group: "SEGURIDAD",
+    items: [
+      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
+      { label: "Extintores", href: "/extintores", icon: Flame, area: "flota" },
+    ],
+  },
+  {
+    group: "RRHH",
+    items: [
       {
         label: "Choferes",
         href: "/choferes",
@@ -78,13 +95,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Ranking", href: "/choferes/ranking" },
         ],
       },
-      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
-      { label: "Extintores", href: "/extintores", icon: Flame, area: "flota" },
-    ],
-  },
-  {
-    group: "RRHH",
-    items: [
       { label: "Entrevistas", href: "/entrevistas", icon: UserSearch, area: "rrhh" },
     ],
   },
