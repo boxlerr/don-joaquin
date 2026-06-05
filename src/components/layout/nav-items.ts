@@ -118,16 +118,7 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "COMPLIANCE",
     items: [
       { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, area: "compliance" },
-      {
-        label: "YPF",
-        href: "/compliance/ypf",
-        icon: ShieldCheck,
-        area: "compliance",
-        children: [
-          { label: "Checklist", href: "/compliance/ypf" },
-          { label: "Documentos DM", href: "/compliance/ypf/dm" },
-        ],
-      },
+      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, area: "compliance" },
       { label: "Próximas presentaciones", href: "/compliance/proximas", icon: CalendarClock, area: "compliance" },
       { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, area: "compliance" },
       { label: "Secondi", href: "/compliance/organismos/secondi", icon: ShieldCheck, area: "compliance" },

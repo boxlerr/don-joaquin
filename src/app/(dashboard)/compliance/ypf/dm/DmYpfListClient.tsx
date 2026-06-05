@@ -11,7 +11,6 @@ import {
   Hash,
   DollarSign,
   Truck,
-  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -32,7 +31,15 @@ function formatARS(n: number | null): string {
   })}`;
 }
 
-export default function DmYpfListClient({ dms }: { dms: DmYpfRow[] }) {
+export default function DmYpfListClient({
+  dms,
+  embedded = false,
+}: {
+  dms: DmYpfRow[];
+  /** Cuando es true, no renderiza el header con "Volver" ni el título —
+   * se asume que el wrapper ya los muestra. */
+  embedded?: boolean;
+}) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -54,33 +61,44 @@ export default function DmYpfListClient({ dms }: { dms: DmYpfRow[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
+      {!embedded && (
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-foreground text-xl font-bold">
+              Documentos de Medición — YPF
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Cada DM es la papeleta quincenal firmada por YPF que certifica las
+              toneladas y el total a facturar.
+            </p>
+          </div>
           <Link
-            href="/compliance/ypf"
+            href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            <ArrowLeft size={12} />
-            Volver a Compliance YPF
+            <FileText size={14} />
+            Importar nuevo DM (desde Viajes)
           </Link>
-          <h1 className="text-foreground text-xl font-bold mt-1">
-            Documentos de Medición — YPF
-          </h1>
-          <p className="text-muted-foreground text-sm">
+        </div>
+      )}
+
+      {embedded && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
             Cada DM es la papeleta quincenal firmada por YPF que certifica las
             toneladas y el total a facturar.
           </p>
+          <Link
+            href="/viajes"
+            prefetch
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <FileText size={13} />
+            Importar PDF de YPF
+          </Link>
         </div>
-        <Link
-          href="/viajes"
-          prefetch
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <FileText size={14} />
-          Importar nuevo DM (desde Viajes)
-        </Link>
-      </div>
+      )}
 
       {downloadError && (
         <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-sm rounded-lg px-3 py-2">
