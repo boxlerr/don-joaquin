@@ -1,21 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   FileText,
   Download,
   CheckCircle2,
-  Clock,
   Calendar,
   Hash,
-  DollarSign,
   Truck,
+  Search,
+  Layers,
+  TrendingUp,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { getDmYpfPdfUrlAction, type DmYpfRow } from "./actions";
+
+// ---------------------------------------------------------------------------
+// Helpers de formato
+// ---------------------------------------------------------------------------
 
 function formatFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -23,25 +29,51 @@ function formatFecha(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+function formatPeriodoCorto(desde: string, hasta: string): string {
+  // "1-15 abr 2026"
+  const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const [, mD, dD] = desde.split("T")[0].split("-");
+  const [yH, mH, dH] = hasta.split("T")[0].split("-");
+  const mesH = meses[parseInt(mH, 10) - 1];
+  if (mD === mH) {
+    return `${parseInt(dD, 10)}-${parseInt(dH, 10)} ${mesH} ${yH}`;
+  }
+  const mesD = meses[parseInt(mD, 10) - 1];
+  return `${parseInt(dD, 10)} ${mesD} → ${parseInt(dH, 10)} ${mesH} ${yH}`;
+}
+
+/** Formatea ARS sin prefijo $ — el componente lo agrega aparte para que no se duplique. */
 function formatARS(n: number | null): string {
   if (n == null) return "—";
-  return `$ ${n.toLocaleString("es-AR", {
+  return n.toLocaleString("es-AR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })}`;
+  });
 }
+
+/** Formato compacto para totales grandes: 176,87M / 1.234M */
+function formatARSCompact(n: number | null): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 2 })}M`;
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })}K`;
+  return n.toLocaleString("es-AR");
+}
+
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
 
 export default function DmYpfListClient({
   dms,
   embedded = false,
 }: {
   dms: DmYpfRow[];
-  /** Cuando es true, no renderiza el header con "Volver" ni el título —
-   * se asume que el wrapper ya los muestra. */
+  /** Cuando es true, no renderiza el header con título — el wrapper ya lo muestra. */
   embedded?: boolean;
 }) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
   const [, startTransition] = useTransition();
 
   const handleDescargar = (dm: DmYpfRow) => {
@@ -54,20 +86,54 @@ export default function DmYpfListClient({
         setDownloadError(res.error ?? "No se pudo abrir el PDF");
         return;
       }
-      // Abrir en pestaña nueva — el navegador decide si previsualiza o descarga
       window.open(res.url, "_blank", "noopener,noreferrer");
     });
   };
 
+  // Stats agregados para el header
+  const stats = useMemo(() => {
+    const totalARS = dms.reduce(
+      (acc, dm) => acc + (dm.total_certificado_ars ?? 0),
+      0,
+    );
+    const totalViajes = dms.reduce((acc, dm) => acc + dm.viajes_count, 0);
+    const conciliados = dms.filter((dm) => dm.estado === "conciliado").length;
+    const ultimoPeriodo =
+      dms.length > 0
+        ? formatPeriodoCorto(dms[0].periodo_desde, dms[0].periodo_hasta)
+        : null;
+    return { totalARS, totalViajes, conciliados, ultimoPeriodo };
+  }, [dms]);
+
+  // Filtrado por búsqueda (período, solpe, pedido, solicitante)
+  const dmsFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return dms;
+    return dms.filter((dm) => {
+      const haystack = [
+        formatFecha(dm.periodo_desde),
+        formatFecha(dm.periodo_hasta),
+        dm.numero_solpe ?? "",
+        dm.numero_pedido ?? "",
+        dm.contrato_sap ?? "",
+        dm.solicitante ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [dms, busqueda]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header (oculto cuando embedded — el wrapper lo muestra arriba) */}
       {!embedded && (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-foreground text-xl font-bold">
               Documentos de Medición — YPF
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm mt-0.5">
               Cada DM es la papeleta quincenal firmada por YPF que certifica las
               toneladas y el total a facturar.
             </p>
@@ -75,160 +141,302 @@ export default function DmYpfListClient({
           <Link
             href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm"
           >
             <FileText size={14} />
-            Importar nuevo DM (desde Viajes)
+            Importar nuevo DM
           </Link>
         </div>
       )}
 
-      {embedded && (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            Cada DM es la papeleta quincenal firmada por YPF que certifica las
-            toneladas y el total a facturar.
-          </p>
+      {/* Bloque de estadísticas — solo si hay DMs */}
+      {dms.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard
+            label="DMs cargados"
+            value={dms.length.toString()}
+            icon={<FileText size={16} />}
+            iconBg="bg-[#E1F5FE]"
+            iconColor="text-primary"
+          />
+          <StatCard
+            label="Total facturado"
+            value={`$ ${formatARSCompact(stats.totalARS)}`}
+            sub={`$ ${formatARS(stats.totalARS)}`}
+            icon={<TrendingUp size={16} />}
+            iconBg="bg-[#ECFDF5]"
+            iconColor="text-[#10B981]"
+          />
+          <StatCard
+            label="Viajes vinculados"
+            value={stats.totalViajes.toString()}
+            icon={<Truck size={16} />}
+            iconBg="bg-[#FEF3C7]"
+            iconColor="text-[#92400E]"
+          />
+          <StatCard
+            label="Último período"
+            value={stats.ultimoPeriodo ?? "—"}
+            sub={`${stats.conciliados} conciliados`}
+            icon={<Calendar size={16} />}
+            iconBg="bg-[#F3E8FF]"
+            iconColor="text-[#6B21A8]"
+          />
+        </div>
+      )}
+
+      {/* Toolbar: búsqueda + import (cuando embedded) */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
+          />
+          <Input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por período, Solpe, Pedido…"
+            className="h-9 pl-9 text-sm"
+            disabled={dms.length === 0}
+          />
+        </div>
+        {embedded && (
           <Link
             href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm"
           >
-            <FileText size={13} />
+            <FileText size={14} />
             Importar PDF de YPF
           </Link>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* Mensaje de error de descarga (banner) */}
       {downloadError && (
         <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-sm rounded-lg px-3 py-2">
           {downloadError}
         </div>
       )}
 
-      <div className="bg-card rounded-[8px] border border-border shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/40">
-          <FileText size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">
-            DMs cargados
-          </h2>
-          <span className="text-xs text-muted-foreground/70 ml-1">
-            {dms.length}
-          </span>
+      {/* Listado de DMs como tarjetas */}
+      {dms.length === 0 ? (
+        <div className="bg-card rounded-[8px] border border-dashed border-border py-14 px-5 text-center">
+          <EmptyState
+            icon={Layers}
+            message="Todavía no hay DMs cargados"
+          />
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Importá el primer PDF de YPF desde{" "}
+            <Link
+              href="/viajes"
+              prefetch
+              className="text-primary font-semibold hover:underline"
+            >
+              Viajes → Importar PDF de YPF
+            </Link>{" "}
+            para verlo acá.
+          </p>
         </div>
-
-        {dms.length === 0 ? (
-          <div className="py-12 px-5">
-            <EmptyState
-              icon={FileText}
-              message="Todavía no hay DMs cargados"
+      ) : dmsFiltrados.length === 0 ? (
+        <div className="bg-card rounded-[8px] border border-border py-10 px-5 text-center text-sm text-muted-foreground">
+          No hay DMs que coincidan con &quot;{busqueda}&quot;
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {dmsFiltrados.map((dm) => (
+            <DmCard
+              key={dm.id}
+              dm={dm}
+              downloading={downloadingId === dm.id}
+              onDescargar={() => handleDescargar(dm)}
             />
-            <p className="text-center text-xs text-muted-foreground/70 mt-2 -mt-6">
-              Importá el primer PDF de YPF desde el módulo de Viajes para verlo acá.
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-componentes
+// ---------------------------------------------------------------------------
+
+function StatCard({
+  label,
+  value,
+  sub,
+  icon,
+  iconBg,
+  iconColor,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-[8px] p-3 shadow-xs">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
+            {label}
+          </p>
+          <p className="text-foreground text-base font-bold mt-0.5 truncate">
+            {value}
+          </p>
+          {sub && (
+            <p
+              className="text-[11px] text-muted-foreground mt-0.5 truncate"
+              title={sub}
+            >
+              {sub}
             </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
-            {dms.map((dm) => (
-              <li
-                key={dm.id}
-                className="px-5 py-4 hover:bg-muted/20 transition-colors"
-              >
-                <div className="flex items-start gap-4 flex-wrap">
-                  {/* Período + estado */}
-                  <div className="flex-1 min-w-[220px]">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                        <Calendar size={13} className="text-primary" />
-                        {formatFecha(dm.periodo_desde)}
-                        {" → "}
-                        {formatFecha(dm.periodo_hasta)}
-                      </span>
-                      <StatusBadge
-                        label={dm.estado}
-                        tone={dm.estado === "conciliado" ? "success" : "info"}
-                      />
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-                      {dm.numero_solpe && (
-                        <span className="inline-flex items-center gap-1 font-mono">
-                          <Hash size={10} /> Solpe {dm.numero_solpe}
-                        </span>
-                      )}
-                      {dm.numero_pedido && (
-                        <span className="inline-flex items-center gap-1 font-mono">
-                          <Hash size={10} /> Pedido {dm.numero_pedido}
-                        </span>
-                      )}
-                      {dm.solicitante && (
-                        <span>· Solic. {dm.solicitante}</span>
-                      )}
-                      {dm.fecha_certificacion && (
-                        <span className="inline-flex items-center gap-1">
-                          <CheckCircle2 size={10} className="text-[#10B981]" />
-                          Firmado {formatFecha(dm.fecha_certificacion)}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1 text-muted-foreground/70">
-                        <Clock size={10} />
-                        Importado {formatFecha(dm.importado_en)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Total certificado */}
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-semibold">
-                      Total certificado
-                    </div>
-                    <div className="text-sm font-mono font-bold text-foreground inline-flex items-center gap-1">
-                      <DollarSign
-                        size={12}
-                        className="text-[#10B981] shrink-0"
-                      />
-                      {formatARS(dm.total_certificado_ars)}
-                    </div>
-                  </div>
-
-                  {/* Viajes vinculados */}
-                  <div className="text-right">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-semibold">
-                      Viajes
-                    </div>
-                    <Link
-                      href={`/viajes?dm_ypf=${dm.id}`}
-                      prefetch
-                      className="text-sm font-mono font-bold inline-flex items-center gap-1 text-primary hover:underline"
-                    >
-                      <Truck size={12} />
-                      {dm.viajes_count}
-                    </Link>
-                  </div>
-
-                  {/* Acciones */}
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDescargar(dm)}
-                      disabled={!dm.archivo_id || downloadingId === dm.id}
-                      title={
-                        dm.archivo_id
-                          ? "Abrir / descargar PDF firmado por YPF"
-                          : "Este DM no tiene PDF original (importado antes del MVP)"
-                      }
-                    >
-                      <Download size={13} />
-                      {downloadingId === dm.id ? "Abriendo..." : "PDF"}
-                    </Button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+          )}
+        </div>
+        <span
+          className={`shrink-0 size-9 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center`}
+        >
+          {icon}
+        </span>
       </div>
     </div>
+  );
+}
+
+function DmCard({
+  dm,
+  downloading,
+  onDescargar,
+}: {
+  dm: DmYpfRow;
+  downloading: boolean;
+  onDescargar: () => void;
+}) {
+  const conciliado = dm.estado === "conciliado";
+
+  return (
+    <li
+      className={`group bg-card rounded-[10px] border shadow-xs hover:shadow-md transition-all overflow-hidden ${
+        conciliado
+          ? "border-[#A7F3D0]"
+          : "border-border hover:border-[#BAE6FD]"
+      }`}
+    >
+      {/* Header con período + estado */}
+      <div
+        className={`px-4 py-3 border-b flex items-center justify-between gap-2 ${
+          conciliado
+            ? "bg-[#ECFDF5]/40 border-[#A7F3D0]"
+            : "bg-[#F0F9FF]/40 border-border"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar size={14} className="text-primary shrink-0" />
+          <span className="text-sm font-bold text-foreground truncate">
+            {formatPeriodoCorto(dm.periodo_desde, dm.periodo_hasta)}
+          </span>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+            conciliado
+              ? "bg-[#A7F3D0] text-[#065F46]"
+              : "bg-[#BAE6FD] text-[#075985]"
+          }`}
+        >
+          {conciliado ? (
+            <CheckCircle2 size={10} />
+          ) : (
+            <FileText size={10} />
+          )}
+          {conciliado ? "Conciliado" : "Importado"}
+        </span>
+      </div>
+
+      {/* Body con grid de stats */}
+      <div className="grid grid-cols-2 divide-x divide-border border-b border-border">
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
+            Total certificado
+          </p>
+          <p className="text-foreground text-base font-bold font-mono mt-0.5 flex items-baseline gap-1">
+            <span className="text-[11px] text-muted-foreground/80">$</span>
+            <span>{formatARS(dm.total_certificado_ars)}</span>
+          </p>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
+            Viajes vinculados
+          </p>
+          <Link
+            href={`/viajes?dm_ypf=${dm.id}`}
+            prefetch
+            className="text-foreground text-base font-bold mt-0.5 inline-flex items-center gap-1.5 hover:text-primary hover:underline group/link"
+          >
+            <Truck size={14} className="text-primary" />
+            <span>{dm.viajes_count}</span>
+            <ExternalLink
+              size={11}
+              className="text-muted-foreground/50 group-hover/link:text-primary"
+            />
+          </Link>
+        </div>
+      </div>
+
+      {/* Datos SAP (chips) */}
+      <div className="px-4 py-3 flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
+        {dm.numero_solpe && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted/60 font-mono">
+            <Hash size={9} className="text-muted-foreground/70" />
+            Solpe {dm.numero_solpe}
+          </span>
+        )}
+        {dm.numero_pedido && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted/60 font-mono">
+            <Hash size={9} className="text-muted-foreground/70" />
+            Pedido {dm.numero_pedido}
+          </span>
+        )}
+        {dm.solicitante && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted/60">
+            Solic. {dm.solicitante}
+          </span>
+        )}
+        {dm.fecha_certificacion && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#ECFDF5] text-[#065F46]">
+            <CheckCircle2 size={9} />
+            Firmado {formatFecha(dm.fecha_certificacion)}
+          </span>
+        )}
+      </div>
+
+      {/* Footer con acciones */}
+      <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground/80">
+          Importado {formatFecha(dm.importado_en)}
+        </span>
+        <button
+          type="button"
+          onClick={onDescargar}
+          disabled={!dm.archivo_id || downloading}
+          title={
+            dm.archivo_id
+              ? "Abrir / descargar el PDF firmado por YPF"
+              : "Este DM no tiene PDF original"
+          }
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {downloading ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Download size={12} />
+          )}
+          {downloading ? "Abriendo…" : "Descargar PDF"}
+        </button>
+      </div>
+    </li>
   );
 }
