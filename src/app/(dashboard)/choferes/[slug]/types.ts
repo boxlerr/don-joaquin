@@ -176,6 +176,11 @@ export type ProductividadKPIs = {
   km_total: number;
   pct_vacios: number;
   toneladas: number;
+  // Σ tonelaje / Σ capacidad del camión asignado a cada viaje (en %). Mide cuán
+  // lleno viajó respetando la capacidad real (29 / 35 / 37,5 tn), para no comparar
+  // un chofer de camión chico contra uno grande por toneladas absolutas. null si
+  // ningún viaje del mes tenía capacidad de camión cargada.
+  utilizacion_pct: number | null;
   facturacion_ars: number;
   facturacion_usd: number;
   liquidacion_chofer_mes: number;

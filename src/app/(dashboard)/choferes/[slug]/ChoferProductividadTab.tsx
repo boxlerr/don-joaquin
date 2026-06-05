@@ -165,6 +165,20 @@ export default function ChoferProductividadTab({
           />
           <KPI label="Toneladas" value={fmtNum(kpis.toneladas)} color="text-foreground" />
           <KPI
+            label="% utilización"
+            value={kpis.utilizacion_pct !== null ? `${kpis.utilizacion_pct.toFixed(0)}%` : "—"}
+            sub={kpis.utilizacion_pct !== null ? "tn cargadas / capacidad" : "sin capacidad de camión"}
+            color={
+              kpis.utilizacion_pct === null
+                ? "text-muted-foreground"
+                : kpis.utilizacion_pct >= 90
+                  ? "text-[#10B981]"
+                  : kpis.utilizacion_pct >= 75
+                    ? "text-[#F59E0B]"
+                    : "text-[#EF4444]"
+            }
+          />
+          <KPI
             label="Liquidación al chofer"
             value={fmtMoneda(kpis.liquidacion_chofer_mes, "ARS")}
             sub="$ de hoja de ruta"

@@ -121,7 +121,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
 
     supabase
       .from("viajes")
-      .select("id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda")
+      .select("id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, camiones(capacidad_tn)")
       .eq("chofer_id", chofer_id)
       .gte("fecha_viaje", primerDia)
       .lte("fecha_viaje", ultimoDia),
@@ -334,6 +334,27 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const km_vacios = viajesMesArr.reduce((acc, v) => acc + Number(v.km_vacios ?? 0), 0);
   const km_total = km_con_carga + km_vacios;
   const toneladas = viajesMesArr.reduce((acc, v) => acc + Number(v.tonelaje_real ?? 0), 0);
+  // Utilización: Σ tonelaje / Σ capacidad del camión, solo sobre viajes con carga
+  // (tn > 0) y con capacidad del camión conocida. Mismo criterio que el resumen
+  // mensual: compara peras con peras y respeta la capacidad real (29/35/37,5).
+  const utilizacionAcum = viajesMesArr.reduce(
+    (acc, v) => {
+      const tn = Number(v.tonelaje_real ?? 0);
+      // camiones llega como objeto o null según el join de Supabase.
+      const cam = Array.isArray(v.camiones) ? v.camiones[0] : v.camiones;
+      const cap = Number(cam?.capacidad_tn) || 0;
+      if (tn > 0 && cap > 0) {
+        acc.tonelaje += tn;
+        acc.capacidad += cap;
+      }
+      return acc;
+    },
+    { tonelaje: 0, capacidad: 0 },
+  );
+  const utilizacion_pct =
+    utilizacionAcum.capacidad > 0
+      ? (utilizacionAcum.tonelaje / utilizacionAcum.capacidad) * 100
+      : null;
   const facturacion_ars = viajesMesArr
     .filter((v) => v.moneda === "ARS")
     .reduce((acc, v) => acc + Number(v.monto_flete ?? 0), 0);
@@ -529,6 +550,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     km_total,
     pct_vacios,
     toneladas,
+    utilizacion_pct,
     facturacion_ars,
     facturacion_usd,
     liquidacion_chofer_mes,
