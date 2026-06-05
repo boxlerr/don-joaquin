@@ -33,9 +33,9 @@ export default function ComplianceYpfPage({
   const [seccion, setSeccion] = useState<Seccion>("checklist");
 
   return (
-    <div className="space-y-4">
+    <div className="p-6 sm:p-8 space-y-5">
       {/* Tabs principales */}
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-1 border-b border-border -mx-6 sm:-mx-8 px-6 sm:px-8">
         <TabButton
           icon={<ClipboardCheck size={14} />}
           label="Checklist"
@@ -57,6 +57,7 @@ export default function ComplianceYpfPage({
           rows={rows}
           requisitos={requisitos}
           canWrite={canWrite}
+          embedded
         />
       )}
 

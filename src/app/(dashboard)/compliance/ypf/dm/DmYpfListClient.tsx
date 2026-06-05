@@ -14,6 +14,8 @@ import {
   TrendingUp,
   Loader2,
   ExternalLink,
+  X,
+  Filter,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -74,7 +76,16 @@ export default function DmYpfListClient({
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [, startTransition] = useTransition();
+
+  const hayFiltros = !!busqueda || !!fechaDesde || !!fechaHasta;
+  const limpiarFiltros = () => {
+    setBusqueda("");
+    setFechaDesde("");
+    setFechaHasta("");
+  };
 
   const handleDescargar = (dm: DmYpfRow) => {
     setDownloadingId(dm.id);
@@ -97,32 +108,48 @@ export default function DmYpfListClient({
       0,
     );
     const totalViajes = dms.reduce((acc, dm) => acc + dm.viajes_count, 0);
-    const conciliados = dms.filter((dm) => dm.estado === "conciliado").length;
+    const promedioPorViaje = totalViajes > 0 ? totalARS / totalViajes : 0;
     const ultimoPeriodo =
       dms.length > 0
         ? formatPeriodoCorto(dms[0].periodo_desde, dms[0].periodo_hasta)
         : null;
-    return { totalARS, totalViajes, conciliados, ultimoPeriodo };
+    const ultimaImportacion =
+      dms.length > 0 ? formatFecha(dms[0].importado_en) : null;
+    return {
+      totalARS,
+      totalViajes,
+      promedioPorViaje,
+      ultimoPeriodo,
+      ultimaImportacion,
+    };
   }, [dms]);
 
-  // Filtrado por búsqueda (período, solpe, pedido, solicitante)
+  // Filtrado por búsqueda (período, solpe, pedido, solicitante) + rango de fechas.
+  // Para el rango, un DM "cae dentro" si su período se solapa con [fechaDesde, fechaHasta].
   const dmsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return dms;
     return dms.filter((dm) => {
-      const haystack = [
-        formatFecha(dm.periodo_desde),
-        formatFecha(dm.periodo_hasta),
-        dm.numero_solpe ?? "",
-        dm.numero_pedido ?? "",
-        dm.contrato_sap ?? "",
-        dm.solicitante ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
+      if (q) {
+        const haystack = [
+          formatFecha(dm.periodo_desde),
+          formatFecha(dm.periodo_hasta),
+          dm.numero_solpe ?? "",
+          dm.numero_pedido ?? "",
+          dm.contrato_sap ?? "",
+          dm.solicitante ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      // Rango de fechas: solapamiento entre el período del DM y [fechaDesde, fechaHasta]
+      const dmDesde = dm.periodo_desde.split("T")[0];
+      const dmHasta = dm.periodo_hasta.split("T")[0];
+      if (fechaDesde && dmHasta < fechaDesde) return false;
+      if (fechaHasta && dmDesde > fechaHasta) return false;
+      return true;
     });
-  }, [dms, busqueda]);
+  }, [dms, busqueda, fechaDesde, fechaHasta]);
 
   return (
     <div className="space-y-5">
@@ -177,7 +204,11 @@ export default function DmYpfListClient({
           <StatCard
             label="Último período"
             value={stats.ultimoPeriodo ?? "—"}
-            sub={`${stats.conciliados} conciliados`}
+            sub={
+              stats.ultimaImportacion
+                ? `Importado ${stats.ultimaImportacion}`
+                : undefined
+            }
             icon={<Calendar size={16} />}
             iconBg="bg-[#F3E8FF]"
             iconColor="text-[#6B21A8]"
@@ -185,33 +216,88 @@ export default function DmYpfListClient({
         </div>
       )}
 
-      {/* Toolbar: búsqueda + import (cuando embedded) */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-          />
-          <Input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por período, Solpe, Pedido…"
-            className="h-9 pl-9 text-sm"
-            disabled={dms.length === 0}
-          />
+      {/* Toolbar: búsqueda + rango de fechas + import (cuando embedded) */}
+      <div className="bg-card border border-border rounded-[8px] p-3 flex items-end gap-3 flex-wrap">
+        <div className="flex-1 min-w-[220px] max-w-md">
+          <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
+            Búsqueda
+          </label>
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
+            />
+            <Input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Período, Solpe, Pedido, Solicitante…"
+              className="h-9 pl-9 text-sm"
+              disabled={dms.length === 0}
+            />
+          </div>
         </div>
+
+        <div className="flex items-end gap-1.5">
+          <div>
+            <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
+              Desde
+            </label>
+            <Input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              className="h-9 w-40 text-sm"
+              disabled={dms.length === 0}
+              aria-label="Período desde"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
+              Hasta
+            </label>
+            <Input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              className="h-9 w-40 text-sm"
+              disabled={dms.length === 0}
+              aria-label="Período hasta"
+            />
+          </div>
+        </div>
+
+        {hayFiltros && (
+          <button
+            type="button"
+            onClick={limpiarFiltros}
+            className="inline-flex items-center gap-1 h-9 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
+            title="Limpiar filtros"
+          >
+            <X size={12} />
+            Limpiar
+          </button>
+        )}
+
         {embedded && (
           <Link
             href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm ml-auto"
           >
             <FileText size={14} />
             Importar PDF de YPF
           </Link>
         )}
       </div>
+
+      {/* Mini-resumen de filtros activos */}
+      {hayFiltros && (
+        <p className="text-xs text-muted-foreground -mt-2 flex items-center gap-1.5">
+          <Filter size={11} />
+          Mostrando <strong className="text-foreground">{dmsFiltrados.length}</strong> de {dms.length} DMs
+        </p>
+      )}
 
       {/* Mensaje de error de descarga (banner) */}
       {downloadError && (

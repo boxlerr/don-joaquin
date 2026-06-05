@@ -35,6 +35,8 @@ interface Props {
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
   canWrite: boolean;
+  /** Cuando es true, omite el padding lateral del root (lo asume el wrapper). */
+  embedded?: boolean;
 }
 
 const ESTADO_TONE: Record<ComplianceEstado, "success" | "warning" | "error" | "neutral"> = {
@@ -64,7 +66,7 @@ function esProblema(r: ComplianceEstadoRow): boolean {
   return r.estado === "vencido" || r.estado === "por_vencer";
 }
 
-export default function ComplianceChecklistPage({ cliente, rows, requisitos, canWrite }: Props) {
+export default function ComplianceChecklistPage({ cliente, rows, requisitos, canWrite, embedded = false }: Props) {
   const router = useRouter();
   const [_, startTransition] = useTransition();
 
@@ -180,7 +182,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
   );
 
   return (
-    <div className="p-8 space-y-6 print:p-2 print:space-y-3">
+    <div className={`${embedded ? "space-y-6" : "p-8 space-y-6"} print:p-2 print:space-y-3`}>
       <div className="flex items-start justify-between print:hidden">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
