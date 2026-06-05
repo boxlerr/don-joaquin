@@ -105,7 +105,10 @@ export async function previewYpfImportAction(formData: FormData): Promise<YpfPre
       const fecha = v.fechaDescarga ?? parsed.quincenaHasta ?? "";
       if (fecha) yaImportado = existentes.has(dedupKey(chofer.id, fecha, v.netoTn));
     }
-    const importable = chofer.status === "ok" && camion.status === "ok" && v.precioUnitario != null && !yaImportado;
+    // Importable = tiene precio + no esta ya importado. Chofer y camion pueden
+    // faltar: el viaje se carga igual con esos campos en NULL y el usuario los
+    // completa despues desde /viajes.
+    const importable = v.precioUnitario != null && !yaImportado;
     return { ...v, chofer, camion, yaImportado, importable };
   });
 
@@ -142,6 +145,9 @@ export type ConfirmYpfState = {
     viajes: number;
     omitidos: number;
     puntosCreados: number;
+    /** Viajes cargados pero con chofer o camion sin matchear (NULL en DB).
+     * El usuario los puede ver en /viajes y completar manualmente. */
+    incompletos: number;
     dmYpfId?: string;
   };
   error?: string;
@@ -188,22 +194,41 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
   let codigoSeq = ultimoCodigo;
   let puntosCreados = 0;
   let omitidos = 0;
+  let incompletos = 0;
   const seenThisRun = new Set<string>();
   const viajesPayload: Record<string, unknown>[] = [];
 
   for (const v of parsed.viajes) {
-    const choferId = choferPorCuil.get(v.choferCuil);
+    // Solo se omiten viajes con datos basicos insalvables: sin fecha o sin
+    // precio. Los que faltan chofer o camion se cargan igual con esos campos
+    // en NULL para que el usuario los asigne despues desde /viajes.
     const fecha = v.fechaDescarga ?? parsed.quincenaHasta ?? null;
-    if (!choferId || !fecha || v.precioUnitario == null) { omitidos++; continue; }
-    const camionId = camionPorChofer.get(choferId);
-    if (!camionId) { omitidos++; continue; }
-    const key = dedupKey(choferId, fecha, v.netoTn);
+    if (!fecha || v.precioUnitario == null) { omitidos++; continue; }
+
+    const choferId = choferPorCuil.get(v.choferCuil) ?? null;
+    const camionId = choferId ? camionPorChofer.get(choferId) ?? null : null;
+    if (!choferId || !camionId) incompletos++;
+
+    // Dedupe: si tenemos chofer matcheamos por (chofer, fecha, ton); si no,
+    // por (cuil-crudo, fecha, ton) para no insertar duplicados ante re-import.
+    const dedupChoferKey = choferId ?? `cuil:${v.choferCuil}`;
+    const key = dedupKey(dedupChoferKey, fecha, v.netoTn);
     if (existentes.has(key) || seenThisRun.has(key)) { omitidos++; continue; }
     seenThisRun.add(key);
 
     // Puntos origen/destino (los trae el parser por viaje) — opcionales
     const destinoId = v.destino ? await ensurePunto(supabase, puntosMap, v.destino, () => puntosCreados++) : null;
     const origenId = v.origen ? await ensurePunto(supabase, puntosMap, v.origen, () => puntosCreados++) : null;
+
+    // Marcamos observaciones especiales para los incompletos para que el
+    // usuario los identifique en /viajes y los pueda completar.
+    const obsBase = `${tag} Remito: ${v.remito ?? "—"} · Neto: ${v.netoTn} tn · $u: ${v.precioUnitario}`;
+    const obsExtra: string[] = [];
+    if (!choferId) obsExtra.push(`Chofer no matcheado: ${v.choferNombre ?? "?"} CUIL ${v.choferCuil}`);
+    if (!camionId) obsExtra.push("Camion pendiente de asignar (chofer sin camion habitual)");
+    const observaciones = obsExtra.length > 0
+      ? `${obsBase} | ⚠ ${obsExtra.join(" | ")}`
+      : obsBase;
 
     codigoSeq++;
     viajesPayload.push({
@@ -223,13 +248,13 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
       moneda: "ARS",
       estado: "cerrado",
       facturado: false,
-      observaciones: `${tag} Remito: ${v.remito ?? "—"} · Neto: ${v.netoTn} tn · $u: ${v.precioUnitario}`,
+      observaciones,
       created_by: user.id,
     });
   }
 
   if (viajesPayload.length === 0) {
-    return { ok: true, imported: { viajes: 0, omitidos, puntosCreados } };
+    return { ok: true, imported: { viajes: 0, omitidos, puntosCreados, incompletos } };
   }
 
   // -- Guardar el DM original en storage + crear el registro compliance_dm_ypf --
@@ -273,6 +298,7 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
   });
 
   revalidatePath("/viajes");
+  revalidatePath("/compliance/ypf");
   revalidatePath("/compliance/ypf/dm");
   return {
     ok: true,
@@ -280,6 +306,7 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
       viajes: inserted?.length ?? 0,
       omitidos,
       puntosCreados,
+      incompletos,
       dmYpfId: dmYpfId ?? undefined,
     },
   };
@@ -436,10 +463,13 @@ async function ensurePunto(supabase: Admin, map: Map<string, string>, nombre: st
   const key = normName(nombre);
   const existing = map.get(key);
   if (existing) return existing;
+  // El schema actual de puntos_ruta usa el enum `tipo` (planta_propia |
+  // cliente | proveedor | puerto | otro). Los flags es_frontera/es_puerto
+  // que tenía el código viejo ya no existen.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("puntos_ruta")
-    .insert({ nombre, estado: "activo", es_frontera: false, es_puerto: false })
+    .insert({ nombre, estado: "activo", tipo: "otro" })
     .select("id")
     .single();
   if (error) throw new Error(`No se pudo crear punto "${nombre}": ${error.message}`);

@@ -128,7 +128,15 @@ export default function ImportYpfModal() {
                 </>
               )}
               {step === "done" && result?.imported && (
-                <>{result.imported.viajes} viajes creados · {result.imported.omitidos} omitidos</>
+                <>
+                  {result.imported.viajes} viajes creados
+                  {(result.imported.incompletos ?? 0) > 0 && (
+                    <> · <span className="text-[#92400E] font-semibold">{result.imported.incompletos} a completar</span></>
+                  )}
+                  {(result.imported.omitidos ?? 0) > 0 && (
+                    <> · {result.imported.omitidos} omitidos</>
+                  )}
+                </>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -213,7 +221,14 @@ export default function ImportYpfModal() {
             <div className="space-y-3 py-2">
               <div className="bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] text-sm rounded-lg p-3 space-y-1">
                 <div><strong>{result.imported?.viajes ?? 0}</strong> viajes insertados</div>
-                <div><strong>{result.imported?.omitidos ?? 0}</strong> omitidos (sin chofer/camión, sin precio o ya importados)</div>
+                {(result.imported?.incompletos ?? 0) > 0 && (
+                  <div className="text-[#92400E]">
+                    <strong>{result.imported?.incompletos}</strong> a completar — viajes cargados con chofer o camión sin asignar. Buscalos en /viajes filtrando por la observación &quot;⚠&quot; o entrá uno por uno desde el listado para asignar el chofer/camión.
+                  </div>
+                )}
+                {(result.imported?.omitidos ?? 0) > 0 && (
+                  <div><strong>{result.imported?.omitidos ?? 0}</strong> omitidos (sin fecha, sin precio o ya importados)</div>
+                )}
                 {(result.imported?.puntosCreados ?? 0) > 0 && (
                   <div><strong>{result.imported?.puntosCreados}</strong> puntos de ruta nuevos</div>
                 )}

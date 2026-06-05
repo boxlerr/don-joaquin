@@ -4263,8 +4263,8 @@ export type Database = {
       }
       viajes: {
         Row: {
-          camion_id: string
-          chofer_id: string
+          camion_id: string | null
+          chofer_id: string | null
           cliente_id: string
           codigo: string
           created_at: string
@@ -4295,8 +4295,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          camion_id: string
-          chofer_id: string
+          camion_id?: string | null
+          chofer_id?: string | null
           cliente_id: string
           codigo: string
           created_at?: string
@@ -4327,8 +4327,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          camion_id?: string
-          chofer_id?: string
+          camion_id?: string | null
+          chofer_id?: string | null
           cliente_id?: string
           codigo?: string
           created_at?: string
