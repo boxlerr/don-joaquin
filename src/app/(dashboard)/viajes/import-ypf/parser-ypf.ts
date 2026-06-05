@@ -41,6 +41,17 @@ export type YpfParseResult = {
   tarifas: YpfTarifa[];
   viajes: YpfViajeRaw[];
   warnings: string[];
+  // Datos de la carátula (página 1 del PDF). Sirven para guardar el DM en
+  // la tabla compliance_dm_ypf y poder reconciliarlo después con los viajes.
+  // Todos opcionales: si el regex no encuentra algo, queda null.
+  caratula: {
+    numeroSolpe: string | null;
+    numeroPedido: string | null;
+    contratoSap: string | null;
+    solicitante: string | null;
+    totalCertificadoArs: number | null;
+    fechaCertificacion: string | null; // ISO YYYY-MM-DD
+  };
 };
 
 function parseArNum(s: string): number {
@@ -181,5 +192,40 @@ export async function parseYpfPdf(buffer: Buffer | ArrayBuffer): Promise<YpfPars
     );
   }
 
-  return { quincenaDesde, quincenaHasta, tarifas, viajes, warnings };
+  // --- Carátula (página 1) ------------------------------------------------
+  // Tomamos solo la primera página para no confundir con datos del detalle.
+  const caratulaText = pages[0] ?? full;
+
+  const reSolpe = /NUMERO\s+DE\s+SOLPE[\s\S]{0,200}?(\d{7,12})/i;
+  const rePedido = /NUMERO\s+DE\s+PEDIDO[\s\S]{0,200}?([A-Z0-9]{5,12})/i;
+  const reContrato = /CONTRATO\s+SAP\s+NUMERO[\s\S]{0,200}?(\d{7,12})/i;
+  const reSolic = /SOLICITANTE[\s\S]{0,200}?([A-ZÁÉÍÓÚÑ]\.\s*[A-Za-zÁÉÍÓÚÑáéíóúñ]+)/i;
+  // Total: aparece como "$ 176.872.015,87" en la fila TOTAL de la carátula.
+  // Tomamos el monto más grande del documento como heurística defensiva.
+  let totalCertificadoArs: number | null = null;
+  const totalCandidates = Array.from(
+    caratulaText.matchAll(/(\d{1,3}(?:\.\d{3}){2,},\d{2})/g),
+  ).map((mm) => parseArNum(mm[1]));
+  if (totalCandidates.length > 0) {
+    totalCertificadoArs = Math.max(...totalCandidates);
+  }
+  // Fecha de certificación: "Fecha: 2026.04.22 14:42:01" del inspector YPF
+  let fechaCertificacion: string | null = null;
+  const fechaCertMatch = caratulaText.match(
+    /Fecha:\s*(\d{4})[.\-/](\d{2})[.\-/](\d{2})\s+\d{2}:\d{2}:\d{2}/,
+  );
+  if (fechaCertMatch) {
+    fechaCertificacion = `${fechaCertMatch[1]}-${fechaCertMatch[2]}-${fechaCertMatch[3]}`;
+  }
+
+  const caratula = {
+    numeroSolpe: caratulaText.match(reSolpe)?.[1] ?? null,
+    numeroPedido: caratulaText.match(rePedido)?.[1] ?? null,
+    contratoSap: caratulaText.match(reContrato)?.[1] ?? null,
+    solicitante: caratulaText.match(reSolic)?.[1]?.trim() ?? null,
+    totalCertificadoArs,
+    fechaCertificacion,
+  };
+
+  return { quincenaDesde, quincenaHasta, tarifas, viajes, warnings, caratula };
 }

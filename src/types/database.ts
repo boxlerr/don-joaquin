@@ -1819,6 +1819,71 @@ export type Database = {
         }
         Relationships: []
       }
+      compliance_dm_ypf: {
+        Row: {
+          archivo_id: string | null
+          contrato_sap: string | null
+          created_at: string
+          estado: string
+          fecha_certificacion: string | null
+          id: string
+          importado_en: string
+          importado_por: string | null
+          numero_pedido: string | null
+          numero_solpe: string | null
+          observaciones: string | null
+          periodo_desde: string
+          periodo_hasta: string
+          solicitante: string | null
+          total_certificado_ars: number | null
+          updated_at: string
+        }
+        Insert: {
+          archivo_id?: string | null
+          contrato_sap?: string | null
+          created_at?: string
+          estado?: string
+          fecha_certificacion?: string | null
+          id?: string
+          importado_en?: string
+          importado_por?: string | null
+          numero_pedido?: string | null
+          numero_solpe?: string | null
+          observaciones?: string | null
+          periodo_desde: string
+          periodo_hasta: string
+          solicitante?: string | null
+          total_certificado_ars?: number | null
+          updated_at?: string
+        }
+        Update: {
+          archivo_id?: string | null
+          contrato_sap?: string | null
+          created_at?: string
+          estado?: string
+          fecha_certificacion?: string | null
+          id?: string
+          importado_en?: string
+          importado_por?: string | null
+          numero_pedido?: string | null
+          numero_solpe?: string | null
+          observaciones?: string | null
+          periodo_desde?: string
+          periodo_hasta?: string
+          solicitante?: string | null
+          total_certificado_ars?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_dm_ypf_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compliance_documentos: {
         Row: {
           archivo_id: string | null
@@ -3037,6 +3102,59 @@ export type Database = {
           },
         ]
       }
+      pesos_score_chofer: {
+        Row: {
+          actualizado_por: string | null
+          id: string
+          peso_apercibimiento: number
+          peso_licencia: number
+          peso_rotura: number
+          peso_vacios_alto: number
+          peso_vacios_bajo: number
+          peso_vacios_medio: number
+          umbral_vacios_alto: number
+          umbral_vacios_bajo: number
+          umbral_vacios_medio: number
+          updated_at: string
+        }
+        Insert: {
+          actualizado_por?: string | null
+          id?: string
+          peso_apercibimiento?: number
+          peso_licencia?: number
+          peso_rotura?: number
+          peso_vacios_alto?: number
+          peso_vacios_bajo?: number
+          peso_vacios_medio?: number
+          umbral_vacios_alto?: number
+          umbral_vacios_bajo?: number
+          umbral_vacios_medio?: number
+          updated_at?: string
+        }
+        Update: {
+          actualizado_por?: string | null
+          id?: string
+          peso_apercibimiento?: number
+          peso_licencia?: number
+          peso_rotura?: number
+          peso_vacios_alto?: number
+          peso_vacios_bajo?: number
+          peso_vacios_medio?: number
+          umbral_vacios_alto?: number
+          umbral_vacios_bajo?: number
+          umbral_vacios_medio?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pesos_score_chofer_actualizado_por_fkey"
+            columns: ["actualizado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plantillas_pdf: {
         Row: {
           created_at: string
@@ -4152,6 +4270,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           destino_id: string | null
+          dm_ypf_id: string | null
           es_internacional: boolean
           estado: Database["public"]["Enums"]["viaje_estado"]
           facturado: boolean
@@ -4164,13 +4283,13 @@ export type Database = {
           km_vacios: number
           moneda: string
           monto_flete: number
+          nro_viaje_ypf: string | null
           observaciones: string | null
           origen_id: string | null
           requiere_doble_facturacion: boolean
           ruta_id: string | null
           tarifa_id: string | null
           tipo_cambio: number | null
-          nro_viaje_ypf: string | null
           tipo_carga_id: string
           tonelaje_real: number | null
           updated_at: string
@@ -4183,6 +4302,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destino_id?: string | null
+          dm_ypf_id?: string | null
           es_internacional?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
@@ -4214,6 +4334,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destino_id?: string | null
+          dm_ypf_id?: string | null
           es_internacional?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
@@ -4278,6 +4399,13 @@ export type Database = {
             columns: ["destino_id"]
             isOneToOne: false
             referencedRelation: "puntos_ruta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "viajes_dm_ypf_id_fkey"
+            columns: ["dm_ypf_id"]
+            isOneToOne: false
+            referencedRelation: "compliance_dm_ypf"
             referencedColumns: ["id"]
           },
           {

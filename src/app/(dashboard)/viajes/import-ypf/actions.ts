@@ -138,7 +138,12 @@ export async function previewYpfImportAction(formData: FormData): Promise<YpfPre
 
 export type ConfirmYpfState = {
   ok?: boolean;
-  imported?: { viajes: number; omitidos: number; puntosCreados: number };
+  imported?: {
+    viajes: number;
+    omitidos: number;
+    puntosCreados: number;
+    dmYpfId?: string;
+  };
   error?: string;
 } | null;
 
@@ -227,6 +232,24 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     return { ok: true, imported: { viajes: 0, omitidos, puntosCreados } };
   }
 
+  // -- Guardar el DM original en storage + crear el registro compliance_dm_ypf --
+  // Esto preserva el PDF firmado por YPF (carátula página 1) junto con el total
+  // certificado, para que Bárbara/contador puedan volver a verlo desde
+  // /compliance/ypf/dm. Si algo falla acá, igual seguimos importando los viajes
+  // sin DM (queda dm_ypf_id=null en esos viajes — no es crítico).
+  let dmYpfId: string | null = null;
+  try {
+    dmYpfId = await guardarDmYpf(supabase, user.id, file, parsed);
+  } catch (e) {
+    console.error("Error guardando DM YPF en compliance:", e);
+    // no return — seguimos con la inserción de viajes
+  }
+
+  // Cada viaje queda vinculado al DM que lo certifica
+  if (dmYpfId) {
+    for (const v of viajesPayload) v.dm_ypf_id = dmYpfId;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error } = await (supabase as any).from("viajes").insert(viajesPayload).select("id");
   if (error) {
@@ -238,18 +261,113 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
   await (supabase as any).from("audit_log").insert({
     usuario_id: user.id,
     accion: "importar_ypf",
-    entidad_tipo: "viaje",
-    entidad_id: null,
+    entidad_tipo: dmYpfId ? "dm_ypf" : "viaje",
+    entidad_id: dmYpfId,
     valores_nuevos: {
       archivo: file.name,
       quincena: `${parsed.quincenaDesde} a ${parsed.quincenaHasta}`,
       viajes_creados: inserted?.length ?? 0,
       omitidos,
+      total_certificado_ars: parsed.caratula?.totalCertificadoArs ?? null,
     },
   });
 
   revalidatePath("/viajes");
-  return { ok: true, imported: { viajes: inserted?.length ?? 0, omitidos, puntosCreados } };
+  revalidatePath("/compliance/ypf/dm");
+  return {
+    ok: true,
+    imported: {
+      viajes: inserted?.length ?? 0,
+      omitidos,
+      puntosCreados,
+      dmYpfId: dmYpfId ?? undefined,
+    },
+  };
+}
+
+/**
+ * Sube el PDF a Supabase Storage y crea los registros
+ * `documentos_archivos` + `compliance_dm_ypf`. Devuelve el id del DM
+ * creado, o lanza si algo falla. La transacción "best effort": si el
+ * período ya existe (unique índex), reutiliza el existente en vez de
+ * fallar — eso permite re-importar para corregir.
+ */
+async function guardarDmYpf(
+  supabase: Admin,
+  userId: string,
+  file: File,
+  parsed: Awaited<ReturnType<typeof parseYpfPdf>>,
+): Promise<string | null> {
+  if (!parsed.quincenaDesde || !parsed.quincenaHasta) return null;
+
+  // 1) Si ya hay un DM para este período, lo reusamos (no rompemos el unique)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: existente } = await sb
+    .from("compliance_dm_ypf")
+    .select("id")
+    .eq("periodo_desde", parsed.quincenaDesde)
+    .eq("periodo_hasta", parsed.quincenaHasta)
+    .maybeSingle();
+  if (existente?.id) return existente.id as string;
+
+  // 2) Subir el PDF al storage. Path: ypf-dm/<año>/<mes>/<archivo>.pdf
+  const yyyy = parsed.quincenaDesde.slice(0, 4);
+  const mm = parsed.quincenaDesde.slice(5, 7);
+  const ext = file.name.split(".").pop() || "pdf";
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, "_");
+  const storagePath = `ypf-dm/${yyyy}/${mm}/${Date.now()}_${safeName}`;
+
+  const { error: upErr } = await supabase.storage
+    .from("documentos-personal")
+    .upload(storagePath, file, { contentType: file.type || "application/pdf" });
+  if (upErr) {
+    console.error("Storage upload DM YPF:", upErr);
+    return null;
+  }
+
+  // 3) Crear documentos_archivos
+  const { data: archivo, error: archErr } = await sb
+    .from("documentos_archivos")
+    .insert({
+      bucket: "documentos-personal",
+      path: storagePath,
+      nombre_original: file.name,
+      tamano_bytes: file.size,
+      mime_type: file.type || "application/pdf",
+      subido_por: userId,
+    })
+    .select("id")
+    .single();
+  if (archErr || !archivo) {
+    console.error("Error creando documentos_archivos:", archErr);
+    return null;
+  }
+
+  // 4) Crear el DM con los datos de la carátula
+  const { data: dm, error: dmErr } = await sb
+    .from("compliance_dm_ypf")
+    .insert({
+      periodo_desde: parsed.quincenaDesde,
+      periodo_hasta: parsed.quincenaHasta,
+      numero_solpe: parsed.caratula?.numeroSolpe ?? null,
+      numero_pedido: parsed.caratula?.numeroPedido ?? null,
+      contrato_sap: parsed.caratula?.contratoSap ?? null,
+      solicitante: parsed.caratula?.solicitante ?? null,
+      total_certificado_ars: parsed.caratula?.totalCertificadoArs ?? null,
+      fecha_certificacion: parsed.caratula?.fechaCertificacion ?? null,
+      archivo_id: archivo.id,
+      importado_por: userId,
+      estado: "importado",
+      observaciones: `Archivo: ${file.name} (${ext})`,
+    })
+    .select("id")
+    .single();
+  if (dmErr || !dm) {
+    console.error("Error creando compliance_dm_ypf:", dmErr);
+    return null;
+  }
+  return dm.id as string;
 }
 
 // ============================================================================
