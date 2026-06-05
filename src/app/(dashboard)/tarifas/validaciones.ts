@@ -111,3 +111,87 @@ export function validarTarifa(raw: {
     },
   };
 }
+
+// ============================================================
+// CIRCUITOS (rutas con km cargados + km vacíos predefinidos)
+// ============================================================
+
+const MAX_KM = 100_000;
+const MAX_CODIGO = 30;
+const MAX_DESC = 200;
+
+export type CircuitoInput = {
+  origen_nombre: string;
+  destino_nombre: string;
+  km_oficiales: number;
+  km_vacios: number;
+  codigo_interno: string | null;
+  descripcion: string | null;
+};
+
+export type CircuitoValidacion =
+  | { ok: true; data: CircuitoInput }
+  | { ok: false; error: string };
+
+export function validarCircuito(raw: {
+  origen_nombre?: unknown;
+  destino_nombre?: unknown;
+  km_oficiales?: unknown;
+  km_vacios?: unknown;
+  codigo_interno?: unknown;
+  descripcion?: unknown;
+}): CircuitoValidacion {
+  const origen_nombre =
+    typeof raw.origen_nombre === "string" ? raw.origen_nombre.trim() : "";
+  if (!origen_nombre) return { ok: false, error: "El origen es obligatorio" };
+
+  const destino_nombre =
+    typeof raw.destino_nombre === "string" ? raw.destino_nombre.trim() : "";
+  if (!destino_nombre) return { ok: false, error: "El destino es obligatorio" };
+
+  if (origen_nombre.toLowerCase() === destino_nombre.toLowerCase()) {
+    return { ok: false, error: "Origen y destino deben ser distintos" };
+  }
+
+  const km_oficiales = Number(raw.km_oficiales);
+  if (!Number.isFinite(km_oficiales) || km_oficiales < 0) {
+    return { ok: false, error: "Los km con carga deben ser un número ≥ 0" };
+  }
+  if (km_oficiales > MAX_KM) {
+    return { ok: false, error: `Los km con carga no pueden superar ${MAX_KM.toLocaleString("es-AR")}` };
+  }
+
+  const km_vacios = Number(raw.km_vacios);
+  if (!Number.isFinite(km_vacios) || km_vacios < 0) {
+    return { ok: false, error: "Los km vacíos deben ser un número ≥ 0" };
+  }
+  if (km_vacios > MAX_KM) {
+    return { ok: false, error: `Los km vacíos no pueden superar ${MAX_KM.toLocaleString("es-AR")}` };
+  }
+
+  const codigoRaw =
+    typeof raw.codigo_interno === "string" ? raw.codigo_interno.trim() : "";
+  if (codigoRaw.length > MAX_CODIGO) {
+    return { ok: false, error: `El código no puede superar ${MAX_CODIGO} caracteres` };
+  }
+  const codigo_interno = codigoRaw === "" ? null : codigoRaw;
+
+  const descRaw =
+    typeof raw.descripcion === "string" ? raw.descripcion.trim() : "";
+  if (descRaw.length > MAX_DESC) {
+    return { ok: false, error: `La descripción no puede superar ${MAX_DESC} caracteres` };
+  }
+  const descripcion = descRaw === "" ? null : descRaw;
+
+  return {
+    ok: true,
+    data: {
+      origen_nombre,
+      destino_nombre,
+      km_oficiales: Math.round(km_oficiales),
+      km_vacios: Math.round(km_vacios),
+      codigo_interno,
+      descripcion,
+    },
+  };
+}

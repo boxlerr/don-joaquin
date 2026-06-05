@@ -3428,6 +3428,7 @@ export type Database = {
           estado: Database["public"]["Enums"]["ruta_estado"]
           id: string
           km_oficiales: number
+          km_vacios: number
           origen_id: string
         }
         Insert: {
@@ -3438,6 +3439,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["ruta_estado"]
           id?: string
           km_oficiales: number
+          km_vacios?: number
           origen_id: string
         }
         Update: {
@@ -3448,6 +3450,7 @@ export type Database = {
           estado?: Database["public"]["Enums"]["ruta_estado"]
           id?: string
           km_oficiales?: number
+          km_vacios?: number
           origen_id?: string
         }
         Relationships: [

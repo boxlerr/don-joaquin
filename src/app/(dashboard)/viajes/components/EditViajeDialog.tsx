@@ -27,6 +27,7 @@ import {
   Loader2,
   FileText,
   Hash,
+  Route,
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Combobox } from "@/components/ui/combobox";
@@ -67,6 +68,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const [choferId, setChoferId] = useState("");
   const [camionId, setCamionId] = useState("");
   const [tipoCargaId, setTipoCargaId] = useState("");
+  const [rutaId, setRutaId] = useState("");
   const [descripcionOtros, setDescripcionOtros] = useState("");
   const [origenNombre, setOrigenNombre] = useState("");
   const [destinoNombre, setDestinoNombre] = useState("");
@@ -102,6 +104,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       setChoferId(vd.chofer_id);
       setCamionId(vd.camion_id);
       setTipoCargaId(vd.tipo_carga_id);
+      setRutaId(vd.ruta_id ?? "");
       setDescripcionOtros(vd.descripcion_otros ?? "");
       setOrigenNombre(vd.origen_nombre ?? "");
       setDestinoNombre(vd.destino_nombre ?? "");
@@ -128,6 +131,18 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const cambioDeCamion =
     !!choferId && !!camionId && !!camionHabitualId && !usandoCamionHabitual;
 
+  // Al elegir un circuito: autocompletar origen, destino y km (quedan editables).
+  const handleCircuitoChange = (circuitoId: string) => {
+    setRutaId(circuitoId);
+    const c = formOptions?.circuitos.find((x) => x.id === circuitoId);
+    if (c) {
+      setOrigenNombre(c.origen === "—" ? "" : c.origen);
+      setDestinoNombre(c.destino === "—" ? "" : c.destino);
+      setKmConCarga(String(c.km_con_carga));
+      setKmVacios(String(c.km_vacios));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -141,6 +156,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       chofer_id: choferId,
       camion_id: camionId,
       tipo_carga_id: tipoCargaId,
+      ruta_id: rutaId || null,
       descripcion_otros: descripcionOtros.trim() || null,
       origen_nombre: origenNombre.trim() || null,
       destino_nombre: destinoNombre.trim() || null,
@@ -338,6 +354,24 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                   placeholder="Especificá el tipo de carga..."
                   required
                   className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
+                />
+              </CField>
+            )}
+
+            {/* Circuito predefinido (opcional): autocompleta origen, destino y km */}
+            {(formOptions?.circuitos.length ?? 0) > 0 && (
+              <CField label="Circuito (opcional)" icon={Route}>
+                <Combobox
+                  value={rutaId}
+                  onValueChange={handleCircuitoChange}
+                  options={(formOptions?.circuitos ?? []).map((c) => ({
+                    id: c.id,
+                    label: c.label,
+                  }))}
+                  placeholder="Elegí un circuito para autocompletar…"
+                  searchPlaceholder="Buscar circuito..."
+                  clearable
+                  triggerClassName={FIELD_COMBO_TRIGGER}
                 />
               </CField>
             )}

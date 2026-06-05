@@ -22,6 +22,7 @@ import {
   Check,
   FileText,
   Hash,
+  Route,
 } from "lucide-react";
 import {
   createViajeAction,
@@ -36,6 +37,12 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   // (pero el usuario puede cambiarlo: los choferes rotan unidades).
   const [selectedChoferId, setSelectedChoferId] = useState("");
   const [selectedCamionId, setSelectedCamionId] = useState("");
+  // Circuito: al elegirlo se autocompletan origen/destino y km (editables).
+  const [selectedCircuitoId, setSelectedCircuitoId] = useState("");
+  const [origen, setOrigen] = useState("");
+  const [destino, setDestino] = useState("");
+  const [kmConCarga, setKmConCarga] = useState("0");
+  const [kmVacios, setKmVacios] = useState("0");
   const router = useRouter();
 
   // Camión "habitual" del chofer seleccionado (puede no haber).
@@ -51,10 +58,21 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     null,
   );
 
+  const resetCampos = () => {
+    setTipoCarga("");
+    setSelectedChoferId("");
+    setSelectedCamionId("");
+    setSelectedCircuitoId("");
+    setOrigen("");
+    setDestino("");
+    setKmConCarga("0");
+    setKmVacios("0");
+  };
+
   useEffect(() => {
     if (state?.ok) {
       setOpen(false);
-      setTipoCarga("");
+      resetCampos();
       window.dispatchEvent(new Event("viaje-created"));
       router.refresh();
     }
@@ -62,10 +80,18 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (!isOpen) {
-      setTipoCarga("");
-      setSelectedChoferId("");
-      setSelectedCamionId("");
+    if (!isOpen) resetCampos();
+  };
+
+  // Al elegir un circuito: autocompletar origen, destino y km (quedan editables).
+  const handleCircuitoChange = (circuitoId: string) => {
+    setSelectedCircuitoId(circuitoId);
+    const c = data.circuitos.find((x) => x.id === circuitoId);
+    if (c) {
+      setOrigen(c.origen === "—" ? "" : c.origen);
+      setDestino(c.destino === "—" ? "" : c.destino);
+      setKmConCarga(String(c.km_con_carga));
+      setKmVacios(String(c.km_vacios));
     }
   };
 
@@ -219,6 +245,21 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               ))}
             </datalist>
 
+            {/* Circuito predefinido (opcional): autocompleta origen, destino y km */}
+            {data.circuitos.length > 0 && (
+              <SelectField
+                label="Circuito (opcional)"
+                name="ruta_id"
+                options={data.circuitos.map((c) => ({ id: c.id, label: c.label }))}
+                icon={Route}
+                value={selectedCircuitoId}
+                onValueChange={handleCircuitoChange}
+                clearable
+                searchPlaceholder="Buscar circuito..."
+                hint="Elegí un circuito para autocompletar origen, destino y kilómetros."
+              />
+            )}
+
             {/* Ruta Origen / Destino */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputFieldWithIcon
@@ -227,6 +268,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 placeholder="Escribí ciudad o lugar..."
                 icon={MapPin}
                 list="puntos-ruta-list"
+                value={origen}
+                onChange={setOrigen}
                 error={state?.fieldErrors?.origen_nombre}
               />
               <InputFieldWithIcon
@@ -235,6 +278,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 placeholder="Escribí ciudad o lugar..."
                 icon={Flag}
                 list="puntos-ruta-list"
+                value={destino}
+                onChange={setDestino}
                 error={state?.fieldErrors?.destino_nombre}
               />
             </div>
@@ -245,7 +290,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 label="Km con carga"
                 name="km_con_carga"
                 type="number"
-                defaultValue="0"
+                value={kmConCarga}
+                onChange={setKmConCarga}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_con_carga}
               />
@@ -253,7 +299,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 label="Km vacíos"
                 name="km_vacios"
                 type="number"
-                defaultValue="0"
+                value={kmVacios}
+                onChange={setKmVacios}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_vacios}
               />
@@ -318,6 +365,8 @@ function InputFieldWithIcon({
   placeholder,
   required,
   defaultValue,
+  value,
+  onChange,
   error,
   icon: Icon,
   list,
@@ -328,6 +377,8 @@ function InputFieldWithIcon({
   placeholder?: string;
   required?: boolean;
   defaultValue?: string;
+  value?: string;
+  onChange?: (v: string) => void;
   error?: string;
   icon: React.ComponentType<any>;
   list?: string;
@@ -346,7 +397,9 @@ function InputFieldWithIcon({
           type={type}
           placeholder={placeholder}
           required={required}
-          defaultValue={defaultValue}
+          {...(value !== undefined
+            ? { value, onChange: (e) => onChange?.(e.target.value) }
+            : { defaultValue })}
           list={list}
           className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
         />

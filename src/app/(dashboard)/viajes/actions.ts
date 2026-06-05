@@ -212,19 +212,37 @@ export type ChoferFormOption = ViajeFormOption & {
   motivo?: string;
 };
 
+/** Circuito (ruta) predefinido: trae origen/destino y km cargados + vacíos para
+ *  autocompletar el viaje. Los valores quedan editables (override puntual). */
+export type CircuitoFormOption = {
+  id: string;
+  label: string;
+  origen: string;
+  destino: string;
+  km_con_carga: number;
+  km_vacios: number;
+};
+
 export type ViajeFormData = {
   clientes: ViajeFormOption[];
   choferes: ChoferFormOption[];
   camiones: ViajeFormOption[];
   tipos_carga: ViajeFormOption[];
   puntos_ruta: ViajeFormOption[];
+  circuitos: CircuitoFormOption[];
 };
 
 export async function getViajeFormData(): Promise<ViajeFormData | { error: string }> {
   const supabase = createAdminClient();
 
-  const [clientesRes, choferesRes, camionesRes, tiposCargaRes, puntosRes] =
-    await Promise.all([
+  const [
+    clientesRes,
+    choferesRes,
+    camionesRes,
+    tiposCargaRes,
+    puntosRes,
+    circuitosRes,
+  ] = await Promise.all([
       supabase
         .from("clientes")
         .select("id, razon_social")
@@ -250,6 +268,15 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         .select("id, nombre")
         .eq("estado", "activo")
         .order("nombre", { ascending: true }),
+      supabase
+        .from("rutas")
+        .select(
+          `id, km_oficiales, km_vacios, codigo_interno,
+           origen:puntos_ruta!rutas_origen_id_fkey (nombre),
+           destino:puntos_ruta!rutas_destino_id_fkey (nombre)`,
+        )
+        .eq("estado", "activa")
+        .order("codigo_interno", { ascending: true }),
     ]);
 
   if (
@@ -257,7 +284,8 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     choferesRes.error ||
     camionesRes.error ||
     tiposCargaRes.error ||
-    puntosRes.error
+    puntosRes.error ||
+    circuitosRes.error
   ) {
     console.error("Error cargando datos del formulario de viaje", {
       clientes: clientesRes.error,
@@ -265,6 +293,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
       camiones: camionesRes.error,
       tipos_carga: tiposCargaRes.error,
       puntos_ruta: puntosRes.error,
+      circuitos: circuitosRes.error,
     });
     return { error: "No se pudieron cargar los datos del formulario." };
   }
@@ -347,6 +376,20 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
       id: p.id,
       label: p.nombre,
     })),
+    circuitos: (circuitosRes.data ?? []).map((r) => {
+      const origen = (r.origen as { nombre: string } | null)?.nombre ?? "—";
+      const destino = (r.destino as { nombre: string } | null)?.nombre ?? "—";
+      const km = Number(r.km_oficiales);
+      const codigo = r.codigo_interno ? `${r.codigo_interno} · ` : "";
+      return {
+        id: r.id,
+        label: `${codigo}${origen} → ${destino} (${km} km)`,
+        origen,
+        destino,
+        km_con_carga: km,
+        km_vacios: Number(r.km_vacios),
+      };
+    }),
   };
 }
 
@@ -367,6 +410,7 @@ const viajeSchema = z
     chofer_id: z.string().uuid("Chofer inválido."),
     camion_id: z.string().uuid("Camión inválido."),
     tipo_carga_id: z.string().min(1, "Tipo de carga requerido."),
+    ruta_id: z.string().uuid("Circuito inválido.").optional().nullable(),
     origen_nombre: z.string().optional().nullable(),
     destino_nombre: z.string().optional().nullable(),
     km_con_carga: z.number().int().min(0, "Debe ser ≥ 0."),
@@ -509,6 +553,7 @@ export async function createViajeAction(
     chofer_id: String(formData.get("chofer_id") ?? "").trim(),
     camion_id: String(formData.get("camion_id") ?? "").trim(),
     tipo_carga_id: String(formData.get("tipo_carga_id") ?? "").trim(),
+    ruta_id: emptyOrNull(formData.get("ruta_id")),
     origen_nombre: emptyOrNull(formData.get("origen_nombre")),
     destino_nombre: emptyOrNull(formData.get("destino_nombre")),
     km_con_carga: parseNumber(formData.get("km_con_carga")),
@@ -600,6 +645,7 @@ export async function createViajeAction(
     chofer_id: parsed.data.chofer_id,
     camion_id: parsed.data.camion_id,
     tipo_carga_id: realTipoCargaId,
+    ruta_id: parsed.data.ruta_id ?? null,
     origen_id,
     destino_id,
     km_con_carga: parsed.data.km_con_carga,
@@ -951,6 +997,7 @@ export type ViajeParaEditar = {
   chofer_id: string;
   camion_id: string;
   tipo_carga_id: string;
+  ruta_id: string | null;
   origen_id: string | null;
   origen_nombre: string | null;
   destino_id: string | null;
@@ -973,7 +1020,7 @@ export async function getViajeParaEditarAction(
     .from("viajes")
     .select(
       `id, codigo, fecha_viaje, estado, facturado,
-       cliente_id, chofer_id, camion_id, tipo_carga_id,
+       cliente_id, chofer_id, camion_id, tipo_carga_id, ruta_id,
        origen_id, destino_id,
        km_con_carga, km_vacios, tonelaje_real, monto_flete, observaciones,
        nro_viaje_ypf,
@@ -1001,6 +1048,7 @@ export async function getViajeParaEditarAction(
     chofer_id: data.chofer_id,
     camion_id: data.camion_id,
     tipo_carga_id: data.tipo_carga_id,
+    ruta_id: data.ruta_id ?? null,
     origen_id: data.origen_id ?? null,
     origen_nombre: origen?.nombre ?? null,
     destino_id: data.destino_id ?? null,
@@ -1033,6 +1081,7 @@ export async function updateViajeAction(
     chofer_id: string;
     camion_id: string;
     tipo_carga_id: string;
+    ruta_id?: string | null;
     descripcion_otros: string | null;
     origen_nombre: string | null;
     destino_nombre: string | null;
@@ -1051,6 +1100,7 @@ export async function updateViajeAction(
     chofer_id: data.chofer_id,
     camion_id: data.camion_id,
     tipo_carga_id: data.tipo_carga_id,
+    ruta_id: data.ruta_id ?? null,
     origen_nombre: data.origen_nombre,
     destino_nombre: data.destino_nombre,
     km_con_carga: data.km_con_carga,
@@ -1139,6 +1189,7 @@ export async function updateViajeAction(
       chofer_id: parsed.data.chofer_id,
       camion_id: parsed.data.camion_id,
       tipo_carga_id: realTipoCargaId,
+      ruta_id: parsed.data.ruta_id ?? null,
       origen_id,
       destino_id,
       km_con_carga: parsed.data.km_con_carga,
@@ -1192,6 +1243,7 @@ export type ViajeFilaRapida = {
   chofer_id: string;
   camion_id: string;
   tipo_carga_id: string;
+  ruta_id?: string | null;
   origen_nombre: string | null;
   destino_nombre: string | null;
   km_con_carga: number;
@@ -1287,6 +1339,7 @@ export async function createViajesBatchAction(
         chofer_id: p.chofer_id,
         camion_id: p.camion_id,
         tipo_carga_id: tipoCargaId,
+        ruta_id: p.ruta_id ?? null,
         origen_id,
         destino_id,
         km_con_carga: p.km_con_carga,

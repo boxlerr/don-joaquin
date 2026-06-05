@@ -1,35 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { Calculator, Settings, Users } from "lucide-react";
+import { Calculator, Route, Settings, Users } from "lucide-react";
 import AjustesTarifa from "./AjustesTarifa";
 import CalculadoraTarifasAvanzada from "./CalculadoraTarifasAvanzada";
 import HelpTutorialButton from "./help-tutorial-button";
 import TabTarifasPorCliente from "./TabTarifasPorCliente";
+import TabCircuitos from "./TabCircuitos";
 import type {
+  CircuitoConRelaciones,
   ClienteOption,
+  PuntoRutaOption,
   RutaOption,
   TarifaConRelaciones,
   TarifaParams,
 } from "./actions";
 
-type TabId = "calculadora" | "tarifas" | "ajustes";
+type TabId = "calculadora" | "tarifas" | "circuitos" | "ajustes";
 
 type Props = {
   params: TarifaParams;
   clientes: ClienteOption[];
   rutas: RutaOption[];
   tarifas: TarifaConRelaciones[];
+  circuitos: CircuitoConRelaciones[];
+  puntos: PuntoRutaOption[];
   canWrite?: boolean;
 };
 
 const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
   { id: "calculadora", label: "Calculadora", icon: Calculator },
   { id: "tarifas", label: "Tarifas por cliente", icon: Users },
+  { id: "circuitos", label: "Circuitos", icon: Route },
   { id: "ajustes", label: "Ajustes globales", icon: Settings },
 ];
 
-export default function TarifasTabs({ params, clientes, rutas, tarifas, canWrite = false }: Props) {
+export default function TarifasTabs({
+  params,
+  clientes,
+  rutas,
+  tarifas,
+  circuitos,
+  puntos,
+  canWrite = false,
+}: Props) {
   const [tab, setTab] = useState<TabId>("calculadora");
 
   return (
@@ -81,6 +95,14 @@ export default function TarifasTabs({ params, clientes, rutas, tarifas, canWrite
           tarifasIniciales={tarifas}
           clientes={clientes}
           rutas={rutas}
+          canWrite={canWrite}
+        />
+      )}
+
+      {tab === "circuitos" && (
+        <TabCircuitos
+          circuitosIniciales={circuitos}
+          puntos={puntos}
           canWrite={canWrite}
         />
       )}

@@ -21,6 +21,7 @@ type Fila = {
   estado: string;
   chofer_id: string;
   camion_id: string;
+  ruta_id: string;
   origen_nombre: string;
   destino_nombre: string;
   km_con_carga: string;
@@ -41,6 +42,7 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
     estado: "en_curso",
     chofer_id: "",
     camion_id: "",
+    ruta_id: "",
     origen_nombre: "",
     destino_nombre: "",
     km_con_carga: "0",
@@ -98,6 +100,28 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
     [camionPorChofer],
   );
 
+  // Al elegir un circuito en una fila: autocompletar origen, destino y km.
+  const aplicarCircuito = useCallback(
+    (id: number, circuitoId: string) => {
+      const c = data.circuitos.find((x) => x.id === circuitoId);
+      setFilas((prev) =>
+        prev.map((f) => {
+          if (f.id !== id) return f;
+          if (!c) return { ...f, ruta_id: circuitoId };
+          return {
+            ...f,
+            ruta_id: circuitoId,
+            origen_nombre: c.origen === "—" ? "" : c.origen,
+            destino_nombre: c.destino === "—" ? "" : c.destino,
+            km_con_carga: String(c.km_con_carga),
+            km_vacios: String(c.km_vacios),
+          };
+        }),
+      );
+    },
+    [data.circuitos],
+  );
+
   const agregarFila = () => setFilas((prev) => [...prev, filaVacia()]);
 
   const eliminarFila = (id: number) =>
@@ -131,6 +155,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       chofer_id: f.chofer_id,
       camion_id: f.camion_id,
       tipo_carga_id: globalTipoCargaId,
+      ruta_id: f.ruta_id || null,
       origen_nombre: f.origen_nombre.trim() || null,
       destino_nombre: f.destino_nombre.trim() || null,
       km_con_carga: Number(f.km_con_carga) || 0,
@@ -216,6 +241,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                   "Estado",
                   "Chofer",
                   "Camión",
+                  ...(data.circuitos.length > 0 ? ["Circuito"] : []),
                   "Origen",
                   "Destino",
                   "KM carga",
@@ -286,6 +312,21 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         triggerClassName={`h-8 w-32 text-xs ${!fila.camion_id ? "border-amber-300" : ""}`}
                       />
                     </td>
+
+                    {/* Circuito (autocompleta origen/destino/km) */}
+                    {data.circuitos.length > 0 && (
+                      <td className="px-1 py-1">
+                        <Combobox
+                          value={fila.ruta_id}
+                          onValueChange={(v) => aplicarCircuito(fila.id, v)}
+                          options={data.circuitos.map((c) => ({ id: c.id, label: c.label }))}
+                          placeholder="— Opcional —"
+                          searchPlaceholder="Buscar circuito..."
+                          clearable
+                          triggerClassName="h-8 w-44 text-xs"
+                        />
+                      </td>
+                    )}
 
                     {/* Origen */}
                     <td className="px-1 py-1">
