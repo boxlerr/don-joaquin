@@ -183,7 +183,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 )}
                 {cambioDeCamion && (
                   <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
-                    Distinto al camión habitual de este chofer.
+                    Aviso: distinto al camión habitual de este chofer.
                   </p>
                 )}
               </div>

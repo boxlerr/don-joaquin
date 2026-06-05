@@ -63,6 +63,9 @@ const ACCIONES_LABELS: Record<string, string> = {
   requisito_estado: "Estado de requisito",
   documento_agregado: "Documento agregado",
   documento_eliminado: "Documento eliminado",
+  camion_asignado: "Camión asignado",
+  camion_desasignado: "Camión desasignado",
+  egreso_editado: "Egreso editado",
 };
 
 const ACCIONES_COLORS: Record<string, string> = {
@@ -83,6 +86,9 @@ const ACCIONES_COLORS: Record<string, string> = {
   requisito_estado: "bg-[#E0E7FF] text-[#3730A3]",
   documento_agregado: "bg-[#E0F2FE] text-[#075985]",
   documento_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
+  camion_asignado: "bg-[#E0F2FE] text-[#075985]",
+  camion_desasignado: "bg-[#FEF3C7] text-[#92400E]",
+  egreso_editado: "bg-[#FEF3C7] text-[#92400E]",
 };
 
 const ENTIDADES_LABELS: Record<string, string> = {

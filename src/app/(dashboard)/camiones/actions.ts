@@ -1412,3 +1412,54 @@ export async function exportCamionesAction(): Promise<{
     base64: buf.toString("base64"),
   };
 }
+
+// ============================================================================
+// Historial de choferes que manejaron este camión (rotación)
+// ============================================================================
+
+export type ChoferHistorialDeCamion = {
+  id: string;
+  chofer_id: string;
+  desde: string;
+  hasta: string | null;
+  motivo_cambio: string | null;
+  chofer: {
+    nombre: string;
+    apellido: string;
+  } | null;
+};
+
+/**
+ * Devuelve quiénes manejaron este camión a lo largo del tiempo.
+ * Útil cuando hay rotaciones por enfermedad / rotura: muestra qué chofer
+ * estuvo asignado en cada periodo. La fila más nueva está al principio;
+ * si `hasta` es null, es el chofer actual.
+ */
+export async function getHistorialChoferesDeCamionAction(
+  camionId: string,
+): Promise<ChoferHistorialDeCamion[]> {
+  await requireArea("flota", "read");
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("chofer_camion_historial")
+    .select(
+      "id, chofer_id, desde, hasta, motivo_cambio, chofer:choferes(nombre, apellido)",
+    )
+    .eq("camion_id", camionId)
+    .order("desde", { ascending: false });
+
+  if (error) {
+    console.error("Error al cargar historial de choferes del camión:", error);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    chofer_id: row.chofer_id,
+    desde: row.desde,
+    hasta: row.hasta,
+    motivo_cambio: row.motivo_cambio,
+    chofer: Array.isArray(row.chofer) ? row.chofer[0] ?? null : row.chofer,
+  }));
+}

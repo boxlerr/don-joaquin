@@ -119,6 +119,15 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
     tipoCargaId === "otros" ||
     formOptions?.tipos_carga.find((t) => t.id === tipoCargaId)?.label.toLowerCase() === "otros";
 
+  // Camión "habitual" del chofer seleccionado. Sirve para avisar si el
+  // viaje quedó cargado con una unidad distinta a la asignada (los choferes
+  // rotan: enfermos, roturas, etc.).
+  const camionHabitualId =
+    formOptions?.choferes.find((c) => c.id === choferId)?.camionId ?? null;
+  const usandoCamionHabitual = !!camionHabitualId && camionId === camionHabitualId;
+  const cambioDeCamion =
+    !!choferId && !!camionId && !!camionHabitualId && !usandoCamionHabitual;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -283,17 +292,29 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 />
               </CField>
 
-              <CField label="Camión *" icon={Truck} error={fieldErrors.camion_id}>
-                <Combobox
-                  value={camionId}
-                  onValueChange={setCamionId}
-                  options={formOptions?.camiones ?? []}
-                  placeholder="Seleccioná..."
-                  searchPlaceholder="Buscar patente..."
-                  required
-                  triggerClassName={FIELD_COMBO_TRIGGER}
-                />
-              </CField>
+              <div>
+                <CField label="Camión *" icon={Truck} error={fieldErrors.camion_id}>
+                  <Combobox
+                    value={camionId}
+                    onValueChange={setCamionId}
+                    options={formOptions?.camiones ?? []}
+                    placeholder="Seleccioná..."
+                    searchPlaceholder="Buscar patente..."
+                    required
+                    triggerClassName={FIELD_COMBO_TRIGGER}
+                  />
+                </CField>
+                {usandoCamionHabitual && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Es el camión habitual de este chofer.
+                  </p>
+                )}
+                {cambioDeCamion && (
+                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                    Aviso: distinto al camión habitual de este chofer.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Tipo de carga */}

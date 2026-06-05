@@ -66,6 +66,16 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
         ],
       },
+      {
+        label: "Choferes",
+        href: "/choferes",
+        icon: Users,
+        area: "logistica",
+        children: [
+          { label: "Legajos", href: "/choferes" },
+          { label: "Ranking", href: "/choferes/ranking" },
+        ],
+      },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
     ],
   },
@@ -86,21 +96,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "RRHH",
     items: [
-      {
-        // NOTA: técnicamente Choferes vive en el área "logistica" (la
-        // página y todas las server actions hacen requireArea("logistica")).
-        // Visualmente lo agrupamos en RRHH como pidió Bárbara, pero el
-        // permiso sigue siendo de logística hasta que migremos el módulo
-        // completo a "rrhh" (ver tarea en Notion).
-        label: "Choferes",
-        href: "/choferes",
-        icon: Users,
-        area: "logistica",
-        children: [
-          { label: "Legajos", href: "/choferes" },
-          { label: "Ranking", href: "/choferes/ranking" },
-        ],
-      },
       { label: "Entrevistas", href: "/entrevistas", icon: UserSearch, area: "rrhh" },
     ],
   },
