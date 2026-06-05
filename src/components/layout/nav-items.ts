@@ -4,6 +4,7 @@ import {
   MapPin,
   Truck,
   Users,
+  UsersRound,
   AlertTriangle,
   Wrench,
   Briefcase,
@@ -86,6 +87,11 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "RRHH",
     items: [
       {
+        // NOTA: técnicamente Choferes vive en el área "logistica" (la
+        // página y todas las server actions hacen requireArea("logistica")).
+        // Visualmente lo agrupamos en RRHH como pidió Bárbara, pero el
+        // permiso sigue siendo de logística hasta que migremos el módulo
+        // completo a "rrhh" (ver tarea en Notion).
         label: "Choferes",
         href: "/choferes",
         icon: Users,
@@ -126,6 +132,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "SISTEMA",
     items: [
+      { label: "Usuarios", href: "/usuarios", icon: UsersRound, area: "sistema" },
       { label: "Auditoría", href: "/auditoria", icon: ShieldAlert, area: "sistema" },
       {
         label: "Configuración",
@@ -135,7 +142,6 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: "General", href: "/configuracion" },
           { label: "Negocio", href: "/configuracion/negocio" },
-          { label: "Usuarios", href: "/usuarios" },
           { label: "Plantillas PDF", href: "/configuracion/plantillas-pdf" },
           { label: "Notificaciones", href: "/configuracion/notificaciones" },
         ],
