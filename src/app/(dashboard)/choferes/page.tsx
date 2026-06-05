@@ -72,6 +72,13 @@ export default async function ChoferesPage({
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
   }));
 
+  // Desglose por rol (los choferes legacy sin rol seteado se cuentan como "chofer").
+  const personal = choferes ?? [];
+  const rolDe = (c: { rol?: string | null }) => (c.rol ?? "chofer") as string;
+  const choferesCount = personal.filter((c) => rolDe(c) === "chofer").length;
+  const administrativoCount = personal.filter((c) => rolDe(c) === "administrativo").length;
+  const mantenimientoCount = personal.filter((c) => rolDe(c) === "mantenimiento").length;
+
   // Distribución por localidad (excluye baja, agrupa y ordena desc)
   const localidadMap = new Map<string, number>();
   for (const c of choferes ?? []) {
@@ -113,6 +120,9 @@ export default async function ChoferesPage({
         total={total ?? 0}
         activos={activos.count ?? 0}
         inactivos={inactivos.count ?? 0}
+        choferesCount={choferesCount}
+        administrativoCount={administrativoCount}
+        mantenimientoCount={mantenimientoCount}
         totalDocs={docs.count ?? 0}
         vencidosCount={vencidosDocs?.length ?? 0}
         porVencerCount={porVencerDocs?.length ?? 0}

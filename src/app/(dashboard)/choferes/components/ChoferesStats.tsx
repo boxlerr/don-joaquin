@@ -28,6 +28,9 @@ interface Props {
   total: number;
   activos: number;
   inactivos: number;
+  choferesCount: number;
+  administrativoCount: number;
+  mantenimientoCount: number;
   totalDocs: number;
   vencidosCount: number;
   porVencerCount: number;
@@ -39,6 +42,9 @@ export default function ChoferesStats({
   total,
   activos,
   inactivos,
+  choferesCount,
+  administrativoCount,
+  mantenimientoCount,
   totalDocs,
   vencidosCount,
   porVencerCount,
@@ -65,24 +71,49 @@ export default function ChoferesStats({
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <StatCard label="Total choferes" value={String(total)} sub="En planilla" color="brand" />
-        <StatCard label="Activos" value={String(activos)} color="success" />
-        <StatCard label="Inactivos" value={String(inactivos)} color="warning" />
+      {/* Fila 1 — desglose de personal por rol */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+        <StatCard
+          label="Total personal"
+          value={String(total)}
+          sub={`${activos} activos · ${inactivos} inactivos`}
+          color="brand"
+        />
+        <StatCard
+          label="Choferes"
+          value={String(choferesCount)}
+          sub="Rol: chofer"
+          color="success"
+        />
+        <StatCard
+          label="Administración"
+          value={String(administrativoCount)}
+          sub="Rol: administrativo"
+          color="brand"
+        />
+        <StatCard
+          label="Mantenimiento"
+          value={String(mantenimientoCount)}
+          sub="Rol: mantenimiento"
+          color="warning"
+        />
+      </div>
+
+      {/* Fila 2 — documentación */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard label="Documentos" value={String(totalDocs)} sub="En legajos" color="brand" />
-        
         <StatCard
           label="Vencidos"
           value={String(vencidosCount)}
           color="error"
-          sub="Vencidos"
+          sub="Documentos vencidos"
           onClick={vencidosCount > 0 ? () => handleCardClick("vencido") : undefined}
         />
         <StatCard
           label="Por vencer"
           value={String(porVencerCount)}
           color="warning"
-          sub="Por vencer"
+          sub="Próximos a vencer"
           onClick={porVencerCount > 0 ? () => handleCardClick("por_vencer") : undefined}
         />
       </div>

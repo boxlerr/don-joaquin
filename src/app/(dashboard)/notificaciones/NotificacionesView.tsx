@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -94,8 +94,14 @@ export default function NotificacionesView({
     const validas: CatFilter[] = ["documentacion", "cheques", "viajes", "personal", "sistema", "todas"];
     return (validas as string[]).includes(raw ?? "") ? (raw as CatFilter) : "todas";
   })();
+  // Permite linkear directo a una severidad: ?severidad=critica
+  const initialSev = ((): SevFilter => {
+    const raw = searchParams.get("severidad");
+    const validas: SevFilter[] = ["critica", "advertencia", "info", "todas"];
+    return (validas as string[]).includes(raw ?? "") ? (raw as SevFilter) : "todas";
+  })();
   const [alertas, setAlertas] = useState(initialAlertas);
-  const [sevFilter, setSevFilter] = useState<SevFilter>("todas");
+  const [sevFilter, setSevFilter] = useState<SevFilter>(initialSev);
   const [catFilter, setCatFilter] = useState<CatFilter>(initialCat);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>({
@@ -105,6 +111,23 @@ export default function NotificacionesView({
   });
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // Cuando se entra con ?severidad=X desde el dashboard, expandir y scrollear
+  // suavemente a esa sección para que quede centrada y visible al instante.
+  useEffect(() => {
+    if (initialSev === "todas") return;
+    setCollapsed((prev) => ({ ...prev, [initialSev]: false }));
+    const id = `sev-${initialSev}`;
+    // Doble RAF para esperar a que el render mostró la sección antes de scrollear.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    // Solo al montar (los cambios manuales del filtro no deben re-scrollear).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -257,7 +280,8 @@ export default function NotificacionesView({
             return (
               <div
                 key={sev}
-                className={`bg-card rounded-xl border border-border border-l-[3px] ${accent.border} shadow-sm overflow-hidden`}
+                id={`sev-${sev}`}
+                className={`bg-card rounded-xl border border-border border-l-[3px] ${accent.border} shadow-sm overflow-hidden scroll-mt-24`}
               >
                 <button
                   type="button"

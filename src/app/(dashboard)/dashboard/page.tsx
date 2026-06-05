@@ -1,11 +1,8 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import { Button } from "@/components/ui/button";
 import {
   MapPin,
   AlertTriangle,
-  Plus,
-  Wallet,
   Receipt,
   FileText,
   Briefcase,
@@ -65,7 +62,7 @@ export default async function DashboardPage() {
       .order("fecha_disparo", { ascending: false }),
     supabase.from("clientes").select("*", { count: "exact", head: true }),
     supabase.from("camiones").select("*", { count: "exact", head: true }),
-    supabase.from("choferes").select("*", { count: "exact", head: true }),
+    supabase.from("choferes").select("rol", { count: "exact" }),
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
     computeRanking(resolverRango({})),
@@ -87,16 +84,49 @@ export default async function DashboardPage() {
   for (const t of tiposDocRes.data ?? []) {
     diasAlertaPorTipo.set(t.id, t.dias_alerta_vencimiento);
   }
+  // Misma definición que /notificaciones: una alerta es **crítica** cuando el
+  // documento está vencido o le quedan <= 7 días. Los que están entre 8 y el
+  // `dias_alerta_vencimiento` del tipo cuentan como **advertencia**.
+  const DIAS_CRITICO = 7;
   let docVencidos = 0;
   let docProximos = 0;
+  let docCriticos = 0;
   for (const d of [...(camionDocsRes.data ?? []), ...(choferDocsRes.data ?? [])]) {
     // Si el tipo no está activo, lo ignoramos (mismo criterio que /notificaciones).
     const diasAlerta = diasAlertaPorTipo.get(d.tipo_documento_id);
     if (diasAlerta == null) continue;
     const diasRest = diasRestantes(d.fecha_vencimiento);
     if (diasRest === null) continue;
-    if (diasRest < 0) docVencidos++;
-    else if (diasRest <= diasAlerta) docProximos++;
+    const vencido = diasRest < 0;
+    const proximo = !vencido && diasRest <= diasAlerta;
+    if (vencido) docVencidos++;
+    else if (proximo) docProximos++;
+    if (vencido || (proximo && diasRest <= DIAS_CRITICO)) docCriticos++;
+  }
+
+  // Sumamos las alertas de la tabla `alertas` con severidad crítica que NO
+  // sean de documentos (esas ya se cuentan arriba en vivo). Son cosas como
+  // cheques rechazados, compliance, viajes sin cerrar, etc. Esto alinea el
+  // conteo con el filtro "Crítica" de /notificaciones.
+  const otrasCriticas = (docPorVencer.data ?? []).filter(
+    (a) =>
+      a.severidad === "critica" &&
+      a.tipo !== "vencimiento_doc_camion" &&
+      a.tipo !== "vencimiento_doc_chofer",
+  ).length;
+  docCriticos += otrasCriticas;
+
+  // Desglose del total de personal por rol (chofer / administrativo / mantenimiento).
+  // Legacy: registros con rol null se cuentan como "chofer".
+  const personalRoles = (totalChoferes.data ?? []) as { rol: string | null }[];
+  let countChofer = 0;
+  let countAdmin = 0;
+  let countMant = 0;
+  for (const p of personalRoles) {
+    const r = p.rol ?? "chofer";
+    if (r === "administrativo") countAdmin++;
+    else if (r === "mantenimiento") countMant++;
+    else countChofer++;
   }
 
   // Desglose por categoría (documentación, cheques, viajes, personal, sistema).
@@ -156,22 +186,6 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Resumen operativo y financiero del día"
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="hover:text-primary transition-colors">
-              <Receipt size={14} className="text-primary" />
-              Registrar gasto
-            </Button>
-            <Button variant="outline" size="sm" className="hover:text-primary transition-colors">
-              <Wallet size={14} className="text-primary" />
-              Registrar viático
-            </Button>
-            <Button variant="brand" size="sm" className="bg-gradient-to-r from-[#0088D1] to-[#004A99] hover:from-[#004A99] hover:to-[#003C80] dark:from-brand-400 dark:to-brand-700 dark:hover:from-brand-500 dark:hover:to-brand-800 shadow-sm transition-all duration-300 font-semibold text-white">
-              <Plus size={14} />
-              Nuevo viaje
-            </Button>
-          </div>
-        }
       />
 
       <div className="grid grid-cols-4 gap-4">
@@ -382,14 +396,19 @@ export default async function DashboardPage() {
         />
         <SummaryCard
           icon={Users}
-          title="Choferes"
+          title="Personal"
           metric={String(totalChoferes.count ?? 0)}
           metricLabel="legajos"
-          description="Sin acceso al sistema"
+          description="Choferes, administración y mantenimiento"
           href="/choferes"
           iconColor="text-[#7C3AED] dark:text-violet-300"
           iconBg="bg-[#F3E8FF] dark:bg-violet-500/15"
           type="users"
+          breakdown={[
+            { label: "Choferes", value: countChofer },
+            { label: "Admin.", value: countAdmin },
+            { label: "Mant.", value: countMant },
+          ]}
         />
         <SummaryCard
           icon={Briefcase}
@@ -408,10 +427,10 @@ export default async function DashboardPage() {
         <SummaryCard
           icon={ShieldAlert}
           title="Documentación crítica"
-          description="Camiones y choferes con documentación próxima a vencer"
-          metric="—"
-          metricLabel="próximas a vencer"
-          href="/choferes"
+          description="Documentos vencidos o que vencen dentro de 7 días"
+          metric={String(docCriticos)}
+          metricLabel={docCriticos === 1 ? "alerta crítica" : "alertas críticas"}
+          href="/notificaciones?severidad=critica"
           iconColor="text-[#E11D48] dark:text-rose-300"
           iconBg="bg-[#FFF1F2] dark:bg-rose-500/15"
           type="clipboard"
@@ -442,6 +461,8 @@ interface SummaryCardProps {
   iconColor?: string;
   iconBg?: string;
   type: "truck" | "users" | "building" | "clipboard" | "invoice";
+  /** Desglose opcional mostrado como chips bajo el conteo principal. */
+  breakdown?: { label: string; value: number | string }[];
 }
 
 function SummaryCard({
@@ -454,6 +475,7 @@ function SummaryCard({
   iconColor = "text-primary",
   iconBg = "bg-primary/10",
   type,
+  breakdown,
 }: SummaryCardProps) {
   const CardWrapper = href ? "a" : "div";
 
@@ -486,6 +508,19 @@ function SummaryCard({
               {metricLabel}
             </span>
           </div>
+          {breakdown && breakdown.length > 0 && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {breakdown.map((b) => (
+                <span
+                  key={b.label}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted/60 dark:bg-muted/40 text-foreground border border-border"
+                >
+                  <span className="font-black tabular-nums">{b.value}</span>
+                  <span className="text-muted-foreground uppercase tracking-wider">{b.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
