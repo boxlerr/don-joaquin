@@ -4285,7 +4285,8 @@ export type Database = {
           km_desvio_no_computable: number
           km_vacios: number
           moneda: string
-          monto_flete: number
+          monto_flete: number | null
+          nro_remito: string | null
           nro_viaje_ypf: string | null
           observaciones: string | null
           origen_id: string | null
@@ -4317,7 +4318,8 @@ export type Database = {
           km_desvio_no_computable?: number
           km_vacios?: number
           moneda?: string
-          monto_flete?: number
+          monto_flete?: number | null
+          nro_remito?: string | null
           nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null
@@ -4349,7 +4351,8 @@ export type Database = {
           km_desvio_no_computable?: number
           km_vacios?: number
           moneda?: string
-          monto_flete?: number
+          monto_flete?: number | null
+          nro_remito?: string | null
           nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null
