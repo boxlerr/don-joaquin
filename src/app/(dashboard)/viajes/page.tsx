@@ -8,6 +8,7 @@ import { requireArea, hasArea } from "@/lib/auth";
 import ViajesTable from "./components/ViajesTable";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportHojasRutaModal from "./components/ImportHojasRutaModal";
+import ImportHojaRutaModal from "./components/ImportHojaRutaModal";
 import ImportYpfModal from "./components/ImportYpfModal";
 import { getViajeFormData } from "./actions";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
@@ -95,6 +96,7 @@ export default async function ViajesPage({
               </Link>
             )}
             {canWrite && <ImportHojasRutaModal />}
+            {canWrite && <ImportHojaRutaModal />}
             {canWrite && <ImportYpfModal />}
             {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
