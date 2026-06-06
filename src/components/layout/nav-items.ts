@@ -63,6 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
         area: "viajes",
         children: [
           { label: "Listado", href: "/viajes" },
+          { label: "Hoja de ruta", href: "/viajes/hoja-ruta" },
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
         ],
       },
