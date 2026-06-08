@@ -18,6 +18,8 @@ import {
   XCircle,
   FileSpreadsheet,
   HelpCircle,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import {
   previewHojaRutaImportAction,
@@ -25,6 +27,7 @@ import {
   type HojaRutaPreviewState,
   type ConfirmHojaRutaState,
   type SheetPreview,
+  type SheetViajePreview,
   type AsignacionSheet,
 } from "../import-hoja-ruta/actions";
 
@@ -104,7 +107,26 @@ export default function ImportHojaRutaModal() {
   };
 
   const s = preview?.summary;
-  const sheetsConError = preview?.sheets?.filter((x) => x.chofer.status !== "ok") ?? [];
+
+  const asignadoDe = (sheetName: string) =>
+    asignaciones.find((a) => a.sheetName === sheetName)?.chofer_id ?? null;
+
+  // Pestañas desplegadas (click → ver viajes).
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
+  const toggleExpand = (sheetName: string) =>
+    setExpandidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(sheetName)) next.delete(sheetName);
+      else next.add(sheetName);
+      return next;
+    });
+
+  // Conteos: dependen del match automático (determinístico).
+  const importablesLive = (preview?.sheets ?? []).reduce(
+    (acc, sh) => acc + (asignadoDe(sh.sheetName) ? sh.total - sh.yaImportados : 0),
+    0,
+  );
+  const sinAsignar = (preview?.sheets ?? []).filter((sh) => !asignadoDe(sh.sheetName)).length;
 
   return (
     <>
@@ -135,12 +157,12 @@ export default function ImportHojaRutaModal() {
               )}
               {step === "preview" && preview && (
                 <>
-                  <span className="text-[#047857] font-semibold">{s?.totalImportables ?? 0} viajes a importar</span>
+                  <span className="text-[#047857] font-semibold">{importablesLive} viajes a importar</span>
                   {(s?.totalDuplicados ?? 0) > 0 && (
                     <> · <span className="text-muted-foreground">{s?.totalDuplicados} duplicados</span></>
                   )}
-                  {sheetsConError.length > 0 && (
-                    <> · <span className="text-red-600 font-semibold">{sheetsConError.length} sheets sin chofer</span></>
+                  {sinAsignar > 0 && (
+                    <> · <span className="text-red-600 font-semibold">{sinAsignar} sheets sin chofer</span></>
                   )}
                   {" "}· {money(s?.totalImporte)} total
                 </>
@@ -197,8 +219,8 @@ export default function ImportHojaRutaModal() {
             <div className="flex flex-col flex-1 min-h-0 gap-3 py-2">
               {/* Resumen agregado */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <Stat label="Sheets" value={`${s?.sheetsOk ?? 0} / ${s?.totalSheets ?? 0}`} tone="info" />
-                <Stat label="Viajes a importar" value={`${s?.totalImportables ?? 0}`} tone="success" />
+                <Stat label="Sheets con chofer" value={`${(s?.totalSheets ?? 0) - sinAsignar} / ${s?.totalSheets ?? 0}`} tone="info" />
+                <Stat label="Viajes a importar" value={`${importablesLive}`} tone="success" />
                 <Stat label="Duplicados" value={`${s?.totalDuplicados ?? 0}`} tone="neutral" />
                 <Stat label="Total importe" value={money(s?.totalImporte)} tone="info" />
               </div>
@@ -225,7 +247,13 @@ export default function ImportHojaRutaModal() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {preview.sheets?.map((sh) => (
-                      <SheetRow key={sh.sheetName} sheet={sh} />
+                      <SheetRow
+                        key={sh.sheetName}
+                        sheet={sh}
+                        asignado={asignadoDe(sh.sheetName)}
+                        expanded={expandidas.has(sh.sheetName)}
+                        onToggle={() => toggleExpand(sh.sheetName)}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -241,10 +269,10 @@ export default function ImportHojaRutaModal() {
                   type="button"
                   variant="brand"
                   onClick={handleConfirm}
-                  disabled={loading || (s?.totalImportables ?? 0) === 0}
+                  disabled={loading || importablesLive === 0}
                 >
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {loading ? "Importando…" : `Confirmar ${s?.totalImportables ?? 0} viajes`}
+                  {loading ? "Importando…" : `Confirmar ${importablesLive} viajes`}
                 </Button>
               </DialogFooter>
             </div>
@@ -310,57 +338,132 @@ function Stat({
   );
 }
 
-function SheetRow({ sheet }: { sheet: SheetPreview }) {
-  const isOk = sheet.chofer.status === "ok";
-  const isMissing = sheet.chofer.status === "missing";
+function SheetRow({
+  sheet,
+  asignado,
+  expanded,
+  onToggle,
+}: {
+  sheet: SheetPreview;
+  asignado: string | null;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const isAmbig = sheet.chofer.status === "ambiguo";
-  const importables = sheet.total - sheet.yaImportados;
+  const isMissing = sheet.chofer.status === "missing";
+  const resuelto = !!asignado;
+  const importables = resuelto ? sheet.total - sheet.yaImportados : 0;
 
   return (
-    <tr className={isMissing ? "bg-red-50/40" : isAmbig ? "bg-amber-50/40" : ""}>
-      <td className="px-3 py-2 align-top">
-        {isOk ? (
-          <CheckCircle2 size={13} className="text-[#10B981]" />
-        ) : isAmbig ? (
-          <AlertTriangle size={13} className="text-[#F59E0B]" />
-        ) : (
-          <XCircle size={13} className="text-red-500" />
-        )}
-      </td>
-      <td className="px-3 py-2 align-top">
-        <div className="font-mono font-semibold text-foreground">{sheet.sheetName.trim() || "(sin nombre)"}</div>
-        {sheet.chofer.status === "ok" && (
-          <div className="text-muted-foreground">→ {sheet.chofer.apellido}, {sheet.chofer.nombre}</div>
-        )}
-        {sheet.chofer.status === "ambiguo" && (
-          <div className="text-[#92400E]">→ ambiguo · {sheet.chofer.candidatos.map((c) => c.label).join(" / ")}</div>
-        )}
-        {sheet.chofer.status === "missing" && (
-          <div className="text-red-600">→ no hay chofer con ese apellido en la DB</div>
-        )}
-        {sheet.patentes.length > 0 && (
-          <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-            Patentes: <span className="font-mono">{sheet.patentes.join(" · ")}</span>
+    <>
+      <tr
+        className={`cursor-pointer hover:bg-muted/30 ${!resuelto ? (isMissing ? "bg-red-50/40" : "bg-amber-50/40") : ""}`}
+        onClick={onToggle}
+      >
+        <td className="px-3 py-2 align-top">
+          <div className="flex items-center gap-1">
+            {expanded ? (
+              <ChevronDown size={13} className="text-muted-foreground" />
+            ) : (
+              <ChevronRight size={13} className="text-muted-foreground" />
+            )}
+            {resuelto ? (
+              <CheckCircle2 size={13} className="text-[#10B981]" />
+            ) : isAmbig ? (
+              <AlertTriangle size={13} className="text-[#F59E0B]" />
+            ) : (
+              <XCircle size={13} className="text-red-500" />
+            )}
           </div>
-        )}
-        {sheet.warnings.map((w, i) => (
-          <div key={i} className="text-[10px] text-[#92400E] italic">⚠ {w}</div>
-        ))}
-      </td>
-      <td className="px-3 py-2 text-right align-top font-mono">
-        <span className="font-semibold">{importables}</span>
-        <span className="text-muted-foreground/60"> / {sheet.total}</span>
-      </td>
-      <td className="px-3 py-2 text-right align-top font-mono text-muted-foreground">{num(sheet.vacios)}</td>
-      <td className="px-3 py-2 text-right align-top font-mono">
-        {sheet.pendientesFacturar > 0 ? (
-          <span className="text-[#92400E] font-semibold">{sheet.pendientesFacturar}</span>
-        ) : (
-          <span className="text-muted-foreground/60">0</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right align-top font-mono text-muted-foreground">{num(sheet.yaImportados)}</td>
-      <td className="px-3 py-2 text-right align-top font-mono">{money(sheet.sumaImporte)}</td>
-    </tr>
+        </td>
+        <td className="px-3 py-2 align-top">
+          <div className="font-mono font-semibold text-foreground">{sheet.sheetName.trim() || "(sin nombre)"}</div>
+          {sheet.chofer.status === "ok" && (
+            <div className="text-muted-foreground">→ {sheet.chofer.apellido}, {sheet.chofer.nombre}</div>
+          )}
+          {sheet.chofer.status === "ambiguo" && (
+            <div className="text-[#92400E]">→ ambiguo · {sheet.chofer.candidatos.map((c) => c.label).join(" / ")}</div>
+          )}
+          {sheet.chofer.status === "missing" && (
+            <div className="text-red-600">→ no hay chofer con ese apellido en la DB</div>
+          )}
+          {sheet.patentes.length > 0 && (
+            <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+              Patentes: <span className="font-mono">{sheet.patentes.join(" · ")}</span>
+            </div>
+          )}
+          {sheet.warnings.map((w, i) => (
+            <div key={i} className="text-[10px] text-[#92400E] italic">⚠ {w}</div>
+          ))}
+        </td>
+        <td className="px-3 py-2 text-right align-top font-mono">
+          <span className="font-semibold">{importables}</span>
+          <span className="text-muted-foreground/60"> / {sheet.total}</span>
+        </td>
+        <td className="px-3 py-2 text-right align-top font-mono text-muted-foreground">{num(sheet.vacios)}</td>
+        <td className="px-3 py-2 text-right align-top font-mono">
+          {sheet.pendientesFacturar > 0 ? (
+            <span className="text-[#92400E] font-semibold">{sheet.pendientesFacturar}</span>
+          ) : (
+            <span className="text-muted-foreground/60">0</span>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right align-top font-mono text-muted-foreground">{num(sheet.yaImportados)}</td>
+        <td className="px-3 py-2 text-right align-top font-mono">{money(sheet.sumaImporte)}</td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={7} className="px-3 pb-3 pt-0 bg-muted/20">
+            <ViajesDetalle viajes={sheet.viajes} />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
+  if (viajes.length === 0) {
+    return <div className="text-[11px] text-muted-foreground py-2">Sin viajes en esta pestaña.</div>;
+  }
+  return (
+    <div className="border border-border rounded-md overflow-hidden mt-1">
+      <table className="w-full text-[11px]">
+        <thead className="bg-card border-b border-border text-[9px] uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th className="text-left px-2 py-1.5">Día</th>
+            <th className="text-left px-2 py-1.5">Ruta</th>
+            <th className="text-left px-2 py-1.5">Remito</th>
+            <th className="text-left px-2 py-1.5">Material</th>
+            <th className="text-right px-2 py-1.5">Tn</th>
+            <th className="text-right px-2 py-1.5">Importe</th>
+            <th className="text-left px-2 py-1.5">Estado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#F1F5F9]">
+          {viajes.map((v, i) => (
+            <tr key={i} className={v.dup ? "opacity-50" : v.vacio ? "text-muted-foreground" : ""}>
+              <td className="px-2 py-1.5 font-mono whitespace-nowrap">{v.fecha}</td>
+              <td className="px-2 py-1.5">{v.saleDe} → {v.llegaA}</td>
+              <td className="px-2 py-1.5 font-mono">{v.vacio ? "—" : v.remito ?? "—"}</td>
+              <td className="px-2 py-1.5">{v.material ?? "—"}</td>
+              <td className="px-2 py-1.5 text-right font-mono">{v.ton != null ? num(v.ton) : "—"}</td>
+              <td className="px-2 py-1.5 text-right font-mono">{v.vacio ? "—" : money(v.importe)}</td>
+              <td className="px-2 py-1.5">
+                {v.dup ? (
+                  <span className="text-muted-foreground">ya cargado</span>
+                ) : v.vacio ? (
+                  <span className="text-muted-foreground">vacío</span>
+                ) : v.importe == null ? (
+                  <span className="text-[#92400E]">esperando remito</span>
+                ) : (
+                  <span className="text-[#047857]">a importar</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

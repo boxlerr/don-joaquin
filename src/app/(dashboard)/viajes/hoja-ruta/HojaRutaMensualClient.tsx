@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   Users,
   Search,
-  Calendar,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   getPanelChoferAction,
+  listChoferesMesAction,
   actualizarRemitoYMontoAction,
   type HrChoferListItem,
   type HrPanelChofer,
@@ -47,6 +47,7 @@ function fmtNum(n: number | null | undefined, decimales = 0): string {
   return n.toLocaleString("es-AR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 }
 function fmtMesLabel(mesISO: string): string {
+  if (mesISO === "total") return "Histórico (todos los meses)";
   const [y, m] = mesISO.split("-").map((x) => parseInt(x, 10));
   const d = new Date(y, m - 1, 1);
   const txt = d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
@@ -72,6 +73,10 @@ export default function HojaRutaMensualClient({
   canWrite: boolean;
 }) {
   const [mes, setMes] = useState(mesInicial);
+  // La lista del sidebar/stats se recalcula al cambiar de mes (antes quedaba
+  // congelada en el mes inicial). El prop cubre el primer render (SSR).
+  const [choferesMes, setChoferesMes] = useState(choferes);
+  const [cargandoLista, setCargandoLista] = useState(false);
   const [choferId, setChoferId] = useState<string | null>(
     choferIdInicial ?? (choferes.find((c) => c.viajes > 0)?.id ?? choferes[0]?.id ?? null),
   );
@@ -100,6 +105,18 @@ export default function HojaRutaMensualClient({
     };
   }, [choferId, mes]);
 
+  // Cambiar de mes: actualiza el mes y recalcula la lista del sidebar + stats
+  // (antes la lista quedaba congelada en el mes inicial). El panel del chofer se
+  // refresca solo por su propio effect que depende de `mes`.
+  const cambiarMes = useCallback((nuevoMes: string) => {
+    setMes(nuevoMes);
+    setCargandoLista(true);
+    listChoferesMesAction(nuevoMes).then((res) => {
+      setChoferesMes(res);
+      setCargandoLista(false);
+    });
+  }, []);
+
   // URL sin reload (estado URL para volver)
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -112,14 +129,14 @@ export default function HojaRutaMensualClient({
   // Filtrar la lista de choferes del sidebar
   const choferesFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return choferes.filter((c) => {
+    return choferesMes.filter((c) => {
       if (soloConViajes && c.viajes === 0) return false;
       if (soloPendientes && c.pendientesFacturar === 0) return false;
       if (!q) return true;
       const hs = `${c.apellido} ${c.nombre}`.toLowerCase();
       return hs.includes(q);
     });
-  }, [choferes, busqueda, soloConViajes, soloPendientes]);
+  }, [choferesMes, busqueda, soloConViajes, soloPendientes]);
 
   const refresh = () => {
     if (!choferId) return;
@@ -131,7 +148,7 @@ export default function HojaRutaMensualClient({
 
   // Stats globales del mes (todos los choferes)
   const statsMes = useMemo(() => {
-    return choferes.reduce(
+    return choferesMes.reduce(
       (acc, c) => {
         acc.viajes += c.viajes;
         acc.importe += c.totalImporte;
@@ -144,7 +161,7 @@ export default function HojaRutaMensualClient({
       },
       { viajes: 0, importe: 0, tn: 0, km: 0, kmVacios: 0, pendientes: 0, choferesActivos: 0 },
     );
-  }, [choferes]);
+  }, [choferesMes]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-84px)] gap-3 p-4 sm:p-6">
@@ -161,36 +178,63 @@ export default function HojaRutaMensualClient({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMes(shiftMes(mes, -1))}
-            aria-label="Mes anterior"
-          >
-            <ChevronLeft size={14} />
-          </Button>
-          <Input
-            type="month"
-            value={mes}
-            onChange={(e) => setMes(e.target.value)}
-            className="h-9 w-40 text-sm"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMes(shiftMes(mes, +1))}
-            aria-label="Mes siguiente"
-          >
-            <ChevronRight size={14} />
-          </Button>
+          {cargandoLista && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
+          {mes === "total" ? (
+            <>
+              <span className="h-9 px-3 inline-flex items-center rounded-md border border-border bg-muted/40 text-sm font-medium text-foreground">
+                Histórico — todos los meses
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cambiarMes(new Date().toISOString().slice(0, 7))}
+              >
+                Ver por mes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cambiarMes(shiftMes(mes, -1))}
+                aria-label="Mes anterior"
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              <Input
+                type="month"
+                value={mes}
+                onChange={(e) => cambiarMes(e.target.value)}
+                className="h-9 w-40 text-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cambiarMes(shiftMes(mes, +1))}
+                aria-label="Mes siguiente"
+              >
+                <ChevronRight size={14} />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => cambiarMes("total")}
+              >
+                Total
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* ─── Stats del mes ─── */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0">
-        <StatChip icon={<Users size={14} />} label="Choferes activos" value={`${statsMes.choferesActivos}/${choferes.length}`} tone="info" />
+        <StatChip icon={<Users size={14} />} label="Choferes activos" value={`${statsMes.choferesActivos}/${choferesMes.length}`} tone="info" />
         <StatChip icon={<Receipt size={14} />} label="Viajes del mes" value={fmtNum(statsMes.viajes)} tone="brand" />
         <StatChip icon={<Truck size={14} />} label="Toneladas" value={fmtNum(statsMes.tn, 1)} tone="info" />
         <StatChip icon={<Truck size={14} />} label="KM cargados" value={fmtNum(statsMes.km)} tone="neutral" />

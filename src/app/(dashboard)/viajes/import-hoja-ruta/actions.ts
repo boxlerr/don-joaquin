@@ -20,6 +20,19 @@ export type ChoferMatch =
   | { status: "ambiguo"; candidatos: { id: string; label: string }[] }
   | { status: "missing"; sheetName: string };
 
+// Viaje individual para mostrar al desplegar una pestaña en el preview.
+export type SheetViajePreview = {
+  fecha: string;
+  saleDe: string;
+  llegaA: string;
+  remito: string | null;
+  material: string | null;
+  ton: number | null;
+  importe: number | null;
+  vacio: boolean;
+  dup: boolean; // ya estaba importado (no se vuelve a cargar)
+};
+
 export type SheetPreview = {
   sheetName: string;
   patentes: string[];
@@ -34,6 +47,7 @@ export type SheetPreview = {
   sumaKm: number;
   sumaKmVacios: number;
   warnings: string[];
+  viajes: SheetViajePreview[]; // detalle para desplegar
 };
 
 export type HojaRutaPreviewState = {
@@ -54,6 +68,8 @@ export type HojaRutaPreviewState = {
   // Mapeo manual chofer→sheet, en caso de ambigüedad. Se inicializa con
   // la decisión automática y el usuario puede ajustarlo en el preview.
   asignaciones?: AsignacionSheet[];
+  // Lista de choferes para el selector manual del preview (resolver ambiguos/missing).
+  choferesDisponibles?: { id: string; label: string }[];
 } | null;
 
 export type AsignacionSheet = {
@@ -85,12 +101,12 @@ export async function previewHojaRutaImportAction(
 
   const supabase = createAdminClient();
 
-  // Choferes activos para matching
+  // Todos los choferes (incluidos egresados/baja): la HOJA DE RUTA es histórica,
+  // así que un chofer que ya egresó pero manejó en el período debe poder matchear.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: choferesRaw } = await (supabase as any)
     .from("choferes")
-    .select("id, apellido, nombre, cuil, estado")
-    .neq("estado", "baja");
+    .select("id, apellido, nombre, cuil, estado");
 
   const choferes = (choferesRaw ?? []) as {
     id: string;
@@ -131,13 +147,13 @@ export async function previewHojaRutaImportAction(
     }
   }
 
-  // Index para matching por sheet name
-  const choferIndex = buildChoferIndex(choferes);
+  // Resolver TODAS las pestañas de una (determinístico, por nombre + eliminación)
+  const matchPorSheet = resolverAsignaciones(parsed.sheets, choferes);
 
   // Procesar cada sheet
   const sheets: SheetPreview[] = [];
   for (const sp of parsed.sheets) {
-    sheets.push(buildSheetPreview(sp, choferIndex, existentes));
+    sheets.push(buildSheetPreview(sp, matchPorSheet.get(sp.sheetName)!, existentes));
   }
 
   const summary = {
@@ -168,6 +184,12 @@ export async function previewHojaRutaImportAction(
     summary,
     warnings: parsed.warnings,
     asignaciones,
+    choferesDisponibles: choferes
+      .map((c) => ({
+        id: c.id,
+        label: `${c.apellido}, ${c.nombre}${c.estado === "baja" ? " (egresado)" : ""}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   };
 }
 
@@ -220,9 +242,9 @@ export async function confirmHojaRutaImportAction(
   const supabase = createAdminClient();
 
   // Cargar choferes para mapear chofer→camión actual
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [{ data: camionesRaw }, clienteSinAsignarId, tipoCargaIdGenerico, puntosMap, ultimoCodigo] =
     await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from("camiones")
         .select("id, patente, chofer_actual_id"),
@@ -441,93 +463,136 @@ type ChoferRow = {
   id: string;
   apellido: string;
   nombre: string;
+  estado?: string;
 };
 
-function buildChoferIndex(
-  choferes: ChoferRow[],
-): Map<string, ChoferRow[]> {
-  // Index por apellido normalizado → lista de choferes
-  const idx = new Map<string, ChoferRow[]>();
-  for (const c of choferes) {
-    const ap = normName(c.apellido);
-    if (!idx.has(ap)) idx.set(ap, []);
-    idx.get(ap)!.push(c);
+const VARIANTES_APELLIDO: Record<string, string> = {
+  guilfor: "guilford",
+  pitana: "pittana",
+  pitta: "pittana",
+};
+
+// Candidatos por apellido (incluye compuestos como "Saenz Buruaga" / "De Libano
+// Elorrieta" y typos como "GUILFOR"/"PITANA"/"EUGENIO PITTA").
+function apellidoCandidatos(raw: string, choferes: ChoferRow[]): ChoferRow[] {
+  const apMatch = (apRaw: string) =>
+    raw === apRaw || raw.startsWith(apRaw + " ") || apRaw.startsWith(raw + " ");
+  let c = choferes.filter((x) => apMatch(normName(x.apellido)));
+  if (c.length === 0) {
+    const t0 = raw.split(" ")[0];
+    c = choferes.filter((x) => normName(x.apellido).split(" ")[0] === t0);
   }
-  return idx;
+  if (c.length === 0) {
+    for (const t of raw.split(" ")) {
+      const v = VARIANTES_APELLIDO[t];
+      if (v) {
+        c = choferes.filter((x) => normName(x.apellido).split(" ")[0] === v);
+        if (c.length) break;
+      }
+    }
+  }
+  return c;
 }
 
-function matchSheetToChofer(
-  sheetName: string,
-  idx: Map<string, ChoferRow[]>,
-): ChoferMatch {
-  const raw = normName(sheetName);
-  if (!raw) return { status: "missing", sheetName };
+// Tokens del sheet que NO son parte del apellido (= pistas del nombre de pila).
+// Ej: "JUAREZ LUIS" → ["luis"]; "CEJAS DIEGO" → ["diego"]; "JUAREZ N" → ["n"].
+function tokensNombre(raw: string, cands: ChoferRow[]): string[] {
+  const apWords = new Set<string>();
+  for (const c of cands) for (const w of normName(c.apellido).split(" ")) apWords.add(w);
+  return raw.split(" ").filter((t) => t && !apWords.has(t));
+}
 
-  // Casos especiales con nombre adicional: "JUAREZ LUIS", "PITTANA EUGENIO",
-  // " MARTINEZ NICO", "GARMENDIA L.", "LARRECOCHEA J."
-  const tokens = raw.split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return { status: "missing", sheetName };
+function matchNombre(cands: ChoferRow[], tokens: string[]): ChoferRow[] {
+  if (tokens.length === 0) return [];
+  return cands.filter((c) => {
+    const nom = normName(c.nombre).split(" ");
+    return tokens.some((t) =>
+      t.length >= 3 ? nom.some((n) => n === t || n.startsWith(t)) : nom.some((n) => n.startsWith(t)),
+    );
+  });
+}
 
-  // Buscar por apellido exacto primero
-  let candidates = idx.get(tokens[0]) ?? [];
-  // Si no hay y el sheet name es "EUGENIO PITTA" (variante typo), probar reverso
-  if (candidates.length === 0 && tokens.length > 1) {
-    candidates = idx.get(tokens[tokens.length - 1]) ?? [];
-  }
-  // Variantes typo conocidas
-  if (candidates.length === 0) {
-    const variantes: Record<string, string> = {
-      "guilfor": "guilford",
-      "pitana": "pittana",
-      "lagano d": "lagano",
-      "asteazaran agustin": "asteazaran",
-    };
-    const key = Object.entries(variantes).find(([k]) => raw.startsWith(k));
-    if (key) candidates = idx.get(key[1]) ?? [];
-  }
+/**
+ * Resuelve TODAS las pestañas a la vez, de forma determinística (sin intervención
+ * del usuario). Clave: cuando hay varios choferes con el mismo apellido, el Excel
+ * usa el apellido "pelado" para uno y "APELLIDO NOMBRE" para el otro
+ * (CEJAS vs CEJAS DIEGO). Se resuelve por nombre y por eliminación.
+ */
+function resolverAsignaciones(
+  parsedSheets: HrSheetParsed[],
+  choferes: ChoferRow[],
+): Map<string, ChoferMatch> {
+  const info = parsedSheets.map((sp) => {
+    const raw = normName(sp.sheetName);
+    const cands = apellidoCandidatos(raw, choferes);
+    return { sp, raw, cands, tokens: tokensNombre(raw, cands), assigned: null as string | null };
+  });
 
-  if (candidates.length === 0) return { status: "missing", sheetName };
-  if (candidates.length === 1) {
-    return {
-      status: "ok",
-      id: candidates[0].id,
-      apellido: candidates[0].apellido,
-      nombre: candidates[0].nombre,
-    };
-  }
+  const claimed = new Set<string>();
 
-  // Múltiples candidatos: desambiguar por segundo token (nombre)
-  if (tokens.length > 1) {
-    const segundo = tokens.slice(1).join(" ");
-    const winner = candidates.find((c) => {
-      const nombreNorm = normName(c.nombre);
-      return nombreNorm.startsWith(segundo) || nombreNorm.includes(segundo);
-    });
-    if (winner) {
-      return {
-        status: "ok",
-        id: winner.id,
-        apellido: winner.apellido,
-        nombre: winner.nombre,
-      };
+  // Fase A: match único por nombre de pila (permite que 2 pestañas apunten al mismo
+  // chofer, ej. "PITTANA EUGENIO" + "EUGENIO PITTA").
+  for (const it of info) {
+    if (!it.cands.length) continue;
+    const nm = matchNombre(it.cands, it.tokens);
+    if (nm.length === 1) {
+      it.assigned = nm[0].id;
+      claimed.add(nm[0].id);
     }
   }
 
-  return {
-    status: "ambiguo",
-    candidatos: candidates.map((c) => ({
-      id: c.id,
-      label: `${c.apellido}, ${c.nombre}`,
-    })),
-  };
+  // Fase B: eliminación iterativa para los apellidos "pelados" y ambiguos restantes.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const it of info) {
+      if (it.assigned || !it.cands.length) continue;
+      let pool = it.cands.filter((c) => !claimed.has(c.id));
+      if (it.tokens.length) {
+        const nm = matchNombre(it.cands, it.tokens).filter((c) => !claimed.has(c.id));
+        if (nm.length) pool = nm;
+      }
+      let elegido: ChoferRow | null = null;
+      if (pool.length === 1) {
+        elegido = pool[0];
+      } else if (pool.length > 1) {
+        // Desempate: si entre los que quedan hay un solo ACTIVO, es ese (un egresado
+        // sin pestaña propia no se queda con el apellido "pelado").
+        const activos = pool.filter((c) => c.estado !== "baja");
+        if (activos.length === 1) elegido = activos[0];
+      }
+      if (elegido) {
+        it.assigned = elegido.id;
+        claimed.add(elegido.id);
+        changed = true;
+      }
+    }
+  }
+
+  const result = new Map<string, ChoferMatch>();
+  for (const it of info) {
+    if (it.assigned) {
+      const c = choferes.find((x) => x.id === it.assigned)!;
+      result.set(it.sp.sheetName, { status: "ok", id: c.id, apellido: c.apellido, nombre: c.nombre });
+    } else if (!it.cands.length) {
+      result.set(it.sp.sheetName, { status: "missing", sheetName: it.sp.sheetName });
+    } else {
+      const pool = it.cands.filter((c) => !claimed.has(c.id));
+      const finals = pool.length ? pool : it.cands;
+      result.set(it.sp.sheetName, {
+        status: "ambiguo",
+        candidatos: finals.map((c) => ({ id: c.id, label: `${c.apellido}, ${c.nombre}` })),
+      });
+    }
+  }
+  return result;
 }
 
 function buildSheetPreview(
   sp: HrSheetParsed,
-  idx: Map<string, ChoferRow[]>,
+  chofer: ChoferMatch,
   existentes: Set<string>,
 ): SheetPreview {
-  const chofer = matchSheetToChofer(sp.sheetName, idx);
   const warnings: string[] = [];
 
   let sumaImporte = 0;
@@ -538,6 +603,7 @@ function buildSheetPreview(
   let conRemito = 0;
   let pendientes = 0;
   let yaImportados = 0;
+  const viajes: SheetViajePreview[] = [];
 
   for (const v of sp.viajes) {
     const ton = tonelajeDe(v);
@@ -549,10 +615,25 @@ function buildSheetPreview(
     if (vacio) vacios++;
     else conRemito++;
     if (!vacio && v.importe == null) pendientes++;
+    let dup = false;
     if (chofer.status === "ok") {
       const key = dedupKey(chofer.id, v.fecha, v.remito, ton);
-      if (existentes.has(key)) yaImportados++;
+      if (existentes.has(key)) {
+        yaImportados++;
+        dup = true;
+      }
     }
+    viajes.push({
+      fecha: v.fecha,
+      saleDe: v.saleDe,
+      llegaA: v.llegaA,
+      remito: vacio ? null : v.remito,
+      material: v.material,
+      ton,
+      importe: vacio ? 0 : v.importe,
+      vacio,
+      dup,
+    });
   }
 
   if (sp.filasIgnoradas > 0) {
@@ -573,6 +654,7 @@ function buildSheetPreview(
     sumaKm,
     sumaKmVacios,
     warnings,
+    viajes,
   };
 }
 

@@ -85,74 +85,40 @@ export async function listChoferesMesAction(
 ): Promise<HrChoferListItem[]> {
   await requireArea("viajes", "read");
   const supabase = createAdminClient();
-  const { desde, hasta } = rangoMes(mesISO);
+  // mesISO === "total" → histórico completo (fechas null en la función).
+  const { desde, hasta } = mesISO === "total"
+    ? { desde: null, hasta: null }
+    : rangoMes(mesISO);
 
-  // 1) Choferes activos (rol chofer u operativo)
+  // Agregación en la base (sin tope de 1000 filas del API REST).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: choferes } = await (supabase as any)
-    .from("choferes")
-    .select("id, apellido, nombre, rol, estado")
-    .neq("estado", "baja")
-    .or("rol.is.null,rol.eq.chofer")
-    .order("apellido");
+  const { data, error } = await (supabase as any).rpc("resumen_choferes_mes", {
+    p_desde: desde,
+    p_hasta: hasta,
+  });
+  if (error || !data) return [];
 
-  if (!choferes) return [];
-
-  // 2) Viajes del mes agrupados por chofer
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: viajes } = await (supabase as any)
-    .from("viajes")
-    .select("chofer_id, monto_flete, tonelaje_real, km_con_carga, km_vacios, nro_remito")
-    .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta)
-    .not("chofer_id", "is", null);
-
-  const acc = new Map<string, {
-    viajes: number;
-    pendientesFacturar: number;
-    importe: number;
-    tn: number;
-    km: number;
-    kmVacios: number;
-  }>();
-  for (const v of (viajes ?? []) as {
+  return (data as {
     chofer_id: string;
-    monto_flete: number | null;
-    tonelaje_real: number | null;
-    km_con_carga: number;
-    km_vacios: number;
-    nro_remito: string | null;
-  }[]) {
-    const k = v.chofer_id;
-    if (!acc.has(k)) acc.set(k, { viajes: 0, pendientesFacturar: 0, importe: 0, tn: 0, km: 0, kmVacios: 0 });
-    const a = acc.get(k)!;
-    a.viajes++;
-    a.importe += v.monto_flete ?? 0;
-    a.tn += v.tonelaje_real ?? 0;
-    a.km += v.km_con_carga ?? 0;
-    a.kmVacios += v.km_vacios ?? 0;
-    const vacio = !v.nro_remito || v.nro_remito.toUpperCase() === "VACIO";
-    if (!vacio && v.monto_flete == null) a.pendientesFacturar++;
-  }
-
-  // 3) Merge
-  const items: HrChoferListItem[] = (choferes as { id: string; apellido: string; nombre: string }[])
-    .map((c) => {
-      const a = acc.get(c.id);
-      return {
-        id: c.id,
-        apellido: c.apellido,
-        nombre: c.nombre,
-        viajes: a?.viajes ?? 0,
-        pendientesFacturar: a?.pendientesFacturar ?? 0,
-        totalImporte: a?.importe ?? 0,
-        totalTn: a?.tn ?? 0,
-        totalKm: a?.km ?? 0,
-        totalKmVacios: a?.kmVacios ?? 0,
-      };
-    });
-
-  return items;
+    apellido: string;
+    nombre: string;
+    viajes: number | string;
+    pendientes_facturar: number | string;
+    total_importe: number | string;
+    total_tn: number | string;
+    total_km: number | string;
+    total_km_vacios: number | string;
+  }[]).map((r) => ({
+    id: r.chofer_id,
+    apellido: r.apellido,
+    nombre: r.nombre,
+    viajes: Number(r.viajes),
+    pendientesFacturar: Number(r.pendientes_facturar),
+    totalImporte: Number(r.total_importe),
+    totalTn: Number(r.total_tn),
+    totalKm: Number(r.total_km),
+    totalKmVacios: Number(r.total_km_vacios),
+  }));
 }
 
 /** Trae los viajes detallados del chofer en el mes, en formato Excel-like. */
@@ -162,7 +128,10 @@ export async function getPanelChoferAction(
 ): Promise<HrPanelChofer | null> {
   await requireArea("viajes", "read");
   const supabase = createAdminClient();
-  const { desde, hasta } = rangoMes(mesISO);
+  // "total" → histórico completo (rango bien amplio para no filtrar por mes).
+  const { desde, hasta } = mesISO === "total"
+    ? { desde: "1900-01-01", hasta: "2999-12-31" }
+    : rangoMes(mesISO);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
