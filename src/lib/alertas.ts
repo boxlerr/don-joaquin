@@ -15,6 +15,7 @@ async function getUmbralesAlertas() {
     "alerta_viaje_sin_cerrar_horas",
     "alerta_cumple_dias_preaviso",
     "alerta_aniversario_dias_preaviso",
+    "alerta_ausencia_dias_preaviso",
   ];
 
   const { data } = await supabase
@@ -36,6 +37,7 @@ async function getUmbralesAlertas() {
     horasViajeSinCerrar: map["alerta_viaje_sin_cerrar_horas"] ?? 48,
     diasCumplePreaviso: map["alerta_cumple_dias_preaviso"] ?? 30,
     diasAniversarioPreaviso: map["alerta_aniversario_dias_preaviso"] ?? 30,
+    diasAusenciaPreaviso: map["alerta_ausencia_dias_preaviso"] ?? 7,
   };
 }
 
@@ -542,6 +544,62 @@ export async function generarAlertas() {
       entidad_tipo: "mantenimiento_proximo_service",
       fecha_disparo: new Date().toISOString(),
       fecha_vencimiento: s.proximo_service_fecha,
+    });
+  }
+
+  // Ausencias / permisos programados de choferes que arrancan dentro del preaviso.
+  // Da visibilidad para planificar la semana sin depender de "lo que recordó" logística.
+  // `as any`: chofer_ausencias es tabla nueva, todavía no está en database.ts.
+  const enAusenciaDias = new Date(hoy);
+  enAusenciaDias.setDate(hoy.getDate() + umbrales.diasAusenciaPreaviso);
+  const enAusenciaStr = enAusenciaDias.toISOString().split("T")[0]!;
+
+  type AusenciaRow = {
+    id: string;
+    chofer_id: string;
+    tipo: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    choferes: { nombre: string; apellido: string } | null;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ausenciasRes = await (supabase as any)
+    .from("chofer_ausencias")
+    .select("id, chofer_id, tipo, fecha_inicio, fecha_fin, choferes(nombre, apellido)")
+    .eq("estado", "autorizada")
+    .is("deleted_at", null)
+    .gte("fecha_inicio", hoyStr)
+    .lte("fecha_inicio", enAusenciaStr);
+  const ausencias = (ausenciasRes.data ?? []) as AusenciaRow[];
+
+  for (const aus of ausencias) {
+    const key = `otro:${aus.chofer_id}:chofer_ausencia:${aus.fecha_inicio}`;
+    if (existentesSet.has(key)) continue;
+
+    const chofer = Array.isArray(aus.choferes) ? aus.choferes[0] : aus.choferes;
+    const nombre = chofer ? `${chofer.nombre} ${chofer.apellido}` : "Chofer";
+
+    const [iy, im, idd] = aus.fecha_inicio.split("-").map(Number);
+    const inicioMidnight = new Date(iy!, im! - 1, idd!);
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const diasRestantes = Math.round((inicioMidnight.getTime() - hoyMidnight.getTime()) / 86400000);
+
+    const inicioLabel = `${idd} de ${MESES[im! - 1]}`;
+    const [, fm, fdd] = aus.fecha_fin.split("-").map(Number);
+    const finLabel = `${fdd} de ${MESES[fm! - 1]}`;
+    const rango = aus.fecha_inicio === aus.fecha_fin ? `el ${inicioLabel}` : `del ${inicioLabel} al ${finLabel}`;
+    const cuando =
+      diasRestantes === 0 ? "hoy" : `en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}`;
+
+    nuevasAlertas.push({
+      tipo: "otro",
+      severidad: "info",
+      titulo: `Ausencia programada — ${nombre}`,
+      mensaje: `${nombre} no estará disponible ${rango} (${aus.tipo}). Empieza ${cuando}.`,
+      entidad_id: aus.chofer_id,
+      entidad_tipo: "chofer_ausencia",
+      fecha_disparo: new Date().toISOString(),
+      fecha_vencimiento: aus.fecha_inicio,
     });
   }
 

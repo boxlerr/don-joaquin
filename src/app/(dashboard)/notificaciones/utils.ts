@@ -38,6 +38,8 @@ export const CATEGORIA_LABEL: Record<AlertaCategoria, string> = {
 };
 
 export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): AlertaCategoria {
+  // Ausencias / permisos programados: afectan la planificación operativa de viajes.
+  if (tipo === "otro" && entidadTipo === "chofer_ausencia") return "viajes";
   // Alertas de RRHH: cumpleaños, aniversarios y período de prueba (choferes y adm/mant)
   if (
     tipo === "otro" &&
@@ -57,6 +59,10 @@ export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): Al
 }
 
 export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "entidad_id">): string | null {
+  // Ausencia programada → legajo del chofer, tab Ausencias.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo === "chofer_ausencia" && alerta.entidad_id) {
+    return `/choferes/${alerta.entidad_id}?tab=ausencias`;
+  }
   if (
     alerta.tipo === "otro" &&
     alerta.entidad_tipo &&

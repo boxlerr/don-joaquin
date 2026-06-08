@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, requireAdmin } from "@/lib/auth";
+import { requireArea, requireAdmin, hasArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
@@ -14,6 +14,9 @@ import type {
   AdelantoMes,
   EvolucionMes,
   PesosScore,
+  Ausencia,
+  AusenciaEstado,
+  ViajeEnRango,
 } from "./types";
 
 export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
@@ -212,6 +215,28 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     .select("id, patente, marca, modelo, ano")
     .eq("chofer_actual_id", chofer_id)
     .maybeSingle();
+
+  // Ausencias / permisos programados (tabla nueva: cast porque no está en database.ts aún).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: ausenciasRaw } = (await (supabase as any)
+    .from("chofer_ausencias")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .eq("chofer_id", chofer_id)
+    .is("deleted_at", null)
+    .order("fecha_inicio", { ascending: false })) as {
+    data:
+      | {
+          id: string;
+          tipo: string;
+          fecha_inicio: string;
+          fecha_fin: string;
+          estado: string;
+          observaciones: string | null;
+          created_at: string;
+          autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
+        }[]
+      | null;
+  };
 
   // Camiones que el chofer manejó en el mes: historial que solapa el período + el actual.
   const camionIdsDelMes = new Set<string>();
@@ -698,6 +723,25 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       observaciones: p.observaciones,
       created_at: p.created_at,
     })),
+    ausencias: (ausenciasRaw ?? []).map((a): Ausencia => {
+      const aut = Array.isArray(a.autorizado) ? a.autorizado[0] : a.autorizado;
+      const inicio = new Date(a.fecha_inicio + "T00:00:00");
+      const fin = new Date(a.fecha_fin + "T00:00:00");
+      const dias = Math.max(1, Math.round((fin.getTime() - inicio.getTime()) / 86_400_000) + 1);
+      const hoyStr2 = new Date().toISOString().split("T")[0]!;
+      return {
+        id: a.id,
+        tipo: a.tipo,
+        fecha_inicio: a.fecha_inicio,
+        fecha_fin: a.fecha_fin,
+        estado: a.estado as AusenciaEstado,
+        observaciones: a.observaciones,
+        autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
+        dias,
+        en_curso: a.fecha_inicio <= hoyStr2 && a.fecha_fin >= hoyStr2,
+        created_at: a.created_at,
+      };
+    }),
     categorias_apercibimiento: categoriasApe ?? [],
     productividad_kpis,
     camiones_historial,
@@ -722,6 +766,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     evolucion_6meses,
     pesos_score: pesos.id ? pesos : null,
     is_admin: user.rol.codigo === "admin",
+    can_logistica_write: hasArea(user, "logistica", "write"),
   }) as unknown as ChoferDetail;
 }
 
@@ -885,6 +930,176 @@ export async function eliminarLicenciaAction(id: string, chofer_id: string) {
   await logChoferAudit(chofer_id, "licencia_eliminada", previo, null, user.id);
   revalidatePath("/choferes/[slug]", "page");
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Ausencias / permisos programados
+// Crear = autorizar (queda registrado quién autorizó). Cancelar = soft delete.
+// ---------------------------------------------------------------------------
+
+export async function crearAusenciaAction(
+  chofer_id: string,
+  data: {
+    tipo: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    observaciones?: string | null;
+  },
+) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  const tipo = data.tipo.trim();
+  if (!tipo) return { error: "El tipo de ausencia es obligatorio" };
+  if (!data.fecha_inicio || !data.fecha_fin) return { error: "Las fechas son obligatorias" };
+  if (data.fecha_fin < data.fecha_inicio)
+    return { error: "La fecha de fin no puede ser anterior al inicio" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("chofer_ausencias").insert({
+    chofer_id,
+    tipo,
+    fecha_inicio: data.fecha_inicio,
+    fecha_fin: data.fecha_fin,
+    estado: "autorizada",
+    autorizado_por: user.id,
+    observaciones: data.observaciones?.trim() || null,
+    created_by: user.id,
+  });
+
+  if (error) return { error: "No se pudo registrar la ausencia" };
+
+  await logChoferAudit(
+    chofer_id,
+    "ausencia_creada",
+    null,
+    { tipo, fecha_inicio: data.fecha_inicio, fecha_fin: data.fecha_fin },
+    user.id,
+  );
+
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/viajes");
+  return { success: true };
+}
+
+export async function editarAusenciaAction(
+  id: string,
+  chofer_id: string,
+  data: {
+    tipo: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    observaciones?: string | null;
+  },
+) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  const tipo = data.tipo.trim();
+  if (!tipo) return { error: "El tipo de ausencia es obligatorio" };
+  if (!data.fecha_inicio || !data.fecha_fin) return { error: "Las fechas son obligatorias" };
+  if (data.fecha_fin < data.fecha_inicio)
+    return { error: "La fecha de fin no puede ser anterior al inicio" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: previo } = await sb
+    .from("chofer_ausencias")
+    .select("tipo, fecha_inicio, fecha_fin, observaciones")
+    .eq("id", id)
+    .single();
+
+  const nuevos = {
+    tipo,
+    fecha_inicio: data.fecha_inicio,
+    fecha_fin: data.fecha_fin,
+    observaciones: data.observaciones?.trim() || null,
+  };
+
+  const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);
+  if (error) return { error: "No se pudo actualizar la ausencia" };
+
+  await logChoferAudit(chofer_id, "ausencia_editada", previo ?? null, nuevos, user.id);
+
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/viajes");
+  return { success: true };
+}
+
+export async function cancelarAusenciaAction(id: string, chofer_id: string) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: previo } = await sb
+    .from("chofer_ausencias")
+    .select("tipo, fecha_inicio, fecha_fin")
+    .eq("id", id)
+    .single();
+
+  // Soft delete: preserva trazabilidad histórica.
+  const { error } = await sb
+    .from("chofer_ausencias")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: "No se pudo cancelar la ausencia" };
+
+  await logChoferAudit(chofer_id, "ausencia_cancelada", previo ?? null, null, user.id);
+
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/viajes");
+  return { success: true };
+}
+
+// Viajes del chofer dentro de un rango de fechas. Read protegida por la página
+// padre (legajo, requireArea logística read). Sirve para avisar de conflictos al
+// cargar una ausencia: si el chofer ya tiene viajes esos días, se listan.
+export async function getViajesChoferEnRangoAction(
+  chofer_id: string,
+  desde: string,
+  hasta: string,
+): Promise<ViajeEnRango[]> {
+  if (!chofer_id || !desde || !hasta || hasta < desde) return [];
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("viajes")
+    .select(
+      `id, codigo, fecha_viaje, estado, observaciones,
+       clientes(razon_social),
+       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
+    )
+    .eq("chofer_id", chofer_id)
+    .neq("estado", "cancelado")
+    .gte("fecha_viaje", desde)
+    .lte("fecha_viaje", hasta)
+    .order("fecha_viaje", { ascending: true });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((v: any): ViajeEnRango => {
+    let oName: string | null = v.origen?.nombre ?? null;
+    let dName: string | null = v.destino?.nombre ?? null;
+    if (!oName && v.observaciones) {
+      const m = v.observaciones.match(/Origen:\s*([^|]+)/);
+      if (m) oName = m[1].trim();
+    }
+    if (!dName && v.observaciones) {
+      const m = v.observaciones.match(/Destino:\s*([^|]+)/);
+      if (m) dName = m[1].trim();
+    }
+    return {
+      id: v.id,
+      codigo: v.codigo,
+      fecha_viaje: v.fecha_viaje,
+      origen: oName,
+      destino: dName,
+      cliente: v.clientes?.razon_social ?? null,
+      estado: v.estado,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

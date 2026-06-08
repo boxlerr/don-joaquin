@@ -122,6 +122,34 @@ export type Prestamo = {
   created_at: string;
 };
 
+// Viaje del chofer dentro del rango de una ausencia — para avisar de conflictos
+// al momento de cargar la ausencia.
+export type ViajeEnRango = {
+  id: string;
+  codigo: string;
+  fecha_viaje: string;
+  origen: string | null;
+  destino: string | null;
+  cliente: string | null;
+  estado: string;
+};
+
+export type AusenciaEstado = "pendiente" | "autorizada" | "rechazada" | "cumplida";
+
+export type Ausencia = {
+  id: string;
+  tipo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: AusenciaEstado;
+  observaciones: string | null;
+  autorizado_por_nombre: string | null;
+  dias: number;
+  // true si la ausencia ya empezó y no terminó (en curso a la fecha de hoy).
+  en_curso: boolean;
+  created_at: string;
+};
+
 export type CamionHistorialItem = {
   id: string;
   camion_id: string;
@@ -220,6 +248,7 @@ export type ChoferDetail = ChoferBasico & {
   camion_actual: CamionAsignado | null;
   apercibimientos: Apercibimiento[];
   licencias_medicas: LicenciaMedica[];
+  ausencias: Ausencia[];
   prestamos: Prestamo[];
   categorias_apercibimiento: CategoriaApercibimiento[];
   productividad_kpis: ProductividadKPIs;
@@ -229,6 +258,8 @@ export type ChoferDetail = ChoferBasico & {
   evolucion_6meses: EvolucionMes[];
   pesos_score: PesosScore | null;
   is_admin: boolean;
+  // El usuario tiene permiso de escritura sobre logística (cargar/editar ausencias).
+  can_logistica_write: boolean;
   alertas: {
     id: string;
     tipo: string;

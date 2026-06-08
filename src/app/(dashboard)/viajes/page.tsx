@@ -10,7 +10,8 @@ import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportHojasRutaModal from "./components/ImportHojasRutaModal";
 import ImportHojaRutaModal from "./components/ImportHojaRutaModal";
 import ImportYpfModal from "./components/ImportYpfModal";
-import { getViajeFormData } from "./actions";
+import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
+import { getViajeFormData, getAusenciasProximasAction } from "./actions";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 
@@ -48,16 +49,20 @@ export default async function ViajesPage({
         .single()
     : null;
 
+  const DIAS_DISPONIBILIDAD = 14;
+
   const [
     [total, enCurso, pendientes, sinFacturar, internacionales],
     choferResult,
     formData,
     gastoFormData,
+    ausenciasProximas,
   ] = await Promise.all([
     Promise.all(statsQuery),
     choferQuery ?? Promise.resolve(null),
     getViajeFormData(),
     getGastoFormData(),
+    getAusenciasProximasAction(DIAS_DISPONIBILIDAD),
   ]);
 
   const viajeFormData = "error" in formData ? null : formData;
@@ -120,6 +125,8 @@ export default async function ViajesPage({
           color="brand"
         />
       </div>
+
+      <DisponibilidadChoferes ausencias={ausenciasProximas} dias={DIAS_DISPONIBILIDAD} />
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none mb-1">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">

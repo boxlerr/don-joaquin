@@ -12,6 +12,7 @@ import ChoferCuentaTab from "./ChoferCuentaTab";
 import ChoferProductividadTab from "./ChoferProductividadTab";
 import ChoferApercibimientosTab from "./ChoferApercibimientosTab";
 import ChoferLicenciasTab from "./ChoferLicenciasTab";
+import ChoferAusenciasTab from "./ChoferAusenciasTab";
 import ChoferPrestamosTab from "./ChoferPrestamosTab";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
@@ -24,6 +25,7 @@ type TabId =
   | "productividad"
   | "apercibimientos"
   | "licencias"
+  | "ausencias"
   | "prestamos";
 
 const TABS: { id: TabId; label: string }[] = [
@@ -34,6 +36,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "productividad", label: "Productividad" },
   { id: "apercibimientos", label: "Apercibimientos" },
   { id: "licencias", label: "Licencias Médicas" },
+  { id: "ausencias", label: "Ausencias" },
   { id: "prestamos", label: "Préstamos" },
 ];
 
@@ -174,6 +177,14 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               licencias={chofer.licencias_medicas}
               is_admin={chofer.is_admin}
+              onRefresh={loadData}
+            />
+          )}
+          {activeTab === "ausencias" && (
+            <ChoferAusenciasTab
+              chofer_id={chofer.id}
+              ausencias={chofer.ausencias}
+              can_write={chofer.can_logistica_write}
               onRefresh={loadData}
             />
           )}

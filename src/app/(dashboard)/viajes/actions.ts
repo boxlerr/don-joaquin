@@ -1519,3 +1519,70 @@ export async function getViajesMensualPorChoferAction(
 
   return { data: rows, totales };
 }
+
+// ---------------------------------------------------------------------------
+// Disponibilidad: choferes ausentes en una ventana de días (default próximos 14).
+// Read protegida por la página padre (requireArea("viajes", "read")).
+// ---------------------------------------------------------------------------
+
+export type AusenciaProxima = {
+  id: string;
+  chofer_id: string;
+  chofer_nombre: string;
+  tipo: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  autorizado_por_nombre: string | null;
+  // true si la ausencia ya está en curso a la fecha de hoy.
+  en_curso: boolean;
+};
+
+export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaProxima[]> {
+  const supabase = createAdminClient();
+
+  const hoy = new Date();
+  const hoyStr = hoy.toISOString().split("T")[0]!;
+  const hasta = new Date(hoy);
+  hasta.setDate(hoy.getDate() + dias);
+  const hastaStr = hasta.toISOString().split("T")[0]!;
+
+  type Row = {
+    id: string;
+    chofer_id: string;
+    tipo: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    choferes: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
+    autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
+  };
+
+  // Ausencias autorizadas que solapan [hoy, hoy+dias]: ya en curso o por arrancar.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await (supabase as any)
+    .from("chofer_ausencias")
+    .select(
+      "id, chofer_id, tipo, fecha_inicio, fecha_fin, choferes(nombre, apellido), autorizado:usuarios!autorizado_por(nombre, apellido)",
+    )
+    .eq("estado", "autorizada")
+    .is("deleted_at", null)
+    .lte("fecha_inicio", hastaStr)
+    .gte("fecha_fin", hoyStr)
+    .order("fecha_inicio", { ascending: true });
+
+  const rows = (res.data ?? []) as Row[];
+
+  return rows.map((r) => {
+    const chofer = Array.isArray(r.choferes) ? r.choferes[0] : r.choferes;
+    const aut = Array.isArray(r.autorizado) ? r.autorizado[0] : r.autorizado;
+    return {
+      id: r.id,
+      chofer_id: r.chofer_id,
+      chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : "—",
+      tipo: r.tipo,
+      fecha_inicio: r.fecha_inicio,
+      fecha_fin: r.fecha_fin,
+      autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
+      en_curso: r.fecha_inicio <= hoyStr && r.fecha_fin >= hoyStr,
+    };
+  });
+}
