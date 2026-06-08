@@ -23,6 +23,8 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
+  // Cuando se abre desde el tab de Vacaciones, arranca con la marca activada.
+  defaultVacaciones?: boolean;
 }
 
 export default function CargarAusenciaDialog({
@@ -31,6 +33,7 @@ export default function CargarAusenciaDialog({
   open,
   onOpenChange,
   onSuccess,
+  defaultVacaciones,
 }: Props) {
   const esEdicion = !!ausencia;
   const [loading, setLoading] = useState(false);
@@ -43,16 +46,21 @@ export default function CargarAusenciaDialog({
   // Viajes que el chofer ya tiene en el rango elegido (aviso de conflicto).
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
+  const [esVacaciones, setEsVacaciones] = useState(defaultVacaciones ?? false);
 
   // Al abrir en modo edición, precargar los valores de la ausencia.
   useEffect(() => {
-    if (open && ausencia) {
+    if (!open) return;
+    if (ausencia) {
       setDetalle(ausencia.tipo);
       setFechaInicio(ausencia.fecha_inicio);
       setFechaFin(ausencia.fecha_fin);
+      setEsVacaciones(ausencia.es_vacaciones);
       setError(null);
+    } else {
+      setEsVacaciones(defaultVacaciones ?? false);
     }
-  }, [open, ausencia]);
+  }, [open, ausencia, defaultVacaciones]);
 
   // Al elegir chofer + rango, buscar los viajes que tiene en esas fechas para
   // mostrar el conflicto antes de confirmar la ausencia.
@@ -80,6 +88,7 @@ export default function CargarAusenciaDialog({
     setFechaInicio(hoy);
     setFechaFin(hoy);
     setViajesRango([]);
+    setEsVacaciones(defaultVacaciones ?? false);
     setError(null);
   };
 
@@ -95,6 +104,7 @@ export default function CargarAusenciaDialog({
       tipo: detalle.trim(),
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
+      es_vacaciones: esVacaciones,
     };
 
     const res = esEdicion
@@ -175,6 +185,16 @@ export default function CargarAusenciaDialog({
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={esVacaciones}
+              onChange={(e) => setEsVacaciones(e.target.checked)}
+              className="size-4 rounded border-border accent-[#0088D1]"
+            />
+            Es período de <span className="font-medium">vacaciones</span> (descuenta del saldo)
+          </label>
 
           {/* Aviso de viajes que el chofer ya tiene en estas fechas */}
           {loadingViajes ? (

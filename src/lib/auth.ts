@@ -54,6 +54,7 @@ export type CurrentUser = {
   apellido: string | null;
   telefono: string | null;
   estado: "activo" | "inactivo" | "suspendido";
+  must_change_password: boolean;
   rol: {
     id: string;
     codigo: string;
@@ -81,6 +82,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       apellido,
       telefono,
       estado,
+      must_change_password,
       rol:roles!rol_id (
         id,
         codigo,
@@ -133,6 +135,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     apellido: profile.apellido,
     telefono: profile.telefono,
     estado: profile.estado,
+    must_change_password: profile.must_change_password ?? false,
     rol: {
       id: rol.id,
       codigo: rol.codigo,

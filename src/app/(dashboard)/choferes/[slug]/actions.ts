@@ -221,7 +221,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
-    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
     .eq("chofer_id", chofer_id)
     .is("deleted_at", null)
     .order("fecha_inicio", { ascending: false })) as {
@@ -233,10 +233,21 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           fecha_fin: string;
           estado: string;
           observaciones: string | null;
+          es_vacaciones: boolean | null;
           created_at: string;
           autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
         }[]
       | null;
+  };
+
+  // Saldo de vacaciones del chofer (lo que carga RRHH). Tabla nueva → cast.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: vacacionesSaldoRaw } = (await (supabase as any)
+    .from("chofer_vacaciones")
+    .select("dias_correspondientes, dias_adeudados")
+    .eq("chofer_id", chofer_id)
+    .maybeSingle()) as {
+    data: { dias_correspondientes: number; dias_adeudados: number } | null;
   };
 
   // Camiones que el chofer manejó en el mes: historial que solapa el período + el actual.
@@ -739,9 +750,29 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
         dias,
         en_curso: a.fecha_inicio <= hoyStr2 && a.fecha_fin >= hoyStr2,
+        es_vacaciones: a.es_vacaciones ?? false,
         created_at: a.created_at,
       };
     }),
+    vacaciones: (() => {
+      const corresponden = vacacionesSaldoRaw?.dias_correspondientes ?? 0;
+      const adeudados = vacacionesSaldoRaw?.dias_adeudados ?? 0;
+      // Días tomados = suma de días de las ausencias marcadas como vacaciones
+      // (no canceladas, ya filtradas por deleted_at null arriba).
+      const tomados = (ausenciasRaw ?? [])
+        .filter((a) => a.es_vacaciones)
+        .reduce((acc, a) => {
+          const ini = new Date(a.fecha_inicio + "T00:00:00");
+          const fin = new Date(a.fecha_fin + "T00:00:00");
+          return acc + Math.max(1, Math.round((fin.getTime() - ini.getTime()) / 86_400_000) + 1);
+        }, 0);
+      return {
+        dias_correspondientes: corresponden,
+        dias_adeudados: adeudados,
+        dias_tomados: tomados,
+        dias_disponibles: corresponden + adeudados - tomados,
+      };
+    })(),
     categorias_apercibimiento: categoriasApe ?? [],
     productividad_kpis,
     camiones_historial,
@@ -977,6 +1008,7 @@ export async function crearAusenciaAction(
     fecha_inicio: string;
     fecha_fin: string;
     observaciones?: string | null;
+    es_vacaciones?: boolean;
   },
 ) {
   const user = await requireArea("logistica", "write");
@@ -1000,6 +1032,7 @@ export async function crearAusenciaAction(
     estado: "autorizada",
     autorizado_por: user.id,
     observaciones: data.observaciones?.trim() || null,
+    es_vacaciones: data.es_vacaciones ?? false,
     created_by: user.id,
   });
 
@@ -1026,6 +1059,7 @@ export async function editarAusenciaAction(
     fecha_inicio: string;
     fecha_fin: string;
     observaciones?: string | null;
+    es_vacaciones?: boolean;
   },
 ) {
   const user = await requireArea("logistica", "write");
@@ -1059,6 +1093,7 @@ export async function editarAusenciaAction(
     fecha_inicio: data.fecha_inicio,
     fecha_fin: data.fecha_fin,
     observaciones: data.observaciones?.trim() || null,
+    es_vacaciones: data.es_vacaciones ?? false,
   };
 
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);
@@ -1094,6 +1129,56 @@ export async function cancelarAusenciaAction(id: string, chofer_id: string) {
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
+  return { success: true };
+}
+
+// Guarda/actualiza el saldo de vacaciones del chofer (días que le corresponden del
+// período + días adeudados de períodos anteriores). Los "tomados" no se cargan acá:
+// se calculan a partir de las ausencias marcadas como vacaciones.
+export async function guardarSaldoVacacionesAction(
+  chofer_id: string,
+  data: { dias_correspondientes: number; dias_adeudados: number; observaciones?: string | null },
+) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  const corresponden = Math.trunc(Number(data.dias_correspondientes));
+  const adeudados = Math.trunc(Number(data.dias_adeudados));
+  if (!Number.isFinite(corresponden) || corresponden < 0)
+    return { error: "Los días que corresponden deben ser un número válido (0 o más)." };
+  if (!Number.isFinite(adeudados) || adeudados < 0)
+    return { error: "Los días adeudados deben ser un número válido (0 o más)." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: previo } = await sb
+    .from("chofer_vacaciones")
+    .select("dias_correspondientes, dias_adeudados")
+    .eq("chofer_id", chofer_id)
+    .maybeSingle();
+
+  const { error } = await sb.from("chofer_vacaciones").upsert(
+    {
+      chofer_id,
+      dias_correspondientes: corresponden,
+      dias_adeudados: adeudados,
+      observaciones: data.observaciones?.trim() || null,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "chofer_id" },
+  );
+  if (error) return { error: "No se pudo guardar el saldo de vacaciones." };
+
+  await logChoferAudit(
+    chofer_id,
+    previo ? "vacaciones_saldo_editado" : "vacaciones_saldo_creado",
+    previo ?? null,
+    { dias_correspondientes: corresponden, dias_adeudados: adeudados },
+    user.id,
+  );
+
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 

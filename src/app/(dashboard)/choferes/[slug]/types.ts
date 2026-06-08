@@ -147,7 +147,18 @@ export type Ausencia = {
   dias: number;
   // true si la ausencia ya empezó y no terminó (en curso a la fecha de hoy).
   en_curso: boolean;
+  // true si esta ausencia es un período de vacaciones (descuenta del saldo).
+  es_vacaciones: boolean;
   created_at: string;
+};
+
+// Saldo de vacaciones por chofer. `corresponden` y `adeudados` los carga RRHH;
+// `tomados` se calcula sumando las ausencias marcadas como vacaciones.
+export type VacacionesSaldo = {
+  dias_correspondientes: number;
+  dias_adeudados: number;
+  dias_tomados: number;
+  dias_disponibles: number;
 };
 
 export type CamionHistorialItem = {
@@ -249,6 +260,7 @@ export type ChoferDetail = ChoferBasico & {
   apercibimientos: Apercibimiento[];
   licencias_medicas: LicenciaMedica[];
   ausencias: Ausencia[];
+  vacaciones: VacacionesSaldo;
   prestamos: Prestamo[];
   categorias_apercibimiento: CategoriaApercibimiento[];
   productividad_kpis: ProductividadKPIs;

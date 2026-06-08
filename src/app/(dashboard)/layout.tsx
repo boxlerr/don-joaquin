@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -35,7 +36,11 @@ const getLayoutData = cache(async () => {
     };
   }
 
-  return { sidebarUser, alertasCount: alertasCount ?? 0 };
+  return {
+    sidebarUser,
+    alertasCount: alertasCount ?? 0,
+    mustChangePassword: currentUser?.must_change_password ?? false,
+  };
 });
 
 export default async function DashboardLayout({
@@ -43,7 +48,13 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarUser, alertasCount } = await getLayoutData();
+  const { sidebarUser, alertasCount, mustChangePassword } = await getLayoutData();
+
+  // Usuario con contraseña provisoria (alta nueva o reseteo por admin): debe
+  // definir una contraseña propia antes de entrar a cualquier parte del sistema.
+  if (mustChangePassword) {
+    redirect("/auth/cambiar-password");
+  }
 
   return (
     <DashboardShell user={sidebarUser} alertasCount={alertasCount}>

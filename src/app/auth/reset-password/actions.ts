@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ResetPasswordState = {
   error?: string;
@@ -22,8 +23,8 @@ export async function resetPasswordAction(
     return { error: "Las contraseñas no coinciden." };
   }
 
-  if (password.length < 6) {
-    return { error: "La contraseña debe tener al menos 6 caracteres." };
+  if (password.length < 8) {
+    return { error: "La contraseña debe tener al menos 8 caracteres." };
   }
 
   const supabase = await createClient();
@@ -31,6 +32,22 @@ export async function resetPasswordAction(
 
   if (error) {
     return { error: "No se pudo cambiar la contraseña. El link puede haber expirado." };
+  }
+
+  // Si el usuario tenía contraseña provisoria, este reseteo también la satisface.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const admin = createAdminClient();
+    await admin
+      .from("usuarios")
+      .update({
+        must_change_password: false,
+        password_changed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
   }
 
   redirect("/login?reset=success");
