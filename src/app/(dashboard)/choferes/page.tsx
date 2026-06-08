@@ -34,7 +34,7 @@ export default async function ChoferesPage({
   }
 
   const [
-    { data: choferes, count: total },
+    { data: choferes },
     activos,
     inactivos,
     docs,
@@ -72,12 +72,15 @@ export default async function ChoferesPage({
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
   }));
 
-  // Desglose por rol (los choferes legacy sin rol seteado se cuentan como "chofer").
-  const personal = choferes ?? [];
+  // Desglose por rol — solo personal vigente (los egresados/baja salen del conteo:
+  // tienen su propia sección "Historial de Choferes Egresados"). Los choferes legacy
+  // sin rol seteado se cuentan como "chofer".
+  const personal = (choferes ?? []).filter((c) => c.estado !== "baja");
   const rolDe = (c: { rol?: string | null }) => (c.rol ?? "chofer") as string;
   const choferesCount = personal.filter((c) => rolDe(c) === "chofer").length;
   const administrativoCount = personal.filter((c) => rolDe(c) === "administrativo").length;
   const mantenimientoCount = personal.filter((c) => rolDe(c) === "mantenimiento").length;
+  const totalPersonalActivo = personal.length;
 
   // Distribución por localidad (excluye baja, agrupa y ordena desc)
   const localidadMap = new Map<string, number>();
@@ -117,7 +120,7 @@ export default async function ChoferesPage({
       />
 
       <ChoferesStats
-        total={total ?? 0}
+        total={totalPersonalActivo}
         activos={activos.count ?? 0}
         inactivos={inactivos.count ?? 0}
         choferesCount={choferesCount}
