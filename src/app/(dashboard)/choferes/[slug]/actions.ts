@@ -216,7 +216,8 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     .eq("chofer_actual_id", chofer_id)
     .maybeSingle();
 
-  // Ausencias / permisos programados (tabla nueva: cast porque no está en database.ts aún).
+  // Ausencias / permisos programados. Cast porque el select embebe `usuarios!autorizado_por`,
+  // que el cliente tipado no infiere bien con el alias.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
@@ -647,7 +648,6 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     };
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ({
     ...chofer,
     foto: fotoObj as { bucket: string; path: string } | null,
@@ -937,6 +937,39 @@ export async function eliminarLicenciaAction(id: string, chofer_id: string) {
 // Crear = autorizar (queda registrado quién autorizó). Cancelar = soft delete.
 // ---------------------------------------------------------------------------
 
+// Detecta si el chofer ya tiene una ausencia (no cancelada) que se pisa con el
+// rango pedido. Dos rangos [a,b] y [c,d] se solapan si a <= d && b >= c.
+// `excluirId` permite ignorar la propia ausencia al editar.
+async function ausenciaSolapadaError(
+  supabase: ReturnType<typeof createAdminClient>,
+  chofer_id: string,
+  fecha_inicio: string,
+  fecha_fin: string,
+  excluirId?: string,
+): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
+    .from("chofer_ausencias")
+    .select("fecha_inicio, fecha_fin, tipo")
+    .eq("chofer_id", chofer_id)
+    .is("deleted_at", null)
+    .lte("fecha_inicio", fecha_fin)
+    .gte("fecha_fin", fecha_inicio);
+  if (excluirId) query = query.neq("id", excluirId);
+
+  const { data } = await query;
+  const choque = (data ?? [])[0] as { fecha_inicio: string; fecha_fin: string; tipo: string } | undefined;
+  if (!choque) return null;
+
+  return `Ya hay una ausencia cargada que se solapa con estas fechas: "${choque.tipo}" (${formatFechaCorta(choque.fecha_inicio)} → ${formatFechaCorta(choque.fecha_fin)}).`;
+}
+
+// dd/mm para mensajes de error (sin dependencias de cliente).
+function formatFechaCorta(fecha: string): string {
+  const [, m, d] = fecha.split("-");
+  return `${d}/${m}`;
+}
+
 export async function crearAusenciaAction(
   chofer_id: string,
   data: {
@@ -954,6 +987,9 @@ export async function crearAusenciaAction(
   if (!data.fecha_inicio || !data.fecha_fin) return { error: "Las fechas son obligatorias" };
   if (data.fecha_fin < data.fecha_inicio)
     return { error: "La fecha de fin no puede ser anterior al inicio" };
+
+  const solape = await ausenciaSolapadaError(supabase, chofer_id, data.fecha_inicio, data.fecha_fin);
+  if (solape) return { error: solape };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("chofer_ausencias").insert({
@@ -1000,6 +1036,15 @@ export async function editarAusenciaAction(
   if (!data.fecha_inicio || !data.fecha_fin) return { error: "Las fechas son obligatorias" };
   if (data.fecha_fin < data.fecha_inicio)
     return { error: "La fecha de fin no puede ser anterior al inicio" };
+
+  const solape = await ausenciaSolapadaError(
+    supabase,
+    chofer_id,
+    data.fecha_inicio,
+    data.fecha_fin,
+    id,
+  );
+  if (solape) return { error: solape };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;

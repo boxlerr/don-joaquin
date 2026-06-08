@@ -6,6 +6,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CalendarOff, Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
+import AusenciasHelpButton from "./AusenciasHelpButton";
 import { cancelarAusenciaAction } from "./actions";
 import type { Ausencia } from "./types";
 import { formatFecha } from "@/lib/utils";
@@ -60,17 +61,20 @@ export default function ChoferAusenciasTab({
             {ausencias.length} registro{ausencias.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        {can_write && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
-            onClick={abrirNueva}
-          >
-            <Plus size={13} className="mr-1.5 text-primary" />
-            Nueva ausencia
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <AusenciasHelpButton />
+          {can_write && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+              onClick={abrirNueva}
+            >
+              <Plus size={13} className="mr-1.5 text-primary" />
+              Nueva ausencia
+            </Button>
+          )}
+        </div>
       </div>
 
       {ausencias.length === 0 ? (

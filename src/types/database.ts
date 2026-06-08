@@ -1151,6 +1151,73 @@ export type Database = {
           },
         ]
       }
+      chofer_ausencias: {
+        Row: {
+          autorizado_por: string | null
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          estado: string
+          fecha_fin: string
+          fecha_inicio: string
+          id: string
+          observaciones: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          autorizado_por?: string | null
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          estado?: string
+          fecha_fin: string
+          fecha_inicio: string
+          id?: string
+          observaciones?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          autorizado_por?: string | null
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          estado?: string
+          fecha_fin?: string
+          fecha_inicio?: string
+          id?: string
+          observaciones?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_ausencias_autorizado_por_fkey"
+            columns: ["autorizado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_ausencias_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_ausencias_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chofer_camion_historial: {
         Row: {
           camion_id: string

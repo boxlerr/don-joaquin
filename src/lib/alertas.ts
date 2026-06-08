@@ -549,7 +549,7 @@ export async function generarAlertas() {
 
   // Ausencias / permisos programados de choferes que arrancan dentro del preaviso.
   // Da visibilidad para planificar la semana sin depender de "lo que recordó" logística.
-  // `as any`: chofer_ausencias es tabla nueva, todavía no está en database.ts.
+  // `as any`: el select embebe `choferes(...)`, que el cliente tipado no infiere bien acá.
   const enAusenciaDias = new Date(hoy);
   enAusenciaDias.setDate(hoy.getDate() + umbrales.diasAusenciaPreaviso);
   const enAusenciaStr = enAusenciaDias.toISOString().split("T")[0]!;
