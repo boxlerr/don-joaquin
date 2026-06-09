@@ -33,6 +33,12 @@ export default async function ViajesPage({
       .from("viajes")
       .select("*", { count: "exact", head: true })
       .eq("facturado", false)
+      .eq("es_vacio", false)
+      .neq("estado", "cancelado"),
+    supabase
+      .from("viajes")
+      .select("*", { count: "exact", head: true })
+      .eq("es_vacio", true)
       .neq("estado", "cancelado"),
   ] as const;
 
@@ -47,7 +53,7 @@ export default async function ViajesPage({
   const DIAS_DISPONIBILIDAD = 14;
 
   const [
-    [total, enCurso, pendientes, sinFacturar],
+    [total, enCurso, pendientes, sinFacturar, vacios],
     choferResult,
     formData,
     gastoFormData,
@@ -109,6 +115,7 @@ export default async function ViajesPage({
           enCurso: enCurso.count ?? 0,
           pendientes: pendientes.count ?? 0,
           sinFacturar: sinFacturar.count ?? 0,
+          vacios: vacios.count ?? 0,
         }}
         choferId={choferId}
         choferNombre={choferNombre}

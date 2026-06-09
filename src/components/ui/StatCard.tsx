@@ -5,7 +5,7 @@ interface StatCardProps {
   label: string;
   value: string;
   sub?: string;
-  color?: "brand" | "success" | "warning" | "error";
+  color?: "brand" | "success" | "warning" | "error" | "neutral";
   icon?: LucideIcon;
   variant?: "default" | "dashboard";
   onClick?: () => void;
@@ -40,6 +40,13 @@ const colorMap = {
     border: "border-[#FECACA]/50",
     iconBg: "bg-[#EF4444]/10",
     circleBg: "bg-[#EF4444]",
+  },
+  neutral: {
+    bg: "bg-[#F8FAFC]",
+    text: "text-[#64748B]",
+    border: "border-[#E2E8F0]/70",
+    iconBg: "bg-[#64748B]/10",
+    circleBg: "bg-[#64748B]",
   },
 };
 

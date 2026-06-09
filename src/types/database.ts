@@ -4342,6 +4342,7 @@ export type Database = {
           destino_id: string | null
           dm_ypf_id: string | null
           es_internacional: boolean
+          es_vacio: boolean
           estado: Database["public"]["Enums"]["viaje_estado"]
           facturado: boolean
           fecha_llegada: string | null
@@ -4375,6 +4376,7 @@ export type Database = {
           destino_id?: string | null
           dm_ypf_id?: string | null
           es_internacional?: boolean
+          es_vacio?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
           fecha_llegada?: string | null
@@ -4408,6 +4410,7 @@ export type Database = {
           destino_id?: string | null
           dm_ypf_id?: string | null
           es_internacional?: boolean
+          es_vacio?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
           fecha_llegada?: string | null

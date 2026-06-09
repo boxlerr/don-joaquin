@@ -73,6 +73,7 @@ export type GetViajesParams = {
   hasta?: string;
   estado?: string[];
   facturado?: boolean;
+  esVacio?: boolean;
   search?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
@@ -89,6 +90,7 @@ export async function getViajesAction(
     hasta,
     estado,
     facturado,
+    esVacio,
     search,
     orderBy = "fecha",
     orderDir = "desc",
@@ -104,7 +106,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, es_vacio, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -135,6 +137,10 @@ export async function getViajesAction(
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
+  }
+
+  if (typeof esVacio === "boolean") {
+    query = query.eq("es_vacio", esVacio);
   }
 
   if (search) {
@@ -201,6 +207,7 @@ export async function getViajesAction(
       nro_viaje_ypf: v.nro_viaje_ypf ?? null,
       nro_remito: v.nro_remito ?? null,
       material: extractMaterialFromObs(v.observaciones),
+      es_vacio: v.es_vacio ?? false,
     };
   });
 
@@ -693,12 +700,13 @@ export type ExportViajesParams = {
   hasta?: string;
   estado?: string;
   facturado?: boolean;
+  esVacio?: boolean;
   search?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, estado, facturado, search } = params ?? {};
+  const { choferId, desde, hasta, estado, facturado, esVacio, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -733,6 +741,10 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
+  }
+
+  if (typeof esVacio === "boolean") {
+    query = query.eq("es_vacio", esVacio);
   }
 
   if (search) {

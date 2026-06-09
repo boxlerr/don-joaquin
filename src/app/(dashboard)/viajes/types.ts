@@ -19,6 +19,7 @@ export type ViajeBasico = {
   nro_viaje_ypf: string | null;
   nro_remito: string | null;
   material: string | null;
+  es_vacio: boolean;
 };
 
 export type PaginatedResult<T> = {

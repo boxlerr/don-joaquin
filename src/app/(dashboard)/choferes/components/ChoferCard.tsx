@@ -23,6 +23,7 @@ import {
   reactivarChoferAction,
   uploadFotoChoferAction,
   deleteFotoChoferAction,
+  deleteChoferAction,
 } from "../actions";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +35,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [egresarOpen, setEgresarOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,6 +76,19 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
     const res = await reactivarChoferAction(chofer.id);
     if (res?.error) {
       setActionError(res.error);
+    } else {
+      router.refresh();
+    }
+    setActionLoading(false);
+  };
+
+  const handleEliminar = async () => {
+    setActionLoading(true);
+    setActionError(null);
+    const res = await deleteChoferAction(chofer.id);
+    if (res?.error) {
+      setActionError(res.error);
+      setConfirmDelete(false);
     } else {
       router.refresh();
     }
@@ -340,14 +355,27 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             )}
 
             {esBaja ? (
-              <button
-                onClick={handleReactivar}
-                disabled={actionLoading}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors border border-transparent hover:border-emerald-200"
-                title="Reactivar chofer"
-              >
-                <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
-              </button>
+              <>
+                <button
+                  onClick={handleReactivar}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors border border-transparent hover:border-emerald-200"
+                  title="Reactivar chofer"
+                >
+                  <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
+                </button>
+                <button
+                  onClick={() => {
+                    setActionError(null);
+                    setConfirmDelete(true);
+                  }}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-200"
+                  title="Eliminar definitivamente del sistema"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </>
             ) : (
               <button
                 onClick={handleEgresar}
@@ -360,6 +388,37 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             )}
           </div>
         </div>
+
+        {confirmDelete && (
+          <div className="px-4 py-2.5 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+            <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold">¿Eliminar definitivamente a {chofer.apellido}, {chofer.nombre}?</p>
+              <p className="text-red-600/80 dark:text-red-300/80 mt-0.5">
+                Esta acción no se puede deshacer. Si tiene viajes o registros operativos asociados, el sistema lo va a impedir (queda en el historial).
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={handleEliminar}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-md bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
+                >
+                  {actionLoading && <Loader2 size={11} className="animate-spin" />}
+                  Sí, eliminar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={actionLoading}
+                  className="px-2.5 h-7 rounded-md border border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {actionError && (
           <div className="px-4 py-2 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">

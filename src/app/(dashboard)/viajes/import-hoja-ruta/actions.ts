@@ -363,6 +363,7 @@ export async function confirmHojaRutaImportAction(
         tonelaje_real: ton,
         monto_flete: importeFinal,
         nro_remito: remitoNormalizado,
+        es_vacio: vacio,
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
         // Regla del cliente: el viaje tiene valor solo cuando entra el remito y se

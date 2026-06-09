@@ -523,6 +523,7 @@ export async function confirmHojaRutaImportAction(
           km_vacios: (item.viaje_vacio ? item.km_recorridos : 0) + (item.km_vacios ?? 0),
           tonelaje_real: 0, // el trigger lo sobrescribe con la suma del detalle
           monto_flete: 0,
+          es_vacio: item.viaje_vacio,
           moneda: "ARS",
           estado: "cerrado" as const,
           facturado: false,

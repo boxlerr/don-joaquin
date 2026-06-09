@@ -59,13 +59,14 @@ import ExportViajesButton from "./ExportViajesButton";
 export interface FiltroExterno {
   estado: string;
   facturado: boolean | null;
+  esVacio: boolean | null;
   nonce: number;
 }
 
 interface Props {
   choferId?: string;
   filtroExterno?: FiltroExterno;
-  onFiltroChange?: (f: { estado: string; facturado: boolean | null }) => void;
+  onFiltroChange?: (f: { estado: string; facturado: boolean | null; esVacio: boolean | null }) => void;
 }
 
 const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "error"> = {
@@ -123,6 +124,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
   const [hasta, setHasta] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
+  const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -151,13 +153,14 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
     setUltimoNonce(filtroExterno.nonce);
     setEstadoFiltro(filtroExterno.estado);
     setFacturadoFiltro(filtroExterno.facturado);
+    setEsVacioFiltro(filtroExterno.esVacio);
   }
 
   // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).
   useEffect(() => {
-    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro });
+    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro, facturadoFiltro]);
+  }, [estadoFiltro, facturadoFiltro, esVacioFiltro]);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,6 +174,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
       hasta: hasta || undefined,
       estado: estadoFiltro ? [estadoFiltro] : undefined,
       facturado: facturadoFiltro ?? undefined,
+      esVacio: esVacioFiltro ?? undefined,
       search: debouncedSearch || undefined,
       orderBy,
       orderDir,
@@ -190,7 +194,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -202,6 +206,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
         hasta: hasta || undefined,
         estado: estadoFiltro ? [estadoFiltro] : undefined,
         facturado: facturadoFiltro ?? undefined,
+        esVacio: esVacioFiltro ?? undefined,
         search: debouncedSearch || undefined,
         orderBy,
         orderDir,
@@ -215,7 +220,8 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
     });
   };
 
-  const hayFiltros = !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null;
+  const hayFiltros =
+    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || esVacioFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
@@ -223,6 +229,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
     setSearch("");
     setEstadoFiltro("");
     setFacturadoFiltro(null);
+    setEsVacioFiltro(null);
   };
 
   const toggleOrden = (key: ViajeOrderBy) => {
@@ -305,6 +312,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
             hasta={hasta || undefined}
             estado={estadoFiltro || undefined}
             facturado={facturadoFiltro ?? undefined}
+            esVacio={esVacioFiltro ?? undefined}
             search={debouncedSearch || undefined}
             disabled={loading || rows.length === 0}
           />
@@ -419,10 +427,20 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
                     )}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge
-                      label={v.estado.replace("_", " ")}
-                      tone={ESTADO_TONE[v.estado] ?? "neutral"}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <StatusBadge
+                        label={v.estado.replace("_", " ")}
+                        tone={ESTADO_TONE[v.estado] ?? "neutral"}
+                      />
+                      {v.es_vacio && (
+                        <span
+                          className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-muted text-muted-foreground"
+                          title="Viaje sin carga (retorno/posicionamiento). No se factura."
+                        >
+                          Vacío
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <span

@@ -9,6 +9,21 @@ import ChoferCard from "./ChoferCard";
 
 type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
 type RolFilter = "chofer" | "administrativo" | "mantenimiento";
+type OrdenFilter = "apellido_az" | "apellido_za" | "antiguedad_asc" | "antiguedad_desc";
+
+const ORDEN_OPTIONS: { id: OrdenFilter; label: string }[] = [
+  { id: "apellido_az", label: "Apellido (A–Z)" },
+  { id: "apellido_za", label: "Apellido (Z–A)" },
+  { id: "antiguedad_asc", label: "Antigüedad (más antiguo primero)" },
+  { id: "antiguedad_desc", label: "Antigüedad (más reciente primero)" },
+];
+
+/** Timestamp de ingreso, o null si falta/inválido (van al final en orden por antigüedad). */
+function tsIngreso(c: { fecha_ingreso?: string | null }): number | null {
+  if (!c.fecha_ingreso) return null;
+  const t = new Date(c.fecha_ingreso).getTime();
+  return Number.isNaN(t) ? null : t;
+}
 
 const ROL_LABELS: Record<RolFilter, string> = {
   chofer: "Choferes",
@@ -58,8 +73,30 @@ function normalize(value: string): string {
 export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [rolFilter, setRolFilter] = useState<RolFilter>("chofer");
+  const [orden, setOrden] = useState<OrdenFilter>("apellido_az");
   const [query, setQuery] = useState("");
   const [historialOpen, setHistorialOpen] = useState(false);
+
+  const ordenarChoferes = useMemo(() => {
+    const cmpApellido = (a: Chofer, b: Chofer) =>
+      `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`, "es", {
+        sensitivity: "base",
+      });
+    return (lista: Chofer[]): Chofer[] => {
+      const arr = [...lista];
+      arr.sort((a, b) => {
+        if (orden === "apellido_az") return cmpApellido(a, b);
+        if (orden === "apellido_za") return -cmpApellido(a, b);
+        const ta = tsIngreso(a);
+        const tb = tsIngreso(b);
+        if (ta == null && tb == null) return cmpApellido(a, b);
+        if (ta == null) return 1; // sin fecha → al final
+        if (tb == null) return -1;
+        return (orden === "antiguedad_asc" ? ta - tb : tb - ta) || cmpApellido(a, b);
+      });
+      return arr;
+    };
+  }, [orden]);
 
   const filtered = useMemo(() => {
     const q = normalize(query);
@@ -84,8 +121,14 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
 
   // Activos = todos los que NO estén dados de baja (incluye "activo" e "inactivo")
   // Egresados = estado "baja". Los mostramos siempre separados al final.
-  const activos = useMemo(() => filtered.filter((c) => c.estado !== "baja"), [filtered]);
-  const egresados = useMemo(() => filtered.filter((c) => c.estado === "baja"), [filtered]);
+  const activos = useMemo(
+    () => ordenarChoferes(filtered.filter((c) => c.estado !== "baja")),
+    [filtered, ordenarChoferes],
+  );
+  const egresados = useMemo(
+    () => ordenarChoferes(filtered.filter((c) => c.estado === "baja")),
+    [filtered, ordenarChoferes],
+  );
 
   const sinFiltros = estadoFilter === "todos" && !query;
   const hayResultados = filtered.length > 0;
@@ -132,6 +175,14 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
             searchable={false}
             triggerClassName="h-9 w-52"
           />
+          <Combobox
+            value={orden}
+            onValueChange={(v) => setOrden(v as OrdenFilter)}
+            options={ORDEN_OPTIONS}
+            searchable={false}
+            triggerClassName="h-9 w-60"
+            aria-label="Ordenar choferes"
+          />
           <Input
             type="search"
             value={query}
@@ -145,6 +196,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
               onClick={() => {
                 setEstadoFilter("todos");
                 setQuery("");
+                setOrden("apellido_az");
               }}
               className="inline-flex items-center gap-1 h-9 px-2.5 text-xs text-muted-foreground hover:bg-muted rounded-md border border-border"
               title="Limpiar filtros"
