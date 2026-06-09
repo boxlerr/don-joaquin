@@ -686,7 +686,8 @@ async function getOrCreateClienteSinAsignar(
     .insert({
       razon_social: CLIENTE_SIN_ASIGNAR,
       condicion_iva: "no_categorizado",
-      estado: "activo",
+      // Inactivo: es un comodín de sistema, no debe aparecer como cliente seleccionable.
+      estado: "inactivo",
       observaciones: "Cliente placeholder para viajes importados desde hojas de ruta. Reasignar manualmente.",
       created_by: userId,
     })

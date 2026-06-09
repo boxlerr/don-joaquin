@@ -686,11 +686,15 @@ async function getOrCreateCliente(
     .limit(1)
     .maybeSingle();
   if (existing?.id) return existing.id;
+  // El placeholder "Sin asignar (import)" es un comodín de sistema: nace inactivo
+  // para no aparecer como cliente seleccionable. Cualquier otro cliente, activo.
+  const esPlaceholder = razon.trim().toLowerCase() === "sin asignar (import)";
   const { data } = await sb
     .from("clientes")
     .insert({
       razon_social: razon,
       condicion_iva: "no_categorizado",
+      estado: esPlaceholder ? "inactivo" : "activo",
       created_by: userId,
     })
     .select("id")
