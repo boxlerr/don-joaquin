@@ -322,15 +322,22 @@ export async function confirmHojaRutaImportAction(
     }
 
     for (const v of sp.viajes) {
-      const key = dedupKey(choferId, v.fecha, v.remito, tonelajeDe(v));
-      if (existentes.has(key) || seenThisRun.has(key)) {
-        duplicados++;
-        continue;
-      }
-      seenThisRun.add(key);
-
       const vacio = esViajeVacio(v);
       const ton = tonelajeDe(v);
+
+      // Dedup SOLO para viajes con remito real (el remito es la clave única).
+      // Los viajes VACÍOS no tienen remito → no se pueden diferenciar entre sí y
+      // antes se pisaban (varios vacíos del mismo día/chofer = 1). Ahora se cargan
+      // todos: un vacío no puede ser "duplicado" de otro.
+      if (!vacio) {
+        const key = dedupKey(choferId, v.fecha, v.remito, ton);
+        if (existentes.has(key) || seenThisRun.has(key)) {
+          duplicados++;
+          continue;
+        }
+        seenThisRun.add(key);
+      }
+
       const remitoNormalizado = vacio ? null : v.remito;
       const importeFinal = vacio ? 0 : v.importe; // NULL si esperando remito
 
@@ -358,7 +365,10 @@ export async function confirmHojaRutaImportAction(
         nro_remito: remitoNormalizado,
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
-        facturado: false,
+        // Regla del cliente: el viaje tiene valor solo cuando entra el remito y se
+        // factura → tener monto > 0 significa facturado. Vacíos (0) y "esperando
+        // remito" (null) quedan sin facturar.
+        facturado: (importeFinal ?? 0) > 0,
         observaciones: [
           `[Import HOJA DE RUTA · ${sp.sheetName}]`,
           v.material ? `Material: ${v.material}` : null,

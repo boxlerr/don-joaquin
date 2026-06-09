@@ -242,7 +242,11 @@ export async function actualizarRemitoYMontoAction(
     updated_at: new Date().toISOString(),
   };
   if (data.nro_remito !== undefined) payload.nro_remito = data.nro_remito || null;
-  if (data.monto_flete !== undefined) payload.monto_flete = data.monto_flete;
+  if (data.monto_flete !== undefined) {
+    payload.monto_flete = data.monto_flete;
+    // Regla del cliente: tener valor = está facturado (el valor entra con el remito).
+    payload.facturado = (data.monto_flete ?? 0) > 0;
+  }
   // Si ahora tiene remito + monto, marcar como cerrado
   if (data.nro_remito && data.monto_flete != null) {
     payload.estado = "cerrado";

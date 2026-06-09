@@ -87,8 +87,8 @@ function asISO(v: unknown): string | null {
     if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
     const dmy = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
     if (dmy) {
-      let [, d, m, y] = dmy;
-      if (y.length === 2) y = "20" + y;
+      const [, d, m, yRaw] = dmy;
+      const y = yRaw.length === 2 ? "20" + yRaw : yRaw;
       return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     }
   }
@@ -150,8 +150,20 @@ export function parseHojaRutaXlsx(buffer: Buffer | ArrayBuffer): HrParseResult {
   const sheets: HrSheetParsed[] = [];
   const warnings: string[] = [];
 
+  // Pestañas OCULTAS (Hidden=1) o muy ocultas (2): son hojas viejas que el cliente
+  // dejó escondidas (ej. "PITTANA EUGENIO" con datos de 2025). No se importan.
+  const ocultas = new Set(
+    (wb.Workbook?.Sheets ?? [])
+      .filter((s) => s && typeof s.Hidden === "number" && s.Hidden !== 0)
+      .map((s) => s.name),
+  );
+
   for (const sheetName of wb.SheetNames) {
     if (SHEETS_IGNORADOS.has(sheetName.trim())) continue;
+    if (ocultas.has(sheetName)) {
+      warnings.push(`${sheetName}: pestaña oculta, se ignoró (data vieja).`);
+      continue;
+    }
     const ws = wb.Sheets[sheetName];
     if (!ws) continue;
 
