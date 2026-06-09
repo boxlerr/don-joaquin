@@ -1,6 +1,7 @@
 // Reglas de "legajo completo" para choferes.
-// Un chofer incompleto se puede crear y figurar en el listado, pero NO puede
-// ser asignado a viajes, siniestros, viáticos, gastos, gasoil ni roturas.
+// Bloqueantes: sin estos datos el chofer NO puede asignarse a viajes, siniestros,
+// viáticos, etc. (son los datos legales/identificatorios mínimos).
+// Recomendados (teléfono, localidad): NO bloquean — solo se avisa que faltan.
 
 export type ChoferValidable = {
   nombre?: string | null;
@@ -13,27 +14,35 @@ export type ChoferValidable = {
 };
 
 export type LegajoEstado = {
-  completo: boolean;
-  faltantes: string[]; // labels listos para mostrar al usuario
+  completo: boolean; // true si no falta ningún dato BLOQUEANTE (sirve para asignar)
+  faltantes: string[]; // bloqueantes faltantes
+  faltantesRecomendados: string[]; // teléfono/localidad faltantes (no bloquean)
 };
 
-const CAMPOS_OBLIGATORIOS: { key: keyof ChoferValidable; label: string }[] = [
+// Bloquean la asignación (datos identificatorios mínimos).
+const CAMPOS_BLOQUEANTES: { key: keyof ChoferValidable; label: string }[] = [
   { key: "nombre",        label: "Nombre" },
   { key: "apellido",      label: "Apellido" },
   { key: "dni",           label: "DNI" },
   { key: "cuil",          label: "CUIL" },
-  { key: "telefono",      label: "Teléfono" },
-  { key: "localidad",     label: "Localidad" },
   { key: "fecha_ingreso", label: "Fecha de ingreso" },
 ];
 
+// Solo se avisan, no bloquean nada.
+const CAMPOS_RECOMENDADOS: { key: keyof ChoferValidable; label: string }[] = [
+  { key: "telefono",  label: "Teléfono" },
+  { key: "localidad", label: "Localidad" },
+];
+
+const falta = (c: ChoferValidable, key: keyof ChoferValidable) => {
+  const v = c[key];
+  return v == null || String(v).trim() === "";
+};
+
 export function getLegajoEstado(c: ChoferValidable): LegajoEstado {
-  const faltantes: string[] = [];
-  for (const { key, label } of CAMPOS_OBLIGATORIOS) {
-    const v = c[key];
-    if (v == null || String(v).trim() === "") faltantes.push(label);
-  }
-  return { completo: faltantes.length === 0, faltantes };
+  const faltantes = CAMPOS_BLOQUEANTES.filter(({ key }) => falta(c, key)).map((x) => x.label);
+  const faltantesRecomendados = CAMPOS_RECOMENDADOS.filter(({ key }) => falta(c, key)).map((x) => x.label);
+  return { completo: faltantes.length === 0, faltantes, faltantesRecomendados };
 }
 
 export function isLegajoCompleto(c: ChoferValidable): boolean {

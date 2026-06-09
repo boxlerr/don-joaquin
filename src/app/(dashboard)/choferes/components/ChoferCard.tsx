@@ -257,6 +257,19 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             </div>
           )}
 
+          {/* Datos recomendados (teléfono/localidad): solo aviso, NO bloquea nada. */}
+          {legajoEstado.completo && legajoEstado.faltantesRecomendados.length > 0 && !esBaja && (
+            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md space-y-1 text-xs">
+              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
+                <AlertTriangle size={12} />
+                <span className="uppercase tracking-wide">Faltan datos</span>
+              </div>
+              <p className="text-amber-700/90 dark:text-amber-200/90">
+                Falta: <span className="font-medium">{legajoEstado.faltantesRecomendados.join(", ")}</span>.
+              </p>
+            </div>
+          )}
+
           {esBaja && (
             <div className="mt-3 p-3 bg-amber-50/70 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md space-y-1.5 text-xs">
               <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
