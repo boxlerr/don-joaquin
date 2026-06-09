@@ -9,6 +9,13 @@ import { getLegajoEstado } from "@/lib/chofer-validation";
 
 const PAGE_SIZE = 20;
 
+/** Extrae el material desde las observaciones (formato "Material: X | ..."). */
+function extractMaterialFromObs(obs: string | null): string | null {
+  if (!obs) return null;
+  const m = obs.match(/Material:\s*([^·|]+)/i);
+  return m ? m[1].trim() : null;
+}
+
 async function buildSearchOrFilter(
   supabase: ReturnType<typeof createAdminClient>,
   search: string,
@@ -65,6 +72,7 @@ export type GetViajesParams = {
   desde?: string;
   hasta?: string;
   estado?: string[];
+  facturado?: boolean;
   search?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
@@ -80,6 +88,7 @@ export async function getViajesAction(
     desde,
     hasta,
     estado,
+    facturado,
     search,
     orderBy = "fecha",
     orderDir = "desc",
@@ -95,7 +104,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -122,6 +131,10 @@ export async function getViajesAction(
     query = query.in("estado", estado);
   } else {
     query = query.neq("estado", "cancelado");
+  }
+
+  if (typeof facturado === "boolean") {
+    query = query.eq("facturado", facturado);
   }
 
   if (search) {
@@ -186,6 +199,8 @@ export async function getViajesAction(
       moneda: v.moneda ?? "ARS",
       observaciones: v.observaciones ?? null,
       nro_viaje_ypf: v.nro_viaje_ypf ?? null,
+      nro_remito: v.nro_remito ?? null,
+      material: extractMaterialFromObs(v.observaciones),
     };
   });
 
@@ -677,12 +692,13 @@ export type ExportViajesParams = {
   desde?: string;
   hasta?: string;
   estado?: string;
+  facturado?: boolean;
   search?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, estado, search } = params ?? {};
+  const { choferId, desde, hasta, estado, facturado, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -713,6 +729,10 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
     query = query.in("estado", [estado]);
   } else {
     query = query.neq("estado", "cancelado");
+  }
+
+  if (typeof facturado === "boolean") {
+    query = query.eq("facturado", facturado);
   }
 
   if (search) {

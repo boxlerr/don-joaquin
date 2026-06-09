@@ -9,6 +9,7 @@ interface ExportViajesButtonProps {
   desde?: string;
   hasta?: string;
   estado?: string;
+  facturado?: boolean;
   search?: string;
   disabled?: boolean;
 }
@@ -18,10 +19,11 @@ export default function ExportViajesButton({
   desde,
   hasta,
   estado,
+  facturado,
   search,
   disabled,
 }: ExportViajesButtonProps) {
-  const hayFiltros = !!(desde || hasta || estado || search);
+  const hayFiltros = !!(desde || hasta || estado || search || typeof facturado === "boolean");
 
   const handleExport = async () => {
     const data = await getAllViajesForExportAction({
@@ -29,6 +31,7 @@ export default function ExportViajesButton({
       desde,
       hasta,
       estado,
+      facturado,
       search,
     });
 

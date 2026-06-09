@@ -17,6 +17,8 @@ export type ViajeBasico = {
   moneda: string | null;
   observaciones: string | null;
   nro_viaje_ypf: string | null;
+  nro_remito: string | null;
+  material: string | null;
 };
 
 export type PaginatedResult<T> = {

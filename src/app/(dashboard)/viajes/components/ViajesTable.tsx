@@ -55,8 +55,17 @@ import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
 
+/** Filtro empujado desde las tarjetas de estadísticas (clic). */
+export interface FiltroExterno {
+  estado: string;
+  facturado: boolean | null;
+  nonce: number;
+}
+
 interface Props {
   choferId?: string;
+  filtroExterno?: FiltroExterno;
+  onFiltroChange?: (f: { estado: string; facturado: boolean | null }) => void;
 }
 
 const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "error"> = {
@@ -82,12 +91,15 @@ const COLUMNS: ColumnDef[] = [
   { label: "Destino", cellClass: "hidden sm:table-cell" },
   { label: "KM", cellClass: "hidden sm:table-cell" },
   { label: "Toneladas", sortKey: "toneladas", cellClass: "hidden sm:table-cell" },
+  { label: "Remito Nº", cellClass: "hidden xl:table-cell" },
+  { label: "Material", cellClass: "hidden xl:table-cell" },
+  { label: "Importe", sortKey: "monto", cellClass: "hidden lg:table-cell", align: "right" },
   { label: "Estado" },
   { label: "Facturado", cellClass: "hidden sm:table-cell" },
   { label: "" },
 ];
 
-export default function ViajesTable({ choferId }: Props) {
+export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }: Props) {
   const router = useRouter();
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
@@ -110,6 +122,7 @@ export default function ViajesTable({ choferId }: Props) {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
+  const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -130,6 +143,22 @@ export default function ViajesTable({ choferId }: Props) {
     return () => clearTimeout(debounceRef.current);
   }, [search]);
 
+  // Aplicar filtro empujado desde las tarjetas de estadísticas (clic en tarjeta).
+  // Patrón "ajustar estado al cambiar un prop": se setea durante el render
+  // comparando contra el último nonce procesado, evitando un efecto.
+  const [ultimoNonce, setUltimoNonce] = useState<number | undefined>(undefined);
+  if (filtroExterno && filtroExterno.nonce !== ultimoNonce) {
+    setUltimoNonce(filtroExterno.nonce);
+    setEstadoFiltro(filtroExterno.estado);
+    setFacturadoFiltro(filtroExterno.facturado);
+  }
+
+  // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).
+  useEffect(() => {
+    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estadoFiltro, facturadoFiltro]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -141,6 +170,7 @@ export default function ViajesTable({ choferId }: Props) {
       desde: desde || undefined,
       hasta: hasta || undefined,
       estado: estadoFiltro ? [estadoFiltro] : undefined,
+      facturado: facturadoFiltro ?? undefined,
       search: debouncedSearch || undefined,
       orderBy,
       orderDir,
@@ -160,7 +190,7 @@ export default function ViajesTable({ choferId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -171,6 +201,7 @@ export default function ViajesTable({ choferId }: Props) {
         desde: desde || undefined,
         hasta: hasta || undefined,
         estado: estadoFiltro ? [estadoFiltro] : undefined,
+        facturado: facturadoFiltro ?? undefined,
         search: debouncedSearch || undefined,
         orderBy,
         orderDir,
@@ -184,13 +215,14 @@ export default function ViajesTable({ choferId }: Props) {
     });
   };
 
-  const hayFiltros = !!desde || !!hasta || !!search || !!estadoFiltro;
+  const hayFiltros = !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
     setSearch("");
     setEstadoFiltro("");
+    setFacturadoFiltro(null);
   };
 
   const toggleOrden = (key: ViajeOrderBy) => {
@@ -272,6 +304,7 @@ export default function ViajesTable({ choferId }: Props) {
             desde={desde || undefined}
             hasta={hasta || undefined}
             estado={estadoFiltro || undefined}
+            facturado={facturadoFiltro ?? undefined}
             search={debouncedSearch || undefined}
             disabled={loading || rows.length === 0}
           />
@@ -369,6 +402,21 @@ export default function ViajesTable({ choferId }: Props) {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
                     {v.toneladas ?? 0} tn
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground font-mono hidden xl:table-cell">
+                    {v.nro_remito && v.nro_remito.toUpperCase() !== "VACIO" ? v.nro_remito : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground hidden xl:table-cell max-w-[12rem] truncate">
+                    {v.material ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm font-mono text-right hidden lg:table-cell">
+                    {v.monto_flete != null ? (
+                      <span className="font-semibold text-[#10B981]">
+                        $ {v.monto_flete.toLocaleString("es-AR")}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/70">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge

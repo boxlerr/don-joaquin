@@ -9,6 +9,7 @@ interface StatCardProps {
   icon?: LucideIcon;
   variant?: "default" | "dashboard";
   onClick?: () => void;
+  active?: boolean;
 }
 
 const colorMap = {
@@ -50,6 +51,7 @@ export default function StatCard({
   icon: Icon,
   variant = "default",
   onClick,
+  active = false,
 }: StatCardProps) {
   const styles = colorMap[color];
 
@@ -141,9 +143,11 @@ export default function StatCard({
   return (
     <div
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      aria-pressed={onClick ? active : undefined}
       className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${
         onClick ? "cursor-pointer hover:border-primary/50" : ""
-      }`}
+      } ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary/60" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0 flex-1">
