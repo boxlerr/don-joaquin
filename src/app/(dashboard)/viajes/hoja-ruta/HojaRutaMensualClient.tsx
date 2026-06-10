@@ -234,7 +234,7 @@ export default function HojaRutaMensualClient({
 
       {/* ─── Stats del mes ─── */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0">
-        <StatChip icon={<Users size={14} />} label="Choferes activos" value={`${statsMes.choferesActivos}/${choferesMes.length}`} tone="info" />
+        <StatChip icon={<Users size={14} />} label="Choferes con viajes" value={`${statsMes.choferesActivos}/${choferesMes.length}`} tone="info" />
         <StatChip icon={<Receipt size={14} />} label="Viajes del mes" value={fmtNum(statsMes.viajes)} tone="brand" />
         <StatChip icon={<Truck size={14} />} label="Toneladas" value={fmtNum(statsMes.tn, 1)} tone="info" />
         <StatChip icon={<Truck size={14} />} label="KM cargados" value={fmtNum(statsMes.km)} tone="neutral" />
@@ -295,6 +295,11 @@ export default function HojaRutaMensualClient({
                     <div className="flex items-center justify-between gap-1">
                       <span className={`text-xs font-semibold truncate ${active ? "text-primary" : "text-foreground"}`}>
                         {c.apellido}, {c.nombre}
+                        {c.estado === "baja" && (
+                          <span className="ml-1 text-[9px] font-normal uppercase tracking-wide text-muted-foreground/70">
+                            egresado
+                          </span>
+                        )}
                       </span>
                       {c.pendientesFacturar > 0 && (
                         <span

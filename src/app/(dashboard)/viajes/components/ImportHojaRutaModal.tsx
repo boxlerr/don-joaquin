@@ -30,6 +30,7 @@ import {
   type SheetViajePreview,
   type AsignacionSheet,
 } from "../import-hoja-ruta/actions";
+import { CREAR_CHOFER } from "../import-hoja-ruta/import-core";
 
 type Step = "select" | "preview" | "done";
 
@@ -111,6 +112,11 @@ export default function ImportHojaRutaModal() {
   const asignadoDe = (sheetName: string) =>
     asignaciones.find((a) => a.sheetName === sheetName)?.chofer_id ?? null;
 
+  const setAsignacion = (sheetName: string, choferId: string | null) =>
+    setAsignaciones((prev) =>
+      prev.map((a) => (a.sheetName === sheetName ? { ...a, chofer_id: choferId } : a)),
+    );
+
   // Pestañas desplegadas (click → ver viajes).
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set());
   const toggleExpand = (sheetName: string) =>
@@ -191,7 +197,8 @@ export default function ImportHojaRutaModal() {
                   <li>Estructura esperada: DIA · SALE DE · LLEGA A · KM · Tn 29/35/37,5 · Nº REMITO · MATERIAL · KM VACÍOS · $</li>
                   <li>Viajes sin <code>$</code> se cargan con monto NULL = &quot;esperando remito&quot;</li>
                   <li>Dedup por (chofer + fecha + remito): no se duplican viajes ya cargados por el importador YPF</li>
-                  <li>Sheets ignorados: TOTALES, HOJA DE GASTOS, FISCHER, PABLO FISCHER, TOTAL, Hoja1</li>
+                  <li>Si el chofer de un sheet no existe en la base, se crea automáticamente (podés elegir otro en el preview)</li>
+                  <li>Sheets ignorados: TOTALES, HOJA DE GASTOS, FISCHER y PABLO FISCHER (fleteros, otro formato), TOTAL, Hoja1</li>
                 </ul>
               </div>
               <input
@@ -251,6 +258,8 @@ export default function ImportHojaRutaModal() {
                         key={sh.sheetName}
                         sheet={sh}
                         asignado={asignadoDe(sh.sheetName)}
+                        choferesDisponibles={preview.choferesDisponibles ?? []}
+                        onAsignar={(id) => setAsignacion(sh.sheetName, id)}
                         expanded={expandidas.has(sh.sheetName)}
                         onToggle={() => toggleExpand(sh.sheetName)}
                       />
@@ -295,6 +304,9 @@ export default function ImportHojaRutaModal() {
                 )}
                 {(result.imported?.duplicados ?? 0) > 0 && (
                   <div><strong>{result.imported?.duplicados}</strong> duplicados (ya estaban cargados)</div>
+                )}
+                {(result.imported?.choferesCreados ?? 0) > 0 && (
+                  <div><strong>{result.imported?.choferesCreados}</strong> choferes nuevos creados (completar legajo en /choferes)</div>
                 )}
                 {(result.imported?.omitidos ?? 0) > 0 && (
                   <div><strong>{result.imported?.omitidos}</strong> omitidos (sheets sin chofer matcheado)</div>
@@ -341,16 +353,21 @@ function Stat({
 function SheetRow({
   sheet,
   asignado,
+  choferesDisponibles,
+  onAsignar,
   expanded,
   onToggle,
 }: {
   sheet: SheetPreview;
   asignado: string | null;
+  choferesDisponibles: { id: string; label: string }[];
+  onAsignar: (choferId: string | null) => void;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const isAmbig = sheet.chofer.status === "ambiguo";
   const isMissing = sheet.chofer.status === "missing";
+  const candidatos = sheet.chofer.status === "ambiguo" ? sheet.chofer.candidatos : [];
   const resuelto = !!asignado;
   const importables = resuelto ? sheet.total - sheet.yaImportados : 0;
 
@@ -381,11 +398,38 @@ function SheetRow({
           {sheet.chofer.status === "ok" && (
             <div className="text-muted-foreground">→ {sheet.chofer.apellido}, {sheet.chofer.nombre}</div>
           )}
-          {sheet.chofer.status === "ambiguo" && (
-            <div className="text-[#92400E]">→ ambiguo · {sheet.chofer.candidatos.map((c) => c.label).join(" / ")}</div>
-          )}
-          {sheet.chofer.status === "missing" && (
-            <div className="text-red-600">→ no hay chofer con ese apellido en la DB</div>
+          {(isAmbig || isMissing) && (
+            <div className="mt-1 space-y-0.5" onClick={(e) => e.stopPropagation()}>
+              {isAmbig && (
+                <div className="text-[#92400E]">→ ambiguo · {candidatos.map((c) => c.label).join(" / ")}</div>
+              )}
+              {isMissing && (
+                <div className="text-red-600">→ no hay chofer con ese apellido — se creará automáticamente</div>
+              )}
+              <select
+                value={asignado ?? ""}
+                onChange={(e) => onAsignar(e.target.value === "" ? null : e.target.value)}
+                className="h-7 max-w-[260px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
+              >
+                <option value="">— Omitir este sheet —</option>
+                {isMissing && (
+                  <option value={CREAR_CHOFER}>
+                    ➕ Crear chofer «{sheet.sheetName.trim()}»
+                  </option>
+                )}
+                {candidatos.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+                <option value="" disabled>
+                  ——— Todos los choferes ———
+                </option>
+                {choferesDisponibles
+                  .filter((c) => !candidatos.some((k) => k.id === c.id))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+              </select>
+            </div>
           )}
           {sheet.patentes.length > 0 && (
             <div className="text-[10px] text-muted-foreground/70 mt-0.5">

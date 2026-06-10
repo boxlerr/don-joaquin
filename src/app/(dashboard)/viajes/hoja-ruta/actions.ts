@@ -15,6 +15,7 @@ export type HrChoferListItem = {
   id: string;
   apellido: string;
   nombre: string;
+  estado: string; // "activo" | "baja" — egresados con viajes en el mes también se listan
   viajes: number; // del mes seleccionado
   pendientesFacturar: number; // sin importe (esperando remito)
   totalImporte: number;
@@ -79,46 +80,94 @@ function extractMaterial(obs: string | null): string | null {
 
 // ---------------------------------------------------------------------------
 
-/** Lista todos los choferes activos con stats del mes para el sidebar. */
+/**
+ * Lista los choferes con stats del mes para el sidebar.
+ * Incluye: todos los choferes activos con rol "chofer" + cualquier chofer
+ * (incluso dado de baja o con otro rol) que tenga viajes en el período.
+ * Antes esto era un RPC (`resumen_choferes_mes`) que filtraba estado='activo',
+ * con lo cual los viajes de choferes egresados quedaban invisibles y el
+ * total del contador no cerraba contra la hoja de ruta del Excel.
+ */
 export async function listChoferesMesAction(
   mesISO: string,
 ): Promise<HrChoferListItem[]> {
   await requireArea("viajes", "read");
   const supabase = createAdminClient();
-  // mesISO === "total" → histórico completo (fechas null en la función).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  // mesISO === "total" → histórico completo.
   const { desde, hasta } = mesISO === "total"
-    ? { desde: null, hasta: null }
+    ? { desde: "1900-01-01", hasta: "2999-12-31" }
     : rangoMes(mesISO);
 
-  // Agregación en la base (sin tope de 1000 filas del API REST).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("resumen_choferes_mes", {
-    p_desde: desde,
-    p_hasta: hasta,
-  });
-  if (error || !data) return [];
-
-  return (data as {
-    chofer_id: string;
+  const { data: choferesRaw } = await sb
+    .from("choferes")
+    .select("id, apellido, nombre, estado, rol");
+  const choferes = (choferesRaw ?? []) as {
+    id: string;
     apellido: string;
     nombre: string;
-    viajes: number | string;
-    pendientes_facturar: number | string;
-    total_importe: number | string;
-    total_tn: number | string;
-    total_km: number | string;
-    total_km_vacios: number | string;
-  }[]).map((r) => ({
-    id: r.chofer_id,
-    apellido: r.apellido,
-    nombre: r.nombre,
-    viajes: Number(r.viajes),
-    pendientesFacturar: Number(r.pendientes_facturar),
-    totalImporte: Number(r.total_importe),
-    totalTn: Number(r.total_tn),
-    totalKm: Number(r.total_km),
-    totalKmVacios: Number(r.total_km_vacios),
-  }));
+    estado: string;
+    rol: string | null;
+  }[];
+
+  // Viajes del período, paginados (el API REST corta en 1000 filas por request).
+  type ViajeRow = {
+    chofer_id: string;
+    km_con_carga: number | null;
+    km_vacios: number | null;
+    tonelaje_real: number | null;
+    monto_flete: number | null;
+    nro_remito: string | null;
+  };
+  const viajes: ViajeRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await sb
+      .from("viajes")
+      .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, nro_remito")
+      .gte("fecha_viaje", desde)
+      .lte("fecha_viaje", hasta)
+      .not("chofer_id", "is", null)
+      .range(from, from + 999);
+    const rows = (data ?? []) as ViajeRow[];
+    viajes.push(...rows);
+    if (rows.length < 1000) break;
+  }
+
+  // Agregar por chofer (mismas reglas que el panel: vacío = sin remito o "VACIO").
+  type Stats = Omit<HrChoferListItem, "id" | "apellido" | "nombre" | "estado">;
+  const statsPorChofer = new Map<string, Stats>();
+  for (const v of viajes) {
+    const s = statsPorChofer.get(v.chofer_id) ?? {
+      viajes: 0, pendientesFacturar: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
+    };
+    s.viajes++;
+    s.totalKm += v.km_con_carga ?? 0;
+    s.totalKmVacios += v.km_vacios ?? 0;
+    s.totalTn += v.tonelaje_real ?? 0;
+    s.totalImporte += v.monto_flete ?? 0;
+    const vacio = !v.nro_remito || v.nro_remito.toUpperCase() === "VACIO";
+    if (!vacio && v.monto_flete == null) s.pendientesFacturar++;
+    statsPorChofer.set(v.chofer_id, s);
+  }
+
+  return choferes
+    .filter((c) => {
+      const tieneViajes = (statsPorChofer.get(c.id)?.viajes ?? 0) > 0;
+      return (c.rol === "chofer" && c.estado === "activo") || tieneViajes;
+    })
+    .map((c) => ({
+      id: c.id,
+      apellido: c.apellido,
+      nombre: c.nombre,
+      estado: c.estado,
+      ...(statsPorChofer.get(c.id) ?? {
+        viajes: 0, pendientesFacturar: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
+      }),
+    }))
+    .sort((a, b) =>
+      a.apellido.localeCompare(b.apellido, "es") || a.nombre.localeCompare(b.nombre, "es"),
+    );
 }
 
 /** Trae los viajes detallados del chofer en el mes, en formato Excel-like. */
