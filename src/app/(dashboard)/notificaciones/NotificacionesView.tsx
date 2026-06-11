@@ -109,9 +109,8 @@ export default function NotificacionesView({
   const [catFilter, setCatFilter] = useState<CatFilter>(initialCat);
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() => ({
-    critica: false,
-    advertencia: false,
-    // Si se entra linkeado a ?severidad=info, arrancar expandida esa sección.
+    critica: initialSev !== "critica",
+    advertencia: initialSev !== "advertencia",
     info: initialSev !== "info",
   }));
   const [pendingId, setPendingId] = useState<string | null>(null);
