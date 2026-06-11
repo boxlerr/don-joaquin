@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
+import { MapPin } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -9,17 +12,34 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { choferSlug } from "@/lib/chofer-slug";
 
-export type LocalidadData = { localidad: string; cantidad: number };
+export type ChoferLocalidad = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  estado: string;
+};
 
-interface Props {
-  data: LocalidadData[];
-}
+export type LocalidadData = {
+  localidad: string;
+  cantidad: number;
+  choferes: ChoferLocalidad[];
+};
 
 const COLOR_PRINCIPAL = "#0088D1";
 const COLOR_RESTO = "#93C5FD";
 
-export default function ChoferesLocalidadChart({ data }: Props) {
+export default function ChoferesLocalidadChart({ data }: { data: LocalidadData[] }) {
+  const [selected, setSelected] = useState<LocalidadData | null>(null);
+
   if (data.length === 0) return null;
 
   const top = data[0];
@@ -29,11 +49,19 @@ export default function ChoferesLocalidadChart({ data }: Props) {
       <div className="mb-4">
         <h3 className="text-sm font-bold text-foreground">Distribución por localidad</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Choferes activos e inactivos agrupados por localidad de residencia
+          Choferes activos e inactivos agrupados por localidad de residencia — hacé click en una
+          barra para ver quiénes son
         </p>
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
+        <BarChart
+          data={data}
+          margin={{ top: 4, right: 8, bottom: 4, left: -16 }}
+          onClick={(state) => {
+            const entry = data.find((d) => d.localidad === state?.activeLabel);
+            if (entry) setSelected(entry);
+          }}
+        >
           <XAxis
             dataKey="localidad"
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -57,6 +85,7 @@ export default function ChoferesLocalidadChart({ data }: Props) {
                   <p className="text-muted-foreground mt-0.5">
                     {d.cantidad} {d.cantidad === 1 ? "chofer" : "choferes"}
                   </p>
+                  <p className="text-primary mt-1">Click para ver quiénes son</p>
                 </div>
               );
             }}
@@ -65,12 +94,47 @@ export default function ChoferesLocalidadChart({ data }: Props) {
             {data.map((entry) => (
               <Cell
                 key={entry.localidad}
+                cursor="pointer"
                 fill={entry.localidad === top.localidad ? COLOR_PRINCIPAL : COLOR_RESTO}
               />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-border">
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <MapPin size={15} className="text-primary shrink-0" />
+              {selected?.localidad}
+              <span className="text-xs font-normal text-muted-foreground">
+                {selected?.cantidad} {selected?.cantidad === 1 ? "chofer" : "choferes"}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto p-2">
+            {selected?.choferes.map((c) => (
+              <Link
+                key={c.id}
+                href={`/choferes/${choferSlug(c)}`}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors"
+              >
+                <div className="size-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
+                  {`${c.nombre[0] ?? ""}${c.apellido[0] ?? ""}`.toUpperCase()}
+                </div>
+                <span className="flex-1 text-sm font-medium text-foreground truncate">
+                  {c.apellido}, {c.nombre}
+                </span>
+                <StatusBadge
+                  label={c.estado}
+                  tone={c.estado === "activo" ? "success" : "neutral"}
+                />
+              </Link>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

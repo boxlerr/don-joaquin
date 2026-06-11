@@ -106,6 +106,9 @@ export function Combobox({
       name={name}
       required={required}
       disabled={disabled}
+      // Sin buscador visible no debe filtrarse nunca: si no, la query interna
+      // (que Base UI llena con la selección) oculta el resto de las opciones.
+      filter={showSearch ? undefined : null}
       {...(controlled
         ? { value: selectedItem }
         : defaultItem !== undefined

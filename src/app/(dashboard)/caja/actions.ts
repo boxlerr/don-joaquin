@@ -39,6 +39,89 @@ export type CajaMovimientoRow = {
   usuario: string | null;
 };
 
+export type CajaResumen = {
+  ingresos: number;
+  egresos: number;
+  movimientos: number;
+  saldoTotal: number;
+};
+
+export async function getCajaResumenAction(params: {
+  desde?: string;
+  hasta?: string;
+}): Promise<CajaResumen | { error: string }> {
+  await requireArea("caja", "read");
+  const supabase = createAdminClient();
+
+  let rangoQuery = supabase.from("caja_movimientos").select("tipo, monto");
+  if (params.desde) rangoQuery = rangoQuery.gte("fecha", params.desde);
+  if (params.hasta) rangoQuery = rangoQuery.lte("fecha", params.hasta);
+
+  const [{ data: rango, error: rangoError }, { data: todos, error: todosError }] =
+    await Promise.all([rangoQuery, supabase.from("caja_movimientos").select("tipo, monto")]);
+
+  if (rangoError || todosError) {
+    console.error("Error al obtener resumen de caja:", rangoError ?? todosError);
+    return { error: "No se pudo cargar el resumen de caja." };
+  }
+
+  let ingresos = 0;
+  let egresos = 0;
+  for (const m of rango ?? []) {
+    if (m.tipo === "ingreso") ingresos += Number(m.monto || 0);
+    else egresos += Number(m.monto || 0);
+  }
+  const saldoTotal = (todos ?? []).reduce(
+    (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
+    0,
+  );
+
+  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal };
+}
+
+export type ViajeCobroOption = {
+  id: string;
+  codigo: string;
+  fecha: string;
+  cliente: string | null;
+  cliente_id: string | null;
+  monto_flete: number;
+  facturado: boolean;
+};
+
+export async function getViajesParaCobroAction(): Promise<
+  ViajeCobroOption[] | { error: string }
+> {
+  await requireArea("caja", "read");
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("viajes")
+    .select("id, codigo, fecha_viaje, monto_flete, facturado, cliente_id, clientes(razon_social)")
+    .not("monto_flete", "is", null)
+    .eq("es_vacio", false)
+    .order("fecha_viaje", { ascending: false })
+    .limit(300);
+
+  if (error) {
+    console.error("Error al obtener viajes para cobro:", error);
+    return { error: "No se pudieron cargar los viajes." };
+  }
+
+  return (data ?? []).map((v) => {
+    const cliente = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+    return {
+      id: v.id,
+      codigo: v.codigo,
+      fecha: v.fecha_viaje,
+      cliente: cliente?.razon_social ?? null,
+      cliente_id: v.cliente_id,
+      monto_flete: Number(v.monto_flete),
+      facturado: v.facturado,
+    };
+  });
+}
+
 export type GetCajaMovimientosParams = {
   desde?: string;
   hasta?: string;
@@ -187,6 +270,8 @@ export async function addIngresoAction(data: {
   medio: "efectivo" | "transferencia" | "cheque" | "otro";
   categoria: "cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro";
   fecha: string;
+  viaje_id?: string | null;
+  cliente_id?: string | null;
 }) {
 
   const user = await requireArea("caja", "write");
@@ -199,6 +284,8 @@ export async function addIngresoAction(data: {
     medio: data.medio,
     categoria: data.categoria,
     fecha: data.fecha,
+    viaje_id: data.viaje_id ?? null,
+    cliente_id: data.cliente_id ?? null,
     moneda: "ARS",
     created_by: user.id,
   };

@@ -83,14 +83,24 @@ export default async function ChoferesPage({
   const totalPersonalActivo = personal.length;
 
   // Distribución por localidad (excluye baja, agrupa y ordena desc)
-  const localidadMap = new Map<string, number>();
+  const localidadMap = new Map<string, LocalidadData["choferes"]>();
   for (const c of choferes ?? []) {
     if (c.estado === "baja") continue;
     const loc = c.localidad?.trim() || "Sin datos";
-    localidadMap.set(loc, (localidadMap.get(loc) ?? 0) + 1);
+    const lista = localidadMap.get(loc) ?? [];
+    lista.push({ id: c.id, nombre: c.nombre, apellido: c.apellido, estado: c.estado });
+    localidadMap.set(loc, lista);
   }
   const localidadData: LocalidadData[] = Array.from(localidadMap.entries())
-    .map(([localidad, cantidad]) => ({ localidad, cantidad }))
+    .map(([localidad, choferesLoc]) => ({
+      localidad,
+      cantidad: choferesLoc.length,
+      choferes: choferesLoc.sort((a, b) =>
+        `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`, "es", {
+          sensitivity: "base",
+        }),
+      ),
+    }))
     .sort((a, b) => b.cantidad - a.cantidad)
     .slice(0, 12);
 

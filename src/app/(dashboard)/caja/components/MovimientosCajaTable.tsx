@@ -72,9 +72,13 @@ function formatFecha(iso: string): string {
 
 interface Props {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
+  /** Rango de fechas controlado por el dashboard (selector de mes). */
+  desde: string;
+  hasta: string;
+  onRangeChange: (desde: string, hasta: string) => void;
 }
 
-export default function MovimientosCajaTable({ tiposGasto }: Props) {
+export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRangeChange }: Props) {
   const [rows, setRows] = useState<CajaMovimientoRow[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -82,8 +86,6 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
   // tipoFiltro almacena un valor con prefijo: "cat:<categoria>" o "tg:<tipo_gasto_id>"
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [search, setSearch] = useState("");
@@ -161,8 +163,7 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
   const hayFiltros = !!desde || !!hasta || !!tipoFiltro || !!search;
 
   const limpiarFiltros = () => {
-    setDesde("");
-    setHasta("");
+    onRangeChange("", "");
     setTipoFiltro("");
     setSearch("");
   };
@@ -178,14 +179,14 @@ export default function MovimientosCajaTable({ tiposGasto }: Props) {
           <Input
             type="date"
             value={desde}
-            onChange={(e) => setDesde(e.target.value)}
+            onChange={(e) => onRangeChange(e.target.value, hasta)}
             className="text-sm w-auto"
             aria-label="Fecha desde"
           />
           <Input
             type="date"
             value={hasta}
-            onChange={(e) => setHasta(e.target.value)}
+            onChange={(e) => onRangeChange(desde, e.target.value)}
             className="text-sm w-auto"
             aria-label="Fecha hasta"
           />
