@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
 
 // Hitos de antigüedad (en años) para los que se emite una alerta de aniversario.
 // Los hitos más "rutinarios" (1/2/3/4) se omiten a propósito para no sobrecargar alertas.
@@ -606,6 +607,14 @@ export async function generarAlertas() {
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);
+  }
+
+  // Envío inmediato de críticas por email. Encapsulado: un fallo de correo
+  // (SMTP caído, etc.) nunca debe romper la generación de alertas.
+  try {
+    await procesarNotificacionesCriticas();
+  } catch (e) {
+    console.error("[alertas] notificación de críticas falló:", e);
   }
 
   return nuevasAlertas.length;
