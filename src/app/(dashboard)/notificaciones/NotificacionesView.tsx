@@ -15,9 +15,11 @@ import {
   ShieldAlert,
   CheckCircle2,
   CalendarClock,
+  History,
+  Trash2,
 } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { marcarAlertaVista } from "./actions";
+import { marcarAlertaVista, borrarAlerta, borrarTodasLeidas } from "./actions";
 import {
   type AlertaCategoria,
   type AlertaItem,
@@ -82,8 +84,10 @@ type CatFilter = AlertaCategoria | "todas";
 
 export default function NotificacionesView({
   alertas: initialAlertas,
+  leidas,
 }: {
   alertas: AlertaItem[];
+  leidas: AlertaItem[];
 }) {
   const router = useRouter();
   // Permite que el dashboard linkee directo a una categoría: ?categoria=personal
@@ -104,19 +108,19 @@ export default function NotificacionesView({
   const [sevFilter, setSevFilter] = useState<SevFilter>(initialSev);
   const [catFilter, setCatFilter] = useState<CatFilter>(initialCat);
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>({
+  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() => ({
     critica: false,
     advertencia: false,
-    info: true,
-  });
+    // Si se entra linkeado a ?severidad=info, arrancar expandida esa sección.
+    info: initialSev !== "info",
+  }));
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  // Cuando se entra con ?severidad=X desde el dashboard, expandir y scrollear
-  // suavemente a esa sección para que quede centrada y visible al instante.
+  // Cuando se entra con ?severidad=X desde el dashboard, scrollear suavemente a
+  // esa sección para que quede visible al instante.
   useEffect(() => {
     if (initialSev === "todas") return;
-    setCollapsed((prev) => ({ ...prev, [initialSev]: false }));
     const id = `sev-${initialSev}`;
     // Doble RAF para esperar a que el render mostró la sección antes de scrollear.
     requestAnimationFrame(() => {
@@ -350,6 +354,105 @@ export default function NotificacionesView({
                 </div>
               );
             })}
+        </div>
+      )}
+
+      {/* Historial de notificaciones leídas (se guardan; el usuario las borra cuando quiere) */}
+      <HistorialLeidas leidas={leidas} />
+    </div>
+  );
+}
+
+function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
+  const router = useRouter();
+  const [removidos, setRemovidos] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState(false);
+  const [borrandoTodas, setBorrandoTodas] = useState(false);
+  const [, startTransition] = useTransition();
+
+  // Lista derivada de las props (sin efecto): el server es la fuente de verdad
+  // tras cada refresh; acá solo ocultamos al instante lo que se está borrando.
+  const items = borrandoTodas ? [] : leidas.filter((a) => !removidos.has(a.id));
+
+  if (items.length === 0) return null;
+
+  function handleBorrar(id: string) {
+    setRemovidos((prev) => new Set(prev).add(id));
+    startTransition(async () => {
+      await borrarAlerta(id);
+      router.refresh();
+    });
+  }
+
+  function handleBorrarTodas() {
+    setBorrandoTodas(true);
+    startTransition(async () => {
+      await borrarTodasLeidas();
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2.5 min-w-0"
+        >
+          {open ? (
+            <ChevronDown size={16} className="text-muted-foreground/70" />
+          ) : (
+            <ChevronRight size={16} className="text-muted-foreground/70" />
+          )}
+          <History size={15} className="text-muted-foreground/70" />
+          <span className="text-sm font-semibold text-foreground">Leídas</span>
+          <span className="text-xs font-bold text-muted-foreground/80">{items.length}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleBorrarTodas}
+          disabled={borrandoTodas}
+          className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-40"
+        >
+          <Trash2 size={13} />
+          Borrar leídas
+        </button>
+      </div>
+      {open && (
+        <div className="divide-y divide-[#F1F5F9] dark:divide-border">
+          {items.map((alerta) => {
+            const href = alertaHref(alerta);
+            return (
+              <div
+                key={alerta.id}
+                className="group flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+                    >
+                      {alerta.titulo}
+                      <ExternalLink size={11} className="opacity-40" />
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-medium text-muted-foreground">{alerta.titulo}</span>
+                  )}
+                  <p className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-1">{alerta.mensaje}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleBorrar(alerta.id)}
+                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground/70 border border-transparent hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-30"
+                  aria-label="Borrar notificación"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

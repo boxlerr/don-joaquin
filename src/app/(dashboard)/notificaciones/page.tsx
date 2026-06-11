@@ -17,6 +17,7 @@ export default async function NotificacionesPage() {
 
   const [
     { data: alertasRaw },
+    { data: leidasRaw },
     { data: tiposDoc },
     { data: camionDocs },
     { data: choferDocs },
@@ -27,6 +28,13 @@ export default async function NotificacionesPage() {
       .eq("estado", "pendiente")
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
+      .limit(200),
+    // Historial de leídas (se conservan al marcarlas; el usuario las borra cuando quiere).
+    supabase
+      .from("alertas")
+      .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
+      .eq("estado", "vista")
+      .order("vista_en", { ascending: false, nullsFirst: false })
       .limit(200),
     supabase
       .from("tipos_documento")
@@ -41,6 +49,12 @@ export default async function NotificacionesPage() {
   ]);
 
   const alertas = (alertasRaw ?? []) as AlertaItem[];
+
+  // Historial de leídas. Excluimos los docs (se calculan en vivo más abajo y se
+  // resuelven al renovar el documento, no se "leen").
+  const leidas = ((leidasRaw ?? []) as AlertaItem[]).filter(
+    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
+  );
 
   const tipos = (tiposDoc ?? []) as {
     id: string;
@@ -180,7 +194,7 @@ export default async function NotificacionesPage() {
         />
       </div>
 
-      <NotificacionesView alertas={alertasMerged} />
+      <NotificacionesView alertas={alertasMerged} leidas={leidas} />
 
       <div className="mt-6">
         <TiposMonitoreados tipos={tipos} conteos={conteos} />

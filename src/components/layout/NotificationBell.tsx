@@ -84,10 +84,16 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
         className="relative flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         aria-label="Notificaciones"
       >
-        <Bell size={18} />
+        <Bell size={18} className={count > 0 && !open ? "motion-safe:animate-[wiggle_1.5s_ease-in-out_infinite]" : undefined} />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-            {count > 9 ? "9+" : count}
+          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+            {/* Anillo que late para invitar a abrir cuando hay pendientes */}
+            {!open && (
+              <span className="absolute inline-flex w-4 h-4 rounded-full bg-red-400 opacity-75 motion-safe:animate-ping" />
+            )}
+            <span className="relative flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+              {count > 9 ? "9+" : count}
+            </span>
           </span>
         )}
       </button>

@@ -64,3 +64,32 @@ export async function actualizarAlertas() {
   revalidatePath("/notificaciones");
   revalidatePath("/");
 }
+
+// Borra (soft-delete → estado "descartada") una alerta ya leída. Se conserva
+// la fila para auditoría; deja de aparecer en el historial.
+export async function borrarAlerta(alertaId: string) {
+  await requireUser();
+  const supabase = createAdminClient();
+
+  await supabase
+    .from("alertas")
+    .update({ estado: "descartada" })
+    .eq("id", alertaId);
+
+  revalidatePath("/notificaciones");
+  revalidatePath("/");
+}
+
+// Borra de una todas las notificaciones leídas (estado "vista" → "descartada").
+export async function borrarTodasLeidas() {
+  await requireUser();
+  const supabase = createAdminClient();
+
+  await supabase
+    .from("alertas")
+    .update({ estado: "descartada" })
+    .eq("estado", "vista");
+
+  revalidatePath("/notificaciones");
+  revalidatePath("/");
+}
