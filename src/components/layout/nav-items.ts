@@ -76,6 +76,7 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: "Legajos", href: "/choferes" },
           { label: "Ranking", href: "/choferes/ranking" },
+          { label: "Rotación", href: "/choferes/rotacion" },
         ],
       },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },

@@ -268,6 +268,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   }
   if (camionActual?.id) camionIdsDelMes.add(camionActual.id);
   // Camiones manejados por asignación diaria (reemplazos puntuales) en el mes.
+  for (const a of (asignacionesDiariasMes ?? []) as { camion_id: string | null }[]) {
     if (a.camion_id) camionIdsDelMes.add(a.camion_id);
   }
 
