@@ -58,6 +58,7 @@ export async function computeRanking({
     { data: licencias },
     { data: camionActuales },
     { data: historial },
+    { data: asignacionDiaria },
   ] = await Promise.all([
     supabase
       .from("choferes")
@@ -101,6 +102,15 @@ export async function computeRanking({
     supabase
       .from("chofer_camion_historial")
       .select("chofer_id, camion_id, desde, hasta"),
+
+    // Asignación diaria (reemplazos puntuales chofer↔camión) dentro del período:
+    // un chofer que tomó otra unidad por un día también "manejó" ese camión.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("asignacion_diaria")
+      .select("chofer_id, camion_id")
+      .gte("fecha", desde)
+      .lte("fecha", hasta),
   ]);
 
   // Mapa chofer → camiones que manejó en el período (actual + historial que solapa).
@@ -114,6 +124,10 @@ export async function computeRanking({
   for (const h of historial ?? []) {
     const solapa = h.desde <= hasta && (!h.hasta || h.hasta >= desde);
     if (solapa) add(h.chofer_id, h.camion_id);
+  }
+  // La asignación diaria ya viene filtrada por fecha dentro del período.
+  for (const a of (asignacionDiaria ?? []) as { chofer_id: string; camion_id: string }[]) {
+    add(a.chofer_id, a.camion_id);
   }
 
   // Visitas al taller (reparación/avería + gomería) por camión en el período.

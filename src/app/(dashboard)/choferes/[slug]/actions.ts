@@ -209,12 +209,22 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .is("fecha_hasta", null),
   ]);
 
-  // Camión actualmente asignado al chofer (puede ser ninguno).
-  const { data: camionActual } = await supabase
-    .from("camiones")
-    .select("id, patente, marca, modelo, ano")
-    .eq("chofer_actual_id", chofer_id)
-    .maybeSingle();
+  // Camión actualmente asignado al chofer (puede ser ninguno) + asignaciones
+  // diarias del mes (reemplazos puntuales chofer↔camión por día).
+  const [{ data: camionActual }, { data: asignacionesDiariasMes }] = await Promise.all([
+    supabase
+      .from("camiones")
+      .select("id, patente, marca, modelo, ano")
+      .eq("chofer_actual_id", chofer_id)
+      .maybeSingle(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("asignacion_diaria")
+      .select("camion_id")
+      .eq("chofer_id", chofer_id)
+      .gte("fecha", primerDia)
+      .lte("fecha", ultimoDia),
+  ]);
 
   // Ausencias / permisos programados. Cast porque el select embebe `usuarios!autorizado_por`,
   // que el cliente tipado no infiere bien con el alias.
@@ -257,6 +267,9 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     if (solapa && h.camion_id) camionIdsDelMes.add(h.camion_id);
   }
   if (camionActual?.id) camionIdsDelMes.add(camionActual.id);
+  // Camiones manejados por asignación diaria (reemplazos puntuales) en el mes.
+    if (a.camion_id) camionIdsDelMes.add(a.camion_id);
+  }
 
   const viajeIdsDelMes = (viajesMes ?? []).map((v) => v.id).filter(Boolean) as string[];
 
