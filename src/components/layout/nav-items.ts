@@ -65,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Listado", href: "/viajes" },
           { label: "Hoja de ruta", href: "/viajes/hoja-ruta" },
           { label: "Carga rápida", href: "/viajes/carga-rapida" },
+          { label: "Planilla diaria", href: "/viajes/planilla-diaria" },
         ],
       },
       {

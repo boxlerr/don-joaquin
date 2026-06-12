@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Receipt, Zap } from "lucide-react";
+import { Receipt, Zap, ClipboardList } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import ViajesStatsPanel from "./components/ViajesStatsPanel";
@@ -98,6 +98,14 @@ export default async function ViajesPage({
                 <Button variant="outline" size="sm">
                   <Zap size={14} />
                   Carga rápida
+                </Button>
+              </Link>
+            )}
+            {canWrite && (
+              <Link href="/viajes/planilla-diaria">
+                <Button variant="outline" size="sm">
+                  <ClipboardList size={14} />
+                  Planilla diaria
                 </Button>
               </Link>
             )}

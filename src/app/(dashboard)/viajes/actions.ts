@@ -361,7 +361,9 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     tiposCargaList.push({ id: "otros", label: "Otros" });
   }
 
-  // Mapa chofer_id → camión asignado (para auto-completar en el form)
+  // Mapa chofer_id → camión asignado (para auto-completar en el form).
+  // Base: el camión "habitual" (chofer_actual_id). Luego, la planilla diaria de
+  // HOY tiene prioridad: un titular puede faltar y otro tomar su unidad por un día.
   const camionPorChofer = new Map<string, string>();
   for (const cam of camionesRes.data ?? []) {
     if ((cam as { chofer_actual_id?: string | null }).chofer_actual_id) {
@@ -370,6 +372,16 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         cam.id,
       );
     }
+  }
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: asignacionesHoy } = await (supabase as any)
+    .from("asignacion_diaria")
+    .select("chofer_id, camion_id")
+    .eq("fecha", hoy);
+  for (const a of (asignacionesHoy ?? []) as { chofer_id: string; camion_id: string }[]) {
+    camionPorChofer.set(a.chofer_id, a.camion_id);
   }
 
   return {

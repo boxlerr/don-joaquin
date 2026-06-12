@@ -186,6 +186,71 @@ export type Database = {
         }
         Relationships: []
       }
+      asignacion_diaria: {
+        Row: {
+          camion_id: string
+          chofer_id: string
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          observaciones: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          camion_id: string
+          chofer_id: string
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          observaciones?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          camion_id?: string
+          chofer_id?: string
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          observaciones?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asignacion_diaria_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "camiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignacion_diaria_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: false
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignacion_diaria_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asignacion_diaria_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           accion: Database["public"]["Enums"]["audit_accion"]
