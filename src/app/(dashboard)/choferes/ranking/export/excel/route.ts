@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
       "KM con carga": r.km_con_carga,
       "KM vacíos": r.km_vacios,
       "KM totales": r.km_total,
+      "Facturación (ARS)": Math.round(r.facturacion_total),
+      "$ / km": r.pesos_por_km != null ? Math.round(r.pesos_por_km) : "",
       "% Vacíos": Number(r.pct_vacios.toFixed(1)),
       Apercibimientos: r.apercibimientos_count,
       Roturas: r.roturas_count,
@@ -50,6 +52,8 @@ export async function GET(req: NextRequest) {
       "KM con carga": 0,
       "KM vacíos": 0,
       "KM totales": 0,
+      "Facturación (ARS)": 0,
+      "$ / km": "",
       "% Vacíos": 0,
       Apercibimientos: 0,
       Roturas: 0,
@@ -69,7 +73,7 @@ export async function GET(req: NextRequest) {
   XLSX.utils.sheet_add_json(ws, rows, { origin: "A5" });
 
   const widths = [
-    4, 18, 18, 16, 6, 8, 12, 12, 12, 9, 13, 18, 14, 14, 8, 16,
+    4, 18, 18, 16, 6, 8, 12, 12, 12, 16, 8, 9, 13, 10, 8, 14,
   ];
   ws["!cols"] = widths.map((wch) => ({ wch }));
 

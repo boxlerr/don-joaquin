@@ -19,6 +19,8 @@ export type RankingChofer = {
   roturas_count: number;
   taller_count: number;
   licencias_activas: number;
+  facturacion_total: number;
+  pesos_por_km: number | null;
   score: number | null;
 };
 
@@ -68,7 +70,7 @@ export async function computeRanking({
 
     supabase
       .from("viajes")
-      .select("chofer_id, km_con_carga, km_vacios")
+      .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio")
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
       .not("chofer_id", "is", null),
@@ -162,6 +164,16 @@ export async function computeRanking({
     const km_total = km_con_carga + km_vacios;
     const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
 
+    // Facturación del período, normalizada a ARS (convierte si la moneda no es ARS
+    // y hay tipo de cambio cargado). monto_flete puede venir nulo.
+    const facturacion_total = cv.reduce((s, v) => {
+      const m = v.monto_flete ?? 0;
+      if (!m) return s;
+      const enArs = v.moneda && v.moneda !== "ARS" && v.tipo_cambio ? m * v.tipo_cambio : m;
+      return s + enArs;
+    }, 0);
+    const pesos_por_km = km_total > 0 && facturacion_total > 0 ? facturacion_total / km_total : null;
+
     const apercibimientos_count = ca.length;
     const roturas_count = cr.length;
     const licencias_activas = cl.length;
@@ -200,6 +212,8 @@ export async function computeRanking({
       roturas_count,
       taller_count,
       licencias_activas,
+      facturacion_total,
+      pesos_por_km,
       score,
     };
   });

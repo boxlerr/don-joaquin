@@ -109,6 +109,16 @@ export default function ScoreInfoButton() {
                 prevalecen sobre los cálculos automáticos.
               </p>
             </div>
+
+            {/* Productividad */}
+            <div className="flex items-start gap-2 rounded-[8px] border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-3 text-[#065F46]">
+              <Info size={14} className="mt-0.5 shrink-0 text-[#059669]" />
+              <p className="text-xs leading-relaxed">
+                <b>Facturación</b> (suma de fletes del período, en ARS) y <b>$/km</b>{" "}
+                miden productividad y <b>no</b> afectan el score de conducta. Tocá el
+                encabezado de cualquier columna para ordenar el ranking por esa métrica.
+              </p>
+            </div>
           </div>
 
           {/* Footer */}

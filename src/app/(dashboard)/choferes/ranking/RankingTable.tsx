@@ -11,6 +11,9 @@ import {
   TrendingUp,
   Users,
   Award,
+  DollarSign,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { RankingChofer } from "./lib";
 import ScoreBadge from "./ScoreBadge";
@@ -22,8 +25,30 @@ interface Props {
   periodoQuery: string;
 }
 
+// Columnas por las que se puede ordenar la tabla.
+type SortKey =
+  | "score"
+  | "viajes_count"
+  | "km_total"
+  | "facturacion_total"
+  | "pesos_por_km"
+  | "pct_vacios"
+  | "apercibimientos_count"
+  | "roturas_count"
+  | "taller_count";
+
 function fmtNum(n: number) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+}
+
+// Monto compacto para celdas estrechas: $1,2M / $850k / $320.
+function fmtMoneda(n: number) {
+  if (n <= 0) return "—";
+  if (n >= 1_000_000)
+    return `$${(n / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })}M`;
+  if (n >= 1_000)
+    return `$${(n / 1_000).toLocaleString("es-AR", { maximumFractionDigits: 0 })}k`;
+  return `$${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
 function initials(nombre: string, apellido: string) {
@@ -125,11 +150,50 @@ function StatCard({
   );
 }
 
+function SortableTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+  align = "right",
+  className = "",
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right" | "center";
+  className?: string;
+}) {
+  const active = sortKey === col;
+  const alignTh =
+    align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
+  return (
+    <th className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider ${alignTh} ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        title="Ordenar por esta columna"
+        className={`inline-flex items-center gap-1 uppercase tracking-wider transition-colors ${
+          active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <span>{label}</span>
+        {active && (sortDir === "desc" ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}
+      </button>
+    </th>
+  );
+}
+
 export default function RankingTable({ ranking, periodoQuery }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [sinActividadOpen, setSinActividadOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const conActividad = useMemo(
     () => ranking.filter((r) => r.score !== null),
@@ -146,18 +210,46 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
     return Math.round(sum / conActividad.length);
   }, [conActividad]);
 
+  // topChofer = mejor score, independiente del orden visible elegido.
   const topChofer = conActividad[0] ?? null;
+
+  const facturacionTotal = useMemo(
+    () => conActividad.reduce((a, r) => a + r.facturacion_total, 0),
+    [conActividad]
+  );
+
+  const sortedActivos = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...conActividad].sort((a, b) => {
+      const va = a[sortKey] ?? 0;
+      const vb = b[sortKey] ?? 0;
+      if (va === vb) return (b.score ?? 0) - (a.score ?? 0); // desempate por score
+      return va < vb ? -dir : dir;
+    });
+  }, [conActividad, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc"); // primer click: mayor arriba
+    }
+  };
+
+  // Las medallas solo tienen sentido con el orden por score descendente.
+  const mostrarMedallas = sortKey === "score" && sortDir === "desc";
 
   const filteredActivos = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return conActividad;
-    return conActividad.filter(
+    if (!q) return sortedActivos;
+    return sortedActivos.filter(
       (r) =>
         r.nombre.toLowerCase().includes(q) ||
         r.apellido.toLowerCase().includes(q) ||
         (r.localidad ?? "").toLowerCase().includes(q)
     );
-  }, [conActividad, query]);
+  }, [sortedActivos, query]);
 
   const filteredSinActividad = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -195,13 +287,20 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
   return (
     <>
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={Users}
           label="Con actividad"
           value={String(conActividad.length)}
           sub={`de ${ranking.length} choferes en planilla`}
           color="bg-[#E1F5FE] text-primary"
+        />
+        <StatCard
+          icon={DollarSign}
+          label="Facturación período"
+          value={fmtMoneda(facturacionTotal)}
+          sub={facturacionTotal > 0 ? "Suma de fletes (ARS)" : "Sin fletes cargados"}
+          color="bg-[#ECFDF5] text-[#064E3B]"
         />
         <StatCard
           icon={TrendingUp}
@@ -241,7 +340,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground">
-                Score en base a km vacíos, apercibimientos, roturas y taller (criterios configurables) · Tildá 2 para comparar
+                Score por conducta (km vacíos, apercibimientos, roturas, taller). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
               </p>
               <ScoreInfoButton />
             </div>
@@ -303,32 +402,20 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                 <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Chofer
                 </th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider min-w-[160px]">
-                  Score
-                </th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Viajes
-                </th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  KM totales
-                </th>
-                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  % Vacíos
-                </th>
-                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Apercib.
-                </th>
-                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Roturas
-                </th>
-                <th className="px-4 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider pr-5">
-                  Taller
-                </th>
+                <SortableTh label="Score" col="score" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" className="min-w-[160px]" />
+                <SortableTh label="Viajes" col="viajes_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="KM totales" col="km_total" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Facturación" col="facturacion_total" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="$ / km" col="pesos_por_km" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="% Vacíos" col="pct_vacios" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Apercib." col="apercibimientos_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Roturas" col="roturas_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Taller" col="taller_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" className="pr-5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredActivos.map((r) => {
-                const pos = conActividad.indexOf(r) + 1;
+                const pos = sortedActivos.indexOf(r) + 1;
                 const isSelected = selected.includes(r.id);
                 const av = avatarColors(r.score);
                 const borderColor = rowBorderColor(r.score);
@@ -358,7 +445,13 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                     </td>
                     {/* Posición */}
                     <td className="px-2 py-3.5 text-center">
-                      <Medalla pos={pos} />
+                      {mostrarMedallas ? (
+                        <Medalla pos={pos} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground tabular-nums font-medium w-5 text-center inline-block">
+                          {pos}
+                        </span>
+                      )}
                     </td>
                     {/* Nombre + avatar */}
                     <td className="px-4 py-3.5">
@@ -395,6 +488,22 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                     {/* KM */}
                     <td className="px-4 py-3.5 text-right tabular-nums text-muted-foreground">
                       {r.km_total > 0 ? fmtNum(r.km_total) : <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                    {/* Facturación */}
+                    <td className="px-4 py-3.5 text-right tabular-nums">
+                      {r.facturacion_total > 0 ? (
+                        <span className="font-semibold text-foreground">{fmtMoneda(r.facturacion_total)}</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* $/km */}
+                    <td className="px-4 py-3.5 text-right tabular-nums text-muted-foreground">
+                      {r.pesos_por_km != null ? (
+                        `$${fmtNum(r.pesos_por_km)}`
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
                     </td>
                     {/* % Vacíos */}
                     <td className="px-4 py-3.5 text-center">
@@ -437,7 +546,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
               {/* Sin resultados de búsqueda */}
               {filteredActivos.length === 0 && filteredSinActividad.length === 0 && query && (
                 <tr>
-                  <td colSpan={10} className="px-6 py-10 text-center">
+                  <td colSpan={12} className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">
                       Sin coincidencias para &ldquo;{query}&rdquo;
                     </p>
