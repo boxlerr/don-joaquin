@@ -7,6 +7,7 @@ import {
   getRoturasAction,
   getRoturasPorChoferAction,
   getAlertasProximosServicesAction,
+  getReporteMantenimientoPorUnidadAction,
   getTiposServicioAction,
 } from "./actions";
 
@@ -22,6 +23,7 @@ export default async function MantenimientoPage() {
     roturas,
     roturasPorChofer,
     alertas,
+    reportePorUnidad,
     tiposServicio,
     camionesResult,
     acopladosResult,
@@ -31,6 +33,7 @@ export default async function MantenimientoPage() {
     getRoturasAction(),
     getRoturasPorChoferAction(),
     getAlertasProximosServicesAction(),
+    getReporteMantenimientoPorUnidadAction(),
     getTiposServicioAction(),
     supabase
       .from("camiones")
@@ -66,6 +69,7 @@ export default async function MantenimientoPage() {
       roturas={roturas}
       roturasPorChofer={roturasPorChofer}
       alertas={alertas}
+      reportePorUnidad={reportePorUnidad}
       tiposServicio={tiposServicio}
       camiones={camionesResult.data ?? []}
       acoplados={acopladosResult.data ?? []}

@@ -510,6 +510,69 @@ export async function deleteRoturaAction(id: string) {
   return { success: true };
 }
 
+export type ReporteUnidadMant = {
+  unidad_patente: string;
+  unidad_marca_modelo: string;
+  unidad_tipo: "camion" | "acoplado";
+  visitas_taller: number;
+  servicios_total: number;
+  costo_total: number;
+};
+
+// Reporte por unidad de los últimos 6 meses: visitas a taller (reparación +
+// gomería, misma definición que usa el ranking de choferes), total de servicios
+// y costo acumulado. Expone como reporte lo que hoy solo alimentaba el ranking.
+export async function getReporteMantenimientoPorUnidadAction(): Promise<ReporteUnidadMant[]> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - 6);
+
+  const { data } = await supabase
+    .from("mantenimientos")
+    .select(
+      "costo, tipo, camion_id, acoplado_id, tipo_servicio:tipos_servicio(codigo), camion:camiones(patente, marca, modelo), acoplado:acoplados(patente, marca, modelo)"
+    )
+    .gte("fecha", desde.toISOString().split("T")[0]);
+
+  const TALLER_CODIGOS = new Set(["reparacion", "gomeria"]);
+  const map = new Map<string, ReporteUnidadMant>();
+
+  for (const m of data ?? []) {
+    const camion = Array.isArray(m.camion) ? m.camion[0] : m.camion;
+    const acoplado = Array.isArray(m.acoplado) ? m.acoplado[0] : m.acoplado;
+    const unidad = camion ?? acoplado ?? null;
+    if (!unidad) continue;
+    const unidad_tipo: ReporteUnidadMant["unidad_tipo"] = camion ? "camion" : "acoplado";
+    const key = `${unidad_tipo}:${unidad.patente}`;
+
+    const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+    const codigo = (ts as { codigo?: string } | null)?.codigo;
+    const esTaller = codigo ? TALLER_CODIGOS.has(codigo) : m.tipo === "reparacion";
+
+    const prev =
+      map.get(key) ??
+      {
+        unidad_patente: unidad.patente,
+        unidad_marca_modelo: [unidad.marca, unidad.modelo].filter(Boolean).join(" ").trim(),
+        unidad_tipo,
+        visitas_taller: 0,
+        servicios_total: 0,
+        costo_total: 0,
+      };
+    prev.servicios_total += 1;
+    if (esTaller) prev.visitas_taller += 1;
+    prev.costo_total += m.costo ?? 0;
+    map.set(key, prev);
+  }
+
+  // Más visitas a taller primero; desempate por costo.
+  return [...map.values()].sort(
+    (a, b) => b.visitas_taller - a.visitas_taller || b.costo_total - a.costo_total,
+  );
+}
+
 export type AlertaServicio = {
   unidad_id: string;
   unidad_patente: string;

@@ -17,12 +17,12 @@ import { getGastoFormData } from "../gastos/actions";
 export default async function ViajesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ choferId?: string }>;
+  searchParams: Promise<{ choferId?: string; filtro?: string }>;
 }) {
   const user = await requireArea("viajes", "read");
   const canWrite = hasArea(user, "viajes", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
-  const { choferId } = await searchParams;
+  const { choferId, filtro } = await searchParams;
   const supabase = createAdminClient();
 
   const statsQuery = [
@@ -127,6 +127,7 @@ export default async function ViajesPage({
         }}
         choferId={choferId}
         choferNombre={choferNombre}
+        filtroInicial={filtro}
       >
         <DisponibilidadChoferes ausencias={ausenciasProximas} dias={DIAS_DISPONIBILIDAD} />
       </ViajesStatsPanel>

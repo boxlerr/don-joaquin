@@ -47,10 +47,14 @@ export default async function DashboardPage() {
       .from("viajes")
       .select("*", { count: "exact", head: true })
       .in("estado", ["pendiente", "en_curso"]),
+    // Misma definición que el filtro "Sin facturar" del panel de /viajes
+    // (excluye vacíos y cancelados) para que el contador coincida con esa vista.
     supabase
       .from("viajes")
       .select("*", { count: "exact", head: true })
-      .eq("facturado", false),
+      .eq("facturado", false)
+      .eq("es_vacio", false)
+      .neq("estado", "cancelado"),
     supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
     supabase.from("viaticos").select("*", { count: "exact", head: true }),
     supabase.from("cheques").select("*", { count: "exact", head: true }),
@@ -196,6 +200,7 @@ export default async function DashboardPage() {
           color="brand"
           icon={Briefcase}
           variant="dashboard"
+          href="/viajes"
         />
         <StatCard
           label="Movimientos de caja"
@@ -204,6 +209,7 @@ export default async function DashboardPage() {
           color="success"
           icon={Receipt}
           variant="dashboard"
+          href="/caja"
         />
         <StatCard
           label="Viáticos"
@@ -212,6 +218,7 @@ export default async function DashboardPage() {
           color="warning"
           icon={Route}
           variant="dashboard"
+          href="/caja"
         />
         <StatCard
           label="Cheques en cartera"
@@ -220,6 +227,7 @@ export default async function DashboardPage() {
           color="error"
           icon={FileText}
           variant="dashboard"
+          href="/cheques"
         />
       </div>
 
@@ -441,7 +449,7 @@ export default async function DashboardPage() {
           description="Viajes finalizados pendientes de carga de factura"
           metric={String(viajesSinFacturar.count ?? 0)}
           metricLabel="pendiente"
-          href="/viajes"
+          href="/viajes?filtro=sin_facturar"
           iconColor="text-[#D97706] dark:text-amber-300"
           iconBg="bg-[#FEF3C7] dark:bg-amber-500/15"
           type="invoice"

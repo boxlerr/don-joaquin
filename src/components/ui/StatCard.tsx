@@ -9,6 +9,8 @@ interface StatCardProps {
   icon?: LucideIcon;
   variant?: "default" | "dashboard";
   onClick?: () => void;
+  /** Si se pasa, la tarjeta navega a esta ruta (se renderiza como enlace). */
+  href?: string;
   active?: boolean;
 }
 
@@ -58,6 +60,7 @@ export default function StatCard({
   icon: Icon,
   variant = "default",
   onClick,
+  href,
   active = false,
 }: StatCardProps) {
   const styles = colorMap[color];
@@ -66,13 +69,19 @@ export default function StatCard({
   const valueSizeClass =
     len <= 8 ? "text-3xl" : len <= 11 ? "text-2xl" : len <= 14 ? "text-xl" : "text-lg";
 
+  // La tarjeta es interactiva si navega (href) o tiene handler (onClick).
+  const interactive = Boolean(href) || Boolean(onClick);
+
   if (variant === "dashboard") {
+    const dashboardClass = `relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
+      interactive ? "cursor-pointer hover:border-primary/50" : ""
+    }`;
+    const Wrapper = href ? "a" : "div";
     return (
-      <div
+      <Wrapper
+        {...(href ? { href } : {})}
         onClick={onClick}
-        className={`relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
-          onClick ? "cursor-pointer hover:border-primary/50" : ""
-        }`}
+        className={dashboardClass}
       >
         {Icon && (
           <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${
@@ -143,17 +152,19 @@ export default function StatCard({
             <path d="M0 20 C 25 40, 50 15, 75 30 C 85 20, 95 10, 100 5" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
-      </div>
+      </Wrapper>
     );
   }
 
+  const Wrapper = href ? "a" : "div";
   return (
-    <div
+    <Wrapper
+      {...(href ? { href } : {})}
       onClick={onClick}
-      role={onClick ? "button" : undefined}
-      aria-pressed={onClick ? active : undefined}
+      role={onClick && !href ? "button" : undefined}
+      aria-pressed={onClick && !href ? active : undefined}
       className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${
-        onClick ? "cursor-pointer hover:border-primary/50" : ""
+        interactive ? "cursor-pointer hover:border-primary/50" : ""
       } ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary/60" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -172,6 +183,6 @@ export default function StatCard({
       </div>
       {/* Decorative background element */}
       <div className={`absolute -right-4 -bottom-4 size-24 rounded-full opacity-[0.03] dark:opacity-[0.08] group-hover:opacity-[0.05] dark:group-hover:opacity-[0.12] transition-opacity ${styles.bg}`} />
-    </div>
+    </Wrapper>
   );
 }

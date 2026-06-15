@@ -18,6 +18,8 @@ interface Props {
   stats: Stats;
   choferId?: string;
   choferNombre?: string | null;
+  /** Filtro preseleccionado desde la URL (key de tarjeta: en_curso, pendiente, sin_facturar, vacios). */
+  filtroInicial?: string;
   /** Contenido renderizado entre las tarjetas y el listado (ej. disponibilidad de choferes). */
   children?: ReactNode;
 }
@@ -35,7 +37,7 @@ interface CardDef {
   esVacio: boolean | null;
 }
 
-export default function ViajesStatsPanel({ stats, choferId, choferNombre, children }: Props) {
+export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtroInicial, children }: Props) {
   const cards: CardDef[] = [
     { key: "todos", label: "Total viajes", value: stats.total, color: "brand", estado: "", facturado: null, esVacio: null },
     { key: "en_curso", label: "En curso", value: stats.enCurso, color: "success", estado: "en_curso", facturado: null, esVacio: null },
@@ -45,13 +47,20 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, childr
     { key: "vacios", label: "Viajes vacíos", value: stats.vacios, color: "neutral", sub: "Sin carga", estado: "", facturado: null, esVacio: true },
   ];
 
+  // Si la URL trae un filtro (ej. desde el dashboard), lo aplicamos como estado inicial.
+  const cardInicial = cards.find((c) => c.key === filtroInicial && c.key !== "todos");
+
   // Filtro empujado a la tabla al hacer clic en una tarjeta.
-  const [filtroExterno, setFiltroExterno] = useState<FiltroExterno | undefined>(undefined);
+  const [filtroExterno, setFiltroExterno] = useState<FiltroExterno | undefined>(
+    cardInicial
+      ? { estado: cardInicial.estado, facturado: cardInicial.facturado, esVacio: cardInicial.esVacio, nonce: 1 }
+      : undefined,
+  );
   // Filtro actual reportado por la tabla (puede cambiar también desde sus filtros internos).
   const [current, setCurrent] = useState<{ estado: string; facturado: boolean | null; esVacio: boolean | null }>({
-    estado: "",
-    facturado: null,
-    esVacio: null,
+    estado: cardInicial?.estado ?? "",
+    facturado: cardInicial?.facturado ?? null,
+    esVacio: cardInicial?.esVacio ?? null,
   });
 
   const activeKey =

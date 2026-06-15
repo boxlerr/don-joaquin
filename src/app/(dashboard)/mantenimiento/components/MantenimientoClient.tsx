@@ -32,7 +32,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
-import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2, BarChart3 } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog from "./AddRoturaDialog";
 import HelpTutorialButton from "../help-tutorial-button";
@@ -44,9 +44,10 @@ import {
   type RoturaRow,
   type RoturaPorChofer,
   type AlertaServicio,
+  type ReporteUnidadMant,
 } from "../actions";
 
-type Tab = "servicios" | "roturas" | "alertas";
+type Tab = "servicios" | "roturas" | "alertas" | "reportes";
 
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -68,6 +69,7 @@ export default function MantenimientoClient({
   roturas,
   roturasPorChofer,
   alertas,
+  reportePorUnidad,
   camiones,
   acoplados,
   choferes,
@@ -78,6 +80,7 @@ export default function MantenimientoClient({
   roturas: RoturaRow[];
   roturasPorChofer: RoturaPorChofer[];
   alertas: AlertaServicio[];
+  reportePorUnidad: ReporteUnidadMant[];
   camiones: CamionOption[];
   acoplados: AcopladoOption[];
   choferes: ChoferOption[];
@@ -120,11 +123,16 @@ export default function MantenimientoClient({
   const alertasVencidas = alertas.filter((a) => a.estado === "vencido").length;
 
   const chartData = roturasPorChofer.slice(0, 10);
+  const tallerChartData = reportePorUnidad
+    .filter((u) => u.visitas_taller > 0)
+    .slice(0, 10)
+    .map((u) => ({ unidad: u.unidad_patente, visitas: u.visitas_taller }));
 
   const tabs: { key: Tab; label: string; icon: typeof Wrench }[] = [
     { key: "servicios", label: "Servicios", icon: Wrench },
     { key: "roturas", label: "Roturas de Gomas", icon: CircleDot },
     { key: "alertas", label: "Alertas Pendientes", icon: BellRing },
+    { key: "reportes", label: "Reportes", icon: BarChart3 },
   ];
 
   return (
@@ -390,6 +398,78 @@ export default function MantenimientoClient({
               )}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {tab === "reportes" && (
+        <div className="space-y-6">
+          <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
+            <h2 className="text-foreground text-sm font-semibold mb-1">Visitas a taller por unidad</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Reparaciones y gomería en los últimos 6 meses (top 10). Misma métrica que penaliza el ranking de choferes.
+            </p>
+            {tallerChartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Sin visitas a taller registradas en el período.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(160, tallerChartData.length * 34)}>
+                <BarChart data={tallerChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                  <YAxis type="category" dataKey="unidad" width={110} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                  <Tooltip
+                    cursor={{ fill: "var(--muted)", opacity: 0.3 }}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
+                    formatter={(v) => [`${v} visitas`, "Taller"] as [string, string]}
+                  />
+                  <Bar dataKey="visitas" radius={[0, 3, 3, 0]} barSize={20}>
+                    {tallerChartData.map((_, i) => (
+                      <Cell key={i} fill="#0088D1" />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="text-foreground text-sm font-semibold">Mantenimiento por unidad</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Acumulado de los últimos 6 meses.</p>
+            </div>
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Unidad</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Visitas a taller</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Servicios</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reportePorUnidad.length === 0 ? (
+                  <EmptyTableRow message="Sin mantenimientos en el período." />
+                ) : (
+                  reportePorUnidad.map((u) => (
+                    <TableRow key={`${u.unidad_tipo}-${u.unidad_patente}`}>
+                      <TableCell className="pl-6 font-medium">
+                        <span className="inline-flex items-baseline gap-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                            {u.unidad_tipo === "camion" ? "Cam" : "Acop"}
+                          </span>
+                          <span className="font-mono">{u.unidad_patente}</span>
+                        </span>
+                        {u.unidad_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{u.unidad_marca_modelo}</span>}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-[#0088D1]">{u.visitas_taller}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{u.servicios_total}</TableCell>
+                      <TableCell className="text-right pr-6 font-medium">{fmtMoneda(u.costo_total)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
