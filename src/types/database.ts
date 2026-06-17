@@ -4420,6 +4420,7 @@ export type Database = {
           moneda: string
           monto_flete: number | null
           nro_remito: string | null
+          nro_transporte: string | null
           nro_viaje_ypf: string | null
           observaciones: string | null
           origen_id: string | null
@@ -4454,6 +4455,7 @@ export type Database = {
           moneda?: string
           monto_flete?: number | null
           nro_remito?: string | null
+          nro_transporte?: string | null
           nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null
@@ -4488,6 +4490,7 @@ export type Database = {
           moneda?: string
           monto_flete?: number | null
           nro_remito?: string | null
+          nro_transporte?: string | null
           nro_viaje_ypf?: string | null
           observaciones?: string | null
           origen_id?: string | null

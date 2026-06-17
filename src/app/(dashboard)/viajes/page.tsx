@@ -8,6 +8,7 @@ import ViajesStatsPanel from "./components/ViajesStatsPanel";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportHojasRutaModal from "./components/ImportHojasRutaModal";
 import ImportHojaRutaModal from "./components/ImportHojaRutaModal";
+import ImportLomaModal from "./components/ImportLomaModal";
 import ImportYpfModal from "./components/ImportYpfModal";
 import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
 import { getViajeFormData, getAusenciasProximasAction } from "./actions";
@@ -111,6 +112,7 @@ export default async function ViajesPage({
             )}
             {canWrite && <ImportHojasRutaModal />}
             {canWrite && <ImportHojaRutaModal />}
+            {canWrite && <ImportLomaModal />}
             {canWrite && <ImportYpfModal />}
             {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
