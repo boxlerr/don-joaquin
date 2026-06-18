@@ -40,8 +40,23 @@ const money = (n: number | null | undefined) =>
 const num = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
 
-export default function ImportHojaRutaModal() {
-  const [open, setOpen] = useState(false);
+type ImportHojaRutaModalProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+};
+
+export default function ImportHojaRutaModal({
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: ImportHojaRutaModalProps = {}) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => {
+    if (openProp === undefined) setOpenInternal(v);
+    onOpenChange?.(v);
+  };
   const [step, setStep] = useState<Step>("select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,10 +151,12 @@ export default function ImportHojaRutaModal() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <FileSpreadsheet size={14} />
-        Importar HOJA DE RUTA
-      </Button>
+      {showTrigger && (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <FileSpreadsheet size={14} />
+          Importar HOJA DE RUTA
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(v) => {

@@ -6,10 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import ViajesStatsPanel from "./components/ViajesStatsPanel";
 import NewViajeSheet from "./components/new-viaje-sheet";
-import ImportHojasRutaModal from "./components/ImportHojasRutaModal";
-import ImportHojaRutaModal from "./components/ImportHojaRutaModal";
-import ImportLomaModal from "./components/ImportLomaModal";
-import ImportYpfModal from "./components/ImportYpfModal";
+import ImportsMenu from "./components/ImportsMenu";
 import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
 import { getViajeFormData, getAusenciasProximasAction } from "./actions";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
@@ -80,7 +77,7 @@ export default async function ViajesPage({
         title="Viajes"
         description="Núcleo operativo: registro, asociación y trazabilidad de viajes"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             {canRegistrarGasto && (
               <AddGastoDialog
                 tiposGasto={gastoFormData.tiposGasto}
@@ -110,10 +107,7 @@ export default async function ViajesPage({
                 </Button>
               </Link>
             )}
-            {canWrite && <ImportHojasRutaModal />}
-            {canWrite && <ImportHojaRutaModal />}
-            {canWrite && <ImportLomaModal />}
-            {canWrite && <ImportYpfModal />}
+            {canWrite && <ImportsMenu />}
             {canWrite && viajeFormData && <NewViajeSheet data={viajeFormData} />}
           </div>
         }

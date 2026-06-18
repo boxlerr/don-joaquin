@@ -38,8 +38,23 @@ const num = (n: number | null | undefined) =>
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
 
-export default function ImportLomaModal() {
-  const [open, setOpen] = useState(false);
+type ImportLomaModalProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+};
+
+export default function ImportLomaModal({
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: ImportLomaModalProps = {}) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => {
+    if (openProp === undefined) setOpenInternal(v);
+    onOpenChange?.(v);
+  };
   const [step, setStep] = useState<Step>("select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,10 +187,12 @@ export default function ImportLomaModal() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Truck size={14} />
-        Importar liquidación Loma
-      </Button>
+      {showTrigger && (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Truck size={14} />
+          Importar liquidación Loma
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(v) => {

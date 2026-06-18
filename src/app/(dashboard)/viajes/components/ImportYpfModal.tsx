@@ -24,8 +24,23 @@ type Step = "select" | "preview" | "done";
 const money = (n: number | null | undefined) =>
   n == null ? "—" : "$" + Math.round(n).toLocaleString("es-AR");
 
-export default function ImportYpfModal() {
-  const [open, setOpen] = useState(false);
+type ImportYpfModalProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+};
+
+export default function ImportYpfModal({
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: ImportYpfModalProps = {}) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => {
+    if (openProp === undefined) setOpenInternal(v);
+    onOpenChange?.(v);
+  };
   const [step, setStep] = useState<Step>("select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,10 +106,12 @@ export default function ImportYpfModal() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <FileText size={14} />
-        Importar PDF de YPF
-      </Button>
+      {showTrigger && (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <FileText size={14} />
+          Importar PDF de YPF
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(v) => {

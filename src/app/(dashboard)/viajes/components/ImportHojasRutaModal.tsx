@@ -35,8 +35,23 @@ type Step = "select" | "preview" | "done";
 
 type Asignacion = { chofer_id: string | null; camion_id: string | null };
 
-export default function ImportHojasRutaModal() {
-  const [open, setOpen] = useState(false);
+type ImportHojasRutaModalProps = {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+};
+
+export default function ImportHojasRutaModal({
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: ImportHojasRutaModalProps = {}) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => {
+    if (openProp === undefined) setOpenInternal(v);
+    onOpenChange?.(v);
+  };
   const [step, setStep] = useState<Step>("select");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,10 +154,12 @@ export default function ImportHojasRutaModal() {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Upload size={14} />
-        Importar hoja de ruta
-      </Button>
+      {showTrigger && (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Upload size={14} />
+          Importar hoja de ruta
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(v) => {
