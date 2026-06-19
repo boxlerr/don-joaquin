@@ -7,6 +7,9 @@ export type CamionOption = {
   modelo: string;
   tercerizacion_estado: Database["public"]["Enums"]["tercerizacion_estado"];
   km_actual: number | null;
+  // Chofer asignado actualmente al camión. Permite que el form de rotura
+  // autoseleccione la unidad cuando se elige el chofer.
+  chofer_actual_id?: string | null;
 };
 
 export type ChoferOption = {

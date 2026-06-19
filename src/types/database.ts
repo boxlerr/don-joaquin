@@ -229,6 +229,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "asignacion_diaria_camion_id_fkey"
+            columns: ["camion_id"]
+            isOneToOne: false
+            referencedRelation: "v_camion_km_actual"
+            referencedColumns: ["camion_id"]
+          },
+          {
             foreignKeyName: "asignacion_diaria_chofer_id_fkey"
             columns: ["chofer_id"]
             isOneToOne: false
@@ -1223,6 +1230,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           deleted_at: string | null
+          es_vacaciones: boolean
           estado: string
           fecha_fin: string
           fecha_inicio: string
@@ -1237,6 +1245,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          es_vacaciones?: boolean
           estado?: string
           fecha_fin: string
           fecha_inicio: string
@@ -1251,6 +1260,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
+          es_vacaciones?: boolean
           estado?: string
           fecha_fin?: string
           fecha_inicio?: string
@@ -1540,6 +1550,54 @@ export type Database = {
           {
             foreignKeyName: "chofer_prestamos_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chofer_vacaciones: {
+        Row: {
+          chofer_id: string
+          created_at: string
+          dias_adeudados: number
+          dias_correspondientes: number
+          id: string
+          observaciones: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          chofer_id: string
+          created_at?: string
+          dias_adeudados?: number
+          dias_correspondientes?: number
+          id?: string
+          observaciones?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chofer_id?: string
+          created_at?: string
+          dias_adeudados?: number
+          dias_correspondientes?: number
+          id?: string
+          observaciones?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chofer_vacaciones_chofer_id_fkey"
+            columns: ["chofer_id"]
+            isOneToOne: true
+            referencedRelation: "choferes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chofer_vacaciones_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "usuarios"
             referencedColumns: ["id"]
@@ -3460,6 +3518,55 @@ export type Database = {
         }
         Relationships: []
       }
+      rotura_archivos: {
+        Row: {
+          archivo_id: string
+          created_at: string
+          created_by: string | null
+          descripcion: string | null
+          id: string
+          rotura_id: string
+        }
+        Insert: {
+          archivo_id: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          id?: string
+          rotura_id: string
+        }
+        Update: {
+          archivo_id?: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          id?: string
+          rotura_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rotura_archivos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rotura_archivos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rotura_archivos_rotura_id_fkey"
+            columns: ["rotura_id"]
+            isOneToOne: false
+            referencedRelation: "roturas_gomas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roturas_gomas: {
         Row: {
           acoplado_id: string | null
@@ -4866,6 +4973,20 @@ export type Database = {
       current_user_role_code: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_authenticated_active: { Args: never; Returns: boolean }
+      resumen_choferes_mes: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          apellido: string
+          chofer_id: string
+          nombre: string
+          pendientes_facturar: number
+          total_importe: number
+          total_km: number
+          total_km_vacios: number
+          total_tn: number
+          viajes: number
+        }[]
+      }
     }
     Enums: {
       acoplado_estado: "activo" | "inactivo" | "baja" | "en_mantenimiento"
