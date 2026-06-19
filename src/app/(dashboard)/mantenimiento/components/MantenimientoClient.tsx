@@ -286,7 +286,7 @@ export default function MantenimientoClient({
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Detalle</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cantidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                  {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-20">Acciones</TableHead>}
+                  {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -294,7 +294,12 @@ export default function MantenimientoClient({
                   <EmptyTableRow message="Sin roturas registradas." />
                 ) : (
                   roturas.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow
+                      key={r.id}
+                      onClick={canWrite ? () => setEditRotura(r) : undefined}
+                      className={canWrite ? "cursor-pointer" : undefined}
+                      title={canWrite ? "Editar rotura" : undefined}
+                    >
                       <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
                       <TableCell>
@@ -321,11 +326,15 @@ export default function MantenimientoClient({
                       <TableCell className="text-right text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
                       {canWrite && (
                         <TableCell className="text-right pr-6">
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => setEditRotura(r)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar">
-                              <Pencil size={14} />
-                            </button>
-                            <button onClick={() => setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` })} className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]" title="Borrar">
+                          <div className="flex items-center justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` });
+                              }}
+                              className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
+                              title="Borrar"
+                            >
                               <Trash2 size={14} />
                             </button>
                           </div>
