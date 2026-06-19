@@ -20,11 +20,13 @@ import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 import TopBottomChoferes from "./components/TopBottomChoferes";
+import ResumenMes from "./components/ResumenMes";
 import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 
 export default async function DashboardPage() {
   const supabase = createAdminClient();
+  const rangoMes = resolverRango({});
 
   const [
     viajesActivos,
@@ -69,7 +71,7 @@ export default async function DashboardPage() {
     supabase.from("choferes").select("rol", { count: "exact" }),
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
-    computeRanking(resolverRango({})),
+    computeRanking(rangoMes),
     supabase
       .from("tipos_documento")
       .select("id, dias_alerta_vencimiento")
@@ -191,6 +193,8 @@ export default async function DashboardPage() {
         title="Dashboard"
         description="Resumen operativo y financiero del día"
       />
+
+      <ResumenMes ranking={ranking} periodoLabel={rangoMes.label} />
 
       <div className="grid grid-cols-4 gap-4">
         <StatCard

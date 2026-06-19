@@ -1028,6 +1028,112 @@ export async function cerrarViajeAction(
 }
 
 // ============================================================================
+// Facturación en bloque
+// ----------------------------------------------------------------------------
+// "Facturar" = factura emitida: carga remito + tonelaje real + monto y marca
+// el viaje como facturado. NO impacta caja (el cobro se registra aparte), para
+// no generar ingresos fantasma al facturar muchos viajes de una. Decisión de
+// negocio confirmada: facturar ≠ cobrar.
+// ============================================================================
+
+const facturarItemSchema = z.object({
+  id: z.string().min(1),
+  nro_remito: z.string().trim().max(60).optional().nullable(),
+  tonelaje_real: z.number().min(0).max(1000).optional().nullable(),
+  monto_flete: z.number().min(0).optional().nullable(),
+});
+
+export type FacturarBloqueItem = {
+  id: string;
+  nro_remito?: string | null;
+  tonelaje_real?: number | null;
+  monto_flete?: number | null;
+};
+
+export async function facturarViajesEnBloqueAction(
+  items: FacturarBloqueItem[],
+): Promise<{ ok: boolean; facturados?: number; omitidos?: number; error?: string }> {
+  const user = await requireArea("viajes", "write");
+
+  const parsed = z.array(facturarItemSchema).min(1).max(200).safeParse(items);
+  if (!parsed.success) return { ok: false, error: "Datos de facturación inválidos." };
+
+  const supabase = createAdminClient();
+  const ids = parsed.data.map((i) => i.id);
+
+  // Estado previo (para auditoría y para excluir vacíos/cancelados, que no se facturan).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: actuales, error: fetchErr } = await (supabase as any)
+    .from("viajes")
+    .select("id, facturado, es_vacio, estado, nro_remito, tonelaje_real, monto_flete")
+    .in("id", ids);
+
+  if (fetchErr) return { ok: false, error: "No se pudieron leer los viajes a facturar." };
+
+  type Prev = {
+    id: string;
+    facturado: boolean;
+    es_vacio: boolean;
+    estado: string;
+    nro_remito: string | null;
+    tonelaje_real: number | null;
+    monto_flete: number | null;
+  };
+  const byId = new Map<string, Prev>((actuales ?? []).map((v: Prev) => [v.id, v]));
+
+  let facturados = 0;
+  let omitidos = 0;
+
+  for (const item of parsed.data) {
+    const prev = byId.get(item.id);
+    if (!prev) {
+      omitidos++;
+      continue;
+    }
+    // No se facturan viajes vacíos ni cancelados.
+    if (prev.es_vacio || prev.estado === "cancelado") {
+      omitidos++;
+      continue;
+    }
+
+    const update: Record<string, unknown> = { facturado: true };
+    if (item.nro_remito !== undefined) update.nro_remito = item.nro_remito?.trim() || null;
+    if (item.tonelaje_real != null) update.tonelaje_real = item.tonelaje_real;
+    if (item.monto_flete != null) update.monto_flete = item.monto_flete;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (supabase as any)
+      .from("viajes")
+      .update(update)
+      .eq("id", item.id);
+
+    if (updErr) {
+      omitidos++;
+      continue;
+    }
+
+    await logViajeAudit(
+      supabase,
+      item.id,
+      "facturado",
+      {
+        facturado: prev.facturado,
+        nro_remito: prev.nro_remito,
+        tonelaje_real: prev.tonelaje_real,
+        monto_flete: prev.monto_flete,
+      },
+      update,
+      user.id,
+    );
+    facturados++;
+  }
+
+  revalidatePath("/viajes");
+  revalidatePath("/dashboard");
+  return { ok: true, facturados, omitidos };
+}
+
+// ============================================================================
 // Obtener viaje completo para editar
 // ============================================================================
 

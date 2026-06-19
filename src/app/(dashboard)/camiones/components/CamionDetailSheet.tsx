@@ -16,9 +16,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check, CircleDot, Users,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check, CircleDot, Users, Activity,
 } from "lucide-react";
 import CamionChoferesTab from "./CamionChoferesTab";
+import CamionMetricasTab from "./CamionMetricasTab";
 import type { Database } from "@/types/database";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import {
@@ -48,7 +49,7 @@ import CamionGastosTab from "./CamionGastosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-type TabId = "info" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs" | "choferes";
+type TabId = "info" | "metricas" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs" | "choferes";
 
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
 
@@ -473,6 +474,7 @@ export default function CamionDetailSheet({
         <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
+            { id: "metricas" as TabId, label: "Métricas", icon: Activity },
             { id: "choferes" as TabId, label: "Choferes", icon: Users },
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
             { id: "services" as TabId, label: "Services", icon: Wrench },
@@ -954,6 +956,8 @@ export default function CamionDetailSheet({
           )}
 
           {activeTab === "gastos" && <CamionGastosTab camionId={camion.id} />}
+
+          {activeTab === "metricas" && <CamionMetricasTab camionId={camion.id} />}
 
           {activeTab === "choferes" && (
             <CamionChoferesTab camionId={camion.id} />

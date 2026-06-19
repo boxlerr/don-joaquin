@@ -13,6 +13,13 @@ function fmtNum(n: number) {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 }
 
+/** Pesos compactos para la línea de detalle del chofer ($ 1,2 M / $ 350 k). */
+function fmtMoneyCompact(n: number) {
+  if (n >= 1_000_000) return `$ ${(n / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`;
+  if (n >= 1_000) return `$ ${(n / 1_000).toLocaleString("es-AR", { maximumFractionDigits: 0 })} k`;
+  return `$ ${fmtNum(n)}`;
+}
+
 export default function TopBottomChoferes({ top, bottom }: Props) {
   const sinDatos = top.length === 0 && bottom.length === 0;
 
@@ -113,6 +120,11 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: L
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {r.viajes_count} {r.viajes_count === 1 ? "viaje" : "viajes"} ·{" "}
                     {fmtNum(r.km_total)} km · {r.pct_vacios.toFixed(0)}% vacíos
+                    {r.facturacion_total > 0 && (
+                      <span className="text-[#10B981] dark:text-emerald-400 font-medium">
+                        {" "}· {fmtMoneyCompact(r.facturacion_total)}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <ScoreBadge score={r.score} size="sm" />

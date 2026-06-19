@@ -33,6 +33,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Receipt,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +55,12 @@ import ViajeGastosPanel from "./ViajeGastosPanel";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
+import FacturarBloqueDialog from "./FacturarBloqueDialog";
+
+/** Un viaje se puede facturar si no está facturado, no es vacío y no está cancelado. */
+function esFacturable(v: ViajeBasico): boolean {
+  return !v.facturado && !v.es_vacio && v.estado !== "cancelado";
+}
 
 /** Filtro empujado desde las tarjetas de estadísticas (clic). */
 export interface FiltroExterno {
@@ -85,6 +92,7 @@ type ColumnDef = {
 };
 
 const COLUMNS: ColumnDef[] = [
+  { label: "", cellClass: "w-10" },
   { label: "Fecha", sortKey: "fecha" },
   { label: "Cliente" },
   { label: "Chofer", cellClass: "hidden lg:table-cell" },
@@ -118,6 +126,10 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
   const [cerrandoViaje, setCerrandoViaje] = useState<ViajeBasico | null>(null);
   const [editingViaje, setEditingViaje] = useState<ViajeBasico | null>(null);
   const [confirmEditViaje, setConfirmEditViaje] = useState<ViajeBasico | null>(null);
+
+  // Selección múltiple para facturación en bloque.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [facturarOpen, setFacturarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
@@ -187,6 +199,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
         setHasMore(result.hasMore);
         setAllLoaded(false);
         setPage(0);
+        setSelectedIds(new Set());
       }
       setLoading(false);
     });
@@ -239,6 +252,35 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
       setOrderBy(key);
       setOrderDir(key === "fecha" ? "desc" : "asc");
     }
+  };
+
+  // --- Selección múltiple (facturación en bloque) -------------------------
+  const facturablesCargadas = rows.filter(esFacturable);
+  const selectedViajes = rows.filter((v) => selectedIds.has(v.id));
+  const allFacturablesSelected =
+    facturablesCargadas.length > 0 && facturablesCargadas.every((v) => selectedIds.has(v.id));
+
+  const toggleSeleccion = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSeleccionarTodos = () => {
+    setSelectedIds((prev) => {
+      if (facturablesCargadas.length > 0 && facturablesCargadas.every((v) => prev.has(v.id))) {
+        return new Set();
+      }
+      return new Set(facturablesCargadas.map((v) => v.id));
+    });
+  };
+
+  const onFacturadoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
+    setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
+    setSelectedIds(new Set());
   };
 
   // Totales sobre las filas ya cargadas (no sobre el total del filtro completo).
@@ -319,6 +361,32 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
         </div>
       </div>
 
+      {/* Barra de selección para facturar en bloque */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-[#10B981]/5">
+          <span className="text-sm font-semibold text-foreground">
+            {selectedIds.size} viaje{selectedIds.size !== 1 ? "s" : ""} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+          </span>
+          <Button
+            size="sm"
+            className="bg-[#10B981] hover:bg-[#059669] text-white gap-1.5"
+            onClick={() => setFacturarOpen(true)}
+          >
+            <Receipt size={14} />
+            Facturar en bloque
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X size={13} className="mr-1" />
+            Limpiar selección
+          </Button>
+        </div>
+      )}
+
       {/* Tabla */}
       <div className="overflow-x-auto">
       <Table>
@@ -331,7 +399,16 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
                   key={i}
                   className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${col.cellClass ?? ""}`}
                 >
-                  {col.sortKey ? (
+                  {i === 0 ? (
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos los viajes facturables"
+                      className="size-4 accent-[#0088D1] cursor-pointer align-middle disabled:cursor-not-allowed disabled:opacity-40"
+                      checked={allFacturablesSelected}
+                      disabled={facturablesCargadas.length === 0}
+                      onChange={toggleSeleccionarTodos}
+                    />
+                  ) : col.sortKey ? (
                     <button
                       type="button"
                       onClick={() => toggleOrden(col.sortKey!)}
@@ -390,6 +467,19 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
                     if (e.key === "Enter") setExpandedId(expandedId === v.id ? null : v.id);
                   }}
                 >
+                  <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                    {esFacturable(v) ? (
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar viaje ${v.codigo}`}
+                        className="size-4 accent-[#0088D1] cursor-pointer align-middle"
+                        checked={selectedIds.has(v.id)}
+                        onChange={() => toggleSeleccion(v.id)}
+                      />
+                    ) : v.facturado ? (
+                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Facturado" />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
                   </TableCell>
@@ -856,6 +946,16 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
           viajeId={auditTrailViajeId}
           open={auditTrailOpen}
           onOpenChange={setAuditTrailOpen}
+        />
+      )}
+
+      {/* Facturación en bloque */}
+      {facturarOpen && selectedViajes.length > 0 && (
+        <FacturarBloqueDialog
+          viajes={selectedViajes}
+          open={facturarOpen}
+          onOpenChange={setFacturarOpen}
+          onSuccess={onFacturadoEnBloque}
         />
       )}
     </div>

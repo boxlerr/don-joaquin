@@ -1463,3 +1463,144 @@ export async function getHistorialChoferesDeCamionAction(
     chofer: Array.isArray(row.chofer) ? row.chofer[0] ?? null : row.chofer,
   }));
 }
+
+// ============================================================================
+// Métricas operativas del camión (mes en curso + evolución 6 meses)
+// ----------------------------------------------------------------------------
+// 5 métricas clave por unidad, análogas al tab Productividad del chofer:
+// viajes, km (+ % vacíos), toneladas, facturación (+ $/km) y visitas a taller.
+// Más gasoil del mes. Se calcula desde viajes + mantenimientos + cargas, sin
+// endpoints externos. Los KM oficiales prevalecen (km_con_carga / km_vacios).
+// ============================================================================
+
+const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+export type CamionMetricasMes = {
+  mes: string; // "YYYY-MM"
+  label: string; // "jun"
+  viajes: number;
+  km: number;
+};
+
+export type CamionMetricas = {
+  periodo_label: string; // "junio de 2026"
+  mes_actual: string; // "YYYY-MM"
+  viajes_count: number;
+  km_total: number;
+  km_vacios: number;
+  pct_vacios: number;
+  toneladas: number;
+  facturacion_ars: number;
+  facturacion_por_km: number | null;
+  taller_visitas: number;
+  litros_mes: number;
+  cargas_combustible: number;
+  evolucion: CamionMetricasMes[];
+};
+
+export async function getCamionMetricasAction(camionId: string): Promise<CamionMetricas> {
+  await requireArea("flota", "read");
+  const supabase = createAdminClient();
+
+  const now = new Date();
+  const toISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
+  const finMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const inicio6 = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const desde = toISO(inicioMes);
+  const hasta = toISO(finMes);
+  const mesActual = desde.slice(0, 7);
+
+  const [{ data: viajes }, { data: mants }, { data: cargas }] = await Promise.all([
+    // Viajes de los últimos 6 meses (cubre mes actual + evolución).
+    supabase
+      .from("viajes")
+      .select("fecha_viaje, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio")
+      .eq("camion_id", camionId)
+      .gte("fecha_viaje", toISO(inicio6))
+      .lte("fecha_viaje", hasta),
+    // Mantenimientos del mes (visitas a taller = reparación / gomería).
+    supabase
+      .from("mantenimientos")
+      .select("tipo, fecha, tipo_servicio:tipos_servicio(codigo)")
+      .eq("camion_id", camionId)
+      .gte("fecha", desde)
+      .lte("fecha", hasta),
+    // Cargas de gasoil del mes.
+    supabase
+      .from("cargas_combustible")
+      .select("litros, fecha")
+      .eq("camion_id", camionId)
+      .gte("fecha", desde)
+      .lte("fecha", hasta),
+  ]);
+
+  // --- Evolución por mes (últimos 6) + agregados del mes actual --------------
+  const evolMap = new Map<string, CamionMetricasMes>();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    evolMap.set(key, { mes: key, label: MESES_CORTO[d.getMonth()], viajes: 0, km: 0 });
+  }
+
+  let viajes_count = 0;
+  let km_con_carga = 0;
+  let km_vacios = 0;
+  let toneladas = 0;
+  let facturacion_ars = 0;
+
+  for (const v of viajes ?? []) {
+    const mesV = (v.fecha_viaje as string).slice(0, 7);
+    const kmV = (v.km_con_carga ?? 0) + (v.km_vacios ?? 0);
+    const ev = evolMap.get(mesV);
+    if (ev) {
+      ev.viajes += 1;
+      ev.km += kmV;
+    }
+    if (mesV === mesActual) {
+      viajes_count += 1;
+      km_con_carga += v.km_con_carga ?? 0;
+      km_vacios += v.km_vacios ?? 0;
+      toneladas += v.tonelaje_real ?? 0;
+      const m = v.monto_flete ?? 0;
+      if (m) {
+        facturacion_ars += v.moneda && v.moneda !== "ARS" && v.tipo_cambio ? m * v.tipo_cambio : m;
+      }
+    }
+  }
+
+  const km_total = km_con_carga + km_vacios;
+  const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
+  const facturacion_por_km = km_con_carga > 0 && facturacion_ars > 0 ? facturacion_ars / km_con_carga : null;
+
+  // --- Visitas a taller del mes ---------------------------------------------
+  const TALLER_CODIGOS = new Set(["reparacion", "gomeria"]);
+  let taller_visitas = 0;
+  for (const m of mants ?? []) {
+    const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+    const codigo = (ts as { codigo?: string } | null)?.codigo;
+    const esTaller = codigo ? TALLER_CODIGOS.has(codigo) : m.tipo === "reparacion";
+    if (esTaller) taller_visitas++;
+  }
+
+  // --- Gasoil del mes --------------------------------------------------------
+  const litros_mes = (cargas ?? []).reduce((s, c) => s + (Number(c.litros) || 0), 0);
+  const cargas_combustible = (cargas ?? []).length;
+
+  return {
+    periodo_label: inicioMes.toLocaleDateString("es-AR", { month: "long", year: "numeric" }),
+    mes_actual: mesActual,
+    viajes_count,
+    km_total,
+    km_vacios,
+    pct_vacios,
+    toneladas,
+    facturacion_ars,
+    facturacion_por_km,
+    taller_visitas,
+    litros_mes,
+    cargas_combustible,
+    evolucion: [...evolMap.values()],
+  };
+}

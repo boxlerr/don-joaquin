@@ -20,6 +20,7 @@ import {
   Settings,
   Flame,
   UserSearch,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -51,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Notificaciones", href: "/notificaciones", icon: Bell },
+      { label: "Reportes", href: "/reportes", icon: BarChart3, area: "logistica" },
     ],
   },
   {
@@ -77,6 +79,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Legajos", href: "/choferes" },
           { label: "Ranking", href: "/choferes/ranking" },
           { label: "Rotación", href: "/choferes/rotacion" },
+          { label: "Vacaciones", href: "/choferes/vacaciones" },
         ],
       },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
