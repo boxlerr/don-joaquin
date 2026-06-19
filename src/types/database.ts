@@ -2911,6 +2911,55 @@ export type Database = {
         }
         Relationships: []
       }
+      mantenimiento_archivos: {
+        Row: {
+          archivo_id: string
+          created_at: string
+          created_by: string | null
+          descripcion: string | null
+          id: string
+          mantenimiento_id: string
+        }
+        Insert: {
+          archivo_id: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          id?: string
+          mantenimiento_id: string
+        }
+        Update: {
+          archivo_id?: string
+          created_at?: string
+          created_by?: string | null
+          descripcion?: string | null
+          id?: string
+          mantenimiento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mantenimiento_archivos_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mantenimiento_archivos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mantenimiento_archivos_mantenimiento_id_fkey"
+            columns: ["mantenimiento_id"]
+            isOneToOne: false
+            referencedRelation: "mantenimientos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mantenimientos: {
         Row: {
           acoplado_id: string | null

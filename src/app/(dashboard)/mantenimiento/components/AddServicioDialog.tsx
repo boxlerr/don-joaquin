@@ -17,7 +17,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import UnidadPicker, { type UnidadValue } from "./UnidadPicker";
-import { addServicioAction, updateServicioAction, type ServicioRow } from "../actions";
+import AdjuntosDocumentos, { useAdjuntos } from "./AdjuntosDocumentos";
+import {
+  addServicioAction,
+  updateServicioAction,
+  crearUrlSubidaServicioAction,
+  getArchivosServicioAction,
+  deleteArchivoServicioAction,
+  type ServicioRow,
+} from "../actions";
 import type { AcopladoOption, CamionOption, TipoServicioOption } from "../types";
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -64,6 +72,15 @@ export default function AddServicioDialog({
   const [observaciones, setObservaciones] = useState("");
   const [proxFecha, setProxFecha] = useState("");
   const [proxKm, setProxKm] = useState("");
+
+  const adj = useAdjuntos({
+    open,
+    entidadId: editing?.id ?? null,
+    crearUrlSubida: crearUrlSubidaServicioAction,
+    getArchivos: getArchivosServicioAction,
+    deleteArchivo: deleteArchivoServicioAction,
+    onError: setError,
+  });
 
   const camionSel = camiones.find((c) => c.id === camionId);
   const esTercerizado = camionSel?.tercerizacion_estado === "tercerizado";
@@ -147,6 +164,9 @@ export default function AddServicioDialog({
     setError(null);
     setSuccess(null);
     try {
+      // Subir primero los adjuntos nuevos (directo al Storage con URL firmada).
+      const archivos = await adj.subirPendientes();
+
       const payload = {
         tipo_servicio_id: tipoServicioId,
         fecha,
@@ -156,6 +176,7 @@ export default function AddServicioDialog({
         observaciones: observaciones || null,
         proximo_service_fecha: proxFecha || null,
         proximo_service_km: !esAcoplado && proxKm ? parseInt(proxKm) : null,
+        archivos,
       };
       const result = editing
         ? await updateServicioAction(editing.id, payload)
@@ -167,17 +188,18 @@ export default function AddServicioDialog({
         router.refresh();
         setTimeout(() => setOpen(false), 800);
       }
-    } catch {
-      setError("Ocurrió un error inesperado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Ocurrió un error inesperado.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (loading) return; setOpen(v); }}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground text-xl">{editing ? "Editar servicio" : "Cargar servicio"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -297,12 +319,20 @@ export default function AddServicioDialog({
             </div>
           </div>
 
+          <AdjuntosDocumentos ctrl={adj} disabled={loading} hint="factura, remito, foto, etc. — opcional" />
+
           <DialogFooter className="pt-4 sm:justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading} className="text-muted-foreground border-border hover:bg-muted/40">
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
-              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar servicio"}
+              {loading
+                ? adj.subiendo
+                  ? `Subiendo… ${adj.subiendo.pct}%`
+                  : "Guardando..."
+                : editing
+                ? "Guardar cambios"
+                : "Registrar servicio"}
             </Button>
           </DialogFooter>
         </form>

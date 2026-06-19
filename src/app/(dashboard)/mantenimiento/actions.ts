@@ -113,6 +113,7 @@ export async function addServicioAction(data: {
   observaciones?: string | null;
   proximo_service_fecha?: string | null;
   proximo_service_km?: number | null;
+  archivos?: AdjuntoArchivoMeta[];
 }) {
   await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
@@ -157,6 +158,14 @@ export async function addServicioAction(data: {
   if (error) {
     console.error("Error al insertar servicio:", error);
     return { error: "No se pudo guardar el servicio." };
+  }
+
+  // Vincular los comprobantes/fotos que ya se subieron al Storage.
+  if (inserted && data.archivos?.length) {
+    const mantId = inserted.id;
+    await vincularArchivos(supabase, data.archivos, user?.id ?? null, (archivoId) =>
+      supabase.from("mantenimiento_archivos").insert({ mantenimiento_id: mantId, archivo_id: archivoId, created_by: user?.id ?? null }),
+    );
   }
 
   // Resolver patente de la unidad (camión o acoplado) para la caja / concepto.
@@ -302,7 +311,7 @@ export async function addRoturaAction(data: {
   costo?: number | null;
   posicion?: string | null;
   observaciones?: string | null;
-  archivos?: RoturaArchivoMeta[];
+  archivos?: AdjuntoArchivoMeta[];
 }) {
   await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
@@ -339,7 +348,10 @@ export async function addRoturaAction(data: {
 
   // Vincular los comprobantes/fotos que ya se subieron al Storage.
   if (inserted && data.archivos?.length) {
-    await vincularArchivosRotura(supabase, inserted.id, data.archivos, user?.id ?? null);
+    const roturaId = inserted.id;
+    await vincularArchivos(supabase, data.archivos, user?.id ?? null, (archivoId) =>
+      supabase.from("rotura_archivos").insert({ rotura_id: roturaId, archivo_id: archivoId, created_by: user?.id ?? null }),
+    );
   }
 
   await supabase.from("audit_log").insert({
@@ -367,6 +379,7 @@ export async function updateServicioAction(
     observaciones?: string | null;
     proximo_service_fecha?: string | null;
     proximo_service_km?: number | null;
+    archivos?: AdjuntoArchivoMeta[];
   },
 ) {
   await requireArea("mantenimiento", "write");
@@ -402,6 +415,13 @@ export async function updateServicioAction(
     return { error: "No se pudo actualizar el servicio." };
   }
 
+  // Vincular comprobantes/fotos nuevos que se hayan subido al editar.
+  if (data.archivos?.length) {
+    await vincularArchivos(supabase, data.archivos, user?.id ?? null, (archivoId) =>
+      supabase.from("mantenimiento_archivos").insert({ mantenimiento_id: id, archivo_id: archivoId, created_by: user?.id ?? null }),
+    );
+  }
+
   await supabase.from("audit_log").insert({
     accion: "actualizar",
     entidad_tipo: "mantenimiento",
@@ -423,6 +443,17 @@ export async function deleteServicioAction(id: string) {
 
   // Borrar el egreso de caja asociado (si lo hay), para no dejar el gasto huérfano.
   await supabase.from("caja_movimientos").delete().eq("mantenimiento_id", id);
+
+  // Limpiar los adjuntos del Storage. El borrado en cascada elimina la fila
+  // puente, pero no el objeto físico ni el metadato en `documentos_archivos`.
+  const { data: adjuntos } = await supabase
+    .from("mantenimiento_archivos")
+    .select("archivo:documentos_archivos!archivo_id(id, bucket, path)")
+    .eq("mantenimiento_id", id);
+  for (const adj of adjuntos ?? []) {
+    const archivo = Array.isArray(adj.archivo) ? adj.archivo[0] : adj.archivo;
+    await eliminarArchivoFisico(supabase, archivo);
+  }
 
   const { error } = await supabase.from("mantenimientos").delete().eq("id", id);
   if (error) {
@@ -457,7 +488,7 @@ export async function updateRoturaAction(
     costo?: number | null;
     posicion?: string | null;
     observaciones?: string | null;
-    archivos?: RoturaArchivoMeta[];
+    archivos?: AdjuntoArchivoMeta[];
   },
 ) {
   await requireArea("mantenimiento", "write");
@@ -490,7 +521,9 @@ export async function updateRoturaAction(
 
   // Vincular comprobantes/fotos nuevos que se hayan subido al editar.
   if (data.archivos?.length) {
-    await vincularArchivosRotura(supabase, id, data.archivos, user?.id ?? null);
+    await vincularArchivos(supabase, data.archivos, user?.id ?? null, (archivoId) =>
+      supabase.from("rotura_archivos").insert({ rotura_id: id, archivo_id: archivoId, created_by: user?.id ?? null }),
+    );
   }
 
   await supabase.from("audit_log").insert({
@@ -546,16 +579,21 @@ export async function deleteRoturaAction(id: string) {
   return { success: true };
 }
 
-// ── Adjuntos de roturas (factura del taller, foto del daño, etc.) ─────────────
+// ── Adjuntos de mantenimiento (roturas y servicios) ──────────────────────────
 //
-// Mismo patrón que `siniestro_archivos`: el archivo se sube directo del
-// navegador al Storage con una URL firmada (sin pasar por el Server Action, que
-// en Vercel topea el body en ~4,5 MB) y después se registran solo los metadatos.
-// El bucket `documentos-roturas` permite hasta 100 MB, igual que el legajo.
+// Tanto las roturas como los servicios pueden adjuntar comprobantes (factura del
+// taller, remito, foto, etc.). Mismo patrón que `siniestro_archivos`: el archivo
+// se sube directo del navegador al Storage con una URL firmada (sin pasar por el
+// Server Action, que en Vercel topea el body en ~4,5 MB) y después se registran
+// solo los metadatos. Los buckets permiten hasta 100 MB, igual que el legajo.
+//
+// Helpers compartidos abajo; las actions específicas de cada entidad (rotura /
+// servicio) los reutilizan para no duplicar lógica.
 
 const ROTURA_BUCKET = "documentos-roturas";
+const SERVICIO_BUCKET = "documentos-mantenimiento";
 
-export type RoturaArchivoMeta = {
+export type AdjuntoArchivoMeta = {
   bucket: string;
   path: string;
   nombre_original: string;
@@ -563,7 +601,7 @@ export type RoturaArchivoMeta = {
   tamano_bytes: number;
 };
 
-export type RoturaArchivo = {
+export type AdjuntoArchivo = {
   id: string;
   nombre_original: string;
   url: string;
@@ -572,69 +610,56 @@ export type RoturaArchivo = {
   created_at: string;
 };
 
-/** URL firmada para subir un archivo de rotura directo navegador → Storage. */
-export async function crearUrlSubidaRoturaAction(input: {
-  filename: string;
-}): Promise<
-  | { signedUrl: string; token: string; path: string; bucket: string }
-  | { error: string }
-> {
-  await requireArea("mantenimiento", "write");
+/** Genera la URL firmada de subida en `bucket/carpeta/<uuid>.<ext>`. */
+async function crearUrlSubida(
+  bucket: string,
+  carpeta: string,
+  filename: string,
+): Promise<{ signedUrl: string; token: string; path: string; bucket: string } | { error: string }> {
   const supabase = createAdminClient();
   const ext =
-    (input.filename.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
-  const path = `roturas/${crypto.randomUUID()}.${ext}`;
-  const { data, error } = await supabase.storage.from(ROTURA_BUCKET).createSignedUploadUrl(path);
+    (filename.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+  const path = `${carpeta}/${crypto.randomUUID()}.${ext}`;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
   if (error || !data) return { error: "No se pudo iniciar la subida del archivo" };
-  return { signedUrl: data.signedUrl, token: data.token, path, bucket: ROTURA_BUCKET };
+  return { signedUrl: data.signedUrl, token: data.token, path, bucket };
 }
 
-/** Lista los adjuntos de una rotura con URL pública para ver / descargar. */
-export async function getArchivosRoturaAction(rotura_id: string): Promise<RoturaArchivo[]> {
-  await requireArea("mantenimiento", "read");
-  const supabase = createAdminClient();
-  if (!rotura_id) return [];
-
-  const { data, error } = await supabase
-    .from("rotura_archivos")
-    .select(
-      "id, created_at, archivo:documentos_archivos!archivo_id(bucket, path, nombre_original, tamano_bytes, mime_type)",
-    )
-    .eq("rotura_id", rotura_id)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Error al cargar archivos de rotura:", error);
-    return [];
-  }
-
-  return (data ?? [])
-    .map((row) => {
-      const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
-      if (!archivo) return null;
-      const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
-      return {
-        id: row.id,
-        nombre_original: archivo.nombre_original,
-        url: pub.publicUrl,
-        tamano_bytes: archivo.tamano_bytes ?? 0,
-        mime_type: archivo.mime_type,
-        created_at: row.created_at,
-      };
-    })
-    .filter((a): a is RoturaArchivo => a !== null);
+/** Mapea una fila puente (con su archivo embebido) a la forma de la UI. */
+function mapAdjunto(
+  supabase: ReturnType<typeof createAdminClient>,
+  row: {
+    id: string;
+    created_at: string;
+    archivo:
+      | { bucket: string; path: string; nombre_original: string; tamano_bytes: number | null; mime_type: string | null }
+      | { bucket: string; path: string; nombre_original: string; tamano_bytes: number | null; mime_type: string | null }[]
+      | null;
+  },
+): AdjuntoArchivo | null {
+  const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
+  if (!archivo) return null;
+  const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
+  return {
+    id: row.id,
+    nombre_original: archivo.nombre_original,
+    url: pub.publicUrl,
+    tamano_bytes: archivo.tamano_bytes ?? 0,
+    mime_type: archivo.mime_type,
+    created_at: row.created_at,
+  };
 }
 
 /**
- * Registra (vincula) archivos ya subidos al Storage a una rotura. Inserta el
- * metadato en `documentos_archivos` y la fila puente en `rotura_archivos`. Si
- * algo falla con un archivo, lo deja huérfano fuera y sigue con el resto.
+ * Registra (vincula) archivos ya subidos al Storage. Inserta el metadato en
+ * `documentos_archivos` y delega la fila puente (rotura / mantenimiento) en
+ * `vincular`. Si algo falla con un archivo, lo deja fuera y sigue con el resto.
  */
-async function vincularArchivosRotura(
+async function vincularArchivos(
   supabase: ReturnType<typeof createAdminClient>,
-  rotura_id: string,
-  archivos: RoturaArchivoMeta[],
+  archivos: AdjuntoArchivoMeta[],
   userId: string | null,
+  vincular: (archivoId: string) => PromiseLike<{ error: unknown }>,
 ) {
   for (const archivo of archivos) {
     if (!archivo?.path) continue;
@@ -656,12 +681,7 @@ async function vincularArchivosRotura(
       continue;
     }
 
-    const { error: linkError } = await supabase.from("rotura_archivos").insert({
-      rotura_id,
-      archivo_id: archivoData.id,
-      created_by: userId,
-    });
-
+    const { error: linkError } = await vincular(archivoData.id);
     if (linkError) {
       await supabase.from("documentos_archivos").delete().eq("id", archivoData.id);
       await supabase.storage.from(archivo.bucket).remove([archivo.path]).then(undefined, () => {});
@@ -669,29 +689,98 @@ async function vincularArchivosRotura(
   }
 }
 
+/** Borra el objeto del Storage y su metadato en `documentos_archivos`. */
+async function eliminarArchivoFisico(
+  supabase: ReturnType<typeof createAdminClient>,
+  archivo: { id: string; bucket: string; path: string } | null,
+) {
+  if (!archivo) return;
+  await supabase.storage.from(archivo.bucket).remove([archivo.path]).then(undefined, () => {});
+  await supabase.from("documentos_archivos").delete().eq("id", archivo.id);
+}
+
+// ── Roturas ──────────────────────────────────────────────────────────────────
+
+/** URL firmada para subir un archivo de rotura directo navegador → Storage. */
+export async function crearUrlSubidaRoturaAction(input: { filename: string }) {
+  await requireArea("mantenimiento", "write");
+  return crearUrlSubida(ROTURA_BUCKET, "roturas", input.filename);
+}
+
+/** Lista los adjuntos de una rotura con URL pública para ver / descargar. */
+export async function getArchivosRoturaAction(rotura_id: string): Promise<AdjuntoArchivo[]> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+  if (!rotura_id) return [];
+  const { data, error } = await supabase
+    .from("rotura_archivos")
+    .select("id, created_at, archivo:documentos_archivos!archivo_id(bucket, path, nombre_original, tamano_bytes, mime_type)")
+    .eq("rotura_id", rotura_id)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("Error al cargar archivos de rotura:", error);
+    return [];
+  }
+  return (data ?? []).map((r) => mapAdjunto(supabase, r)).filter((a): a is AdjuntoArchivo => a !== null);
+}
+
 /** Elimina un adjunto puntual de una rotura (fila puente + metadato + objeto). */
 export async function deleteArchivoRoturaAction(adjunto_id: string) {
   await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
-
   const { data: adjunto, error: getErr } = await supabase
     .from("rotura_archivos")
     .select("archivo:documentos_archivos!archivo_id(id, bucket, path)")
     .eq("id", adjunto_id)
     .single();
-
   if (getErr || !adjunto) return { error: "Archivo no encontrado" };
-
   const archivo = Array.isArray(adjunto.archivo) ? adjunto.archivo[0] : adjunto.archivo;
-
   const { error: delErr } = await supabase.from("rotura_archivos").delete().eq("id", adjunto_id);
   if (delErr) return { error: "No se pudo eliminar el archivo" };
+  await eliminarArchivoFisico(supabase, archivo);
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
 
-  if (archivo) {
-    await supabase.storage.from(archivo.bucket).remove([archivo.path]).then(undefined, () => {});
-    await supabase.from("documentos_archivos").delete().eq("id", archivo.id);
+// ── Servicios / mantenimientos ───────────────────────────────────────────────
+
+/** URL firmada para subir un archivo de servicio directo navegador → Storage. */
+export async function crearUrlSubidaServicioAction(input: { filename: string }) {
+  await requireArea("mantenimiento", "write");
+  return crearUrlSubida(SERVICIO_BUCKET, "mantenimientos", input.filename);
+}
+
+/** Lista los adjuntos de un servicio con URL pública para ver / descargar. */
+export async function getArchivosServicioAction(mantenimiento_id: string): Promise<AdjuntoArchivo[]> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+  if (!mantenimiento_id) return [];
+  const { data, error } = await supabase
+    .from("mantenimiento_archivos")
+    .select("id, created_at, archivo:documentos_archivos!archivo_id(bucket, path, nombre_original, tamano_bytes, mime_type)")
+    .eq("mantenimiento_id", mantenimiento_id)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("Error al cargar archivos de servicio:", error);
+    return [];
   }
+  return (data ?? []).map((r) => mapAdjunto(supabase, r)).filter((a): a is AdjuntoArchivo => a !== null);
+}
 
+/** Elimina un adjunto puntual de un servicio (fila puente + metadato + objeto). */
+export async function deleteArchivoServicioAction(adjunto_id: string) {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const { data: adjunto, error: getErr } = await supabase
+    .from("mantenimiento_archivos")
+    .select("archivo:documentos_archivos!archivo_id(id, bucket, path)")
+    .eq("id", adjunto_id)
+    .single();
+  if (getErr || !adjunto) return { error: "Archivo no encontrado" };
+  const archivo = Array.isArray(adjunto.archivo) ? adjunto.archivo[0] : adjunto.archivo;
+  const { error: delErr } = await supabase.from("mantenimiento_archivos").delete().eq("id", adjunto_id);
+  if (delErr) return { error: "No se pudo eliminar el archivo" };
+  await eliminarArchivoFisico(supabase, archivo);
   revalidatePath("/mantenimiento");
   return { success: true };
 }

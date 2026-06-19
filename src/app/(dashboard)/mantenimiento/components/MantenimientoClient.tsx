@@ -32,7 +32,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
-import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2, BarChart3 } from "lucide-react";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3 } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
 import HelpTutorialButton from "../help-tutorial-button";
@@ -207,7 +207,7 @@ export default function MantenimientoClient({
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Taller</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-20">Acciones</TableHead>}
+                {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -215,7 +215,12 @@ export default function MantenimientoClient({
                 <EmptyTableRow message="Sin servicios cargados. Cargá el primero con el botón de arriba." />
               ) : (
                 servicios.map((s) => (
-                  <TableRow key={s.id}>
+                  <TableRow
+                    key={s.id}
+                    onClick={canWrite ? () => setEditServicio(s) : undefined}
+                    className={canWrite ? "cursor-pointer" : undefined}
+                    title={canWrite ? "Editar servicio" : undefined}
+                  >
                     <TableCell className="pl-6 text-muted-foreground">{fmtFecha(s.fecha)}</TableCell>
                     <TableCell className="font-medium">
                       <span className="inline-flex items-baseline gap-1.5">
@@ -232,11 +237,15 @@ export default function MantenimientoClient({
                     <TableCell className="text-right font-medium">{fmtMoneda(s.costo)}</TableCell>
                     {canWrite && (
                       <TableCell className="text-right pr-6">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditServicio(s)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar">
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => setConfirmDel({ tipo: "servicio", id: s.id, label: `${s.tipo_servicio_nombre ?? s.descripcion} — ${s.unidad_patente}` })} className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]" title="Borrar">
+                        <div className="flex items-center justify-end">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDel({ tipo: "servicio", id: s.id, label: `${s.tipo_servicio_nombre ?? s.descripcion} — ${s.unidad_patente}` });
+                            }}
+                            className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
+                            title="Borrar"
+                          >
                             <Trash2 size={14} />
                           </button>
                         </div>
