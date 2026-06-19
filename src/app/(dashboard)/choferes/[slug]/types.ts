@@ -96,6 +96,8 @@ export type Apercibimiento = {
   motivo: string;
   observaciones: string | null;
   created_at: string;
+  archivo_url?: string | null;
+  archivo_nombre?: string | null;
 };
 
 export type LicenciaMedica = {

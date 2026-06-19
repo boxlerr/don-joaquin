@@ -211,6 +211,7 @@ export async function addServicioAction(data: {
 export type RoturaRow = {
   id: string;
   fecha: string;
+  tipo: string;
   cantidad: number;
   costo: number | null;
   moneda: string;
@@ -230,7 +231,7 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
   const { data } = await supabase
     .from("roturas_gomas")
     .select(
-      "id, fecha, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
+      "id, fecha, tipo, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
     )
     .order("fecha", { ascending: false })
     .limit(200);
@@ -244,6 +245,7 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
     return {
       id: r.id,
       fecha: r.fecha,
+      tipo: r.tipo ?? "goma",
       cantidad: r.cantidad,
       costo: r.costo,
       moneda: r.moneda,
@@ -294,6 +296,7 @@ export async function addRoturaAction(data: {
   camion_id?: string | null;
   acoplado_id?: string | null;
   chofer_id?: string | null;
+  tipo?: string | null;
   fecha: string;
   cantidad: number;
   costo?: number | null;
@@ -316,6 +319,7 @@ export async function addRoturaAction(data: {
       camion_id: data.camion_id || null,
       acoplado_id: data.acoplado_id || null,
       chofer_id: data.chofer_id || null,
+      tipo: (data.tipo || "goma").trim() || "goma",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
       costo: data.costo ?? null,
@@ -441,6 +445,7 @@ export async function updateRoturaAction(
     camion_id?: string | null;
     acoplado_id?: string | null;
     chofer_id?: string | null;
+    tipo?: string | null;
     fecha: string;
     cantidad: number;
     costo?: number | null;
@@ -462,6 +467,7 @@ export async function updateRoturaAction(
       camion_id: data.camion_id || null,
       acoplado_id: data.acoplado_id || null,
       chofer_id: data.chofer_id || null,
+      tipo: (data.tipo || "goma").trim() || "goma",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
       costo: data.costo ?? null,

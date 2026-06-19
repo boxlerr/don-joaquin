@@ -100,7 +100,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
 
     supabase
       .from("chofer_apercibimientos")
-      .select("id, fecha, categoria_id, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre)")
+      .select("id, fecha, categoria_id, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre), archivo:documentos_archivos(bucket, path, nombre_original)")
       .eq("chofer_id", chofer_id)
       .order("fecha", { ascending: false }),
 
@@ -379,6 +379,31 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       archivo_nombre: extra?.nombre_original ?? null,
     };
   });
+
+  // URLs firmadas de los archivos adjuntos a apercibimientos (ej: escaneo firmado).
+  const apercArchivoMap = new Map<string, { url: string | null; nombre: string | null }>();
+  {
+    const conArchivo = (apercibimientos ?? [])
+      .map((a) => {
+        const arch = Array.isArray(a.archivo) ? a.archivo[0] : a.archivo;
+        return arch ? { id: a.id, bucket: arch.bucket, path: arch.path, nombre: arch.nombre_original } : null;
+      })
+      .filter((x): x is { id: string; bucket: string; path: string; nombre: string } => x !== null);
+    const porBucket = new Map<string, { id: string; path: string; nombre: string }[]>();
+    for (const f of conArchivo) {
+      if (!porBucket.has(f.bucket)) porBucket.set(f.bucket, []);
+      porBucket.get(f.bucket)!.push({ id: f.id, path: f.path, nombre: f.nombre });
+    }
+    for (const [bucket, files] of porBucket.entries()) {
+      const { data: signed } = await supabase.storage
+        .from(bucket)
+        .createSignedUrls(files.map((f) => f.path), 3600);
+      for (const s of signed ?? []) {
+        const f = files.find((x) => x.path === s.path);
+        if (f) apercArchivoMap.set(f.id, { url: s.signedUrl ?? null, nombre: f.nombre });
+      }
+    }
+  }
 
   const viajesMesArr = viajesMes ?? [];
   const km_con_carga = viajesMesArr.reduce((acc, v) => acc + Number(v.km_con_carga ?? 0), 0);
@@ -717,6 +742,8 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         motivo: a.motivo,
         observaciones: a.observaciones,
         created_at: a.created_at,
+        archivo_url: apercArchivoMap.get(a.id)?.url ?? null,
+        archivo_nombre: apercArchivoMap.get(a.id)?.nombre ?? null,
       };
     }),
     licencias_medicas: (licencias ?? []).map((l) => {
@@ -826,12 +853,36 @@ export async function crearApercibimientoAction(
     categoria_id: string | null;
     motivo: string;
     observaciones?: string | null;
+    archivo?: ArchivoMeta | null;
   },
 ) {
   const user = await requireAdmin();
   const supabase = createAdminClient();
 
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
+
+  // Archivo opcional (ej: el apercibimiento escaneado y firmado). Ya viene
+  // subido al Storage vía URL firmada; acá solo lo registramos.
+  let archivo_id: string | null = null;
+  if (data.archivo?.path) {
+    const { data: archivoData, error: archivoError } = await supabase
+      .from("documentos_archivos")
+      .insert({
+        bucket: data.archivo.bucket,
+        nombre_original: data.archivo.nombre_original,
+        path: data.archivo.path,
+        tamano_bytes: data.archivo.tamano_bytes,
+        mime_type: data.archivo.mime_type,
+        subido_por: user.id,
+      })
+      .select("id")
+      .single();
+    if (archivoError || !archivoData) {
+      await supabase.storage.from(data.archivo.bucket).remove([data.archivo.path]).then(undefined, () => {});
+      return { error: "No se pudo registrar el archivo adjunto" };
+    }
+    archivo_id = archivoData.id;
+  }
 
   const { data: nuevo, error } = await supabase
     .from("chofer_apercibimientos")
@@ -841,12 +892,19 @@ export async function crearApercibimientoAction(
       categoria_id: data.categoria_id,
       motivo: data.motivo.trim(),
       observaciones: data.observaciones?.trim() || null,
+      archivo_id,
       created_by: user.id,
     })
     .select("id")
     .single();
 
-  if (error || !nuevo) return { error: "No se pudo registrar el apercibimiento" };
+  if (error || !nuevo) {
+    if (archivo_id) {
+      await supabase.from("documentos_archivos").delete().eq("id", archivo_id);
+      if (data.archivo?.path) await supabase.storage.from(data.archivo.bucket).remove([data.archivo.path]).then(undefined, () => {});
+    }
+    return { error: "No se pudo registrar el apercibimiento" };
+  }
 
   await logChoferAudit(
     chofer_id,
@@ -1362,27 +1420,78 @@ export async function eliminarPrestamoAction(id: string, chofer_id: string) {
   return { success: true };
 }
 
-export async function uploadDocumentoChoferAction(formData: FormData) {
+/**
+ * Genera una URL firmada para subir un archivo DIRECTO del navegador al Storage
+ * (bucket documentos-personal), sin pasar el archivo por el Server Action. Así
+ * se evita el límite de body de Vercel (~4,5 MB) que dejaba la subida colgada.
+ * El cliente sube con esta URL y después llama a registrar/actualizar con los
+ * metadatos del archivo ya subido.
+ */
+export async function crearUrlSubidaDocumentoAction(input: {
+  chofer_id: string;
+  filename: string;
+}): Promise<
+  | { signedUrl: string; token: string; path: string; bucket: string }
+  | { error: string }
+> {
+  await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+
+  if (!input.chofer_id) return { error: "Falta el chofer" };
+
+  const bucket = "documentos-personal";
+  const ext = (input.filename.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+  const path = `choferes/${input.chofer_id}/${crypto.randomUUID()}.${ext}`;
+
+  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
+  if (error || !data) return { error: "No se pudo iniciar la subida del archivo" };
+
+  return { signedUrl: data.signedUrl, token: data.token, path, bucket };
+}
+
+type ArchivoMeta = {
+  bucket: string;
+  path: string;
+  nombre_original: string;
+  mime_type: string | null;
+  tamano_bytes: number;
+};
+
+/**
+ * Registra en la base un documento de chofer cuyo archivo YA fue subido al
+ * Storage vía `crearUrlSubidaDocumentoAction` + subida directa. Solo recibe
+ * metadatos (payload chico), nunca el binario.
+ */
+export async function registrarDocumentoChoferAction(input: {
+  chofer_id: string;
+  tipo_documento_id?: string | null;
+  tipo_nombre_custom?: string | null;
+  numero?: string | null;
+  fecha_emision?: string | null;
+  fecha_vencimiento?: string | null;
+  archivo: ArchivoMeta;
+}) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
-  const chofer_id = formData.get("chofer_id") as string;
-  const tipo_nombre_custom = formData.get("tipo_nombre_custom") as string | null;
-  let tipo_documento_id = formData.get("tipo_documento_id") as string;
-  const file = formData.get("file") as File;
-  const numero = formData.get("numero") as string | null;
-  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
-  const fecha_emision = formData.get("fecha_emision") as string | null;
+  const { chofer_id, archivo } = input;
+  let tipo_documento_id = input.tipo_documento_id ?? "";
 
-  if (!file || !file.size) return { error: "Archivo requerido" };
-  if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+  if (!archivo?.path) return { error: "Falta el archivo subido" };
+
+  // Si algo falla después de subido, borramos el huérfano del Storage.
+  const limpiarArchivo = async () => {
+    await supabase.storage.from(archivo.bucket).remove([archivo.path]).then(undefined, () => {});
+  };
 
   // Si el usuario eligió "Otro", buscar o crear el tipo de documento
-  if (tipo_nombre_custom) {
-    const nombreNorm = tipo_nombre_custom.trim();
-    if (!nombreNorm) return { error: "El nombre del tipo de documento no puede estar vacío" };
+  if (input.tipo_nombre_custom) {
+    const nombreNorm = input.tipo_nombre_custom.trim();
+    if (!nombreNorm) {
+      await limpiarArchivo();
+      return { error: "El nombre del tipo de documento no puede estar vacío" };
+    }
 
-    // Buscar si ya existe un tipo con ese nombre
     const { data: existente } = await supabase
       .from("tipos_documento")
       .select("id")
@@ -1393,7 +1502,6 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
     if (existente) {
       tipo_documento_id = existente.id;
     } else {
-      // Crear el tipo nuevo
       const codigoBase = nombreNorm
         .toUpperCase()
         .replace(/\s+/g, "_")
@@ -1411,43 +1519,49 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
         .select("id")
         .single();
 
-      if (crearError || !nuevo) return { error: "No se pudo crear el tipo de documento" };
+      if (crearError || !nuevo) {
+        await limpiarArchivo();
+        return { error: "No se pudo crear el tipo de documento" };
+      }
       tipo_documento_id = nuevo.id;
     }
   }
 
-  if (!tipo_documento_id) return { error: "Tipo de documento requerido" };
-
-  const ext = file.name.split(".").pop();
-  const storagePath = `choferes/${chofer_id}/${tipo_documento_id}_${Date.now()}.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("documentos-personal")
-    .upload(storagePath, file);
-  if (uploadError) return { error: "Error al subir el archivo" };
+  if (!tipo_documento_id) {
+    await limpiarArchivo();
+    return { error: "Tipo de documento requerido" };
+  }
 
   const { data: archivoData, error: archivoError } = await supabase
     .from("documentos_archivos")
     .insert({
-      bucket: "documentos-personal",
-      nombre_original: file.name,
-      path: storagePath,
-      tamano_bytes: file.size,
-      mime_type: file.type,
+      bucket: archivo.bucket,
+      nombre_original: archivo.nombre_original,
+      path: archivo.path,
+      tamano_bytes: archivo.tamano_bytes,
+      mime_type: archivo.mime_type,
+      subido_por: user.id,
     })
     .select("id")
     .single();
-  if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+  if (archivoError || !archivoData) {
+    await limpiarArchivo();
+    return { error: "No se pudo registrar el archivo" };
+  }
 
   const { error: dbError } = await supabase.from("chofer_documentos").insert({
     chofer_id,
     tipo_documento_id,
-    numero: numero || null,
-    fecha_emision: fecha_emision || null,
-    fecha_vencimiento: fecha_vencimiento || null,
+    numero: input.numero || null,
+    fecha_emision: input.fecha_emision || null,
+    fecha_vencimiento: input.fecha_vencimiento || null,
     archivo_id: archivoData.id,
   });
-  if (dbError) return { error: "Error al guardar el documento" };
+  if (dbError) {
+    await supabase.from("documentos_archivos").delete().eq("id", archivoData.id);
+    await limpiarArchivo();
+    return { error: "No se pudo guardar el documento" };
+  }
 
   const { data: tipoDoc } = await supabase
     .from("tipos_documento")
@@ -1461,10 +1575,10 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
     null,
     {
       tipo_documento: tipoDoc?.nombre ?? null,
-      archivo: file.name,
-      numero: numero || null,
-      fecha_emision: fecha_emision || null,
-      fecha_vencimiento: fecha_vencimiento || null,
+      archivo: archivo.nombre_original,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
     },
     user.id,
   );
@@ -1473,19 +1587,20 @@ export async function uploadDocumentoChoferAction(formData: FormData) {
   return { success: true };
 }
 
-export async function updateDocumentoChoferAction(formData: FormData) {
+export async function updateDocumentoChoferAction(input: {
+  id: string;
+  chofer_id: string;
+  tipo_documento_id?: string | null;
+  numero?: string | null;
+  fecha_emision?: string | null;
+  fecha_vencimiento?: string | null;
+  eliminar_archivo?: boolean;
+  archivo?: ArchivoMeta | null;
+}) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
-  const id = formData.get("id") as string;
-  const chofer_id = formData.get("chofer_id") as string;
-  const tipo_documento_id = formData.get("tipo_documento_id") as string;
-  const file = formData.get("file") as File | null;
-  const numero = formData.get("numero") as string | null;
-  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
-  const fecha_emision = formData.get("fecha_emision") as string | null;
-  const eliminar_archivo = formData.get("eliminar_archivo") === "true";
-
+  const { id, chofer_id } = input;
   if (!id) return { error: "ID de documento requerido" };
 
   const { data: previo } = await supabase
@@ -1498,68 +1613,52 @@ export async function updateDocumentoChoferAction(formData: FormData) {
 
   let archivo_id = previo.archivo_id;
 
-  if (eliminar_archivo) {
-    archivo_id = null;
-    if (previo.archivo_id) {
-      const { data: oldFile } = await supabase
-        .from("documentos_archivos")
-        .select("bucket, path")
-        .eq("id", previo.archivo_id)
-        .single();
-      
-      if (oldFile) {
-        await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
-        await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
-      }
+  const borrarArchivoPrevio = async () => {
+    if (!previo.archivo_id) return;
+    const { data: oldFile } = await supabase
+      .from("documentos_archivos")
+      .select("bucket, path")
+      .eq("id", previo.archivo_id)
+      .single();
+    if (oldFile) {
+      await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
+      await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
     }
-  } else if (file && file.size > 0) {
-    if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+  };
 
-    const ext = file.name.split(".").pop();
-    const storagePath = `choferes/${chofer_id}/${tipo_documento_id}_${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("documentos-personal")
-      .upload(storagePath, file);
-    if (uploadError) return { error: "Error al subir el archivo" };
-
+  if (input.eliminar_archivo) {
+    await borrarArchivoPrevio();
+    archivo_id = null;
+  } else if (input.archivo?.path) {
     const { data: archivoData, error: archivoError } = await supabase
       .from("documentos_archivos")
       .insert({
-        bucket: "documentos-personal",
-        nombre_original: file.name,
-        path: storagePath,
-        tamano_bytes: file.size,
-        mime_type: file.type,
+        bucket: input.archivo.bucket,
+        nombre_original: input.archivo.nombre_original,
+        path: input.archivo.path,
+        tamano_bytes: input.archivo.tamano_bytes,
+        mime_type: input.archivo.mime_type,
+        subido_por: user.id,
       })
       .select("id")
       .single();
 
-    if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
-
-    archivo_id = archivoData.id;
-
-    // Delete previous file from storage and database if replaced
-    if (previo.archivo_id) {
-      const { data: oldFile } = await supabase
-        .from("documentos_archivos")
-        .select("bucket, path")
-        .eq("id", previo.archivo_id)
-        .single();
-      
-      if (oldFile) {
-        await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
-        await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
-      }
+    if (archivoError || !archivoData) {
+      await supabase.storage.from(input.archivo.bucket).remove([input.archivo.path]).then(undefined, () => {});
+      return { error: "No se pudo registrar el archivo" };
     }
+
+    // Recién acá borramos el anterior, una vez que el nuevo quedó registrado.
+    await borrarArchivoPrevio();
+    archivo_id = archivoData.id;
   }
 
   const { error: dbError } = await supabase
     .from("chofer_documentos")
     .update({
-      numero: numero || null,
-      fecha_emision: fecha_emision || null,
-      fecha_vencimiento: fecha_vencimiento || null,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
       archivo_id,
       updated_at: new Date().toISOString(),
     })
@@ -1570,7 +1669,7 @@ export async function updateDocumentoChoferAction(formData: FormData) {
   const { data: tipoDoc } = await supabase
     .from("tipos_documento")
     .select("nombre")
-    .eq("id", tipo_documento_id)
+    .eq("id", input.tipo_documento_id ?? previo.tipo_documento_id)
     .single();
 
   await logChoferAudit(
@@ -1579,10 +1678,10 @@ export async function updateDocumentoChoferAction(formData: FormData) {
     previo,
     {
       tipo_documento: tipoDoc?.nombre ?? null,
-      archivo: file ? file.name : null,
-      numero: numero || null,
-      fecha_emision: fecha_emision || null,
-      fecha_vencimiento: fecha_vencimiento || null,
+      archivo: input.archivo?.nombre_original ?? null,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
     },
     user.id,
   );

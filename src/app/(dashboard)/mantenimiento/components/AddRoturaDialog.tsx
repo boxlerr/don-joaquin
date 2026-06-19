@@ -20,6 +20,31 @@ import UnidadPicker, { type UnidadValue } from "./UnidadPicker";
 import { addRoturaAction, updateRoturaAction, type RoturaRow } from "../actions";
 import type { AcopladoOption, CamionOption, ChoferOption } from "../types";
 
+/** Catálogo de "qué se rompió". El valor se guarda en `roturas_gomas.tipo`. */
+export const TIPOS_ROTURA: { value: string; label: string }[] = [
+  { value: "goma", label: "Goma / cubierta" },
+  { value: "llanta", label: "Llanta" },
+  { value: "guardabarros", label: "Guardabarros" },
+  { value: "paragolpes", label: "Paragolpes / defensa" },
+  { value: "espejo", label: "Espejo" },
+  { value: "optica", label: "Óptica / faro" },
+  { value: "parabrisas", label: "Parabrisas / vidrio" },
+  { value: "carroceria", label: "Carrocería / chapa" },
+  { value: "electrico", label: "Eléctrico" },
+  { value: "mecanico", label: "Mecánico" },
+  { value: "otro", label: "Otro…" },
+];
+
+/** Etiqueta legible de un tipo de rotura (acepta valores custom de "Otro"). */
+export function tipoRoturaLabel(tipo: string | null | undefined): string {
+  if (!tipo) return "—";
+  const known = TIPOS_ROTURA.find((t) => t.value === tipo);
+  if (known && known.value !== "otro") return known.label;
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1);
+}
+
+const VALORES_CONOCIDOS = new Set(TIPOS_ROTURA.map((t) => t.value));
+
 export default function AddRoturaDialog({
   children,
   camiones,
@@ -47,18 +72,31 @@ export default function AddRoturaDialog({
 
   const [choferId, setChoferId] = useState("");
   const [unidad, setUnidad] = useState<UnidadValue>("");
+  const [tipo, setTipo] = useState("goma");
+  const [tipoCustom, setTipoCustom] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [cantidad, setCantidad] = useState("1");
   const [costo, setCosto] = useState("");
   const [posicion, setPosicion] = useState("");
 
   const choferSel = choferes.find((c) => c.id === choferId);
+  const esGoma = tipo === "goma";
+  const esOtro = tipo === "otro";
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setChoferId(editing.chofer_id ?? "");
       setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
+      // Si el tipo guardado no está en el catálogo, es un "Otro" custom.
+      const t = editing.tipo ?? "goma";
+      if (VALORES_CONOCIDOS.has(t)) {
+        setTipo(t);
+        setTipoCustom("");
+      } else {
+        setTipo("otro");
+        setTipoCustom(t);
+      }
       setFecha(editing.fecha);
       setCantidad(String(editing.cantidad ?? 1));
       setCosto(editing.costo != null ? String(editing.costo) : "");
@@ -66,6 +104,8 @@ export default function AddRoturaDialog({
     } else {
       setChoferId("");
       setUnidad("");
+      setTipo("goma");
+      setTipoCustom("");
       setFecha(new Date().toISOString().split("T")[0]);
       setCantidad("1");
       setCosto("");
@@ -78,6 +118,7 @@ export default function AddRoturaDialog({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!choferId && !unidad) return setError("Elegí el chofer o la unidad (camión / acoplado).");
+    if (esOtro && !tipoCustom.trim()) return setError("Escribí qué se rompió.");
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -87,10 +128,13 @@ export default function AddRoturaDialog({
       if (unidad.startsWith("c:")) camion_id = unidad.slice(2);
       else if (unidad.startsWith("a:")) acoplado_id = unidad.slice(2);
 
+      const tipoFinal = esOtro ? tipoCustom.trim().toLowerCase() : tipo;
+
       const payload = {
         chofer_id: choferId || null,
         camion_id,
         acoplado_id,
+        tipo: tipoFinal,
         fecha,
         cantidad: parseInt(cantidad) || 1,
         costo: costo ? parseFloat(costo) : null,
@@ -118,15 +162,42 @@ export default function AddRoturaDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">{editing ? "Editar rotura de goma" : "Registrar rotura de goma"}</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">{editing ? "Editar rotura" : "Registrar rotura"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            La unidad puede ser un camión (chasis) o un acoplado. Si cargás el chofer, suma a su productividad.
+            Cualquier rotura de la unidad (goma, guardabarros, espejo, etc.). Si cargás el chofer, suma a su productividad.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
+
+          <div className="space-y-2">
+            <Label htmlFor="tipo" className="text-sm font-medium text-foreground">
+              ¿Qué se rompió? <span className="text-red-400">*</span>
+            </Label>
+            <Select value={tipo} onValueChange={(v) => setTipo(v ?? "goma")}>
+              <SelectTrigger id="tipo" className="w-full">
+                <span>{TIPOS_ROTURA.find((t) => t.value === tipo)?.label ?? "Goma / cubierta"}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_ROTURA.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {esOtro && (
+              <Input
+                className="mt-2"
+                placeholder="Escribí qué se rompió (ej: tanque de combustible)"
+                value={tipoCustom}
+                onChange={(e) => setTipoCustom(e.target.value)}
+                autoFocus
+              />
+            )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="chofer" className="text-sm font-medium text-foreground">
@@ -187,16 +258,22 @@ export default function AddRoturaDialog({
 
           <div className="space-y-2">
             <Label htmlFor="pos" className="text-sm font-medium text-foreground">
-              Posición / notas <span className="text-muted-foreground font-normal">(opcional)</span>
+              {esGoma ? "Posición / notas" : "Notas / detalle"}{" "}
+              <span className="text-muted-foreground font-normal">(opcional)</span>
             </Label>
-            <Input id="pos" placeholder="Ej: trasera izquierda" value={posicion} onChange={(e) => setPosicion(e.target.value)} />
+            <Input
+              id="pos"
+              placeholder={esGoma ? "Ej: trasera izquierda" : "Ej: golpe de costado, factura del taller, etc."}
+              value={posicion}
+              onChange={(e) => setPosicion(e.target.value)}
+            />
           </div>
 
           <DialogFooter className="pt-4 sm:justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading} className="text-muted-foreground border-border hover:bg-muted/40">
               Cancelar
             </Button>
-            <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
+            <Button type="submit" variant="brand" disabled={loading} className="bg-[#F59E0B] hover:bg-[#D97706] text-white">
               {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar rotura"}
             </Button>
           </DialogFooter>

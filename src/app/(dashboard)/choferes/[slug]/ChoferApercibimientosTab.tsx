@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { AlertOctagon, Plus, Trash2 } from "lucide-react";
+import { AlertOctagon, Plus, Trash2, ExternalLink } from "lucide-react";
 import CargarApercibimientoDialog from "./CargarApercibimientoDialog";
 import { eliminarApercibimientoAction } from "./actions";
 import type { Apercibimiento, CategoriaApercibimiento } from "./types";
@@ -94,6 +94,17 @@ export default function ChoferApercibimientosTab({
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap border-t border-[#F1F5F9] pt-2">
                   {a.observaciones}
                 </p>
+              )}
+              {a.archivo_url && (
+                <a
+                  href={a.archivo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#0088D1] hover:underline flex items-center gap-1 font-semibold w-fit"
+                >
+                  <ExternalLink size={11} />
+                  {a.archivo_nombre ? `Ver ${a.archivo_nombre}` : "Ver archivo"}
+                </a>
               )}
             </div>
           ))}

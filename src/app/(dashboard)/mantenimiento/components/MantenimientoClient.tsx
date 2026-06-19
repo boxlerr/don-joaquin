@@ -34,7 +34,7 @@ import {
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Wrench, CircleDot, BellRing, AlertTriangle, Pencil, Trash2, BarChart3 } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
-import AddRoturaDialog from "./AddRoturaDialog";
+import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
 import HelpTutorialButton from "../help-tutorial-button";
 import type { AcopladoOption, CamionOption, ChoferOption, TipoServicioOption } from "../types";
 import {
@@ -130,7 +130,7 @@ export default function MantenimientoClient({
 
   const tabs: { key: Tab; label: string; icon: typeof Wrench }[] = [
     { key: "servicios", label: "Servicios", icon: Wrench },
-    { key: "roturas", label: "Roturas de Gomas", icon: CircleDot },
+    { key: "roturas", label: "Roturas", icon: CircleDot },
     { key: "alertas", label: "Alertas Pendientes", icon: BellRing },
     { key: "reportes", label: "Reportes", icon: BarChart3 },
   ];
@@ -158,7 +158,7 @@ export default function MantenimientoClient({
                 <Button
                   variant="brand"
                   className="bg-[#F59E0B] hover:bg-[#D97706] text-white gap-2 shadow-sm"
-                  title="Rotura de goma no programada (pinchadura, reventón)"
+                  title="Cualquier rotura no programada (goma, guardabarros, espejo, etc.)"
                 >
                   <CircleDot size={15} strokeWidth={2.5} /> Registrar rotura
                 </Button>
@@ -171,7 +171,7 @@ export default function MantenimientoClient({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <StatCard label="SERVICIOS REGISTRADOS" value={String(servicios.length)} sub="Histórico" color="brand" icon={Wrench} variant="dashboard" />
-        <StatCard label="GOMAS ROTAS" value={String(totalGomasRotas)} sub={`${roturas.length} eventos`} color="warning" icon={CircleDot} variant="dashboard" />
+        <StatCard label="ROTURAS" value={String(totalGomasRotas)} sub={`${roturas.length} eventos`} color="warning" icon={CircleDot} variant="dashboard" />
         <StatCard label="ALERTAS PENDIENTES" value={String(alertas.length)} sub={alertasVencidas > 0 ? `${alertasVencidas} vencidas` : "Próximos services"} color={alertasVencidas > 0 ? "error" : "success"} icon={BellRing} variant="dashboard" />
       </div>
 
@@ -255,7 +255,7 @@ export default function MantenimientoClient({
           {chartData.length > 0 && (
             <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
               <h2 className="text-foreground text-sm font-semibold mb-1">Roturas por chofer</h2>
-              <p className="text-xs text-muted-foreground mb-4">Gomas rotas en los últimos 6 meses (top 10)</p>
+              <p className="text-xs text-muted-foreground mb-4">Roturas en los últimos 6 meses (top 10)</p>
               <ResponsiveContainer width="100%" height={Math.max(160, chartData.length * 34)}>
                 <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
@@ -263,7 +263,7 @@ export default function MantenimientoClient({
                   <Tooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
-                    formatter={(v) => [`${v} gomas`, "Rotas"] as [string, string]}
+                    formatter={(v) => [`${v} roturas`, "Rotas"] as [string, string]}
                   />
                   <Bar dataKey="cantidad" radius={[0, 3, 3, 0]} barSize={20}>
                     {chartData.map((_, i) => (
@@ -281,8 +281,9 @@ export default function MantenimientoClient({
                 <TableRow>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Chofer</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Qué rompió</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Posición / notas</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Detalle</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cantidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
                   {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-20">Acciones</TableHead>}
@@ -296,6 +297,11 @@ export default function MantenimientoClient({
                     <TableRow key={r.id}>
                       <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center rounded-full bg-[#F59E0B]/10 text-[#B45309] dark:text-amber-300 px-2 py-0.5 text-[11px] font-semibold">
+                          {tipoRoturaLabel(r.tipo)}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {r.unidad_patente ? (
                           <span className="inline-flex items-baseline gap-1.5">

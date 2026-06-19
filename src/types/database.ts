@@ -3475,6 +3475,7 @@ export type Database = {
           moneda: string
           observaciones: string | null
           posicion: string | null
+          tipo: string
         }
         Insert: {
           acoplado_id?: string | null
@@ -3490,6 +3491,7 @@ export type Database = {
           moneda?: string
           observaciones?: string | null
           posicion?: string | null
+          tipo?: string
         }
         Update: {
           acoplado_id?: string | null
@@ -3505,6 +3507,7 @@ export type Database = {
           moneda?: string
           observaciones?: string | null
           posicion?: string | null
+          tipo?: string
         }
         Relationships: [
           {
