@@ -798,10 +798,13 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     vacaciones: (() => {
       const corresponden = vacacionesSaldoRaw?.dias_correspondientes ?? 0;
       const adeudados = vacacionesSaldoRaw?.dias_adeudados ?? 0;
-      // Días tomados = suma de días de las ausencias marcadas como vacaciones
-      // (no canceladas, ya filtradas por deleted_at null arriba).
+      // Días tomados = suma de días de las vacaciones del período en curso
+      // (fecha_inicio >= 1/1 del año actual). El saldo 2025 (adeudados) ya viene
+      // neto de lo tomado en 2025, así que sólo contamos las del período vigente
+      // para no descontar dos veces.
+      const inicioPeriodo = `${new Date().getFullYear()}-01-01`;
       const tomados = (ausenciasRaw ?? [])
-        .filter((a) => a.es_vacaciones)
+        .filter((a) => a.es_vacaciones && a.fecha_inicio >= inicioPeriodo)
         .reduce((acc, a) => {
           const ini = new Date(a.fecha_inicio + "T00:00:00");
           const fin = new Date(a.fecha_fin + "T00:00:00");
@@ -1120,6 +1123,7 @@ export async function crearAusenciaAction(
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
+  revalidatePath("/choferes/vacaciones");
   return { success: true };
 }
 
@@ -1175,6 +1179,7 @@ export async function editarAusenciaAction(
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
+  revalidatePath("/choferes/vacaciones");
   return { success: true };
 }
 
@@ -1201,6 +1206,7 @@ export async function cancelarAusenciaAction(id: string, chofer_id: string) {
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
+  revalidatePath("/choferes/vacaciones");
   return { success: true };
 }
 
@@ -1251,6 +1257,7 @@ export async function guardarSaldoVacacionesAction(
   );
 
   revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes/vacaciones");
   return { success: true };
 }
 

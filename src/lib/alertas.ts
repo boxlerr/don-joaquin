@@ -347,6 +347,42 @@ export async function generarAlertas() {
     }
   }
 
+  // Saldo de vacaciones del año anterior por vencer el 31/12.
+  // Se avisa en el último tramo del año (≤ 120 días) para los que aún tienen
+  // saldo adeudado, que es exactamente lo que pierden si no lo toman.
+  {
+    const nombrePorId = new Map<string, string>();
+    for (const c of choferesIngreso ?? []) nombrePorId.set(c.id, `${c.nombre} ${c.apellido}`);
+    const anioActual = hoy.getFullYear();
+    const fin31 = new Date(anioActual, 11, 31);
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const diasHasta31 = Math.round((fin31.getTime() - hoyMid.getTime()) / 86400000);
+    if (diasHasta31 >= 0 && diasHasta31 <= 120) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: saldosVac } = await (supabase as any)
+        .from("chofer_vacaciones")
+        .select("chofer_id, dias_adeudados")
+        .gt("dias_adeudados", 0);
+      const vence31 = `${anioActual}-12-31`;
+      for (const s of (saldosVac ?? []) as { chofer_id: string; dias_adeudados: number }[]) {
+        const nombre = nombrePorId.get(s.chofer_id);
+        if (!nombre) continue; // inactivo / fuera de dotación
+        const key = `otro:${s.chofer_id}:choferes_vacaciones_saldo:${vence31}`;
+        if (existentesSet.has(key)) continue;
+        nuevasAlertas.push({
+          tipo: "otro",
+          severidad: diasHasta31 <= 30 ? "critica" : "advertencia",
+          titulo: `Saldo de vacaciones por vencer — ${nombre}`,
+          mensaje: `${nombre} tiene ${s.dias_adeudados} día${s.dias_adeudados !== 1 ? "s" : ""} de vacaciones de períodos anteriores que vencen el 31/12/${anioActual}.`,
+          entidad_id: s.chofer_id,
+          entidad_tipo: "choferes_vacaciones_saldo",
+          fecha_disparo: new Date().toISOString(),
+          fecha_vencimiento: vence31,
+        });
+      }
+    }
+  }
+
   // Compliance — organismos previos (SICOP, Secondi, etc.)
   // Consulta directa sobre compliance_documentos + compliance_requisitos (sin depender de la vista).
   // Solo procesa documentos con fecha_vencimiento; los sin vencimiento se ignoran.

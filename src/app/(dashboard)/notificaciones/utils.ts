@@ -46,6 +46,7 @@ export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): Al
     (entidadTipo === "choferes_cumple" ||
       entidadTipo === "choferes_aniversario" ||
       entidadTipo === "choferes_periodo_prueba" ||
+      entidadTipo === "choferes_vacaciones_saldo" ||
       entidadTipo === "personal_cumple" ||
       entidadTipo === "personal_aniversario")
   ) {
@@ -62,6 +63,10 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   // Ausencia programada → legajo del chofer, tab Ausencias.
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "chofer_ausencia" && alerta.entidad_id) {
     return `/choferes/${alerta.entidad_id}?tab=ausencias`;
+  }
+  // Saldo de vacaciones por vencer → legajo del chofer, tab Vacaciones.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo === "choferes_vacaciones_saldo" && alerta.entidad_id) {
+    return `/choferes/${alerta.entidad_id}?tab=vacaciones`;
   }
   if (
     alerta.tipo === "otro" &&

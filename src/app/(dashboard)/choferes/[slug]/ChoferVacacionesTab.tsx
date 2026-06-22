@@ -9,12 +9,14 @@ import CargarAusenciaDialog from "./CargarAusenciaDialog";
 import { guardarSaldoVacacionesAction } from "./actions";
 import type { Ausencia, VacacionesSaldo } from "./types";
 import { formatFecha } from "@/lib/utils";
+import { aniosCumplidos, hitoLabel, proximoHito, diasPorAntiguedad, venceSaldoLabel } from "../vacaciones/derivar";
 
 interface Props {
   chofer_id: string;
   saldo: VacacionesSaldo;
   ausencias: Ausencia[];
   can_write: boolean;
+  fecha_ingreso?: string | null;
   onRefresh: () => void;
 }
 
@@ -23,6 +25,7 @@ export default function ChoferVacacionesTab({
   saldo,
   ausencias,
   can_write,
+  fecha_ingreso,
   onRefresh,
 }: Props) {
   const [corresponden, setCorresponden] = useState(String(saldo.dias_correspondientes));
@@ -37,6 +40,16 @@ export default function ChoferVacacionesTab({
   const correspondenNum = Number(corresponden) || 0;
   const adeudadosNum = Number(adeudados) || 0;
   const disponibles = correspondenNum + adeudadosNum - saldo.dias_tomados;
+
+  // Campos derivados de la antigüedad (mismos que la vista global de Vacaciones).
+  const finPeriodoY = new Date().getFullYear();
+  const anios = fecha_ingreso ? aniosCumplidos(fecha_ingreso, finPeriodoY) : null;
+  const hito = anios != null ? hitoLabel(anios) : "—";
+  const proxHito = fecha_ingreso && anios != null ? proximoHito(fecha_ingreso, anios, finPeriodoY) : "—";
+  const venceSaldo = venceSaldoLabel(adeudadosNum, finPeriodoY);
+  const diasAntig = anios != null ? diasPorAntiguedad(anios) : correspondenNum;
+  const desfasaje = correspondenNum > 0 && anios != null && diasAntig !== correspondenNum;
+  const inicioPeriodoISO = `${finPeriodoY}-01-01`;
 
   const guardar = async () => {
     setSaving(true);
@@ -80,6 +93,25 @@ export default function ChoferVacacionesTab({
           value={disponibles}
           tone={disponibles < 0 ? "error" : "success"}
         />
+      </div>
+
+      {/* Antigüedad / hito / vencimientos (derivados del ingreso) */}
+      <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-[8px] border border-border bg-muted/20 px-4 py-3 text-sm">
+        <InfoChip label="Antigüedad" value={anios != null ? `${anios} año${anios !== 1 ? "s" : ""}` : "—"} />
+        <InfoChip label="Hito" value={hito} />
+        <InfoChip
+          label="Vence saldo anterior"
+          value={venceSaldo ?? "—"}
+          tone={venceSaldo ? "danger" : undefined}
+        />
+        <InfoChip label="Próximo hito" value={proxHito} />
+        {desfasaje && (
+          <InfoChip
+            label="Por antigüedad"
+            value={`Le corresponderían ${diasAntig} días`}
+            tone="warning"
+          />
+        )}
       </div>
 
       {/* Edición del saldo */}
@@ -155,6 +187,14 @@ export default function ChoferVacacionesTab({
                       En curso
                     </span>
                   )}
+                  {a.fecha_inicio < inicioPeriodoISO && (
+                    <span
+                      className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
+                      title="De un período anterior — ya está reflejado en el saldo, no descuenta de los días actuales"
+                    >
+                      Histórico
+                    </span>
+                  )}
                 </div>
                 {a.autorizado_por_nombre && (
                   <span className="text-xs text-muted-foreground">
@@ -207,6 +247,25 @@ function SaldoCard({
     <div className="rounded-[8px] border border-border bg-card p-3">
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold ${toneClass}`}>{value}</div>
+    </div>
+  );
+}
+
+function InfoChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "danger" | "warning";
+}) {
+  const valueClass =
+    tone === "danger" ? "text-[#EF4444] font-semibold" : tone === "warning" ? "text-amber-600 font-semibold" : "text-foreground";
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className={`text-sm ${valueClass}`}>{value}</span>
     </div>
   );
 }

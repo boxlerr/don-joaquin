@@ -197,6 +197,7 @@ export default function ChoferDetailPage() {
               saldo={chofer.vacaciones}
               ausencias={chofer.ausencias}
               can_write={chofer.can_logistica_write}
+              fecha_ingreso={chofer.fecha_ingreso}
               onRefresh={loadData}
             />
           )}
