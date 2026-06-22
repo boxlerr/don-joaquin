@@ -12,67 +12,38 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { crearAusenciaAction, getViajesChoferEnRangoAction } from "../[slug]/actions";
+import { editarAusenciaAction, getViajesChoferEnRangoAction } from "../[slug]/actions";
 import type { ViajeEnRango } from "../[slug]/types";
 import { formatFecha } from "@/lib/utils";
 import { AlertTriangle, Loader2, MapPin } from "lucide-react";
-
-export type ChoferOpcion = { chofer_id: string; nombre: string; apellido: string };
-export type SugerenciaSemana = { inicio: string; fin: string; ocupados: number };
+import type { VacacionesPeriodo } from "./lib";
 
 interface Props {
+  periodo: VacacionesPeriodo | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
-  choferes: ChoferOpcion[];
-  /** Si viene, el empleado queda fijo (no se puede elegir). */
-  choferFijo?: ChoferOpcion | null;
-  /** Fechas iniciales (ej. al clickear una semana del cronograma). */
-  inicioPreset?: string;
-  finPreset?: string;
-  /** Semanas con menos gente ocupada, para sugerir (solo si no hay preset). */
-  sugerencias?: SugerenciaSemana[];
 }
 
-function fmtRango(inicio: string, fin: string): string {
-  return `${formatFecha(inicio)} → ${formatFecha(fin)}`;
-}
-
-export default function CargarVacacionesDialog({
-  open,
-  onOpenChange,
-  onSuccess,
-  choferes,
-  choferFijo,
-  inicioPreset,
-  finPreset,
-  sugerencias,
-}: Props) {
-  const hoy = () => new Date().toISOString().split("T")[0]!;
-  const [choferId, setChoferId] = useState(choferFijo?.chofer_id ?? "");
-  const [inicio, setInicio] = useState(inicioPreset ?? hoy());
-  const [fin, setFin] = useState(finPreset ?? inicioPreset ?? hoy());
-  const [detalle, setDetalle] = useState("Vacaciones");
-  const [observaciones, setObservaciones] = useState("");
+export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuccess }: Props) {
+  const [inicio, setInicio] = useState(periodo?.fecha_inicio ?? "");
+  const [fin, setFin] = useState(periodo?.fecha_fin ?? "");
+  const [observaciones, setObservaciones] = useState(periodo?.observaciones ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Viajes que el chofer ya tiene en el rango (aviso de conflicto). Mismo patrón
-  // que CargarAusenciaDialog del legajo (único uso aceptado de setState-en-effect).
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
-  // Se ocultan las sugerencias una vez que el usuario tocó manualmente las fechas.
-  const [tocoFechas, setTocoFechas] = useState(!!inicioPreset);
 
+  // Viajes en el rango (mismo patrón aceptado que el diálogo de carga).
   useEffect(() => {
-    if (!open || !choferId || !inicio || !fin || fin < inicio) {
+    if (!open || !periodo || !inicio || !fin || fin < inicio) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón aceptado que CargarAusenciaDialog del legajo (fetch de viajes en rango)
       setViajesRango([]);
       return;
     }
     let cancelado = false;
     setLoadingViajes(true);
-    getViajesChoferEnRangoAction(choferId, inicio, fin).then((vs) => {
+    getViajesChoferEnRangoAction(periodo.chofer_id, inicio, fin).then((vs) => {
       if (!cancelado) {
         setViajesRango(vs);
         setLoadingViajes(false);
@@ -81,16 +52,17 @@ export default function CargarVacacionesDialog({
     return () => {
       cancelado = true;
     };
-  }, [open, choferId, inicio, fin]);
+  }, [open, periodo, inicio, fin]);
+
+  if (!periodo) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!choferId) return setError("Elegí un empleado.");
     if (fin < inicio) return setError("La fecha de fin no puede ser anterior al inicio.");
     setLoading(true);
     setError(null);
-    const res = await crearAusenciaAction(choferId, {
-      tipo: detalle.trim() || "Vacaciones",
+    const res = await editarAusenciaAction(periodo.id, periodo.chofer_id, {
+      tipo: "Vacaciones",
       fecha_inicio: inicio,
       fecha_fin: fin,
       observaciones: observaciones.trim() || null,
@@ -104,45 +76,19 @@ export default function CargarVacacionesDialog({
     }
   };
 
-  const ordenados = [...choferes].sort((a, b) => a.apellido.localeCompare(b.apellido));
-  const mostrarSugerencias = !tocoFechas && (sugerencias?.length ?? 0) > 0;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Cargar vacaciones</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">Editar período</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            {choferFijo
-              ? `Para ${choferFijo.apellido}, ${choferFijo.nombre}.`
-              : "Elegí el empleado y el rango de días."}
+            {periodo.apellido}, {periodo.nombre}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">{error}</div>
-          )}
-
-          {!choferFijo && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">
-                Empleado <span className="text-red-400">*</span>
-              </Label>
-              <select
-                value={choferId}
-                onChange={(e) => setChoferId(e.target.value)}
-                required
-                className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
-              >
-                <option value="">Seleccionar…</option>
-                {ordenados.map((c) => (
-                  <option key={c.chofer_id} value={c.chofer_id}>
-                    {c.apellido}, {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
@@ -154,7 +100,6 @@ export default function CargarVacacionesDialog({
                 type="date"
                 value={inicio}
                 onChange={(e) => {
-                  setTocoFechas(true);
                   setInicio(e.target.value);
                   if (fin < e.target.value) setFin(e.target.value);
                 }}
@@ -165,45 +110,8 @@ export default function CargarVacacionesDialog({
               <Label className="text-sm font-medium text-foreground">
                 Hasta <span className="text-red-400">*</span>
               </Label>
-              <Input
-                type="date"
-                value={fin}
-                min={inicio}
-                onChange={(e) => {
-                  setTocoFechas(true);
-                  setFin(e.target.value);
-                }}
-                required
-              />
+              <Input type="date" value={fin} min={inicio} onChange={(e) => setFin(e.target.value)} required />
             </div>
-          </div>
-
-          {/* Sugerencias de semanas con menos gente */}
-          {mostrarSugerencias && (
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Semanas con menos gente</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {sugerencias!.map((s) => (
-                  <button
-                    key={s.inicio}
-                    type="button"
-                    onClick={() => {
-                      setInicio(s.inicio);
-                      setFin(s.fin);
-                      setTocoFechas(true);
-                    }}
-                    className="text-xs px-2.5 py-1 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46] hover:bg-[#D1FAE5] transition-colors"
-                  >
-                    {fmtRango(s.inicio, s.fin)} · {s.ocupados} ausente{s.ocupados !== 1 ? "s" : ""}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">Detalle</Label>
-            <Input value={detalle} onChange={(e) => setDetalle(e.target.value)} placeholder="Vacaciones" />
           </div>
 
           <div className="space-y-1.5">
@@ -211,13 +119,12 @@ export default function CargarVacacionesDialog({
             <textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Ej: autorizó Bárbara por audio del 19/06"
+              placeholder="Ej: movido a julio por pedido del chofer"
               rows={2}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground resize-none"
             />
           </div>
 
-          {/* Aviso de viajes en el rango */}
           {loadingViajes ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 size={13} className="animate-spin" />
@@ -239,9 +146,6 @@ export default function CargarVacacionesDialog({
                       {v.destino ?? "—"}
                     </span>
                     {v.cliente && <span className="text-amber-700/70">· {v.cliente}</span>}
-                    <span className="text-[10px] uppercase tracking-wide text-amber-700/70">
-                      ({v.estado.replace(/_/g, " ")})
-                    </span>
                   </li>
                 ))}
               </ul>
@@ -259,7 +163,7 @@ export default function CargarVacacionesDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Guardando…" : "Cargar vacaciones"}
+              {loading ? "Guardando…" : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </form>

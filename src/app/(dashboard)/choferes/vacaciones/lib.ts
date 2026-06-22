@@ -13,6 +13,7 @@ export type VacacionesPeriodo = {
   fecha_fin: string;
   dias: number;
   estado: string;
+  observaciones: string | null;
   en_curso: boolean;
 };
 
@@ -77,7 +78,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("chofer_ausencias")
-      .select("id, chofer_id, fecha_inicio, fecha_fin, estado")
+      .select("id, chofer_id, fecha_inicio, fecha_fin, estado, observaciones")
       .eq("es_vacaciones", true)
       .is("deleted_at", null),
   ]);
@@ -103,6 +104,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
     fecha_inicio: string;
     fecha_fin: string;
     estado: string;
+    observaciones: string | null;
   }[]) {
     const info = infoPorChofer.get(a.chofer_id);
     if (!info) continue; // empleado inactivo / fuera de dotación
@@ -121,6 +123,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
       fecha_fin: a.fecha_fin,
       dias,
       estado: a.estado,
+      observaciones: a.observaciones ?? null,
       en_curso: enCurso,
     });
   }

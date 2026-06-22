@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Palmtree,
   CalendarRange,
+  CalendarDays,
   Plus,
   RefreshCw,
   Search,
@@ -13,11 +14,16 @@ import {
   Check,
   X,
   AlertTriangle,
+  Download,
+  Info,
 } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
 import { guardarSaldoVacacionesAction, cancelarAusenciaAction } from "../[slug]/actions";
 import { recalcularDiasPorAntiguedadAction } from "./actions";
-import CargarVacacionesDialog, { type ChoferOpcion } from "./CargarVacacionesDialog";
+import CargarVacacionesDialog, { type ChoferOpcion, type SugerenciaSemana } from "./CargarVacacionesDialog";
+import EditarPeriodoDialog from "./EditarPeriodoDialog";
+import CronogramaAnual from "./CronogramaAnual";
 import {
   Dialog,
   DialogContent,
@@ -29,9 +35,9 @@ import {
 import { Button } from "@/components/ui/button";
 import type { VacacionesSaldoChofer, VacacionesPeriodo, VacacionesSector } from "./lib";
 
-const SEMANAS = 10;
 const UMBRAL_SOLAPE = 4; // semanas con más de N de vacaciones se marcan
 const SECTORES: VacacionesSector[] = ["Chofer", "Oficina", "Taller"];
+const MES_LBL = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -53,6 +59,15 @@ function fmtIngreso(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+function construirSemanas(inicio: Date, n: number) {
+  return Array.from({ length: n }, (_, i) => {
+    const start = new Date(inicio);
+    start.setDate(start.getDate() + i * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return { start: toISO(start), end: toISO(end), label: fmtDiaMes(start) };
+  });
+}
 
 interface Props {
   saldos: VacacionesSaldoChofer[];
@@ -70,12 +85,18 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const [fSemaforo, setFSemaforo] = useState<"Todos" | "🔴" | "🟠" | "🟡" | "🟢">("Todos");
   const [busqueda, setBusqueda] = useState("");
 
+  // --- Cronograma: rango + vista ---------------------------------------------
+  const [numSemanas, setNumSemanas] = useState(10);
+  const [vista, setVista] = useState<"semanas" | "anual">("semanas");
+
   // --- Diálogos --------------------------------------------------------------
   const [addOpen, setAddOpen] = useState(false);
   const [addChofer, setAddChofer] = useState<ChoferOpcion | null>(null);
   const [addInicio, setAddInicio] = useState<string | undefined>();
   const [addFin, setAddFin] = useState<string | undefined>();
   const [addKey, setAddKey] = useState(0); // fuerza remonte con estado fresco
+  const [editPeriodo, setEditPeriodo] = useState<VacacionesPeriodo | null>(null);
+  const [editKey, setEditKey] = useState(0);
   const [cancelar, setCancelar] = useState<VacacionesPeriodo | null>(null);
   const [editSaldo, setEditSaldo] = useState<string | null>(null); // chofer_id en edición
   const [editCorr, setEditCorr] = useState("");
@@ -95,6 +116,11 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     setAddFin(fin);
     setAddKey((k) => k + 1);
     setAddOpen(true);
+  };
+
+  const abrirEdit = (p: VacacionesPeriodo) => {
+    setEditPeriodo(p);
+    setEditKey((k) => k + 1);
   };
 
   const confirmarCancelar = async () => {
@@ -123,6 +149,12 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     }
   };
 
+  const exportar = async () => {
+    // Carga xlsx bajo demanda (code-splitting) para no inflar el bundle.
+    const { exportarVacacionesXlsx } = await import("./export");
+    exportarVacacionesXlsx(saldosFiltrados, periodosFiltrados, semanas, finPeriodoY, hoyISO);
+  };
+
   const recalcular = async () => {
     const res = await recalcularDiasPorAntiguedadAction();
     if (res?.error) alert(res.error);
@@ -134,22 +166,53 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
 
   // --- Ventana de semanas (el React Compiler memoiza solo) -------------------
   const inicioSem = lunesDe(new Date());
-  const semanas = Array.from({ length: SEMANAS }, (_, i) => {
-    const start = new Date(inicioSem);
-    start.setDate(start.getDate() + i * 7);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return { start: toISO(start), end: toISO(end), label: fmtDiaMes(start) };
-  });
+  const finAnio = new Date(finPeriodoY, 11, 31);
+  const restoSemanas = Math.max(1, Math.ceil((finAnio.getTime() - inicioSem.getTime()) / (7 * 86_400_000)));
+  const semanas = construirSemanas(inicioSem, numSemanas);
   const finVentana = semanas[semanas.length - 1]!.end;
   const inicioVentana = semanas[0]!.start;
 
   const periodosEnVentana = periodos.filter((p) => p.fecha_inicio <= finVentana && p.fecha_fin >= inicioVentana);
 
-  // Solapamiento por semana (sobre TODOS, no sobre el filtro).
   const conteoPorSemana = semanas.map(
     (s) => new Set(periodosEnVentana.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
   );
+
+  // Sugerencias: 13 semanas fijas, las 3 con menos gente (independiente del filtro de rango).
+  const semanasSug = construirSemanas(inicioSem, 13);
+  const sugerencias: SugerenciaSemana[] = semanasSug
+    .map((s) => ({
+      inicio: s.start,
+      fin: s.end,
+      ocupados: new Set(periodos.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
+    }))
+    .filter((s) => s.ocupados < UMBRAL_SOLAPE)
+    .sort((a, b) => a.ocupados - b.ocupados || a.inicio.localeCompare(b.inicio))
+    .slice(0, 3);
+
+  // Resumen por mes de la ventana visible (personas distintas + días-persona).
+  const resumenMeses = (() => {
+    const map = new Map<string, { personas: Set<string>; dias: number }>();
+    for (const p of periodosEnVentana) {
+      const desde = p.fecha_inicio < inicioVentana ? inicioVentana : p.fecha_inicio;
+      const hasta = p.fecha_fin > finVentana ? finVentana : p.fecha_fin;
+      const d0 = new Date(desde + "T00:00:00");
+      const d1 = new Date(hasta + "T00:00:00");
+      for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const e = map.get(k) ?? { personas: new Set<string>(), dias: 0 };
+        e.personas.add(p.chofer_id);
+        e.dias += 1;
+        map.set(k, e);
+      }
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => {
+        const [, m] = k.split("-");
+        return { mes: k, label: MES_LBL[Number(m) - 1]!, personas: v.personas.size, dias: v.dias };
+      });
+  })();
 
   // --- Filtro aplicado -------------------------------------------------------
   const coincide = (s: VacacionesSaldoChofer) => {
@@ -163,8 +226,8 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   };
   const saldosFiltrados = saldos.filter(coincide);
   const idsFiltrados = new Set(saldosFiltrados.map((s) => s.chofer_id));
+  const periodosFiltrados = periodos.filter((p) => idsFiltrados.has(p.chofer_id));
 
-  // Filas del cronograma: choferes con período en ventana que pasan el filtro.
   const filasCrono = [...new Set(periodosEnVentana.map((p) => p.chofer_id))]
     .filter((id) => idsFiltrados.has(id))
     .map((id) => {
@@ -178,8 +241,16 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     ps.find((p) => p.fecha_inicio <= semanas[semIdx]!.end && p.fecha_fin >= semanas[semIdx]!.start);
 
   const enVacacionesAhora = saldos.filter((s) => s.en_vacaciones_ahora);
-  const urgentes = saldos.filter((s) => s.adeudados > 0).length;
+  const urgentes = saldos.filter((s) => s.adeudados > 0);
   const desfasados = saldos.filter((s) => s.desfasaje).length;
+  const hoyISO = new Date().toISOString().slice(0, 10);
+
+  // KPIs
+  const diasEnRiesgo = urgentes.reduce((a, s) => a + s.adeudados, 0);
+  const diasOtorgar = saldos.reduce((a, s) => a + s.corresponden, 0);
+  const planificados = periodos.filter((p) => p.fecha_inicio >= hoyISO).length;
+
+  const periodosVentanaFiltrados = periodosEnVentana.filter((p) => idsFiltrados.has(p.chofer_id));
 
   const saldosPorSector = SECTORES.map((sec) => ({
     sector: sec,
@@ -226,6 +297,14 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <option value="🟡">🟡 Atención</option>
           <option value="🟢">🟢 Ok</option>
         </select>
+        <Button
+          variant="outline"
+          onClick={exportar}
+          className="h-9 gap-1.5 text-muted-foreground border-border"
+          title="Descargar Excel (saldos, períodos y cronograma)"
+        >
+          <Download size={14} /> Excel
+        </Button>
         {canWrite && (
           <>
             <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
@@ -244,6 +323,47 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         )}
       </div>
 
+      {/* Cards de resumen */}
+      <TooltipProvider delay={120}>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <StatCard
+            label={`Con saldo ${finPeriodoY - 1} por vencer`}
+            value={urgentes.length}
+            tone="danger"
+            emoji="🔴"
+            info={`Empleados que todavía tienen días del período ${finPeriodoY - 1} sin tomar. Vencen el 31/12/${finPeriodoY}: si no los toman, los pierden. Priorizá darles fecha (filtrá por 🔴 Urgentes).`}
+          />
+          <StatCard
+            label="Días en riesgo (31/12)"
+            value={diasEnRiesgo}
+            tone="danger"
+            emoji="⏱️"
+            info={`Suma de todos los días del año anterior que vencen el 31/12/${finPeriodoY}. Es la cantidad total de días que la empresa perdería si nadie los toma a tiempo.`}
+          />
+          <StatCard
+            label={`Días a otorgar ${finPeriodoY}`}
+            value={diasOtorgar}
+            tone="brand"
+            emoji="🏖️"
+            info={`Total de días que corresponden por ${finPeriodoY} a toda la dotación (según antigüedad: 14/21/28/35). Es lo que hay que ir planificando a lo largo del año.`}
+          />
+          <StatCard
+            label="Períodos planificados"
+            value={planificados}
+            tone="muted"
+            emoji="📅"
+            info="Cantidad de tramos de vacaciones cargados de hoy en adelante. Aparecen en el cronograma. Cargá más con “+ Cargar vacaciones”."
+          />
+          <StatCard
+            label="De vacaciones ahora"
+            value={enVacacionesAhora.length}
+            tone="success"
+            emoji="✈️"
+            info="Empleados que están de vacaciones hoy. Logística también los ve como no disponibles en Viajes."
+          />
+        </div>
+      </TooltipProvider>
+
       {desfasados > 0 && canWrite && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
           <AlertTriangle size={15} />
@@ -252,43 +372,50 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         </div>
       )}
 
-      {/* De vacaciones ahora */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none px-5 py-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Palmtree size={16} className="text-[#10B981]" />
-          <h2 className="text-sm font-bold text-foreground">De vacaciones ahora</h2>
-          <span className="text-xs font-semibold text-muted-foreground">({enVacacionesAhora.length})</span>
-        </div>
-        {enVacacionesAhora.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Ningún empleado está de vacaciones hoy.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {enVacacionesAhora.map((s) => (
-              <Link
-                key={s.chofer_id}
-                href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#ECFDF5] dark:bg-emerald-950/30 text-[#065F46] dark:text-emerald-300 border border-[#A7F3D0] dark:border-emerald-800/40 hover:bg-[#D1FAE5] transition-colors"
-              >
-                <Palmtree size={11} />
-                {s.apellido}, {s.nombre}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Cronograma interactivo */}
+      {/* Cronograma */}
       <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
           <CalendarRange size={16} className="text-primary" />
-          <h2 className="text-sm font-bold text-foreground">Cronograma · próximas {SEMANAS} semanas</h2>
-          <span className="text-[11px] text-muted-foreground">
-            · solo aparecen los que ya tienen vacaciones cargadas{canWrite ? " · clic en una celda para cargar o quitar" : ""}
+          <h2 className="text-sm font-bold text-foreground">Cronograma</h2>
+          <span className="text-[11px] text-muted-foreground hidden sm:inline">
+            · solo aparecen los que ya tienen vacaciones{canWrite && vista === "semanas" ? " · clic en una celda para cargar o quitar" : ""}
           </span>
+          <div className="ml-auto flex items-center gap-2">
+            {vista === "semanas" && (
+              <select
+                value={numSemanas}
+                onChange={(e) => setNumSemanas(Number(e.target.value))}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+              >
+                <option value={10}>10 semanas</option>
+                <option value={13}>3 meses</option>
+                <option value={26}>6 meses</option>
+                <option value={restoSemanas}>Resto del año</option>
+                <option value={52}>Año completo</option>
+              </select>
+            )}
+            <div className="inline-flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setVista("semanas")}
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vista === "semanas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <CalendarRange size={13} /> Semanas
+              </button>
+              <button
+                onClick={() => setVista("anual")}
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vista === "anual" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <CalendarDays size={13} /> Año
+              </button>
+            </div>
+          </div>
         </div>
-        {filasCrono.length === 0 ? (
+
+        {vista === "anual" ? (
+          <CronogramaAnual periodos={periodosFiltrados} anio={finPeriodoY} />
+        ) : filasCrono.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-            Nadie tiene vacaciones en las próximas {SEMANAS} semanas para este filtro.
+            Nadie tiene vacaciones en esta ventana para este filtro.
             {canWrite && (
               <div className="mt-1 text-[13px]">
                 Para cargar una, usá <span className="font-medium text-foreground">“+ Cargar vacaciones”</span> (arriba) o el <span className="font-medium text-foreground">+</span> en la tabla de saldos.
@@ -306,12 +433,8 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                   {semanas.map((s, i) => (
                     <th
                       key={s.start}
-                      className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap ${
-                        conteoPorSemana[i]! > UMBRAL_SOLAPE
-                          ? "text-[#EF4444]"
-                          : i === 0
-                            ? "text-primary"
-                            : "text-muted-foreground/70"
+                      className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
+                        conteoPorSemana[i]! > UMBRAL_SOLAPE ? "text-[#EF4444]" : i === 0 ? "text-primary" : "text-muted-foreground/70"
                       }`}
                       title={`${conteoPorSemana[i]} de vacaciones esta semana`}
                     >
@@ -359,6 +482,19 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                 ))}
               </tbody>
             </table>
+
+            {/* Resumen por mes */}
+            {resumenMeses.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border text-[11px]">
+                <span className="font-semibold text-muted-foreground uppercase tracking-wide">Por mes:</span>
+                {resumenMeses.map((m) => (
+                  <span key={m.mes} className={m.personas > 5 ? "text-[#EF4444] font-medium" : "text-muted-foreground"}>
+                    {m.label} {m.personas} pers. · {m.dias} días{m.personas > 5 ? " ⚠️" : ""}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
               <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#10B981]/80" /> de vacaciones</span>
               <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#EF4444]/70" /> al pasar el mouse: quitar</span>
@@ -369,30 +505,33 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       </div>
 
       {/* Próximos períodos */}
-      {periodosEnVentana.filter((p) => idsFiltrados.has(p.chofer_id)).length > 0 && (
+      {periodosVentanaFiltrados.length > 0 && (
         <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <CalendarRange size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-foreground">Períodos en la ventana</h2>
+            <span className="text-xs text-muted-foreground">({periodosVentanaFiltrados.length})</span>
           </div>
           <ul className="divide-y divide-border">
-            {periodosEnVentana
-              .filter((p) => idsFiltrados.has(p.chofer_id))
-              .map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
+            {periodosVentanaFiltrados.map((p) => (
+              <li key={p.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
+                <div className="min-w-0">
                   <span className="text-sm font-medium text-foreground">{p.apellido}, {p.nombre}</span>
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">{p.dias} día{p.dias !== 1 ? "s" : ""}</span>
-                    {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
-                    {canWrite && (
-                      <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período">
-                        <X size={14} />
-                      </button>
-                    )}
-                  </span>
-                </li>
-              ))}
+                  {p.observaciones && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{p.observaciones}</p>}
+                </div>
+                <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                  {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">{p.dias} día{p.dias !== 1 ? "s" : ""}</span>
+                  {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
+                  {canWrite && (
+                    <>
+                      <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
+                      <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
       )}
@@ -404,10 +543,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             <Palmtree size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-foreground">Saldos por empleado</h2>
           </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {urgentes > 0 && <span className="font-semibold text-[#EF4444]">🔴 {urgentes} con saldo {finPeriodoY - 1} por vencer</span>}
-            <span>{saldosFiltrados.length} / {saldos.length}</span>
-          </div>
+          <span className="text-xs text-muted-foreground">{saldosFiltrados.length} / {saldos.length}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -505,6 +641,16 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         choferFijo={addChofer}
         inicioPreset={addInicio}
         finPreset={addFin}
+        sugerencias={sugerencias}
+      />
+
+      {/* Diálogo editar período */}
+      <EditarPeriodoDialog
+        key={`edit-${editKey}`}
+        periodo={editPeriodo}
+        open={!!editPeriodo}
+        onOpenChange={(v) => !v && setEditPeriodo(null)}
+        onSuccess={refrescar}
       />
 
       {/* Confirmar cancelación */}
@@ -527,5 +673,41 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone,
+  emoji,
+  info,
+}: {
+  label: string;
+  value: number;
+  tone: "danger" | "brand" | "success" | "muted";
+  emoji: string;
+  info: string;
+}) {
+  const valueClass =
+    tone === "danger" ? "text-[#EF4444]" : tone === "brand" ? "text-primary" : tone === "success" ? "text-[#10B981]" : "text-foreground";
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div className="rounded-[8px] border border-border bg-card p-3 cursor-help hover:border-primary/40 hover:shadow-sm transition-colors">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <span>{emoji}</span>
+              <span className="truncate">{label}</span>
+              <Info size={12} className="ml-auto shrink-0 text-muted-foreground/40" />
+            </div>
+            <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
+          </div>
+        }
+      />
+      <TooltipContent side="bottom" className="max-w-[260px] text-left leading-snug">
+        {info}
+      </TooltipContent>
+    </Tooltip>
   );
 }
