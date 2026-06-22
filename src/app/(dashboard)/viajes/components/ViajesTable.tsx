@@ -51,7 +51,7 @@ import {
 import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
-import ViajeGastosPanel from "./ViajeGastosPanel";
+import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
@@ -74,6 +74,9 @@ interface Props {
   choferId?: string;
   filtroExterno?: FiltroExterno;
   onFiltroChange?: (f: { estado: string; facturado: boolean | null; esVacio: boolean | null }) => void;
+  /** Datos de formulario de gasto, resueltos en la página y compartidos por todas
+   *  las filas (evita re-pedirlos al expandir cada viaje). */
+  gastoFormData: GastoFormData;
 }
 
 const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "error"> = {
@@ -108,7 +111,7 @@ const COLUMNS: ColumnDef[] = [
   { label: "" },
 ];
 
-export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }: Props) {
+export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData }: Props) {
   const router = useRouter();
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
@@ -786,7 +789,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange }:
                           </div>
                         </div>
 
-                        <ViajeGastosPanel viajeId={v.id} />
+                        <ViajeGastosPanel viajeId={v.id} formData={gastoFormData} />
                       </div>
                     </TableCell>
                   </TableRow>

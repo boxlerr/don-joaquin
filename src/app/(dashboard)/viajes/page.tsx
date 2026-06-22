@@ -124,6 +124,7 @@ export default async function ViajesPage({
         choferId={choferId}
         choferNombre={choferNombre}
         filtroInicial={filtro}
+        gastoFormData={gastoFormData}
       >
         <DisponibilidadChoferes ausencias={ausenciasProximas} dias={DIAS_DISPONIBILIDAD} />
       </ViajesStatsPanel>

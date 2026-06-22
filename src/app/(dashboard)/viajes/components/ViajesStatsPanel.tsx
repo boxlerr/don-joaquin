@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MapPin, X } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import ViajesTable, { type FiltroExterno } from "./ViajesTable";
+import { type GastoFormData } from "./ViajeGastosPanel";
 
 interface Stats {
   total: number;
@@ -20,6 +21,9 @@ interface Props {
   choferNombre?: string | null;
   /** Filtro preseleccionado desde la URL (key de tarjeta: en_curso, pendiente, sin_facturar, vacios). */
   filtroInicial?: string;
+  /** Datos de formulario de gasto (resueltos en la página) que la tabla pasa al
+   *  panel de gastos de cada fila. */
+  gastoFormData: GastoFormData;
   /** Contenido renderizado entre las tarjetas y el listado (ej. disponibilidad de choferes). */
   children?: ReactNode;
 }
@@ -37,7 +41,7 @@ interface CardDef {
   esVacio: boolean | null;
 }
 
-export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtroInicial, children }: Props) {
+export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtroInicial, gastoFormData, children }: Props) {
   const cards: CardDef[] = [
     { key: "todos", label: "Total viajes", value: stats.total, color: "brand", estado: "", facturado: null, esVacio: null },
     { key: "en_curso", label: "En curso", value: stats.enCurso, color: "success", estado: "en_curso", facturado: null, esVacio: null },
@@ -143,7 +147,7 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
         </div>
       </div>
 
-      <ViajesTable choferId={choferId} filtroExterno={filtroExterno} onFiltroChange={setCurrent} />
+      <ViajesTable choferId={choferId} filtroExterno={filtroExterno} onFiltroChange={setCurrent} gastoFormData={gastoFormData} />
     </>
   );
 }

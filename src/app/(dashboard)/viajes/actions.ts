@@ -257,6 +257,9 @@ export type ViajeFormData = {
 export async function getViajeFormData(): Promise<ViajeFormData | { error: string }> {
   const supabase = createAdminClient();
 
+  // Fecha de hoy para la planilla diaria (se pide dentro del batch paralelo).
+  const hoy = new Date().toISOString().slice(0, 10);
+
   const [
     clientesRes,
     choferesRes,
@@ -264,6 +267,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     tiposCargaRes,
     puntosRes,
     circuitosRes,
+    asignacionesHoyRes,
   ] = await Promise.all([
       supabase
         .from("clientes")
@@ -299,6 +303,14 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         )
         .eq("estado", "activa")
         .order("codigo_interno", { ascending: true }),
+      // Planilla diaria de HOY: antes era una consulta serial después del batch;
+      // ahora va en paralelo con el resto. Su error se ignora igual que antes
+      // (si falla, se usa el camión habitual del chofer como fallback).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("asignacion_diaria")
+        .select("chofer_id, camion_id")
+        .eq("fecha", hoy),
     ]);
 
   if (
@@ -374,13 +386,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     }
   }
 
-  const hoy = new Date().toISOString().slice(0, 10);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: asignacionesHoy } = await (supabase as any)
-    .from("asignacion_diaria")
-    .select("chofer_id, camion_id")
-    .eq("fecha", hoy);
-  for (const a of (asignacionesHoy ?? []) as { chofer_id: string; camion_id: string }[]) {
+  for (const a of (asignacionesHoyRes.data ?? []) as { chofer_id: string; camion_id: string }[]) {
     camionPorChofer.set(a.chofer_id, a.camion_id);
   }
 

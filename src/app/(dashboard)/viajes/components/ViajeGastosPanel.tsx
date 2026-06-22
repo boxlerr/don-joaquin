@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, Receipt, Calendar, AlertCircle, Loader2 } from "lucide-react";
 import {
   getGastosAction,
-  getGastoFormData,
   type GastoRow,
 } from "../../gastos/actions";
 import AddGastoDialog, {
@@ -30,35 +29,39 @@ function formatARS(n: number): string {
   });
 }
 
-type FormData = {
+export type GastoFormData = {
   tiposGasto: TipoGastoOption[];
   viajes: ViajeOption[];
   camiones: CamionOption[];
   choferes: ChoferOption[];
 };
 
-export default function ViajeGastosPanel({ viajeId }: { viajeId: string }) {
+export default function ViajeGastosPanel({
+  viajeId,
+  formData,
+}: {
+  viajeId: string;
+  formData: GastoFormData;
+}) {
   const [gastos, setGastos] = useState<GastoRow[]>([]);
   const [total, setTotal] = useState(0);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState<FormData | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  // Los datos del formulario (tipos de gasto, viajes, camiones, choferes) ya
+  // vienen resueltos desde la página por props: no se vuelven a pedir al
+  // expandir cada fila. Acá solo se cargan los gastos propios del viaje.
   const load = useCallback(async () => {
     setLoading(true);
-    const [resGastos, resForm] = await Promise.all([
-      getGastosAction({ viajeId, page: 0 }),
-      formData ? Promise.resolve(formData) : getGastoFormData(),
-    ]);
+    const resGastos = await getGastosAction({ viajeId, page: 0 });
     if ("data" in resGastos) {
       setGastos(resGastos.data.slice(0, 5));
       setCount(resGastos.count);
       setTotal(resGastos.data.reduce((acc, g) => acc + g.monto, 0));
     }
-    if (!formData) setFormData(resForm as FormData);
     setLoading(false);
-  }, [viajeId, formData]);
+  }, [viajeId]);
 
   useEffect(() => {
     void load();
