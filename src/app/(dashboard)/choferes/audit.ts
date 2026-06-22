@@ -1,7 +1,6 @@
-"use server";
+import { logAudit } from "@/lib/audit";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-
+/** Registra en audit_log una acción sobre un chofer (o su legajo). */
 export async function logChoferAudit(
   choferId: string,
   accion: string,
@@ -9,14 +8,12 @@ export async function logChoferAudit(
   valoresNuevos: Record<string, unknown> | null,
   userId: string | null,
 ): Promise<void> {
-  const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: userId,
+  await logAudit({
     accion,
-    entidad_tipo: "chofer",
-    entidad_id: choferId,
-    valores_anteriores: valoresAnteriores,
-    valores_nuevos: valoresNuevos,
+    entidadTipo: "chofer",
+    entidadId: choferId,
+    usuarioId: userId,
+    valoresAnteriores,
+    valoresNuevos,
   });
 }

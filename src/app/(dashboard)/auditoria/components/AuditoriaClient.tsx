@@ -15,6 +15,13 @@ import {
   Users,
   IdCard,
   Truck,
+  Wrench,
+  Receipt,
+  ClipboardList,
+  ShieldCheck,
+  LogIn,
+  Settings,
+  Search,
 } from "lucide-react";
 import {
   getGlobalAuditLogsAction,
@@ -23,6 +30,7 @@ import {
   type GetAuditLogsParams,
 } from "../actions";
 import { Combobox } from "@/components/ui/combobox";
+import { accionLabel, accionClasses, entidadLabel, ACCION_LABELS, type RefsMap } from "@/lib/audit-catalog";
 
 const PAGE_SIZE = 25;
 
@@ -33,72 +41,28 @@ type Filters = {
   hasta: string;
   usuario_id: string;
   entidad_tipos: string[];
+  accion: string;
 };
 
 const ENTIDAD_TABS = [
-  { value: "", label: "Todas", icon: ListChecks },
-  { value: "viaje", label: "Viajes", icon: MapPin },
-  { value: "cheque", label: "Cheques", icon: Banknote },
-  { value: "caja", label: "Caja", icon: Wallet },
-  { value: "cliente", label: "Clientes", icon: Users },
-  { value: "chofer", label: "Choferes", icon: IdCard },
-  { value: "camion", label: "Camiones", icon: Truck },
+  { key: "todas", label: "Todas", icon: ListChecks, tipos: [] as string[] },
+  { key: "viaje", label: "Viajes", icon: MapPin, tipos: ["viaje"] },
+  { key: "cheque", label: "Cheques", icon: Banknote, tipos: ["cheque"] },
+  { key: "caja", label: "Caja", icon: Wallet, tipos: ["caja"] },
+  { key: "cliente", label: "Clientes", icon: Users, tipos: ["cliente"] },
+  { key: "chofer", label: "Choferes", icon: IdCard, tipos: ["chofer"] },
+  { key: "camion", label: "Camiones", icon: Truck, tipos: ["camion"] },
+  { key: "mantenimiento", label: "Mantenimiento", icon: Wrench, tipos: ["mantenimiento", "rotura_goma"] },
+  { key: "tarifa", label: "Tarifas", icon: Receipt, tipos: ["tarifa", "ruta"] },
+  { key: "entrevista", label: "Entrevistas", icon: ClipboardList, tipos: ["entrevista"] },
+  { key: "usuarios", label: "Usuarios y permisos", icon: ShieldCheck, tipos: ["usuarios", "rol_areas", "usuario_areas"] },
+  { key: "accesos", label: "Accesos", icon: LogIn, tipos: ["usuario"] },
+  { key: "config", label: "Configuración", icon: Settings, tipos: ["parametro_sistema"] },
 ] as const;
 
-const ACCIONES_LABELS: Record<string, string> = {
-  crear: "Creación",
-  cambio_estado: "Cambio de estado",
-  actualizar: "Actualización",
-  eliminar: "Eliminación",
-  foto_agregada: "Foto agregada",
-  foto_eliminada: "Foto eliminada",
-  foto_principal: "Foto marcada como principal",
-  nota_foto: "Nota de foto actualizada",
-  contacto_agregado: "Contacto agregado",
-  contacto_eliminado: "Contacto eliminado",
-  sucursal_agregada: "Sucursal agregada",
-  sucursal_eliminada: "Sucursal eliminada",
-  requisito_agregado: "Requisito agregado",
-  requisito_eliminado: "Requisito eliminado",
-  requisito_estado: "Estado de requisito",
-  documento_agregado: "Documento agregado",
-  documento_eliminado: "Documento eliminado",
-  camion_asignado: "Camión asignado",
-  camion_desasignado: "Camión desasignado",
-  egreso_editado: "Egreso editado",
-};
+const ACCION_OPTIONS = Object.entries(ACCION_LABELS).map(([id, label]) => ({ id, label }));
 
-const ACCIONES_COLORS: Record<string, string> = {
-  crear: "bg-[#ECFDF5] text-[#065F46]",
-  cambio_estado: "bg-[#E0E7FF] text-[#3730A3]",
-  actualizar: "bg-[#FEF3C7] text-[#92400E]",
-  eliminar: "bg-[#FEE2E2] text-[#7F1D1D]",
-  foto_agregada: "bg-[#E0F2FE] text-[#075985]",
-  foto_eliminada: "bg-[#FEE2E2] text-[#7F1D1D]",
-  foto_principal: "bg-[#FEF3C7] text-[#92400E]",
-  nota_foto: "bg-[#F3E8FF] text-[#6B21A8]",
-  contacto_agregado: "bg-[#ECFDF5] text-[#065F46]",
-  contacto_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
-  sucursal_agregada: "bg-[#ECFDF5] text-[#065F46]",
-  sucursal_eliminada: "bg-[#FEE2E2] text-[#7F1D1D]",
-  requisito_agregado: "bg-[#ECFDF5] text-[#065F46]",
-  requisito_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
-  requisito_estado: "bg-[#E0E7FF] text-[#3730A3]",
-  documento_agregado: "bg-[#E0F2FE] text-[#075985]",
-  documento_eliminado: "bg-[#FEE2E2] text-[#7F1D1D]",
-  camion_asignado: "bg-[#E0F2FE] text-[#075985]",
-  camion_desasignado: "bg-[#FEF3C7] text-[#92400E]",
-  egreso_editado: "bg-[#FEF3C7] text-[#92400E]",
-};
-
-const ENTIDADES_LABELS: Record<string, string> = {
-  viaje: "Viaje",
-  cheque: "Cheque",
-  caja: "Caja",
-  cliente: "Cliente",
-  chofer: "Chofer",
-  camion: "Camión",
-};
+// Etiquetas y colores de acciones/entidades: ver @/lib/audit-catalog.
 
 export default function AuditoriaClient({
   initialData,
@@ -108,6 +72,7 @@ export default function AuditoriaClient({
   usuarios: UsuarioOption[];
 }) {
   const [entries, setEntries] = useState<AuditLogEntry[]>(initialData.data);
+  const [refs, setRefs] = useState<RefsMap>(initialData.refs);
   const [total, setTotal] = useState(initialData.total);
   const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<Filters>({
@@ -115,7 +80,9 @@ export default function AuditoriaClient({
     hasta: "",
     usuario_id: "",
     entidad_tipos: [],
+    accion: "",
   });
+  const [q, setQ] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -128,18 +95,19 @@ export default function AuditoriaClient({
         hasta: newFilters.hasta || undefined,
         usuario_id: newFilters.usuario_id || undefined,
         entidad_tipos: newFilters.entidad_tipos.length > 0 ? newFilters.entidad_tipos : undefined,
+        accion: newFilters.accion || undefined,
         page: newPage,
       };
       startTransition(async () => {
         const result = await getGlobalAuditLogsAction(params);
         if (!("error" in result)) {
           setEntries(result.data);
+          setRefs(result.refs);
           setTotal(result.total);
         }
       });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [],
   );
 
   const handleFilterChange = <K extends Exclude<keyof Filters, "entidad_tipos">>(
@@ -152,14 +120,15 @@ export default function AuditoriaClient({
     fetchData(newFilters, 0);
   };
 
-  const toggleEntidad = (value: string) => {
+  const toggleEntidad = (tipos: readonly string[]) => {
     let next: string[];
-    if (value === "") {
-      next = [];
-    } else if (filters.entidad_tipos.includes(value)) {
-      next = filters.entidad_tipos.filter((v) => v !== value);
+    if (tipos.length === 0) {
+      next = []; // "Todas"
     } else {
-      next = [...filters.entidad_tipos, value];
+      const yaActivos = tipos.every((t) => filters.entidad_tipos.includes(t));
+      next = yaActivos
+        ? filters.entidad_tipos.filter((v) => !tipos.includes(v))
+        : Array.from(new Set([...filters.entidad_tipos, ...tipos]));
     }
     const newFilters = { ...filters, entidad_tipos: next };
     setFilters(newFilters);
@@ -173,8 +142,9 @@ export default function AuditoriaClient({
   };
 
   const clearFilters = () => {
-    const empty: Filters = { desde: "", hasta: "", usuario_id: "", entidad_tipos: [] };
+    const empty: Filters = { desde: "", hasta: "", usuario_id: "", entidad_tipos: [], accion: "" };
     setFilters(empty);
+    setQ("");
     setPage(0);
     fetchData(empty, 0);
   };
@@ -183,9 +153,29 @@ export default function AuditoriaClient({
     !!filters.desde ||
     !!filters.hasta ||
     !!filters.usuario_id ||
+    !!filters.accion ||
+    !!q ||
     filters.entidad_tipos.length > 0;
   const rangeFrom = page * PAGE_SIZE + 1;
   const rangeTo = Math.min((page + 1) * PAGE_SIZE, total);
+
+  // Búsqueda por texto: filtra lo cargado en la página actual (no toca el server).
+  const filtroTexto = q.trim().toLowerCase();
+  const entriesFiltradas = filtroTexto
+    ? entries.filter((e) =>
+        [
+          e.entidad_label,
+          e.entidad_detalle,
+          accionLabel(e.accion),
+          entidadLabel(e.entidad_tipo),
+          e.usuario ? `${e.usuario.apellido} ${e.usuario.nombre}` : "",
+          typeof e.metadata?.email === "string" ? e.metadata.email : "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(filtroTexto),
+      )
+    : entries;
 
   return (
     <>
@@ -193,15 +183,15 @@ export default function AuditoriaClient({
       <div className="bg-card rounded-lg border border-border px-2 py-1 mb-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {ENTIDAD_TABS.map((t) => {
           const Icon = t.icon;
-          const isAll = t.value === "";
+          const isAll = t.tipos.length === 0;
           const active = isAll
             ? filters.entidad_tipos.length === 0
-            : filters.entidad_tipos.includes(t.value);
+            : t.tipos.every((tipo) => filters.entidad_tipos.includes(tipo));
           return (
             <button
-              key={t.value || "all"}
+              key={t.key}
               type="button"
-              onClick={() => toggleEntidad(t.value)}
+              onClick={() => toggleEntidad(t.tipos)}
               className={
                 "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold rounded-md transition-colors whitespace-nowrap " +
                 (active
@@ -268,6 +258,38 @@ export default function AuditoriaClient({
           />
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            Acción
+          </label>
+          <Combobox
+            value={filters.accion}
+            onValueChange={(v) => handleFilterChange("accion", v)}
+            options={[{ id: "", label: "Todas las acciones" }, ...ACCION_OPTIONS]}
+            searchPlaceholder="Buscar acción..."
+            triggerClassName="h-9 min-w-[180px]"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            Buscar recurso
+          </label>
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
+            />
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Filtrar en esta página..."
+              className="border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[200px]"
+            />
+          </div>
+        </div>
+
         {hasFilters && (
           <button
             onClick={clearFilters}
@@ -283,16 +305,18 @@ export default function AuditoriaClient({
       <div className="bg-card rounded-lg border border-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <p className="text-sm text-muted-foreground">
-            {total === 0
-              ? "Sin registros"
-              : `Mostrando ${rangeFrom}–${rangeTo} de ${total} registros`}
+            {filtroTexto
+              ? `${entriesFiltradas.length} resultado(s) en esta página`
+              : total === 0
+                ? "Sin registros"
+                : `Mostrando ${rangeFrom}–${rangeTo} de ${total} registros`}
           </p>
           {isPending && (
             <span className="text-xs text-muted-foreground/70">Actualizando...</span>
           )}
         </div>
 
-        {entries.length === 0 ? (
+        {entriesFiltradas.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground/70">
             <ShieldAlert size={32} className="mb-3 opacity-40" />
             <p className="text-sm">Sin registros de auditoría</p>
@@ -320,7 +344,7 @@ export default function AuditoriaClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {entries.map((entry) => (
+              {entriesFiltradas.map((entry) => (
                 <tr key={entry.id} className="hover:bg-muted/40 transition-colors">
                   <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
                     {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
@@ -335,14 +359,14 @@ export default function AuditoriaClient({
                   <td className="px-5 py-3">
                     <span
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                        ACCIONES_COLORS[entry.accion] ?? "bg-muted text-muted-foreground"
+                        accionClasses(entry.accion)
                       }`}
                     >
-                      {ACCIONES_LABELS[entry.accion] ?? entry.accion}
+                      {accionLabel(entry.accion)}
                     </span>
                   </td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
+                    {entidadLabel(entry.entidad_tipo)}
                   </td>
                   <td className="px-5 py-3">
                     {entry.entidad_label ? (
@@ -354,6 +378,8 @@ export default function AuditoriaClient({
                           </div>
                         )}
                       </div>
+                    ) : typeof entry.metadata?.email === "string" ? (
+                      <div className="text-foreground text-sm">{entry.metadata.email}</div>
                     ) : (
                       <span className="text-muted-foreground/60 text-xs">—</span>
                     )}
@@ -404,6 +430,7 @@ export default function AuditoriaClient({
         <AuditDetailDrawer
           entry={selectedEntry}
           onClose={() => setSelectedEntry(null)}
+          refs={refs}
         />
       )}
     </>
@@ -413,9 +440,11 @@ export default function AuditoriaClient({
 function AuditDetailDrawer({
   entry,
   onClose,
+  refs,
 }: {
   entry: AuditLogEntry;
   onClose: () => void;
+  refs: RefsMap;
 }) {
   return (
     <div
@@ -452,15 +481,15 @@ function AuditDetailDrawer({
         <div className="px-5 py-4 border-b border-border space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                ACCIONES_COLORS[entry.accion] ?? "bg-muted text-muted-foreground"
-              }`}
+              className={`px-2 py-0.5 rounded text-[11px] font-semibold ${accionClasses(
+                entry.accion,
+              )}`}
             >
-              {ACCIONES_LABELS[entry.accion] ?? entry.accion}
+              {accionLabel(entry.accion)}
             </span>
             <span className="text-muted-foreground/70 text-xs">·</span>
             <span className="text-[12px] text-muted-foreground">
-              {ENTIDADES_LABELS[entry.entidad_tipo] ?? entry.entidad_tipo}
+              {entidadLabel(entry.entidad_tipo)}
             </span>
           </div>
 
@@ -468,7 +497,7 @@ function AuditDetailDrawer({
           {entry.entidad_label && (
             <div className="bg-muted/40 border border-border rounded-md px-3 py-2 space-y-0.5">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                {ENTIDADES_LABELS[entry.entidad_tipo] ?? "Recurso"} afectado
+                {entidadLabel(entry.entidad_tipo)} afectado
               </p>
               <p className="text-sm font-semibold text-foreground">{entry.entidad_label}</p>
               {entry.entidad_detalle && (
@@ -488,7 +517,7 @@ function AuditDetailDrawer({
 
         {/* Diff */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          <FriendlyDiff entry={entry} />
+          <FriendlyDiff entry={entry} refs={refs} />
         </div>
       </div>
     </div>
@@ -706,6 +735,7 @@ function formatValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Sí" : "No";
   if (typeof value === "number") return value.toLocaleString("es-AR");
+  if (typeof value === "object") return Array.isArray(value) ? `${value.length} elemento(s)` : "—";
   const s = String(value);
   // Fecha ISO sólo día: parsear como local para no correrse por timezone
   const dateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -723,6 +753,12 @@ function formatValue(value: unknown): string {
   return s;
 }
 
+/** Igual que formatValue, pero si el campo es un *_id conocido lo muestra resuelto a nombre. */
+function displayValue(key: string, value: unknown, refs: RefsMap): string {
+  if (typeof value === "string" && refs[key]?.[value]) return refs[key][value];
+  return formatValue(value);
+}
+
 function fieldLabel(entidad: string, key: string): string {
   return FIELD_LABELS[entidad]?.[key] ?? humanizeKey(key);
 }
@@ -731,17 +767,13 @@ type DiffRow = { key: string; antes: unknown; despues: unknown };
 
 const HIDDEN_KEYS = new Set([
   "foto_url",
-  // FKs internos: se guardan como UUIDs sin valor en el panel
+  // FKs que el panel todavía no resuelve a un nombre legible: se ocultan.
+  // (Los *_id que sí se resuelven —chofer, camión, cliente, etc.— se muestran.)
   "gasto_id",
-  "chofer_id",
-  "cliente_id",
-  "viaje_id",
   "viatico_id",
-  "cheque_id",
-  "camion_id",
   "factura_id",
   "pago_cliente_id",
-  "banco_id",
+  "archivos",
 ]);
 
 function computeDiff(
@@ -790,7 +822,7 @@ function FotoPreview({ url, deleted }: { url: string; deleted?: boolean }) {
   );
 }
 
-function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
+function FriendlyDiff({ entry, refs }: { entry: AuditLogEntry; refs: RefsMap }) {
   const antes = entry.valores_anteriores;
   const despues = entry.valores_nuevos;
   const entidad = entry.entidad_tipo;
@@ -823,7 +855,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
                 {fieldLabel(entidad, row.key)}
               </span>
               <span className="text-[12px] text-[#065F46] text-right break-words">
-                {formatValue(row.despues)}
+                {displayValue(row.key, row.despues, refs)}
               </span>
             </div>
           ))}
@@ -847,7 +879,7 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
                 {fieldLabel(entidad, row.key)}
               </span>
               <span className="text-[12px] text-[#7F1D1D] text-right break-words line-through">
-                {formatValue(row.antes)}
+                {displayValue(row.key, row.antes, refs)}
               </span>
             </div>
           ))}
@@ -876,11 +908,11 @@ function FriendlyDiff({ entry }: { entry: AuditLogEntry }) {
             </p>
             <div className="flex items-center gap-2 text-[13px] flex-wrap">
               <span className="px-2 py-0.5 rounded bg-[#FEE2E2] text-[#7F1D1D] line-through break-words">
-                {formatValue(row.antes)}
+                {displayValue(row.key, row.antes, refs)}
               </span>
               <span className="text-muted-foreground/70 text-xs">→</span>
               <span className="px-2 py-0.5 rounded bg-[#DCFCE7] text-[#14532D] font-semibold break-words">
-                {formatValue(row.despues)}
+                {displayValue(row.key, row.despues, refs)}
               </span>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 
 const EMPRESA_KEYS = [
@@ -88,13 +89,14 @@ export async function updateEmpresaAction(input: unknown): Promise<Result> {
         return { error: `No se pudo guardar ${fila.clave}` };
       }
 
-      await supabase.from("audit_log").insert({
+      await logAudit({
+        client: supabase,
         accion: "actualizar",
-        usuario_id: user.id,
-        entidad_tipo: "parametro_sistema",
-        entidad_id: actual.id,
-        valores_anteriores: { valor: actual.valor },
-        valores_nuevos: { valor: fila.valor },
+        usuarioId: user.id,
+        entidadTipo: "parametro_sistema",
+        entidadId: actual.id,
+        valoresAnteriores: { valor: actual.valor },
+        valoresNuevos: { valor: fila.valor },
         metadata: { clave: fila.clave, categoria: actual.categoria, origen: "empresa" },
       });
     } else {
@@ -118,13 +120,14 @@ export async function updateEmpresaAction(input: unknown): Promise<Result> {
         return { error: `No se pudo guardar ${fila.clave}` };
       }
 
-      await supabase.from("audit_log").insert({
+      await logAudit({
+        client: supabase,
         accion: "crear",
-        usuario_id: user.id,
-        entidad_tipo: "parametro_sistema",
-        entidad_id: inserted.id,
-        valores_anteriores: null,
-        valores_nuevos: { valor: fila.valor },
+        usuarioId: user.id,
+        entidadTipo: "parametro_sistema",
+        entidadId: inserted.id,
+        valoresAnteriores: null,
+        valoresNuevos: { valor: fila.valor },
         metadata: { clave: fila.clave, categoria: "general", origen: "empresa" },
       });
     }

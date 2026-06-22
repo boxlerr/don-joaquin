@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import type { Database } from "@/types/database";
 import { validarTarifa, validarCircuito, type TarifaInput } from "./validaciones";
 import { requireArea } from "@/lib/auth";
@@ -295,13 +296,14 @@ export async function crearTarifa(formData: FormData): Promise<ActionResult> {
     return { error: "No se pudo crear la tarifa" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "crear",
-    usuario_id: user.id,
-    entidad_tipo: "tarifa",
-    entidad_id: insertado.id,
-    valores_anteriores: null,
-    valores_nuevos: inputToValoresJson(input, true),
+    usuarioId: user.id,
+    entidadTipo: "tarifa",
+    entidadId: insertado.id,
+    valoresAnteriores: null,
+    valoresNuevos: inputToValoresJson(input, true),
     metadata: { cliente_id: input.cliente_id, modalidad: input.modalidad },
   });
 
@@ -362,12 +364,13 @@ export async function actualizarTarifa(
     return { error: "No se pudo actualizar la tarifa" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    usuario_id: user.id,
-    entidad_tipo: "tarifa",
-    entidad_id: id,
-    valores_anteriores: {
+    usuarioId: user.id,
+    entidadTipo: "tarifa",
+    entidadId: id,
+    valoresAnteriores: {
       cliente_id: actual.cliente_id,
       ruta_id: actual.ruta_id,
       modalidad: actual.modalidad,
@@ -378,7 +381,7 @@ export async function actualizarTarifa(
       observaciones: actual.observaciones,
       activa: actual.activa,
     },
-    valores_nuevos: inputToValoresJson(input, actual.activa),
+    valoresNuevos: inputToValoresJson(input, actual.activa),
     metadata: { cliente_id: input.cliente_id, modalidad: input.modalidad },
   });
 
@@ -415,13 +418,14 @@ export async function cambiarEstadoTarifa(
     return { error: "No se pudo cambiar el estado" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "cambio_estado",
-    usuario_id: user.id,
-    entidad_tipo: "tarifa",
-    entidad_id: id,
-    valores_anteriores: { activa: actual.activa },
-    valores_nuevos: { activa },
+    usuarioId: user.id,
+    entidadTipo: "tarifa",
+    entidadId: id,
+    valoresAnteriores: { activa: actual.activa },
+    valoresNuevos: { activa },
     metadata: { cliente_id: actual.cliente_id, modalidad: actual.modalidad },
   });
 
@@ -432,7 +436,7 @@ export async function cambiarEstadoTarifa(
 export type TarifaHistorialEvento = {
   id: string;
   created_at: string;
-  accion: Database["public"]["Enums"]["audit_accion"];
+  accion: string;
   valores_anteriores: Record<string, unknown> | null;
   valores_nuevos: Record<string, unknown> | null;
   usuario_nombre: string | null;
@@ -695,13 +699,14 @@ export async function crearCircuito(formData: FormData): Promise<ActionResult> {
     return { error: "No se pudo crear el circuito" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "crear",
-    usuario_id: user.id,
-    entidad_tipo: "ruta",
-    entidad_id: insertado.id,
-    valores_anteriores: null,
-    valores_nuevos: { ...input, origen_id, destino_id, estado: "activa" },
+    usuarioId: user.id,
+    entidadTipo: "ruta",
+    entidadId: insertado.id,
+    valoresAnteriores: null,
+    valoresNuevos: { ...input, origen_id, destino_id, estado: "activa" },
   });
 
   revalidatePath("/tarifas");
@@ -750,12 +755,13 @@ export async function actualizarCircuito(
     return { error: "No se pudo actualizar el circuito" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    usuario_id: user.id,
-    entidad_tipo: "ruta",
-    entidad_id: id,
-    valores_anteriores: {
+    usuarioId: user.id,
+    entidadTipo: "ruta",
+    entidadId: id,
+    valoresAnteriores: {
       origen_id: actual.origen_id,
       destino_id: actual.destino_id,
       km_oficiales: Number(actual.km_oficiales),
@@ -763,7 +769,7 @@ export async function actualizarCircuito(
       codigo_interno: actual.codigo_interno,
       descripcion: actual.descripcion,
     },
-    valores_nuevos: { ...input, origen_id, destino_id },
+    valoresNuevos: { ...input, origen_id, destino_id },
   });
 
   revalidatePath("/tarifas");
@@ -796,13 +802,14 @@ export async function cambiarEstadoCircuito(
     return { error: "No se pudo cambiar el estado" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "cambio_estado",
-    usuario_id: user.id,
-    entidad_tipo: "ruta",
-    entidad_id: id,
-    valores_anteriores: { estado: actual.estado },
-    valores_nuevos: { estado: nuevoEstado },
+    usuarioId: user.id,
+    entidadTipo: "ruta",
+    entidadId: id,
+    valoresAnteriores: { estado: actual.estado },
+    valoresNuevos: { estado: nuevoEstado },
   });
 
   revalidatePath("/tarifas");

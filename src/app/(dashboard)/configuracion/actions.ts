@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import type { Database } from "@/types/database";
 import { getValidacion, validarRestricciones } from "./validaciones";
 import { requireArea } from "@/lib/auth";
@@ -88,13 +89,14 @@ export async function actualizarParametro(id: string, valor: string): Promise<Re
     return { error: "No se pudo guardar el cambio" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    usuario_id: user.id,
-    entidad_tipo: "parametro_sistema",
-    entidad_id: id,
-    valores_anteriores: { valor: actual.valor },
-    valores_nuevos: { valor: validacion.valor },
+    usuarioId: user.id,
+    entidadTipo: "parametro_sistema",
+    entidadId: id,
+    valoresAnteriores: { valor: actual.valor },
+    valoresNuevos: { valor: validacion.valor },
     metadata: {
       clave: actual.clave,
       categoria: actual.categoria,
@@ -174,13 +176,14 @@ export async function actualizarParametrosBulk(
       continue;
     }
 
-    await supabase.from("audit_log").insert({
+    await logAudit({
+      client: supabase,
       accion: "actualizar",
-      usuario_id: user.id,
-      entidad_tipo: "parametro_sistema",
-      entidad_id: cambio.id,
-      valores_anteriores: { valor: actual.valor },
-      valores_nuevos: { valor: validacion.valor },
+      usuarioId: user.id,
+      entidadTipo: "parametro_sistema",
+      entidadId: cambio.id,
+      valoresAnteriores: { valor: actual.valor },
+      valoresNuevos: { valor: validacion.valor },
       metadata: {
         clave: actual.clave,
         categoria: actual.categoria,
@@ -258,13 +261,14 @@ export async function revertirParametro(
     return { error: "No se pudo revertir el valor" };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    usuario_id: user.id,
-    entidad_tipo: "parametro_sistema",
-    entidad_id: parametroId,
-    valores_anteriores: { valor: actual.valor },
-    valores_nuevos: { valor: validacion.valor },
+    usuarioId: user.id,
+    entidadTipo: "parametro_sistema",
+    entidadId: parametroId,
+    valoresAnteriores: { valor: actual.valor },
+    valoresNuevos: { valor: validacion.valor },
     metadata: {
       clave: actual.clave,
       categoria: actual.categoria,

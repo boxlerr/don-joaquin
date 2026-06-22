@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -27,14 +28,14 @@ async function logChequeAudit(
   valoresNuevos: Record<string, unknown> | null,
   userId: string,
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: userId,
+  await logAudit({
     accion,
-    entidad_tipo: "cheque",
-    entidad_id: chequeId,
-    valores_anteriores: valoresAnteriores,
-    valores_nuevos: valoresNuevos,
+    entidadTipo: "cheque",
+    entidadId: chequeId,
+    usuarioId: userId,
+    valoresAnteriores,
+    valoresNuevos,
+    client: supabase,
   });
 }
 

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { Database } from "@/types/database";
@@ -92,12 +93,13 @@ export async function addCamionAction(data: {
     return { error: "No se pudo guardar el camión. Verificá que la patente no esté repetida." };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "crear",
-    entidad_tipo: "camion",
-    entidad_id: inserted?.id ?? null,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "camion",
+    entidadId: inserted?.id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: data,
   });
 
   revalidatePath("/camiones");
@@ -151,13 +153,14 @@ export async function updateCamionAction(id: string, data: {
   }
 
   const cambioEstado = previo && previo.estado !== data.estado;
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: cambioEstado ? "cambio_estado" : "actualizar",
-    entidad_tipo: "camion",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
-    valores_anteriores: previo as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
-    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "camion",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: previo,
+    valoresNuevos: data,
   });
 
   revalidatePath("/camiones");
@@ -193,12 +196,13 @@ export async function deleteCamionAction(id: string) {
     return { error: "No se pudo eliminar el camión. Verificá que no tenga registros asociados (viajes, mantenimientos, etc)." };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "eliminar",
-    entidad_tipo: "camion",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
-    valores_anteriores: previo as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+    entidadTipo: "camion",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: previo,
   });
 
   revalidatePath("/camiones");
@@ -518,6 +522,22 @@ export async function uploadDocumentoCamionAction(formData: FormData) {
   });
   if (dbError) return { error: "Error al guardar el documento" };
 
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  await logAudit({
+    client: supabase,
+    accion: "documento_agregado",
+    entidadTipo: "camion",
+    entidadId: camion_id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: {
+      tipo_documento_id,
+      numero: numero || null,
+      fecha_emision: fecha_emision || null,
+      fecha_vencimiento: fecha_vencimiento || null,
+      archivo: file.name,
+    },
+  });
+
   revalidatePath("/camiones");
   return { success: true };
 }
@@ -579,11 +599,23 @@ export async function updateDocumentoCamionAction(formData: FormData) {
     updates.archivo_id = archivoData.id;
   }
 
-  const { error } = await supabase
+  const { data: updatedDoc, error } = await supabase
     .from("camion_documentos")
     .update(updates)
-    .eq("id", doc_id);
+    .eq("id", doc_id)
+    .select("camion_id")
+    .single();
   if (error) return { error: "No se pudo actualizar el documento" };
+
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  await logAudit({
+    client: supabase,
+    accion: "documento_actualizado",
+    entidadTipo: "camion",
+    entidadId: updatedDoc?.camion_id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: updates,
+  });
 
   revalidatePath("/camiones");
   return { success: true };
@@ -592,11 +624,27 @@ export async function updateDocumentoCamionAction(formData: FormData) {
 export async function deleteDocumentoCamionAction(doc_id: string) {
   const supabase = createAdminClient();
 
+  const { data: doc } = await supabase
+    .from("camion_documentos")
+    .select("camion_id, tipo_documento_id, numero, fecha_vencimiento")
+    .eq("id", doc_id)
+    .single();
+
   const { error } = await supabase
     .from("camion_documentos")
     .delete()
     .eq("id", doc_id);
   if (error) return { error: "No se pudo eliminar el documento" };
+
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  await logAudit({
+    client: supabase,
+    accion: "documento_eliminado",
+    entidadTipo: "camion",
+    entidadId: doc?.camion_id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: doc ?? null,
+  });
 
   revalidatePath("/camiones");
   return { success: true };
@@ -947,17 +995,18 @@ export async function uploadFotoCamionAction(formData: FormData) {
 
   const { data: pubFoto } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(storagePath);
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "foto_agregada",
-    entidad_tipo: "camion",
-    entidad_id: camion_id,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: {
+    entidadTipo: "camion",
+    entidadId: camion_id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: {
       archivo: file.name,
       nota: descripcion ?? null,
       es_principal: esPrimera,
       foto_url: pubFoto.publicUrl,
-    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    },
   });
 
   revalidatePath("/camiones");
@@ -992,16 +1041,17 @@ export async function setFotoPrincipalAction(foto_id: string, camion_id: string)
     .eq("id", foto_id);
   if (setError) return { error: "No se pudo marcar la foto como principal" };
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "foto_principal",
-    entidad_tipo: "camion",
-    entidad_id: camion_id,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: {
+    entidadTipo: "camion",
+    entidadId: camion_id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: {
       archivo: archivoFp?.nombre_original ?? null,
       nota: foto?.descripcion ?? null,
       foto_url: urlFp,
-    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    },
   });
 
   revalidatePath("/camiones");
@@ -1031,21 +1081,22 @@ export async function updateFotoDescripcionAction(foto_id: string, descripcion: 
   if (error) return { error: "No se pudo actualizar la nota" };
 
   if (previo?.camion_id) {
-    await supabase.from("audit_log").insert({
+    await logAudit({
+      client: supabase,
       accion: "nota_foto",
-      entidad_tipo: "camion",
-      entidad_id: previo.camion_id,
-      usuario_id: user?.id ?? null,
-      valores_anteriores: {
+      entidadTipo: "camion",
+      entidadId: previo.camion_id,
+      usuarioId: user?.id ?? null,
+      valoresAnteriores: {
         archivo: archivoUf?.nombre_original ?? null,
         nota: previo.descripcion ?? null,
         foto_url: urlUf,
-      } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
-      valores_nuevos: {
+      },
+      valoresNuevos: {
         archivo: archivoUf?.nombre_original ?? null,
         nota: desc,
         foto_url: urlUf,
-      } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+      },
     });
   }
 
@@ -1075,16 +1126,17 @@ export async function deleteFotoCamionAction(foto_id: string) {
     await supabase.from("documentos_archivos").delete().eq("id", archivo.id);
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "foto_eliminada",
-    entidad_tipo: "camion",
-    entidad_id: foto.camion_id,
-    usuario_id: user?.id ?? null,
-    valores_anteriores: {
+    entidadTipo: "camion",
+    entidadId: foto.camion_id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: {
       archivo: archivo?.nombre_original ?? null,
       nota: foto.descripcion ?? null,
       era_principal: foto.es_principal,
-    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_anteriores"],
+    },
   });
 
   if (foto.es_principal) {

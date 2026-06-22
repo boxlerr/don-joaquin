@@ -1,7 +1,6 @@
-"use server";
+import { logAudit } from "@/lib/audit";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-
+/** Registra en audit_log una acción sobre una entrevista. */
 export async function logEntrevistaAudit(
   entrevistaId: string,
   accion: string,
@@ -9,14 +8,12 @@ export async function logEntrevistaAudit(
   valoresNuevos: Record<string, unknown> | null,
   userId: string | null,
 ): Promise<void> {
-  const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: userId,
+  await logAudit({
     accion,
-    entidad_tipo: "entrevista",
-    entidad_id: entrevistaId,
-    valores_anteriores: valoresAnteriores,
-    valores_nuevos: valoresNuevos,
+    entidadTipo: "entrevista",
+    entidadId: entrevistaId,
+    usuarioId: userId,
+    valoresAnteriores,
+    valoresNuevos,
   });
 }

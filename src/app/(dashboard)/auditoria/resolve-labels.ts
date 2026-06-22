@@ -1,0 +1,245 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+
+type SupabaseAdmin = ReturnType<typeof createAdminClient>;
+
+export type ResolvedLabel = { label: string | null; detalle: string | null };
+type Labels = Record<string, ResolvedLabel>;
+type Ids = Set<string> | undefined;
+
+// Nombres legibles del enum legacy `mantenimiento_tipo` (registros viejos sin
+// tipo_servicio_id del catálogo nuevo).
+const MANTENIMIENTO_TIPO_LEGACY: Record<string, string> = {
+  service_preventivo: "Service preventivo",
+  reparacion: "Reparación",
+  cambio_aceite: "Cambio de aceite",
+  cubiertas: "Cubiertas",
+  otro: "Otro",
+};
+
+/** Devuelve el primer elemento si es un embed array de Supabase, o el objeto. */
+function uno<T>(v: T | T[] | null | undefined): T | null {
+  return Array.isArray(v) ? (v[0] ?? null) : (v ?? null);
+}
+
+function fmtMonto(monto: number | null | undefined, moneda?: string | null): string | null {
+  if (monto == null) return null;
+  const n = Number(monto);
+  if (!Number.isFinite(n)) return null;
+  const prefijo = moneda && moneda !== "ARS" ? `${moneda} ` : "$";
+  return `${prefijo}${n.toLocaleString("es-AR")}`;
+}
+
+/**
+ * Resuelve el nombre legible (label) y un detalle de cada recurso afectado,
+ * a partir de los IDs agrupados por entidad_tipo. Una query por entidad.
+ */
+export async function resolverEntidadLabels(
+  supabase: SupabaseAdmin,
+  idsPorTipo: Record<string, Set<string>>,
+): Promise<Labels> {
+  const labels: Labels = {};
+  await Promise.all([
+    resolverChoferes(supabase, idsPorTipo.chofer, labels),
+    resolverCamiones(supabase, idsPorTipo.camion, labels),
+    resolverClientes(supabase, idsPorTipo.cliente, labels),
+    resolverViajes(supabase, idsPorTipo.viaje, labels),
+    resolverMantenimientos(supabase, idsPorTipo.mantenimiento, labels),
+    resolverRoturas(supabase, idsPorTipo.rotura_goma, labels),
+    resolverCheques(supabase, idsPorTipo.cheque, labels),
+    resolverCaja(supabase, idsPorTipo.caja, labels),
+    resolverTarifas(supabase, idsPorTipo.tarifa, labels),
+    resolverRutas(supabase, idsPorTipo.ruta, labels),
+    resolverEntrevistas(supabase, idsPorTipo.entrevista, labels),
+    resolverUsuarios(supabase, idsPorTipo.usuarios, labels, "usuarios"),
+    resolverUsuarios(supabase, idsPorTipo.usuario_areas, labels, "usuario_areas"),
+    resolverParametros(supabase, idsPorTipo.parametro_sistema, labels),
+  ]);
+  return labels;
+}
+
+async function resolverChoferes(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido, dni")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`chofer:${r.id}`] = {
+      label: `${r.apellido}, ${r.nombre}`,
+      detalle: r.dni ? `DNI ${r.dni}` : null,
+    };
+  }
+}
+
+async function resolverCamiones(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("camiones")
+    .select("id, patente, marca, modelo")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    const detalle = [r.marca, r.modelo].filter(Boolean).join(" ").trim();
+    labels[`camion:${r.id}`] = { label: r.patente ?? "Camión", detalle: detalle || null };
+  }
+}
+
+async function resolverClientes(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("clientes")
+    .select("id, razon_social, cuit")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`cliente:${r.id}`] = {
+      label: r.razon_social ?? "Cliente",
+      detalle: r.cuit ? `CUIT ${r.cuit}` : null,
+    };
+  }
+}
+
+async function resolverViajes(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("viajes")
+    .select("id, codigo, fecha_viaje")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`viaje:${r.id}`] = {
+      label: r.codigo ?? "Viaje",
+      detalle: r.fecha_viaje ? new Date(r.fecha_viaje).toLocaleDateString("es-AR") : null,
+    };
+  }
+}
+
+async function resolverMantenimientos(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("mantenimientos")
+    .select(
+      "id, tipo, camion:camiones(patente, marca, modelo), acoplado:acoplados(patente, marca, modelo), tipo_servicio:tipos_servicio(nombre)",
+    )
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    const ts = uno(r.tipo_servicio);
+    const unidad = uno(r.camion) ?? uno(r.acoplado);
+    const tipoNombre = ts?.nombre ?? MANTENIMIENTO_TIPO_LEGACY[r.tipo] ?? "Mantenimiento";
+    const marcaModelo = unidad ? [unidad.marca, unidad.modelo].filter(Boolean).join(" ").trim() : "";
+    const detalle = [unidad?.patente, marcaModelo].filter(Boolean).join(" · ");
+    labels[`mantenimiento:${r.id}`] = { label: tipoNombre, detalle: detalle || null };
+  }
+}
+
+async function resolverRoturas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("roturas_gomas")
+    .select("id, tipo, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    const patente = uno(r.camion)?.patente ?? uno(r.acoplado)?.patente ?? null;
+    const chofer = uno(r.chofer);
+    const tipo = r.tipo || "Rotura";
+    labels[`rotura_goma:${r.id}`] = {
+      label: patente ? `${tipo} · ${patente}` : tipo,
+      detalle: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
+    };
+  }
+}
+
+async function resolverCheques(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("cheques")
+    .select("id, numero, importe, librador_nombre")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`cheque:${r.id}`] = {
+      label: r.numero ? `N° ${r.numero}` : "Cheque",
+      detalle: [r.librador_nombre, fmtMonto(r.importe)].filter(Boolean).join(" · ") || null,
+    };
+  }
+}
+
+async function resolverCaja(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("caja_movimientos")
+    .select("id, concepto, monto, tipo, moneda")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`caja:${r.id}`] = {
+      label: r.concepto || (r.tipo === "ingreso" ? "Ingreso" : "Egreso"),
+      detalle: fmtMonto(r.monto, r.moneda),
+    };
+  }
+}
+
+async function resolverTarifas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("tarifas")
+    .select("id, modalidad, valor, moneda, cliente:clientes(razon_social)")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    const cliente = uno(r.cliente);
+    labels[`tarifa:${r.id}`] = {
+      label: cliente?.razon_social ?? "Tarifa",
+      detalle: [r.modalidad, fmtMonto(r.valor, r.moneda)].filter(Boolean).join(" · ") || null,
+    };
+  }
+}
+
+async function resolverRutas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("rutas")
+    .select("id, codigo_interno, descripcion")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`ruta:${r.id}`] = {
+      label: r.codigo_interno || r.descripcion || "Ruta",
+      detalle: r.codigo_interno && r.descripcion ? r.descripcion : null,
+    };
+  }
+}
+
+async function resolverEntrevistas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("entrevistas")
+    .select("id, nombre, localidad")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`entrevista:${r.id}`] = { label: r.nombre || "Entrevista", detalle: r.localidad ?? null };
+  }
+}
+
+async function resolverUsuarios(
+  supabase: SupabaseAdmin,
+  ids: Ids,
+  labels: Labels,
+  tipoKey: "usuarios" | "usuario_areas",
+) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("usuarios")
+    .select("id, nombre, apellido, email")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`${tipoKey}:${r.id}`] = {
+      label: r.apellido ? `${r.apellido}, ${r.nombre}` : r.nombre,
+      detalle: r.email ?? null,
+    };
+  }
+}
+
+async function resolverParametros(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("id, clave, categoria")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`parametro_sistema:${r.id}`] = { label: r.clave ?? "Parámetro", detalle: r.categoria ?? null };
+  }
+}

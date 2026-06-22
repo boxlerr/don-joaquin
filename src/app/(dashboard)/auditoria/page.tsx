@@ -10,7 +10,7 @@ export default async function AuditoriaPage() {
     getAuditUsuariosAction(),
   ]);
 
-  const initialData = "error" in result ? { data: [], total: 0 } : result;
+  const initialData = "error" in result ? { data: [], total: 0, refs: {} } : result;
 
   return (
     <div className="p-8">

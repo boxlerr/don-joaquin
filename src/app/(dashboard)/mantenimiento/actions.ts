@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { requireArea } from "@/lib/auth";
 import { Database } from "@/types/database";
@@ -200,15 +201,13 @@ export async function addServicioAction(data: {
     } as never);
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "crear",
-    entidad_tipo: "mantenimiento",
-    entidad_id: inserted?.id ?? null,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: {
-      ...data,
-      tipo_servicio: ts.nombre,
-    } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "mantenimiento",
+    entidadId: inserted?.id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: { ...data, tipo_servicio: ts.nombre },
   });
 
   revalidatePath("/mantenimiento");
@@ -354,12 +353,13 @@ export async function addRoturaAction(data: {
     );
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "crear",
-    entidad_tipo: "rotura_goma",
-    entidad_id: inserted?.id ?? null,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "rotura_goma",
+    entidadId: inserted?.id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: data,
   });
 
   revalidatePath("/mantenimiento");
@@ -422,12 +422,13 @@ export async function updateServicioAction(
     );
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    entidad_tipo: "mantenimiento",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: { ...data, tipo_servicio: ts.nombre } as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "mantenimiento",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: { ...data, tipo_servicio: ts.nombre },
   });
 
   revalidatePath("/mantenimiento");
@@ -461,11 +462,12 @@ export async function deleteServicioAction(id: string) {
     return { error: "No se pudo eliminar el servicio." };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "eliminar",
-    entidad_tipo: "mantenimiento",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
+    entidadTipo: "mantenimiento",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
   });
 
   revalidatePath("/mantenimiento");
@@ -526,12 +528,13 @@ export async function updateRoturaAction(
     );
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "actualizar",
-    entidad_tipo: "rotura_goma",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
-    valores_nuevos: data as unknown as Database["public"]["Tables"]["audit_log"]["Insert"]["valores_nuevos"],
+    entidadTipo: "rotura_goma",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: data,
   });
 
   revalidatePath("/mantenimiento");
@@ -568,11 +571,12 @@ export async function deleteRoturaAction(id: string) {
     return { error: "No se pudo eliminar la rotura." };
   }
 
-  await supabase.from("audit_log").insert({
+  await logAudit({
+    client: supabase,
     accion: "eliminar",
-    entidad_tipo: "rotura_goma",
-    entidad_id: id,
-    usuario_id: user?.id ?? null,
+    entidadTipo: "rotura_goma",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
   });
 
   revalidatePath("/mantenimiento");

@@ -260,7 +260,7 @@ export type Database = {
       }
       audit_log: {
         Row: {
-          accion: Database["public"]["Enums"]["audit_accion"]
+          accion: string
           created_at: string
           entidad_id: string | null
           entidad_tipo: string
@@ -273,7 +273,7 @@ export type Database = {
           valores_nuevos: Json | null
         }
         Insert: {
-          accion: Database["public"]["Enums"]["audit_accion"]
+          accion: string
           created_at?: string
           entidad_id?: string | null
           entidad_tipo: string
@@ -286,7 +286,7 @@ export type Database = {
           valores_nuevos?: Json | null
         }
         Update: {
-          accion?: Database["public"]["Enums"]["audit_accion"]
+          accion?: string
           created_at?: string
           entidad_id?: string | null
           entidad_tipo?: string

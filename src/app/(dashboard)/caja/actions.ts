@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
@@ -15,14 +16,14 @@ async function logCajaAudit(
   valoresNuevos: Record<string, unknown> | null,
   userId: string,
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: userId,
+  await logAudit({
     accion,
-    entidad_tipo: "caja",
-    entidad_id: movimientoId,
-    valores_anteriores: valoresAnteriores,
-    valores_nuevos: valoresNuevos,
+    entidadTipo: "caja",
+    entidadId: movimientoId,
+    usuarioId: userId,
+    valoresAnteriores,
+    valoresNuevos,
+    client: supabase,
   });
 }
 

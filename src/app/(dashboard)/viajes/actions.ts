@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 import type { ViajeBasico, PaginatedResult } from "./types";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
@@ -676,8 +677,7 @@ export async function createViajeAction(
 
   const observacionesDB = notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("viajes").insert({
+  const viajeData = {
     codigo,
     fecha_viaje: parsed.data.fecha_viaje,
     estado: parsed.data.estado,
@@ -697,12 +697,21 @@ export async function createViajeAction(
     nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
     facturado: false,
     created_by: user.id,
-  });
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
+    .from("viajes")
+    .insert(viajeData)
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al crear viaje:", error);
     return { error: error.message };
   }
+
+  await logViajeAudit(supabase, inserted.id, "crear", null, viajeData, user.id);
 
   revalidatePath("/viajes");
   return { ok: true };
@@ -792,14 +801,14 @@ async function logViajeAudit(
   valoresNuevos: Record<string, unknown>,
   userId: string,
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: userId,
+  await logAudit({
     accion,
-    entidad_tipo: "viaje",
-    entidad_id: viajeId,
-    valores_anteriores: valoresAnteriores,
-    valores_nuevos: valoresNuevos,
+    entidadTipo: "viaje",
+    entidadId: viajeId,
+    usuarioId: userId,
+    valoresAnteriores,
+    valoresNuevos,
+    client: supabase,
   });
 }
 
@@ -1524,13 +1533,13 @@ export async function createViajesBatchAction(
   const creados = insertedRows?.length ?? 0;
 
   // Auditoría del lote
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any).from("audit_log").insert({
-    usuario_id: user.id,
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
     accion: "crear_viajes_lote",
-    entidad_tipo: "viaje",
-    entidad_id: (insertedRows as { id: string }[])?.[0]?.id ?? null,
-    valores_nuevos: {
+    entidadTipo: "viaje",
+    entidadId: (insertedRows as { id: string }[])?.[0]?.id ?? null,
+    valoresNuevos: {
       cantidad: creados,
       codigos: (insertedRows as { codigo: string }[] ?? []).map((r) => r.codigo),
     },

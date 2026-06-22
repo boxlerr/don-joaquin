@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 
@@ -40,13 +41,14 @@ export async function updateUsuarioRolAction(
     .eq("id", usuario_id);
   if (error) return { error: error.message };
 
-  await supabase.from("audit_log").insert({
-    usuario_id: admin.id,
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
     accion: "actualizar",
-    entidad_tipo: "usuarios",
-    entidad_id: usuario_id,
-    valores_anteriores: { rol_id: previo.rol_id },
-    valores_nuevos: { rol_id },
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    valoresAnteriores: { rol_id: previo.rol_id },
+    valoresNuevos: { rol_id },
   });
 
   revalidatePath("/usuarios");
@@ -108,12 +110,13 @@ export async function crearUsuarioAction(
     return { error: "No se pudo guardar el perfil del usuario." };
   }
 
-  await supabase.from("audit_log").insert({
-    usuario_id: admin.id,
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
     accion: "crear",
-    entidad_tipo: "usuarios",
-    entidad_id: authData.user.id,
-    valores_nuevos: { email, rol_id },
+    entidadTipo: "usuarios",
+    entidadId: authData.user.id,
+    valoresNuevos: { email, rol_id },
   });
 
   revalidatePath("/usuarios");
@@ -163,13 +166,14 @@ export async function updateRolAreaAction(
 
   if (error) return { error: error.message };
 
-  await supabase.from("audit_log").insert({
-    usuario_id: admin.id,
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
     accion: "actualizar",
-    entidad_tipo: "rol_areas",
-    entidad_id: null,
-    valores_anteriores: { rol_id, area_codigo, nivel: nivelAnterior },
-    valores_nuevos: { rol_id, area_codigo, nivel },
+    entidadTipo: "rol_areas",
+    entidadId: null,
+    valoresAnteriores: { rol_id, area_codigo, nivel: nivelAnterior },
+    valoresNuevos: { rol_id, area_codigo, nivel },
     metadata: { rol_codigo: rol.codigo },
   });
 
@@ -220,13 +224,14 @@ export async function setUsuarioAreaAction(
     if (error) return { error: (error as { message: string }).message };
 
     if (previo) {
-      await supabase.from("audit_log").insert({
-        usuario_id: admin.id,
+      await logAudit({
+        client: supabase,
+        usuarioId: admin.id,
         accion: "eliminar",
-        entidad_tipo: "usuario_areas",
-        entidad_id: usuario_id,
-        valores_anteriores: { area_codigo, nivel: previo.nivel, vence_en: previo.vence_en },
-        valores_nuevos: null,
+        entidadTipo: "usuario_areas",
+        entidadId: usuario_id,
+        valoresAnteriores: { area_codigo, nivel: previo.nivel, vence_en: previo.vence_en },
+        valoresNuevos: null,
         metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
       });
     }
@@ -262,15 +267,16 @@ export async function setUsuarioAreaAction(
 
   if (error) return { error: error.message };
 
-  await supabase.from("audit_log").insert({
-    usuario_id: admin.id,
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
     accion: previo ? "actualizar" : "crear",
-    entidad_tipo: "usuario_areas",
-    entidad_id: usuario_id,
-    valores_anteriores: previo
+    entidadTipo: "usuario_areas",
+    entidadId: usuario_id,
+    valoresAnteriores: previo
       ? { area_codigo, nivel: previo.nivel, vence_en: previo.vence_en }
       : null,
-    valores_nuevos: { area_codigo, nivel, vence_en: vence_en ?? null },
+    valoresNuevos: { area_codigo, nivel, vence_en: vence_en ?? null },
     metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
   });
 
