@@ -78,6 +78,8 @@ export interface FiltroExterno {
   estado: string;
   facturado: boolean | null;
   esVacio: boolean | null;
+  /** Estado de cobro a aplicar (deep-link desde Caja). Vacío = sin filtro. */
+  cobro?: "" | "pendiente" | "cobrado";
   nonce: number;
 }
 
@@ -183,6 +185,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     setEstadoFiltro(filtroExterno.estado);
     setFacturadoFiltro(filtroExterno.facturado);
     setEsVacioFiltro(filtroExterno.esVacio);
+    setCobroFiltro(filtroExterno.cobro ?? "");
   }
 
   // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).

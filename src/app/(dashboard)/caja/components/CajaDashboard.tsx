@@ -191,6 +191,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
           value={resumen ? `$ ${formatARS(resumen.pendienteCobro)}` : "—"}
           sub="Fletes facturados sin cobrar"
           color="warning"
+          href="/viajes?filtro=pendiente_cobro"
         />
         <StatCard
           label="Movimientos"

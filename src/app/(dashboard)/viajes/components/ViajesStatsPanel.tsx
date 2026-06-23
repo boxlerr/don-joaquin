@@ -53,12 +53,16 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
 
   // Si la URL trae un filtro (ej. desde el dashboard), lo aplicamos como estado inicial.
   const cardInicial = cards.find((c) => c.key === filtroInicial && c.key !== "todos");
+  // Deep-link especial desde Caja: "Pendiente de cobro" (facturado y aún sin cobrar).
+  const cobroInicial: "" | "pendiente" = filtroInicial === "pendiente_cobro" ? "pendiente" : "";
 
   // Filtro empujado a la tabla al hacer clic en una tarjeta.
   const [filtroExterno, setFiltroExterno] = useState<FiltroExterno | undefined>(
     cardInicial
       ? { estado: cardInicial.estado, facturado: cardInicial.facturado, esVacio: cardInicial.esVacio, nonce: 1 }
-      : undefined,
+      : cobroInicial
+        ? { estado: "", facturado: null, esVacio: null, cobro: cobroInicial, nonce: 1 }
+        : undefined,
   );
   // Filtro actual reportado por la tabla (puede cambiar también desde sus filtros internos).
   const [current, setCurrent] = useState<{ estado: string; facturado: boolean | null; esVacio: boolean | null }>({
