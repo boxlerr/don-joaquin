@@ -11,6 +11,8 @@ export type ViajeBasico = {
   km_vacios: number;
   estado: string;
   facturado: boolean;
+  cobrado: boolean;
+  fecha_cobro: string | null;
   chofer: string | null;
   camion: string | null;
   monto_flete: number | null;

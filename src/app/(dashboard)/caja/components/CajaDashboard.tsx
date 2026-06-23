@@ -167,7 +167,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-5 gap-4 mb-6">
         <StatCard
           label="Saldo actual"
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
@@ -187,10 +187,16 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
           color="error"
         />
         <StatCard
+          label="Pendiente de cobro"
+          value={resumen ? `$ ${formatARS(resumen.pendienteCobro)}` : "—"}
+          sub="Fletes facturados sin cobrar"
+          color="warning"
+        />
+        <StatCard
           label="Movimientos"
           value={resumen ? String(resumen.movimientos) : "—"}
           sub={periodoLabel}
-          color="warning"
+          color="brand"
         />
       </div>
 

@@ -4563,6 +4563,7 @@ export type Database = {
           camion_id: string | null
           chofer_id: string | null
           cliente_id: string
+          cobrado: boolean
           codigo: string
           created_at: string
           created_by: string | null
@@ -4572,6 +4573,7 @@ export type Database = {
           es_vacio: boolean
           estado: Database["public"]["Enums"]["viaje_estado"]
           facturado: boolean
+          fecha_cobro: string | null
           fecha_llegada: string | null
           fecha_salida: string | null
           fecha_viaje: string
@@ -4598,6 +4600,7 @@ export type Database = {
           camion_id?: string | null
           chofer_id?: string | null
           cliente_id: string
+          cobrado?: boolean
           codigo: string
           created_at?: string
           created_by?: string | null
@@ -4607,6 +4610,7 @@ export type Database = {
           es_vacio?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
+          fecha_cobro?: string | null
           fecha_llegada?: string | null
           fecha_salida?: string | null
           fecha_viaje: string
@@ -4633,6 +4637,7 @@ export type Database = {
           camion_id?: string | null
           chofer_id?: string | null
           cliente_id?: string
+          cobrado?: boolean
           codigo?: string
           created_at?: string
           created_by?: string | null
@@ -4642,6 +4647,7 @@ export type Database = {
           es_vacio?: boolean
           estado?: Database["public"]["Enums"]["viaje_estado"]
           facturado?: boolean
+          fecha_cobro?: string | null
           fecha_llegada?: string | null
           fecha_salida?: string | null
           fecha_viaje?: string

@@ -74,6 +74,8 @@ export type GetViajesParams = {
   hasta?: string;
   estado?: string[];
   facturado?: boolean;
+  /** Filtra por estado de cobro: "pendiente" (facturado sin cobrar) o "cobrado". */
+  cobroEstado?: "pendiente" | "cobrado";
   esVacio?: boolean;
   search?: string;
   orderBy?: ViajeOrderBy;
@@ -91,6 +93,7 @@ export async function getViajesAction(
     hasta,
     estado,
     facturado,
+    cobroEstado,
     esVacio,
     search,
     orderBy = "fecha",
@@ -107,7 +110,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, es_vacio, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, cobrado, fecha_cobro, es_vacio, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -138,6 +141,12 @@ export async function getViajesAction(
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
+  }
+
+  if (cobroEstado === "pendiente") {
+    query = query.eq("facturado", true).eq("cobrado", false);
+  } else if (cobroEstado === "cobrado") {
+    query = query.eq("cobrado", true);
   }
 
   if (typeof esVacio === "boolean") {
@@ -200,6 +209,8 @@ export async function getViajesAction(
       km_vacios: v.km_vacios ?? 0,
       estado: v.estado,
       facturado: v.facturado,
+      cobrado: v.cobrado ?? false,
+      fecha_cobro: v.fecha_cobro ?? null,
       chofer: choferStr ?? "—",
       camion: camionStr ?? "—",
       monto_flete: v.monto_flete ?? null,
@@ -1146,6 +1157,166 @@ export async function facturarViajesEnBloqueAction(
   revalidatePath("/viajes");
   revalidatePath("/dashboard");
   return { ok: true, facturados, omitidos };
+}
+
+// ============================================================================
+// Cobrar viajes (en bloque) — vuelca el flete a la Caja
+// ----------------------------------------------------------------------------
+// A diferencia de facturar (que sólo marca facturado=true), cobrar SÍ genera el
+// ingreso en caja_movimientos vinculado por viaje_id y marca el viaje como
+// cobrado. Es el puente Caja ↔ Viajes: hasta acá la caja mostraba $0 porque
+// nadie volcaba los fletes facturados.
+//
+// Sólo se pueden cobrar viajes facturados y todavía no cobrados.
+// ============================================================================
+
+const cobrarItemSchema = z.object({
+  id: z.string().min(1),
+  monto: z.number().min(0).optional().nullable(),
+});
+
+export type CobrarBloqueItem = {
+  id: string;
+  /** Override del monto a cobrar. Si no viene, se usa monto_flete del viaje. */
+  monto?: number | null;
+};
+
+export async function cobrarViajesEnBloqueAction(
+  items: CobrarBloqueItem[],
+  opts: { fecha_cobro: string; medio: "efectivo" | "transferencia" | "cheque" | "otro" },
+): Promise<{ ok: boolean; cobrados?: number; omitidos?: number; error?: string }> {
+  const user = await requireArea("caja", "write");
+
+  const parsed = z.array(cobrarItemSchema).min(1).max(200).safeParse(items);
+  if (!parsed.success) return { ok: false, error: "Datos de cobro inválidos." };
+
+  const fechaParsed = z
+    .object({
+      fecha_cobro: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      medio: z.enum(["efectivo", "transferencia", "cheque", "otro"]),
+    })
+    .safeParse(opts);
+  if (!fechaParsed.success) return { ok: false, error: "Fecha o medio de cobro inválidos." };
+  const { fecha_cobro, medio } = fechaParsed.data;
+
+  const supabase = createAdminClient();
+  const ids = parsed.data.map((i) => i.id);
+
+  // Estado previo: sólo se cobra lo facturado y no cobrado. Traemos el flete y
+  // el cliente para armar el ingreso de caja.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: actuales, error: fetchErr } = await (supabase as any)
+    .from("viajes")
+    .select("id, codigo, facturado, cobrado, es_vacio, estado, monto_flete, cliente_id, clientes(razon_social)")
+    .in("id", ids);
+
+  if (fetchErr) return { ok: false, error: "No se pudieron leer los viajes a cobrar." };
+
+  type Prev = {
+    id: string;
+    codigo: string;
+    facturado: boolean;
+    cobrado: boolean;
+    es_vacio: boolean;
+    estado: string;
+    monto_flete: number | null;
+    cliente_id: string;
+    clientes: { razon_social: string } | { razon_social: string }[] | null;
+  };
+  const byId = new Map<string, Prev>((actuales ?? []).map((v: Prev) => [v.id, v]));
+
+  let cobrados = 0;
+  let omitidos = 0;
+
+  for (const item of parsed.data) {
+    const prev = byId.get(item.id);
+    if (!prev) {
+      omitidos++;
+      continue;
+    }
+    // Sólo facturados, no cobrados, no vacíos, no cancelados.
+    if (!prev.facturado || prev.cobrado || prev.es_vacio || prev.estado === "cancelado") {
+      omitidos++;
+      continue;
+    }
+
+    const monto = item.monto != null ? item.monto : Number(prev.monto_flete ?? 0);
+    if (!(monto > 0)) {
+      omitidos++;
+      continue;
+    }
+
+    const cliente = Array.isArray(prev.clientes) ? prev.clientes[0] : prev.clientes;
+    const concepto = `Cobro flete ${prev.codigo}${cliente?.razon_social ? ` — ${cliente.razon_social}` : ""}`;
+
+    // 1) Crear el ingreso en la caja, vinculado al viaje.
+    const movInsert = {
+      tipo: "ingreso" as const,
+      categoria: "cobro_cliente" as const,
+      concepto,
+      monto,
+      medio,
+      moneda: "ARS",
+      fecha: fecha_cobro,
+      viaje_id: prev.id,
+      cliente_id: prev.cliente_id ?? null,
+      created_by: user.id,
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: mov, error: movErr } = await (supabase as any)
+      .from("caja_movimientos")
+      .insert(movInsert)
+      .select("id")
+      .single();
+
+    if (movErr || !mov?.id) {
+      omitidos++;
+      continue;
+    }
+
+    // 2) Marcar el viaje como cobrado.
+    const update = { cobrado: true, fecha_cobro };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (supabase as any)
+      .from("viajes")
+      .update(update)
+      .eq("id", prev.id);
+
+    if (updErr) {
+      // Revertir el ingreso para no dejar caja inconsistente.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("caja_movimientos").delete().eq("id", mov.id);
+      omitidos++;
+      continue;
+    }
+
+    // Auditoría del viaje y del movimiento de caja.
+    await logViajeAudit(
+      supabase,
+      prev.id,
+      "cobrado",
+      { cobrado: prev.cobrado, fecha_cobro: null },
+      update,
+      user.id,
+    );
+    await logAudit({
+      accion: "crear",
+      entidadTipo: "caja",
+      entidadId: mov.id,
+      usuarioId: user.id,
+      valoresAnteriores: null,
+      valoresNuevos: movInsert,
+      client: supabase,
+    });
+
+    cobrados++;
+  }
+
+  revalidatePath("/viajes");
+  revalidatePath("/caja");
+  revalidatePath("/dashboard");
+  return { ok: true, cobrados, omitidos };
 }
 
 // ============================================================================

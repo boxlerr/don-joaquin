@@ -56,10 +56,21 @@ import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
 import FacturarBloqueDialog from "./FacturarBloqueDialog";
+import CobrarBloqueDialog from "./CobrarBloqueDialog";
 
 /** Un viaje se puede facturar si no está facturado, no es vacío y no está cancelado. */
 function esFacturable(v: ViajeBasico): boolean {
   return !v.facturado && !v.es_vacio && v.estado !== "cancelado";
+}
+
+/** Un viaje se puede cobrar si está facturado, todavía no cobrado, no vacío y no cancelado. */
+function esCobrable(v: ViajeBasico): boolean {
+  return v.facturado && !v.cobrado && !v.es_vacio && v.estado !== "cancelado";
+}
+
+/** Una fila es seleccionable si se puede facturar o cobrar. */
+function esSeleccionable(v: ViajeBasico): boolean {
+  return esFacturable(v) || esCobrable(v);
 }
 
 /** Filtro empujado desde las tarjetas de estadísticas (clic). */
@@ -108,6 +119,7 @@ const COLUMNS: ColumnDef[] = [
   { label: "Importe", sortKey: "monto", cellClass: "hidden lg:table-cell", align: "right" },
   { label: "Estado" },
   { label: "Facturado", cellClass: "hidden sm:table-cell" },
+  { label: "Cobro", cellClass: "hidden sm:table-cell" },
   { label: "" },
 ];
 
@@ -130,15 +142,17 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   const [editingViaje, setEditingViaje] = useState<ViajeBasico | null>(null);
   const [confirmEditViaje, setConfirmEditViaje] = useState<ViajeBasico | null>(null);
 
-  // Selección múltiple para facturación en bloque.
+  // Selección múltiple para facturación / cobro en bloque.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [facturarOpen, setFacturarOpen] = useState(false);
+  const [cobrarOpen, setCobrarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
+  const [cobroFiltro, setCobroFiltro] = useState<"" | "pendiente" | "cobrado">("");
   const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
@@ -189,6 +203,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       hasta: hasta || undefined,
       estado: estadoFiltro ? [estadoFiltro] : undefined,
       facturado: facturadoFiltro ?? undefined,
+      cobroEstado: cobroFiltro || undefined,
       esVacio: esVacioFiltro ?? undefined,
       search: debouncedSearch || undefined,
       orderBy,
@@ -210,7 +225,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, cobroFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -222,6 +237,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         hasta: hasta || undefined,
         estado: estadoFiltro ? [estadoFiltro] : undefined,
         facturado: facturadoFiltro ?? undefined,
+        cobroEstado: cobroFiltro || undefined,
         esVacio: esVacioFiltro ?? undefined,
         search: debouncedSearch || undefined,
         orderBy,
@@ -237,7 +253,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || esVacioFiltro !== null;
+    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || !!cobroFiltro || esVacioFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
@@ -245,6 +261,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     setSearch("");
     setEstadoFiltro("");
     setFacturadoFiltro(null);
+    setCobroFiltro("");
     setEsVacioFiltro(null);
   };
 
@@ -257,11 +274,14 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     }
   };
 
-  // --- Selección múltiple (facturación en bloque) -------------------------
-  const facturablesCargadas = rows.filter(esFacturable);
+  // --- Selección múltiple (facturación / cobro en bloque) -----------------
+  const seleccionablesCargadas = rows.filter(esSeleccionable);
   const selectedViajes = rows.filter((v) => selectedIds.has(v.id));
-  const allFacturablesSelected =
-    facturablesCargadas.length > 0 && facturablesCargadas.every((v) => selectedIds.has(v.id));
+  // Subconjuntos elegibles para cada acción en bloque.
+  const selectedFacturables = selectedViajes.filter(esFacturable);
+  const selectedCobrables = selectedViajes.filter(esCobrable);
+  const allSeleccionablesSelected =
+    seleccionablesCargadas.length > 0 && seleccionablesCargadas.every((v) => selectedIds.has(v.id));
 
   const toggleSeleccion = (id: string) => {
     setSelectedIds((prev) => {
@@ -274,14 +294,19 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
 
   const toggleSeleccionarTodos = () => {
     setSelectedIds((prev) => {
-      if (facturablesCargadas.length > 0 && facturablesCargadas.every((v) => prev.has(v.id))) {
+      if (seleccionablesCargadas.length > 0 && seleccionablesCargadas.every((v) => prev.has(v.id))) {
         return new Set();
       }
-      return new Set(facturablesCargadas.map((v) => v.id));
+      return new Set(seleccionablesCargadas.map((v) => v.id));
     });
   };
 
   const onFacturadoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
+    setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
+    setSelectedIds(new Set());
+  };
+
+  const onCobradoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
     setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
     setSelectedIds(new Set());
   };
@@ -338,6 +363,18 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
           triggerClassName="h-9 w-44"
           aria-label="Filtrar por estado"
         />
+        <Combobox
+          value={cobroFiltro}
+          onValueChange={(v) => setCobroFiltro((v as "" | "pendiente" | "cobrado") ?? "")}
+          options={[
+            { id: "", label: "Todo cobro" },
+            { id: "pendiente", label: "Pendiente de cobro" },
+            { id: "cobrado", label: "Cobrado" },
+          ]}
+          searchable={false}
+          triggerClassName="h-9 w-48"
+          aria-label="Filtrar por estado de cobro"
+        />
         {hayFiltros && (
           <Button
             variant="ghost"
@@ -364,20 +401,32 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         </div>
       </div>
 
-      {/* Barra de selección para facturar en bloque */}
+      {/* Barra de selección para facturar / cobrar en bloque */}
       {selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-[#10B981]/5">
           <span className="text-sm font-semibold text-foreground">
             {selectedIds.size} viaje{selectedIds.size !== 1 ? "s" : ""} seleccionado{selectedIds.size !== 1 ? "s" : ""}
           </span>
-          <Button
-            size="sm"
-            className="bg-[#10B981] hover:bg-[#059669] text-white gap-1.5"
-            onClick={() => setFacturarOpen(true)}
-          >
-            <Receipt size={14} />
-            Facturar en bloque
-          </Button>
+          {selectedFacturables.length > 0 && (
+            <Button
+              size="sm"
+              className="bg-[#10B981] hover:bg-[#059669] text-white gap-1.5"
+              onClick={() => setFacturarOpen(true)}
+            >
+              <Receipt size={14} />
+              Facturar {selectedFacturables.length}
+            </Button>
+          )}
+          {selectedCobrables.length > 0 && (
+            <Button
+              size="sm"
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-1.5"
+              onClick={() => setCobrarOpen(true)}
+            >
+              <Coins size={14} />
+              Cobrar {selectedCobrables.length}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -405,10 +454,10 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                   {i === 0 ? (
                     <input
                       type="checkbox"
-                      aria-label="Seleccionar todos los viajes facturables"
+                      aria-label="Seleccionar todos los viajes facturables o cobrables"
                       className="size-4 accent-[#0088D1] cursor-pointer align-middle disabled:cursor-not-allowed disabled:opacity-40"
-                      checked={allFacturablesSelected}
-                      disabled={facturablesCargadas.length === 0}
+                      checked={allSeleccionablesSelected}
+                      disabled={seleccionablesCargadas.length === 0}
                       onChange={toggleSeleccionarTodos}
                     />
                   ) : col.sortKey ? (
@@ -471,7 +520,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                   }}
                 >
                   <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
-                    {esFacturable(v) ? (
+                    {esSeleccionable(v) ? (
                       <input
                         type="checkbox"
                         aria-label={`Seleccionar viaje ${v.codigo}`}
@@ -479,8 +528,8 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                         checked={selectedIds.has(v.id)}
                         onChange={() => toggleSeleccion(v.id)}
                       />
-                    ) : v.facturado ? (
-                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Facturado" />
+                    ) : v.cobrado ? (
+                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Cobrado" />
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -543,6 +592,15 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     >
                       {v.facturado ? "Sí" : "No"}
                     </span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {v.cobrado ? (
+                      <StatusBadge label="Cobrado" tone="success" />
+                    ) : v.facturado && !v.es_vacio ? (
+                      <StatusBadge label="Pendiente" tone="warning" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground/70">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -619,12 +677,34 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                           <div className="pt-3 border-t border-border space-y-2.5">
                             {v.facturado ? (
                               <>
-                                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                  <CheckCircle2 size={14} className="text-amber-600 shrink-0" />
-                                  <span className="text-[11px] font-semibold text-amber-700">
-                                    Viaje facturado — ya impactó en caja
-                                  </span>
-                                </div>
+                                {v.cobrado ? (
+                                  <div className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/40 rounded-lg px-3 py-2">
+                                    <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+                                    <span className="text-[11px] font-semibold text-green-700 dark:text-green-300">
+                                      Viaje cobrado — registrado en caja
+                                      {v.fecha_cobro ? ` (${new Date(v.fecha_cobro).toLocaleDateString("es-AR")})` : ""}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2">
+                                    <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                      Facturado — pendiente de cobro
+                                    </span>
+                                    {esCobrable(v) && (
+                                      <Button
+                                        size="xs"
+                                        className="h-6 px-2 text-[11px] gap-1 bg-[#0088D1] hover:bg-[#0277BD] text-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedIds(new Set([v.id]));
+                                          setCobrarOpen(true);
+                                        }}
+                                      >
+                                        <Coins size={12} /> Cobrar
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
                                 <div className="flex items-center gap-1.5">
                                   <Button
                                     variant="ghost"
@@ -953,12 +1033,22 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       )}
 
       {/* Facturación en bloque */}
-      {facturarOpen && selectedViajes.length > 0 && (
+      {facturarOpen && selectedFacturables.length > 0 && (
         <FacturarBloqueDialog
-          viajes={selectedViajes}
+          viajes={selectedFacturables}
           open={facturarOpen}
           onOpenChange={setFacturarOpen}
           onSuccess={onFacturadoEnBloque}
+        />
+      )}
+
+      {/* Cobro en bloque */}
+      {cobrarOpen && selectedCobrables.length > 0 && (
+        <CobrarBloqueDialog
+          viajes={selectedCobrables}
+          open={cobrarOpen}
+          onOpenChange={setCobrarOpen}
+          onSuccess={onCobradoEnBloque}
         />
       )}
     </div>

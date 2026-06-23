@@ -45,6 +45,8 @@ export type CajaResumen = {
   egresos: number;
   movimientos: number;
   saldoTotal: number;
+  /** Suma de fletes facturados que todavía no se cobraron (no entraron a caja). */
+  pendienteCobro: number;
 };
 
 export async function getCajaResumenAction(params: {
@@ -58,11 +60,27 @@ export async function getCajaResumenAction(params: {
   if (params.desde) rangoQuery = rangoQuery.gte("fecha", params.desde);
   if (params.hasta) rangoQuery = rangoQuery.lte("fecha", params.hasta);
 
-  const [{ data: rango, error: rangoError }, { data: todos, error: todosError }] =
-    await Promise.all([rangoQuery, supabase.from("caja_movimientos").select("tipo, monto")]);
+  const [
+    { data: rango, error: rangoError },
+    { data: todos, error: todosError },
+    { data: pendientes, error: pendientesError },
+  ] = await Promise.all([
+    rangoQuery,
+    supabase.from("caja_movimientos").select("tipo, monto"),
+    // Fletes facturados y todavía no cobrados (lo que falta volcar a la caja).
+    supabase
+      .from("viajes")
+      .select("monto_flete")
+      .eq("facturado", true)
+      .eq("cobrado", false)
+      .eq("es_vacio", false),
+  ]);
 
-  if (rangoError || todosError) {
-    console.error("Error al obtener resumen de caja:", rangoError ?? todosError);
+  if (rangoError || todosError || pendientesError) {
+    console.error(
+      "Error al obtener resumen de caja:",
+      rangoError ?? todosError ?? pendientesError,
+    );
     return { error: "No se pudo cargar el resumen de caja." };
   }
 
@@ -76,8 +94,12 @@ export async function getCajaResumenAction(params: {
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
+  const pendienteCobro = (pendientes ?? []).reduce(
+    (acc, v) => acc + Number(v.monto_flete || 0),
+    0,
+  );
 
-  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal };
+  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal, pendienteCobro };
 }
 
 export type ViajeCobroOption = {
@@ -304,6 +326,32 @@ export async function addIngresoAction(data: {
 
   if (inserted?.id) {
     await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
+  }
+
+  // Si el ingreso es un cobro de flete vinculado a un viaje, marcamos el viaje
+  // como cobrado para que no quede pendiente de cobro ni se cobre dos veces.
+  if (data.viaje_id && data.categoria === "cobro_cliente") {
+    const { data: viajePrev } = await supabase
+      .from("viajes")
+      .select("cobrado, facturado")
+      .eq("id", data.viaje_id)
+      .single();
+
+    // Sólo se puede marcar cobrado un viaje facturado (constraint en DB).
+    if (viajePrev && viajePrev.facturado && !viajePrev.cobrado) {
+      const cobroUpdate = { cobrado: true, fecha_cobro: data.fecha };
+      await supabase.from("viajes").update(cobroUpdate).eq("id", data.viaje_id);
+      await logAudit({
+        accion: "cobrado",
+        entidadTipo: "viaje",
+        entidadId: data.viaje_id,
+        usuarioId: user.id,
+        valoresAnteriores: { cobrado: false, fecha_cobro: null },
+        valoresNuevos: cobroUpdate,
+        client: supabase,
+      });
+      revalidatePath("/viajes");
+    }
   }
 
   revalidatePath("/caja");

@@ -57,6 +57,7 @@ export const ACCION_LABELS: Record<string, string> = {
   prestamo_eliminado: "Préstamo eliminado",
   // Viaje
   facturado: "Facturado",
+  cobrado: "Cobrado",
   crear_viajes_lote: "Alta de viajes en lote",
 };
 
