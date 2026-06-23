@@ -44,6 +44,22 @@ export type ProximaPresentacion = ComplianceEstadoRow & {
   // los campos extra los suma el caller
 };
 
+// Una entrada del historial de un requisito (chofer/unidad/empresa). Reúne
+// documentos cargados a lo largo del tiempo, sin importar la fuente
+// (compliance_documentos o el legajo del chofer/camión).
+export type ComplianceHistorialDoc = {
+  id: string;
+  periodo: string | null;
+  numero: string | null;
+  fecha_emision: string | null;
+  fecha_vencimiento: string | null;
+  observaciones: string | null;
+  archivo_id: string | null;
+  nombre_archivo: string | null;
+  created_at: string;
+  cargado_por: string | null;
+};
+
 export const CLIENTE_LABEL: Record<ComplianceCliente, string> = {
   YPF: "YPF",
   LOMA_NEGRA: "Loma Negra",

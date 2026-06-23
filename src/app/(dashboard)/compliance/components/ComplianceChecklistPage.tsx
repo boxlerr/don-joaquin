@@ -16,6 +16,15 @@ import {
   Search,
   Filter,
   X,
+  ChevronRight,
+  History,
+  Table2,
+  Rows3,
+  FileSpreadsheet,
+  ShieldCheck,
+  Users,
+  Truck,
+  Building2,
 } from "lucide-react";
 import {
   CLIENTE_LABEL,
@@ -27,8 +36,10 @@ import {
   type ComplianceRequisito,
 } from "../types";
 import CargarComplianceDocDialog from "./CargarComplianceDocDialog";
+import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
+import { exportToExcel } from "@/shared/services/excel-export.service";
 
 interface Props {
   cliente: ComplianceCliente;
@@ -62,29 +73,51 @@ const ESTADO_RANK: Record<ComplianceEstado, number> = {
 
 const NIVELES: ComplianceNivel[] = ["chofer", "unidad", "empresa"];
 
+const NIVEL_ICON: Record<ComplianceNivel, typeof Users> = {
+  chofer: Users,
+  unidad: Truck,
+  empresa: Building2,
+};
+
+type Vista = "lista" | "matriz";
+
 function esProblema(r: ComplianceEstadoRow): boolean {
-  return r.estado === "vencido" || r.estado === "por_vencer";
+  return r.estado === "vencido" || r.estado === "por_vencer" || r.estado === "faltante";
+}
+
+function diasTexto(estado: ComplianceEstado, dias: number | null): string | null {
+  if (dias === null) return null;
+  if (estado === "vencido") return `Venció hace ${Math.abs(dias)}d`;
+  if (estado === "por_vencer") return `Vence en ${dias}d`;
+  return null;
 }
 
 export default function ComplianceChecklistPage({ cliente, rows, requisitos, canWrite, embedded = false }: Props) {
   const router = useRouter();
-  const [_, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   // ── UI state ───────────────────────────────────────────────────────────
   const [tab, setTab] = useState<ComplianceNivel>(() => {
-    // Arranca en el nivel con más problemas
     const counts: Record<ComplianceNivel, number> = { chofer: 0, unidad: 0, empresa: 0 };
     for (const r of rows) if (esProblema(r)) counts[r.nivel] += 1;
     const winner = NIVELES.reduce((a, b) => (counts[b] > counts[a] ? b : a), "chofer" as ComplianceNivel);
     return counts[winner] > 0 ? winner : "chofer";
   });
+  const [vista, setVista] = useState<Vista>("lista");
   const [estadosFiltro, setEstadosFiltro] = useState<Set<ComplianceEstado>>(new Set());
   const [reqsFiltro, setReqsFiltro] = useState<Set<string>>(new Set());
   const [busqueda, setBusqueda] = useState("");
   const [soloProblemas, setSoloProblemas] = useState(false);
   const [reqsMenuOpen, setReqsMenuOpen] = useState(false);
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [dialogState, setDialogState] = useState<{
     requisito: ComplianceRequisito;
+    chofer_id?: string;
+    camion_id?: string;
+  } | null>(null);
+  const [historialState, setHistorialState] = useState<{
+    requisito: ComplianceRequisito;
+    entidadLabel: string;
     chofer_id?: string;
     camion_id?: string;
   } | null>(null);
@@ -102,21 +135,27 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
     return m;
   }, [rows]);
 
-  // Conteo global por estado (cards arriba) — toma TODOS los rows, no solo el tab
   const resumen = useMemo(() => {
     const out: Record<ComplianceEstado, number> = { vigente: 0, por_vencer: 0, vencido: 0, faltante: 0 };
     for (const r of rows) out[r.estado] += 1;
     return out;
   }, [rows]);
 
-  // Conteo de problemas por nivel (para badges en los tabs)
+  // Métricas: separamos "cobertura" (cuánto del legajo se cargó al sistema)
+  // de "vigencia" (de lo cargado, cuánto está al día). Un faltante es un
+  // documento que se exige pero todavía no se digitalizó — pesa en cobertura,
+  // no en vigencia.
+  const totalDocs = rows.length;
+  const cargados = resumen.vigente + resumen.por_vencer + resumen.vencido;
+  const coberturaPct = totalDocs > 0 ? Math.round((cargados / totalDocs) * 100) : null;
+  const vigenciaPct = cargados > 0 ? Math.round((resumen.vigente / cargados) * 100) : null;
+
   const problemasPorNivel = useMemo(() => {
     const m: Record<ComplianceNivel, number> = { chofer: 0, unidad: 0, empresa: 0 };
     for (const r of rows) if (esProblema(r)) m[r.nivel] += 1;
     return m;
   }, [rows]);
 
-  // Filtros activos para el tab actual
   const rowsFiltradas = useMemo(() => {
     const base = rowsPorNivel[tab];
     const q = busqueda.trim().toLowerCase();
@@ -171,6 +210,56 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
     setDialogState({ requisito: req, chofer_id: target?.chofer_id, camion_id: target?.camion_id });
   };
 
+  const handleHistorial = (
+    req: ComplianceRequisito,
+    entidadLabel: string,
+    target?: { chofer_id?: string; camion_id?: string },
+  ) => {
+    setHistorialState({
+      requisito: req,
+      entidadLabel,
+      chofer_id: target?.chofer_id,
+      camion_id: target?.camion_id,
+    });
+  };
+
+  const toggleExpandido = (id: string) =>
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleExport = () => {
+    const data = rowsFiltradas.map((r) => ({
+      nivel: NIVEL_LABEL[r.nivel],
+      entidad: r.chofer_nombre ?? r.camion_patente ?? "Empresa",
+      requisito: r.requisito_nombre,
+      estado: ESTADO_LABEL[r.estado],
+      vencimiento: r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : "—",
+      dias:
+        r.dias_restantes === null
+          ? "—"
+          : r.dias_restantes >= 0
+          ? `${r.dias_restantes} días`
+          : `Vencido ${Math.abs(r.dias_restantes)} días`,
+    }));
+    exportToExcel({
+      filename: `compliance_${CLIENTE_LABEL[cliente]}_${NIVEL_LABEL[tab]}`,
+      sheetName: NIVEL_LABEL[tab],
+      data,
+      columns: [
+        { header: "Nivel", key: "nivel" },
+        { header: "Entidad", key: "entidad" },
+        { header: "Requisito", key: "requisito" },
+        { header: "Estado", key: "estado" },
+        { header: "Vencimiento", key: "vencimiento" },
+        { header: "Días", key: "dias" },
+      ],
+    });
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────
   const requisitosTabActual = requisitosPorNivel[tab];
   const requisitosVisibles = useMemo(
@@ -182,20 +271,28 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
   );
 
   return (
-    <div className={`${embedded ? "space-y-6" : "p-8 space-y-6"} print:p-2 print:space-y-3`}>
-      <div className="flex items-start justify-between print:hidden">
+    <div className={`${embedded ? "space-y-5" : "p-6 sm:p-8 space-y-5"} print:p-2 print:space-y-3`}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3 flex-wrap print:hidden">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+            <ShieldCheck size={22} className="text-primary" />
             Compliance — {CLIENTE_LABEL[cliente]}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Documentación que se presenta al vencimiento.
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Documentación que se presenta al vencimiento, por chofer, unidad y empresa.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer size={14} className="mr-1.5" />
-          Imprimir checklist
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExport} className="border-border">
+            <FileSpreadsheet size={14} className="mr-1.5" />
+            Exportar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="border-border">
+            <Printer size={14} className="mr-1.5" />
+            Imprimir
+          </Button>
+        </div>
       </div>
 
       <div className="hidden print:block text-center">
@@ -205,40 +302,65 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
         </p>
       </div>
 
-      {/* Cards de resumen — clickeables como filtros de estado */}
-      <div className="grid grid-cols-4 gap-3 print:hidden">
-        {(["vencido", "por_vencer", "faltante", "vigente"] as ComplianceEstado[]).map((e) => (
-          <ResumenCard
-            key={e}
-            estado={e}
-            count={resumen[e]}
-            activo={estadosFiltro.has(e)}
-            onClick={() => toggleEstado(e)}
+      {/* KPIs */}
+      <div className="space-y-3 print:hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <MetricaCard
+            icon={<Upload size={13} />}
+            label="Cobertura de carga"
+            pct={coberturaPct}
+            sub={`${cargados}/${totalDocs} documentos cargados`}
+            hint="De todo lo que se exige, cuánto se subió al sistema."
           />
-        ))}
+          <MetricaCard
+            icon={<ShieldCheck size={13} />}
+            label="Vigencia"
+            pct={vigenciaPct}
+            sub={
+              cargados > 0
+                ? `${resumen.vigente}/${cargados} cargados al día`
+                : "Sin documentos cargados"
+            }
+            hint="De lo que está cargado, cuánto está vigente (no vencido)."
+          />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {(["vencido", "por_vencer", "faltante", "vigente"] as ComplianceEstado[]).map((e) => (
+            <ResumenCard
+              key={e}
+              estado={e}
+              count={resumen[e]}
+              activo={estadosFiltro.has(e)}
+              onClick={() => toggleEstado(e)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Tabs de nivel */}
-      <div className="flex items-center gap-1 border-b border-border print:hidden">
+      <div className="flex items-center gap-1 border-b border-border print:hidden overflow-x-auto">
         {NIVELES.map((n) => {
           const reqsN = requisitosPorNivel[n].length;
           if (reqsN === 0) return null;
           const probN = problemasPorNivel[n];
           const activo = tab === n;
+          const Icon = NIVEL_ICON[n];
           return (
             <button
               key={n}
               type="button"
               onClick={() => {
                 setTab(n);
-                setReqsFiltro(new Set()); // limpio el filtro de requisitos al cambiar tab
+                setReqsFiltro(new Set());
+                setExpandidos(new Set());
               }}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+              className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap ${
                 activo
-                  ? "text-primary border-[#0088D1]"
+                  ? "text-primary border-primary"
                   : "text-muted-foreground border-transparent hover:text-foreground"
               }`}
             >
+              <Icon size={15} />
               {NIVEL_LABEL[n]}
               {probN > 0 && (
                 <span
@@ -261,10 +383,10 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           <Input
             placeholder={
               tab === "chofer"
-                ? "Buscar chofer..."
+                ? "Buscar chofer o requisito..."
                 : tab === "unidad"
-                ? "Buscar patente..."
-                : "Buscar..."
+                ? "Buscar patente o requisito..."
+                : "Buscar requisito..."
             }
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
@@ -285,10 +407,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
             </Button>
             {reqsMenuOpen && (
               <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setReqsMenuOpen(false)}
-                />
+                <div className="fixed inset-0 z-10" onClick={() => setReqsMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-[8px] shadow-md min-w-[240px] max-h-[320px] overflow-y-auto">
                   <div className="p-2 space-y-1">
                     {requisitosTabActual.map((req) => (
@@ -322,6 +441,23 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           Solo problemas
         </label>
 
+        {tab !== "empresa" && (
+          <div className="flex items-center rounded-[8px] border border-border overflow-hidden">
+            <VistaToggleButton
+              active={vista === "lista"}
+              onClick={() => setVista("lista")}
+              icon={<Rows3 size={14} />}
+              label="Lista"
+            />
+            <VistaToggleButton
+              active={vista === "matriz"}
+              onClick={() => setVista("matriz")}
+              icon={<Table2 size={14} />}
+              label="Matriz"
+            />
+          </div>
+        )}
+
         {hayFiltros && (
           <Button variant="outline" size="sm" onClick={limpiarFiltros} className="border-border text-muted-foreground">
             <X size={13} className="mr-1.5" />
@@ -342,8 +478,9 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           canWrite={canWrite}
           onUpload={handleUpload}
           onArchivo={(id) => startTransition(() => abrirSignedUrl(id))}
+          onHistorial={(req) => handleHistorial(req, "Empresa")}
         />
-      ) : (
+      ) : vista === "matriz" ? (
         <MatrizSection
           nivel={tab}
           requisitos={requisitosVisibles}
@@ -351,6 +488,18 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           canWrite={canWrite}
           onUpload={handleUpload}
           onArchivo={(id) => startTransition(() => abrirSignedUrl(id))}
+        />
+      ) : (
+        <ListaEntidadesSection
+          nivel={tab}
+          requisitos={requisitosVisibles}
+          rows={rowsFiltradas}
+          canWrite={canWrite}
+          expandidos={expandidos}
+          onToggleExpandido={toggleExpandido}
+          onUpload={handleUpload}
+          onArchivo={(id) => startTransition(() => abrirSignedUrl(id))}
+          onHistorial={handleHistorial}
         />
       )}
 
@@ -367,6 +516,78 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           }}
         />
       )}
+
+      {historialState && (
+        <ComplianceHistorialDialog
+          requisito={historialState.requisito}
+          entidadLabel={historialState.entidadLabel}
+          chofer_id={historialState.chofer_id}
+          camion_id={historialState.camion_id}
+          open={true}
+          onOpenChange={(o) => !o && setHistorialState(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Vista toggle ───────────────────────────────────────────────────────────
+function VistaToggleButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+// ── Métrica card (Cobertura / Vigencia) ──────────────────────────────────
+function MetricaCard({
+  icon,
+  label,
+  pct,
+  sub,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  pct: number | null;
+  sub: string;
+  hint: string;
+}) {
+  const tone = pct === null ? "#94A3B8" : pct >= 90 ? "#22C55E" : pct >= 70 ? "#F59E0B" : "#EF4444";
+  return (
+    <div className="rounded-[8px] border border-border bg-card p-4 shadow-xs" title={hint}>
+      <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className="text-3xl font-bold text-foreground">{pct === null ? "—" : `${pct}%`}</span>
+        <span className="text-xs text-muted-foreground">{sub}</span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct ?? 0}%`, backgroundColor: tone }}
+        />
+      </div>
     </div>
   );
 }
@@ -413,13 +634,246 @@ function ResumenCard({
     <button
       type="button"
       onClick={onClick}
+      title={activo ? "Quitar filtro" : `Filtrar por ${ESTADO_LABEL[estado].toLowerCase()}`}
       className={`rounded-[8px] border p-4 text-left transition-all hover:scale-[1.01] ${base} ${ring}`}
     >
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-        <Icon size={14} />
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+        <Icon size={13} />
         {ESTADO_LABEL[estado]}
       </div>
-      <div className="text-2xl font-bold mt-2">{count}</div>
+      <div className="text-2xl font-bold mt-1.5">{count}</div>
+    </button>
+  );
+}
+
+// ── Lista por entidad (vista híbrida) ────────────────────────────────────
+type EntidadAgrupada = {
+  id: string;
+  label: string;
+  rows: ComplianceEstadoRow[];
+  counts: Record<ComplianceEstado, number>;
+  peorRank: number;
+  peorDias: number;
+};
+
+function ListaEntidadesSection({
+  nivel,
+  requisitos,
+  rows,
+  canWrite,
+  expandidos,
+  onToggleExpandido,
+  onUpload,
+  onArchivo,
+  onHistorial,
+}: {
+  nivel: ComplianceNivel;
+  requisitos: ComplianceRequisito[];
+  rows: ComplianceEstadoRow[];
+  canWrite: boolean;
+  expandidos: Set<string>;
+  onToggleExpandido: (id: string) => void;
+  onUpload: (req: ComplianceRequisito, target?: { chofer_id?: string; camion_id?: string }) => void;
+  onArchivo: (archivo_id: string) => void;
+  onHistorial: (
+    req: ComplianceRequisito,
+    entidadLabel: string,
+    target?: { chofer_id?: string; camion_id?: string },
+  ) => void;
+}) {
+  const reqsById = useMemo(() => {
+    const m = new Map<string, ComplianceRequisito>();
+    for (const r of requisitos) m.set(r.id, r);
+    return m;
+  }, [requisitos]);
+
+  const entidades = useMemo(() => {
+    const map = new Map<string, EntidadAgrupada>();
+    for (const r of rows) {
+      const id = nivel === "chofer" ? r.chofer_id : r.camion_id;
+      const label = nivel === "chofer" ? r.chofer_nombre : r.camion_patente;
+      if (!id || !label) continue;
+      let ent = map.get(id);
+      if (!ent) {
+        ent = {
+          id,
+          label,
+          rows: [],
+          counts: { vigente: 0, por_vencer: 0, vencido: 0, faltante: 0 },
+          peorRank: 99,
+          peorDias: 9999,
+        };
+        map.set(id, ent);
+      }
+      ent.rows.push(r);
+      ent.counts[r.estado] += 1;
+      const rank = ESTADO_RANK[r.estado];
+      const dias = r.dias_restantes ?? 9999;
+      if (rank < ent.peorRank || (rank === ent.peorRank && dias < ent.peorDias)) {
+        ent.peorRank = rank;
+        ent.peorDias = dias;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.peorRank !== b.peorRank) return a.peorRank - b.peorRank;
+      if (a.peorDias !== b.peorDias) return a.peorDias - b.peorDias;
+      return a.label.localeCompare(b.label);
+    });
+  }, [rows, nivel]);
+
+  if (entidades.length === 0) return <EmptyState />;
+
+  return (
+    <div className="space-y-2">
+      {entidades.map((ent) => {
+        const abierto = expandidos.has(ent.id);
+        const target = nivel === "chofer" ? { chofer_id: ent.id } : { camion_id: ent.id };
+        const ordenadas = [...ent.rows].sort((a, b) => {
+          const diff = ESTADO_RANK[a.estado] - ESTADO_RANK[b.estado];
+          if (diff !== 0) return diff;
+          return a.requisito_nombre.localeCompare(b.requisito_nombre);
+        });
+        return (
+          <div key={ent.id} className="bg-card border border-border rounded-[8px] shadow-xs overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onToggleExpandido(ent.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+            >
+              <ChevronRight
+                size={16}
+                className={`text-muted-foreground transition-transform shrink-0 ${abierto ? "rotate-90" : ""}`}
+              />
+              <span className="font-semibold text-foreground text-sm truncate flex-1">{ent.label}</span>
+              <EntidadResumen counts={ent.counts} />
+            </button>
+
+            {abierto && (
+              <div className="border-t border-border divide-y divide-border">
+                {ordenadas.map((r) => {
+                  const req = reqsById.get(r.requisito_id);
+                  if (!req) return null;
+                  return (
+                    <RequisitoRow
+                      key={r.requisito_id}
+                      row={r}
+                      canWrite={canWrite}
+                      onUpload={() => onUpload(req, target)}
+                      onArchivo={onArchivo}
+                      onHistorial={() => onHistorial(req, ent.label, target)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EntidadResumen({ counts }: { counts: Record<ComplianceEstado, number> }) {
+  const problemas = counts.vencido + counts.por_vencer + counts.faltante;
+  if (problemas === 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#166534] shrink-0">
+        <CheckCircle2 size={14} />
+        Al día
+      </span>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      {counts.vencido > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
+          {counts.vencido} vencido{counts.vencido !== 1 ? "s" : ""}
+        </span>
+      )}
+      {counts.por_vencer > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">
+          {counts.por_vencer} x vencer
+        </span>
+      )}
+      {counts.faltante > 0 && (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted/60 text-muted-foreground border border-border">
+          {counts.faltante} falta{counts.faltante !== 1 ? "n" : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function RequisitoRow({
+  row,
+  canWrite,
+  onUpload,
+  onArchivo,
+  onHistorial,
+}: {
+  row: ComplianceEstadoRow;
+  canWrite: boolean;
+  onUpload: () => void;
+  onArchivo: (archivo_id: string) => void;
+  onHistorial: () => void;
+}) {
+  const estado = row.estado;
+  const dotColor =
+    estado === "vigente"
+      ? "bg-[#22C55E]"
+      : estado === "por_vencer"
+      ? "bg-[#F59E0B]"
+      : estado === "vencido"
+      ? "bg-[#EF4444]"
+      : "bg-[#94A3B8]";
+  const sub = diasTexto(estado, row.dias_restantes);
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 pl-11 hover:bg-muted/20">
+      <span className={`size-2 rounded-full shrink-0 ${dotColor}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-foreground truncate">{row.requisito_nombre}</p>
+        <p className="text-xs text-muted-foreground">
+          {row.fecha_vencimiento ? `Vence ${formatFecha(row.fecha_vencimiento)}` : "Sin documento"}
+          {sub && <span className="text-muted-foreground/70"> · {sub}</span>}
+        </p>
+      </div>
+      <StatusBadge label={ESTADO_LABEL[estado]} tone={ESTADO_TONE[estado]} />
+      <div className="flex items-center gap-1 shrink-0 print:hidden">
+        {row.archivo_id && (
+          <IconAction title="Ver PDF actual" onClick={() => onArchivo(row.archivo_id!)}>
+            <ExternalLink size={14} />
+          </IconAction>
+        )}
+        <IconAction title="Ver historial" onClick={onHistorial}>
+          <History size={14} />
+        </IconAction>
+        {canWrite && (
+          <IconAction title={row.archivo_id ? "Reemplazar" : "Cargar"} onClick={onUpload}>
+            <Upload size={14} />
+          </IconAction>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function IconAction({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-[#E1F5FE] transition-colors"
+    >
+      {children}
     </button>
   );
 }
@@ -431,12 +885,14 @@ function EmpresaSection({
   canWrite,
   onUpload,
   onArchivo,
+  onHistorial,
 }: {
   requisitos: ComplianceRequisito[];
   rows: ComplianceEstadoRow[];
   canWrite: boolean;
   onUpload: (req: ComplianceRequisito) => void;
   onArchivo: (archivo_id: string) => void;
+  onHistorial: (req: ComplianceRequisito) => void;
 }) {
   const ordenados = useMemo(() => {
     return [...requisitos].sort((a, b) => {
@@ -466,6 +922,7 @@ function EmpresaSection({
             canWrite={canWrite}
             onUpload={() => onUpload(req)}
             onArchivo={onArchivo}
+            onHistorial={() => onHistorial(req)}
           />
         );
       })}
@@ -479,24 +936,24 @@ function RequisitoCard({
   canWrite,
   onUpload,
   onArchivo,
+  onHistorial,
 }: {
   req: ComplianceRequisito;
   row: ComplianceEstadoRow | undefined;
   canWrite: boolean;
   onUpload: () => void;
   onArchivo: (archivo_id: string) => void;
+  onHistorial: () => void;
 }) {
   const estado = (row?.estado ?? "faltante") as ComplianceEstado;
   return (
-    <div className="rounded-[8px] border border-border p-3 flex flex-col gap-2 bg-card">
+    <div className="rounded-[8px] border border-border p-3 flex flex-col gap-2 bg-card shadow-xs">
       <div className="flex items-start justify-between gap-2">
-        <div className="text-sm font-medium text-foreground">{req.nombre}</div>
+        <div className="text-sm font-semibold text-foreground">{req.nombre}</div>
         <StatusBadge label={ESTADO_LABEL[estado]} tone={ESTADO_TONE[estado]} />
       </div>
       <div className="text-xs text-muted-foreground space-y-0.5">
-        {row?.fecha_vencimiento && (
-          <p>Vence: {formatFecha(row.fecha_vencimiento)}</p>
-        )}
+        {row?.fecha_vencimiento && <p>Vence: {formatFecha(row.fecha_vencimiento)}</p>}
         {row?.dias_restantes !== null && row?.dias_restantes !== undefined && (
           <p>
             {row.dias_restantes >= 0
@@ -516,6 +973,14 @@ function RequisitoCard({
             Ver PDF
           </button>
         )}
+        <button
+          type="button"
+          onClick={onHistorial}
+          className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+        >
+          <History size={11} />
+          Historial
+        </button>
         {canWrite && (
           <button
             type="button"
@@ -547,7 +1012,6 @@ function MatrizSection({
   onUpload: (req: ComplianceRequisito, target?: { chofer_id?: string; camion_id?: string }) => void;
   onArchivo: (archivo_id: string) => void;
 }) {
-  // Construir lista de entidades únicas (chofer/camion) ordenadas por urgencia
   const entidades = useMemo(() => {
     const map = new Map<string, { id: string; label: string; peorRank: number; peorDias: number }>();
     for (const r of rows) {
@@ -559,10 +1023,8 @@ function MatrizSection({
       const existing = map.get(id);
       if (!existing) {
         map.set(id, { id, label, peorRank: rank, peorDias: dias });
-      } else {
-        if (rank < existing.peorRank || (rank === existing.peorRank && dias < existing.peorDias)) {
-          map.set(id, { id, label, peorRank: rank, peorDias: dias });
-        }
+      } else if (rank < existing.peorRank || (rank === existing.peorRank && dias < existing.peorDias)) {
+        map.set(id, { id, label, peorRank: rank, peorDias: dias });
       }
     }
     return Array.from(map.values()).sort((a, b) => {
@@ -572,7 +1034,6 @@ function MatrizSection({
     });
   }, [rows, nivel]);
 
-  // Requisitos ordenados según campo `orden`
   const reqs = useMemo(() => [...requisitos].sort((a, b) => a.orden - b.orden), [requisitos]);
 
   if (entidades.length === 0 || reqs.length === 0) {
@@ -677,11 +1138,7 @@ function CellBadge({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      title={
-        row?.fecha_vencimiento
-          ? `Vence: ${formatFecha(row.fecha_vencimiento)}`
-          : ""
-      }
+      title={row?.fecha_vencimiento ? `Vence: ${formatFecha(row.fecha_vencimiento)}` : ""}
       className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[10px] font-semibold uppercase tracking-wider transition-colors ${bg} ${disabled ? "cursor-default opacity-70" : "cursor-pointer"}`}
     >
       {label}

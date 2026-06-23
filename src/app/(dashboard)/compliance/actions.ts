@@ -6,6 +6,7 @@ import { requireArea } from "@/lib/auth";
 import type {
   ComplianceCliente,
   ComplianceEstadoRow,
+  ComplianceHistorialDoc,
   ComplianceRequisito,
 } from "./types";
 
@@ -54,6 +55,111 @@ export async function getProximasPresentacionesAction(): Promise<ComplianceEstad
     .order("dias_restantes", { ascending: true, nullsFirst: false });
 
   return (data as ComplianceEstadoRow[] | null) ?? [];
+}
+
+/**
+ * Historial completo de un requisito para una entidad concreta (chofer /
+ * camión / empresa). Reúne todas las versiones cargadas a lo largo del
+ * tiempo, sin importar si viven en compliance_documentos o en el legajo
+ * del chofer/camión (cuando el requisito está mapeado a un tipo_documento).
+ */
+export async function getComplianceHistorialAction(input: {
+  requisito_id: string;
+  chofer_id?: string | null;
+  camion_id?: string | null;
+}): Promise<ComplianceHistorialDoc[]> {
+  await requireArea("compliance", "read");
+  const supabase = createAdminClient();
+
+  const { data: req } = await supabase
+    .from("compliance_requisitos")
+    .select("nivel, tipo_documento_id")
+    .eq("id", input.requisito_id)
+    .single();
+  if (!req) return [];
+
+  const nombreUsuario = (u: { nombre?: string | null; apellido?: string | null } | null): string | null => {
+    if (!u) return null;
+    const full = [u.nombre, u.apellido].filter(Boolean).join(" ").trim();
+    return full || null;
+  };
+
+  // ── Caso legajo: el doc vive en chofer_documentos / camion_documentos ──
+  if (req.tipo_documento_id && req.nivel === "chofer" && input.chofer_id) {
+    const { data } = await supabase
+      .from("chofer_documentos")
+      .select(
+        "id, numero, fecha_emision, fecha_vencimiento, observaciones, archivo_id, created_at, cargado_por:usuarios(nombre, apellido), archivo:documentos_archivos(nombre_original)",
+      )
+      .eq("chofer_id", input.chofer_id)
+      .eq("tipo_documento_id", req.tipo_documento_id)
+      .order("fecha_vencimiento", { ascending: false, nullsFirst: false });
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+      id: d.id as string,
+      periodo: null,
+      numero: (d.numero as string | null) ?? null,
+      fecha_emision: (d.fecha_emision as string | null) ?? null,
+      fecha_vencimiento: (d.fecha_vencimiento as string | null) ?? null,
+      observaciones: (d.observaciones as string | null) ?? null,
+      archivo_id: (d.archivo_id as string | null) ?? null,
+      nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+      created_at: d.created_at as string,
+      cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
+    }));
+  }
+
+  if (req.tipo_documento_id && req.nivel === "unidad" && input.camion_id) {
+    const { data } = await supabase
+      .from("camion_documentos")
+      .select(
+        "id, numero, fecha_emision, fecha_vencimiento, observaciones, archivo_id, created_at, cargado_por:usuarios(nombre, apellido), archivo:documentos_archivos(nombre_original)",
+      )
+      .eq("camion_id", input.camion_id)
+      .eq("tipo_documento_id", req.tipo_documento_id)
+      .order("fecha_vencimiento", { ascending: false, nullsFirst: false });
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+      id: d.id as string,
+      periodo: null,
+      numero: (d.numero as string | null) ?? null,
+      fecha_emision: (d.fecha_emision as string | null) ?? null,
+      fecha_vencimiento: (d.fecha_vencimiento as string | null) ?? null,
+      observaciones: (d.observaciones as string | null) ?? null,
+      archivo_id: (d.archivo_id as string | null) ?? null,
+      nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+      created_at: d.created_at as string,
+      cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
+    }));
+  }
+
+  // ── Caso compliance_documentos ──
+  let query = supabase
+    .from("compliance_documentos")
+    .select(
+      "id, periodo, fecha_emision, fecha_vencimiento, observaciones, archivo_id, created_at, cargado_por:usuarios(nombre, apellido), archivo:documentos_archivos(nombre_original)",
+    )
+    .eq("requisito_id", input.requisito_id);
+  if (input.chofer_id) query = query.eq("chofer_id", input.chofer_id);
+  else query = query.is("chofer_id", null);
+  if (input.camion_id) query = query.eq("camion_id", input.camion_id);
+  else query = query.is("camion_id", null);
+
+  const { data } = await query.order("fecha_vencimiento", {
+    ascending: false,
+    nullsFirst: false,
+  });
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+    id: d.id as string,
+    periodo: (d.periodo as string | null) ?? null,
+    numero: null,
+    fecha_emision: (d.fecha_emision as string | null) ?? null,
+    fecha_vencimiento: (d.fecha_vencimiento as string | null) ?? null,
+    observaciones: (d.observaciones as string | null) ?? null,
+    archivo_id: (d.archivo_id as string | null) ?? null,
+    nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+    created_at: d.created_at as string,
+    cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
+  }));
 }
 
 export async function uploadComplianceDocAction(formData: FormData) {
