@@ -1235,6 +1235,7 @@ export type Database = {
           fecha_fin: string
           fecha_inicio: string
           id: string
+          justificada: boolean
           observaciones: string | null
           tipo: string
           updated_at: string
@@ -1250,6 +1251,7 @@ export type Database = {
           fecha_fin: string
           fecha_inicio: string
           id?: string
+          justificada?: boolean
           observaciones?: string | null
           tipo: string
           updated_at?: string
@@ -1265,6 +1267,7 @@ export type Database = {
           fecha_fin?: string
           fecha_inicio?: string
           id?: string
+          justificada?: boolean
           observaciones?: string | null
           tipo?: string
           updated_at?: string

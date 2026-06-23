@@ -6,6 +6,7 @@ import RankingTable from "./RankingTable";
 import PeriodoSelector from "./PeriodoSelector";
 import ExportButton from "./ExportButton";
 import CriteriosButton from "./CriteriosButton";
+import RankingHelpButton from "./help-tutorial-button";
 import { computeRanking, resolverRango, getRankingCriterios } from "./lib";
 
 export default async function RankingChoferes({
@@ -41,6 +42,7 @@ export default async function RankingChoferes({
         description={`Período: ${periodo.label}`}
         action={
           <div className="flex items-center gap-2">
+            <RankingHelpButton />
             {canWrite && <CriteriosButton criterios={criterios} />}
             <ExportButton
               rangoActual={periodo.rango}

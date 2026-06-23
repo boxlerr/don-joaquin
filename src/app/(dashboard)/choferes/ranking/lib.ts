@@ -18,11 +18,70 @@ export type RankingChofer = {
   apercibimientos_count: number;
   roturas_count: number;
   taller_count: number;
+  siniestros_count: number;
+  ausencias_injustificadas_count: number;
   licencias_activas: number;
   facturacion_total: number;
   pesos_por_km: number | null;
   score: number | null;
+  // Penalizaciones aplicadas (para el desglose "por qué" del score).
+  desglose: { label: string; puntos: number }[];
 };
+
+export type ScoreDesglose = { label: string; puntos: number };
+
+/** Calcula score (0-100) + desglose a partir de los conteos del período.
+ * Único lugar donde vive la lógica de penalización (lo usan el ranking y el
+ * score individual del legajo, así nunca se desincronizan). */
+export function calcularScore(
+  cnt: {
+    pct_vacios: number;
+    apercibimientos: number;
+    roturas: number;
+    siniestros: number;
+    ausencias_injust: number;
+    taller: number;
+    licencias_activas: number;
+  },
+  p: RankingCriterios,
+): { score: number; desglose: ScoreDesglose[] } {
+  const desglose: ScoreDesglose[] = [];
+  let s = 100;
+
+  let penVacios = 0;
+  let labelVacios = "";
+  if (cnt.pct_vacios > 40) {
+    penVacios = p.vacios_alto;
+    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (más del 40%)`;
+  } else if (cnt.pct_vacios > 30) {
+    penVacios = p.vacios_moderado;
+    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (30–40%)`;
+  } else if (cnt.pct_vacios > 20) {
+    penVacios = p.vacios_leve;
+    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (20–30%)`;
+  }
+  if (penVacios > 0) {
+    desglose.push({ label: labelVacios, puntos: -penVacios });
+    s -= penVacios;
+  }
+  const restar = (c: number, peso: number, label: string) => {
+    const total = c * peso;
+    if (total > 0) {
+      desglose.push({ label: `${label} (${c})`, puntos: -total });
+      s -= total;
+    }
+  };
+  restar(cnt.siniestros, p.siniestro, "Siniestros");
+  restar(cnt.apercibimientos, p.aperc, "Apercibimientos");
+  restar(cnt.ausencias_injust, p.ausencia_injust, "Ausencias injustificadas");
+  restar(cnt.roturas, p.rotura, "Roturas");
+  restar(cnt.taller, p.taller, "Visitas al taller");
+  if (cnt.licencias_activas > 0) {
+    desglose.push({ label: "Licencia médica activa", puntos: -p.licencia });
+    s -= p.licencia;
+  }
+  return { score: Math.max(0, Math.min(100, s)), desglose };
+}
 
 export async function getRankingCriterios(): Promise<RankingCriterios> {
   const supabase = createAdminClient();
@@ -58,6 +117,8 @@ export async function computeRanking({
     { data: apercibimientos },
     { data: roturas },
     { data: licencias },
+    { data: siniestros },
+    { data: ausenciasInjust },
     { data: camionActuales },
     { data: historial },
     { data: asignacionDiaria },
@@ -93,6 +154,26 @@ export async function computeRanking({
       .select("chofer_id")
       .lte("fecha_desde", hasta)
       .or(`fecha_hasta.is.null,fecha_hasta.gte.${desde}`),
+
+    // Siniestros / accidentes del período (cada uno pesa fuerte en el score).
+    supabase
+      .from("siniestros")
+      .select("chofer_id")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .not("chofer_id", "is", null),
+
+    // Ausencias INJUSTIFICADAS del período: no vacaciones, no canceladas y
+    // marcadas justificada=false. Cada una resta puntos.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("chofer_ausencias")
+      .select("chofer_id")
+      .eq("es_vacaciones", false)
+      .eq("justificada", false)
+      .is("deleted_at", null)
+      .gte("fecha_inicio", desde)
+      .lte("fecha_inicio", hasta),
 
     // Camión asignado actualmente a cada chofer.
     supabase
@@ -158,6 +239,8 @@ export async function computeRanking({
     const ca = (apercibimientos ?? []).filter((a) => a.chofer_id === c.id);
     const cr = (roturas ?? []).filter((r) => r.chofer_id === c.id);
     const cl = (licencias ?? []).filter((l) => l.chofer_id === c.id);
+    const cs = (siniestros ?? []).filter((s) => s.chofer_id === c.id);
+    const cai = ((ausenciasInjust ?? []) as { chofer_id: string }[]).filter((a) => a.chofer_id === c.id);
 
     const km_con_carga = cv.reduce((s, v) => s + (v.km_con_carga ?? 0), 0);
     const km_vacios = cv.reduce((s, v) => s + (v.km_vacios ?? 0), 0);
@@ -176,6 +259,8 @@ export async function computeRanking({
 
     const apercibimientos_count = ca.length;
     const roturas_count = cr.length;
+    const siniestros_count = cs.length;
+    const ausencias_injustificadas_count = cai.length;
     const licencias_activas = cl.length;
 
     // Visitas al taller de todos los camiones que manejó el chofer en el período.
@@ -186,16 +271,22 @@ export async function computeRanking({
     }
 
     let score: number | null = null;
+    let desglose: ScoreDesglose[] = [];
     if (cv.length > 0) {
-      let s = 100;
-      if (pct_vacios > 40) s -= p.vacios_alto;
-      else if (pct_vacios > 30) s -= p.vacios_moderado;
-      else if (pct_vacios > 20) s -= p.vacios_leve;
-      s -= apercibimientos_count * p.aperc;
-      s -= roturas_count * p.rotura;
-      s -= taller_count * p.taller;
-      if (licencias_activas > 0) s -= p.licencia;
-      score = Math.max(0, Math.min(100, s));
+      const res = calcularScore(
+        {
+          pct_vacios,
+          apercibimientos: apercibimientos_count,
+          roturas: roturas_count,
+          siniestros: siniestros_count,
+          ausencias_injust: ausencias_injustificadas_count,
+          taller: taller_count,
+          licencias_activas,
+        },
+        p,
+      );
+      score = res.score;
+      desglose = res.desglose;
     }
 
     return {
@@ -211,10 +302,13 @@ export async function computeRanking({
       apercibimientos_count,
       roturas_count,
       taller_count,
+      siniestros_count,
+      ausencias_injustificadas_count,
       licencias_activas,
       facturacion_total,
       pesos_por_km,
       score,
+      desglose,
     };
   });
 
@@ -226,6 +320,86 @@ export async function computeRanking({
   });
 
   return ranking;
+}
+
+/** Score + desglose de UN solo chofer en un período (queries acotadas a ese
+ * chofer). Lo usa el header del legajo. Devuelve null si no tuvo viajes. */
+export async function computeScoreChofer(
+  choferId: string,
+  desde: string,
+  hasta: string,
+): Promise<{ score: number; desglose: ScoreDesglose[]; viajes_count: number } | null> {
+  const supabase = createAdminClient();
+  const p = await getRankingCriterios();
+
+  const [
+    { data: viajes },
+    { data: apercibimientos },
+    { data: roturas },
+    { data: licencias },
+    { data: siniestros },
+    { data: ausenciasInjust },
+    { data: camionActuales },
+    { data: historial },
+    { data: asignacionDiaria },
+  ] = await Promise.all([
+    supabase.from("viajes").select("km_con_carga, km_vacios").eq("chofer_id", choferId).gte("fecha_viaje", desde).lte("fecha_viaje", hasta),
+    supabase.from("chofer_apercibimientos").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
+    supabase.from("roturas_gomas").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
+    supabase.from("chofer_licencias_medicas").select("id").eq("chofer_id", choferId).lte("fecha_desde", hasta).or(`fecha_hasta.is.null,fecha_hasta.gte.${desde}`),
+    supabase.from("siniestros").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("chofer_ausencias").select("id").eq("chofer_id", choferId).eq("es_vacaciones", false).eq("justificada", false).is("deleted_at", null).gte("fecha_inicio", desde).lte("fecha_inicio", hasta),
+    supabase.from("camiones").select("id").eq("chofer_actual_id", choferId),
+    supabase.from("chofer_camion_historial").select("camion_id, desde, hasta").eq("chofer_id", choferId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("asignacion_diaria").select("camion_id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
+  ]);
+
+  if (!viajes || viajes.length === 0) return null;
+
+  const km_con_carga = viajes.reduce((s, v) => s + (v.km_con_carga ?? 0), 0);
+  const km_vacios = viajes.reduce((s, v) => s + (v.km_vacios ?? 0), 0);
+  const km_total = km_con_carga + km_vacios;
+  const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
+
+  const camIds = new Set<string>();
+  for (const c of camionActuales ?? []) camIds.add(c.id);
+  for (const h of (historial ?? []) as { camion_id: string; desde: string; hasta: string | null }[]) {
+    if (h.desde <= hasta && (!h.hasta || h.hasta >= desde)) camIds.add(h.camion_id);
+  }
+  for (const a of (asignacionDiaria ?? []) as { camion_id: string }[]) camIds.add(a.camion_id);
+
+  let taller = 0;
+  if (camIds.size > 0) {
+    const { data: mant } = await supabase
+      .from("mantenimientos")
+      .select("tipo, tipo_servicio:tipos_servicio(codigo)")
+      .in("camion_id", [...camIds])
+      .gte("fecha", desde)
+      .lte("fecha", hasta);
+    const TALLER = new Set(["reparacion", "gomeria"]);
+    for (const m of mant ?? []) {
+      const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
+      const codigo = (ts as { codigo?: string } | null)?.codigo;
+      if (codigo ? TALLER.has(codigo) : m.tipo === "reparacion") taller += 1;
+    }
+  }
+
+  const { score, desglose } = calcularScore(
+    {
+      pct_vacios,
+      apercibimientos: (apercibimientos ?? []).length,
+      roturas: (roturas ?? []).length,
+      siniestros: (siniestros ?? []).length,
+      ausencias_injust: (ausenciasInjust ?? []).length,
+      taller,
+      licencias_activas: (licencias ?? []).length,
+    },
+    p,
+  );
+
+  return { score, desglose, viajes_count: viajes.length };
 }
 
 export type RangoKey = "1m" | "3m" | "1y" | "custom";
@@ -270,7 +444,9 @@ export function resolverRango(params: {
   const now = new Date();
   const inicioMesActual = new Date(now.getFullYear(), now.getMonth(), 1);
   const finMesActual = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const rango = (params.rango ?? "1m") as RangoKey;
+  // Default: últimos 3 meses. El "mes actual" suele tener pocos viajes (recién
+  // empieza) y daba la falsa impresión de que todos estaban en 100.
+  const rango = (params.rango ?? "3m") as RangoKey;
 
   if (rango === "custom") {
     const { desde, hasta } = params;

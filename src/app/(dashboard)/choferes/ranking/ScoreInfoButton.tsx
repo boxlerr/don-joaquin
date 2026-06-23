@@ -4,16 +4,16 @@ import { useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { HelpCircle, X, TrendingDown, Info } from "lucide-react";
 
-// Penalizaciones del score — deben reflejar exactamente el cálculo de page.tsx.
+// Penalizaciones del score (valores por defecto, editables en "Configurar criterios").
 const PENALIZACIONES: { metrica: string; detalle: string; descuento: string }[] = [
-  { metrica: "Km vacíos", detalle: "más del 40% del total recorrido", descuento: "−20" },
-  { metrica: "Km vacíos", detalle: "entre 30% y 40%", descuento: "−15" },
-  { metrica: "Km vacíos", detalle: "entre 20% y 30%", descuento: "−8" },
-  { metrica: "Apercibimiento grave", detalle: "por cada uno del período", descuento: "−15" },
-  { metrica: "Apercibimiento moderado", detalle: "por cada uno del período", descuento: "−8" },
-  { metrica: "Apercibimiento leve", detalle: "por cada uno del período", descuento: "−3" },
-  { metrica: "Rotura de goma", detalle: "por cada evento del período", descuento: "−5" },
+  { metrica: "Siniestro / accidente", detalle: "por cada uno del período", descuento: "−20" },
+  { metrica: "Ausencia injustificada", detalle: "por cada falta sin justificar", descuento: "−10" },
+  { metrica: "Apercibimiento", detalle: "por cada uno del período", descuento: "−8" },
+  { metrica: "Rotura (goma, llanta, etc.)", detalle: "por cada evento del período", descuento: "−5" },
+  { metrica: "Visita al taller", detalle: "del camión que maneja", descuento: "−3" },
   { metrica: "Licencia médica activa", detalle: "durante el período", descuento: "−10" },
+  { metrica: "Km vacíos", detalle: "más del 40% (pesa poco a propósito)", descuento: "−10" },
+  { metrica: "Km vacíos", detalle: "entre 30% y 40%", descuento: "−5" },
 ];
 
 export default function ScoreInfoButton() {

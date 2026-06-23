@@ -5,6 +5,7 @@ import { requireArea, requireAdmin, hasArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
+import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
 import type {
   ChoferDetail,
@@ -231,7 +232,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
-    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
     .eq("chofer_id", chofer_id)
     .is("deleted_at", null)
     .order("fecha_inicio", { ascending: false })) as {
@@ -244,6 +245,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           estado: string;
           observaciones: string | null;
           es_vacaciones: boolean | null;
+          justificada: boolean | null;
           created_at: string;
           autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
         }[]
@@ -698,8 +700,19 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     };
   });
 
+  // Score de conducta del último trimestre (mismo cálculo que el Ranking).
+  const scoreHasta = new Date().toISOString().split("T")[0]!;
+  const scoreDesde = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 2);
+    d.setDate(1);
+    return d.toISOString().split("T")[0]!;
+  })();
+  const scoreRes = await computeScoreChofer(chofer_id, scoreDesde, scoreHasta);
+
   return ({
     ...chofer,
+    score_trimestre: scoreRes?.score ?? null,
     foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: mappedDocs,
     alertas: (activeAlerts ?? []).map((a) => ({
@@ -792,6 +805,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         dias,
         en_curso: a.fecha_inicio <= hoyStr2 && a.fecha_fin >= hoyStr2,
         es_vacaciones: a.es_vacaciones ?? false,
+        justificada: a.justificada ?? true,
         created_at: a.created_at,
       };
     }),
@@ -1084,6 +1098,7 @@ export async function crearAusenciaAction(
     fecha_fin: string;
     observaciones?: string | null;
     es_vacaciones?: boolean;
+    justificada?: boolean;
   },
 ) {
   const user = await requireArea("logistica", "write");
@@ -1108,6 +1123,7 @@ export async function crearAusenciaAction(
     autorizado_por: user.id,
     observaciones: data.observaciones?.trim() || null,
     es_vacaciones: data.es_vacaciones ?? false,
+    justificada: data.justificada ?? true,
     created_by: user.id,
   });
 
@@ -1136,6 +1152,7 @@ export async function editarAusenciaAction(
     fecha_fin: string;
     observaciones?: string | null;
     es_vacaciones?: boolean;
+    justificada?: boolean;
   },
 ) {
   const user = await requireArea("logistica", "write");
@@ -1170,6 +1187,7 @@ export async function editarAusenciaAction(
     fecha_fin: data.fecha_fin,
     observaciones: data.observaciones?.trim() || null,
     es_vacaciones: data.es_vacaciones ?? false,
+    justificada: data.justificada ?? true,
   };
 
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);

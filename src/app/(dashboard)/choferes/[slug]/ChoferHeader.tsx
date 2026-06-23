@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Combobox } from "@/components/ui/combobox";
-import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2, X } from "lucide-react";
+import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2, X, Trophy } from "lucide-react";
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
@@ -202,6 +202,22 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             )}
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <StatusBadge label={estadoLabel} tone={estadoTone} />
+              {!esBaja && chofer.score_trimestre !== null && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2 py-0.5 border"
+                  style={
+                    chofer.score_trimestre >= 80
+                      ? { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0", color: "#065F46" }
+                      : chofer.score_trimestre >= 60
+                        ? { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7", color: "#92400E" }
+                        : { backgroundColor: "#FEF2F2", borderColor: "#FECACA", color: "#991B1B" }
+                  }
+                  title="Score de conducta del último trimestre (ver Ranking). Verde ≥80, amarillo 60-79, rojo <60."
+                >
+                  <Trophy size={11} />
+                  Score {chofer.score_trimestre}
+                </span>
+              )}
               {!esBaja && (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 border ${

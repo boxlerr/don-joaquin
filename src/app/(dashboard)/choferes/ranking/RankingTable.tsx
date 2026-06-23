@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import {
   GitCompare,
@@ -14,6 +14,8 @@ import {
   DollarSign,
   ArrowUp,
   ArrowDown,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
 import type { RankingChofer } from "./lib";
 import ScoreBadge from "./ScoreBadge";
@@ -117,6 +119,53 @@ function PctBadge({ pct, viajes }: { pct: number; viajes: number }) {
   );
 }
 
+/** Panel desplegable: muestra POR QUÉ el chofer tiene ese score. */
+function DesglosePanel({ r, onVerLegajo }: { r: RankingChofer; onVerLegajo: () => void }) {
+  return (
+    <div className="flex items-center gap-x-1.5 gap-y-2 flex-wrap text-sm">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mr-1">
+        Cómo llegó a {r.score}:
+      </span>
+      <span className="inline-flex items-center px-2 py-1 rounded-md bg-card border border-border font-bold text-foreground tabular-nums">
+        100
+      </span>
+      {r.desglose.length === 0 ? (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] text-xs font-medium">
+          <CheckCircle2 size={13} /> Sin penalizaciones
+        </span>
+      ) : (
+        r.desglose.map((d, i) => (
+          <span key={i} className="inline-flex items-center gap-1.5">
+            <span className="text-muted-foreground/60">−</span>
+            <span
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#FEF2F2] border border-[#FECACA] text-[#991B1B] text-xs"
+              title={d.label}
+            >
+              {d.label}
+              <b className="tabular-nums">{d.puntos}</b>
+            </span>
+          </span>
+        ))
+      )}
+      <span className="text-muted-foreground/60 mx-0.5">=</span>
+      <span
+        className="inline-flex items-center px-2.5 py-1 rounded-md font-bold tabular-nums text-white"
+        style={{ backgroundColor: r.score === null ? "#94A3B8" : r.score >= 80 ? "#10B981" : r.score >= 60 ? "#F59E0B" : "#EF4444" }}
+      >
+        {r.score}
+      </span>
+      <button
+        type="button"
+        onClick={onVerLegajo}
+        className="inline-flex items-center gap-1.5 h-8 px-3 ml-1 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+      >
+        Ver legajo
+        <ExternalLink size={13} />
+      </button>
+    </div>
+  );
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -192,6 +241,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [sinActividadOpen, setSinActividadOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -283,9 +333,19 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
     .filter((r): r is RankingChofer => Boolean(r));
 
   const noData = conActividad.length === 0;
+  const totalViajesPeriodo = conActividad.reduce((a, r) => a + r.viajes_count, 0);
+  const pocosDatos = totalViajesPeriodo > 0 && totalViajesPeriodo < 10;
 
   return (
     <>
+      {/* Aviso: período con muy pocos viajes cargados */}
+      {pocosDatos && (
+        <div className="flex items-center gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <TrendingUp size={15} className="shrink-0" />
+          Este período tiene sólo {totalViajesPeriodo} viaje{totalViajesPeriodo !== 1 ? "s" : ""} cargado{totalViajesPeriodo !== 1 ? "s" : ""}. El score todavía no es representativo — probá un período más amplio (3 meses o 1 año).
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
@@ -340,7 +400,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground">
-                Score por conducta (km vacíos, apercibimientos, roturas, taller). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
+                Score por conducta (apercibimientos, roturas, taller, siniestros, ausencias injustificadas, km vacíos). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
               </p>
               <ScoreInfoButton />
             </div>
@@ -417,16 +477,20 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
               {filteredActivos.map((r) => {
                 const pos = sortedActivos.indexOf(r) + 1;
                 const isSelected = selected.includes(r.id);
+                const isExpanded = expandedId === r.id;
                 const av = avatarColors(r.score);
                 const borderColor = rowBorderColor(r.score);
                 return (
+                  <Fragment key={r.id}>
                   <tr
-                    key={r.id}
-                    onClick={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
+                    onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                    title="Clic para ver el desglose del score"
                     className={`group cursor-pointer transition-colors border-l-[3px] ${borderColor} ${
                       isSelected
                         ? "bg-primary/5 hover:bg-primary/8"
-                        : "hover:bg-muted/40"
+                        : isExpanded
+                          ? "bg-muted/40"
+                          : "hover:bg-muted/40"
                     }`}
                   >
                     {/* Checkbox */}
@@ -540,6 +604,17 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
                       )}
                     </td>
                   </tr>
+                  {isExpanded && (
+                    <tr className="bg-muted/20 border-l-[3px] border-l-transparent">
+                      <td colSpan={12} className="px-5 py-3">
+                        <DesglosePanel
+                          r={r}
+                          onVerLegajo={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
 

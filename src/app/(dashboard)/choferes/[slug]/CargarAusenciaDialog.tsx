@@ -47,6 +47,7 @@ export default function CargarAusenciaDialog({
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
   const [esVacaciones, setEsVacaciones] = useState(defaultVacaciones ?? false);
+  const [justificada, setJustificada] = useState(true);
 
   // Al abrir en modo edición, precargar los valores de la ausencia.
   useEffect(() => {
@@ -56,9 +57,11 @@ export default function CargarAusenciaDialog({
       setFechaInicio(ausencia.fecha_inicio);
       setFechaFin(ausencia.fecha_fin);
       setEsVacaciones(ausencia.es_vacaciones);
+      setJustificada(ausencia.justificada);
       setError(null);
     } else {
       setEsVacaciones(defaultVacaciones ?? false);
+      setJustificada(true);
     }
   }, [open, ausencia, defaultVacaciones]);
 
@@ -89,6 +92,7 @@ export default function CargarAusenciaDialog({
     setFechaFin(hoy);
     setViajesRango([]);
     setEsVacaciones(defaultVacaciones ?? false);
+    setJustificada(true);
     setError(null);
   };
 
@@ -105,6 +109,9 @@ export default function CargarAusenciaDialog({
       fecha_inicio: fechaInicio,
       fecha_fin: fechaFin,
       es_vacaciones: esVacaciones,
+      // Solo aplica a ausencias que NO son vacaciones. Las vacaciones siempre
+      // quedan como justificadas.
+      justificada: esVacaciones ? true : justificada,
     };
 
     const res = esEdicion
@@ -195,6 +202,24 @@ export default function CargarAusenciaDialog({
             />
             Es período de <span className="font-medium">vacaciones</span> (descuenta del saldo)
           </label>
+
+          {/* Justificada: solo para ausencias que NO son vacaciones. */}
+          {!esVacaciones && (
+            <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!justificada}
+                onChange={(e) => setJustificada(!e.target.checked)}
+                className="size-4 mt-0.5 rounded border-border accent-[#EF4444]"
+              />
+              <span>
+                Fue <span className="font-medium text-[#EF4444]">injustificada</span>
+                <span className="block text-xs text-muted-foreground">
+                  Marcalo solo si el chofer faltó sin aviso ni motivo válido. Resta puntos en el ranking.
+                </span>
+              </span>
+            </label>
+          )}
 
           {/* Aviso de viajes que el chofer ya tiene en estas fechas */}
           {loadingViajes ? (

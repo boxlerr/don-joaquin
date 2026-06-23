@@ -12,16 +12,24 @@ export type RankingCriterios = {
   taller: number;
   aperc: number;
   licencia: number;
+  siniestro: number;
+  ausencia_injust: number;
 };
 
 export const RANKING_CRITERIOS_DEFAULT: RankingCriterios = {
-  vacios_leve: 8,
-  vacios_moderado: 15,
-  vacios_alto: 20,
+  // Km vacíos: pesan poco porque muchas veces NO dependen del chofer (no hay
+  // retorno disponible). Solo penaliza cuando es muy alto.
+  vacios_leve: 0,
+  vacios_moderado: 5,
+  vacios_alto: 10,
   rotura: 5,
   taller: 3,
   aperc: 8,
   licencia: 10,
+  // Un siniestro/accidente es lo más grave: pesa fuerte.
+  siniestro: 20,
+  // Falta sin justificar (no es vacaciones ni licencia médica).
+  ausencia_injust: 10,
 };
 
 export const CRITERIO_CLAVE: Record<keyof RankingCriterios, string> = {
@@ -32,4 +40,6 @@ export const CRITERIO_CLAVE: Record<keyof RankingCriterios, string> = {
   taller: "ranking_pen_taller",
   aperc: "ranking_pen_aperc",
   licencia: "ranking_pen_licencia",
+  siniestro: "ranking_pen_siniestro",
+  ausencia_injust: "ranking_pen_ausencia_injust",
 };

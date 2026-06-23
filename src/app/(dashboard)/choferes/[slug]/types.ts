@@ -151,6 +151,8 @@ export type Ausencia = {
   en_curso: boolean;
   // true si esta ausencia es un período de vacaciones (descuenta del saldo).
   es_vacaciones: boolean;
+  // false = ausencia injustificada (penaliza el ranking). Default true.
+  justificada: boolean;
   created_at: string;
 };
 
@@ -274,6 +276,9 @@ export type ChoferDetail = ChoferBasico & {
   is_admin: boolean;
   // El usuario tiene permiso de escritura sobre logística (cargar/editar ausencias).
   can_logistica_write: boolean;
+  // Score de conducta del último trimestre (null si no tuvo viajes). Mismo
+  // cálculo que el Ranking. Se muestra como insignia en el header.
+  score_trimestre: number | null;
   alertas: {
     id: string;
     tipo: string;
