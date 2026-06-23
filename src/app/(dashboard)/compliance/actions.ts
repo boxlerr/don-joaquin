@@ -44,19 +44,6 @@ export async function getComplianceEstadoAction(cliente: ComplianceCliente): Pro
   };
 }
 
-export async function getProximasPresentacionesAction(): Promise<ComplianceEstadoRow[]> {
-  await requireArea("compliance", "read");
-  const supabase = createAdminClient();
-
-  const { data } = await supabase
-    .from("v_compliance_estado")
-    .select("*")
-    .in("estado", ["por_vencer", "vencido"])
-    .order("dias_restantes", { ascending: true, nullsFirst: false });
-
-  return (data as ComplianceEstadoRow[] | null) ?? [];
-}
-
 /**
  * Historial completo de un requisito para una entidad concreta (chofer /
  * camión / empresa). Reúne todas las versiones cargadas a lo largo del
@@ -270,7 +257,6 @@ export async function uploadComplianceDocAction(formData: FormData) {
 
   revalidatePath("/compliance/loma-negra");
   revalidatePath("/compliance/ypf");
-  revalidatePath("/compliance/proximas");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
@@ -282,7 +268,6 @@ export async function deleteComplianceDocAction(doc_id: string) {
   if (error) return { error: "Error al eliminar" };
   revalidatePath("/compliance/loma-negra");
   revalidatePath("/compliance/ypf");
-  revalidatePath("/compliance/proximas");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }

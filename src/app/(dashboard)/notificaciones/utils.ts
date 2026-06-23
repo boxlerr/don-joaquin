@@ -82,7 +82,7 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
     case "vencimiento_doc_chofer":
       return alerta.entidad_id ? `/choferes?documentoId=${alerta.entidad_id}` : "/choferes";
     case "vencimiento_compliance":
-      return "/compliance/proximas";
+      return "/compliance/loma-negra";
     case "vencimiento_cheque":
     case "cheque_rechazado_recordatorio":
       return "/cheques";
