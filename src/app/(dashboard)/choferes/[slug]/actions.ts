@@ -713,6 +713,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   return ({
     ...chofer,
     score_trimestre: scoreRes?.score ?? null,
+    score_trimestre_desglose: scoreRes?.desglose ?? [],
     foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: mappedDocs,
     alertas: (activeAlerts ?? []).map((a) => ({

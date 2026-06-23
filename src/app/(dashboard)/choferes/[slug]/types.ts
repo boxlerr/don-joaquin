@@ -279,6 +279,8 @@ export type ChoferDetail = ChoferBasico & {
   // Score de conducta del último trimestre (null si no tuvo viajes). Mismo
   // cálculo que el Ranking. Se muestra como insignia en el header.
   score_trimestre: number | null;
+  // Penalizaciones que llevaron a ese score (para mostrar el "por qué").
+  score_trimestre_desglose: { label: string; puntos: number }[];
   alertas: {
     id: string;
     tipo: string;
