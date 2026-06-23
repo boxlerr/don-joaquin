@@ -13,6 +13,7 @@ import {
   type ComplianceNivel,
 } from "../types";
 import { formatFecha } from "@/lib/utils";
+import ComplianceHelpButton from "./ComplianceHelpButton";
 
 interface Props {
   rows: ComplianceEstadoRow[];
@@ -64,11 +65,14 @@ export default function ProximasPresentacionesView({ rows }: Props) {
 
   return (
     <div className="p-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Próximas presentaciones</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Documentos por vencer o vencidos, agrupados por cliente.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Próximas presentaciones</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Documentos por vencer o vencidos, agrupados por cliente.
+          </p>
+        </div>
+        <ComplianceHelpButton />
       </div>
 
       {/* Toolbar */}

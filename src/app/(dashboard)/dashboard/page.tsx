@@ -23,6 +23,7 @@ import TopBottomChoferes from "./components/TopBottomChoferes";
 import ResumenMes from "./components/ResumenMes";
 import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
+import DashboardHelpButton from "./DashboardHelpButton";
 
 export default async function DashboardPage() {
   const supabase = createAdminClient();
@@ -192,6 +193,7 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Resumen operativo y financiero del día"
+        action={<DashboardHelpButton />}
       />
 
       <ResumenMes ranking={ranking} periodoLabel={rangoMes.label} />

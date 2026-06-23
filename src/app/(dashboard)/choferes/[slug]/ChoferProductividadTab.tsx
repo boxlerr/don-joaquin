@@ -327,15 +327,15 @@ export default function ChoferProductividadTab({
                 barSize={28}
                 margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   axisLine={false}
                   tickLine={false}
                   width={48}
@@ -348,19 +348,24 @@ export default function ChoferProductividadTab({
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
                     borderRadius: "6px",
                     fontSize: 12,
                   }}
                   formatter={(value: unknown) => {
                     const n = Number(value);
-                    if (chartMetric === "facturacion") return `$ ${fmtNum(n)}`;
-                    if (chartMetric === "toneladas") return `${fmtNum(n)} tn`;
-                    return `${fmtNum(n)} km`;
+                    const label = chartMetric === "km" ? "Km" : chartMetric === "toneladas" ? "Toneladas" : "Facturación";
+                    const formatted =
+                      chartMetric === "facturacion"
+                        ? `$ ${fmtNum(n)}`
+                        : chartMetric === "toneladas"
+                          ? `${fmtNum(n)} tn`
+                          : `${fmtNum(n)} km`;
+                    return [formatted, label];
                   }}
-                  labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600, marginBottom: 4 }}
-                  cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+                  labelStyle={{ color: "var(--foreground)", fontWeight: 600, marginBottom: 4 }}
+                  cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                 />
                 <Bar
                   dataKey={chartMetric === "km" ? "km_total" : chartMetric === "toneladas" ? "toneladas" : "facturacion_ars"}
@@ -369,7 +374,8 @@ export default function ChoferProductividadTab({
                   {evolucion.map((entry) => (
                     <Cell
                       key={entry.mes}
-                      fill={entry.mes === mesActual ? "#0088D1" : "hsl(var(--muted-foreground)/0.3)"}
+                      fill={entry.mes === mesActual ? "#0088D1" : "var(--muted-foreground)"}
+                      fillOpacity={entry.mes === mesActual ? 1 : 0.35}
                     />
                   ))}
                 </Bar>

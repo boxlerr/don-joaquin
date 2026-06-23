@@ -21,6 +21,7 @@ import type {
 } from "../types";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import CargarOrganismoDocDialog from "./CargarOrganismoDocDialog";
+import ComplianceHelpButton from "../components/ComplianceHelpButton";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -74,6 +75,7 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite }:
             <p className="text-sm text-muted-foreground mt-0.5">{destinatario.descripcion}</p>
           )}
         </div>
+        <ComplianceHelpButton />
       </div>
 
       {/* Resumen */}

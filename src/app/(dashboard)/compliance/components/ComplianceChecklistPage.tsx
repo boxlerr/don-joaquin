@@ -37,6 +37,7 @@ import {
 } from "../types";
 import CargarComplianceDocDialog from "./CargarComplianceDocDialog";
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
+import ComplianceHelpButton from "./ComplianceHelpButton";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
 import { exportToExcel } from "@/shared/services/excel-export.service";
@@ -284,6 +285,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ComplianceHelpButton />
           <Button variant="outline" size="sm" onClick={handleExport} className="border-border">
             <FileSpreadsheet size={14} className="mr-1.5" />
             Exportar

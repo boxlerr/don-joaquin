@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import EntrevistasTable, { type Entrevista } from "./components/EntrevistasTable";
 import EntrevistaFormDialog from "./components/EntrevistaFormDialog";
+import EntrevistasHelpButton from "./components/EntrevistasHelpButton";
 
 export default async function EntrevistasPage() {
   const user = await requireArea("rrhh", "read");
@@ -34,14 +35,17 @@ export default async function EntrevistasPage() {
         title="Entrevistas"
         description="Registro de personas entrevistadas: observaciones, preocupacional y si ingresan al transporte"
         action={
-          canWrite ? (
-            <EntrevistaFormDialog>
-              <Button>
-                <UserPlus className="size-4" />
-                Nueva entrevista
-              </Button>
-            </EntrevistaFormDialog>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <EntrevistasHelpButton />
+            {canWrite && (
+              <EntrevistaFormDialog>
+                <Button>
+                  <UserPlus className="size-4" />
+                  Nueva entrevista
+                </Button>
+              </EntrevistaFormDialog>
+            )}
+          </div>
         }
       />
 

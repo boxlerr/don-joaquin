@@ -7,6 +7,7 @@ import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/rankin
 import { getRotacion } from "@/app/(dashboard)/choferes/rotacion/lib";
 import ScoreBadge from "@/app/(dashboard)/choferes/ranking/ScoreBadge";
 import { choferSlug } from "@/lib/chofer-slug";
+import ReportesHelpButton from "./ReportesHelpButton";
 
 function fmtNum(n: number): string {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
@@ -87,7 +88,11 @@ export default async function ReportesPage({
 
   return (
     <div className="p-8 space-y-6 w-full">
-      <PageHeader title="Reportes" description="Indicadores operativos, de rotación y comerciales" />
+      <PageHeader
+        title="Reportes"
+        description="Indicadores operativos, de rotación y comerciales"
+        action={<ReportesHelpButton />}
+      />
 
       {/* Selector de período */}
       <div className="flex items-center gap-1.5">

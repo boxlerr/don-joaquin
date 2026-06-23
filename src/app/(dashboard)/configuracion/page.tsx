@@ -11,6 +11,7 @@ import {
   FileText,
 } from "lucide-react";
 import ParametrosList from "./ParametrosList";
+import ConfiguracionHelpButton from "./ConfiguracionHelpButton";
 
 export default async function ConfiguracionPage() {
   const user = await requireArea("sistema", "read");
@@ -27,6 +28,7 @@ export default async function ConfiguracionPage() {
       <PageHeader
         title="Configuración"
         description="Parámetros del sistema y servicios externos"
+        action={<ConfiguracionHelpButton />}
       />
 
       <div>
