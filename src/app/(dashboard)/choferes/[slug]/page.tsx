@@ -17,6 +17,7 @@ import ChoferVacacionesTab from "./ChoferVacacionesTab";
 import ChoferPrestamosTab from "./ChoferPrestamosTab";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 
 type TabId =
   | "info"
@@ -123,20 +124,24 @@ export default function ChoferDetailPage() {
       />
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "text-primary border-[#0088D1]"
-                  : "text-muted-foreground border-transparent hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="border-b border-border bg-muted/40">
+          <HorizontalScrollHint className="px-6" fadeBg="from-muted/40">
+            <div className="flex items-center">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "text-primary border-[#0088D1]"
+                      : "text-muted-foreground border-transparent hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </HorizontalScrollHint>
         </div>
 
         <div className="p-6 bg-card min-h-[50vh]">

@@ -9,6 +9,10 @@ const MESES = [
 ];
 const DOW = ["L", "M", "M", "J", "V", "S", "D"];
 
+function diaSemana(anio: number, mes: number, dia: number): string {
+  return new Date(anio, mes, dia).toLocaleDateString("es-AR", { weekday: "long" });
+}
+
 interface Props {
   periodos: VacacionesPeriodo[];
   anio: number;
@@ -47,6 +51,15 @@ export default function CronogramaAnual({ periodos, anio }: Props) {
 
   return (
     <TooltipProvider delay={120}>
+      {/* Leyenda: explica qué muestra el calendario */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-4 text-[11px] text-muted-foreground">
+        <span className="font-medium text-foreground">Cuánta gente está de vacaciones cada día:</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#10B981]/30" /> 1</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#10B981]/60" /> 2–3</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#10B981]/90" /> 4–5</span>
+        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#EF4444]/80" /> 6+ (pico)</span>
+        <span className="text-muted-foreground/70">· pasá el mouse por un día para ver quiénes son</span>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
         {MESES.map((mes, mi) => {
           const primero = new Date(anio, mi, 1);
@@ -79,15 +92,24 @@ export default function CronogramaAnual({ periodos, anio }: Props) {
                   return (
                     <Tooltip key={i}>
                       <TooltipTrigger render={<div className={cls}>{d}</div>} />
-                      <TooltipContent side="top" className="max-w-[240px] text-left">
-                        <div className="font-semibold mb-1">
-                          {d} de {mes} · {n} de vacaciones
+                      <TooltipContent side="top" className="block max-w-[260px] text-left p-0 overflow-hidden">
+                        <div className="px-3 py-1.5 border-b border-background/15 bg-background/5">
+                          <div className="flex items-center gap-1.5 font-semibold">
+                            <span>🏖️</span>
+                            <span>{n} {n === 1 ? "persona" : "personas"} de vacaciones</span>
+                          </div>
+                          <div className="text-[10px] opacity-70 capitalize mt-0.5">
+                            {diaSemana(anio, mi, d)} {d} de {mes}
+                          </div>
                         </div>
-                        <ul className="space-y-0.5">
-                          {nombres.slice(0, 8).map((nom, j) => (
-                            <li key={j}>{nom}</li>
+                        <ul className="px-3 py-1.5 space-y-0.5">
+                          {[...nombres].sort().slice(0, 10).map((nom, j) => (
+                            <li key={j} className="flex items-center gap-1.5">
+                              <span className="inline-block w-1 h-1 rounded-full bg-background/50 shrink-0" />
+                              {nom}
+                            </li>
                           ))}
-                          {n > 8 && <li className="opacity-70">… y {n - 8} más</li>}
+                          {n > 10 && <li className="opacity-70 pl-2.5">… y {n - 10} más</li>}
                         </ul>
                       </TooltipContent>
                     </Tooltip>

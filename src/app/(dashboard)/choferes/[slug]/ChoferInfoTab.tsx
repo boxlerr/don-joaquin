@@ -9,6 +9,7 @@ import type { ChoferDetail } from "./types";
 import { Check, Pencil, X, AlertTriangle } from "lucide-react";
 import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
 import CamionAsignacion from "./CamionAsignacion";
+import EmergencyContactsEditor, { EmergencyContactsView, parseContactos } from "./EmergencyContactsEditor";
 
 interface Props {
   chofer: ChoferDetail;
@@ -85,8 +86,15 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     if (!apellido.trim()) errs.apellido = "El apellido es requerido.";
     const telDigits = telefono.replace(/\D/g, "");
     if (telDigits && telDigits.length < 10) errs.telefono = "El teléfono debe tener al menos 10 dígitos.";
-    const telEmerDigits = telefonoEmergencia.replace(/\D/g, "");
-    if (telEmerDigits && telEmerDigits.length < 10) errs.telefono_emergencia = "Debe tener al menos 10 dígitos.";
+    // Validamos cada contacto de emergencia por separado: si tiene teléfono,
+    // debe tener al menos 7 dígitos. Permitir cualquier cantidad de contactos.
+    for (const c of parseContactos(telefonoEmergencia)) {
+      const d = c.tel.replace(/\D/g, "");
+      if (c.tel && d.length < 7) {
+        errs.telefono_emergencia = "Cada teléfono de emergencia debe tener al menos 7 dígitos.";
+        break;
+      }
+    }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -164,7 +172,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
         {/* Datos personales y laborales (solo lectura) */}
         <section className="space-y-2.5">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Personal y laboral
           </h4>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -206,7 +214,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
         {/* Datos de contacto */}
         <section className="space-y-2.5">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Contacto
           </h4>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -234,14 +242,22 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 </div>
               ) : <Value v={chofer.telefono} />}
             </Field>
-            <Field label="Tel. emergencia">
-              {editing ? (
-                <div className="space-y-0.5">
-                  <Input value={telefonoEmergencia} onChange={(e) => setTelefonoEmergencia(e.target.value)} className={`h-8 text-sm ${fieldErrors.telefono_emergencia ? "border-red-400" : ""}`} placeholder="—" />
-                  {fieldErrors.telefono_emergencia && <p className="text-red-500 text-[11px]">{fieldErrors.telefono_emergencia}</p>}
-                </div>
-              ) : <Value v={chofer.telefono_emergencia} />}
-            </Field>
+            <div className="col-span-2">
+              <Field label="Contactos de emergencia">
+                {editing ? (
+                  <div className="space-y-0.5">
+                    <EmergencyContactsEditor
+                      value={telefonoEmergencia}
+                      onChange={setTelefonoEmergencia}
+                      errorClass={fieldErrors.telefono_emergencia ? "border-red-400" : ""}
+                    />
+                    {fieldErrors.telefono_emergencia && <p className="text-red-500 text-[11px]">{fieldErrors.telefono_emergencia}</p>}
+                  </div>
+                ) : (
+                  <EmergencyContactsView value={chofer.telefono_emergencia} />
+                )}
+              </Field>
+            </div>
             <div className="col-span-2">
               <Field label="Domicilio">
                 {editing
@@ -254,7 +270,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
         {/* Datos bancarios */}
         <section className="space-y-2.5 md:col-span-2 lg:col-span-1">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Bancarios
           </h4>
           <div className="space-y-2">
@@ -283,7 +299,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
         {/* AFIP + Período de prueba */}
         <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
-          <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide border-b border-border pb-1.5">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             AFIP / Período de prueba
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
@@ -409,7 +425,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Value({ v, mono }: { v?: string | null; mono?: boolean }) {
   return (
-    <p className={`text-sm py-0.5 ${mono ? "font-mono" : ""} ${!v ? "text-muted-foreground/60" : "text-foreground"} truncate`} title={v ?? undefined}>
+    <p className={`text-sm py-0.5 ${mono ? "font-mono" : ""} ${!v ? "text-muted-foreground/60" : "text-foreground"} break-words`} title={v ?? undefined}>
       {v ?? "—"}
     </p>
   );

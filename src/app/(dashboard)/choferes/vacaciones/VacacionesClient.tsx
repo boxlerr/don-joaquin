@@ -378,7 +378,9 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <CalendarRange size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Cronograma</h2>
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            · solo aparecen los que ya tienen vacaciones{canWrite && vista === "semanas" ? " · clic en una celda para cargar o quitar" : ""}
+            {vista === "anual"
+              ? `· ${finPeriodoY} completo, día por día`
+              : `· solo aparecen los que ya tienen vacaciones${canWrite ? " · clic en una celda para cargar o quitar" : ""}`}
           </span>
           <div className="ml-auto flex items-center gap-2">
             {vista === "semanas" && (
@@ -705,7 +707,7 @@ function StatCard({
           </div>
         }
       />
-      <TooltipContent side="bottom" className="max-w-[260px] text-left leading-snug">
+      <TooltipContent side="bottom" className="block max-w-[260px] text-left leading-snug">
         {info}
       </TooltipContent>
     </Tooltip>
