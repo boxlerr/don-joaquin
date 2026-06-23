@@ -475,6 +475,11 @@ export default function ImportLomaModal({
                 {(result.imported?.sinFecha ?? 0) > 0 && (
                   <div><strong>{result.imported?.sinFecha}</strong> omitidos sin fecha de transporte</div>
                 )}
+                {result.imported?.archivado && (
+                  <div className="text-[#047857]">
+                    El Excel quedó archivado en <strong>Compliance → Loma Negra → Liquidaciones</strong>
+                  </div>
+                )}
               </div>
               <DialogFooter className="pt-3 border-t border-border gap-2">
                 <Button type="button" variant="brand" onClick={() => setOpen(false)}>Cerrar</Button>

@@ -7,20 +7,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  Upload,
-  ChevronDown,
-  FileSpreadsheet,
-  Truck,
-  FileText,
-} from "lucide-react";
-import ImportHojasRutaModal from "./ImportHojasRutaModal";
+import { Upload, ChevronDown, Route, Factory, Fuel } from "lucide-react";
 import ImportHojaRutaModal from "./ImportHojaRutaModal";
 import ImportLomaModal from "./ImportLomaModal";
 import ImportYpfModal from "./ImportYpfModal";
 
-type ModalKey = "hojas-ruta" | "hoja-ruta" | "loma" | "ypf" | null;
+type ModalKey = "hoja-ruta" | "loma" | "ypf" | null;
 
 export default function ImportsMenu() {
   const [openModal, setOpenModal] = useState<ModalKey>(null);
@@ -41,31 +37,30 @@ export default function ImportsMenu() {
             </Button>
           }
         />
-        <DropdownMenuContent align="end" className="min-w-[240px]">
-          <DropdownMenuItem onClick={() => setOpenModal("hojas-ruta")}>
-            <Upload size={14} />
-            Hoja de ruta (multi-hoja)
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenModal("hoja-ruta")}>
-            <FileSpreadsheet size={14} />
-            HOJA DE RUTA
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenModal("loma")}>
-            <Truck size={14} />
-            Liquidación Loma
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOpenModal("ypf")}>
-            <FileText size={14} />
-            PDF de YPF
-          </DropdownMenuItem>
+        <DropdownMenuContent align="end" className="min-w-[280px]">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Operación interna</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setOpenModal("hoja-ruta")}>
+              <Route size={14} />
+              Hoja de ruta
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Documentación de clientes</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setOpenModal("loma")}>
+              <Factory size={14} />
+              Liquidación de fletes — Loma Negra
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setOpenModal("ypf")}>
+              <Fuel size={14} />
+              Documento de Medición — YPF
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <ImportHojasRutaModal
-        open={openModal === "hojas-ruta"}
-        onOpenChange={handleChange("hojas-ruta")}
-        showTrigger={false}
-      />
       <ImportHojaRutaModal
         open={openModal === "hoja-ruta"}
         onOpenChange={handleChange("hoja-ruta")}

@@ -21,16 +21,22 @@ export type LomaRow = {
   rowNum: number; // fila Excel (1-based) para mostrar en preview
   nroTransporte: string; // identidad del flete (único, siempre presente)
   remito: string | null; // "Referencia" (puede faltar)
-  fecha: string | null; // ISO YYYY-MM-DD desde "In.act.transp."
+  fecha: string | null; // ISO YYYY-MM-DD desde "In.act.transp." (inicio)
+  fechaFin: string | null; // ISO YYYY-MM-DD desde "Fin.act.transp." (cierre)
   tonelaje: number | null; // "Peso neto" normalizado a toneladas
   importe: number | null; // "Importe" (facturación oficial al cliente)
   moneda: string;
   choferNombre: string; // "APELLIDO, NOMBRE" (orden no garantizado)
   chasis: string | null; // "ID Vehículo" (patente del tractor)
+  acoplados: string[]; // "Placa Remolque 1/2/3" (patentes de los acoplados)
   expedidor: string; // nombre del expedidor (define si el flete es de Loma)
   destinatario: string;
   origenDir: string | null;
   destinoDir: string | null;
+  origenLoc: string | null; // localidad parseada de la dirección de origen
+  origenProv: string | null; // provincia parseada de la dirección de origen
+  destinoLoc: string | null; // localidad parseada de la dirección de destino
+  destinoProv: string | null; // provincia parseada de la dirección de destino
   material: string | null; // "Descripción"
   kmTotal: number | null; // "Distancia total" (km oficiales con carga)
 };
@@ -99,6 +105,20 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Desglosa la dirección de Loma en localidad/provincia. El formato observado es
+ * "CP-LOCALIDAD-PROVINCIA" (ej. "B2804XXX-CAMPANA-RUTA9 KM 70" o "2121AAAA-SANTA FE-..."),
+ * separado por guiones. El primer tramo es el código postal, el segundo la localidad
+ * y el tercero la provincia. Tolerante a tramos faltantes.
+ */
+function parseDireccion(dir: string | null): { localidad: string | null; provincia: string | null } {
+  if (!dir) return { localidad: null, provincia: null };
+  const parts = dir.split("-").map((p) => p.trim());
+  const localidad = parts[1] || null;
+  const provincia = parts[2] || null;
+  return { localidad, provincia };
+}
+
 // ---------------------------------------------------------------------------
 // Parser principal
 // ---------------------------------------------------------------------------
@@ -133,7 +153,11 @@ export function parseLomaXlsx(buffer: Buffer | ArrayBuffer): LomaParseResult {
   const iMon = idx("Moneda");
   const iChof = idx("Nombre Chofer");
   const iVeh = idx("ID Vehículo");
+  const iRem1 = idx("Placa Remolque 1");
+  const iRem2 = idx("Placa Remolque 2");
+  const iRem3 = idx("Placa Remolque 3");
   const iIni = idx("In.act.transp.");
+  const iFin = idx("Fin.act.transp.");
   const iDesc = idx("Descripción");
   const iDist = idx("Distancia total");
   const iExp = idx("Expedidor");
@@ -163,16 +187,28 @@ export function parseLomaXlsx(buffer: Buffer | ArrayBuffer): LomaParseResult {
     let ton = asNumAR(iNeto >= 0 ? row[iNeto] : null);
     if (ton != null && /kg/i.test(um)) ton = ton / 1000; // KG → toneladas
 
+    const acoplados = [iRem1, iRem2, iRem3]
+      .filter((i) => i >= 0)
+      .map((i) => asStr(row[i]))
+      .filter((p): p is string => !!p);
+
+    const origenDir = asStr(iDirO >= 0 ? row[iDirO] : null);
+    const destinoDir = asStr(iDirD >= 0 ? row[iDirD] : null);
+    const o = parseDireccion(origenDir);
+    const d = parseDireccion(destinoDir);
+
     out.push({
       rowNum: r + 1,
       nroTransporte: nt,
       remito: asStr(iRef >= 0 ? row[iRef] : null),
       fecha: asISO(iIni >= 0 ? row[iIni] : null),
+      fechaFin: asISO(iFin >= 0 ? row[iFin] : null),
       tonelaje: ton != null ? round2(ton) : null,
       importe: asNumAR(iImp >= 0 ? row[iImp] : null),
       moneda: asStr(iMon >= 0 ? row[iMon] : null) ?? "ARS",
       choferNombre: asStr(iChof >= 0 ? row[iChof] : null) ?? "",
       chasis: asStr(iVeh >= 0 ? row[iVeh] : null),
+      acoplados,
       expedidor:
         asStr(iExpName >= 0 ? row[iExpName] : null) ??
         asStr(iExp >= 0 ? row[iExp] : null) ??
@@ -181,8 +217,12 @@ export function parseLomaXlsx(buffer: Buffer | ArrayBuffer): LomaParseResult {
         asStr(iDestName >= 0 ? row[iDestName] : null) ??
         asStr(iDest >= 0 ? row[iDest] : null) ??
         "",
-      origenDir: asStr(iDirO >= 0 ? row[iDirO] : null),
-      destinoDir: asStr(iDirD >= 0 ? row[iDirD] : null),
+      origenDir,
+      destinoDir,
+      origenLoc: o.localidad,
+      origenProv: o.provincia,
+      destinoLoc: d.localidad,
+      destinoProv: d.provincia,
       material: asStr(iDesc >= 0 ? row[iDesc] : null),
       kmTotal: asNumAR(iDist >= 0 ? row[iDist] : null),
     });

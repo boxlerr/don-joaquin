@@ -86,6 +86,8 @@ export type ConfirmLomaData = {
     sinFecha: number;
     sinChofer: number;
     puntosCreados: number;
+    archivado: boolean; // ¿se archivó el Excel en Compliance → Loma?
+    liqId: string | null;
   };
 } | null;
 
@@ -111,13 +113,13 @@ export function normPatente(s: string): string {
 // Clasificación de expedidor (Loma vs tercero)
 // ============================================================================
 
-// Pistas de que el flete sale de un punto de Loma (cliente = Loma Negra).
-// El usuario igualmente puede togglear cada expedidor en el preview.
-const LOMA_HINTS = ["fabrica", "fábrica", "lomaser", "deposito huici", "depósito huici", "cantera la preferida"];
-
-export function esExpedidorLoma(nombre: string): boolean {
-  const n = normName(nombre);
-  return LOMA_HINTS.some((h) => n.includes(normName(h)));
+// Este Excel ES la liquidación oficial de Loma: Loma paga TODOS los fletes, sin
+// importar quién sea el expedidor de origen (puede ser un tercero como SIDERAR o
+// MINERA PIERUCCI en un contraflete que Loma igual liquida). Por eso el default es
+// "todo Loma" y el toggle del preview sirve para EXCLUIR algún expedidor puntual,
+// no para incluirlo.
+export function esExpedidorLoma(): boolean {
+  return true;
 }
 
 // ============================================================================
@@ -309,7 +311,7 @@ export async function buildLomaPreview(
       nombre: key,
       filas: 0,
       importe: 0,
-      esLomaDefault: esExpedidorLoma(r.expedidor),
+      esLomaDefault: esExpedidorLoma(),
     };
     e.filas += 1;
     e.importe += r.importe ?? 0;
@@ -419,6 +421,16 @@ export async function runLomaImport(
   let puntosCreados = 0;
   const seenTransporte = new Set<string>();
   const viajesPayload: Record<string, unknown>[] = [];
+  // Para la liquidación archivada: ids enriquecidos a estampar + totales/período.
+  const enrichedIds: string[] = [];
+  let importeTotal = 0;
+  let fechaMin: string | null = null;
+  let fechaMax: string | null = null;
+  const trackPeriodo = (f: string | null) => {
+    if (!f) return;
+    if (fechaMin === null || f < fechaMin) fechaMin = f;
+    if (fechaMax === null || f > fechaMax) fechaMax = f;
+  };
 
   for (const r of parsed.rows) {
     const expKey = r.expedidor || "(sin expedidor)";
@@ -449,14 +461,23 @@ export async function runLomaImport(
 
     const importe = r.importe;
     const facturado = (importe ?? 0) > 0;
+    // fecha_viaje = cierre del transporte (Fin.act.transp.); si falta, el inicio.
+    const fechaViaje = r.fechaFin ?? r.fecha;
+    const acoplados = r.acoplados.length > 0 ? r.acoplados : null;
 
     // Enrich: el remito ya existe como viaje (cargado por la hoja interna) y aún
     // no tiene nro_transporte → completar con los datos oficiales en vez de duplicar.
     if (r.remito) {
       const m = existentes.remitoToViaje.get(r.remito);
       if (m && !m.tieneTransporte) {
-        const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++);
-        const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++);
+        const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {
+          localidad: r.origenLoc,
+          provincia: r.origenProv,
+        });
+        const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++, {
+          localidad: r.destinoLoc,
+          provincia: r.destinoProv,
+        });
         await supabase
           .from("viajes")
           .update({
@@ -467,26 +488,40 @@ export async function runLomaImport(
             tonelaje_real: r.tonelaje ?? undefined,
             origen_id: origenId,
             destino_id: destinoId,
+            fecha_salida: r.fecha ?? undefined,
+            fecha_llegada: r.fechaFin ?? undefined,
+            acoplados,
             facturado,
             estado: importe == null ? "pendiente" : "cerrado",
           })
           .eq("id", m.id);
         m.tieneTransporte = true;
         enriquecidos++;
+        enrichedIds.push(m.id);
+        importeTotal += importe ?? 0;
+        trackPeriodo(fechaViaje);
         continue;
       }
     }
 
     // Alta nueva.
-    const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++);
-    const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++);
+    const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {
+      localidad: r.origenLoc,
+      provincia: r.origenProv,
+    });
+    const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++, {
+      localidad: r.destinoLoc,
+      provincia: r.destinoProv,
+    });
     const camionId = r.chasis ? camionPorPatente.get(normPatente(r.chasis)) ?? null : null;
 
+    importeTotal += importe ?? 0;
+    trackPeriodo(fechaViaje);
     codigoSeq++;
     viajesPayload.push({
       id: crypto.randomUUID(),
       codigo: `${yearPrefix}${String(codigoSeq).padStart(5, "0")}`,
-      fecha_viaje: r.fecha,
+      fecha_viaje: fechaViaje,
       cliente_id: clienteLomaId,
       chofer_id: choferId,
       camion_id: camionId,
@@ -499,6 +534,9 @@ export async function runLomaImport(
       monto_flete: importe,
       nro_remito: r.remito,
       nro_transporte: r.nroTransporte,
+      fecha_salida: r.fecha,
+      fecha_llegada: r.fechaFin,
+      acoplados,
       es_vacio: false,
       moneda: r.moneda || "ARS",
       estado: importe == null ? "pendiente" : "cerrado",
@@ -514,6 +552,29 @@ export async function runLomaImport(
     });
   }
 
+  // Archivar el Excel en Compliance → Loma (una fila por liquidación) y vincular
+  // los viajes con ella. Si nada se importó, no se archiva nada.
+  let liqId: string | null = null;
+  let archivado = false;
+  const totalImportadas = viajesPayload.length + enrichedIds.length;
+  if (totalImportadas > 0) {
+    try {
+      liqId = await archivarLiquidacionLoma(supabase, buffer, opts?.archivo ?? null, userId, {
+        periodoDesde: fechaMin,
+        periodoHasta: fechaMax,
+        total: Math.round(importeTotal * 100) / 100,
+        fletes: totalImportadas,
+      });
+      archivado = !!liqId;
+    } catch (e) {
+      console.error("No se pudo archivar la liquidación Loma (los viajes igual se cargan):", e);
+    }
+  }
+  // Estampar el vínculo en las altas antes de insertarlas.
+  if (liqId) {
+    for (const p of viajesPayload) p.liq_loma_id = liqId;
+  }
+
   // Insertar altas en lotes de 500.
   for (let i = 0; i < viajesPayload.length; i += 500) {
     const lote = viajesPayload.slice(i, i + 500);
@@ -527,6 +588,16 @@ export async function runLomaImport(
     creados += inserted?.length ?? 0;
   }
 
+  // Estampar el vínculo en los viajes enriquecidos.
+  if (liqId && enrichedIds.length > 0) {
+    for (let i = 0; i < enrichedIds.length; i += 500) {
+      await supabase
+        .from("viajes")
+        .update({ liq_loma_id: liqId })
+        .in("id", enrichedIds.slice(i, i + 500));
+    }
+  }
+
   await supabase.from("audit_log").insert({
     usuario_id: userId,
     accion: "importar",
@@ -535,6 +606,7 @@ export async function runLomaImport(
     valores_nuevos: {
       origen: "liquidacion_loma",
       archivo: opts?.archivo ?? null,
+      liq_loma_id: liqId,
       creados,
       enriquecidos,
       duplicados,
@@ -553,6 +625,8 @@ export async function runLomaImport(
       sinFecha,
       sinChofer,
       puntosCreados,
+      archivado,
+      liqId,
     },
   };
 }
@@ -560,6 +634,65 @@ export async function runLomaImport(
 // ============================================================================
 // Helpers de DB
 // ============================================================================
+
+/**
+ * Sube el Excel original a storage y crea la fila en compliance_liq_loma para que
+ * aparezca en Compliance → Loma (mismo patrón que el DM de YPF). Devuelve el id de
+ * la liquidación, o lanza si falla la subida (el caller lo cachea: los viajes igual
+ * se cargan, solo no quedan vinculados al archivo).
+ */
+const LOMA_BUCKET = "documentos-personal";
+
+async function archivarLiquidacionLoma(
+  supabase: AdminDb,
+  buffer: Buffer,
+  archivoNombre: string | null,
+  userId: string,
+  meta: { periodoDesde: string | null; periodoHasta: string | null; total: number; fletes: number },
+): Promise<string | null> {
+  const nombre = archivoNombre || "liquidacion-loma.xlsx";
+  // Path seguro: sin espacios ni caracteres raros del nombre original de Loma.
+  const safe = nombre.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `liquidaciones-loma/${Date.now()}_${safe}`;
+
+  const { error: upErr } = await supabase.storage
+    .from(LOMA_BUCKET)
+    .upload(path, buffer, {
+      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      upsert: false,
+    });
+  if (upErr) throw new Error(`No se pudo subir el Excel: ${upErr.message}`);
+
+  const { data: archivo, error: archErr } = await supabase
+    .from("documentos_archivos")
+    .insert({
+      bucket: LOMA_BUCKET,
+      nombre_original: nombre,
+      path,
+      tamano_bytes: buffer.length,
+      mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      subido_por: userId,
+    })
+    .select("id")
+    .single();
+  if (archErr || !archivo) throw new Error("No se pudo registrar el archivo de la liquidación.");
+
+  const { data: liq, error: liqErr } = await supabase
+    .from("compliance_liq_loma")
+    .insert({
+      periodo_desde: meta.periodoDesde,
+      periodo_hasta: meta.periodoHasta,
+      total_importe_ars: meta.total,
+      fletes_count: meta.fletes,
+      archivo_id: archivo.id,
+      importado_por: userId,
+    })
+    .select("id")
+    .single();
+  if (liqErr || !liq) throw new Error("No se pudo registrar la liquidación de Loma.");
+
+  return liq.id as string;
+}
 
 async function findLomaCliente(
   supabase: AdminDb,
@@ -621,15 +754,22 @@ async function ensurePunto(
   map: Map<string, string>,
   nombre: string,
   onCreate: () => void,
+  loc?: { localidad?: string | null; provincia?: string | null },
 ): Promise<string | null> {
   const clean = nombre?.trim();
   if (!clean) return null;
   const key = normName(clean);
   const existing = map.get(key);
-  if (existing) return existing;
+  if (existing) return existing; // no piso datos de puntos ya cargados
   const { data, error } = await supabase
     .from("puntos_ruta")
-    .insert({ nombre: clean, estado: "activo", tipo: "otro" })
+    .insert({
+      nombre: clean,
+      estado: "activo",
+      tipo: "otro",
+      localidad: loc?.localidad || null,
+      provincia: loc?.provincia || null,
+    })
     .select("id")
     .single();
   if (error) throw new Error(`No se pudo crear punto "${clean}": ${error.message}`);
