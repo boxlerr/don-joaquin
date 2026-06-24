@@ -6,7 +6,6 @@ import {
   PencilLine,
   History,
   Building2,
-  FileText,
   Bell,
   Mail,
   MessageCircle,
@@ -60,9 +59,9 @@ const TABS: TutorialTab[] = [
       {
         title: "Subsecciones de Configuración",
         description:
-          "En el menú lateral, Configuración se abre en: General (esta pantalla), Negocio, Plantillas PDF y Notificaciones, donde ajustás el detalle de cada área.",
+          "En el menú lateral, Configuración se abre en: General (esta pantalla), Negocio y Notificaciones, donde ajustás el detalle de cada área.",
         mockup: <MockSubsecciones />,
-        hint: "Las Plantillas PDF definen cómo salen impresos los documentos; Notificaciones controla qué alertas se envían y a quién.",
+        hint: "Notificaciones controla qué alertas se envían y a quién.",
       },
     ],
   },
@@ -163,7 +162,6 @@ function MockSubsecciones() {
   const subs = [
     { Icon: SlidersHorizontal, l: "General", active: true },
     { Icon: Building2, l: "Negocio" },
-    { Icon: FileText, l: "Plantillas PDF" },
     { Icon: Bell, l: "Notificaciones" },
   ];
   return (

@@ -1,5 +1,4 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database";
@@ -51,8 +50,9 @@ export async function logAudit(options: LogAuditOptions): Promise<void> {
 export type AuditAction = "login" | "login_fallido" | "logout" | "alerta_login";
 
 /**
- * Eventos de acceso (login/logout). Usan el server client porque ocurren en el
- * flujo de autenticación (con o sin sesión activa), no el admin.
+ * Eventos de acceso (login/logout). Usan el admin client (service role): ocurren
+ * en el flujo de autenticación (con o sin sesión activa) y deben poder registrarse
+ * sin necesidad de una política RLS de INSERT abierta a anon/authenticated.
  */
 async function auditAcceso(options: {
   accion: AuditAction;
@@ -69,7 +69,7 @@ async function auditAcceso(options: {
     ip: options.ip ?? null,
     userAgent: options.userAgent ?? null,
     metadata: options.metadata ?? null,
-    client: await createClient(),
+    // Sin `client` → logAudit usa createAdminClient() (service role) por defecto.
   });
 }
 

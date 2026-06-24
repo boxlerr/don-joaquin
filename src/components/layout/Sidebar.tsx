@@ -12,7 +12,6 @@ import {
   Sliders,
   Building2,
   Shield,
-  FileText,
   Bell,
   type LucideIcon,
 } from "lucide-react";
@@ -41,7 +40,6 @@ const CHILD_ICONS: Record<string, LucideIcon> = {
   General: Sliders,
   Negocio: Building2,
   Usuarios: Shield,
-  "Plantillas PDF": FileText,
   Notificaciones: Bell,
 };
 

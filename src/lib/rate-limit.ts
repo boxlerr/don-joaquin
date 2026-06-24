@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type RateLimitResult = {
   allowed: boolean;
@@ -21,7 +21,7 @@ const MAX_PER_IP = 20;
  * 'alert' se activa al llegar a MAX_PER_EMAIL_ALERT, 'blocked' al llegar a MAX_PER_EMAIL_BLOCK.
  */
 export async function checkLoginStatus(email: string): Promise<LoginStatus> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const windowStart = new Date(Date.now() - WINDOW_MS);
 
   const { count, error } = await supabase
@@ -48,7 +48,7 @@ export async function checkLoginStatus(email: string): Promise<LoginStatus> {
  * Máximo 20 intentos en 5 minutos por IP.
  */
 export async function checkRateLimitByIP(ipAddress: string): Promise<RateLimitResult> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const windowStart = new Date(Date.now() - WINDOW_MS);
 
   const { count, error } = await supabase
@@ -80,7 +80,7 @@ export async function recordLoginAttempt(
   reason?: string,
   userAgent?: string,
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { error } = await supabase.from("login_attempts").insert({
     email,

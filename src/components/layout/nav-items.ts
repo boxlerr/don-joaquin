@@ -88,7 +88,16 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "FLOTA",
     items: [
       { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
-      { label: "Mantenimiento", href: "/mantenimiento", icon: Wrench, area: "mantenimiento" },
+      {
+        label: "Mantenimiento",
+        href: "/mantenimiento",
+        icon: Wrench,
+        area: "mantenimiento",
+        children: [
+          { label: "Servicios", href: "/mantenimiento" },
+          { label: "Costos rep. y rep.", href: "/mantenimiento/costos" },
+        ],
+      },
     ],
   },
   {
@@ -141,7 +150,6 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: "General", href: "/configuracion" },
           { label: "Negocio", href: "/configuracion/negocio" },
-          { label: "Plantillas PDF", href: "/configuracion/plantillas-pdf" },
           { label: "Notificaciones", href: "/configuracion/notificaciones" },
         ],
       },

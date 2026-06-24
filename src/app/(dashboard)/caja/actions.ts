@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
+import { computeRendicion } from "../viajes/flujo-logic";
 
 const MOVIMIENTOS_PAGE_SIZE = 20;
 
@@ -758,4 +759,84 @@ export async function addViaticoAction(data: {
 
   revalidatePath("/caja");
   return { success: true };
+}
+
+// ============================================================================
+// Rendición de viático
+// ----------------------------------------------------------------------------
+// El chofer rinde el adelanto: cuánto gastó/justificó (monto_rendido) y cuánto
+// devolvió en efectivo (monto_devuelto). El devuelto vuelve a la caja como
+// ingreso (categoría rendicion_vuelto). El estado pasa a rendido o
+// parcialmente_rendido según si lo rendido+devuelto cubre lo entregado.
+// ============================================================================
+export async function rendirViaticoAction(data: {
+  viatico_id: string;
+  fecha_rendicion: string;
+  monto_rendido: number;
+  monto_devuelto: number;
+  observaciones?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireArea("caja", "write");
+  const supabase = createAdminClient();
+
+  const { data: v, error } = await supabase
+    .from("viaticos")
+    .select("id, chofer_id, monto_entregado, estado, observaciones")
+    .eq("id", data.viatico_id)
+    .single();
+  if (error || !v) return { ok: false, error: "Viático no encontrado." };
+  if (v.estado !== "pendiente_rendicion") return { ok: false, error: "El viático ya fue rendido." };
+
+  // Regla de rendición centralizada en flujo-logic (computeRendicion).
+  const { rendido, devuelto, diferencia, estado } = computeRendicion(
+    Number(v.monto_entregado ?? 0),
+    data.monto_rendido,
+    data.monto_devuelto,
+  );
+
+  const obsFinal = data.observaciones?.trim()
+    ? `${v.observaciones ? v.observaciones + " · " : ""}Rendición: ${data.observaciones.trim()}`
+    : v.observaciones;
+
+  const { error: updErr } = await supabase
+    .from("viaticos")
+    .update({
+      estado,
+      fecha_rendicion: data.fecha_rendicion,
+      monto_rendido: rendido,
+      monto_devuelto: devuelto,
+      diferencia,
+      observaciones: obsFinal,
+    })
+    .eq("id", v.id);
+  if (updErr) {
+    console.error("Error al rendir viático:", updErr);
+    return { ok: false, error: "No se pudo registrar la rendición." };
+  }
+
+  // El vuelto en efectivo reingresa a la caja, vinculado al viático.
+  if (devuelto > 0) {
+    const cajaInsert = {
+      tipo: "ingreso" as const,
+      categoria: "rendicion_vuelto" as const,
+      concepto: "Vuelto de rendición de viático",
+      monto: devuelto,
+      medio: "efectivo" as const,
+      fecha: data.fecha_rendicion,
+      moneda: "ARS",
+      viatico_id: v.id,
+      chofer_id: v.chofer_id,
+      created_by: user.id,
+    };
+    const { data: cajaMov, error: cajaError } = await supabase
+      .from("caja_movimientos")
+      .insert(cajaInsert)
+      .select("id")
+      .single();
+    if (cajaError) console.error("Error al reflejar vuelto en caja:", cajaError);
+    else if (cajaMov?.id) await logCajaAudit(supabase, cajaMov.id, "crear", null, cajaInsert, user.id);
+  }
+
+  revalidatePath("/caja");
+  return { ok: true };
 }

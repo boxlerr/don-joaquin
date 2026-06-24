@@ -52,21 +52,13 @@ import type { ViajeBasico } from "../types";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
+import ViajeDocumentosPanel from "./ViajeDocumentosPanel";
+import { esFacturable, esCobrable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
 import FacturarBloqueDialog from "./FacturarBloqueDialog";
 import CobrarBloqueDialog from "./CobrarBloqueDialog";
-
-/** Un viaje se puede facturar si no está facturado, no es vacío y no está cancelado. */
-function esFacturable(v: ViajeBasico): boolean {
-  return !v.facturado && !v.es_vacio && v.estado !== "cancelado";
-}
-
-/** Un viaje se puede cobrar si está facturado, todavía no cobrado, no vacío y no cancelado. */
-function esCobrable(v: ViajeBasico): boolean {
-  return v.facturado && !v.cobrado && !v.es_vacio && v.estado !== "cancelado";
-}
 
 /** Una fila es seleccionable si se puede facturar o cobrar. */
 function esSeleccionable(v: ViajeBasico): boolean {
@@ -788,7 +780,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                                       setCerrandoViaje(v);
                                     }}
                                   >
-                                    <Coins size={12} /> Registrar cobro
+                                    <Coins size={12} /> Cargar remito / cobro
                                   </Button>
                                 )}
 
@@ -872,6 +864,8 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                           </div>
                         </div>
 
+                        <ViajeDocumentosPanel viajeId={v.id} />
+
                         <ViajeGastosPanel viajeId={v.id} formData={gastoFormData} />
                       </div>
                     </TableCell>
@@ -945,10 +939,10 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
           viaje={cerrandoViaje}
           open={!!cerrandoViaje}
           onOpenChange={(v) => { if (!v) setCerrandoViaje(null); }}
-          onSuccess={(cobrado) => {
+          onSuccess={(patch) => {
             setRows((prev) =>
               prev.map((item) =>
-                item.id === cerrandoViaje.id ? { ...item, estado: "cerrado", facturado: cobrado } : item
+                item.id === cerrandoViaje.id ? { ...item, ...patch } : item
               )
             );
             setCerrandoViaje(null);

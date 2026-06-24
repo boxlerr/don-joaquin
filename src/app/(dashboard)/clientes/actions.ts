@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logClienteAudit } from "./audit";
+import { movimientosCuentaCorriente, type ViajeParaCuenta } from "../viajes/flujo-logic";
 import { requireArea } from "@/lib/auth";
 
 const CONDICION_IVA_VALUES = [
@@ -674,24 +675,24 @@ export type CuentaResumen = {
   movimientos: CtaCteMovimiento[];
 };
 
+// La cuenta corriente se DERIVA de los viajes: cada viaje facturado genera un
+// "debe" (la factura del flete) y, si está cobrado, un "haber" (el cobro). El
+// saldo = facturado − cobrado = lo que el cliente todavía debe. No usa la tabla
+// cta_cte_movimientos (quedó sin uso con esta decisión).
 export async function getCuentaClienteAction(cliente_id: string): Promise<CuentaResumen> {
   const supabase = createAdminClient();
   const { data } = await supabase
-    .from("cta_cte_movimientos")
-    .select("id, fecha, tipo, concepto, categoria, monto, moneda, observaciones")
+    .from("viajes")
+    .select("id, codigo, fecha_viaje, fecha_cobro, monto_flete, moneda, facturado, cobrado, es_vacio, estado")
     .eq("cliente_id", cliente_id)
-    .order("fecha", { ascending: false })
-    .limit(100);
+    .eq("facturado", true)
+    .neq("estado", "cancelado")
+    .order("fecha_viaje", { ascending: false, nullsFirst: false })
+    .limit(500);
 
-  const movimientos = (data ?? []) as CtaCteMovimiento[];
-  let totalDebe = 0;
-  let totalHaber = 0;
-  for (const m of movimientos) {
-    const monto = Number(m.monto ?? 0);
-    if (m.tipo === "debe" || m.tipo === "debito") totalDebe += monto;
-    else totalHaber += monto;
-  }
-  return { saldo: totalDebe - totalHaber, totalDebe, totalHaber, movimientos };
+  const { movimientos, totalDebe, totalHaber, saldo } =
+    movimientosCuentaCorriente((data ?? []) as unknown as ViajeParaCuenta[]);
+  return { saldo, totalDebe, totalHaber, movimientos };
 }
 
 export type ViajeReciente = {
@@ -748,16 +749,30 @@ export async function exportCuentaCorrienteAction(): Promise<{
     .select("id, razon_social, cuit, estado")
     .order("razon_social");
 
-  const { data: movs } = await supabase
-    .from("cta_cte_movimientos")
-    .select("cliente_id, fecha, tipo, concepto, categoria, monto, moneda, observaciones")
-    .order("fecha", { ascending: false });
+  // Movimientos derivados de los viajes (mismo criterio que getCuentaClienteAction).
+  const { data: viajes } = await supabase
+    .from("viajes")
+    .select("cliente_id, codigo, fecha_viaje, fecha_cobro, monto_flete, moneda, facturado, cobrado, es_vacio, estado")
+    .eq("facturado", true)
+    .neq("estado", "cancelado");
 
-  const movsByCliente = new Map<string, any[]>();
-  for (const m of movs ?? []) {
-    const arr = movsByCliente.get(m.cliente_id) ?? [];
-    arr.push(m);
-    movsByCliente.set(m.cliente_id, arr);
+  type VRow = {
+    cliente_id: string | null; codigo: string | null; fecha_viaje: string | null; fecha_cobro: string | null;
+    monto_flete: number | null; moneda: string | null; cobrado: boolean; es_vacio: boolean;
+  };
+  type Mov = { fecha: string; tipo: string; concepto: string; categoria: string; monto: number; moneda: string };
+
+  const movsByCliente = new Map<string, Mov[]>();
+  for (const v of (viajes ?? []) as VRow[]) {
+    const monto = Number(v.monto_flete ?? 0);
+    if (!v.cliente_id || !(monto > 0) || v.es_vacio) continue;
+    const moneda = v.moneda ?? "ARS";
+    const arr = movsByCliente.get(v.cliente_id) ?? [];
+    arr.push({ fecha: v.fecha_viaje ?? "", tipo: "debe", concepto: `Flete ${v.codigo ?? ""}`.trim(), categoria: "flete", monto, moneda });
+    if (v.cobrado) {
+      arr.push({ fecha: v.fecha_cobro ?? v.fecha_viaje ?? "", tipo: "haber", concepto: `Cobro ${v.codigo ?? ""}`.trim(), categoria: "cobro", monto, moneda });
+    }
+    movsByCliente.set(v.cliente_id, arr);
   }
 
   const resumenRows = (clientes ?? []).map((c) => {
@@ -765,9 +780,8 @@ export async function exportCuentaCorrienteAction(): Promise<{
     let debe = 0;
     let haber = 0;
     for (const m of ms) {
-      const monto = Number(m.monto ?? 0);
-      if (m.tipo === "debe" || m.tipo === "debito") debe += monto;
-      else haber += monto;
+      if (m.tipo === "debe") debe += m.monto;
+      else haber += m.monto;
     }
     return {
       Cliente: c.razon_social,
@@ -780,19 +794,19 @@ export async function exportCuentaCorrienteAction(): Promise<{
     };
   });
 
-  const movRows = (movs ?? []).map((m) => {
-    const cliente = (clientes ?? []).find((c) => c.id === m.cliente_id);
-    return {
-      Cliente: cliente?.razon_social ?? "",
-      CUIT: cliente?.cuit ?? "",
+  const movRows = (clientes ?? []).flatMap((c) => {
+    const ms = movsByCliente.get(c.id) ?? [];
+    return ms.map((m) => ({
+      Cliente: c.razon_social,
+      CUIT: c.cuit ?? "",
       Fecha: m.fecha,
       Tipo: m.tipo,
-      Concepto: m.concepto ?? "",
-      Categoria: m.categoria ?? "",
-      Monto: Number(m.monto ?? 0),
-      Moneda: m.moneda ?? "",
-      Observaciones: m.observaciones ?? "",
-    };
+      Concepto: m.concepto,
+      Categoria: m.categoria,
+      Monto: m.monto,
+      Moneda: m.moneda,
+      Observaciones: "",
+    }));
   });
 
   const wb = XLSX.utils.book_new();

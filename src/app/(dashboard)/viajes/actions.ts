@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import type { ViajeBasico, PaginatedResult } from "./types";
+import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 
@@ -984,11 +985,15 @@ export async function updateViajeEstadoAction(
 
 export async function cerrarViajeAction(
   viajeId: string,
-  cobro: {
-  cobrado: boolean;
+  datos: {
+    cobrado: boolean;
     fecha: string;
     medio: "efectivo" | "transferencia" | "cheque" | "otro";
     observaciones: string | null;
+    // Datos de facturación que se pueden cargar al cerrar el viaje.
+    nro_remito?: string | null;
+    monto_flete?: number | null;
+    tonelaje_real?: number | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
 
@@ -999,32 +1004,57 @@ export async function cerrarViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: viaje, error: fetchError } = await (supabase as any)
     .from("viajes")
-    .select("estado, monto_flete, fecha_viaje, codigo, cliente_id, clientes(razon_social)")
+    .select("estado, monto_flete, tonelaje_real, nro_remito, es_vacio, facturado, cobrado, fecha_cobro, codigo, cliente_id, clientes(razon_social)")
     .eq("id", viajeId)
     .single();
 
   if (fetchError || !viaje) return { ok: false, error: "Viaje no encontrado." };
 
-  // Sin monto de flete no hay nada que impacte en caja: no se marca como facturado
-  // para no dejar un cobro "fantasma" sin movimiento asociado.
-  const facturadoFinal = cobro.cobrado && viaje.monto_flete > 0;
+  // Regla de cierre/facturación/cobro centralizada en flujo-logic (computeCierre).
+  const { montoFinal, facturado: facturadoFinal, cobrado: cobradoFinal } = computeCierre({
+    montoActual: viaje.monto_flete,
+    montoIngresado: datos.monto_flete ?? null,
+    esVacio: viaje.es_vacio,
+    cobrado: datos.cobrado,
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const update: Record<string, any> = { estado: "cerrado", facturado: facturadoFinal };
+  if (datos.nro_remito !== undefined) update.nro_remito = datos.nro_remito?.trim()?.slice(0, 60) || null;
+  if (datos.monto_flete != null) update.monto_flete = montoFinal;
+  if (datos.tonelaje_real != null) update.tonelaje_real = Math.min(1000, Math.max(0, datos.tonelaje_real));
+  if (cobradoFinal) {
+    // Marcar cobrado evita que el viaje vuelva a aparecer como "pendiente de cobro"
+    // y que el flujo de cobro en bloque genere un segundo ingreso por el mismo flete.
+    update.cobrado = true;
+    update.fecha_cobro = datos.fecha;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (supabase as any)
     .from("viajes")
-    .update({ estado: "cerrado", facturado: facturadoFinal })
+    .update(update)
     .eq("id", viajeId);
 
   if (updateError) return { ok: false, error: "No se pudo cerrar el viaje." };
 
-  await logViajeAudit(supabase, viajeId, "cambio_estado", { estado: viaje.estado }, {
+  await logViajeAudit(supabase, viajeId, "cambio_estado", {
+    estado: viaje.estado,
+    facturado: viaje.facturado,
+    cobrado: viaje.cobrado,
+    nro_remito: viaje.nro_remito,
+    monto_flete: viaje.monto_flete,
+  }, {
     estado: "cerrado",
-    cobrado: facturadoFinal,
-    ...(facturadoFinal && { medio_cobro: cobro.medio }),
-    ...(cobro.observaciones && { observaciones: cobro.observaciones }),
+    facturado: facturadoFinal,
+    cobrado: cobradoFinal,
+    ...(datos.nro_remito !== undefined && { nro_remito: update.nro_remito }),
+    ...(datos.monto_flete != null && { monto_flete: montoFinal }),
+    ...(cobradoFinal && { medio_cobro: datos.medio }),
+    ...(datos.observaciones && { observaciones: datos.observaciones }),
   }, user.id);
 
-  if (facturadoFinal) {
+  if (cobradoFinal) {
     const { count } = await supabase
       .from("caja_movimientos")
       .select("id", { count: "exact", head: true })
@@ -1036,13 +1066,13 @@ export async function cerrarViajeAction(
         tipo: "ingreso",
         categoria: "cobro_cliente",
         concepto: `Flete ${viaje.codigo} - ${clienteNombre}`,
-        monto: viaje.monto_flete,
-        medio: cobro.medio,
-        fecha: cobro.fecha,
+        monto: montoFinal,
+        medio: datos.medio,
+        fecha: datos.fecha,
         moneda: "ARS",
         viaje_id: viajeId,
         cliente_id: viaje.cliente_id ?? null,
-        observaciones: cobro.observaciones,
+        observaciones: datos.observaciones,
         created_by: user.id,
       });
     }
@@ -1050,6 +1080,7 @@ export async function cerrarViajeAction(
 
   revalidatePath("/viajes");
   revalidatePath("/caja");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

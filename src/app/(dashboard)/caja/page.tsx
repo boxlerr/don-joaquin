@@ -9,6 +9,7 @@ import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
 import ImportMovimientosDialog from "./components/ImportMovimientosDialog";
 import CajaDashboard from "./components/CajaDashboard";
+import ViaticosPendientesPanel from "./components/ViaticosPendientesPanel";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function CajaPage() {
@@ -16,7 +17,7 @@ export default async function CajaPage() {
   const canWrite = hasArea(user, "caja", "write");
   const supabase = createAdminClient();
 
-  const [{ data: tiposGasto }, { data: choferesRaw }, { data: fechasMovs }] =
+  const [{ data: tiposGasto }, { data: choferesRaw }, { data: fechasMovs }, { data: viaticosRaw }] =
     await Promise.all([
       supabase
         .from("tipos_gasto")
@@ -30,7 +31,24 @@ export default async function CajaPage() {
         .eq("estado", "activo")
         .order("apellido"),
       supabase.from("caja_movimientos").select("fecha"),
+      supabase
+        .from("viaticos")
+        .select("id, fecha_entrega, monto_entregado, observaciones, chofer:choferes!chofer_id(nombre, apellido)")
+        .eq("estado", "pendiente_rendicion")
+        .order("fecha_entrega", { ascending: true }),
     ]);
+
+  type ChoferRef = { nombre: string | null; apellido: string | null };
+  const viaticosPendientes = (viaticosRaw ?? []).map((v) => {
+    const ch = (Array.isArray(v.chofer) ? v.chofer[0] : v.chofer) as ChoferRef | null;
+    return {
+      id: v.id,
+      chofer: ch ? `${ch.apellido ?? ""} ${ch.nombre ?? ""}`.trim() || "—" : "—",
+      fecha_entrega: v.fecha_entrega,
+      monto_entregado: Number(v.monto_entregado ?? 0),
+      observaciones: v.observaciones ?? null,
+    };
+  });
 
   const choferes = (choferesRaw ?? []).map((c) => {
     const estado = getLegajoEstado(c);
@@ -85,6 +103,8 @@ export default async function CajaPage() {
       />
 
       <CajaDashboard tiposGasto={tiposGasto || []} mesesConDatos={mesesConDatos} />
+
+      <ViaticosPendientesPanel viaticos={viaticosPendientes} canWrite={canWrite} />
     </div>
   );
 }

@@ -15,27 +15,17 @@ function makeSupabaseMock(overrides: {
 } = {}) {
   const { data = [], count = 0, error = null } = overrides;
 
+  const result = { data, count, error };
+  // Chain donde cada método devuelve el mismo objeto, y el objeto es "thenable":
+  // hacer await en cualquier punto de la cadena resuelve el resultado. Necesario
+  // porque getViajesAction sigue encadenando filtros (.neq, .eq, ...) DESPUÉS de
+  // .range(), así que el método terminal varía.
   const chain: Record<string, unknown> = {};
-  const methods = ["eq", "neq", "gte", "lte", "in", "ilike", "order", "range"] as const;
+  const methods = ["select", "eq", "neq", "gte", "lte", "in", "ilike", "or", "order", "range"] as const;
   for (const m of methods) {
     chain[m] = vi.fn(() => chain);
   }
-  chain.select = vi.fn(() => chain);
-  chain.from = vi.fn(() => chain);
-  // Final await resolution
-  chain.then = undefined; // not a thenable by default
-  // Make it awaitable via a custom promise-like
-  const awaitable = Object.assign(
-    Object.create({ then: undefined }),
-    chain,
-    {
-      then(resolve: (v: unknown) => void) {
-        resolve({ data, count, error });
-      },
-    }
-  );
-  // Override range to return the awaitable
-  (chain as any).range = vi.fn(() => awaitable);
+  (chain as { then?: unknown }).then = (resolve: (v: unknown) => void) => resolve(result);
 
   return {
     from: vi.fn(() => chain),

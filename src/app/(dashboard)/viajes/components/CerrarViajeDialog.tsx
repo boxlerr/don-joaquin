@@ -10,10 +10,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, DollarSign, Calendar, CreditCard, Check } from "lucide-react";
+import { CheckCircle2, DollarSign, Calendar, CreditCard, Check, Receipt, Scale } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Combobox } from "@/components/ui/combobox";
 import { cerrarViajeAction } from "../actions";
+import { computeCierre } from "../flujo-logic";
 import type { ViajeBasico } from "../types";
 
 const MEDIO_OPTIONS = [
@@ -29,16 +30,38 @@ interface Props {
   viaje: ViajeBasico;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSuccess: (cobrado: boolean) => void;
+  onSuccess: (patch: Partial<ViajeBasico>) => void;
 }
 
+const inputWrap =
+  "relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all";
+const iconBox =
+  "flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0";
+const inputBase =
+  "flex-1 h-full px-2.5 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground";
+
 export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess }: Props) {
+  const remitoInicial =
+    viaje.nro_remito && viaje.nro_remito.toUpperCase() !== "VACIO" ? viaje.nro_remito : "";
+
+  const [nroRemito, setNroRemito] = useState(remitoInicial);
+  const [montoFlete, setMontoFlete] = useState(viaje.monto_flete != null ? String(viaje.monto_flete) : "");
+  const [tonelaje, setTonelaje] = useState(viaje.toneladas ? String(viaje.toneladas) : "");
   const [cobrado, setCobrado] = useState(false);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [medio, setMedio] = useState<Medio>("transferencia");
   const [observaciones, setObservaciones] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Misma regla de cierre/facturación/cobro que el server (flujo-logic.computeCierre).
+  const montoIngresado = montoFlete.trim() === "" ? null : Number(montoFlete) || 0;
+  const { montoFinal: montoNum, facturado: facturable, cobrado: cobradoFinal } = computeCierre({
+    montoActual: viaje.monto_flete,
+    montoIngresado,
+    esVacio: viaje.es_vacio,
+    cobrado,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,15 +72,24 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
       fecha,
       medio,
       observaciones: observaciones.trim() || null,
+      nro_remito: nroRemito.trim() || null,
+      monto_flete: montoFlete.trim() === "" ? null : Number(montoFlete) || 0,
+      tonelaje_real: tonelaje.trim() === "" ? null : Number(tonelaje) || 0,
     });
     setLoading(false);
     if (!result.ok) {
       setError(result.error ?? "Error al cerrar el viaje");
       return;
     }
-    // Sin monto de flete el viaje se cierra pero no queda facturado (no impacta en caja).
-    const facturado = cobrado && !!viaje.monto_flete && viaje.monto_flete > 0;
-    onSuccess(facturado);
+    onSuccess({
+      estado: "cerrado",
+      facturado: facturable,
+      cobrado: cobradoFinal,
+      fecha_cobro: cobradoFinal ? fecha : viaje.fecha_cobro,
+      nro_remito: nroRemito.trim() || viaje.nro_remito,
+      monto_flete: montoNum,
+      toneladas: tonelaje.trim() === "" ? viaje.toneladas : Number(tonelaje) || 0,
+    });
     onOpenChange(false);
   };
 
@@ -71,16 +103,13 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
             </div>
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">
-                {viaje.estado === "cerrado" ? "Registrar cobro" : `Cerrar viaje ${viaje.codigo}`}
+                {viaje.estado === "cerrado" ? "Completar cobro / facturación" : `Cerrar viaje ${viaje.codigo}`}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 {viaje.estado === "cerrado" && (
-                  <span className="text-amber-600 font-semibold">Viaje ya cerrado sin cobro registrado · </span>
+                  <span className="text-amber-600 font-semibold">Viaje ya cerrado · </span>
                 )}
-                {viaje.cliente} ·{" "}
-                {viaje.monto_flete
-                  ? `$ ${viaje.monto_flete.toLocaleString("es-AR")}`
-                  : "Sin monto de flete"}
+                {viaje.cliente} · Cargá remito y factura del viaje
               </DialogDescription>
             </div>
           </div>
@@ -88,6 +117,69 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
+
+          {/* Datos de facturación: remito + monto + toneladas */}
+          <div className="space-y-3">
+            <Label className="text-xs font-semibold text-muted-foreground">Datos de facturación</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-muted-foreground">Nº de remito</Label>
+                <div className={inputWrap}>
+                  <div className={iconBox}><Receipt size={13} /></div>
+                  <input
+                    type="text"
+                    value={nroRemito}
+                    onChange={(e) => setNroRemito(e.target.value)}
+                    maxLength={60}
+                    placeholder="Ej: 0813R00281660"
+                    className={inputBase}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-muted-foreground">Monto de flete / factura ($)</Label>
+                <div className={inputWrap}>
+                  <div className={iconBox}><DollarSign size={13} /></div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoFlete}
+                    onChange={(e) => setMontoFlete(e.target.value)}
+                    placeholder="0"
+                    className={inputBase}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-muted-foreground">
+                Toneladas <span className="text-muted-foreground/70 font-normal">(opcional)</span>
+              </Label>
+              <div className={inputWrap}>
+                <div className={iconBox}><Scale size={13} /></div>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={tonelaje}
+                  onChange={(e) => setTonelaje(e.target.value)}
+                  placeholder="0"
+                  className={inputBase}
+                />
+              </div>
+            </div>
+
+            {!viaje.es_vacio && (
+              <p className="text-[11px] text-muted-foreground">
+                {facturable
+                  ? "Al confirmar, el viaje queda facturado (pendiente de cobro hasta registrar el pago)."
+                  : "Sin monto de flete el viaje se cierra pero no queda facturado."}
+              </p>
+            )}
+          </div>
 
           {/* Toggle cobrado */}
           <div className="space-y-2">
@@ -124,15 +216,13 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">Fecha de cobro</Label>
-                  <div className="relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-                      <Calendar size={13} />
-                    </div>
+                  <div className={inputWrap}>
+                    <div className={iconBox}><Calendar size={13} /></div>
                     <input
                       type="date"
                       value={fecha}
                       onChange={(e) => setFecha(e.target.value)}
-                      className="flex-1 h-full px-2.5 text-sm bg-transparent border-0 outline-none focus:ring-0 text-foreground"
+                      className={inputBase}
                       required={cobrado}
                     />
                   </div>
@@ -140,10 +230,8 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
 
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">Medio de cobro</Label>
-                  <div className="relative flex items-center h-9 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                    <div className="flex items-center justify-center w-9 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-                      <CreditCard size={13} />
-                    </div>
+                  <div className={inputWrap}>
+                    <div className={iconBox}><CreditCard size={13} /></div>
                     <Combobox
                       value={medio}
                       onValueChange={(v) => setMedio(v as Medio)}
@@ -155,10 +243,14 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                 </div>
               </div>
 
-              {viaje.monto_flete && (
+              {facturable ? (
                 <div className="flex items-center gap-2 text-xs text-green-700 font-semibold bg-green-100 rounded-md px-3 py-1.5">
                   <DollarSign size={13} />
-                  Se registrará un ingreso de $ {viaje.monto_flete.toLocaleString("es-AR")} en caja
+                  Se registrará un ingreso de $ {montoNum.toLocaleString("es-AR")} en caja
+                </div>
+              ) : (
+                <div className="text-xs text-amber-700 font-medium bg-amber-50 rounded-md px-3 py-1.5">
+                  Cargá el monto del flete arriba para que el cobro impacte en la caja.
                 </div>
               )}
             </div>

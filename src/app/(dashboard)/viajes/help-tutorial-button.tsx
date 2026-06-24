@@ -15,11 +15,14 @@ import {
   MapPin,
   Truck,
   Coins,
+  Receipt,
+  FileText,
 } from "lucide-react";
 
-type TabId = "nuevo" | "filtros" | "estados";
+type TabId = "ciclo" | "nuevo" | "filtros" | "estados";
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: "ciclo", label: "Ciclo completo", icon: <Workflow size={14} /> },
   { id: "nuevo", label: "Nuevo viaje", icon: <Plus size={14} /> },
   { id: "filtros", label: "Filtros", icon: <SlidersHorizontal size={14} /> },
   { id: "estados", label: "Estados", icon: <Workflow size={14} /> },
@@ -34,11 +37,17 @@ type TutorialStep = {
 
 export default function HelpTutorialButton() {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>("nuevo");
+  const [tab, setTab] = useState<TabId>("ciclo");
   const [step, setStep] = useState(0);
 
   const steps =
-    tab === "nuevo" ? NUEVO_STEPS : tab === "filtros" ? FILTROS_STEPS : ESTADOS_STEPS;
+    tab === "ciclo"
+      ? CICLO_STEPS
+      : tab === "nuevo"
+        ? NUEVO_STEPS
+        : tab === "filtros"
+          ? FILTROS_STEPS
+          : ESTADOS_STEPS;
   const totalSteps = steps.length;
   const current = steps[step];
 
@@ -53,7 +62,7 @@ export default function HelpTutorialButton() {
       onOpenChange={(v) => {
         setOpen(v);
         if (!v) {
-          setTab("nuevo");
+          setTab("ciclo");
           setStep(0);
         }
       }}
@@ -345,9 +354,109 @@ const ESTADOS_STEPS: TutorialStep[] = [
   },
 ];
 
+const CICLO_STEPS: TutorialStep[] = [
+  {
+    title: "El ciclo completo del viaje",
+    description:
+      "De principio a fin: cargás el viaje, lo seguís hasta cerrarlo con su remito y factura, adjuntás los documentos y registrás el cobro. Cada paso impacta en la Caja y en la cuenta del cliente.",
+    mockup: <MockCicloEstados />,
+  },
+  {
+    title: "1. Cargar el viaje",
+    description:
+      'Usá "Nuevo viaje" (o Carga rápida para varios a la vez). Al elegir el chofer, el camión se autocompleta con la unidad del día de la Planilla diaria — y siempre lo podés cambiar a mano.',
+    mockup: <MockToolbar highlight="new" />,
+    hint: "También pueden entrar por los importadores (Hoja de ruta / YPF / Loma).",
+  },
+  {
+    title: "2. El viaje arranca",
+    description:
+      "Cuando el chofer sale, pasá el viaje a En curso. Cuando entrega y tenés el remito firmado, lo cerrás.",
+    mockup: <MockEstadoBadge estado="en_curso" desc="Camión en ruta. En tránsito activo." />,
+  },
+  {
+    title: "3. Cerrar con remito y factura",
+    description:
+      "Al cerrar cargás el Nº de remito, el monto del flete (la factura) y las toneladas. Si ya cobraste, marcás 'Sí, ya cobré' y el ingreso entra a la Caja automáticamente.",
+    mockup: <MockCerrarConDatos />,
+    hint: "Cargar el monto deja el viaje 'facturado' (pendiente de cobro hasta registrar el pago).",
+  },
+  {
+    title: "4. Adjuntar documentos",
+    description:
+      "Expandí la fila del viaje: en la sección Documentos podés subir el PDF o la foto del remito y de la factura (hasta 100 MB) y verlos o descargarlos cuando quieras.",
+    mockup: <MockDocumentos />,
+  },
+  {
+    title: "5. Facturar y cobrar en bloque",
+    description:
+      "Desde el listado, seleccioná varios viajes y usá Facturar (carga remito/monto y los marca facturados) o Cobrar (vuelca los fletes a la Caja y los marca cobrados).",
+    mockup: <MockFacturado />,
+    hint: "Facturar ≠ cobrar: la plata entra a la Caja recién cuando registrás el cobro.",
+  },
+  {
+    title: "6. Cobro, Caja y cuenta corriente",
+    description:
+      "Cada cobro genera un ingreso en la Caja vinculado al viaje. El saldo de la cuenta corriente del cliente se arma solo: debe = facturado, haber = cobrado.",
+    mockup: <MockRegistrarCobro />,
+    hint: 'El card "Pendiente de cobro" de Caja te lleva directo a los viajes facturados sin cobrar.',
+  },
+];
+
 // =============================================================================
 // Helpers
 // =============================================================================
+
+function MockCerrarConDatos() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2 text-xs">
+      <p className="font-semibold text-foreground">Cerrar viaje V-2026-01456</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-md border border-border px-2 py-1">
+          <span className="text-muted-foreground">Nº remito</span>
+          <div className="font-mono text-foreground">0813R00281660</div>
+        </div>
+        <div className="rounded-md border border-border px-2 py-1">
+          <span className="text-muted-foreground">Monto / factura</span>
+          <div className="font-semibold text-foreground">$ 794.527</div>
+        </div>
+      </div>
+      <div className="rounded-md border border-border px-2 py-1">
+        <span className="text-muted-foreground">Toneladas</span>
+        <div className="text-foreground">34,6 tn</div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <span className="flex-1 text-center rounded-md border border-green-400 bg-green-50 text-green-700 py-1 font-semibold">
+          Sí, ya cobré
+        </span>
+        <span className="flex-1 text-center rounded-md border border-border text-muted-foreground py-1">
+          No, pendiente
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MockDocumentos() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2 text-xs">
+      <p className="font-semibold text-foreground flex items-center gap-1.5">
+        <Receipt size={13} className="text-[#0088D1]" /> Documentos (remito / factura)
+      </p>
+      <div className="flex gap-1">
+        <span className="rounded-md bg-[#0088D1] text-white px-2 py-0.5 font-semibold">Remito</span>
+        <span className="rounded-md border border-border text-muted-foreground px-2 py-0.5">Factura</span>
+        <span className="rounded-md border border-border text-muted-foreground px-2 py-0.5">Subir</span>
+      </div>
+      <div className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1">
+        <FileText size={13} className="text-muted-foreground" />
+        <span className="rounded bg-sky-100 text-sky-700 px-1 text-[10px] font-semibold">Remito</span>
+        <span className="flex-1 truncate text-foreground/90">remito-0813.pdf</span>
+        <Eye size={12} className="text-primary" />
+      </div>
+    </div>
+  );
+}
 
 function MockField({
   label,
