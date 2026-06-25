@@ -67,8 +67,8 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
       <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-3 bg-card border-b border-border">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center flex-shrink-0">
-              <LogOut size={18} className="text-amber-600 dark:text-amber-400" />
+            <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <LogOut size={18} className="text-amber-600" />
             </div>
             <div>
               <DialogTitle className="text-foreground text-base font-semibold">
@@ -130,7 +130,7 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-300 text-xs rounded-md">
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-md">
               <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>

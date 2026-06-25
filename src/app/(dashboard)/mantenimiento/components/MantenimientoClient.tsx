@@ -312,7 +312,7 @@ export default function MantenimientoClient({
                       <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center rounded-full bg-[#F59E0B]/10 text-[#B45309] dark:text-amber-300 px-2 py-0.5 text-[11px] font-semibold">
+                        <span className="inline-flex items-center rounded-full bg-[#F59E0B]/10 text-[#B45309] px-2 py-0.5 text-[11px] font-semibold">
                           {tipoRoturaLabel(r.tipo)}
                         </span>
                       </TableCell>

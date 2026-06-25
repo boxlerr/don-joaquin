@@ -190,7 +190,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ing-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
-              <Select value={categoria} onValueChange={(v) => setCategoria(v as any)}>
+              <Select value={categoria} onValueChange={(v) => setCategoria(v as typeof categoria)}>
                 <SelectTrigger id="ing-categoria" className="w-full">
                   <SelectValue placeholder="Categoría">
                     {(value: unknown) => CATEGORIA_LABEL[value as string] ?? null}
@@ -207,7 +207,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
             </div>
             <div className="space-y-2">
               <Label htmlFor="ing-medio" className="text-sm font-medium text-foreground">Medio de cobro</Label>
-              <Select value={medio} onValueChange={(v) => setMedio(v as any)}>
+              <Select value={medio} onValueChange={(v) => setMedio(v as typeof medio)}>
                 <SelectTrigger id="ing-medio" className="w-full">
                   <SelectValue placeholder="Medio">
                     {(value: unknown) => MEDIO_LABEL[value as string] ?? null}

@@ -11,6 +11,7 @@
 //     se completa con los datos oficiales en vez de duplicar.
 
 import { parseLomaXlsx, type LomaRow } from "./parser-loma";
+import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AdminDb = any;
@@ -460,7 +461,7 @@ export async function runLomaImport(
     if (!choferId) sinChofer++;
 
     const importe = r.importe;
-    const facturado = (importe ?? 0) > 0;
+    const facturado = viajeEstaFacturado(importe);
     // fecha_viaje = cierre del transporte (Fin.act.transp.); si falta, el inicio.
     const fechaViaje = r.fechaFin ?? r.fecha;
     const acoplados = r.acoplados.length > 0 ? r.acoplados : null;
@@ -537,6 +538,7 @@ export async function runLomaImport(
       fecha_salida: r.fecha,
       fecha_llegada: r.fechaFin,
       acoplados,
+      material: r.material,
       es_vacio: false,
       moneda: r.moneda || "ARS",
       estado: importe == null ? "pendiente" : "cerrado",

@@ -15,7 +15,7 @@ import {
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import CamionRow from "./CamionRow";
 import AcopladoRow from "./AcopladoRow";
-import CamionDetailSheet from "./CamionDetailSheet";
+import CamionDetailSheet, { type TabId } from "./CamionDetailSheet";
 import AcopladoDetailSheet from "./AcopladoDetailSheet";
 import type { Camion, Acoplado } from "../types";
 import type { TipoServicio } from "../actions";
@@ -76,6 +76,7 @@ export default function CamionesTableClient({
     if (camionId) {
       const found = camiones.find((c) => c.id === camionId);
       if (found) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
         setSelectedCamion(found);
         setIsSheetOpen(true);
       }
@@ -281,7 +282,7 @@ export default function CamionesTableClient({
           tiposServicio={tiposServicio}
           open={isSheetOpen}
           onOpenChange={handleOpenChange}
-          initialTab={urlTab as any}
+          initialTab={urlTab as TabId}
         />
       )}
 

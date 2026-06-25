@@ -36,7 +36,7 @@ export default async function ExtintoresPage() {
   limitePorVencer.setDate(limitePorVencer.getDate() + 30);
   limitePorVencer.setHours(23, 59, 59, 999);
 
-  let countTotal = extintores.length;
+  const countTotal = extintores.length;
   let countVencidos = 0;
   let countPorVencer = 0;
   let countVigentes = 0;

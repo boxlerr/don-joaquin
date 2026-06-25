@@ -43,9 +43,9 @@ const NIVEL_LABEL: Record<AreaNivel, string> = {
 
 const NIVEL_CLASS: Record<AreaNivel, string> = {
   none: "bg-muted text-muted-foreground",
-  read: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
-  write: "bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300",
-  admin: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  read: "bg-blue-50 text-blue-700",
+  write: "bg-green-50 text-green-700",
+  admin: "bg-amber-50 text-amber-700",
 };
 
 function finDeHoy(): string {
@@ -150,7 +150,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-300 text-xs">
+        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
           <AlertCircle size={13} />
           {error}
         </div>
@@ -291,7 +291,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
                           {vencido ? "· Expirado" : `· ${formatVence(row.vence_en)}`}
                         </span>
                         {row.motivo && (
-                          <span className="text-muted-foreground/60 italic">"{row.motivo}"</span>
+                          <span className="text-muted-foreground/60 italic">&quot;{row.motivo}&quot;</span>
                         )}
                         <button
                           type="button"

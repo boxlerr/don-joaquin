@@ -92,13 +92,13 @@ export async function previewExtintoresImportAction(formData: FormData): Promise
     };
   }
 
-  let rows: any[][];
+  let rows: unknown[][];
   try {
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) return { error: "El archivo no contiene hojas." };
-    rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null });
+    rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
   } catch {
     return { error: "No se pudo leer el archivo." };
   }
@@ -174,7 +174,7 @@ export async function previewExtintoresImportAction(formData: FormData): Promise
     let nExtintorRaw = "";
     let nInternoRaw = "";
     let capacidadRaw = "";
-    let vencimientoRaw: any = null;
+    let vencimientoRaw: unknown = null;
     let categoriaRaw = "";
     let observacionesRaw = "";
 

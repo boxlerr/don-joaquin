@@ -161,6 +161,31 @@ export async function getGastosAction(
   };
 }
 
+/** Total de TODOS los gastos de un viaje (sin paginar), para rentabilidad.
+ *  `getGastosAction` solo suma la página pedida; acá juntamos todos los montos
+ *  del viaje (suelen ser pocos) para tener la cifra completa. */
+export async function getGastosTotalViajeAction(
+  viajeId: string,
+): Promise<{ total: number; count: number } | { error: string }> {
+  await requireArea("viajes", "read");
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("gastos")
+    .select("monto")
+    .eq("viaje_id", viajeId);
+
+  if (error) {
+    console.error("Error al sumar gastos del viaje:", error);
+    return { error: "No se pudieron cargar los gastos del viaje." };
+  }
+
+  const rows = (data ?? []) as { monto: number | null }[];
+  return {
+    total: rows.reduce((acc, r) => acc + Number(r.monto ?? 0), 0),
+    count: rows.length,
+  };
+}
+
 export async function addGastoAction(data: {
   tipo_gasto_id: string;
   fecha: string;

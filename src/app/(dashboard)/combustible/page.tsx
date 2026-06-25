@@ -114,29 +114,29 @@ export default async function CombustiblePage() {
       </div>
 
       {/* Premio del Mes */}
-      <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-700/30 rounded-[8px]">
+      <div className="bg-amber-50/60 border border-amber-200/70 rounded-[8px]">
         <div className="px-4 py-2.5 flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 shrink-0">
             <Trophy size={15} className="text-white" />
           </div>
-          <span className="text-amber-700 dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
+          <span className="text-amber-700 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
             Premio del mes
           </span>
           {premio ? (
             <div className="flex items-baseline gap-3 flex-1 min-w-0">
-              <span className="text-amber-900 dark:text-amber-100 text-sm font-bold truncate">
+              <span className="text-amber-900 text-sm font-bold truncate">
                 {premio.chofer}
               </span>
-              <span className="text-amber-800 dark:text-amber-200 text-sm font-semibold shrink-0">
+              <span className="text-amber-800 text-sm font-semibold shrink-0">
                 {premio.eficiencia.toFixed(2)}
                 <span className="text-[10px] font-medium opacity-80 ml-0.5">L/100km</span>
               </span>
-              <span className="text-amber-700/70 dark:text-amber-300/70 text-[11px] shrink-0 hidden sm:inline">
+              <span className="text-amber-700/70 text-[11px] shrink-0 hidden sm:inline">
                 {formatNum(premio.km_recorridos)} km · {formatNum(premio.litros_totales, 0)} L · {premio.cargas} cargas
               </span>
             </div>
           ) : (
-            <span className="text-amber-700/80 dark:text-amber-300/80 text-xs flex-1">
+            <span className="text-amber-700/80 text-xs flex-1">
               Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
             </span>
           )}
@@ -174,7 +174,7 @@ export default async function CombustiblePage() {
                 <TableRow key={r.chofer_id}>
                   <TableCell className="pl-6 font-bold text-muted-foreground">
                     {idx === 0 ? (
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400/20 text-amber-700 dark:text-amber-300">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400/20 text-amber-700">
                         <Trophy size={12} />
                       </span>
                     ) : (

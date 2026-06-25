@@ -222,7 +222,7 @@ export default function CargarApercibimientoDialog({
               onChange={(e) => elegirArchivo(e.target.files?.[0] ?? null)}
             />
             {file ? (
-              <div className="flex items-center justify-between px-4 py-2.5 border border-[#CBD5E1] rounded-[8px] bg-[#F8FAFC] dark:bg-muted/30">
+              <div className="flex items-center justify-between px-4 py-2.5 border border-[#CBD5E1] rounded-[8px] bg-[#F8FAFC]">
                 <div className="flex items-center gap-3 min-w-0">
                   <Paperclip size={15} className="text-muted-foreground/70 flex-shrink-0" />
                   <div className="min-w-0">

@@ -237,7 +237,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                       onValueChange={(v) => setMedio(v as Medio)}
                       options={MEDIO_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
                       searchable={false}
-                      triggerClassName="h-full border-0 rounded-none bg-transparent px-2.5 hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
+                      triggerClassName="h-full border-0 rounded-none bg-transparent px-2.5 hover:bg-transparent focus-visible:ring-0"
                     />
                   </div>
                 </div>

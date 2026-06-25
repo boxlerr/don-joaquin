@@ -84,6 +84,7 @@ export default function CargarDocumentoDialog({
 
   useEffect(() => {
     if (open && documento) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setTipoId(documento.tipo_documento_id ?? "");
       setFechaEmision(documento.fecha_emision ?? "");
       setFechaVencimiento(documento.fecha_vencimiento ?? "");
@@ -302,7 +303,7 @@ export default function CargarDocumentoDialog({
               onChange={(e) => elegirArchivo(e.target.files?.[0] ?? null)}
             />
             {nombreMostrado ? (
-              <div className="flex items-center justify-between px-4 py-3 border border-[#CBD5E1] rounded-[8px] bg-[#F8FAFC] dark:bg-muted/30">
+              <div className="flex items-center justify-between px-4 py-3 border border-[#CBD5E1] rounded-[8px] bg-[#F8FAFC]">
                 <div className="flex items-center gap-3 min-w-0">
                   <Upload size={16} className="text-muted-foreground/70 flex-shrink-0" />
                   <div className="min-w-0">

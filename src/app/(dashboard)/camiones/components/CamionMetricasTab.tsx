@@ -29,6 +29,7 @@ export default function CamionMetricasTab({ camionId }: Props) {
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getCamionMetricasAction(camionId).then((res) => {
       if (!cancel) {
@@ -78,7 +79,17 @@ export default function CamionMetricasTab({ camionId }: Props) {
           sub={data.km_total > 0 ? `${data.pct_vacios.toFixed(0)}% vacíos` : undefined}
           color={data.pct_vacios > 30 ? "text-[#EF4444]" : "text-foreground"}
         />
-        <KPI icon={Package} label="Toneladas" value={fmtNum(data.toneladas)} color="text-foreground" />
+        <KPI
+          icon={Package}
+          label="Toneladas"
+          value={fmtNum(data.toneladas)}
+          sub={
+            data.viajes_count > 0
+              ? `${(data.toneladas / data.viajes_count).toFixed(1)} tn/viaje`
+              : undefined
+          }
+          color="text-foreground"
+        />
         <KPI
           icon={DollarSign}
           label="Facturación generada"

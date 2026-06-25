@@ -19,6 +19,7 @@ export default function CamionChoferesTab({ camionId }: { camionId: string }) {
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getHistorialChoferesDeCamionAction(camionId).then((rows) => {
       if (!cancel) {
@@ -58,7 +59,7 @@ export default function CamionChoferesTab({ camionId }: { camionId: string }) {
           Chofer actual
         </h3>
         {activo ? (
-          <div className="bg-[#E1F5FE] dark:bg-sky-500/10 border border-[#BAE6FD] dark:border-sky-500/30 rounded-lg p-4 flex items-center justify-between gap-3">
+          <div className="bg-[#E1F5FE] border border-[#BAE6FD] rounded-lg p-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="size-10 rounded-full bg-card text-primary flex items-center justify-center shrink-0">
                 <Users size={18} />

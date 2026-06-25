@@ -88,6 +88,7 @@ export default function RequisitosTab({ clienteId }: { clienteId: string }) {
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getRequisitosAction(clienteId).then((d) => {
       if (!cancel) {
@@ -268,6 +269,7 @@ function AddRequisitoDialog({
 
   useEffect(() => {
     if (state?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setOpen(false);
       onAdded();
     }

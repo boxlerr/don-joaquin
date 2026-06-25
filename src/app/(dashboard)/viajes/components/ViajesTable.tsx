@@ -78,7 +78,12 @@ export interface FiltroExterno {
 interface Props {
   choferId?: string;
   filtroExterno?: FiltroExterno;
-  onFiltroChange?: (f: { estado: string; facturado: boolean | null; esVacio: boolean | null }) => void;
+  onFiltroChange?: (f: {
+    estado: string;
+    facturado: boolean | null;
+    esVacio: boolean | null;
+    cobro: "" | "pendiente" | "cobrado";
+  }) => void;
   /** Datos de formulario de gasto, resueltos en la página y compartidos por todas
    *  las filas (evita re-pedirlos al expandir cada viaje). */
   gastoFormData: GastoFormData;
@@ -182,12 +187,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
 
   // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).
   useEffect(() => {
-    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro });
+    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro, cobro: cobroFiltro });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro, facturadoFiltro, esVacioFiltro]);
+  }, [estadoFiltro, facturadoFiltro, esVacioFiltro, cobroFiltro]);
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     setError(null);
 
@@ -318,7 +324,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   );
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-muted/40">
         <HelpTutorialButton />
@@ -673,16 +679,16 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                             {v.facturado ? (
                               <>
                                 {v.cobrado ? (
-                                  <div className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/40 rounded-lg px-3 py-2">
+                                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                                     <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-                                    <span className="text-[11px] font-semibold text-green-700 dark:text-green-300">
+                                    <span className="text-[11px] font-semibold text-green-700">
                                       Viaje cobrado — registrado en caja
                                       {v.fecha_cobro ? ` (${new Date(v.fecha_cobro).toLocaleDateString("es-AR")})` : ""}
                                     </span>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center justify-between gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2">
-                                    <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                  <div className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    <span className="text-[11px] font-semibold text-amber-700">
                                       Facturado — pendiente de cobro
                                     </span>
                                     {esCobrable(v) && (
@@ -866,7 +872,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
 
                         <ViajeDocumentosPanel viajeId={v.id} />
 
-                        <ViajeGastosPanel viajeId={v.id} formData={gastoFormData} />
+                        <ViajeGastosPanel
+                          viajeId={v.id}
+                          formData={gastoFormData}
+                          montoFlete={v.monto_flete ?? null}
+                          moneda={v.moneda ?? "ARS"}
+                          esVacio={v.es_vacio}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -956,7 +968,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
           <DialogContent className="sm:max-w-[420px] p-6 gap-0">
             <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
               <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300 shrink-0">
+                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 shrink-0">
                   <AlertTriangle size={20} />
                 </div>
                 <div>
@@ -975,7 +987,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                 Este viaje ya está facturado y su cobro impactó en la caja.
               </p>
               <p className="text-sm text-muted-foreground">
-                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700 dark:text-amber-300">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
+                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
               </p>
             </div>
 

@@ -31,6 +31,7 @@ export default function AddSucursalDialog({
 
   useEffect(() => {
     if (state?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setOpen(false);
       onAdded?.();
     }

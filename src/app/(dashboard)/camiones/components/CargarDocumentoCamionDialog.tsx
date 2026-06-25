@@ -63,6 +63,7 @@ export default function CargarDocumentoCamionDialog({
   // Prefill al abrir en modo edición
   useEffect(() => {
     if (open && editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setNumero(editing.numero ?? "");
       setFechaVencimiento(editing.fecha_vencimiento ?? "");
       setFechaEmision("");

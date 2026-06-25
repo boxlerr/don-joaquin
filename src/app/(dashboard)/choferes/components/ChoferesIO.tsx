@@ -56,8 +56,8 @@ export function ImportChoferesButton() {
         setSummary(res.summary);
         setStep("preview");
       }
-    } catch (err: any) {
-      setError(err?.message || "Ocurrió un error al procesar el archivo.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error al procesar el archivo.");
     } finally {
       setLoading(false);
     }
@@ -69,8 +69,8 @@ export function ImportChoferesButton() {
       const res = await confirmChoferesImportAction(detectedType, choferesRows, documentRows);
       setResult(res);
       setStep("done");
-    } catch (err: any) {
-      setError(err?.message || "Ocurrió un error al guardar los datos.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocurrió un error al guardar los datos.");
     } finally {
       setLoading(false);
     }

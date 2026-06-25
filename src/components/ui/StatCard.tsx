@@ -73,7 +73,7 @@ export default function StatCard({
   const interactive = Boolean(href) || Boolean(onClick);
 
   if (variant === "dashboard") {
-    const dashboardClass = `relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
+    const dashboardClass = `relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
       interactive ? "cursor-pointer hover:border-primary/50" : ""
     }`;
     const Wrapper = href ? "a" : "div";
@@ -163,7 +163,7 @@ export default function StatCard({
       onClick={onClick}
       role={onClick && !href ? "button" : undefined}
       aria-pressed={onClick && !href ? active : undefined}
-      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} dark:border-border p-5 shadow-sm dark:shadow-none transition-all hover:shadow-md hover:-translate-y-0.5 group ${
+      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group ${
         interactive ? "cursor-pointer hover:border-primary/50" : ""
       } ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary/60" : ""}`}
     >
@@ -182,7 +182,7 @@ export default function StatCard({
         )}
       </div>
       {/* Decorative background element */}
-      <div className={`absolute -right-4 -bottom-4 size-24 rounded-full opacity-[0.03] dark:opacity-[0.08] group-hover:opacity-[0.05] dark:group-hover:opacity-[0.12] transition-opacity ${styles.bg}`} />
+      <div className={`absolute -right-4 -bottom-4 size-24 rounded-full opacity-[0.03] group-hover:opacity-[0.05] transition-opacity ${styles.bg}`} />
     </Wrapper>
   );
 }

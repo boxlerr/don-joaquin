@@ -130,7 +130,7 @@ export default function CargarOrganismoDocDialog({ destinatario, row, onClose }:
           </div>
 
           {error && (
-            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded-md">
+            <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-md">
               {error}
             </p>
           )}

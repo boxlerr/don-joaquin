@@ -33,7 +33,7 @@ import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Combobox } from "@/components/ui/combobox";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import {
   getViajeParaEditarAction,
   getViajeFormData,
@@ -77,6 +77,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const [tonelaje, setTonelaje] = useState("0");
   const [montoFlete, setMontoFlete] = useState("0");
   const [nroViajeYpf, setNroViajeYpf] = useState("");
+  const [material, setMaterial] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +85,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
 
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoadingData(true);
     setLoadError(null);
     setError(null);
@@ -113,6 +115,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       setTonelaje(String(vd.tonelaje_real));
       setMontoFlete(String(vd.monto_flete));
       setNroViajeYpf(vd.nro_viaje_ypf ?? "");
+      setMaterial(vd.material ?? "");
     }).finally(() => setLoadingData(false));
   }, [open, viaje.id]);
 
@@ -165,6 +168,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       tonelaje_real: Number(tonelaje) || 0,
       monto_flete: Number(montoFlete) || 0,
       nro_viaje_ypf: nroViajeYpf.trim() || null,
+      material: material.trim() || null,
     });
 
     setSubmitting(false);
@@ -326,7 +330,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                   </p>
                 )}
                 {cambioDeCamion && (
-                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                  <p className="mt-1 text-[11px] text-amber-700 font-medium">
                     Aviso: distinto al camión habitual de este chofer.
                   </p>
                 )}
@@ -446,6 +450,18 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 value={montoFlete}
                 onChange={(e) => setMontoFlete(e.target.value)}
                 min="0"
+                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
+              />
+            </CField>
+
+            {/* Material (opcional) */}
+            <CField label="Material" icon={Package} error={fieldErrors.material}>
+              <input
+                type="text"
+                value={material}
+                onChange={(e) => setMaterial(e.target.value)}
+                placeholder="Ej: Cemento, Clinker, Arena (opcional)"
+                maxLength={120}
                 className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
               />
             </CField>

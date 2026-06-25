@@ -107,6 +107,7 @@ export default function AddRoturaDialog({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setChoferId(editing.chofer_id ?? "");
       setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
       // Si el tipo guardado no está en el catálogo, es un "Otro" custom.

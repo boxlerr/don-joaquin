@@ -67,7 +67,9 @@ export default async function DashboardPage() {
       .eq("estado", "pendiente")
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false }),
-    supabase.from("clientes").select("*", { count: "exact", head: true }),
+    // Solo clientes activos: la tarjeta los rotula "activos" y así se excluye el
+    // comodín "Sin asignar (import)" (estado inactivo) y cualquier baja.
+    supabase.from("clientes").select("*", { count: "exact", head: true }).eq("estado", "activo"),
     supabase.from("camiones").select("*", { count: "exact", head: true }),
     supabase.from("choferes").select("rol", { count: "exact" }),
     getViajesAction({ pageSize: 5 }),
@@ -238,7 +240,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none flex flex-col justify-between overflow-hidden">
+        <div className="col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <MapPin size={16} className="text-primary" />
@@ -253,13 +255,13 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none flex flex-col justify-between overflow-hidden">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="text-[#F59E0B]" />
               <h2 className="text-foreground text-sm font-bold">Alertas activas</h2>
             </div>
-            <span className={`text-2xl font-black ${alertCount > 0 ? "text-[#D97706] dark:text-amber-300" : "text-foreground"}`}>
+            <span className={`text-2xl font-black ${alertCount > 0 ? "text-[#D97706]" : "text-foreground"}`}>
               {alertCount}
             </span>
           </div>
@@ -267,13 +269,13 @@ export default async function DashboardPage() {
             {alertCount > 0 ? (
               // Active Alerts Warning Card (Amber Theme) — desglose por categoría
               // para no entrar legajo por legajo (pedido explícito del feedback).
-              <div className="w-full bg-gradient-to-br from-[#FFFBEB] to-[#FFFDF5] dark:from-amber-950/40 dark:to-amber-900/20 rounded-[8px] p-4.5 border border-[#FDE68A]/60 dark:border-amber-700/40 shadow-[0_2px_8px_rgba(245,158,11,0.02)] dark:shadow-none flex flex-col justify-between relative overflow-hidden h-full">
+              <div className="w-full bg-gradient-to-br from-[#FFFBEB] to-[#FFFDF5] rounded-[8px] p-4.5 border border-[#FDE68A]/60 shadow-[0_2px_8px_rgba(245,158,11,0.02)] flex flex-col justify-between relative overflow-hidden h-full">
                 <div className="flex items-start gap-3 z-10">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 animate-ping absolute" />
                   <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 z-10" />
                   <div className="flex flex-col flex-1">
-                    <p className="text-[#92400E] dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider">Por categoría</p>
-                    <p className="text-[#B45309] dark:text-amber-200 text-sm font-bold mt-0.5 leading-snug">
+                    <p className="text-[#92400E] text-[10px] font-extrabold uppercase tracking-wider">Por categoría</p>
+                    <p className="text-[#B45309] text-sm font-bold mt-0.5 leading-snug">
                       Se requiere atención
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -298,7 +300,7 @@ export default async function DashboardPage() {
                             <a
                               key={c.id}
                               href={`/notificaciones?categoria=${base}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF3C7] dark:bg-amber-900/40 border border-[#FCD34D] dark:border-amber-700/50 text-[11px] font-semibold text-[#92400E] dark:text-amber-200 hover:bg-[#FDE68A] dark:hover:bg-amber-900/60 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF3C7] border border-[#FCD34D] text-[11px] font-semibold text-[#92400E] hover:bg-[#FDE68A] transition-colors"
                               title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
                             >
                               <span aria-hidden>{c.icon}</span>
@@ -311,46 +313,46 @@ export default async function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-[#FDE68A]/40 dark:border-amber-700/30 flex items-center justify-between z-10">
-                  <a href={resolverHref} className="text-xs font-bold text-[#D97706] dark:text-amber-300 hover:text-[#92400E] dark:hover:text-amber-200 flex items-center gap-1 transition-colors">
+                <div className="mt-3 pt-3 border-t border-[#FDE68A]/40 flex items-center justify-between z-10">
+                  <a href={resolverHref} className="text-xs font-bold text-[#D97706] hover:text-[#92400E] flex items-center gap-1 transition-colors">
                     Resolver alerta
                     <ChevronRight size={14} />
                   </a>
                   <a
                     href="/notificaciones"
-                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#92400E] dark:text-amber-200 hover:underline"
+                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#92400E] hover:underline"
                   >
                     Ver todas →
                   </a>
                 </div>
 
-                <svg className="w-16 h-16 text-[#F59E0B]/10 dark:text-amber-300/15 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
+                <svg className="w-16 h-16 text-[#F59E0B]/10 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
               </div>
             ) : (
               // Pristine Safe Card (Green Theme)
-              <div className="w-full bg-gradient-to-br from-[#ECFDF5] to-[#F0FDF4] dark:from-emerald-950/40 dark:to-emerald-900/20 rounded-[8px] p-4.5 border border-[#A7F3D0]/60 dark:border-emerald-700/40 shadow-[0_2px_8px_rgba(16,185,129,0.02)] dark:shadow-none flex flex-col justify-between relative overflow-hidden h-full">
+              <div className="w-full bg-gradient-to-br from-[#ECFDF5] to-[#F0FDF4] rounded-[8px] p-4.5 border border-[#A7F3D0]/60 shadow-[0_2px_8px_rgba(16,185,129,0.02)] flex flex-col justify-between relative overflow-hidden h-full">
                 <div className="flex items-start gap-3 z-10">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1 animate-ping absolute" />
                   <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1 z-10" />
                   <div className="flex flex-col">
-                    <p className="text-[#064E3B] dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider">Flota al día</p>
-                    <p className="text-[#047857] dark:text-emerald-200 text-sm font-bold mt-0.5 leading-snug">Sin alertas activas</p>
-                    <p className="text-[#047857]/80 dark:text-emerald-200/80 text-[11px] font-semibold mt-1 leading-relaxed">
+                    <p className="text-[#064E3B] text-[10px] font-extrabold uppercase tracking-wider">Flota al día</p>
+                    <p className="text-[#047857] text-sm font-bold mt-0.5 leading-snug">Sin alertas activas</p>
+                    <p className="text-[#047857]/80 text-[11px] font-semibold mt-1 leading-relaxed">
                       Todo bajo control. La documentación y permisos de camiones y choferes se encuentran validados.
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-3 pt-3 border-t border-[#A7F3D0]/40 dark:border-emerald-700/30 flex items-center justify-between z-10">
-                  <span className="text-xs font-bold text-[#059669] dark:text-emerald-300 flex items-center gap-1">
+                <div className="mt-3 pt-3 border-t border-[#A7F3D0]/40 flex items-center justify-between z-10">
+                  <span className="text-xs font-bold text-[#059669] flex items-center gap-1">
                     Sistemas seguros
                   </span>
                   <CheckCircle2 size={16} className="text-[#10B981]" />
                 </div>
 
-                <svg className="w-16 h-16 text-[#10B981]/8 dark:text-emerald-300/15 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
+                <svg className="w-16 h-16 text-[#10B981]/8 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                 </svg>
               </div>
@@ -364,36 +366,36 @@ export default async function DashboardPage() {
       {/* Premio del Mes — Eficiencia de combustible */}
       <a
         href="/combustible"
-        className="block bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-700/30 rounded-[8px] hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:border-amber-300 dark:hover:border-amber-600/50 transition-colors group"
+        className="block bg-amber-50/60 border border-amber-200/70 rounded-[8px] hover:bg-amber-50 hover:border-amber-300 transition-colors group"
       >
         <div className="px-4 py-2.5 flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 shrink-0">
             <Trophy size={15} className="text-white" />
           </div>
-          <span className="text-amber-700 dark:text-amber-300 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
+          <span className="text-amber-700 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
             Premio del mes
           </span>
           {premioMes ? (
             <div className="flex items-baseline gap-3 flex-1 min-w-0">
-              <span className="text-amber-900 dark:text-amber-100 text-sm font-bold truncate">
+              <span className="text-amber-900 text-sm font-bold truncate">
                 {premioMes.chofer}
               </span>
-              <span className="text-amber-800 dark:text-amber-200 text-sm font-semibold shrink-0">
+              <span className="text-amber-800 text-sm font-semibold shrink-0">
                 {premioMes.eficiencia.toFixed(2)}
                 <span className="text-[10px] font-medium opacity-80 ml-0.5">L/100km</span>
               </span>
-              <span className="text-amber-700/70 dark:text-amber-300/70 text-[11px] shrink-0 hidden sm:inline">
+              <span className="text-amber-700/70 text-[11px] shrink-0 hidden sm:inline">
                 {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
               </span>
             </div>
           ) : (
-            <span className="text-amber-700/80 dark:text-amber-300/80 text-xs flex-1">
+            <span className="text-amber-700/80 text-xs flex-1">
               Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
             </span>
           )}
           <ChevronRight
             size={14}
-            className="text-amber-600/60 dark:text-amber-300/60 group-hover:translate-x-0.5 transition-transform shrink-0"
+            className="text-amber-600/60 group-hover:translate-x-0.5 transition-transform shrink-0"
           />
         </div>
       </a>
@@ -415,8 +417,8 @@ export default async function DashboardPage() {
           metricLabel="legajos"
           description="Choferes, administración y mantenimiento"
           href="/choferes"
-          iconColor="text-[#7C3AED] dark:text-violet-300"
-          iconBg="bg-[#F3E8FF] dark:bg-violet-500/15"
+          iconColor="text-[#7C3AED]"
+          iconBg="bg-[#F3E8FF]"
           type="users"
           breakdown={[
             { label: "Choferes", value: countChofer },
@@ -431,8 +433,8 @@ export default async function DashboardPage() {
           metricLabel="activos"
           description="Registrados en el sistema"
           href="/clientes"
-          iconColor="text-[#059669] dark:text-emerald-300"
-          iconBg="bg-[#ECFDF5] dark:bg-emerald-500/15"
+          iconColor="text-[#059669]"
+          iconBg="bg-[#ECFDF5]"
           type="building"
         />
       </div>
@@ -445,8 +447,8 @@ export default async function DashboardPage() {
           metric={String(docCriticos)}
           metricLabel={docCriticos === 1 ? "alerta crítica" : "alertas críticas"}
           href="/notificaciones?severidad=critica"
-          iconColor="text-[#E11D48] dark:text-rose-300"
-          iconBg="bg-[#FFF1F2] dark:bg-rose-500/15"
+          iconColor="text-[#E11D48]"
+          iconBg="bg-[#FFF1F2]"
           type="clipboard"
         />
         <SummaryCard
@@ -456,8 +458,8 @@ export default async function DashboardPage() {
           metric={String(viajesSinFacturar.count ?? 0)}
           metricLabel="pendiente"
           href="/viajes?filtro=sin_facturar"
-          iconColor="text-[#D97706] dark:text-amber-300"
-          iconBg="bg-[#FEF3C7] dark:bg-amber-500/15"
+          iconColor="text-[#D97706]"
+          iconBg="bg-[#FEF3C7]"
           type="invoice"
         />
       </div>
@@ -496,12 +498,12 @@ function SummaryCard({
   return (
     <CardWrapper
       href={href}
-      className={`relative overflow-hidden bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group block ${
+      className={`relative overflow-hidden bg-card rounded-[8px] border border-border shadow-sm p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group block ${
         href ? "cursor-pointer" : ""
       }`}
     >
       <div className="flex items-start gap-4">
-        <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg} shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-sm dark:shadow-none`}>
+        <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg} shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-sm`}>
           <Icon size={20} className={iconColor} />
         </div>
         <div className="flex-1 min-w-0 z-10">
@@ -527,7 +529,7 @@ function SummaryCard({
               {breakdown.map((b) => (
                 <span
                   key={b.label}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted/60 dark:bg-muted/40 text-foreground border border-border"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted/60 text-foreground border border-border"
                 >
                   <span className="font-black tabular-nums">{b.value}</span>
                   <span className="text-muted-foreground uppercase tracking-wider">{b.label}</span>

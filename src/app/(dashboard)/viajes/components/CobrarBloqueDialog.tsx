@@ -199,7 +199,7 @@ export default function CobrarBloqueDialog({ viajes, open, onOpenChange, onSucce
 
           <div className="flex items-center justify-between text-xs">
             {sinMonto.length > 0 ? (
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-md px-3 py-2">
+              <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                 <AlertTriangle size={14} className="shrink-0" />
                 {sinMonto.length} viaje{sinMonto.length !== 1 ? "s" : ""} sin monto.
               </div>

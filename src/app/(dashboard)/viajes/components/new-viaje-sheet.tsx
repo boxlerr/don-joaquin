@@ -23,6 +23,7 @@ import {
   FileText,
   Hash,
   Route,
+  type LucideIcon,
 } from "lucide-react";
 import {
   createViajeAction,
@@ -71,6 +72,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
 
   useEffect(() => {
     if (state?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setOpen(false);
       resetCampos();
       window.dispatchEvent(new Event("viaje-created"));
@@ -208,7 +210,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                   </p>
                 )}
                 {cambioDeCamion && (
-                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                  <p className="mt-1 text-[11px] text-amber-700 font-medium">
                     Aviso: distinto al camión habitual de este chofer.
                   </p>
                 )}
@@ -324,6 +326,15 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               error={state?.fieldErrors?.monto_flete}
             />
 
+            {/* Material (opcional) */}
+            <InputFieldWithIcon
+              label="Material"
+              name="material"
+              placeholder="Ej: Cemento, Clinker, Arena (opcional)"
+              icon={Package}
+              error={state?.fieldErrors?.material}
+            />
+
             {/* Nº Viaje YPF (opcional) */}
             <InputFieldWithIcon
               label="Nº viaje YPF"
@@ -380,7 +391,7 @@ function InputFieldWithIcon({
   value?: string;
   onChange?: (v: string) => void;
   error?: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   list?: string;
 }) {
   return (

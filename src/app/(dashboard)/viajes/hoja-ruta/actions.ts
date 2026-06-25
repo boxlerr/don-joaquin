@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 
 // ============================================================================
 // Vista "Hoja de Ruta mensual por chofer" — estilo Excel del cliente.
@@ -35,11 +36,12 @@ export type HrViajeItem = {
   tonelaje_real: number | null;
   nro_remito: string | null;
   nro_viaje_ypf: string | null;
-  material: string | null; // viene de observaciones
+  material: string | null; // columna material (fallback: regex en observaciones)
   monto_flete: number | null;
   cliente: string | null;
   estado: string;
   facturado: boolean;
+  es_vacio: boolean;
   observaciones: string | null;
 };
 
@@ -119,12 +121,13 @@ export async function listChoferesMesAction(
     tonelaje_real: number | null;
     monto_flete: number | null;
     nro_remito: string | null;
+    es_vacio: boolean | null;
   };
   const viajes: ViajeRow[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await sb
       .from("viajes")
-      .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, nro_remito")
+      .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, nro_remito, es_vacio")
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
       .not("chofer_id", "is", null)
@@ -134,7 +137,9 @@ export async function listChoferesMesAction(
     if (rows.length < 1000) break;
   }
 
-  // Agregar por chofer (mismas reglas que el panel: vacío = sin remito o "VACIO").
+  // Agregar por chofer. Vacío = columna es_vacio (fuente de verdad explícita).
+  // No usar la heurística !nro_remito: un viaje con carga pendiente de remito
+  // tiene es_vacio=false y NO es vacío, es pendiente de facturar.
   type Stats = Omit<HrChoferListItem, "id" | "apellido" | "nombre" | "estado">;
   const statsPorChofer = new Map<string, Stats>();
   for (const v of viajes) {
@@ -146,7 +151,7 @@ export async function listChoferesMesAction(
     s.totalKmVacios += v.km_vacios ?? 0;
     s.totalTn += v.tonelaje_real ?? 0;
     s.totalImporte += v.monto_flete ?? 0;
-    const vacio = !v.nro_remito || v.nro_remito.toUpperCase() === "VACIO";
+    const vacio = !!v.es_vacio;
     if (!vacio && v.monto_flete == null) s.pendientesFacturar++;
     statsPorChofer.set(v.chofer_id, s);
   }
@@ -190,8 +195,8 @@ export async function getPanelChoferAction(
       .from("viajes")
       .select(`
         id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
-        nro_remito, nro_viaje_ypf, monto_flete, estado, facturado,
-        observaciones,
+        nro_remito, nro_viaje_ypf, monto_flete, estado, facturado, es_vacio,
+        observaciones, material,
         cliente:clientes(razon_social, nombre_comercial),
         origen:puntos_ruta!viajes_origen_id_fkey(nombre),
         destino:puntos_ruta!viajes_destino_id_fkey(nombre),
@@ -218,7 +223,9 @@ export async function getPanelChoferAction(
     monto_flete: number | null;
     estado: string;
     facturado: boolean;
+    es_vacio: boolean | null;
     observaciones: string | null;
+    material: string | null;
     cliente: { razon_social?: string; nombre_comercial?: string | null } | { razon_social?: string; nombre_comercial?: string | null }[] | null;
     origen: { nombre: string } | { nombre: string }[] | null;
     destino: { nombre: string } | { nombre: string }[] | null;
@@ -238,11 +245,12 @@ export async function getPanelChoferAction(
       tonelaje_real: v.tonelaje_real,
       nro_remito: v.nro_remito,
       nro_viaje_ypf: v.nro_viaje_ypf,
-      material: extractMaterial(v.observaciones),
+      material: v.material ?? extractMaterial(v.observaciones),
       monto_flete: v.monto_flete,
       cliente: cli?.nombre_comercial ?? cli?.razon_social ?? null,
       estado: v.estado,
       facturado: v.facturado,
+      es_vacio: !!v.es_vacio,
       observaciones: v.observaciones,
     };
   });
@@ -261,7 +269,7 @@ export async function getPanelChoferAction(
       acc.kmVacios += v.km_vacios;
       acc.tonelaje += v.tonelaje_real ?? 0;
       acc.importe += v.monto_flete ?? 0;
-      const vacio = !v.nro_remito || v.nro_remito.toUpperCase() === "VACIO";
+      const vacio = v.es_vacio;
       if (vacio) acc.vacios++;
       if (!vacio && v.monto_flete == null) acc.pendientesFacturar++;
       return acc;
@@ -294,7 +302,7 @@ export async function actualizarRemitoYMontoAction(
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
     // Regla del cliente: tener valor = está facturado (el valor entra con el remito).
-    payload.facturado = (data.monto_flete ?? 0) > 0;
+    payload.facturado = viajeEstaFacturado(data.monto_flete);
   }
   // Si ahora tiene remito + monto, marcar como cerrado
   if (data.nro_remito && data.monto_flete != null) {

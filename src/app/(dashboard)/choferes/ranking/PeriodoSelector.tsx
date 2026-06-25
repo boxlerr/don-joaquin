@@ -30,6 +30,7 @@ export default function PeriodoSelector({
   const popRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setDesde(desdeActual);
     setHasta(hastaActual);
   }, [desdeActual, hastaActual]);

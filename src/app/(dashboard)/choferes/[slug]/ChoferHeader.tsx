@@ -142,7 +142,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     <div
       className={`rounded-[8px] border shadow-sm p-6 ${
         esBaja
-          ? "bg-amber-50/40 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/30"
+          ? "bg-amber-50/40 border-amber-200"
           : "bg-card border-border"
       }`}
     >
@@ -199,7 +199,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             </h1>
             <p className="text-muted-foreground text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
             {fotoError && (
-              <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{fotoError}</p>
+              <p className="mt-1 text-[11px] text-red-600">{fotoError}</p>
             )}
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <StatusBadge label={estadoLabel} tone={estadoTone} />
@@ -254,7 +254,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 <span
                   className={`inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 border ${
                     camionLabel
-                      ? "bg-sky-50 dark:bg-sky-500/10 border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300"
+                      ? "bg-sky-50 border-sky-200 text-sky-700"
                       : "bg-muted/50 border-border text-muted-foreground"
                   }`}
                   title={camionLabel ? "Camión asignado actualmente" : "Sin camión asignado"}
@@ -264,14 +264,14 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 </span>
               )}
               {periodoPrueba !== null && periodoPrueba > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] font-medium px-2 py-0.5">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium px-2 py-0.5">
                   <AlertCircle size={11} />
                   Período de prueba: quedan {periodoPrueba} {periodoPrueba === 1 ? "día" : "días"}
                 </span>
               )}
               {cumple && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-fuchsia-50 dark:bg-fuchsia-500/10 border border-fuchsia-200 dark:border-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-300 text-[11px] font-medium px-2 py-0.5"
+                  className="inline-flex items-center gap-1 rounded-full bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-700 text-[11px] font-medium px-2 py-0.5"
                   title={`Fecha de nacimiento: ${cumple.fechaLabel}`}
                 >
                   <Cake size={11} />
@@ -284,8 +284,8 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                   onClick={() => onSelectTab?.("documentos")}
                   className={`inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-0.5 border transition-all hover:scale-[1.02] cursor-pointer ${
                     docsResumen.vencidos > 0
-                      ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300"
-                      : "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300"
+                      ? "bg-red-50 border-red-200 text-red-700"
+                      : "bg-amber-50 border-amber-200 text-amber-700"
                   }`}
                   title="Ver documentación"
                 >
@@ -298,7 +298,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                   type="button"
                   onClick={handleMarcarLeidas}
                   disabled={markingRead}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 dark:bg-sky-950/40 border border-[#BAE6FD] dark:border-sky-800/40 text-[#0369A1] dark:text-sky-300 text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 border border-[#BAE6FD] text-[#0369A1] text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none"
                   title="Marcar todas las alertas de este legajo como leídas"
                 >
                   <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
@@ -340,11 +340,11 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
 
       {/* Panel de egreso destacado — solo si está dado de baja */}
       {esBaja && (
-        <div className="mt-5 p-4 bg-amber-100/60 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 rounded-lg">
+        <div className="mt-5 p-4 bg-amber-100/60 border border-amber-300 rounded-lg">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <LogOut size={14} className="text-amber-700 dark:text-amber-400" />
-              <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+              <LogOut size={14} className="text-amber-700" />
+              <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">
                 Información del egreso
               </h3>
             </div>
@@ -394,7 +394,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 </div>
               </div>
               {observacionEgreso && (
-                <div className="mt-3 pt-3 border-t border-amber-300/60 dark:border-amber-500/30">
+                <div className="mt-3 pt-3 border-t border-amber-300/60">
                   <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
                     <FileText size={11} /> Observaciones del egreso
                   </div>

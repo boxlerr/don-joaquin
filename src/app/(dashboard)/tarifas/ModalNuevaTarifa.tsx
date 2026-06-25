@@ -11,13 +11,14 @@ import {
   Calendar,
   MessageSquare,
   Check,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0";
 import {
   actualizarTarifa,
   crearTarifa,
@@ -333,7 +334,7 @@ function InputFieldWithIcon({
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   step?: string;
   min?: string;
   maxLength?: number;
@@ -383,7 +384,7 @@ function SelectFieldWithIcon({
   options: { value: string; label: string }[];
   required?: boolean;
   disabled?: boolean;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   placeholder?: string;
 }) {
   return (
@@ -428,7 +429,7 @@ function TextareaFieldWithIcon({
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   disabled?: boolean;
   maxLength?: number;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
 }) {
   return (
     <div className="space-y-1">

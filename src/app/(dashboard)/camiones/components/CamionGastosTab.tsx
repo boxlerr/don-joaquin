@@ -55,6 +55,7 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
   }, [camionId, formData]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     void load();
   }, [camionId, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 

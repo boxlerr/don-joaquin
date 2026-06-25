@@ -96,6 +96,7 @@ export default function AddServiceDialog({
   // Si el camión cambia y el tipo elegido ya no aparece en la lista visible, resetear.
   useEffect(() => {
     if (tipoServicioId && !tiposVisibles.some((t) => t.id === tipoServicioId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setTipoServicioId("");
     }
   }, [tiposVisibles, tipoServicioId]);
@@ -103,6 +104,7 @@ export default function AddServiceDialog({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setCamionId(defaultCamionId ?? "");
       setFecha(editing.fecha);
       setTipoServicioId(editing.tipo_servicio_id ?? "");
@@ -260,7 +262,7 @@ export default function AddServiceDialog({
                   </span>
                 )}
                 {camionSeleccionado?.tercerizacion_estado === "en_transicion" && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                  <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                     En transición
                   </span>
                 )}

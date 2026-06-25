@@ -136,19 +136,19 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   return (
     <div className="space-y-4">
       {!legajoEstado.completo && (
-        <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-500/10 dark:border-red-500/40 p-4 flex items-start gap-3">
-          <div className="flex items-center justify-center size-9 rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300 shrink-0">
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4 flex items-start gap-3">
+          <div className="flex items-center justify-center size-9 rounded-full bg-red-100 text-red-600 shrink-0">
             <AlertTriangle size={18} />
           </div>
           <div className="flex-1 space-y-1.5">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+            <p className="text-sm font-semibold text-red-700">
               Legajo incompleto
             </p>
-            <p className="text-xs text-red-700/90 dark:text-red-200/90">
+            <p className="text-xs text-red-700/90">
               Faltan los siguientes datos obligatorios:{" "}
               <span className="font-semibold">{legajoEstado.faltantes.join(", ")}</span>.
             </p>
-            <p className="text-xs text-red-700/80 dark:text-red-200/80">
+            <p className="text-xs text-red-700/80">
               {MENSAJE_LEGAJO_INCOMPLETO}
             </p>
           </div>
@@ -326,7 +326,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
       </div>
 
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-300 text-sm rounded-lg">
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
           {error}
         </div>
       )}

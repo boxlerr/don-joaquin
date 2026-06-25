@@ -144,7 +144,7 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
                 onValueChange={(v) => setMedio(v as Medio)}
                 options={MEDIO_OPTIONS.map((o) => ({ id: o.value, label: o.label }))}
                 searchable={false}
-                triggerClassName="h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
+                triggerClassName="h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0"
               />
             </div>
           </div>

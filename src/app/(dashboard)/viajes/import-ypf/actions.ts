@@ -247,6 +247,9 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
       monto_flete: v.importe ?? 0,
       moneda: "ARS",
       estado: "cerrado",
+      // Excepción intencional a la regla unificada de `facturado` (ver
+      // domain/viajes/facturado.ts): la facturación a YPF se gestiona por su
+      // flujo de liquidación/compliance aparte, no por el monto del viaje.
       facturado: false,
       observaciones,
       created_by: user.id,

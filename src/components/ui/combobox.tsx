@@ -125,7 +125,7 @@ export function Combobox({
           "hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/25",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "data-[invalid]:border-red-400 data-[invalid]:focus-visible:ring-red-100",
-          "dark:bg-input/20 dark:hover:bg-input/30",
+          "",
           triggerClassName,
         )}
       >
@@ -267,7 +267,7 @@ export function SelectField({
         <Combobox
           id={fieldId}
           invalid={!!error}
-          triggerClassName="h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
+          triggerClassName="h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0"
           {...comboboxProps}
         />
       </div>

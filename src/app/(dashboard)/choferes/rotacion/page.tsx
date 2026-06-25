@@ -77,7 +77,7 @@ export default async function RotacionChoferes({
       <AnioSelector anios={anios} anioActual={data.anio} />
 
       {egresados_sin_fecha > 0 && (
-        <div className="flex items-start gap-2.5 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+        <div className="flex items-start gap-2.5 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <span>
             Hay <strong>{egresados_sin_fecha}</strong> chofer(es) dados de baja sin fecha de egreso cargada.

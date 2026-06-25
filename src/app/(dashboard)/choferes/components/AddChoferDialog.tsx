@@ -27,7 +27,7 @@ import {
 import { addChoferAction } from "../actions";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 
 // ---------------------------------------------------------------------------
@@ -453,6 +453,7 @@ function LocalidadCombobox({
     : [];
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setQuery(value);
   }, [value]);
 

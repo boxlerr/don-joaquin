@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila de chofer (DB) con muchos campos; los tipos generados no están disponibles acá
 export default function ChoferCard({ chofer }: { chofer: any }) {
   const router = useRouter();
   const [actionLoading, setActionLoading] = useState(false);
@@ -150,7 +151,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
     <>
       <div
         className={`bg-card rounded-[12px] border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col relative group overflow-hidden ${
-          esBaja ? "border-amber-200/70 dark:border-amber-500/30" : "border-border"
+          esBaja ? "border-amber-200/70" : "border-border"
         }`}
       >
         <div
@@ -230,7 +231,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <StatusBadge label={estadoLabel} tone={estadoTone} />
                 {chofer.rol && chofer.rol !== "chofer" && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-100 dark:bg-slate-500/15 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-500/30">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200">
                     {chofer.rol === "administrativo" ? "Administración" : "Mantenimiento"}
                   </span>
                 )}
@@ -258,15 +259,15 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           </div>
 
           {!legajoEstado.completo && !esBaja && (
-            <div className="mt-3 p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-md space-y-1 text-xs">
-              <div className="flex items-center gap-1.5 text-red-700 dark:text-red-300 font-semibold">
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md space-y-1 text-xs">
+              <div className="flex items-center gap-1.5 text-red-700 font-semibold">
                 <AlertTriangle size={12} />
                 <span className="uppercase tracking-wide">Legajo incompleto</span>
               </div>
-              <p className="text-red-700/90 dark:text-red-200/90">
+              <p className="text-red-700/90">
                 Falta: <span className="font-medium">{legajoEstado.faltantes.join(", ")}</span>.
               </p>
-              <p className="text-red-700/80 dark:text-red-200/80">
+              <p className="text-red-700/80">
                 No puede ser asignado a viajes, siniestros ni otros movimientos hasta completarse.
               </p>
             </div>
@@ -274,20 +275,20 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
           {/* Datos recomendados (teléfono/localidad): solo aviso, NO bloquea nada. */}
           {legajoEstado.completo && legajoEstado.faltantesRecomendados.length > 0 && !esBaja && (
-            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md space-y-1 text-xs">
-              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md space-y-1 text-xs">
+              <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
                 <AlertTriangle size={12} />
                 <span className="uppercase tracking-wide">Faltan datos</span>
               </div>
-              <p className="text-amber-700/90 dark:text-amber-200/90">
+              <p className="text-amber-700/90">
                 Falta: <span className="font-medium">{legajoEstado.faltantesRecomendados.join(", ")}</span>.
               </p>
             </div>
           )}
 
           {esBaja && (
-            <div className="mt-3 p-3 bg-amber-50/70 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-md space-y-1.5 text-xs">
-              <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-semibold">
+            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-md space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
                 <LogOut size={12} />
                 <span className="uppercase tracking-wide">Chofer egresado</span>
               </div>
@@ -310,7 +311,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 </div>
               )}
               {chofer.observaciones && (
-                <div className="pt-1 mt-1 border-t border-amber-200/60 dark:border-amber-500/20 text-muted-foreground italic line-clamp-2">
+                <div className="pt-1 mt-1 border-t border-amber-200/60 text-muted-foreground italic line-clamp-2">
                   {chofer.observaciones}
                 </div>
               )}
@@ -359,7 +360,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 <button
                   onClick={handleReactivar}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors border border-transparent hover:border-emerald-200"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
                   title="Reactivar chofer"
                 >
                   <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
@@ -370,7 +371,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     setConfirmDelete(true);
                   }}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors border border-transparent hover:border-red-200"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
                   title="Eliminar definitivamente del sistema"
                 >
                   <Trash2 size={14} />
@@ -380,7 +381,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <button
                 onClick={handleEgresar}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors border border-transparent hover:border-amber-200"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
                 title="Egresar chofer (lo pasa al historial)"
               >
                 <LogOut size={14} />
@@ -390,11 +391,11 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
         </div>
 
         {confirmDelete && (
-          <div className="px-4 py-2.5 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+          <div className="px-4 py-2.5 bg-red-50 border-t border-red-200 text-red-700 text-xs flex items-start gap-2">
             <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-semibold">¿Eliminar definitivamente a {chofer.apellido}, {chofer.nombre}?</p>
-              <p className="text-red-600/80 dark:text-red-300/80 mt-0.5">
+              <p className="text-red-600/80 mt-0.5">
                 Esta acción no se puede deshacer. Si tiene viajes o registros operativos asociados, el sistema lo va a impedir (queda en el historial).
               </p>
               <div className="flex items-center gap-2 mt-2">
@@ -411,7 +412,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={actionLoading}
-                  className="px-2.5 h-7 rounded-md border border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20"
+                  className="px-2.5 h-7 rounded-md border border-red-200 hover:bg-red-100"
                 >
                   Cancelar
                 </button>
@@ -421,13 +422,13 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
         )}
 
         {actionError && (
-          <div className="px-4 py-2 bg-red-50 dark:bg-red-500/10 border-t border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+          <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-red-700 text-xs flex items-start gap-2">
             <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
             <span className="flex-1">{actionError}</span>
             <button
               type="button"
               onClick={() => setActionError(null)}
-              className="text-red-700 dark:text-red-300 hover:underline"
+              className="text-red-700 hover:underline"
             >
               Cerrar
             </button>

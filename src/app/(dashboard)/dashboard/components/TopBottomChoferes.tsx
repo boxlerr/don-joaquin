@@ -25,7 +25,7 @@ export default function TopBottomChoferes({ top, bottom }: Props) {
 
   if (sinDatos) {
     return (
-      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none p-6">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm p-6">
         <div className="flex items-center gap-2 mb-1">
           <Trophy size={16} className="text-amber-500" />
           <h2 className="text-foreground text-sm font-bold">Ranking del mes</h2>
@@ -77,11 +77,11 @@ interface ListProps {
 function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: ListProps) {
   const iconColor =
     accent === "emerald"
-      ? "text-[#10B981] dark:text-emerald-300"
-      : "text-[#EF4444] dark:text-rose-300";
+      ? "text-[#10B981]"
+      : "text-[#EF4444]";
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none flex flex-col overflow-hidden">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2">
           <Icon size={16} className={iconColor} />
@@ -121,7 +121,7 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: L
                     {r.viajes_count} {r.viajes_count === 1 ? "viaje" : "viajes"} ·{" "}
                     {fmtNum(r.km_total)} km · {r.pct_vacios.toFixed(0)}% vacíos
                     {r.facturacion_total > 0 && (
-                      <span className="text-[#10B981] dark:text-emerald-400 font-medium">
+                      <span className="text-[#10B981] font-medium">
                         {" "}· {fmtMoneyCompact(r.facturacion_total)}
                       </span>
                     )}

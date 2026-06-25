@@ -82,6 +82,7 @@ export default function AddGasoilDialog({
     if (!open) return;
     getChoferesParaCargaAction().then(setChoferes);
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setCamionId(defaultCamionId ?? "");
       setChoferId(editing.chofer_id ?? "");
       setFecha(editing.fecha);

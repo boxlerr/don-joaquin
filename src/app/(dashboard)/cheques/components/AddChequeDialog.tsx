@@ -26,11 +26,12 @@ import {
   Calendar,
   MessageSquare,
   Check,
+  type LucideIcon,
 } from "lucide-react";
 import { createChequeAction, type ChequeTipo } from "../actions";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0";
 
 const TIPO_LABEL: Record<ChequeTipo, string> = {
   comun: "Común",
@@ -396,7 +397,7 @@ function InputFieldWithIcon({
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   step?: string;
   min?: string;
   className?: string;
@@ -444,7 +445,7 @@ function SelectFieldWithIcon({
   options: { value: string; label: string }[];
   required?: boolean;
   disabled?: boolean;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   placeholder?: string;
 }) {
   return (

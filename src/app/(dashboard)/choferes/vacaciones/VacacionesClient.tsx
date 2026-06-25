@@ -373,7 +373,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       )}
 
       {/* Cronograma */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
           <CalendarRange size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Cronograma</h2>
@@ -471,7 +471,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                             title={p ? `${fmtFecha(p.fecha_inicio)} → ${fmtFecha(p.fecha_fin)} · clic para quitar` : canWrite ? "Cargar esta semana" : ""}
                             className={`h-5 w-full rounded-[3px] transition-colors ${
                               p
-                                ? "bg-[#10B981]/80 dark:bg-emerald-500/70 hover:bg-[#EF4444]/70"
+                                ? "bg-[#10B981]/80 hover:bg-[#EF4444]/70"
                                 : canWrite
                                   ? "bg-transparent hover:bg-primary/15 border border-dashed border-transparent hover:border-primary/40"
                                   : "bg-transparent"
@@ -508,7 +508,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
 
       {/* Próximos períodos */}
       {periodosVentanaFiltrados.length > 0 && (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <CalendarRange size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-foreground">Períodos en la ventana</h2>
@@ -539,7 +539,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       )}
 
       {/* Saldos por sector */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Palmtree size={16} className="text-primary" />
@@ -597,7 +597,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                         )}
                       </td>
                       <td className="px-3 py-2 text-right font-mono font-semibold text-foreground">{s.total}</td>
-                      <td className="px-3 py-2 text-right font-mono text-[#92400E] dark:text-amber-300">{s.tomados}</td>
+                      <td className="px-3 py-2 text-right font-mono text-[#92400E]">{s.tomados}</td>
                       <td className={`px-3 py-2 text-right font-mono font-semibold ${s.disponibles < 0 ? "text-[#EF4444]" : s.disponibles === 0 ? "text-muted-foreground" : "text-[#10B981]"}`}>{s.disponibles}</td>
                       <td className="px-3 py-2 text-left text-xs whitespace-nowrap text-muted-foreground">{s.vence_saldo ?? "—"}</td>
                       <td className="px-3 py-2 text-left text-xs whitespace-nowrap text-muted-foreground">{s.proximo_hito}</td>

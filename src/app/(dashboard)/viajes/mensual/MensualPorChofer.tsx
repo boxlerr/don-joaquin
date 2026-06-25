@@ -72,6 +72,7 @@ export default function MensualPorChofer() {
     setLoading(false);
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
   useEffect(() => { cargar(mes); }, [mes, cargar]);
 
   return (
@@ -115,7 +116,7 @@ export default function MensualPorChofer() {
       </div>
 
       {/* Tabla por chofer */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow>

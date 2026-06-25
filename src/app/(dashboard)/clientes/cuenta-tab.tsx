@@ -27,6 +27,7 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getCuentaClienteAction(clienteId).then((d) => {
       if (!cancel) {

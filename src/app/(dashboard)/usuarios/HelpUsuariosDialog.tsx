@@ -100,7 +100,7 @@ export default function HelpUsuariosDialog() {
               </p>
             </Section>
 
-            <div className="rounded-md border border-[#BAE6FD] bg-[#F0F9FF] dark:bg-sky-500/10 dark:border-sky-500/30 text-[#075985] dark:text-sky-300 text-xs px-3 py-2">
+            <div className="rounded-md border border-[#BAE6FD] bg-[#F0F9FF] text-[#075985] text-xs px-3 py-2">
               <b>Regla de oro:</b> reservá lo sensible (Caja, Finanzas, Sueldos) y dejá lo operativo abierto. Para dar permisos siempre hay tiempo.
             </div>
           </div>

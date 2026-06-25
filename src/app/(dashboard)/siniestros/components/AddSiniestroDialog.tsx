@@ -29,7 +29,7 @@ import {
 import InlineFeedback from "@/components/ui/InlineFeedback";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import type { TipoSiniestro, EstadoSiniestro } from "./SiniestrosTable";
 
 export type SiniestroFormPayload = {
@@ -116,6 +116,7 @@ export default function AddSiniestroDialog({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setCamionId(editing.camion_id);
       setChoferId(editing.chofer_id ?? "none");
       setFecha(editing.fecha);

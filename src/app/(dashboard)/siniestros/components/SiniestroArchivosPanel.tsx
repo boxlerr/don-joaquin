@@ -134,6 +134,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
     setLoading(false);
   }, [siniestro_id]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
   useEffect(() => { load(); }, [load]);
 
   const handleDelete = async (id: string) => {

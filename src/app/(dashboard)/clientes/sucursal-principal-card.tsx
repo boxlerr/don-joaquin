@@ -25,6 +25,7 @@ export default function SucursalPrincipalCard({
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getSucursalesAction(clienteId).then((items) => {
       if (cancel) return;

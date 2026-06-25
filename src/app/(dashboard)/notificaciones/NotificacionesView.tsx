@@ -48,18 +48,18 @@ const ENTIDAD_TIPO_PRIORITY: Record<string, number> = {
 const SEV_ACCENT: Record<Severidad, { border: string; headerBg: string; count: string }> = {
   critica: {
     border: "border-l-[#EF4444]",
-    headerBg: "bg-[#FEF2F2]/60 hover:bg-[#FEF2F2] dark:bg-red-950/20 dark:hover:bg-red-950/30",
-    count: "text-[#DC2626] dark:text-red-300",
+    headerBg: "bg-[#FEF2F2]/60 hover:bg-[#FEF2F2]",
+    count: "text-[#DC2626]",
   },
   advertencia: {
     border: "border-l-[#F59E0B]",
-    headerBg: "bg-[#FFFBEB]/60 hover:bg-[#FFFBEB] dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
-    count: "text-[#D97706] dark:text-amber-300",
+    headerBg: "bg-[#FFFBEB]/60 hover:bg-[#FFFBEB]",
+    count: "text-[#D97706]",
   },
   info: {
     border: "border-l-[#0088D1]",
-    headerBg: "bg-[#F0F9FF]/60 hover:bg-[#F0F9FF] dark:bg-sky-950/20 dark:hover:bg-sky-950/30",
-    count: "text-[#0369A1] dark:text-sky-300",
+    headerBg: "bg-[#F0F9FF]/60 hover:bg-[#F0F9FF]",
+    count: "text-[#0369A1]",
   },
 };
 
@@ -310,7 +310,7 @@ export default function NotificacionesView({
                   <span className={`text-lg font-black ${accent.count}`}>{items.length}</span>
                 </button>
                 {!isCollapsed && (
-                  <div className="divide-y divide-[#F1F5F9] dark:divide-border">
+                  <div className="divide-y divide-[#F1F5F9]">
                     {items.map((alerta) => (
                       <AlertaRow
                         key={alerta.id}
@@ -419,7 +419,7 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
         </button>
       </div>
       {open && (
-        <div className="divide-y divide-[#F1F5F9] dark:divide-border">
+        <div className="divide-y divide-[#F1F5F9]">
           {items.map((alerta) => {
             const href = alertaHref(alerta);
             return (
@@ -545,7 +545,7 @@ function AlertaRow({
         href ? (
           <Link
             href={href}
-            className="flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold text-primary border border-[#BAE6FD] bg-[#F0F9FF] hover:bg-[#E1F5FE] dark:bg-sky-950/30 dark:border-sky-800/40 transition-colors shrink-0"
+            className="flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold text-primary border border-[#BAE6FD] bg-[#F0F9FF] hover:bg-[#E1F5FE] transition-colors shrink-0"
           >
             Actualizar
             <ChevronRight size={13} />

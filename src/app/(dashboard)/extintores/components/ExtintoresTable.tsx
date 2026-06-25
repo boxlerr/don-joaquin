@@ -144,28 +144,28 @@ export default function ExtintoresTable({
     switch (state) {
       case "vencido":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
             Vencido ({formatFecha(fechaStr)})
           </span>
         );
       case "por_vencer":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             Por vencer ({formatFecha(fechaStr)})
           </span>
         );
       case "vigente":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
             Vigente ({formatFecha(fechaStr)})
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-neutral-800 dark:text-neutral-400">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
             Sin fecha cargada
           </span>
         );
@@ -296,13 +296,13 @@ export default function ExtintoresTable({
                       item.dominio
                     )}
                   </TableCell>
-                  <TableCell className="py-4 text-sm font-medium text-neutral-600 dark:text-neutral-300">
+                  <TableCell className="py-4 text-sm font-medium text-neutral-600">
                     {item.n_extintor}
                   </TableCell>
-                  <TableCell className="py-4 text-sm text-neutral-600 dark:text-neutral-400">
+                  <TableCell className="py-4 text-sm text-neutral-600">
                     {item.n_interno ?? "—"}
                   </TableCell>
-                  <TableCell className="py-4 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  <TableCell className="py-4 text-sm font-medium text-neutral-700">
                     {item.capacidad ?? "—"}
                   </TableCell>
                   <TableCell className="py-4">

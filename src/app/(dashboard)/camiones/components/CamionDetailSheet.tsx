@@ -49,7 +49,7 @@ import CamionGastosTab from "./CamionGastosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-type TabId = "info" | "metricas" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs" | "choferes";
+export type TabId = "info" | "metricas" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs" | "choferes";
 
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
 
@@ -214,6 +214,7 @@ export default function CamionDetailSheet({
         es_tolva: camion.es_tolva ?? false,
         km_actual: camion.km_actual != null ? String(camion.km_actual) : "",
       };
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setFormData(fresh);
       setInitialFormData(fresh);
       setFieldErrors({});
@@ -226,9 +227,13 @@ export default function CamionDetailSheet({
       const tabToUse = initialTab || "info";
       setActiveTab(tabToUse);
 
+      // eslint-disable-next-line react-hooks/immutability -- llamada a fetch dentro del effect de apertura; intencional
       if (tabToUse === "services") fetchServices(0);
+      // eslint-disable-next-line react-hooks/immutability -- llamada a fetch dentro del effect de apertura; intencional
       else if (tabToUse === "gasoil") fetchGasoil(0);
+      // eslint-disable-next-line react-hooks/immutability -- llamada a fetch dentro del effect de apertura; intencional
       else if (tabToUse === "docs") fetchDocs();
+      // eslint-disable-next-line react-hooks/immutability -- llamada a fetch dentro del effect de apertura; intencional
       else if (tabToUse === "fotos") fetchFotos();
     }
   }, [camion?.id, open, initialTab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,7 +248,7 @@ export default function CamionDetailSheet({
     } finally {
       setLoadingServices(false);
     }
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id]);  
 
   const fetchRoturas = useCallback(async (page: number) => {
     setLoadingRoturas(true);
@@ -255,7 +260,7 @@ export default function CamionDetailSheet({
     } finally {
       setLoadingRoturas(false);
     }
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id]);  
 
   const fetchGasoil = useCallback(async (page: number) => {
     setLoadingGasoil(true);
@@ -267,21 +272,23 @@ export default function CamionDetailSheet({
     } finally {
       setLoadingGasoil(false);
     }
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id]);  
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- useCallback con deps intencionales (camion?.id)
   const fetchDocs = useCallback(async () => {
     const result = await getCamionDocumentosAction(camion.id);
     setDocumentos(result.documentos as DocumentoVigenciaCamion[]);
     setTipos(result.tipos as TipoDocumentoCamion[]);
     setAlertas(result.alertas || []);
     setDocsLoaded(true);
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id]);  
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- useCallback con deps intencionales (camion?.id)
   const fetchFotos = useCallback(async () => {
     const result = await getFotosCamionAction(camion.id);
     setFotos(result.fotos as FotoCamion[]);
     setFotosLoaded(true);
-  }, [camion?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [camion?.id]);  
 
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
@@ -451,7 +458,7 @@ export default function CamionDetailSheet({
                 type="button"
                 onClick={handleMarcarLeidas}
                 disabled={markingRead}
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 dark:bg-sky-950/40 border border-[#BAE6FD] dark:border-sky-800/40 text-[#0369A1] dark:text-sky-300 text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none ml-2"
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 border border-[#BAE6FD] text-[#0369A1] text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none ml-2"
                 title="Marcar todas las alertas de este camión como leídas"
               >
                 <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />

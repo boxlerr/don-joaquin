@@ -10,6 +10,7 @@ import {
   type HrParseResult,
   type HrSheetParsed,
 } from "./parser-hoja-ruta";
+import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 
 // Cliente Supabase admin: los server actions pasan createAdminClient() y los
 // scripts un createClient() con service role. Solo usamos la API .from/.insert.
@@ -627,13 +628,14 @@ export async function runHojaRutaImport(
         tonelaje_real: ton,
         monto_flete: importeFinal,
         nro_remito: remitoNormalizado,
+        material: v.material,
         es_vacio: vacio,
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
         // Regla del cliente: el viaje tiene valor solo cuando entra el remito y se
         // factura → tener monto > 0 significa facturado. Vacíos (0) y "esperando
         // remito" (null) quedan sin facturar.
-        facturado: (importeFinal ?? 0) > 0,
+        facturado: viajeEstaFacturado(importeFinal, vacio),
         observaciones: [
           `[Import HOJA DE RUTA · ${sp.sheetName}]`,
           v.material ? `Material: ${v.material}` : null,

@@ -53,6 +53,7 @@ export default function CargarAusenciaDialog({
   useEffect(() => {
     if (!open) return;
     if (ausencia) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setDetalle(ausencia.tipo);
       setFechaInicio(ausencia.fecha_inicio);
       setFechaFin(ausencia.fecha_fin);
@@ -69,6 +70,7 @@ export default function CargarAusenciaDialog({
   // mostrar el conflicto antes de confirmar la ausencia.
   useEffect(() => {
     if (!open || !chofer_id || !fechaInicio || !fechaFin || fechaFin < fechaInicio) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setViajesRango([]);
       return;
     }

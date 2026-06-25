@@ -76,7 +76,7 @@ export default function RolesPermisosMatrix({ roles, areas, initialMatriz }: Pro
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-300 text-xs">
+        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
           <AlertCircle size={13} />
           {error}
         </div>

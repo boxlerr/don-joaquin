@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Receipt, Calendar, AlertCircle, Loader2 } from "lucide-react";
 import {
   getGastosAction,
+  getGastosTotalViajeAction,
   type GastoRow,
 } from "../../gastos/actions";
 import AddGastoDialog, {
@@ -39,9 +40,16 @@ export type GastoFormData = {
 export default function ViajeGastosPanel({
   viajeId,
   formData,
+  montoFlete = null,
+  moneda = "ARS",
+  esVacio = false,
 }: {
   viajeId: string;
   formData: GastoFormData;
+  /** Monto del flete del viaje (null si todavía no se cargó). Para rentabilidad. */
+  montoFlete?: number | null;
+  moneda?: string;
+  esVacio?: boolean;
 }) {
   const [gastos, setGastos] = useState<GastoRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -54,16 +62,24 @@ export default function ViajeGastosPanel({
   // expandir cada fila. Acá solo se cargan los gastos propios del viaje.
   const load = useCallback(async () => {
     setLoading(true);
-    const resGastos = await getGastosAction({ viajeId, page: 0 });
+    // El listado (5 recientes + count) y el total real (todos los gastos, para
+    // la rentabilidad) se piden en paralelo.
+    const [resGastos, resTotal] = await Promise.all([
+      getGastosAction({ viajeId, page: 0 }),
+      getGastosTotalViajeAction(viajeId),
+    ]);
     if ("data" in resGastos) {
       setGastos(resGastos.data.slice(0, 5));
       setCount(resGastos.count);
-      setTotal(resGastos.data.reduce((acc, g) => acc + g.monto, 0));
+    }
+    if ("total" in resTotal) {
+      setTotal(resTotal.total);
     }
     setLoading(false);
   }, [viajeId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     void load();
   }, [viajeId, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -103,6 +119,42 @@ export default function ViajeGastosPanel({
           </AddGastoDialog>
         )}
       </div>
+
+      {/* Rentabilidad: flete − gastos. Para vacíos el flete es 0 (es puro costo).
+          Si el flete todavía no se cargó (pendiente) no se puede calcular. */}
+      {(() => {
+        if (loading) return null;
+        const fletePendiente = montoFlete == null && !esVacio;
+        if (fletePendiente && total === 0) return null;
+        const fleteVal = montoFlete ?? 0;
+        const rentabilidad = fleteVal - total;
+        const margen = fleteVal > 0 ? (rentabilidad / fleteVal) * 100 : null;
+        const fmt = (n: number) => `$ ${formatARS(n)}${moneda !== "ARS" ? ` ${moneda}` : ""}`;
+        return (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] mb-3 px-2 py-2 rounded-md bg-muted/40 border border-border/60">
+            <span className="text-muted-foreground">
+              Flete{" "}
+              <span className="font-semibold text-foreground">
+                {fletePendiente ? "pendiente" : esVacio ? "—" : fmt(fleteVal)}
+              </span>
+            </span>
+            <span className="text-muted-foreground">
+              − Gastos <span className="font-semibold text-[#EF4444]">{fmt(total)}</span>
+            </span>
+            {!fletePendiente && (
+              <span className="text-muted-foreground ml-auto">
+                = Rentabilidad{" "}
+                <span className={`font-bold ${rentabilidad >= 0 ? "text-[#10B981]" : "text-[#EF4444]"}`}>
+                  {fmt(rentabilidad)}
+                </span>
+                {margen != null && (
+                  <span className="text-muted-foreground/70 font-medium"> ({margen.toFixed(0)}%)</span>
+                )}
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {loading && gastos.length === 0 ? (
         <div className="py-4 text-center text-xs text-muted-foreground">

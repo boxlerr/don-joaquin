@@ -127,7 +127,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                   </TableCell>
                   <TableCell className="text-xs font-semibold text-muted-foreground py-3 px-3">
                     {v.facturado ? (
-                      <span className="text-[#10B981] bg-[#ECFDF5] dark:bg-emerald-500/15 dark:text-emerald-300 px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 dark:border-emerald-700/30 uppercase">Sí</span>
+                      <span className="text-[#10B981] bg-[#ECFDF5] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 uppercase">Sí</span>
                     ) : (
                       <span className="text-muted-foreground bg-muted px-2 py-0.5 rounded-full text-[10px] font-bold border border-border uppercase">No</span>
                     )}
@@ -144,7 +144,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                     <TableCell colSpan={6} className="p-0 border-b border-border">
                       <div className="p-5 grid grid-cols-3 gap-5 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
-                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm">
                           <div>
                             <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
                               <User size={13} className="text-primary" /> Chofer Asignado
@@ -160,7 +160,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                         </div>
 
                         {/* Finanzas y KMs */}
-                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none text-xs">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm text-xs">
                           <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
                             <Coins size={13} className="text-[#10B981]" /> Detalles Financieros
                           </h4>
@@ -177,7 +177,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                         </div>
 
                         {/* Notas y Acciones de Estado */}
-                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm dark:shadow-none flex flex-col justify-between">
+                        <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm flex flex-col justify-between">
                           <div>
                             <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 border-b border-border pb-1.5 mb-1.5">
                               <FileText size={13} className="text-[#F59E0B]" /> Notas de Viaje

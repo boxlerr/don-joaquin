@@ -14,7 +14,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
   const choferesDistintos = new Set(ausencias.map((a) => a.chofer_id)).size;
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none mb-6">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm mb-6">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           <CalendarOff size={16} className="text-primary" />

@@ -28,22 +28,52 @@ type ClienteReporte = {
   pesos_por_km: number | null;
 };
 
-async function getReporteClientes(desde: string, hasta: string): Promise<ClienteReporte[]> {
+type CoberturaCliente = {
+  conCliente: number;
+  sinAsignar: number;
+  pct: number; // % de viajes con cliente real asignado
+};
+
+type ReporteClientesResult = {
+  clientes: ClienteReporte[];
+  cobertura: CoberturaCliente;
+};
+
+// Cliente comodín que los importadores asignan a los viajes sin cliente real
+// (ver import-hoja-ruta). No es un cliente comercial: se excluye del reporte por
+// cliente y se contabiliza aparte como "sin asignar" para medir la cobertura.
+const CLIENTE_PLACEHOLDER = "sin asignar (import)";
+
+async function getReporteClientes(desde: string, hasta: string): Promise<ReporteClientesResult> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("viajes")
-    .select("cliente_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio, clientes(razon_social)")
+    .select("cliente_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio, es_vacio, clientes(razon_social)")
     .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta)
-    .not("cliente_id", "is", null);
+    .lte("fecha_viaje", hasta);
 
   const map = new Map<string, ClienteReporte>();
+  let conCliente = 0;
+  let sinAsignar = 0;
   for (const v of data ?? []) {
     const cli = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-    const nombre = (cli as { razon_social?: string } | null)?.razon_social ?? "Sin cliente";
+    const nombre = (cli as { razon_social?: string } | null)?.razon_social ?? null;
+    const esPlaceholder = !!nombre && nombre.trim().toLowerCase() === CLIENTE_PLACEHOLDER;
+    const sinClienteReal = v.cliente_id == null || esPlaceholder;
+
+    // Cobertura: solo viajes que deberían tener cliente comercial. Los vacíos
+    // (reposicionamiento) no tienen cliente por naturaleza → no cuentan.
+    if (!v.es_vacio) {
+      if (sinClienteReal) sinAsignar += 1;
+      else conCliente += 1;
+    }
+
+    // Tabla por cliente: solo clientes reales (se excluye el comodín de import).
+    if (sinClienteReal) continue;
+
     const key = v.cliente_id as string;
     if (!map.has(key)) {
-      map.set(key, { cliente: nombre, viajes: 0, km: 0, toneladas: 0, facturacion: 0, pesos_por_km: null });
+      map.set(key, { cliente: nombre ?? "Sin cliente", viajes: 0, km: 0, toneladas: 0, facturacion: 0, pesos_por_km: null });
     }
     const r = map.get(key)!;
     const kmCarga = v.km_con_carga ?? 0;
@@ -59,7 +89,16 @@ async function getReporteClientes(desde: string, hasta: string): Promise<Cliente
     pesos_por_km: r.km > 0 && r.facturacion > 0 ? r.facturacion / r.km : null,
   }));
   rows.sort((a, b) => b.facturacion - a.facturacion);
-  return rows;
+
+  const totalViajes = conCliente + sinAsignar;
+  return {
+    clientes: rows,
+    cobertura: {
+      conCliente,
+      sinAsignar,
+      pct: totalViajes > 0 ? (conCliente / totalViajes) * 100 : 0,
+    },
+  };
 }
 
 const RANGOS: { key: string; label: string }[] = [
@@ -77,12 +116,13 @@ export default async function ReportesPage({
   const { rango } = await searchParams;
   const periodo = resolverRango({ rango });
 
-  const [ranking, rotacionRes, clientes] = await Promise.all([
+  const [ranking, rotacionRes, reporteClientes] = await Promise.all([
     computeRanking(periodo),
     getRotacion(),
     getReporteClientes(periodo.desde, periodo.hasta),
   ]);
   const rotacion = rotacionRes.data;
+  const { clientes, cobertura } = reporteClientes;
 
   const topChoferes = ranking.filter((r) => r.viajes_count > 0).slice(0, 10);
 
@@ -160,6 +200,31 @@ export default async function ReportesPage({
         href="/clientes"
         hrefLabel="Ver clientes"
       >
+        {/* Cobertura de cliente: qué porción de los viajes del período tiene un
+            cliente real asignado (vs. el comodín "Sin asignar (import)"). */}
+        {cobertura.conCliente + cobertura.sinAsignar > 0 && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3 border-b border-border bg-muted/20">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wide">Cobertura de cliente</span>
+              <span
+                className={`text-lg font-bold ${
+                  cobertura.pct >= 90 ? "text-[#10B981]" : cobertura.pct >= 70 ? "text-[#F59E0B]" : "text-[#EF4444]"
+                }`}
+              >
+                {cobertura.pct.toFixed(0)}%
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              {fmtNum(cobertura.conCliente)} con cliente
+              {cobertura.sinAsignar > 0 && (
+                <>
+                  {" · "}
+                  <span className="text-[#F59E0B] font-semibold">{fmtNum(cobertura.sinAsignar)} sin asignar</span>
+                </>
+              )}
+            </span>
+          </div>
+        )}
         {clientes.length === 0 ? (
           <Empty msg="Sin viajes con cliente en el período." />
         ) : (
@@ -225,7 +290,7 @@ function ReportCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm dark:shadow-none overflow-hidden">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2.5">
           <Icon size={16} className="text-primary" />

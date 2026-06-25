@@ -19,11 +19,12 @@ import {
   Phone,
   MessageSquare,
   Check,
+  type LucideIcon,
 } from "lucide-react";
 import { createClienteAction, type CreateClienteState } from "./actions";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import { formatCuit } from "@/lib/utils/cuit";
 
 const CONDICIONES_IVA: { value: string; label: string }[] = [
@@ -43,6 +44,7 @@ export default function NewClienteSheet() {
 
   useEffect(() => {
     if (state?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setOpen(false);
     }
   }, [state]);
@@ -246,7 +248,7 @@ function InputFieldWithIcon({
   placeholder?: string;
   required?: boolean;
   error?: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   maxLength?: number;
   onInput?: React.FormEventHandler<HTMLInputElement>;
@@ -292,7 +294,7 @@ function SelectFieldWithIcon({
   options: { value: string; label: string }[];
   required?: boolean;
   error?: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
 }) {
   return (
     <div className="space-y-1">
@@ -332,7 +334,7 @@ function TextareaFieldWithIcon({
   placeholder?: string;
   required?: boolean;
   error?: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
 }) {
   return (
     <div className="space-y-1 h-full flex flex-col justify-between">

@@ -8,10 +8,17 @@ import type { ViajeBasico, PaginatedResult } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
+import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 
 const PAGE_SIZE = 20;
 
-/** Extrae el material desde las observaciones (formato "Material: X | ..."). */
+// Prefijo centinela para tipos de carga que el form ofrece pero que todavía no
+// existen en la tabla (catálogo vacío en el primer arranque). Se materializan
+// (get-or-create por nombre) al guardar el viaje, nunca desde una lectura.
+const TIPO_CARGA_NUEVO_PREFIX = "nuevo:";
+
+/** Fallback: extrae el material desde observaciones (formato "Material: X | ...")
+ *  para viajes anteriores a la columna `material` (no backfilleados). */
 function extractMaterialFromObs(obs: string | null): string | null {
   if (!obs) return null;
   const m = obs.match(/Material:\s*([^·|]+)/i);
@@ -111,7 +118,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, cobrado, fecha_cobro, es_vacio, codigo, observaciones, monto_flete, moneda, nro_viaje_ypf, nro_remito,
+      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, cobrado, fecha_cobro, es_vacio, codigo, observaciones, material, monto_flete, moneda, nro_viaje_ypf, nro_remito,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -219,7 +226,7 @@ export async function getViajesAction(
       observaciones: v.observaciones ?? null,
       nro_viaje_ypf: v.nro_viaje_ypf ?? null,
       nro_remito: v.nro_remito ?? null,
-      material: extractMaterialFromObs(v.observaciones),
+      material: v.material ?? extractMaterialFromObs(v.observaciones),
       es_vacio: v.es_vacio ?? false,
     };
   });
@@ -350,34 +357,21 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     label: t.nombre,
   }));
 
-  // Auto-completar opciones genéricas en la base de datos si la tabla está vacía
+  // Catálogo vacío (primer arranque): ofrecemos opciones genéricas SIN escribir
+  // en la base desde esta lectura. Van como centinelas "nuevo:<nombre>" (y
+  // "otros") que se materializan al guardar el viaje (get-or-create por nombre).
   if (tiposCargaList.length === 0) {
-    const genericOptions = [
-      { nombre: "Carga General", requiere_documentacion_especial: false },
-      { nombre: "Carga Refrigerada", requiere_documentacion_especial: false },
-      { nombre: "Carga a Granel", requiere_documentacion_especial: false },
-      { nombre: "Carga Paletizada", requiere_documentacion_especial: false },
-      { nombre: "Carga Peligrosa", requiere_documentacion_especial: true },
-      { nombre: "Otros", requiere_documentacion_especial: false },
-    ];
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const insertRes = await (supabase as any)
-        .from("tipos_carga")
-        .insert(genericOptions)
-        .select("id, nombre");
-
-      if (!insertRes.error && insertRes.data) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        tiposCargaList = insertRes.data.map((t: any) => ({
-          id: t.id,
-          label: t.nombre,
-        }));
-      }
-    } catch (err) {
-      console.error("Error auto-poblando tipos de carga genéricos:", err);
-    }
+    tiposCargaList = [
+      "Carga General",
+      "Carga Refrigerada",
+      "Carga a Granel",
+      "Carga Paletizada",
+      "Carga Peligrosa",
+      "Otros",
+    ].map((nombre) => ({
+      id: nombre.toLowerCase() === "otros" ? "otros" : `${TIPO_CARGA_NUEVO_PREFIX}${nombre}`,
+      label: nombre,
+    }));
   }
 
   // Garantizar que la opción "Otros" siempre exista en la lista final
@@ -471,6 +465,7 @@ const viajeSchema = z
     tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
     monto_flete: z.number().min(0, "Debe ser ≥ 0."),
     nro_viaje_ypf: z.string().max(60, "Máximo 60 caracteres.").optional().nullable(),
+    material: z.string().trim().max(120, "Máximo 120 caracteres.").optional().nullable(),
   })
   .refine(
     (d) =>
@@ -595,6 +590,53 @@ async function getOrCreateTipoCargaOtros(
   return insertRes.data.id;
 }
 
+/** Get-or-create de un tipo de carga por nombre (case-insensitive). */
+async function getOrCreateTipoCargaByNombre(
+  supabase: ReturnType<typeof createAdminClient>,
+  nombre: string,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("tipos_carga")
+    .select("id")
+    .ilike("nombre", nombre)
+    .limit(1);
+
+  if (!error && data && data.length > 0) return data[0].id;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertRes = await (supabase as any)
+    .from("tipos_carga")
+    .insert({
+      nombre,
+      descripcion: `Carga ${nombre}`,
+      requiere_documentacion_especial: /peligros/i.test(nombre),
+      estado: "activo",
+    })
+    .select("id")
+    .single();
+
+  if (insertRes.error) throw insertRes.error;
+  return insertRes.data.id;
+}
+
+/** Resuelve el tipo_carga_id elegido en el form a un id real de la tabla.
+ *  Materializa los centinelas del form ("otros" y "nuevo:<nombre>") al escribir;
+ *  cualquier otro valor se asume ya un id válido y se devuelve tal cual. */
+async function resolveTipoCargaId(
+  supabase: ReturnType<typeof createAdminClient>,
+  tipoCargaId: string,
+): Promise<string> {
+  if (tipoCargaId === "otros") return getOrCreateTipoCargaOtros(supabase);
+  if (tipoCargaId.startsWith(TIPO_CARGA_NUEVO_PREFIX)) {
+    return getOrCreateTipoCargaByNombre(
+      supabase,
+      tipoCargaId.slice(TIPO_CARGA_NUEVO_PREFIX.length).trim(),
+    );
+  }
+  return tipoCargaId;
+}
+
 export async function createViajeAction(
   _prev: CreateViajeState,
   formData: FormData,
@@ -614,6 +656,7 @@ export async function createViajeAction(
     tonelaje_real: parseNumber(formData.get("tonelaje_real")),
     monto_flete: parseNumber(formData.get("monto_flete")),
     nro_viaje_ypf: emptyOrNull(formData.get("nro_viaje_ypf")),
+    material: emptyOrNull(formData.get("material")),
   });
 
   if (!parsed.success) {
@@ -643,16 +686,17 @@ export async function createViajeAction(
   const notasAdicionales: string[] = [];
 
   if (realTipoCargaId === "otros") {
-    try {
-      realTipoCargaId = await getOrCreateTipoCargaOtros(supabase);
-    } catch (e) {
-      console.error("Error obteniendo/creando tipo de carga Otros:", e);
-      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
-    }
     const descOtros = String(formData.get("descripcion_otros") ?? "").trim();
     if (descOtros) {
       notasAdicionales.push(`Carga (Otros): ${descOtros}`);
     }
+  }
+
+  try {
+    realTipoCargaId = await resolveTipoCargaId(supabase, realTipoCargaId);
+  } catch (e) {
+    console.error("Error resolviendo el tipo de carga:", e);
+    return { error: "No se pudo resolver el tipo de carga seleccionado." };
   }
 
   // Origen/destino se persisten en sus columnas (origen_id/destino_id), que son la
@@ -707,7 +751,10 @@ export async function createViajeAction(
     moneda: "ARS",
     observaciones: observacionesDB,
     nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
-    facturado: false,
+    material: parsed.data.material || null,
+    // Regla unificada: con monto de flete > 0 el viaje queda facturado (igual
+    // que importadores/hoja de ruta/cierre). Sin monto queda sin facturar.
+    facturado: viajeEstaFacturado(parsed.data.monto_flete),
     created_by: user.id,
   };
 
@@ -1375,6 +1422,7 @@ export type ViajeParaEditar = {
   monto_flete: number;
   descripcion_otros: string | null;
   nro_viaje_ypf: string | null;
+  material: string | null;
 };
 
 export async function getViajeParaEditarAction(
@@ -1390,7 +1438,7 @@ export async function getViajeParaEditarAction(
        cliente_id, chofer_id, camion_id, tipo_carga_id, ruta_id,
        origen_id, destino_id,
        km_con_carga, km_vacios, tonelaje_real, monto_flete, observaciones,
-       nro_viaje_ypf,
+       nro_viaje_ypf, material,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -1426,6 +1474,7 @@ export async function getViajeParaEditarAction(
     monto_flete: data.monto_flete ?? 0,
     descripcion_otros: otrosMatch ? otrosMatch[1].trim() : null,
     nro_viaje_ypf: data.nro_viaje_ypf ?? null,
+    material: data.material ?? extractMaterialFromObs(data.observaciones),
   };
 }
 
@@ -1457,6 +1506,7 @@ export async function updateViajeAction(
     tonelaje_real: number;
     monto_flete: number;
     nro_viaje_ypf: string | null;
+    material: string | null;
   },
 ): Promise<UpdateViajeState> {
 
@@ -1475,6 +1525,7 @@ export async function updateViajeAction(
     tonelaje_real: data.tonelaje_real,
     monto_flete: data.monto_flete,
     nro_viaje_ypf: data.nro_viaje_ypf,
+    material: data.material,
   });
 
   if (!parsed.success) {
@@ -1513,23 +1564,22 @@ export async function updateViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previo } = await (supabase as any)
     .from("viajes")
-    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, tonelaje_real, monto_flete")
+    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, es_vacio, cobrado, facturado")
     .eq("id", id)
     .single();
 
   let realTipoCargaId = parsed.data.tipo_carga_id;
   const notasAdicionales: string[] = [];
 
-  if (realTipoCargaId === "otros") {
-    try {
-      realTipoCargaId = await getOrCreateTipoCargaOtros(supabase);
-    } catch (e) {
-      console.error("Error obteniendo/creando tipo de carga Otros:", e);
-      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
-    }
-    if (data.descripcion_otros) {
-      notasAdicionales.push(`Carga (Otros): ${data.descripcion_otros}`);
-    }
+  if (realTipoCargaId === "otros" && data.descripcion_otros) {
+    notasAdicionales.push(`Carga (Otros): ${data.descripcion_otros}`);
+  }
+
+  try {
+    realTipoCargaId = await resolveTipoCargaId(supabase, realTipoCargaId);
+  } catch (e) {
+    console.error("Error resolviendo el tipo de carga:", e);
+    return { error: "No se pudo resolver el tipo de carga seleccionado." };
   }
 
   // Origen/destino viven en origen_id/destino_id (fuente de verdad), no en observaciones.
@@ -1565,6 +1615,12 @@ export async function updateViajeAction(
       monto_flete: parsed.data.monto_flete,
       observaciones: observacionesDB,
       nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
+      material: parsed.data.material || null,
+      // Regla unificada: facturado se deriva del monto. Si el viaje ya está
+      // cobrado se mantiene facturado (no se permite el estado inválido
+      // "cobrado pero no facturado").
+      facturado:
+        viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio) || !!previo?.cobrado,
     })
     .eq("id", id);
 
@@ -1591,9 +1647,56 @@ export async function updateViajeAction(
       km_vacios: parsed.data.km_vacios,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
+      facturado:
+        viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio) || !!previo?.cobrado,
     },
     user.id,
   );
+
+  // Resincronizar el cobro en caja si cambió el monto del flete.
+  // El cobro de un viaje crea un movimiento (categoria cobro_cliente) con
+  // monto = monto_flete. Si después se corrige el monto del viaje, ese
+  // movimiento quedaba con el valor viejo → desfasaje silencioso en caja.
+  // Solo se resincronizan los movimientos que reflejaban el flete completo
+  // (monto == monto_flete anterior), para no pisar cobros parciales/custom.
+  const montoAnterior = Number(previo?.monto_flete ?? 0);
+  const montoNuevo = parsed.data.monto_flete;
+  if (previo && montoAnterior !== montoNuevo) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: movs } = await (supabase as any)
+      .from("caja_movimientos")
+      .select("id, monto")
+      .eq("viaje_id", id)
+      .eq("categoria", "cobro_cliente");
+
+    let resincronizados = 0;
+    for (const mov of (movs ?? []) as { id: string; monto: number }[]) {
+      if (Number(mov.monto) !== montoAnterior) continue; // cobro parcial/custom: no tocar
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: movErr } = await (supabase as any)
+        .from("caja_movimientos")
+        .update({ monto: montoNuevo })
+        .eq("id", mov.id);
+      if (movErr) {
+        console.error("Error al resincronizar cobro en caja:", movErr);
+        continue;
+      }
+      await logAudit({
+        accion: "actualizar",
+        entidadTipo: "caja",
+        entidadId: mov.id,
+        usuarioId: user.id,
+        valoresAnteriores: { monto: mov.monto },
+        valoresNuevos: { monto: montoNuevo, motivo: "Resincronización por edición del monto del viaje" },
+        client: supabase,
+      });
+      resincronizados++;
+    }
+    if (resincronizados > 0) {
+      revalidatePath("/caja");
+      revalidatePath("/dashboard");
+    }
+  }
 
   revalidatePath("/viajes");
   return { ok: true };
@@ -1676,14 +1779,21 @@ export async function createViajesBatchAction(
     if (Number.isFinite(n)) seq = n;
   }
 
-  // Resolver tipo de carga "otros" si se necesita
-  let realTipoCargaOtrosId: string | null = null;
-  const needsOtros = parseadas.some((p) => p.tipo_carga_id === "otros");
-  if (needsOtros) {
+  // Resolver los centinelas de tipo de carga ("otros" / "nuevo:<nombre>") una vez
+  // por valor distinto, para no insertar duplicados durante el map paralelo.
+  const sentinelTipos = [
+    ...new Set(
+      parseadas
+        .map((p) => p.tipo_carga_id)
+        .filter((t) => t === "otros" || t.startsWith(TIPO_CARGA_NUEVO_PREFIX)),
+    ),
+  ];
+  const tipoCargaResuelto = new Map<string, string>();
+  for (const sid of sentinelTipos) {
     try {
-      realTipoCargaOtrosId = await getOrCreateTipoCargaOtros(supabase);
+      tipoCargaResuelto.set(sid, await resolveTipoCargaId(supabase, sid));
     } catch {
-      return { error: "No se pudo resolver el tipo de carga 'Otros'." };
+      return { error: "No se pudo resolver el tipo de carga seleccionado." };
     }
   }
 
@@ -1692,8 +1802,7 @@ export async function createViajesBatchAction(
     parseadas.map(async (p) => {
       seq++;
       const codigo = `${prefix}${String(seq).padStart(5, "0")}`;
-      const tipoCargaId =
-        p.tipo_carga_id === "otros" ? (realTipoCargaOtrosId ?? p.tipo_carga_id) : p.tipo_carga_id;
+      const tipoCargaId = tipoCargaResuelto.get(p.tipo_carga_id) ?? p.tipo_carga_id;
 
       const origen_id = p.origen_nombre ? await getOrCreatePuntoRuta(supabase, p.origen_nombre) : null;
       const destino_id = p.destino_nombre ? await getOrCreatePuntoRuta(supabase, p.destino_nombre) : null;
@@ -1715,7 +1824,8 @@ export async function createViajesBatchAction(
         monto_flete: p.monto_flete,
         moneda: "ARS",
         nro_viaje_ypf: p.nro_viaje_ypf ?? null,
-        facturado: false,
+        material: p.material || null,
+        facturado: viajeEstaFacturado(p.monto_flete),
         created_by: user.id,
       };
     }),

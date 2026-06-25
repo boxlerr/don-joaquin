@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
-  Moon,
-  Sun,
   LogOut,
   ChevronDown,
   Sliders,
@@ -17,7 +15,6 @@ import {
 } from "lucide-react";
 import { NAV_GROUPS, type NavItem, type NavChild } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
-import { useTheme } from "./ThemeProvider";
 import type { PermisosArea, AreaCodigo, AreaNivel } from "@/lib/auth";
 
 export type SidebarUser = {
@@ -52,8 +49,6 @@ function getInitials(user: SidebarUser): string {
 
 export default function Sidebar({ user }: { user: SidebarUser | null }) {
   const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === "dark";
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
@@ -73,7 +68,7 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
           width={480}
           height={173}
           priority
-          className="h-auto object-contain dark:brightness-110 dark:contrast-110"
+          className="h-auto object-contain"
           style={{ maxWidth: '90%' }}
         />
       </div>
@@ -153,22 +148,12 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
               {user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : "Invitado"}
             </p>
             {user?.rol && (
-              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent-500 dark:text-accent-300 uppercase tracking-wider">
+              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent-500 uppercase tracking-wider">
                 {user.rol}
               </span>
             )}
           </div>
           <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={isDark ? "Activar modo claro" : "Activar modo oscuro"}
-              aria-pressed={isDark}
-              title={isDark ? "Modo claro" : "Modo oscuro"}
-              className="flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-            >
-              {isDark ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
             <form action={logoutAction}>
               <button
                 type="submit"
@@ -218,7 +203,7 @@ function NavLink({
       prefetch
       className={`group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150 ${
         active
-          ? "bg-primary/10 text-primary dark:text-primary"
+          ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
@@ -257,6 +242,7 @@ function CollapsibleItem({
   const Icon = item.icon;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     if (sectionActive) setOpen(true);
   }, [sectionActive]);
 

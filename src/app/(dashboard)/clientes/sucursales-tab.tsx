@@ -17,6 +17,7 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
 
   useEffect(() => {
     let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getSucursalesAction(clienteId).then((d) => {
       if (!cancel) {

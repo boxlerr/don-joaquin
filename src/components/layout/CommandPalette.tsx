@@ -43,6 +43,7 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setQuery("");
       setActiveIndex(0);
     }

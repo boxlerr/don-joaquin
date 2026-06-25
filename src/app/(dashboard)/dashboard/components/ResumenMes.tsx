@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Briefcase, Route, DollarSign, ChevronRight } from "lucide-react";
 import type { RankingChofer } from "@/app/(dashboard)/choferes/ranking/lib";
 
@@ -66,12 +67,12 @@ export default function ResumenMes({ ranking, periodoLabel }: Props) {
             Mes en curso · {periodoLabel}
           </h2>
         </div>
-        <a
+        <Link
           href="/choferes/ranking"
           className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
         >
           Ver por chofer →
-        </a>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -85,7 +86,7 @@ export default function ResumenMes({ ranking, periodoLabel }: Props) {
 
 const ACCENTS = {
   brand: { from: "from-[#0088D1]", to: "to-[#004A99]", text: "text-primary" },
-  warning: { from: "from-[#FFB300]", to: "to-[#D97706]", text: "text-[#D97706] dark:text-amber-300" },
+  warning: { from: "from-[#FFB300]", to: "to-[#D97706]", text: "text-[#D97706]" },
   success: { from: "from-[#10B981]", to: "to-[#059669]", text: "text-[#10B981]" },
 };
 
@@ -106,9 +107,9 @@ function ResumenCard({
   const valueSizeClass = value.length <= 8 ? "text-3xl" : value.length <= 12 ? "text-2xl" : "text-xl";
 
   return (
-    <a
+    <Link
       href="/choferes/ranking"
-      className="relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] dark:shadow-none transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/50 group flex items-center gap-4 cursor-pointer"
+      className="relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/50 group flex items-center gap-4 cursor-pointer"
     >
       <div
         className={`w-12 h-12 rounded-full bg-gradient-to-br ${a.from} ${a.to} flex items-center justify-center text-white shrink-0 shadow-[0_4px_10px_rgba(0,0,0,0.05)] transition-transform duration-300 group-hover:scale-110`}
@@ -128,6 +129,6 @@ function ResumenCard({
         size={16}
         className="text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0 z-10"
       />
-    </a>
+    </Link>
   );
 }

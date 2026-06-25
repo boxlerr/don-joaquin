@@ -59,6 +59,7 @@ export default function UnidadPicker({
 
   const acoplados_ = acoplados ?? [];
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
   useEffect(() => setMounted(true), []);
 
   // Calcula posición del popup anclado al trigger, dentro de viewport,
@@ -118,6 +119,7 @@ export default function UnidadPicker({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setQuery("");
       setTimeout(() => searchRef.current?.focus(), 30);
     }
@@ -253,7 +255,7 @@ export default function UnidadPicker({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-3 py-2 text-sm transition-colors hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none dark:bg-input/30"
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-3 py-2 text-sm transition-colors hover:bg-muted/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
       >
         {selected ? (
           <span className="flex items-baseline gap-2 min-w-0">

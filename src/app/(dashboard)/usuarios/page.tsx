@@ -48,8 +48,9 @@ export default async function UsuariosPage() {
     showMatriz
       ? supabase.from("rol_areas").select("rol_id, area_codigo, nivel")
       : Promise.resolve({ data: null }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     showMatriz
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- usuario_areas aún no está en los tipos generados de Supabase
       ? (supabase as any)
           .from("usuario_areas")
           .select("usuario_id, area_codigo, nivel, vence_en, motivo")

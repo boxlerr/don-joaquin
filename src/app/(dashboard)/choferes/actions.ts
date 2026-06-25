@@ -655,13 +655,13 @@ export async function previewChoferesImportAction(formData: FormData): Promise<{
     };
   }
 
-  let rows: any[][];
+  let rows: unknown[][];
   try {
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     if (!sheet) return { error: "El archivo no contiene hojas.", detectedType };
-    rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null });
+    rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
   } catch {
     return { error: "No se pudo leer el archivo.", detectedType };
   }
@@ -720,7 +720,7 @@ export async function previewChoferesImportAction(formData: FormData): Promise<{
       let apellidoRaw = "";
       let telefonoRaw = "";
       let localidadRaw = "";
-      let ingresoRaw: any = null;
+      let ingresoRaw: unknown = null;
       let estadoRaw = "";
 
       if (headerRowIndex !== -1) {
@@ -817,7 +817,7 @@ export async function previewChoferesImportAction(formData: FormData): Promise<{
 
       let choferRaw = "";
       let cuilRaw = "";
-      let vencimientoRaw: any = null;
+      let vencimientoRaw: unknown = null;
 
       if (headerRowIndex !== -1) {
         for (const [colIdxStr, target] of Object.entries(colMap)) {

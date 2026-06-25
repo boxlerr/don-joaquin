@@ -24,7 +24,9 @@ export default async function ViajesPage({
   const supabase = createAdminClient();
 
   const statsQuery = [
-    supabase.from("viajes").select("*", { count: "exact", head: true }),
+    // Total = viajes reales: excluye cancelados, igual que el resto de las
+    // tarjetas y que el listado (getViajesAction sin filtro ya los excluye).
+    supabase.from("viajes").select("*", { count: "exact", head: true }).neq("estado", "cancelado"),
     supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "en_curso"),
     supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
     supabase
@@ -33,6 +35,13 @@ export default async function ViajesPage({
       .eq("facturado", false)
       .eq("es_vacio", false)
       .neq("estado", "cancelado"),
+    // Pendiente de cobro: facturado y aún sin cobrar (mismo filtro que el listado
+    // con cobroEstado="pendiente", para que el número coincida con la tabla).
+    supabase
+      .from("viajes")
+      .select("*", { count: "exact", head: true })
+      .eq("facturado", true)
+      .eq("cobrado", false),
     supabase
       .from("viajes")
       .select("*", { count: "exact", head: true })
@@ -51,7 +60,7 @@ export default async function ViajesPage({
   const DIAS_DISPONIBILIDAD = 14;
 
   const [
-    [total, enCurso, pendientes, sinFacturar, vacios],
+    [total, enCurso, pendientes, sinFacturar, pendienteCobro, vacios],
     choferResult,
     formData,
     gastoFormData,
@@ -119,6 +128,7 @@ export default async function ViajesPage({
           enCurso: enCurso.count ?? 0,
           pendientes: pendientes.count ?? 0,
           sinFacturar: sinFacturar.count ?? 0,
+          pendienteCobro: pendienteCobro.count ?? 0,
           vacios: vacios.count ?? 0,
         }}
         choferId={choferId}

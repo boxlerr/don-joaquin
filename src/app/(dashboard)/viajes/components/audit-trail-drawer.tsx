@@ -114,6 +114,7 @@ export default function AuditTrailDrawer({ viajeId, open, onOpenChange }: AuditT
 
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     getViajeAuditTrail(viajeId).then((result) => {
       if ("data" in result && result.data) setEntries(result.data);

@@ -719,6 +719,7 @@ export async function getViajesClienteAction(cliente_id: string): Promise<ViajeR
     .order("fecha_viaje", { ascending: false, nullsFirst: false })
     .limit(20);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila con embeds de Supabase (origen/destino) que los tipos generados no cubren limpio
   return (data ?? []).map((v: any) => ({
     id: v.id,
     codigo: v.codigo,

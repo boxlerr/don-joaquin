@@ -89,6 +89,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
     setError(null);
     getGastosAction({

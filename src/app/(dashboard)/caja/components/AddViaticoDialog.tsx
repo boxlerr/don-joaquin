@@ -156,7 +156,7 @@ export default function AddViaticoDialog({
 
           <div className="space-y-2">
             <Label htmlFor="viat-medio" className="text-sm font-medium text-foreground">Medio de entrega</Label>
-            <Select value={medioEntrega} onValueChange={(v) => setMedioEntrega(v as any)}>
+            <Select value={medioEntrega} onValueChange={(v) => setMedioEntrega(v as typeof medioEntrega)}>
               <SelectTrigger id="viat-medio" className="w-full">
                 <SelectValue placeholder="Medio">
                   {(value: unknown) => MEDIO_LABEL[value as string] ?? null}

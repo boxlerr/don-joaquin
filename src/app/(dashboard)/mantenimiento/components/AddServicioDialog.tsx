@@ -96,6 +96,7 @@ export default function AddServicioDialog({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
       setTipoServicioId(editing.tipo_servicio_id ?? "");
       setFecha(editing.fecha);
@@ -123,6 +124,7 @@ export default function AddServicioDialog({
   // Si cambia el camión a tercerizado y el tipo elegido ya no aplica, resetearlo.
   useEffect(() => {
     if (esTercerizado && tipoSel && !tipoSel.aplica_a_tercerizado) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setTipoServicioId("");
     }
   }, [esTercerizado, tipoSel]);
@@ -135,6 +137,7 @@ export default function AddServicioDialog({
     const kmN = parseInt(km);
     if (tipoSel.intervalo_km) {
       if (Number.isFinite(kmN) && kmN > 0) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
         setProxKm(String(kmN + tipoSel.intervalo_km));
       }
     } else {

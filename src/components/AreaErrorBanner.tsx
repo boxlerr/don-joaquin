@@ -31,6 +31,7 @@ export default function AreaErrorBanner() {
   const nivel = params.get("nivel");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setVisible(error === "area_required" && !!area);
   }, [error, area]);
 
@@ -50,15 +51,15 @@ export default function AreaErrorBanner() {
   const nivelLabel = nivel ? NIVEL_LABELS[nivel] ?? nivel : null;
 
   return (
-    <div className="mx-8 mt-6 flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
-        <ShieldAlert size={16} className="text-amber-600 dark:text-amber-300" />
+    <div className="mx-8 mt-6 flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
+        <ShieldAlert size={16} className="text-amber-600" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+        <p className="text-sm font-semibold text-amber-900">
           Acceso restringido
         </p>
-        <p className="mt-0.5 text-xs text-amber-800/90 dark:text-amber-200/80">
+        <p className="mt-0.5 text-xs text-amber-800/90">
           No tenés permisos de {nivelLabel ?? "acceso"} sobre el área{" "}
           <span className="font-semibold">{areaNombre}</span>. Si necesitás acceder,
           pedile al administrador que actualice tu rol.
@@ -68,7 +69,7 @@ export default function AreaErrorBanner() {
         type="button"
         onClick={handleClose}
         aria-label="Cerrar aviso"
-        className="rounded p-1 text-amber-700/80 transition-colors hover:bg-amber-100 hover:text-amber-900 dark:text-amber-200/70 dark:hover:bg-amber-500/20 dark:hover:text-amber-100"
+        className="rounded p-1 text-amber-700/80 transition-colors hover:bg-amber-100 hover:text-amber-900"
       >
         <X size={14} />
       </button>

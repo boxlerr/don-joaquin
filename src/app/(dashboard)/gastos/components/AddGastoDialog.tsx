@@ -27,11 +27,12 @@ import {
   Truck,
   User,
   Check,
+  type LucideIcon,
 } from "lucide-react";
 import { addGastoAction, type GastoMedioPago } from "../actions";
 
 const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent";
+  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0";
 
 const MEDIO_PAGO_OPTIONS: { value: GastoMedioPago; label: string; hint: string }[] = [
   { value: "efectivo_caja", label: "Efectivo (caja)", hint: "Sale de caja" },
@@ -434,7 +435,7 @@ function InputFieldWithIcon({
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
   step?: string;
   min?: string;
   className?: string;

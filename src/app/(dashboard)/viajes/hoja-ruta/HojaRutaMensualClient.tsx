@@ -90,6 +90,7 @@ export default function HojaRutaMensualClient({
   // Refresh el panel cuando cambia chofer o mes
   useEffect(() => {
     if (!choferId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setPanel(null);
       return;
     }
@@ -468,7 +469,7 @@ function FilaViaje({
   const [monto, setMonto] = useState(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
   const [guardando, setGuardando] = useState(false);
 
-  const esVacio = !viaje.nro_remito || viaje.nro_remito.toUpperCase() === "VACIO";
+  const esVacio = viaje.es_vacio;
   const esPendiente = !esVacio && viaje.monto_flete == null;
 
   const guardar = async () => {
@@ -578,7 +579,7 @@ function FilaViaje({
 }
 
 function EstadoBadge({ viaje }: { viaje: HrViajeItem }) {
-  const esVacio = !viaje.nro_remito || viaje.nro_remito.toUpperCase() === "VACIO";
+  const esVacio = viaje.es_vacio;
   const esPendiente = !esVacio && viaje.monto_flete == null;
 
   if (esVacio) {

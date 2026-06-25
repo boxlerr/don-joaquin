@@ -23,6 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "cuenta", label: "Cuenta Corriente" },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila de chofer (DB) con muchos campos; los tipos generados no están disponibles acá
 export default function ChoferRow({ chofer }: { chofer: any }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("info");

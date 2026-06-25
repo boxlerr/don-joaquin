@@ -79,6 +79,7 @@ export function useAdjuntos(opts: {
   useEffect(() => {
     if (!open) return;
     let cancelado = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setPendientes([]);
     setSubiendo(null);
     setExistentes([]);
@@ -257,7 +258,7 @@ export default function AdjuntosDocumentos({
       {pendientes.length > 0 && (
         <ul className="space-y-1.5">
           {pendientes.map((f, i) => (
-            <li key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#0088D1]/40 rounded-[8px] bg-[#F0F9FF] dark:bg-[#0088D1]/10">
+            <li key={`${f.name}-${i}`} className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#0088D1]/40 rounded-[8px] bg-[#F0F9FF]">
               {esImagen(f.type) ? (
                 <ImageIcon size={15} className="text-[#0088D1] shrink-0" />
               ) : (
@@ -307,7 +308,7 @@ export default function AdjuntosDocumentos({
           className={`flex flex-col items-center justify-center gap-1 px-4 py-4 border border-dashed rounded-[8px] cursor-pointer transition-colors ${
             dragOver
               ? "border-[#0088D1] bg-[#F0F9FF]"
-              : "border-[#CBD5E1] hover:border-[#0088D1] hover:bg-[#F0F9FF] dark:hover:bg-[#0088D1]/5"
+              : "border-[#CBD5E1] hover:border-[#0088D1] hover:bg-[#F0F9FF]"
           }`}
         >
           <Upload size={17} className="text-muted-foreground/70" />

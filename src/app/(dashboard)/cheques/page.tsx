@@ -22,6 +22,7 @@ export default async function ChequesPage() {
   const supabase = createAdminClient();
 
   const hoy = new Date().toISOString().split("T")[0];
+  // eslint-disable-next-line react-hooks/purity -- server component: se ejecuta una vez por request
   const en7dias = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];

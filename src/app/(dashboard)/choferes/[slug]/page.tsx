@@ -58,6 +58,7 @@ export default function ChoferDetailPage() {
   useEffect(() => {
     const tabParam = searchParams.get("tab") as TabId | null;
     if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -70,6 +71,7 @@ export default function ChoferDetailPage() {
   }, [slugOrId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     loadData();
   }, [loadData]);
 

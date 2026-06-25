@@ -57,6 +57,7 @@ export default function AcopladoDetailSheet({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setTab("info");
       setLoaded(false);
       setRoturas([]);
