@@ -1,11 +1,15 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Briefcase, Route, DollarSign, ChevronRight } from "lucide-react";
-import type { RankingChofer } from "@/app/(dashboard)/choferes/ranking/lib";
+import type { TotalesPeriodo } from "@/app/(dashboard)/choferes/ranking/lib";
 
 interface Props {
-  ranking: RankingChofer[];
-  /** Etiqueta legible del mes en curso (ej. "junio 2026"). */
+  /** Totales del período sobre TODOS los viajes (coincide con "Total" de /viajes). */
+  totales: TotalesPeriodo;
+  /** Etiqueta legible del período (ej. "Últimos 3 meses · abr – jun"). */
   periodoLabel: string;
+  /** Selector de período (client component) renderizado en el encabezado. */
+  periodoSelector?: ReactNode;
 }
 
 function fmtNum(n: number): string {
@@ -25,32 +29,32 @@ function fmtMoneyCompact(n: number): string {
  * que /choferes/ranking, para que los números coincidan). Cada card lleva al
  * desglose por chofer.
  */
-export default function ResumenMes({ ranking, periodoLabel }: Props) {
-  const activos = ranking.filter((r) => r.viajes_count > 0);
-  const viajesMes = activos.reduce((s, r) => s + r.viajes_count, 0);
-  const kmMes = activos.reduce((s, r) => s + r.km_total, 0);
-  const kmVaciosMes = activos.reduce((s, r) => s + r.km_vacios, 0);
-  const facturacionMes = activos.reduce((s, r) => s + r.facturacion_total, 0);
+export default function ResumenMes({ totales, periodoLabel, periodoSelector }: Props) {
+  const viajesMes = totales.viajes;
+  const kmMes = totales.kmConCarga + totales.kmVacios;
+  const kmVaciosMes = totales.kmVacios;
+  const facturacionMes = totales.facturacion;
+  const choferesConActividad = totales.choferesActivos;
   const pctVacios = kmMes > 0 ? (kmVaciosMes / kmMes) * 100 : 0;
   const pesosPorKm = kmMes > 0 && facturacionMes > 0 ? facturacionMes / kmMes : 0;
 
   const cards = [
     {
-      label: "Viajes del mes",
+      label: "Viajes del período",
       value: fmtNum(viajesMes),
-      sub: `${activos.length} chofer${activos.length === 1 ? "" : "es"} con actividad`,
+      sub: `${choferesConActividad} chofer${choferesConActividad === 1 ? "" : "es"} con actividad`,
       icon: Briefcase,
       accent: "brand" as const,
     },
     {
-      label: "Km del mes",
+      label: "Km del período",
       value: `${fmtNum(kmMes)} km`,
       sub: kmMes > 0 ? `${pctVacios.toFixed(0)}% vacíos` : "Sin recorridos",
       icon: Route,
       accent: "warning" as const,
     },
     {
-      label: "Facturación del mes",
+      label: "Facturación del período",
       value: fmtMoneyCompact(facturacionMes),
       sub: pesosPorKm > 0 ? `${fmtMoneyCompact(pesosPorKm)}/km` : "Sin facturación cargada",
       icon: DollarSign,
@@ -60,19 +64,20 @@ export default function ResumenMes({ ranking, periodoLabel }: Props) {
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="inline-block w-1 h-4 rounded-full bg-primary" />
-          <h2 className="text-sm font-bold text-foreground">
-            Mes en curso · {periodoLabel}
-          </h2>
+          <h2 className="text-sm font-bold text-foreground">{periodoLabel}</h2>
         </div>
-        <Link
-          href="/choferes/ranking"
-          className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
-        >
-          Ver por chofer →
-        </Link>
+        <div className="flex items-center gap-3 flex-wrap">
+          {periodoSelector}
+          <Link
+            href="/choferes/ranking"
+            className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
+          >
+            Ver por chofer →
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

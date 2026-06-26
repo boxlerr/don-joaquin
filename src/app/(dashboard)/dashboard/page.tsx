@@ -21,13 +21,19 @@ import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 import TopBottomChoferes from "./components/TopBottomChoferes";
 import ResumenMes from "./components/ResumenMes";
-import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
+import { computeRanking, computeTotalesPeriodo, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
+import PeriodoSelector from "@/app/(dashboard)/choferes/ranking/PeriodoSelector";
 import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 import DashboardHelpButton from "./DashboardHelpButton";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
+}) {
   const supabase = createAdminClient();
-  const rangoMes = resolverRango({});
+  const sp = await searchParams;
+  const rangoMes = resolverRango(sp);
 
   const [
     viajesActivos,
@@ -42,6 +48,7 @@ export default async function DashboardPage() {
     viajesResult,
     premioMes,
     ranking,
+    totalesPeriodo,
     tiposDocRes,
     camionDocsRes,
     choferDocsRes,
@@ -75,6 +82,7 @@ export default async function DashboardPage() {
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
     computeRanking(rangoMes),
+    computeTotalesPeriodo(rangoMes.desde, rangoMes.hasta),
     supabase
       .from("tipos_documento")
       .select("id, dias_alerta_vencimiento")
@@ -198,7 +206,18 @@ export default async function DashboardPage() {
         action={<DashboardHelpButton />}
       />
 
-      <ResumenMes ranking={ranking} periodoLabel={rangoMes.label} />
+      <ResumenMes
+        totales={totalesPeriodo}
+        periodoLabel={rangoMes.label}
+        periodoSelector={
+          <PeriodoSelector
+            rangoActual={rangoMes.rango}
+            desdeActual={rangoMes.desde}
+            hastaActual={rangoMes.hasta}
+            incluirTotal
+          />
+        }
+      />
 
       <div className="grid grid-cols-4 gap-4">
         <StatCard
@@ -208,7 +227,7 @@ export default async function DashboardPage() {
           color="brand"
           icon={Briefcase}
           variant="dashboard"
-          href="/viajes"
+          href="/viajes?filtro=pendiente"
         />
         <StatCard
           label="Movimientos de caja"

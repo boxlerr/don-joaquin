@@ -99,6 +99,73 @@ export async function getRankingCriterios(): Promise<RankingCriterios> {
   return criterios;
 }
 
+type ViajeMetricaRow = {
+  chofer_id: string | null;
+  km_con_carga: number | null;
+  km_vacios: number | null;
+  monto_flete: number | null;
+  moneda: string | null;
+  tipo_cambio: number | null;
+};
+
+/**
+ * Trae TODOS los viajes para métricas, paginando de a 1000 (PostgREST corta la
+ * respuesta en 1000 filas). Sin paginar, los períodos largos quedaban truncados
+ * y daban totales incoherentes (ej. "Total" < "3 meses").
+ */
+async function fetchViajesMetricas(
+  supabase: ReturnType<typeof createAdminClient>,
+  opts: { desde: string; hasta: string; conChofer?: boolean; excluirCancelados?: boolean },
+): Promise<ViajeMetricaRow[]> {
+  const PAGE = 1000;
+  const rows: ViajeMetricaRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase
+      .from("viajes")
+      .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio")
+      .gte("fecha_viaje", opts.desde)
+      .lte("fecha_viaje", opts.hasta);
+    if (opts.conChofer) q = q.not("chofer_id", "is", null);
+    if (opts.excluirCancelados) q = q.neq("estado", "cancelado");
+    const { data } = await q.order("id").range(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    rows.push(...(data as ViajeMetricaRow[]));
+    if (data.length < PAGE) break;
+  }
+  return rows;
+}
+
+export type TotalesPeriodo = {
+  viajes: number;
+  choferesActivos: number;
+  kmConCarga: number;
+  kmVacios: number;
+  facturacion: number;
+};
+
+/**
+ * Totales del período sobre TODOS los viajes no cancelados — misma definición que
+ * el "Total viajes" de la página de Viajes, para que el dashboard coincida con esa
+ * vista. A diferencia del ranking (solo choferes propios activos), acá entran
+ * también egresados, fleteros y viajes sin chofer asignado.
+ */
+export async function computeTotalesPeriodo(desde: string, hasta: string): Promise<TotalesPeriodo> {
+  const supabase = createAdminClient();
+  const rows = await fetchViajesMetricas(supabase, { desde, hasta, excluirCancelados: true });
+  let kmConCarga = 0;
+  let kmVacios = 0;
+  let facturacion = 0;
+  const choferes = new Set<string>();
+  for (const v of rows) {
+    kmConCarga += v.km_con_carga ?? 0;
+    kmVacios += v.km_vacios ?? 0;
+    const m = v.monto_flete ?? 0;
+    if (m) facturacion += v.moneda && v.moneda !== "ARS" && v.tipo_cambio ? m * v.tipo_cambio : m;
+    if (v.chofer_id) choferes.add(v.chofer_id);
+  }
+  return { viajes: rows.length, choferesActivos: choferes.size, kmConCarga, kmVacios, facturacion };
+}
+
 export async function computeRanking({
   desde,
   hasta,
@@ -131,12 +198,10 @@ export async function computeRanking({
       .or("rol.is.null,rol.neq.fletero")
       .order("apellido"),
 
-    supabase
-      .from("viajes")
-      .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio")
-      .gte("fecha_viaje", desde)
-      .lte("fecha_viaje", hasta)
-      .not("chofer_id", "is", null),
+    // Paginado (PostgREST corta en 1000) para no truncar períodos largos.
+    (async () => ({
+      data: await fetchViajesMetricas(supabase, { desde, hasta, conChofer: true }),
+    }))(),
 
     supabase
       .from("chofer_apercibimientos")
@@ -404,7 +469,7 @@ export async function computeScoreChofer(
   return { score, desglose, viajes_count: viajes.length };
 }
 
-export type RangoKey = "1m" | "3m" | "1y" | "custom";
+export type RangoKey = "1m" | "3m" | "1y" | "total" | "custom";
 
 export type RangoResuelto = {
   rango: RangoKey;
@@ -486,6 +551,16 @@ export function resolverRango(params: {
       desde: toISO(desde),
       hasta: toISO(finMesActual),
       label: `Último año · ${formatMes(desde)} – ${formatMes(finMesActual)}`,
+    };
+  }
+
+  if (rango === "total") {
+    // Histórico completo: rango amplio que abarca todos los viajes cargados.
+    return {
+      rango: "total",
+      desde: "1900-01-01",
+      hasta: "2999-12-31",
+      label: "Histórico completo",
     };
   }
 

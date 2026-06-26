@@ -9,6 +9,8 @@ interface Props {
   rangoActual: RangoKey;
   desdeActual: string;
   hastaActual: string;
+  /** Agrega el chip "Total" (histórico completo). */
+  incluirTotal?: boolean;
 }
 
 const CHIPS: Array<{ key: RangoKey; label: string }> = [
@@ -21,6 +23,7 @@ export default function PeriodoSelector({
   rangoActual,
   desdeActual,
   hastaActual,
+  incluirTotal,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,10 +73,13 @@ export default function PeriodoSelector({
 
   const customActivo = rangoActual === "custom";
   const customInvalido = !desde || !hasta || desde > hasta;
+  const chips = incluirTotal
+    ? [...CHIPS, { key: "total" as RangoKey, label: "Total" }]
+    : CHIPS;
 
   return (
     <div className="flex items-center gap-1.5">
-      {CHIPS.map((chip) => {
+      {chips.map((chip) => {
         const activo = rangoActual === chip.key;
         return (
           <button
