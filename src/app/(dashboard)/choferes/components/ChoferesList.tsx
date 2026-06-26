@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
 type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
-type RolFilter = "chofer" | "administrativo" | "mantenimiento";
+type RolFilter = "chofer" | "administrativo" | "mantenimiento" | "fletero";
 type OrdenFilter = "apellido_az" | "apellido_za" | "antiguedad_asc" | "antiguedad_desc";
 
 const ORDEN_OPTIONS: { id: OrdenFilter; label: string }[] = [
@@ -29,11 +29,12 @@ const ROL_LABELS: Record<RolFilter, string> = {
   chofer: "Choferes",
   administrativo: "Administración",
   mantenimiento: "Mantenimiento",
+  fletero: "Fleteros",
 };
 
 const rolDe = (c: { rol?: unknown }): RolFilter => {
   const r = typeof c.rol === "string" ? c.rol : "chofer";
-  return r === "administrativo" || r === "mantenimiento" ? r : "chofer";
+  return r === "administrativo" || r === "mantenimiento" || r === "fletero" ? r : "chofer";
 };
 
 type Chofer = {
@@ -114,7 +115,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   }, [choferes, estadoFilter, rolFilter, query]);
 
   const conteoPorRol = useMemo(() => {
-    const acc: Record<RolFilter, number> = { chofer: 0, administrativo: 0, mantenimiento: 0 };
+    const acc: Record<RolFilter, number> = { chofer: 0, administrativo: 0, mantenimiento: 0, fletero: 0 };
     for (const c of choferes) acc[rolDe(c)]++;
     return acc;
   }, [choferes]);
@@ -149,7 +150,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-            {(["chofer", "administrativo", "mantenimiento"] as RolFilter[]).map((r) => (
+            {(["chofer", "administrativo", "mantenimiento", "fletero"] as RolFilter[]).map((r) => (
               <button
                 key={r}
                 type="button"

@@ -231,8 +231,18 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <StatusBadge label={estadoLabel} tone={estadoTone} />
                 {chofer.rol && chofer.rol !== "chofer" && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200">
-                    {chofer.rol === "administrativo" ? "Administración" : "Mantenimiento"}
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border ${
+                      chofer.rol === "fletero"
+                        ? "bg-amber-100 text-amber-700 border-amber-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {chofer.rol === "administrativo"
+                      ? "Administración"
+                      : chofer.rol === "fletero"
+                        ? "Fletero"
+                        : "Mantenimiento"}
                   </span>
                 )}
               </div>

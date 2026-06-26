@@ -43,7 +43,7 @@ export async function addChoferAction(data: {
   localidad?: string;
   fecha_ingreso?: string;
   estado: "activo" | "inactivo";
-  rol: "chofer" | "administrativo" | "mantenimiento";
+  rol: "chofer" | "administrativo" | "mantenimiento" | "fletero";
   alta_afip?: string;
   periodo_prueba_fin?: string;
 }) {

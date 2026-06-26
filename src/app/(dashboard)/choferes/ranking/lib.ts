@@ -127,6 +127,8 @@ export async function computeRanking({
       .from("choferes")
       .select("id, nombre, apellido, localidad")
       .eq("estado", "activo")
+      // Los fleteros tercerizados no entran al ranking de choferes propios
+      .or("rol.is.null,rol.neq.fletero")
       .order("apellido"),
 
     supabase

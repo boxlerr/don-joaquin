@@ -69,6 +69,7 @@ const ROLES = [
   { value: "chofer", label: "Chofer" },
   { value: "administrativo", label: "Administrativo" },
   { value: "mantenimiento", label: "Mantenimiento" },
+  { value: "fletero", label: "Fletero (tercerizado)" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -127,7 +128,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
   const [dni, setDni] = useState("");
   const [cuil, setCuil] = useState("");
   const [estado, setEstado] = useState<"activo" | "inactivo">("activo");
-  const [rol, setRol] = useState<"chofer" | "administrativo" | "mantenimiento">("chofer");
+  const [rol, setRol] = useState<"chofer" | "administrativo" | "mantenimiento" | "fletero">("chofer");
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [localidad, setLocalidad] = useState("");
@@ -356,7 +357,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
                   <Combobox
                     name="rol"
                     value={rol}
-                    onValueChange={(v) => setRol(v as "chofer" | "administrativo" | "mantenimiento")}
+                    onValueChange={(v) => setRol(v as "chofer" | "administrativo" | "mantenimiento" | "fletero")}
                     options={ROLES.map((r) => ({ id: r.value, label: r.label }))}
                     searchable={false}
                     triggerClassName={`${FIELD_COMBO_TRIGGER} font-medium`}

@@ -31,6 +31,7 @@ interface Props {
   choferesCount: number;
   administrativoCount: number;
   mantenimientoCount: number;
+  fleteroCount: number;
   totalDocs: number;
   vencidosCount: number;
   porVencerCount: number;
@@ -45,6 +46,7 @@ export default function ChoferesStats({
   choferesCount,
   administrativoCount,
   mantenimientoCount,
+  fleteroCount,
   totalDocs,
   vencidosCount,
   porVencerCount,
@@ -72,7 +74,7 @@ export default function ChoferesStats({
   return (
     <>
       {/* Fila 1 — desglose de personal por rol */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-3">
         <StatCard
           label="Total personal"
           value={String(total)}
@@ -96,6 +98,12 @@ export default function ChoferesStats({
           value={String(mantenimientoCount)}
           sub="Rol: mantenimiento"
           color="warning"
+        />
+        <StatCard
+          label="Fleteros"
+          value={String(fleteroCount)}
+          sub="Tercerizados"
+          color="brand"
         />
       </div>
 

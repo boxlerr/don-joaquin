@@ -80,6 +80,7 @@ export default async function ChoferesPage({
   const choferesCount = personal.filter((c) => rolDe(c) === "chofer").length;
   const administrativoCount = personal.filter((c) => rolDe(c) === "administrativo").length;
   const mantenimientoCount = personal.filter((c) => rolDe(c) === "mantenimiento").length;
+  const fleteroCount = personal.filter((c) => rolDe(c) === "fletero").length;
   const totalPersonalActivo = personal.length;
 
   // Distribución por localidad (excluye baja, agrupa y ordena desc)
@@ -136,6 +137,7 @@ export default async function ChoferesPage({
         choferesCount={choferesCount}
         administrativoCount={administrativoCount}
         mantenimientoCount={mantenimientoCount}
+        fleteroCount={fleteroCount}
         totalDocs={docs.count ?? 0}
         vencidosCount={vencidosDocs?.length ?? 0}
         porVencerCount={porVencerDocs?.length ?? 0}
