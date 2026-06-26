@@ -27,9 +27,20 @@ export type ComboboxOption = {
   hint?: string;
   /** Alias de `hint` (compatibilidad con la data del server). */
   motivo?: string;
+  /** Puntito de estado a la izquierda: verde (free) / ámbar (busy). */
+  tone?: "free" | "busy";
+  /** Nota corta a la derecha de la opción (ej. quién la ocupa). */
+  note?: string;
 };
 
-type Item = { value: string; label: string; disabled?: boolean; hint?: string };
+type Item = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  hint?: string;
+  tone?: "free" | "busy";
+  note?: string;
+};
 
 export interface ComboboxProps {
   options: ComboboxOption[];
@@ -82,6 +93,8 @@ export function Combobox({
         label: o.label,
         disabled: o.disabled,
         hint: o.hint ?? o.motivo,
+        tone: o.tone,
+        note: o.note,
       })),
     [options],
   );
@@ -195,7 +208,21 @@ export function Combobox({
                     "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
                   )}
                 >
+                  {item.tone && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        item.tone === "busy" ? "bg-amber-500" : "bg-emerald-500",
+                      )}
+                    />
+                  )}
                   <span className="flex-1 truncate">{item.label}</span>
+                  {item.note && (
+                    <span className="shrink-0 max-w-[48%] truncate text-[10px] font-medium text-amber-600">
+                      {item.note}
+                    </span>
+                  )}
                   <ComboboxPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
                     <Check className="size-4 text-primary" />
                   </ComboboxPrimitive.ItemIndicator>

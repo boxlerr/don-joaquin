@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Combobox } from "@/components/ui/combobox";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
   CheckCircle2,
   Loader2,
@@ -52,10 +52,32 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const [copiando, startCopiar] = useTransition();
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
 
-  const camionOptions = useMemo(
-    () => data.camiones.map((c) => ({ id: c.id, label: c.label })),
-    [data.camiones],
-  );
+  // Qué chofer(es) tienen cada camión hoy — para marcar ocupado/libre en el selector.
+  const ocupadoPor = useMemo(() => {
+    const m = new Map<string, { id: string; label: string }[]>();
+    for (const f of filas) {
+      if (!f.camion_id) continue;
+      const arr = m.get(f.camion_id) ?? [];
+      arr.push({ id: f.chofer_id, label: f.apellido });
+      m.set(f.camion_id, arr);
+    }
+    return m;
+  }, [filas]);
+
+  // Opciones del selector de UNA fila: verde = libre · ámbar = ocupado por otro
+  // chofer ese día (mostrando su apellido).
+  const opcionesCamion = (f: Fila): ComboboxOption[] =>
+    data.camiones.map((c) => {
+      const otros = (ocupadoPor.get(c.id) ?? []).filter((o) => o.id !== f.chofer_id);
+      return otros.length
+        ? {
+            id: c.id,
+            label: c.label,
+            tone: "busy" as const,
+            note: otros.map((o) => o.label).join(", "),
+          }
+        : { id: c.id, label: c.label, tone: "free" as const };
+    });
 
   // Detección de camión repetido en el mismo día.
   const camionesDuplicados = useMemo(() => {
@@ -176,9 +198,16 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground/80 self-center ml-auto">
-          {asignados} de {filas.length} choferes con camión
-        </p>
+        <div className="self-center ml-auto flex items-center gap-3 text-xs text-muted-foreground/80">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-emerald-500" /> libre
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-amber-500" /> ocupado
+          </span>
+          <span className="text-muted-foreground/50">·</span>
+          <span>{asignados} de {filas.length} choferes con camión</span>
+        </div>
       </div>
 
       {/* Grilla */}
@@ -219,12 +248,12 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                         <Combobox
                           value={f.camion_id}
                           onValueChange={(v) => setCamion(f.chofer_id, v)}
-                          options={camionOptions}
+                          options={opcionesCamion(f)}
                           placeholder="— Sin asignar —"
                           searchPlaceholder="Buscar patente..."
                           clearable
                           invalid={duplicado}
-                          triggerClassName="h-8 w-40 text-xs"
+                          triggerClassName="h-8 w-48 text-xs"
                         />
                         {esHabitual && !duplicado && (
                           <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide">
