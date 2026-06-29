@@ -922,6 +922,7 @@ export default function CamionDetailSheet({
                                   estacion: g.estacion,
                                   chofer_id: g.chofer_id,
                                   observaciones: g.observaciones,
+                                  lugar_carga: g.lugar_carga,
                                 },
                               })
                             }

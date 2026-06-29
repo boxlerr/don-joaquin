@@ -239,13 +239,24 @@ export default function CargasTable({
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground font-medium">
-                  {c.estacion ? (
-                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200/40">
-                      {c.estacion}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground/40 font-normal">—</span>
-                  )}
+                  <div className="flex flex-col gap-1 items-start">
+                    {c.estacion ? (
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200/40">
+                        {c.estacion}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/40 font-normal">—</span>
+                    )}
+                    {c.lugar_carga === "en_ruta" ? (
+                      <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-200/50">
+                        En ruta
+                      </span>
+                    ) : c.lugar_carga === "propia" ? (
+                      <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-200/50">
+                        Propia
+                      </span>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground font-mono font-medium">
                   {formatNum(c.km_odometro)} <span className="text-[10px] text-muted-foreground/60 font-semibold font-sans">km</span>

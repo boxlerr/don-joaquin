@@ -797,10 +797,12 @@ export type Database = {
           importe_total: number
           km_odometro: number
           litros: number
+          lugar_carga: string | null
           moneda: string
           observaciones: string | null
           origen: Database["public"]["Enums"]["carga_combustible_origen"]
           precio_litro: number | null
+          remito: string | null
         }
         Insert: {
           camion_id: string
@@ -814,10 +816,12 @@ export type Database = {
           importe_total: number
           km_odometro: number
           litros: number
+          lugar_carga?: string | null
           moneda?: string
           observaciones?: string | null
           origen: Database["public"]["Enums"]["carga_combustible_origen"]
           precio_litro?: number | null
+          remito?: string | null
         }
         Update: {
           camion_id?: string
@@ -831,10 +835,12 @@ export type Database = {
           importe_total?: number
           km_odometro?: number
           litros?: number
+          lugar_carga?: string | null
           moneda?: string
           observaciones?: string | null
           origen?: Database["public"]["Enums"]["carga_combustible_origen"]
           precio_litro?: number | null
+          remito?: string | null
         }
         Relationships: [
           {

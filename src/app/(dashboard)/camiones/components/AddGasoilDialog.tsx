@@ -32,6 +32,7 @@ export type GasoilEditing = {
   chofer_id?: string | null;
   estacion?: string | null;
   observaciones?: string | null;
+  lugar_carga?: string | null;
 };
 
 type ChoferOption = { id: string; nombre: string; apellido: string; disabled?: boolean; motivo?: string };
@@ -52,7 +53,7 @@ export default function AddGasoilDialog({
   onSaved,
 }: {
   children?: React.ReactNode;
-  camiones: Camion[];
+  camiones: (Camion & { chofer_actual_id?: string | null })[];
   defaultCamionId?: string;
   editing?: GasoilEditing | null;
   open?: boolean;
@@ -76,6 +77,7 @@ export default function AddGasoilDialog({
   const [importe, setImporte] = useState("");
   const [estacion, setEstacion] = useState("");
   const [tipo, setTipo] = useState("grado_2");
+  const [lugarCarga, setLugarCarga] = useState("propia");
   const [errors, setErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export default function AddGasoilDialog({
       setImporte(String(editing.importe_total));
       setEstacion(editing.estacion ?? "");
       setTipo(editing.observaciones?.includes("Grado 3") ? "grado_3" : "grado_2");
+      setLugarCarga(editing.lugar_carga ?? "propia");
     } else {
       setCamionId(defaultCamionId ?? "");
       setChoferId("");
@@ -100,6 +103,7 @@ export default function AddGasoilDialog({
       setImporte("");
       setEstacion("");
       setTipo("grado_2");
+      setLugarCarga("propia");
       if (defaultCamionId) {
         getUltimoKmCamionAction(defaultCamionId).then((ultimo) => {
           if (ultimo != null) setKmPlaceholder(`Último: ${ultimo.toLocaleString("es-AR")} KM`);
@@ -142,6 +146,7 @@ export default function AddGasoilDialog({
         importe_total: parseFloat(importe),
         chofer_id: choferId || null,
         estacion,
+        lugar_carga: lugarCarga,
         observaciones: `Tipo de combustible: ${tipo === "grado_2" ? "Grado 2" : "Grado 3"}`,
       };
 
@@ -185,9 +190,26 @@ export default function AddGasoilDialog({
           {!editing && (
             <div className="space-y-2">
               <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
-              <Select value={camionId} onValueChange={(v) => setCamionId(v ?? "")}>
+              <Select
+                value={camionId}
+                onValueChange={(v) => {
+                  const id = (v as string) ?? "";
+                  setCamionId(id);
+                  // Autocompletar el chofer habitual del camión (planilla diaria),
+                  // solo si está activo y disponible en la lista.
+                  const cam = camiones.find((c) => c.id === id);
+                  if (cam?.chofer_actual_id && choferes.some((ch) => ch.id === cam.chofer_actual_id)) {
+                    setChoferId(cam.chofer_actual_id);
+                  }
+                }}
+              >
                 <SelectTrigger id="camion" className="w-full">
-                  <SelectValue placeholder="Seleccionar camión..." />
+                  <SelectValue placeholder="Seleccionar camión...">
+                    {(value: unknown) => {
+                      const c = camiones.find((x) => x.id === value);
+                      return c ? `${c.patente} - ${c.marca} ${c.modelo}` : null;
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {camiones.map((c) => (
@@ -206,7 +228,13 @@ export default function AddGasoilDialog({
             </Label>
             <Select value={choferId || "__none__"} onValueChange={(v) => setChoferId(v === "__none__" ? "" : (v ?? ""))}>
               <SelectTrigger id="chofer" className="w-full">
-                <SelectValue placeholder="Sin asignar" />
+                <SelectValue placeholder="Sin asignar">
+                  {(value: unknown) => {
+                    if (!value || value === "__none__") return "Sin asignar";
+                    const c = choferes.find((x) => x.id === value);
+                    return c ? `${c.apellido}, ${c.nombre}` : null;
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Sin asignar</SelectItem>
@@ -284,7 +312,11 @@ export default function AddGasoilDialog({
               <Label htmlFor="tipo" className="text-sm font-medium text-foreground">Tipo de combustible</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "grado_2")}>
                 <SelectTrigger id="tipo" className="w-full">
-                  <SelectValue placeholder="Seleccionar..." />
+                  <SelectValue placeholder="Seleccionar...">
+                    {(value: unknown) =>
+                      value === "grado_3" ? "Gasoil Grado 3 (Premium)" : "Gasoil Grado 2 (Común)"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="grado_2">Gasoil Grado 2 (Común)</SelectItem>
@@ -293,14 +325,29 @@ export default function AddGasoilDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="estacion" className="text-sm font-medium text-foreground">Estación de Servicio</Label>
-              <Input
-                id="estacion"
-                placeholder="Ej: YPF Arrecifes"
-                value={estacion}
-                onChange={(e) => setEstacion(e.target.value)}
-              />
+              <Label htmlFor="lugar" className="text-sm font-medium text-foreground">Tipo de carga</Label>
+              <Select value={lugarCarga} onValueChange={(v) => setLugarCarga((v as string) ?? "propia")}>
+                <SelectTrigger id="lugar" className="w-full">
+                  <SelectValue placeholder="Seleccionar...">
+                    {(value: unknown) => (value === "en_ruta" ? "En ruta (YPF)" : "Estación propia")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="propia">Estación propia</SelectItem>
+                  <SelectItem value="en_ruta">En ruta (YPF)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="estacion" className="text-sm font-medium text-foreground">Estación de Servicio</Label>
+            <Input
+              id="estacion"
+              placeholder={lugarCarga === "en_ruta" ? "Ej: YPF Ruta 8 km 213" : "Ej: Estación Don Joaquín"}
+              value={estacion}
+              onChange={(e) => setEstacion(e.target.value)}
+            />
           </div>
 
           <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">

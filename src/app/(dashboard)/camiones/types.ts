@@ -57,7 +57,7 @@ export type ServiceRecord = Pick<
 
 export type GasoilRecord = Pick<
   Database["public"]["Tables"]["cargas_combustible"]["Row"],
-  "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion" | "chofer_id" | "observaciones"
+  "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion" | "chofer_id" | "observaciones" | "lugar_carga"
 >;
 
 export type PaginatedResult<T> = {

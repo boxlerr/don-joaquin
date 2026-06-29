@@ -10,7 +10,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { Fuel, Trophy, Gauge, DollarSign, TrendingDown } from "lucide-react";
+import { Fuel, Trophy, Gauge, DollarSign, TrendingDown, Upload } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import AddGasoilDialog from "../camiones/components/AddGasoilDialog";
@@ -23,6 +23,8 @@ import {
 } from "./actions";
 import CargasTable from "./components/CargasTable";
 import MesSelector from "./components/MesSelector";
+import ExportCombustibleButton from "./components/ExportCombustibleButton";
+import ImportYpfModal from "./components/ImportYpfModal";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -61,7 +63,7 @@ export default async function CombustiblePage({
     supabase
       .from("camiones")
       .select(
-        "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual"
+        "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, estado, tercerizacion_estado, es_tolva, km_actual, chofer_actual_id"
       )
       .eq("estado", "activo")
       .order("patente"),
@@ -106,6 +108,15 @@ export default async function CombustiblePage({
         action={
           <div className="flex items-center gap-2.5">
             <MesSelector currentMonth={month} />
+            <ExportCombustibleButton month={month} />
+            {canWrite && (
+              <ImportYpfModal>
+                <Button variant="outline" size="sm">
+                  <Upload size={14} />
+                  Importar YPF
+                </Button>
+              </ImportYpfModal>
+            )}
             <HelpTutorialButton />
             {canWrite && (
               <AddGasoilDialog camiones={camiones ?? []}>

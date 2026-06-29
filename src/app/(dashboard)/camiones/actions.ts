@@ -357,6 +357,7 @@ export async function addGasoilAction(data: {
   importe_total: number;
   estacion?: string;
   observaciones?: string;
+  lugar_carga?: string | null;
 }) {
   const user = await requireArea("combustible", "write");
 
@@ -371,6 +372,7 @@ export async function addGasoilAction(data: {
     importe_total: data.importe_total,
     estacion: data.estacion,
     observaciones: data.observaciones,
+    lugar_carga: data.lugar_carga ?? null,
     moneda: "ARS",
     origen: "estacion_servicio",
     created_by: user.id,
@@ -826,6 +828,7 @@ export async function updateGasoilAction(id: string, data: {
   chofer_id?: string | null;
   estacion?: string;
   observaciones?: string;
+  lugar_carga?: string | null;
 }) {
   await requireArea("combustible", "write");
 
@@ -840,6 +843,7 @@ export async function updateGasoilAction(id: string, data: {
       chofer_id: data.chofer_id ?? null,
       estacion: data.estacion,
       observaciones: data.observaciones,
+      lugar_carga: data.lugar_carga ?? null,
     })
     .eq("id", id);
   if (error) return { error: "No se pudo actualizar la carga de combustible." };
@@ -873,7 +877,7 @@ export async function getGasoilHistoryAction(camionId: string, page = 0) {
 
   const { data, count } = await supabase
     .from("cargas_combustible")
-    .select("id, fecha, litros, km_odometro, importe_total, estacion, chofer_id, observaciones", { count: "exact" })
+    .select("id, fecha, litros, km_odometro, importe_total, estacion, chofer_id, observaciones, lugar_carga", { count: "exact" })
     .eq("camion_id", camionId)
     .order("fecha", { ascending: false })
     .range(from, to);

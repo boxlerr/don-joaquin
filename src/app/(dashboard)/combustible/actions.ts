@@ -255,6 +255,7 @@ export type CargaRowUI = {
   km_odometro: number;
   importe_total: number;
   estacion: string | null;
+  lugar_carga: string | null;
 };
 
 export type GetCargasParams = {
@@ -276,7 +277,7 @@ export async function getCargasAction(
   let query = supabase
     .from("cargas_combustible")
     .select(
-      "id, fecha, litros, km_odometro, importe_total, estacion, chofer_id, camion_id",
+      "id, fecha, litros, km_odometro, importe_total, estacion, lugar_carga, chofer_id, camion_id",
       { count: "exact" }
     );
 
@@ -319,10 +320,10 @@ export async function getCargasAction(
   query = query.range(from, to);
 
   const { data, count } = await query;
-  const rows = (data ?? []) as Pick<
+  const rows = (data ?? []) as (Pick<
     CargaRow,
     "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion" | "chofer_id" | "camion_id"
-  >[];
+  > & { lugar_carga: string | null })[];
 
   const choferIds = [...new Set(rows.map((r) => r.chofer_id).filter(Boolean) as string[])];
   const camionIds = [...new Set(rows.map((r) => r.camion_id))];
@@ -341,6 +342,7 @@ export async function getCargasAction(
       km_odometro: r.km_odometro,
       importe_total: Number(r.importe_total),
       estacion: r.estacion,
+      lugar_carga: r.lugar_carga,
     };
   });
 
@@ -349,4 +351,65 @@ export async function getCargasAction(
     hasMore: (count ?? 0) > (page + 1) * PAGE_SIZE,
     count: count ?? 0,
   };
+}
+
+// ============================================================================
+// Exportar cargas del período a Excel
+// ============================================================================
+
+export type CargaExport = {
+  fecha: string;
+  patente: string;
+  marca_modelo: string;
+  chofer: string;
+  estacion: string;
+  lugar_carga: string;
+  tipo: string;
+  km_odometro: number;
+  litros: number;
+  importe_total: number;
+};
+
+function labelLugarCarga(v: string | null): string {
+  if (v === "en_ruta") return "En ruta (YPF)";
+  if (v === "propia") return "Estación propia";
+  return "";
+}
+
+export async function getCargasParaExportAction(month?: string): Promise<CargaExport[]> {
+  const supabase = createAdminClient();
+
+  let query = supabase
+    .from("cargas_combustible")
+    .select("id, fecha, litros, km_odometro, importe_total, estacion, observaciones, lugar_carga, chofer_id, camion_id")
+    .order("fecha", { ascending: false });
+
+  if (month) {
+    const { desde, hasta } = getRangoMes(month);
+    query = query.gte("fecha", desde).lte("fecha", hasta);
+  }
+
+  const { data } = await query;
+  const rows = (data ?? []) as (CargaRow & { lugar_carga: string | null })[];
+
+  const choferIds = [...new Set(rows.map((r) => r.chofer_id).filter(Boolean) as string[])];
+  const camionIds = [...new Set(rows.map((r) => r.camion_id))];
+  const { choferes, camiones } = await fetchMaps(supabase, choferIds, camionIds);
+
+  return rows.map((r) => {
+    const camion = camiones.get(r.camion_id);
+    const chofer = r.chofer_id ? choferes.get(r.chofer_id) : null;
+    return {
+      fecha: r.fecha,
+      patente: camion?.patente ?? "—",
+      marca_modelo: camion ? [camion.marca, camion.modelo].filter(Boolean).join(" ") : "",
+      chofer: chofer ? `${chofer.apellido}, ${chofer.nombre}` : "Sin asignar",
+      estacion: r.estacion ?? "",
+      lugar_carga: labelLugarCarga(r.lugar_carga),
+      tipo: r.observaciones?.includes("Grado 3") ? "Grado 3 (Premium)" : "Grado 2 (Común)",
+      km_odometro: r.km_odometro,
+      litros: Number(r.litros),
+      importe_total: Number(r.importe_total),
+    };
+  });
 }
