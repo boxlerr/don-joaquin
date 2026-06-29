@@ -80,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Ranking", href: "/choferes/ranking" },
           { label: "Rotación", href: "/choferes/rotacion" },
           { label: "Vacaciones", href: "/choferes/vacaciones" },
+          { label: "Sueldos", href: "/choferes/sueldos", area: "rrhh" },
         ],
       },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
