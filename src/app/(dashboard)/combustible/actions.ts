@@ -25,6 +25,36 @@ function primerDiaDelMes(): string {
   return new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split("T")[0];
 }
 
+function formatDateYYYYMMDD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const r = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${r}`;
+}
+
+function getRangoMes(monthStr?: string): { desde: string; hasta: string } {
+  let year: number;
+  let month: number;
+
+  if (monthStr && /^\d{4}-\d{2}$/.test(monthStr)) {
+    const parts = monthStr.split("-");
+    year = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1; // 0-indexed
+  } else {
+    const hoy = new Date();
+    year = hoy.getFullYear();
+    month = hoy.getMonth();
+  }
+
+  const desde = new Date(year, month, 1);
+  const hasta = new Date(year, month + 1, 0); // último día del mes
+
+  return {
+    desde: formatDateYYYYMMDD(desde),
+    hasta: formatDateYYYYMMDD(hasta),
+  };
+}
+
 async function fetchMaps(
   supabase: ReturnType<typeof createAdminClient>,
   choferIds: string[],
@@ -62,14 +92,15 @@ export type StatsMes = {
   cargasConChofer: number;
 };
 
-export async function getStatsMesAction(): Promise<StatsMes> {
+export async function getStatsMesAction(month?: string): Promise<StatsMes> {
   const supabase = createAdminClient();
-  const desde = primerDiaDelMes();
+  const { desde, hasta } = getRangoMes(month);
 
   const { data } = await supabase
     .from("cargas_combustible")
     .select("id, fecha, litros, km_odometro, importe_total, camion_id, chofer_id")
     .gte("fecha", desde)
+    .lte("fecha", hasta)
     .order("fecha", { ascending: true });
 
   const cargas = (data ?? []) as Pick<
@@ -113,14 +144,15 @@ export type RankingEntry = {
   importe_total: number;
 };
 
-export async function getRankingEficienciaMesAction(): Promise<RankingEntry[]> {
+export async function getRankingEficienciaMesAction(month?: string): Promise<RankingEntry[]> {
   const supabase = createAdminClient();
-  const desde = primerDiaDelMes();
+  const { desde, hasta } = getRangoMes(month);
 
   const { data } = await supabase
     .from("cargas_combustible")
     .select("id, fecha, litros, km_odometro, importe_total, camion_id, chofer_id")
     .gte("fecha", desde)
+    .lte("fecha", hasta)
     .not("chofer_id", "is", null)
     .order("fecha", { ascending: true });
 
@@ -195,8 +227,8 @@ export type PremioMes = {
 
 const MIN_CARGAS_PARA_PREMIO = 2;
 
-export async function getPremioDelMesAction(): Promise<PremioMes> {
-  const ranking = await getRankingEficienciaMesAction();
+export async function getPremioDelMesAction(month?: string): Promise<PremioMes> {
+  const ranking = await getRankingEficienciaMesAction(month);
   const elegibles = ranking.filter((r) => r.cargas >= MIN_CARGAS_PARA_PREMIO);
   if (elegibles.length === 0) return null;
   const ganador = elegibles[0];
@@ -229,12 +261,14 @@ export type GetCargasParams = {
   page?: number;
   choferId?: string;
   camionId?: string;
+  sortBy?: string;
+  month?: string;
 };
 
 export async function getCargasAction(
   params: GetCargasParams = {}
 ): Promise<{ data: CargaRowUI[]; hasMore: boolean; count: number }> {
-  const { page = 0, choferId, camionId } = params;
+  const { page = 0, choferId, camionId, sortBy = "fecha_desc", month } = params;
   const supabase = createAdminClient();
   const from = page * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -244,12 +278,45 @@ export async function getCargasAction(
     .select(
       "id, fecha, litros, km_odometro, importe_total, estacion, chofer_id, camion_id",
       { count: "exact" }
-    )
-    .order("fecha", { ascending: false })
-    .range(from, to);
+    );
 
   if (choferId) query = query.eq("chofer_id", choferId);
   if (camionId) query = query.eq("camion_id", camionId);
+  if (month) {
+    const { desde, hasta } = getRangoMes(month);
+    query = query.gte("fecha", desde).lte("fecha", hasta);
+  }
+
+  // Aplicar ordenamiento dinámico
+  switch (sortBy) {
+    case "fecha_asc":
+      query = query.order("fecha", { ascending: true });
+      break;
+    case "litros_desc":
+      query = query.order("litros", { ascending: false });
+      break;
+    case "litros_asc":
+      query = query.order("litros", { ascending: true });
+      break;
+    case "importe_desc":
+      query = query.order("importe_total", { ascending: false });
+      break;
+    case "importe_asc":
+      query = query.order("importe_total", { ascending: true });
+      break;
+    case "km_desc":
+      query = query.order("km_odometro", { ascending: false });
+      break;
+    case "km_asc":
+      query = query.order("km_odometro", { ascending: true });
+      break;
+    case "fecha_desc":
+    default:
+      query = query.order("fecha", { ascending: false });
+      break;
+  }
+
+  query = query.range(from, to);
 
   const { data, count } = await query;
   const rows = (data ?? []) as Pick<

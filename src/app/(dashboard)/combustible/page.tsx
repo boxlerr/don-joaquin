@@ -21,6 +21,8 @@ import {
   getPremioDelMesAction,
   getCargasAction,
 } from "./actions";
+import CargasTable from "./components/CargasTable";
+import MesSelector from "./components/MesSelector";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -36,16 +38,26 @@ function formatNum(n: number, decimals = 0): string {
   });
 }
 
-export default async function CombustiblePage() {
+export default async function CombustiblePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; choferId?: string; sort?: string; month?: string }>;
+}) {
   const user = await requireArea("combustible", "read");
   const canWrite = hasArea(user, "combustible", "write");
   const supabase = createAdminClient();
 
-  const [stats, ranking, premio, cargas, { data: camiones }] = await Promise.all([
-    getStatsMesAction(),
-    getRankingEficienciaMesAction(),
-    getPremioDelMesAction(),
-    getCargasAction({ page: 0 }),
+  const resolvedParams = await searchParams;
+  const page = resolvedParams.page ? parseInt(resolvedParams.page, 10) : 0;
+  const choferId = resolvedParams.choferId || "";
+  const sort = resolvedParams.sort || "fecha_desc";
+  const month = resolvedParams.month || "";
+
+  const [stats, ranking, premio, cargas, { data: camiones }, { data: choferes }] = await Promise.all([
+    getStatsMesAction(month),
+    getRankingEficienciaMesAction(month),
+    getPremioDelMesAction(month),
+    getCargasAction({ page, choferId, sortBy: sort, month }),
     supabase
       .from("camiones")
       .select(
@@ -53,7 +65,36 @@ export default async function CombustiblePage() {
       )
       .eq("estado", "activo")
       .order("patente"),
+    supabase
+      .from("choferes")
+      .select("id, nombre, apellido")
+      .neq("estado", "baja")
+      .order("apellido"),
   ]);
+
+  let periodLabel = "del mes en curso";
+  if (month) {
+    const MONTH_NAMES = [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
+    ];
+    const [yStr, mStr] = month.split("-");
+    const mIdx = parseInt(mStr, 10) - 1;
+    const year = parseInt(yStr, 10);
+    if (mIdx >= 0 && mIdx < 12) {
+      periodLabel = `de ${MONTH_NAMES[mIdx]} ${year}`;
+    }
+  }
 
   const topRanking = ranking.slice(0, 10);
 
@@ -61,9 +102,10 @@ export default async function CombustiblePage() {
     <div className="p-8 space-y-6">
       <PageHeader
         title="Combustible & Gasoil"
-        description="Carga, eficiencia y ranking de choferes del mes en curso"
+        description={`Carga, eficiencia y ranking de choferes ${periodLabel}`}
         action={
           <div className="flex items-center gap-2.5">
+            <MesSelector currentMonth={month} />
             <HelpTutorialButton />
             {canWrite && (
               <AddGasoilDialog camiones={camiones ?? []}>
@@ -85,6 +127,7 @@ export default async function CombustiblePage() {
           sub={`${stats.cargasConChofer} con chofer asignado`}
           color="brand"
           icon={Fuel}
+          variant="dashboard"
         />
         <StatCard
           label="Litros totales"
@@ -92,6 +135,7 @@ export default async function CombustiblePage() {
           sub="Mes en curso"
           color="warning"
           icon={Gauge}
+          variant="dashboard"
         />
         <StatCard
           label="Importe total"
@@ -99,6 +143,7 @@ export default async function CombustiblePage() {
           sub="Mes en curso"
           color="error"
           icon={DollarSign}
+          variant="dashboard"
         />
         <StatCard
           label="Eficiencia promedio"
@@ -110,36 +155,52 @@ export default async function CombustiblePage() {
           sub={stats.eficienciaPromedio != null ? "Flota global" : "Sin datos suficientes"}
           color="success"
           icon={TrendingDown}
+          variant="dashboard"
         />
       </div>
 
       {/* Premio del Mes */}
-      <div className="bg-amber-50/60 border border-amber-200/70 rounded-[8px]">
-        <div className="px-4 py-2.5 flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 shrink-0">
-            <Trophy size={15} className="text-white" />
-          </div>
-          <span className="text-amber-700 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
-            Premio del mes
-          </span>
-          {premio ? (
-            <div className="flex items-baseline gap-3 flex-1 min-w-0">
-              <span className="text-amber-900 text-sm font-bold truncate">
-                {premio.chofer}
-              </span>
-              <span className="text-amber-800 text-sm font-semibold shrink-0">
-                {premio.eficiencia.toFixed(2)}
-                <span className="text-[10px] font-medium opacity-80 ml-0.5">L/100km</span>
-              </span>
-              <span className="text-amber-700/70 text-[11px] shrink-0 hidden sm:inline">
-                {formatNum(premio.km_recorridos)} km · {formatNum(premio.litros_totales, 0)} L · {premio.cargas} cargas
-              </span>
+      <div className="bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-transparent border border-amber-500/20 rounded-[12px] p-4 shadow-[0_4px_20px_rgba(245,158,11,0.03)] backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:border-amber-500/30">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shrink-0 shadow-md">
+              <Trophy size={18} className="animate-pulse" />
             </div>
-          ) : (
-            <span className="text-amber-700/80 text-xs flex-1">
-              Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
-            </span>
-          )}
+            <div>
+              <span className="text-amber-600 text-[10px] font-extrabold uppercase tracking-wider block">
+                Premio de Eficiencia
+              </span>
+              <h3 className="text-amber-900 text-sm font-bold">
+                Chofer destacado del mes
+              </h3>
+            </div>
+          </div>
+          
+          <div className="flex-1 border-t sm:border-t-0 sm:border-l border-amber-500/20 pt-3 sm:pt-0 sm:pl-4 flex items-center justify-between gap-4">
+            {premio ? (
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="text-amber-950 text-base font-extrabold">
+                  {premio.chofer}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-800 text-sm font-black bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                    {premio.eficiencia.toFixed(2)}
+                    <span className="text-[10px] font-bold ml-0.5">L/100km</span>
+                  </span>
+                  <span className="text-amber-700/60 text-xs font-semibold">
+                    ({formatNum(premio.km_recorridos)} km · {formatNum(premio.litros_totales, 0)} L · {premio.cargas} cargas)
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-amber-800/80 text-xs leading-relaxed max-w-lg">
+                No hay candidatos suficientes para el premio este mes. 
+                <span className="block text-[11px] text-amber-700/60 mt-0.5">
+                  Requisito: cargar gasoil al menos 2 veces para un mismo camión con chofer asignado.
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -168,101 +229,93 @@ export default async function CombustiblePage() {
           </TableHeader>
           <TableBody>
             {topRanking.length === 0 ? (
-              <EmptyTableRow message="Sin datos de eficiencia suficientes este mes. Cargá al menos 2 gasoiles de un mismo camión con chofer asignado." />
+              <TableRow>
+                <TableCell colSpan={7} className="py-16 text-center">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
+                      <Trophy size={20} />
+                    </div>
+                    <div className="max-w-md">
+                      <p className="text-foreground text-sm font-bold">Sin datos de eficiencia este mes</p>
+                      <p className="text-muted-foreground text-xs mt-1 leading-relaxed">
+                        Cargá al menos 2 gasoiles de un mismo camión con un chofer asignado para comenzar a ver el ranking de rendimiento.
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : (
-              topRanking.map((r, idx) => (
-                <TableRow key={r.chofer_id}>
-                  <TableCell className="pl-6 font-bold text-muted-foreground">
-                    {idx === 0 ? (
-                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400/20 text-amber-700">
-                        <Trophy size={12} />
+              topRanking.map((r, idx) => {
+                const isPodium = idx < 3;
+                const podiumClasses =
+                  idx === 0
+                    ? "bg-amber-500/5 border-l-4 border-l-amber-500 hover:bg-amber-500/10"
+                    : idx === 1
+                    ? "bg-slate-500/5 border-l-4 border-l-slate-400 hover:bg-slate-500/10"
+                    : idx === 2
+                    ? "bg-orange-500/5 border-l-4 border-l-orange-400 hover:bg-orange-500/10"
+                    : "border-l-4 border-l-transparent hover:bg-muted/30";
+
+                const badgeClass =
+                  idx === 0
+                    ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-sm ring-2 ring-amber-100"
+                    : idx === 1
+                    ? "bg-gradient-to-br from-slate-400 to-slate-600 text-white shadow-sm ring-2 ring-slate-100"
+                    : idx === 2
+                    ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-sm ring-2 ring-orange-100"
+                    : "bg-muted text-muted-foreground";
+
+                return (
+                  <TableRow key={r.chofer_id} className={`transition-colors duration-200 ${podiumClasses}`}>
+                    <TableCell className="pl-6 py-3.5 font-bold">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${badgeClass}`}>
+                        {idx + 1}
                       </span>
-                    ) : (
-                      <span>{idx + 1}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium text-foreground">{r.chofer}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">
-                    {r.eficiencia.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatNum(r.km_recorridos)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatNum(r.litros_totales, 0)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {r.cargas}
-                  </TableCell>
-                  <TableCell className="text-right pr-6 text-muted-foreground">
-                    ${formatARS(r.importe_total)}
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell className="font-semibold text-foreground py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate">{r.chofer}</span>
+                        {idx === 0 && (
+                          <Trophy size={14} className="text-amber-500 animate-bounce" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-black text-primary py-3.5 text-sm">
+                      <span className="bg-primary/5 text-primary border border-primary/10 px-2.5 py-0.5 rounded-md font-mono">
+                        {r.eficiencia.toFixed(2)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground py-3.5 font-mono">
+                      {formatNum(r.km_recorridos)} km
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground py-3.5 font-mono">
+                      {formatNum(r.litros_totales, 0)} L
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground py-3.5 font-semibold">
+                      <span className="bg-muted px-2 py-0.5 rounded text-[11px] text-muted-foreground">
+                        {r.cargas} {r.cargas === 1 ? "carga" : "cargas"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right pr-6 text-muted-foreground py-3.5 font-mono font-medium">
+                      ${formatARS(r.importe_total)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
       {/* Cargas recientes */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Fuel size={16} className="text-primary" />
-            <h2 className="text-foreground text-sm font-semibold">
-              Cargas recientes
-            </h2>
-          </div>
-          <p className="text-xs text-muted-foreground">{cargas.count} en total</p>
-        </div>
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Camión</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Chofer</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Estación</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Litros</TableHead>
-              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Importe</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cargas.data.length === 0 ? (
-              <EmptyTableRow message="Sin cargas registradas" />
-            ) : (
-              cargas.data.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="pl-6 text-muted-foreground">
-                    {new Date(c.fecha).toLocaleDateString("es-AR")}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {c.camion_patente}
-                    {c.camion_marca_modelo && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">
-                        {c.camion_marca_modelo}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {c.chofer ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{c.estacion ?? "—"}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatNum(c.km_odometro)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatNum(c.litros, 2)} L
-                  </TableCell>
-                  <TableCell className="text-right pr-6 font-medium">
-                    ${formatARS(c.importe_total)}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <CargasTable
+        cargas={cargas.data}
+        count={cargas.count}
+        choferes={(choferes ?? []) as { id: string; nombre: string; apellido: string }[]}
+        currentPage={page}
+        currentChoferId={choferId}
+        currentSortBy={sort}
+      />
     </div>
   );
 }
