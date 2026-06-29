@@ -12,44 +12,19 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Combobox } from "@/components/ui/combobox";
 import {
-  Landmark,
-  Hash,
-  Sliders,
-  Home,
-  FileText,
-  DollarSign,
-  User,
-  Fingerprint,
-  Building2,
-  Calendar,
-  MessageSquare,
-  Check,
-  type LucideIcon,
+  Landmark, DollarSign, User, Fingerprint, Calendar, MessageSquare, Check, type LucideIcon,
 } from "lucide-react";
-import { createChequeAction, type ChequeTipo } from "../actions";
+import { createChequeAction } from "../actions";
 
-const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0";
-
-const TIPO_LABEL: Record<ChequeTipo, string> = {
-  comun: "Común",
-  diferido: "Diferido",
-  electronico: "Electrónico (Echeq)",
-};
-
-type BancoOption = { id: string; nombre: string };
-type ClienteOption = { id: string; razon_social: string };
+export type LibradorOption = { nombre: string; cuit: string | null };
 
 export default function AddChequeDialog({
   children,
-  bancos,
-  clientes,
+  libradores,
 }: {
   children: React.ReactNode;
-  bancos: BancoOption[];
-  clientes: ClienteOption[];
+  libradores: LibradorOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -58,39 +33,26 @@ export default function AddChequeDialog({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [numero, setNumero] = useState("");
-  const [bancoId, setBancoId] = useState("");
-  const [sucursal, setSucursal] = useState("");
-  const [cuentaCorriente, setCuentaCorriente] = useState("");
   const [libradorNombre, setLibradorNombre] = useState("");
   const [libradorCuit, setLibradorCuit] = useState("");
-  const [clienteId, setClienteId] = useState("");
-  const [recibidoDe, setRecibidoDe] = useState("");
-  const [tipo, setTipo] = useState<ChequeTipo>("comun");
   const [importe, setImporte] = useState("");
-  const [fechaEmision, setFechaEmision] = useState(today);
   const [fechaVencimiento, setFechaVencimiento] = useState(today);
-  const [fechaRecepcion, setFechaRecepcion] = useState(today);
-  const [concepto, setConcepto] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
   const resetForm = () => {
-    setNumero("");
-    setBancoId("");
-    setSucursal("");
-    setCuentaCorriente("");
     setLibradorNombre("");
     setLibradorCuit("");
-    setClienteId("");
-    setRecibidoDe("");
-    setTipo("comun");
     setImporte("");
-    setFechaEmision(today);
     setFechaVencimiento(today);
-    setFechaRecepcion(today);
-    setConcepto("");
     setObservaciones("");
     setError(null);
+  };
+
+  // Al elegir/escribir un librador conocido, autocompleta su CUIT.
+  const onLibradorChange = (v: string) => {
+    setLibradorNombre(v);
+    const match = libradores.find((l) => l.nombre.toLowerCase() === v.trim().toLowerCase());
+    if (match?.cuit) setLibradorCuit(match.cuit);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,20 +62,11 @@ export default function AddChequeDialog({
     setError(null);
     try {
       const res = await createChequeAction({
-        numero,
-        banco_id: bancoId,
-        sucursal_banco: sucursal || null,
-        cuenta_corriente: cuentaCorriente || null,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
-        cliente_id: clienteId || null,
-        recibido_de: recibidoDe || null,
-        tipo,
+        tipo: "electronico", // siempre echeq diferido electrónico
         importe: parseFloat(importe),
-        fecha_emision: fechaEmision,
         fecha_vencimiento: fechaVencimiento,
-        fecha_recepcion: fechaRecepcion,
-        concepto: concepto || null,
         observaciones: observaciones || null,
       });
       if (res.error) {
@@ -139,8 +92,7 @@ export default function AddChequeDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[840px] p-6 gap-0">
-        {/* Header */}
+      <DialogContent className="sm:max-w-[520px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
@@ -149,13 +101,12 @@ export default function AddChequeDialog({
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">Registrar Cheque</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Ingresá los datos del cheque recibido. Quedará registrado en cartera.
+                Echeq diferido. Quedará en cartera. Solo importe, librador y vencimiento.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
@@ -163,66 +114,36 @@ export default function AddChequeDialog({
             </div>
           )}
 
-          {/* Fila 1: Número de cheque + Tipo + Banco */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Numero de cheque */}
+          <datalist id="libradores-list">
+            {libradores.map((l) => (
+              <option key={l.nombre} value={l.nombre} />
+            ))}
+          </datalist>
+
+          {/* Librador + CUIT */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InputFieldWithIcon
-              label="Número de cheque *"
-              name="numero"
-              placeholder="Ej: 00012345"
+              label="Librador *"
+              name="libradorNombre"
+              placeholder="Ej: Loma Negra"
               required
-              value={numero}
-              onChange={(e) => setNumero(e.target.value)}
-              icon={Hash}
+              value={libradorNombre}
+              onChange={(e) => onLibradorChange(e.target.value)}
+              icon={User}
+              list="libradores-list"
             />
-
-            {/* Tipo */}
-            <SelectFieldWithIcon
-              label="Tipo *"
-              name="tipo"
-              value={tipo}
-              onValueChange={(v) => setTipo(v as ChequeTipo)}
-              options={Object.entries(TIPO_LABEL).map(([val, lbl]) => ({ value: val, label: lbl }))}
-              required
-              icon={Sliders}
-            />
-
-            {/* Banco */}
-            <SelectFieldWithIcon
-              label="Banco *"
-              name="banco"
-              value={bancoId}
-              onValueChange={setBancoId}
-              options={bancos.map((b) => ({ value: b.id, label: b.nombre }))}
-              required
-              placeholder="Seleccionar banco..."
-              icon={Landmark}
+            <InputFieldWithIcon
+              label="CUIT del librador"
+              name="libradorCuit"
+              placeholder="30-12345678-9 (se autocompleta)"
+              value={libradorCuit}
+              onChange={(e) => setLibradorCuit(e.target.value)}
+              icon={Fingerprint}
             />
           </div>
 
-          {/* Fila 2: Sucursal + Cuenta corriente + Importe */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Sucursal */}
-            <InputFieldWithIcon
-              label="Sucursal"
-              name="sucursal"
-              placeholder="Ej: 045 - Centro"
-              value={sucursal}
-              onChange={(e) => setSucursal(e.target.value)}
-              icon={Home}
-            />
-
-            {/* Cuenta corriente */}
-            <InputFieldWithIcon
-              label="Cuenta corriente"
-              name="cuentaCorriente"
-              placeholder="Nº de cuenta"
-              value={cuentaCorriente}
-              onChange={(e) => setCuentaCorriente(e.target.value)}
-              icon={FileText}
-            />
-
-            {/* Importe */}
+          {/* Importe + Vencimiento */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InputFieldWithIcon
               label="Importe ($) *"
               name="importe"
@@ -235,71 +156,8 @@ export default function AddChequeDialog({
               onChange={(e) => setImporte(e.target.value)}
               icon={DollarSign}
             />
-          </div>
-
-          {/* Fila 3: Librador (nombre) + CUIT del librador + Cliente vinculado */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="sm:col-span-2">
-              {/* Librador (nombre) */}
-              <InputFieldWithIcon
-                label="Librador (nombre) *"
-                name="libradorNombre"
-                placeholder="Nombre / razón social del librador"
-                required
-                value={libradorNombre}
-                onChange={(e) => setLibradorNombre(e.target.value)}
-                icon={User}
-              />
-            </div>
-
-            {/* CUIT del librador */}
             <InputFieldWithIcon
-              label="CUIT del librador"
-              name="libradorCuit"
-              placeholder="20-12345678-9"
-              value={libradorCuit}
-              onChange={(e) => setLibradorCuit(e.target.value)}
-              icon={Fingerprint}
-            />
-
-            {/* Cliente vinculado */}
-            <SelectFieldWithIcon
-              label="Cliente vinculado"
-              name="cliente"
-              value={clienteId}
-              onValueChange={setClienteId}
-              options={clientes.map((c) => ({ value: c.id, label: c.razon_social }))}
-              placeholder="Sin cliente"
-              icon={Building2}
-            />
-          </div>
-
-          {/* Fila 4: Recibido de + Fecha emisión + Fecha vencimiento + Fecha recepción */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            {/* Recibido de */}
-            <InputFieldWithIcon
-              label="Recibido de"
-              name="recibidoDe"
-              placeholder="Persona o entidad (si no es cliente)"
-              value={recibidoDe}
-              onChange={(e) => setRecibidoDe(e.target.value)}
-              icon={User}
-            />
-
-            {/* Fecha emision */}
-            <InputFieldWithIcon
-              label="Fecha emisión *"
-              name="fechaEmision"
-              type="date"
-              required
-              value={fechaEmision}
-              onChange={(e) => setFechaEmision(e.target.value)}
-              icon={Calendar}
-            />
-
-            {/* Fecha vencimiento */}
-            <InputFieldWithIcon
-              label="Fecha vencimiento *"
+              label="Fecha de vencimiento *"
               name="fechaVencimiento"
               type="date"
               required
@@ -307,43 +165,18 @@ export default function AddChequeDialog({
               onChange={(e) => setFechaVencimiento(e.target.value)}
               icon={Calendar}
             />
-
-            {/* Fecha recepcion */}
-            <InputFieldWithIcon
-              label="Fecha recepción *"
-              name="fechaRecepcion"
-              type="date"
-              required
-              value={fechaRecepcion}
-              onChange={(e) => setFechaRecepcion(e.target.value)}
-              icon={Calendar}
-            />
           </div>
 
-          {/* Fila 5: Concepto + Observaciones */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Concepto */}
-            <InputFieldWithIcon
-              label="Concepto"
-              name="concepto"
-              placeholder="Ej: Pago factura A-0001-00012345"
-              value={concepto}
-              onChange={(e) => setConcepto(e.target.value)}
-              icon={MessageSquare}
-            />
+          {/* Observaciones */}
+          <InputFieldWithIcon
+            label="Observaciones"
+            name="observaciones"
+            placeholder="Notas internas (opcional)"
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            icon={MessageSquare}
+          />
 
-            {/* Observaciones */}
-            <InputFieldWithIcon
-              label="Observaciones"
-              name="observaciones"
-              placeholder="Notas internas (opcional)"
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              icon={MessageSquare}
-            />
-          </div>
-
-          {/* Footer */}
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button
               type="button"
@@ -359,13 +192,7 @@ export default function AddChequeDialog({
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? (
-                "Registrando..."
-              ) : (
-                <>
-                  <Check size={16} strokeWidth={2.5} /> Confirmar cheque
-                </>
-              )}
+              {loading ? "Registrando..." : (<><Check size={16} strokeWidth={2.5} /> Confirmar cheque</>)}
             </Button>
           </div>
         </form>
@@ -374,20 +201,8 @@ export default function AddChequeDialog({
   );
 }
 
-// Subcomponente Input con Icono incorporado
 function InputFieldWithIcon({
-  label,
-  name,
-  type = "text",
-  placeholder,
-  required,
-  value,
-  onChange,
-  disabled,
-  icon: Icon,
-  step,
-  min,
-  className = "",
+  label, name, type = "text", placeholder, required, value, onChange, icon: Icon, step, min, list,
 }: {
   label: string;
   name: string;
@@ -396,11 +211,10 @@ function InputFieldWithIcon({
   required?: boolean;
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  disabled?: boolean;
   icon: LucideIcon;
   step?: string;
   min?: string;
-  className?: string;
+  list?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -416,54 +230,10 @@ function InputFieldWithIcon({
           required={required}
           value={value}
           onChange={onChange}
-          disabled={disabled}
           step={step}
           min={min}
-          className={`flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground ${className}`}
-        />
-      </div>
-    </div>
-  );
-}
-
-// Subcomponente Select con Icono y Chevron
-function SelectFieldWithIcon({
-  label,
-  name,
-  value,
-  onValueChange,
-  options,
-  required,
-  disabled,
-  icon: Icon,
-  placeholder,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onValueChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  required?: boolean;
-  disabled?: boolean;
-  icon: LucideIcon;
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
-      <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-          <Icon size={15} />
-        </div>
-        <Combobox
-          name={name}
-          required={required}
-          value={value}
-          disabled={disabled}
-          onValueChange={onValueChange}
-          options={options.map((o) => ({ id: o.value, label: o.label }))}
-          placeholder={placeholder}
-          triggerClassName={FIELD_COMBO_TRIGGER}
+          list={list}
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
         />
       </div>
     </div>

@@ -1036,7 +1036,7 @@ export type Database = {
         Insert: {
           archivo_id?: string | null
           banco_deposito?: string | null
-          banco_id: string
+          banco_id?: string | null
           cheque_reemplazo_id?: string | null
           cliente_id?: string | null
           concepto?: string | null
@@ -1047,10 +1047,10 @@ export type Database = {
           estado?: Database["public"]["Enums"]["cheque_estado"]
           factura_id?: string | null
           fecha_deposito?: string | null
-          fecha_emision: string
+          fecha_emision?: string | null
           fecha_entrega?: string | null
           fecha_estado_actual?: string | null
-          fecha_recepcion: string
+          fecha_recepcion?: string | null
           fecha_rechazo?: string | null
           fecha_vencimiento: string
           id?: string
@@ -1062,7 +1062,7 @@ export type Database = {
             | Database["public"]["Enums"]["cheque_motivo_rechazo"]
             | null
           motivo_rechazo_detalle?: string | null
-          numero: string
+          numero?: string | null
           observaciones?: string | null
           recibido_de?: string | null
           sucursal_banco?: string | null

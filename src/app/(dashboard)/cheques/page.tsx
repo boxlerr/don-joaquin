@@ -30,7 +30,7 @@ export default async function ChequesPage() {
   const [
     { data: bancos },
     { data: cheques, count: totalCheques },
-    { data: clientes },
+    { data: libradoresRaw },
   ] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
     supabase
@@ -40,12 +40,25 @@ export default async function ChequesPage() {
         { count: "exact" }
       )
       .order("created_at", { ascending: false }),
+    // Libradores ya usados (para autocompletar nombre + CUIT en el alta)
     supabase
-      .from("clientes")
-      .select("id, razon_social")
-      .eq("estado", "activo")
-      .order("razon_social"),
+      .from("cheques")
+      .select("librador_nombre, librador_cuit")
+      .not("librador_nombre", "is", null),
   ]);
+
+  // Libradores distintos con su CUIT (preferimos la fila que tenga CUIT cargado)
+  const libradoresMap = new Map<string, string | null>();
+  for (const l of libradoresRaw ?? []) {
+    const nombre = (l.librador_nombre ?? "").trim();
+    if (!nombre) continue;
+    if (!libradoresMap.has(nombre) || (!libradoresMap.get(nombre) && l.librador_cuit)) {
+      libradoresMap.set(nombre, l.librador_cuit ?? null);
+    }
+  }
+  const libradores = [...libradoresMap.entries()]
+    .map(([nombre, cuit]) => ({ nombre, cuit }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   const rows: ChequeRow[] = (cheques ?? []).map((c) => ({
     id: c.id,
@@ -79,7 +92,7 @@ export default async function ChequesPage() {
             <HelpTutorialButton />
             <ExportChequesButton />
             {canWrite && (
-              <AddChequeDialog bancos={bancos ?? []} clientes={clientes ?? []}>
+              <AddChequeDialog libradores={libradores}>
                 <Button variant="brand" size="sm">
                   <Plus size={14} />
                   Registrar cheque

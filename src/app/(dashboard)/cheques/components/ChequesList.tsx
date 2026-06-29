@@ -34,9 +34,9 @@ export type ChequeEstado =
 
 export type ChequeRow = {
   id: string;
-  numero: string;
+  numero: string | null;
   importe: number;
-  fecha_emision: string;
+  fecha_emision: string | null;
   fecha_vencimiento: string;
   librador_nombre: string;
   concepto: string | null;
@@ -143,7 +143,7 @@ export default function ChequesList({
       }
       if (!q) return true;
       return (
-        c.numero.toLowerCase().includes(q) ||
+        (c.numero ?? "").toLowerCase().includes(q) ||
         c.librador_nombre.toLowerCase().includes(q) ||
         (c.concepto ?? "").toLowerCase().includes(q) ||
         (c.cliente?.razon_social ?? "").toLowerCase().includes(q)
@@ -238,7 +238,7 @@ export default function ChequesList({
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-sm text-foreground">
-                      {c.numero}
+                      {c.numero ?? "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {c.banco?.nombre ?? "—"}
@@ -287,7 +287,7 @@ export default function ChequesList({
                                 onClick={() =>
                                   setTransicion({
                                     chequeId: c.id,
-                                    numero: c.numero,
+                                    numero: c.numero ?? "s/n",
                                     accion: a.key,
                                   })
                                 }
