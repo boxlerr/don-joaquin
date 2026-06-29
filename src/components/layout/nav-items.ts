@@ -20,6 +20,7 @@ import {
   Flame,
   UserSearch,
   BarChart3,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -126,6 +127,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Caja", href: "/caja", icon: Wallet, area: "caja" },
       { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
       { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
+      { label: "Impuestos", href: "/impuestos", icon: Landmark, area: "finanzas" },
     ],
   },
   {

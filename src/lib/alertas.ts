@@ -640,6 +640,56 @@ export async function generarAlertas() {
     });
   }
 
+  // Impuestos (Finanzas) — vencimientos pendientes de presentar. Disparos discretos
+  // 30 / 15 / 5 días + vencido, igual que compliance. Se apagan al marcar "presentado".
+  // `as any`: impuesto_vencimientos es tabla nueva, aún no está en database.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: impuestos } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .select("id, nombre, organismo, fecha_vencimiento")
+    .eq("presentado", false)
+    .not("fecha_vencimiento", "is", null);
+
+  for (const imp of (impuestos ?? []) as {
+    id: string; nombre: string; organismo: string | null; fecha_vencimiento: string;
+  }[]) {
+    const [iy, im, idd] = imp.fecha_vencimiento.split("-").map(Number);
+    const venceMid = new Date(iy!, im! - 1, idd!);
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const dias = Math.round((venceMid.getTime() - hoyMid.getTime()) / 86400000);
+
+    type DispImp = { umbral: "vencido" | "T5" | "T15" | "T30"; severidad: "info" | "advertencia" | "critica" };
+    const disparos: DispImp[] = [];
+    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    if (dias === 5) disparos.push({ umbral: "T5", severidad: "critica" });
+    if (dias === 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
+    if (dias === 30) disparos.push({ umbral: "T30", severidad: "info" });
+    if (disparos.length === 0) continue;
+
+    const org = imp.organismo ? ` (${imp.organismo})` : "";
+    for (const d of disparos) {
+      const entidad_tipo = `impuesto:${d.umbral}`;
+      const key = `otro:${imp.id}:${entidad_tipo}:${imp.fecha_vencimiento}`;
+      if (existentesSet.has(key)) continue;
+
+      const mensaje =
+        d.umbral === "vencido"
+          ? `El impuesto "${imp.nombre}"${org} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura presentado.`
+          : `El impuesto "${imp.nombre}"${org} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+
+      nuevasAlertas.push({
+        tipo: "otro",
+        severidad: d.severidad,
+        titulo: `Impuesto ${d.umbral === "vencido" ? "vencido" : "por vencer"} — ${imp.nombre}`,
+        mensaje,
+        entidad_id: imp.id,
+        entidad_tipo,
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: imp.fecha_vencimiento,
+      });
+    }
+  }
+
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);
