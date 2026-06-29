@@ -90,3 +90,14 @@ export function alertaClave(key: string) {
 }
 
 export const DESTINATARIOS_CLAVE = "notificaciones_destinatarios_ids";
+
+// Matriz granular por usuario: qué tipos de alerta recibe cada uno.
+// Formato JSON: { [usuarioId]: ["cheques_vencidos", "nuevo_viaje", ...] }
+export const MATRIZ_CLAVE = "notificaciones_matriz_por_usuario";
+
+// Columnas de la matriz: los tipos de alerta + un cajón "otros avisos" para los
+// avisos sin toggle propio (cumpleaños, ausencias, impuestos, services).
+export const ALERTA_COLUMNAS = [
+  ...ALERTAS.map((a) => ({ key: a.key as string, nombre: a.nombre })),
+  { key: "otros_avisos", nombre: "Otros avisos" },
+];

@@ -3,11 +3,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
 import { emailConfigurado } from "@/lib/email";
 import { Bell, Users, AlertTriangle, CheckCircle2 } from "lucide-react";
-import StatusBadge from "@/components/ui/StatusBadge";
 import CanalCard from "./CanalCard";
 import AlertaToggle from "./AlertaToggle";
-import DestinatarioToggle from "./DestinatarioToggle";
-import { ALERTAS, CANALES, DESTINATARIOS_CLAVE, alertaClave } from "./constants";
+import DestinatarioMatriz from "./DestinatarioMatriz";
+import {
+  ALERTAS,
+  ALERTA_COLUMNAS,
+  CANALES,
+  DESTINATARIOS_CLAVE,
+  MATRIZ_CLAVE,
+  alertaClave,
+} from "./constants";
 
 function parseDestinatarios(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -20,6 +26,18 @@ function parseDestinatarios(raw: string | null | undefined): string[] {
   }
 }
 
+function parseMatriz(raw: string | null | undefined): Record<string, string[]> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+const TODAS_LAS_COLUMNAS = ALERTA_COLUMNAS.map((c) => c.key);
+
 export default async function ConfiguracionNotificacionesPage() {
   await requireAdmin();
 
@@ -30,6 +48,7 @@ export default async function ConfiguracionNotificacionesPage() {
     ...CANALES.flatMap((c) => c.configCampos.map((f) => f.clave)),
     ...ALERTAS.map((a) => alertaClave(a.key)),
     DESTINATARIOS_CLAVE,
+    MATRIZ_CLAVE,
   ];
 
   const [{ data: parametros }, { data: usuarios }] = await Promise.all([
@@ -43,6 +62,7 @@ export default async function ConfiguracionNotificacionesPage() {
 
   const valores = new Map((parametros ?? []).map((p) => [p.clave, p.valor]));
   const destinatariosIds = new Set(parseDestinatarios(valores.get(DESTINATARIOS_CLAVE)));
+  const matriz = parseMatriz(valores.get(MATRIZ_CLAVE));
   const emailListo = emailConfigurado();
 
   return (
@@ -133,10 +153,14 @@ export default async function ConfiguracionNotificacionesPage() {
       </div>
 
       <div className="pt-6 border-t border-border">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-1">
           <Users size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Destinatarios de Alertas</h2>
+          <h2 className="text-foreground text-sm font-semibold">Avisos por usuario</h2>
         </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Elegí qué tipo de aviso recibe cada persona. Ej.: los cheques a Pablo, Nico y
+          Barbie; las vacaciones solo a logística. Aplica al email (la campana muestra todo).
+        </p>
 
         {(usuarios ?? []).length === 0 ? (
           <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 text-center">
@@ -146,28 +170,21 @@ export default async function ConfiguracionNotificacionesPage() {
           <div className="space-y-3">
             {(usuarios ?? []).map((u) => {
               const rol = Array.isArray(u.rol) ? u.rol[0] : u.rol;
-              const activo = destinatariosIds.has(u.id);
               const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ") || u.email;
+              // Default retrocompatible: si todavía no se configuró la matriz para este
+              // usuario, hereda lo viejo (si era destinatario global → recibe todo).
+              const enabledInicial =
+                matriz[u.id] ?? (destinatariosIds.has(u.id) ? TODAS_LAS_COLUMNAS : []);
               return (
-                <div
+                <DestinatarioMatriz
                   key={u.id}
-                  className="p-4 bg-card rounded-[8px] border border-border flex items-center justify-between gap-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{nombreCompleto}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {u.email}
-                      {rol?.nombre ? ` • ${rol.nombre}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <StatusBadge
-                      label={activo ? "Recibe alertas" : "Sin alertas"}
-                      tone={activo ? "success" : "neutral"}
-                    />
-                    <DestinatarioToggle usuarioId={u.id} initialActivo={activo} />
-                  </div>
-                </div>
+                  usuarioId={u.id}
+                  nombre={nombreCompleto}
+                  email={u.email ?? ""}
+                  rol={rol?.nombre ?? null}
+                  columnas={ALERTA_COLUMNAS}
+                  enabledInicial={enabledInicial}
+                />
               );
             })}
           </div>

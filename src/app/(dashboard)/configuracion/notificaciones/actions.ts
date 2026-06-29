@@ -7,8 +7,10 @@ import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import {
   ALERTAS,
+  ALERTA_COLUMNAS,
   CANALES,
   DESTINATARIOS_CLAVE,
+  MATRIZ_CLAVE,
   alertaClave,
   type CanalKey,
 } from "./constants";
@@ -234,6 +236,55 @@ export async function toggleDestinatarioAction(input: unknown): Promise<Result> 
     tipo_dato: "json",
     categoria: "notificaciones",
     descripcion: "IDs de usuarios que reciben notificaciones automáticas.",
+  });
+
+  if ("error" in res) return { error: res.error };
+  revalidatePath("/configuracion/notificaciones");
+  return { success: true };
+}
+
+// --- Matriz granular: qué tipos de alerta recibe cada usuario ---
+
+const COLUMNAS_VALIDAS = new Set(ALERTA_COLUMNAS.map((c) => c.key));
+
+const matrizSchema = z.object({
+  usuarioId: z.string().uuid(),
+  alertaKey: z.string(),
+  activo: z.boolean(),
+});
+
+async function leerMatriz(): Promise<Record<string, string[]>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", MATRIZ_CLAVE)
+    .maybeSingle();
+  if (!data?.valor) return {};
+  try {
+    const parsed = JSON.parse(data.valor);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function setUsuarioAlertaPrefAction(input: unknown): Promise<Result> {
+  await requireAdmin();
+  const parsed = matrizSchema.safeParse(input);
+  if (!parsed.success) return { error: "Entrada inválida" };
+  if (!COLUMNAS_VALIDAS.has(parsed.data.alertaKey)) return { error: "Tipo de alerta desconocido" };
+
+  const matriz = await leerMatriz();
+  const cur = new Set(matriz[parsed.data.usuarioId] ?? []);
+  if (parsed.data.activo) cur.add(parsed.data.alertaKey);
+  else cur.delete(parsed.data.alertaKey);
+  matriz[parsed.data.usuarioId] = [...cur];
+
+  const res = await upsertParametro(MATRIZ_CLAVE, JSON.stringify(matriz), {
+    tipo_dato: "json",
+    categoria: "notificaciones",
+    descripcion: "Matriz por usuario: qué tipos de alerta recibe cada uno.",
   });
 
   if ("error" in res) return { error: res.error };

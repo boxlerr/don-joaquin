@@ -47,6 +47,39 @@ const TIPO_A_TOGGLE: Partial<Record<AlertaTipo, string>> = {
   vencimiento_compliance: "vencimiento_compliance",
 };
 
+// Matriz granular por usuario (qué tipo de aviso recibe cada uno por email).
+const MATRIZ_CLAVE = "notificaciones_matriz_por_usuario";
+const OTROS_AVISOS = "otros_avisos";
+const COLUMNAS_TODAS = [
+  "vencimiento_docs", "cheques_vencidos", "viaticos_sin_rendir", "gastos_pendientes",
+  "cambios_caja", "nuevo_viaje", "vencimiento_compliance", OTROS_AVISOS,
+];
+
+/** Columna de la matriz a la que pertenece un tipo de alerta. */
+function alertaColumnaDe(tipo: AlertaTipo): string {
+  return TIPO_A_TOGGLE[tipo] ?? OTROS_AVISOS;
+}
+
+function parseIds(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const p = JSON.parse(raw);
+    return Array.isArray(p) ? p.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseMatriz(raw: string | undefined): Record<string, string[]> {
+  if (!raw) return {};
+  try {
+    const p = JSON.parse(raw);
+    return p && typeof p === "object" && !Array.isArray(p) ? p : {};
+  } catch {
+    return {};
+  }
+}
+
 type Supabase = ReturnType<typeof createAdminClient>;
 
 async function leerParametros(supabase: Supabase): Promise<Map<string, string>> {
@@ -187,9 +220,6 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
     return { enviadas: 0, motivo: "canal_email_inactivo" };
   }
 
-  const destinatarios = await getDestinatarios(supabase, params);
-  if (destinatarios.length === 0) return { enviadas: 0, motivo: "sin_destinatarios" };
-
   const { data: criticas } = await supabase
     .from("alertas")
     .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento")
@@ -202,33 +232,61 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
   const aEnviar = (criticas ?? []).filter((a) => tipoHabilitado(a.tipo, params));
   if (aEnviar.length === 0) return { enviadas: 0, motivo: "nada_pendiente" };
 
-  const subject =
-    aEnviar.length === 1
-      ? `🔴 Alerta crítica: ${aEnviar[0]!.titulo}`
-      : `🔴 ${aEnviar.length} alertas críticas — Don Joaquín`;
+  // Reparto granular: cada usuario recibe solo los tipos que tiene habilitados en
+  // la matriz. Fallback retrocompatible: si no hay matriz para un usuario, hereda
+  // la vieja lista global de destinatarios (recibe todo).
+  const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
+  const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
 
-  const html = renderEmail({
-    titulo: aEnviar.length === 1 ? "Nueva alerta crítica" : "Nuevas alertas críticas",
-    intro: "Se detectaron situaciones críticas que requieren atención.",
-    alertas: aEnviar,
-  });
+  const { data: usuariosActivos } = await supabase
+    .from("usuarios")
+    .select("id, email")
+    .eq("estado", "activo");
 
-  const res = await enviarEmail({ para: destinatarios, asunto: subject, html });
-  if (!res.ok) {
-    console.error("[notificaciones] envío de críticas falló:", res.error);
-    return { enviadas: 0, motivo: res.skipped ? "smtp_no_configurado" : "error_envio", error: res.error };
+  const enviadasIds = new Set<string>();
+  let huboDestinatario = false;
+  let errorEnvio: string | undefined;
+
+  for (const u of usuariosActivos ?? []) {
+    if (!u.email) continue;
+    const keys = new Set(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : []));
+    if (keys.size === 0) continue;
+    huboDestinatario = true;
+
+    const suyas = aEnviar.filter((a) => keys.has(alertaColumnaDe(a.tipo)));
+    if (suyas.length === 0) continue;
+
+    const subject =
+      suyas.length === 1
+        ? `🔴 Alerta crítica: ${suyas[0]!.titulo}`
+        : `🔴 ${suyas.length} alertas críticas — Don Joaquín`;
+    const html = renderEmail({
+      titulo: suyas.length === 1 ? "Nueva alerta crítica" : "Nuevas alertas críticas",
+      intro: "Se detectaron situaciones críticas que requieren atención.",
+      alertas: suyas,
+    });
+
+    const res = await enviarEmail({ para: [u.email], asunto: subject, html });
+    if (res.ok) {
+      suyas.forEach((a) => enviadasIds.add(a.id));
+    } else {
+      errorEnvio = res.error;
+      console.error(`[notificaciones] envío de críticas a ${u.email} falló:`, res.error);
+    }
   }
 
-  // Solo marcamos como procesadas si el envío salió bien (así reintenta la próxima).
+  if (!huboDestinatario) return { enviadas: 0, motivo: "sin_destinatarios" };
+  if (enviadasIds.size === 0) {
+    return { enviadas: 0, motivo: errorEnvio ? "error_envio" : "nada_pendiente", error: errorEnvio };
+  }
+
+  // Solo marcamos como procesadas las que efectivamente se enviaron.
   await supabase
     .from("alertas")
     .update({ notificacion_procesada: true })
-    .in(
-      "id",
-      aEnviar.map((a) => a.id),
-    );
+    .in("id", [...enviadasIds]);
 
-  return { enviadas: aEnviar.length };
+  return { enviadas: enviadasIds.size };
 }
 
 export type ResultadoResumen =
