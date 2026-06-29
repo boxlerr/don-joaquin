@@ -23,8 +23,15 @@ import {
   FileText,
   Hash,
   Route,
+  CalendarOff,
   type LucideIcon,
 } from "lucide-react";
+
+/** Formatea "YYYY-MM-DD" como "DD/MM". */
+function fmtDia(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
 import {
   createViajeAction,
   type CreateViajeState,
@@ -53,6 +60,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     !!camionHabitualId && selectedCamionId === camionHabitualId;
   const cambioDeCamion =
     !!selectedChoferId && !!selectedCamionId && !!camionHabitualId && !usandoCamionHabitual;
+
+  // Aviso si el chofer elegido está (o estará pronto) de vacaciones/ausente.
+  const choferAusencia =
+    data.choferes.find((c) => c.id === selectedChoferId)?.ausencia ?? null;
 
   const [state, formAction] = useActionState<CreateViajeState, FormData>(
     createViajeAction,
@@ -216,6 +227,27 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 )}
               </div>
             </div>
+
+            {/* Aviso de vacaciones / ausencia del chofer elegido */}
+            {choferAusencia && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 animate-in fade-in slide-in-from-top-1 duration-200">
+                <CalendarOff size={15} className="mt-0.5 shrink-0" />
+                <span>
+                  {choferAusencia.enCurso ? (
+                    <>
+                      Este chofer está de <strong>{choferAusencia.tipo}</strong> (hasta el{" "}
+                      <strong>{fmtDia(choferAusencia.hasta)}</strong>). Revisá antes de asignarle el viaje.
+                    </>
+                  ) : (
+                    <>
+                      Ojo: este chofer tiene <strong>{choferAusencia.tipo}</strong> del{" "}
+                      <strong>{fmtDia(choferAusencia.desde)}</strong> al{" "}
+                      <strong>{fmtDia(choferAusencia.hasta)}</strong>.
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
 
             {/* Tipo de Carga */}
             <SelectField

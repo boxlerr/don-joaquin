@@ -252,6 +252,8 @@ export type ChoferFormOption = ViajeFormOption & {
   camionId: string | null;
   disabled?: boolean;
   motivo?: string;
+  /** Ausencia/vacaciones vigente o próxima (≤14 días) para avisar al cargar el viaje. */
+  ausencia?: { tipo: string; desde: string; hasta: string; enCurso: boolean } | null;
 };
 
 /** Circuito (ruta) predefinido: trae origen/destino y km cargados + vacíos para
@@ -279,6 +281,9 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
 
   // Fecha de hoy para la planilla diaria (se pide dentro del batch paralelo).
   const hoy = new Date().toISOString().slice(0, 10);
+  const en14 = new Date();
+  en14.setDate(en14.getDate() + 14);
+  const en14Str = en14.toISOString().slice(0, 10);
 
   const [
     clientesRes,
@@ -288,6 +293,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     puntosRes,
     circuitosRes,
     asignacionesHoyRes,
+    ausenciasHoyRes,
   ] = await Promise.all([
       supabase
         .from("clientes")
@@ -331,6 +337,16 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         .from("asignacion_diaria")
         .select("chofer_id, camion_id")
         .eq("fecha", hoy),
+      // Ausencias/vacaciones vigentes o que arrancan dentro de 14 días: para avisar
+      // si se elige un chofer que no va a estar disponible. Su error se ignora.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("chofer_ausencias")
+        .select("chofer_id, tipo, fecha_inicio, fecha_fin")
+        .eq("estado", "autorizada")
+        .is("deleted_at", null)
+        .gte("fecha_fin", hoy)
+        .lte("fecha_inicio", en14Str),
     ]);
 
   if (
@@ -397,6 +413,21 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     camionPorChofer.set(a.chofer_id, a.camion_id);
   }
 
+  // Ausencia más próxima por chofer (la de fecha_inicio menor). enCurso = ya empezó.
+  const ausenciaPorChofer = new Map<string, { tipo: string; desde: string; hasta: string; enCurso: boolean }>();
+  for (const a of (ausenciasHoyRes?.data ?? []) as {
+    chofer_id: string; tipo: string; fecha_inicio: string; fecha_fin: string;
+  }[]) {
+    const prev = ausenciaPorChofer.get(a.chofer_id);
+    if (prev && prev.desde <= a.fecha_inicio) continue;
+    ausenciaPorChofer.set(a.chofer_id, {
+      tipo: a.tipo,
+      desde: a.fecha_inicio,
+      hasta: a.fecha_fin,
+      enCurso: a.fecha_inicio <= hoy,
+    });
+  }
+
   return {
     clientes: (clientesRes.data ?? []).map((c) => ({
       id: c.id,
@@ -412,6 +443,7 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
         camionId: camionPorChofer.get(c.id) ?? null,
         disabled: !estado.completo,
         motivo: estado.completo ? undefined : `Falta: ${estado.faltantes.join(", ")}`,
+        ausencia: ausenciaPorChofer.get(c.id) ?? null,
       };
     }),
     camiones: (camionesRes.data ?? []).map((c) => ({
