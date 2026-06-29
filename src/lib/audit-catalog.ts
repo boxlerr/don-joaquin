@@ -69,6 +69,7 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   cliente: "Cliente",
   chofer: "Chofer",
   camion: "Camión",
+  carga_combustible: "Carga de combustible",
   mantenimiento: "Mantenimiento",
   rotura_goma: "Rotura de goma",
   tarifa: "Tarifa",

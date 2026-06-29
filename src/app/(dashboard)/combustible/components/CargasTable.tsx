@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Fuel, User, ArrowUpDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Fuel, User, ArrowUpDown, ChevronLeft, ChevronRight, X, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +13,8 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
+import AddGasoilDialog, { type GasoilEditing } from "../../camiones/components/AddGasoilDialog";
+import { deleteGasoilAction } from "../../camiones/actions";
 import type { CargaRowUI } from "../actions";
 
 interface ChoferLookup {
@@ -28,6 +30,7 @@ interface CargasTableProps {
   currentPage: number;
   currentChoferId: string;
   currentSortBy: string;
+  canWrite?: boolean;
 }
 
 const PAGE_SIZE = 25;
@@ -64,10 +67,41 @@ export default function CargasTable({
   currentPage,
   currentChoferId,
   currentSortBy,
+  canWrite = false,
 }: CargasTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const [editing, setEditing] = useState<GasoilEditing | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const openEdit = (c: CargaRowUI) => {
+    setEditing({
+      id: c.id,
+      fecha: c.fecha.slice(0, 10),
+      litros: c.litros,
+      km_odometro: c.km_odometro,
+      importe_total: c.importe_total,
+      chofer_id: c.chofer_id,
+      estacion: c.estacion,
+      observaciones: c.observaciones,
+      lugar_carga: c.lugar_carga,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    await deleteGasoilAction(id);
+    setDeletingId(null);
+    setConfirmId(null);
+    router.refresh();
+  };
+
+  const colCount = canWrite ? 8 : 7;
 
   const totalPages = Math.ceil(count / PAGE_SIZE);
   const activeChoferId = currentChoferId || "todos";
@@ -187,12 +221,15 @@ export default function CargasTable({
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Litros</TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Importe</TableHead>
+            {canWrite && (
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6 w-24">Acciones</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {cargas.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="py-16 text-center">
+              <TableCell colSpan={colCount} className="py-16 text-center">
                 <div className="flex flex-col items-center justify-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                     <Fuel size={20} />
@@ -267,11 +304,67 @@ export default function CargasTable({
                 <TableCell className="text-right pr-6 text-foreground font-mono font-black text-sm">
                   ${formatARS(c.importe_total)}
                 </TableCell>
+                {canWrite && (
+                  <TableCell className="text-right pr-6">
+                    {confirmId === c.id ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] text-red-600 hover:bg-red-50"
+                          disabled={deletingId === c.id}
+                          onClick={() => handleDelete(c.id)}
+                        >
+                          {deletingId === c.id ? <Loader2 size={13} className="animate-spin" /> : "Eliminar"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-[11px] text-muted-foreground"
+                          onClick={() => setConfirmId(null)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5"
+                          title="Editar carga"
+                          onClick={() => openEdit(c)}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          title="Eliminar carga"
+                          onClick={() => setConfirmId(c.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      {canWrite && (
+        <AddGasoilDialog
+          camiones={[]}
+          editing={editing}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSaved={() => router.refresh()}
+        />
+      )}
 
       {/* Footer y Paginación */}
       <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/10">

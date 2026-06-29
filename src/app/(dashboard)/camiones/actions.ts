@@ -401,6 +401,26 @@ export async function addGasoilAction(data: {
     });
   }
 
+  if (inserted) {
+    await logAudit({
+      client: supabase,
+      usuarioId: user.id,
+      accion: "crear",
+      entidadTipo: "carga_combustible",
+      entidadId: inserted.id,
+      valoresNuevos: {
+        camion_id: data.camion_id,
+        chofer_id: data.chofer_id ?? null,
+        fecha: data.fecha,
+        litros: data.litros,
+        km_odometro: data.km_odometro,
+        importe_total: data.importe_total,
+        estacion: data.estacion ?? null,
+        lugar_carga: data.lugar_carga ?? null,
+      },
+    });
+  }
+
   revalidatePath("/camiones");
   revalidatePath("/combustible");
   revalidatePath("/caja");
@@ -830,9 +850,17 @@ export async function updateGasoilAction(id: string, data: {
   observaciones?: string;
   lugar_carga?: string | null;
 }) {
-  await requireArea("combustible", "write");
+  const user = await requireArea("combustible", "write");
 
   const supabase = createAdminClient();
+
+  // Estado previo para la auditoría
+  const { data: previo } = await supabase
+    .from("cargas_combustible")
+    .select("fecha, litros, km_odometro, importe_total, chofer_id, estacion, observaciones, lugar_carga")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("cargas_combustible")
     .update({
@@ -847,6 +875,26 @@ export async function updateGasoilAction(id: string, data: {
     })
     .eq("id", id);
   if (error) return { error: "No se pudo actualizar la carga de combustible." };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "carga_combustible",
+    entidadId: id,
+    valoresAnteriores: previo ?? null,
+    valoresNuevos: {
+      fecha: data.fecha,
+      litros: data.litros,
+      km_odometro: data.km_odometro,
+      importe_total: data.importe_total,
+      chofer_id: data.chofer_id ?? null,
+      estacion: data.estacion ?? null,
+      observaciones: data.observaciones ?? null,
+      lugar_carga: data.lugar_carga ?? null,
+    },
+  });
+
   revalidatePath("/camiones");
   revalidatePath("/combustible");
   return { success: true };
@@ -861,10 +909,27 @@ export async function deleteServiceAction(id: string) {
 }
 
 export async function deleteGasoilAction(id: string) {
-  await requireArea("combustible", "write");
+  const user = await requireArea("combustible", "write");
   const supabase = createAdminClient();
+
+  const { data: previo } = await supabase
+    .from("cargas_combustible")
+    .select("camion_id, chofer_id, fecha, litros, km_odometro, importe_total, estacion, lugar_carga")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase.from("cargas_combustible").delete().eq("id", id);
   if (error) return { error: "No se pudo eliminar la carga de combustible." };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "carga_combustible",
+    entidadId: id,
+    valoresAnteriores: previo ?? null,
+  });
+
   revalidatePath("/camiones");
   revalidatePath("/combustible");
   return { success: true };

@@ -326,6 +326,7 @@ export default async function CombustiblePage({
         currentPage={page}
         currentChoferId={choferId}
         currentSortBy={sort}
+        canWrite={canWrite}
       />
     </div>
   );

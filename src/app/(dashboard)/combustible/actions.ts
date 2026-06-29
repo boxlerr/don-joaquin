@@ -256,6 +256,8 @@ export type CargaRowUI = {
   importe_total: number;
   estacion: string | null;
   lugar_carga: string | null;
+  chofer_id: string | null;
+  observaciones: string | null;
 };
 
 export type GetCargasParams = {
@@ -277,7 +279,7 @@ export async function getCargasAction(
   let query = supabase
     .from("cargas_combustible")
     .select(
-      "id, fecha, litros, km_odometro, importe_total, estacion, lugar_carga, chofer_id, camion_id",
+      "id, fecha, litros, km_odometro, importe_total, estacion, lugar_carga, observaciones, chofer_id, camion_id",
       { count: "exact" }
     );
 
@@ -322,7 +324,7 @@ export async function getCargasAction(
   const { data, count } = await query;
   const rows = (data ?? []) as (Pick<
     CargaRow,
-    "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion" | "chofer_id" | "camion_id"
+    "id" | "fecha" | "litros" | "km_odometro" | "importe_total" | "estacion" | "observaciones" | "chofer_id" | "camion_id"
   > & { lugar_carga: string | null })[];
 
   const choferIds = [...new Set(rows.map((r) => r.chofer_id).filter(Boolean) as string[])];
@@ -343,6 +345,8 @@ export async function getCargasAction(
       importe_total: Number(r.importe_total),
       estacion: r.estacion,
       lugar_carga: r.lugar_carga,
+      chofer_id: r.chofer_id,
+      observaciones: r.observaciones,
     };
   });
 
