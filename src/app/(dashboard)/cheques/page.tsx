@@ -98,7 +98,7 @@ export default async function ChequesPage() {
             <HelpTutorialButton />
             <ExportChequesButton />
             {canWrite && (
-              <AddChequeDialog libradores={libradores}>
+              <AddChequeDialog libradores={libradores} bancos={bancos ?? []}>
                 <Button variant="brand" size="sm">
                   <Plus size={14} />
                   Registrar cheque
