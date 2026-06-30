@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, requireAdmin, hasArea } from "@/lib/auth";
+import { requireArea, requireSeccion, requireAdmin, hasArea, hasSeccion } from "@/lib/auth";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
@@ -22,7 +22,9 @@ import type {
 } from "./types";
 
 export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
-  const user = await requireArea("logistica", "read");
+  const user = await requireSeccion("choferes", "read");
+  // Los datos de sueldo (liquidación, adelantos) son confidenciales: solo si tiene la subsección.
+  const canVerSueldos = hasSeccion(user, "sueldos", "read");
   const supabase = createAdminClient();
 
   const baseSelect =
@@ -840,7 +842,15 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       };
     })(),
     categorias_apercibimiento: categoriasApe ?? [],
-    productividad_kpis,
+    // Enmascarar montos de sueldo si no tiene la subsección confidencial (defensa en profundidad).
+    productividad_kpis: canVerSueldos
+      ? productividad_kpis
+      : {
+          ...productividad_kpis,
+          liquidacion_chofer_mes: 0,
+          adelantos_viaticos_ars: 0,
+          adelantos_viaticos_usd: 0,
+        },
     camiones_historial,
     roturas_detalle: (roturasDetalle ?? []).map((r) => {
       const cam = Array.isArray(r.camion) ? r.camion[0] : r.camion;
@@ -859,11 +869,12 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         unidad_tipo: (camPat ? "camion" : acoPat ? "acoplado" : null) as "camion" | "acoplado" | null,
       };
     }),
-    adelantos_mes,
+    adelantos_mes: canVerSueldos ? adelantos_mes : [],
     evolucion_6meses,
     pesos_score: pesos.id ? pesos : null,
     is_admin: user.rol.codigo === "admin",
-    can_logistica_write: hasArea(user, "logistica", "write"),
+    can_logistica_write: hasSeccion(user, "choferes", "write"),
+    can_ver_sueldos: canVerSueldos,
   }) as unknown as ChoferDetail;
 }
 

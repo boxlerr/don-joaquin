@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import MantenimientoClient from "./components/MantenimientoClient";
 import {
@@ -14,8 +14,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function MantenimientoPage() {
-  const user = await requireArea("mantenimiento", "read");
-  const canWrite = hasArea(user, "mantenimiento", "write");
+  const user = await requireSeccion("mantenimiento_servicios", "read");
+  const canWrite = hasSeccion(user, "mantenimiento_servicios", "write");
   const supabase = createAdminClient();
 
   const [

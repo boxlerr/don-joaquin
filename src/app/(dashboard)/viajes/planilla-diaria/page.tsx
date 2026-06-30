@@ -2,7 +2,7 @@ import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { getPlanillaDiariaData } from "./actions";
 import PlanillaDiariaClient from "./PlanillaDiariaClient";
 import HelpTutorialButton from "./help-tutorial-button";
@@ -14,7 +14,7 @@ export default async function PlanillaDiariaPage({
 }: {
   searchParams: Promise<{ fecha?: string }>;
 }) {
-  await requireArea("viajes", "read");
+  await requireSeccion("viajes_planilla", "read");
 
   const { fecha: fechaParam } = await searchParams;
   const hoy = new Date().toISOString().slice(0, 10);

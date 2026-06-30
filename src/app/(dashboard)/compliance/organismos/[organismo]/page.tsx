@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireArea, requireSeccion, hasArea, hasSeccion } from "@/lib/auth";
+import type { SeccionCodigo } from "@/lib/secciones";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrganismoChecklistAction } from "../actions";
 import OrganismoChecklistPage from "../OrganismoChecklistPage";
@@ -12,8 +13,15 @@ export default async function ComplianceOrganismoPage({
 }) {
   const { organismo: slug } = await params;
 
-  const user = await requireArea("compliance", "read");
-  const canWrite = hasArea(user, "compliance", "write");
+  // SICOP y Secondi tienen subsección propia; otros organismos caen al área compliance.
+  const seccionOrg: SeccionCodigo | null =
+    slug === "sicop" ? "compliance_sicop" : slug === "secondi" ? "compliance_secondi" : null;
+  const user = seccionOrg
+    ? await requireSeccion(seccionOrg, "read")
+    : await requireArea("compliance", "read");
+  const canWrite = seccionOrg
+    ? hasSeccion(user, seccionOrg, "write")
+    : hasArea(user, "compliance", "write");
 
   // Usar `as any` porque `compliance_destinatarios` aún no está en database.ts
   // Se actualiza al regenerar los tipos tras aplicar la migración

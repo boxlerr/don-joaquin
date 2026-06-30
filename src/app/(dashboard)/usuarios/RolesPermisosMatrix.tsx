@@ -5,7 +5,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { updateRolAreaAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldCheck, AlertCircle } from "lucide-react";
-import { areaTitulo, areaPaginas, NIVEL_INFO } from "./area-meta";
+import { areaTitulo, areaPaginas, NIVEL_INFO, rolLabel } from "./area-meta";
 
 interface Rol {
   id: string;
@@ -62,8 +62,10 @@ export default function RolesPermisosMatrix({ roles, areas, initialMatriz }: Pro
           <h2 className="text-foreground text-sm font-semibold">Matriz de permisos por área</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          Cada <b className="text-foreground">fila</b> es un rol y cada <b className="text-foreground">columna</b> una sección del sistema.
-          Elegí qué puede hacer cada rol. El rol <span className="font-mono">admin</span> siempre tiene todo (no editable).
+          Cada <b className="text-foreground">fila</b> es un rol y cada <b className="text-foreground">columna</b> un área del sistema.
+          Definí acá el nivel base por área. ¿Necesitás cerrar una página puntual (ej.{" "}
+          <b className="text-foreground">Sueldos</b>)? Usá <b className="text-foreground">Permisos finos por subsección</b>,
+          más abajo. El rol <b className="text-foreground">Administrador</b> siempre tiene todo.
         </p>
         {/* Leyenda de niveles */}
         <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -105,9 +107,11 @@ export default function RolesPermisosMatrix({ roles, areas, initialMatriz }: Pro
               const isAdminRow = rol.codigo === "admin";
               return (
                 <tr key={rol.id} className="hover:bg-muted/20">
-                  <td className="px-4 py-2 sticky left-0 bg-card z-10 border-b border-border">
-                    <div className="font-medium text-foreground whitespace-nowrap">{rol.nombre}</div>
-                    <div className="text-[11px] text-muted-foreground font-mono">{rol.codigo}</div>
+                  <td
+                    className="px-4 py-2 sticky left-0 bg-card z-10 border-b border-border"
+                    title={`Código interno: ${rol.codigo}`}
+                  >
+                    <div className="font-medium text-foreground whitespace-nowrap">{rolLabel(rol.nombre)}</div>
                   </td>
                   {areasOrdered.map((a) => {
                     const nivel = matriz[rol.id]?.[a.codigo] ?? "none";

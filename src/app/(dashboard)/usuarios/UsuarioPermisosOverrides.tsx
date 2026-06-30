@@ -5,7 +5,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldPlus, Trash2, Clock, AlertCircle } from "lucide-react";
-import { areaTitulo } from "./area-meta";
+import { areaTitulo, rolLabel } from "./area-meta";
 
 interface Area {
   codigo: AreaCodigo;
@@ -172,7 +172,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
                 { id: "", label: "Seleccionar…" },
                 ...usuarios.map((u) => ({
                   id: u.id,
-                  label: `${u.nombre} ${u.apellido ?? ""} (${u.rol_nombre ?? "sin rol"})`,
+                  label: `${u.nombre} ${u.apellido ?? ""} (${u.rol_nombre ? rolLabel(u.rol_nombre) : "sin rol"})`,
                 })),
               ]}
               searchPlaceholder="Buscar usuario..."
@@ -267,7 +267,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
               <div key={u.id} className="px-5 py-3">
                 <p className="text-xs font-semibold text-foreground mb-2">
                   {u.nombre} {u.apellido ?? ""}
-                  <span className="text-muted-foreground font-normal ml-1">({u.rol_nombre ?? "sin rol"})</span>
+                  <span className="text-muted-foreground font-normal ml-1">({u.rol_nombre ? rolLabel(u.rol_nombre) : "sin rol"})</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {rows.map((row) => {

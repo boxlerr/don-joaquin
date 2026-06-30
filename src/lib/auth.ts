@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SECCIONES, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
 
 // ---------------------------------------------------------------------------
 // Tipos de permisos por área
@@ -61,6 +62,8 @@ export type CurrentUser = {
     nombre: string;
   };
   permisos: PermisosArea;
+  /** Nivel efectivo por subsección (override de rol > confidencial > nivel del área). */
+  secciones: Record<SeccionCodigo, AreaNivel>;
 };
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
@@ -128,6 +131,41 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     }
   }
 
+  // Overrides de subsección por rol: pisan el nivel heredado del área para
+  // páginas puntuales (ej. cerrar "Sueldos" aunque el área Logística esté abierta).
+  // `as any` porque `rol_secciones` es tabla nueva; se actualiza al regenerar database.ts
+  type RolSeccionOverride = { seccion_codigo: string; nivel: string };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rolSecciones } = (await (supabase as any)
+    .from("rol_secciones")
+    .select("seccion_codigo, nivel")
+    .eq("rol_id", rol.id)) as { data: RolSeccionOverride[] | null };
+
+  const overrideSeccion = new Map<string, AreaNivel>();
+  for (const row of rolSecciones ?? []) {
+    overrideSeccion.set(row.seccion_codigo, row.nivel as AreaNivel);
+  }
+
+  const esAdmin = rol.codigo === "admin";
+  const secciones = {} as Record<SeccionCodigo, AreaNivel>;
+  for (const s of SECCIONES) {
+    if (esAdmin) {
+      secciones[s.codigo] = "admin";
+      continue;
+    }
+    const ov = overrideSeccion.get(s.codigo);
+    if (s.confidencial) {
+      // Confidencial: cerrada salvo que se otorgue explícitamente (puede darse sin el área).
+      secciones[s.codigo] = ov ?? "none";
+      continue;
+    }
+    // No confidencial: hereda el área. El override solo puede RESTRINGIR (nunca
+    // superar el área), así "ocultar una página" no habilita acciones que siguen
+    // protegidas a nivel área.
+    const areaLvl = permisos[s.area];
+    secciones[s.codigo] = ov && NIVEL_RANK[ov] < NIVEL_RANK[areaLvl] ? ov : areaLvl;
+  }
+
   return {
     id: profile.id,
     email: profile.email,
@@ -142,6 +180,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       nombre: rol.nombre,
     },
     permisos,
+    secciones,
   };
 }
 
@@ -175,6 +214,23 @@ export function hasArea(user: CurrentUser, area: AreaCodigo, minNivel: AreaNivel
 export async function requireArea(area: AreaCodigo, minNivel: AreaNivel): Promise<CurrentUser> {
   const user = await requireUser();
   if (!hasArea(user, area, minNivel)) {
+    redirect(`/dashboard?error=area_required&area=${area}&nivel=${minNivel}`);
+  }
+  return user;
+}
+
+// ---------------------------------------------------------------------------
+// Permisos por subsección (un nivel más fino que el área)
+// ---------------------------------------------------------------------------
+
+export function hasSeccion(user: CurrentUser, seccion: SeccionCodigo, minNivel: AreaNivel): boolean {
+  return NIVEL_RANK[user.secciones[seccion]] >= NIVEL_RANK[minNivel];
+}
+
+export async function requireSeccion(seccion: SeccionCodigo, minNivel: AreaNivel): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!hasSeccion(user, seccion, minNivel)) {
+    const area = SECCION_BY_CODIGO[seccion].area;
     redirect(`/dashboard?error=area_required&area=${area}&nivel=${minNivel}`);
   }
   return user;

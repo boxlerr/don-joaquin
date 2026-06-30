@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 
 // `viajes.zona` es columna nueva; se accede con `as any` hasta regenerar database.ts.
@@ -38,7 +38,7 @@ export type SueldoChoferRow = {
 };
 
 export async function getSueldosResumenAction(month?: string): Promise<SueldoChoferRow[]> {
-  await requireAdmin();
+  await requireSeccion("sueldos", "read");
   const supabase = createAdminClient();
   const { desde, hasta } = getRangoMes(month);
 
@@ -93,7 +93,7 @@ export type ViajeZonaRow = {
 };
 
 export async function getViajesChoferMesAction(choferId: string, month?: string): Promise<ViajeZonaRow[]> {
-  await requireAdmin();
+  await requireSeccion("sueldos", "read");
   const supabase = createAdminClient();
   const { desde, hasta } = getRangoMes(month);
 
@@ -132,7 +132,7 @@ export async function setViajeZonaAction(
   viajeId: string,
   zona: "sur" | "pozo" | null,
 ): Promise<{ ok: true } | { error: string }> {
-  const user = await requireAdmin();
+  const user = await requireSeccion("sueldos", "write");
   const supabase = createAdminClient();
 
   const { error } = await (supabase as any).from("viajes").update({ zona }).eq("id", viajeId);

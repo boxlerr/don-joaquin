@@ -1,4 +1,4 @@
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { Users, UserPlus, UserMinus, Percent, RefreshCw, AlertTriangle } from "lucide-react";
@@ -19,7 +19,7 @@ export default async function RotacionChoferes({
 }: {
   searchParams: Promise<{ anio?: string }>;
 }) {
-  await requireArea("logistica", "read");
+  await requireSeccion("choferes_rotacion", "read");
 
   const { anio: anioParam } = await searchParams;
   const anioNum = anioParam && /^\d{4}$/.test(anioParam) ? Number(anioParam) : undefined;

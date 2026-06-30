@@ -32,6 +32,7 @@ const getLayoutData = cache(async () => {
       rol: currentUser.rol.nombre,
       avatarUrl,
       permisos: currentUser.permisos,
+      secciones: currentUser.secciones,
     };
   }
 

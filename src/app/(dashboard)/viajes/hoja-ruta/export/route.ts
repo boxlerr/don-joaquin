@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { buildHojaRutaWorkbook, type ExportChofer, type ExportViaje } from "./build";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ function extractMaterial(obs: string | null): string {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export async function GET(req: NextRequest) {
-  await requireArea("viajes", "read");
+  await requireSeccion("viajes_hoja_ruta", "read");
 
   const mesISO = req.nextUrl.searchParams.get("mes") ?? "";
   const { desde, hasta, label } = rangoMes(mesISO);

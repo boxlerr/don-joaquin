@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Trophy, MapPin } from "lucide-react";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import PageHeader from "@/components/layout/PageHeader";
 import {
   computeRanking,
@@ -315,7 +315,7 @@ export default async function CompararChoferes({
     hasta?: string;
   }>;
 }) {
-  await requireArea("logistica", "read");
+  await requireSeccion("choferes", "read");
 
   const params = await searchParams;
   const periodo = resolverRango(params);

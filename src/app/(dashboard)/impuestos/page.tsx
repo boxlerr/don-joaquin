@@ -1,7 +1,7 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Landmark, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getImpuestosAction } from "./actions";
 import ImpuestosClient from "./ImpuestosClient";
 
@@ -14,8 +14,8 @@ function diasRestantes(fechaISO: string): number {
 }
 
 export default async function ImpuestosPage() {
-  const user = await requireArea("finanzas", "read");
-  const canWrite = hasArea(user, "finanzas", "write");
+  const user = await requireSeccion("impuestos", "read");
+  const canWrite = hasSeccion(user, "impuestos", "write");
 
   const impuestos = await getImpuestosAction();
 

@@ -1,6 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { Lock } from "lucide-react";
-import { requireAdmin } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import MesSelector from "../../combustible/components/MesSelector";
 import { getSueldosResumenAction } from "./actions";
 import SueldosClient from "./SueldosClient";
@@ -16,7 +16,7 @@ export default async function SueldosPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   // Sección sensible: solo dirección (rol admin). Bárbara pidió que no esté a la vista de todos.
-  await requireAdmin();
+  await requireSeccion("sueldos", "read");
 
   const { month = "" } = await searchParams;
   const resumen = await getSueldosResumenAction(month);

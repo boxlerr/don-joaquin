@@ -2,7 +2,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import AddChoferDialog from "./components/AddChoferDialog";
 import ChoferesList from "./components/ChoferesList";
 import HelpTutorialButton from "./help-tutorial-button";
@@ -17,8 +17,8 @@ export default async function ChoferesPage({
 }: {
   searchParams: Promise<{ documentoId?: string }>;
 }) {
-  const user = await requireArea("logistica", "read");
-  const canWrite = hasArea(user, "logistica", "write");
+  const user = await requireSeccion("choferes", "read");
+  const canWrite = hasSeccion(user, "choferes", "write");
   const supabase = createAdminClient();
 
   const { documentoId } = await searchParams;

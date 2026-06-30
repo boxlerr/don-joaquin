@@ -1,12 +1,12 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import MensualPorChofer from "./MensualPorChofer";
 
 export default async function ViajesMensualPage() {
-  await requireArea("viajes", "read");
+  await requireSeccion("viajes_listado", "read");
 
   return (
     <div className="p-8">

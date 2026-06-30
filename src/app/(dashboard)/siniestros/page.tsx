@@ -1,13 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import SiniestrosClient from "./components/SiniestrosClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiniestrosPage() {
-  const user = await requireArea("logistica", "read");
-  const canWrite = hasArea(user, "logistica", "write");
+  const user = await requireSeccion("siniestros", "read");
+  const canWrite = hasSeccion(user, "siniestros", "write");
   const supabase = createAdminClient();
 
   const [{ data: siniestros }, { data: camiones }, { data: choferes }] =

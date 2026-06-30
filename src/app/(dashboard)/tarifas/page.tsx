@@ -1,5 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import TarifasTabs from "./TarifasTabs";
 import {
   getTarifaParams,
@@ -10,8 +10,8 @@ import {
 } from "./actions";
 
 export default async function TarifasPage() {
-  const user = await requireArea("comercial", "read");
-  const canWrite = hasArea(user, "comercial", "write");
+  const user = await requireSeccion("tarifas", "read");
+  const canWrite = hasSeccion(user, "tarifas", "write");
   const [params, { clientes, rutas }, tarifas, circuitos, puntos] =
     await Promise.all([
       getTarifaParams(),

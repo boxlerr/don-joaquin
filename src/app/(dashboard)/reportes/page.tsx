@@ -2,7 +2,7 @@ import Link from "next/link";
 import PageHeader from "@/components/layout/PageHeader";
 import { Trophy, Users, Building2, TrendingUp, ChevronRight, Route } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { computeRanking, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import { getRotacion } from "@/app/(dashboard)/choferes/rotacion/lib";
 import ScoreBadge from "@/app/(dashboard)/choferes/ranking/ScoreBadge";
@@ -112,7 +112,7 @@ export default async function ReportesPage({
 }: {
   searchParams: Promise<{ rango?: string }>;
 }) {
-  await requireArea("logistica", "read");
+  await requireSeccion("reportes", "read");
   const { rango } = await searchParams;
   const periodo = resolverRango({ rango });
 

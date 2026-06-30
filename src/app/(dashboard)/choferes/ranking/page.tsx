@@ -1,4 +1,4 @@
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { Users } from "lucide-react";
@@ -14,8 +14,8 @@ export default async function RankingChoferes({
 }: {
   searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
 }) {
-  const user = await requireArea("logistica", "read");
-  const canWrite = hasArea(user, "logistica", "write");
+  const user = await requireSeccion("choferes_ranking", "read");
+  const canWrite = hasSeccion(user, "choferes_ranking", "write");
 
   const params = await searchParams;
   const periodo = resolverRango(params);

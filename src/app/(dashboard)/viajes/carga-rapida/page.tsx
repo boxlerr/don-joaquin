@@ -1,5 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { getViajeFormData } from "../actions";
 import CargaRapidaGrid from "./CargaRapidaGrid";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 export default async function CargaRapidaPage() {
-  await requireArea("viajes", "write");
+  await requireSeccion("viajes_carga_rapida", "write");
   const formData = await getViajeFormData();
 
   if ("error" in formData) {

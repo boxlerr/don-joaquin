@@ -2,15 +2,15 @@ import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { Flame, ShieldAlert, ShieldCheck, AlertTriangle, ShieldX } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import ExtintoresTable from "./components/ExtintoresTable";
 import { ExportExtintoresButton, ImportExtintoresButton } from "./components/ExtintoresIO";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function ExtintoresPage() {
   // Verificar permisos (requiere lectura de flota)
-  const user = await requireArea("flota", "read");
-  const canWrite = hasArea(user, "flota", "write");
+  const user = await requireSeccion("extintores", "read");
+  const canWrite = hasSeccion(user, "extintores", "write");
 
   const supabase = createAdminClient();
 

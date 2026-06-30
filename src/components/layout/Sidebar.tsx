@@ -16,6 +16,7 @@ import {
 import { NAV_GROUPS, type NavItem, type NavChild } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
 import type { PermisosArea, AreaCodigo, AreaNivel } from "@/lib/auth";
+import type { SeccionCodigo } from "@/lib/secciones";
 
 export type SidebarUser = {
   nombre: string;
@@ -24,13 +25,19 @@ export type SidebarUser = {
   rol: string | null;
   avatarUrl: string | null;
   permisos: PermisosArea;
+  secciones: Record<SeccionCodigo, AreaNivel>;
 };
 
 const NIVEL_RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
-function canAccessArea(permisos: PermisosArea, area: AreaCodigo | undefined): boolean {
-  if (!area) return true;
-  return NIVEL_RANK[permisos[area]] >= NIVEL_RANK.read;
+/** Visibilidad de un nodo de nav: la subsección manda sobre el área. */
+function canAccessNode(
+  user: SidebarUser,
+  node: { seccion?: SeccionCodigo; area?: AreaCodigo },
+): boolean {
+  if (node.seccion) return NIVEL_RANK[user.secciones[node.seccion]] >= NIVEL_RANK.read;
+  if (node.area) return NIVEL_RANK[user.permisos[node.area]] >= NIVEL_RANK.read;
+  return true;
 }
 
 const CHILD_ICONS: Record<string, LucideIcon> = {
@@ -76,20 +83,19 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto sidebar-scroll">
         {NAV_GROUPS.map((group) => {
-          const permisos = user?.permisos;
-          const visibleItems = permisos
+          const visibleItems: NavItem[] = user
             ? group.items
-                .filter((item) => canAccessArea(permisos, item.area))
-                .map((item) =>
-                  item.children
-                    ? {
-                        ...item,
-                        children: item.children.filter((c) =>
-                          canAccessArea(permisos, c.area ?? item.area),
-                        ),
-                      }
-                    : item,
-                )
+                .map((item) => {
+                  if (!item.children) {
+                    return canAccessNode(user, item) ? item : null;
+                  }
+                  const children = item.children.filter((c) =>
+                    canAccessNode(user, { seccion: c.seccion, area: c.area ?? item.area }),
+                  );
+                  // El padre se ve si al menos una subsección hija es accesible.
+                  return children.length > 0 ? { ...item, children } : null;
+                })
+                .filter((item): item is NavItem => item !== null)
             : group.items;
 
           if (visibleItems.length === 0) return null;

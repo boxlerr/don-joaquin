@@ -276,6 +276,8 @@ export type ChoferDetail = ChoferBasico & {
   is_admin: boolean;
   // El usuario tiene permiso de escritura sobre logística (cargar/editar ausencias).
   can_logistica_write: boolean;
+  // El usuario puede ver datos de sueldo (liquidación/adelantos). Subsección confidencial.
+  can_ver_sueldos: boolean;
   // Score de conducta del último trimestre (null si no tuvo viajes). Mismo
   // cálculo que el Ranking. Se muestra como insignia en el header.
   score_trimestre: number | null;

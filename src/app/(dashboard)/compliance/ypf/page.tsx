@@ -1,4 +1,4 @@
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getComplianceEstadoAction } from "../actions";
 import { listDmYpfAction } from "./dm/actions";
 import ComplianceYpfPage from "./ComplianceYpfPage";
@@ -16,8 +16,8 @@ import ComplianceYpfPage from "./ComplianceYpfPage";
  * para YPF; Loma Negra y otros clientes siguen pasando por ese.
  */
 export default async function ComplianceYpfRoute() {
-  const user = await requireArea("compliance", "read");
-  const canWrite = hasArea(user, "compliance", "write");
+  const user = await requireSeccion("compliance_ypf", "read");
+  const canWrite = hasSeccion(user, "compliance_ypf", "write");
 
   const [{ rows, requisitos }, dms] = await Promise.all([
     getComplianceEstadoAction("YPF"),

@@ -47,6 +47,8 @@ interface Props {
   roturas: RoturaDetalle[];
   pesos: PesosScore | null;
   is_admin: boolean;
+  /** Puede ver montos de sueldo (liquidación/adelantos). Subsección confidencial. */
+  can_ver_sueldos: boolean;
   onRefresh: () => void;
 }
 
@@ -95,6 +97,7 @@ export default function ChoferProductividadTab({
   roturas,
   pesos,
   is_admin,
+  can_ver_sueldos,
   onRefresh,
 }: Props) {
   const periodoLabel = nombreMes(kpis.periodo_desde);
@@ -178,12 +181,14 @@ export default function ChoferProductividadTab({
                     : "text-[#EF4444]"
             }
           />
-          <KPI
-            label="Liquidación al chofer"
-            value={fmtMoneda(kpis.liquidacion_chofer_mes, "ARS")}
-            sub="$ de hoja de ruta"
-            color="text-[#10B981]"
-          />
+          {can_ver_sueldos && (
+            <KPI
+              label="Liquidación al chofer"
+              value={fmtMoneda(kpis.liquidacion_chofer_mes, "ARS")}
+              sub="$ de hoja de ruta"
+              color="text-[#10B981]"
+            />
+          )}
           {kpis.facturacion_ars > 0 && (
             <KPI
               label="Facturación ARS"
@@ -199,11 +204,13 @@ export default function ChoferProductividadTab({
               color="text-[#10B981]"
             />
           )}
-          <KPI
-            label="Adelantos ARS"
-            value={fmtMoneda(kpis.adelantos_viaticos_ars, "ARS")}
-            color="text-[#EF4444]"
-          />
+          {can_ver_sueldos && (
+            <KPI
+              label="Adelantos ARS"
+              value={fmtMoneda(kpis.adelantos_viaticos_ars, "ARS")}
+              color="text-[#EF4444]"
+            />
+          )}
           {kpis.eficiencia_combustible !== null && (
             <KPI
               label="Eficiencia gasoil"
@@ -251,7 +258,7 @@ export default function ChoferProductividadTab({
                 color="text-[#10B981]"
               />
             )}
-            {kpis.adelantos_viaticos_usd > 0 && (
+            {can_ver_sueldos && kpis.adelantos_viaticos_usd > 0 && (
               <KPI
                 label="Adelantos USD"
                 value={fmtMoneda(kpis.adelantos_viaticos_usd, "USD")}
@@ -444,7 +451,8 @@ export default function ChoferProductividadTab({
         )}
       </section>
 
-      {/* Adelantos del mes */}
+      {/* Adelantos del mes — datos de sueldo, solo con la subsección confidencial */}
+      {can_ver_sueldos && (
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">
           Adelantos de viáticos — {periodoLabel}
@@ -492,6 +500,7 @@ export default function ChoferProductividadTab({
           </Table>
         </div>
       </section>
+      )}
 
       {/* Roturas de gomas */}
       <section className="space-y-3">

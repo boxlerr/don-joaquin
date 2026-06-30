@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { computeRanking, resolverRango } from "../../lib";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  await requireArea("logistica", "read");
+  await requireSeccion("choferes_ranking", "read");
 
   const sp = req.nextUrl.searchParams;
   const periodo = resolverRango({

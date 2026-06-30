@@ -3,7 +3,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Receipt, Zap, ClipboardList } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion, hasArea } from "@/lib/auth";
 import ViajesStatsPanel from "./components/ViajesStatsPanel";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportsMenu from "./components/ImportsMenu";
@@ -17,8 +17,8 @@ export default async function ViajesPage({
 }: {
   searchParams: Promise<{ choferId?: string; filtro?: string }>;
 }) {
-  const user = await requireArea("viajes", "read");
-  const canWrite = hasArea(user, "viajes", "write");
+  const user = await requireSeccion("viajes_listado", "read");
+  const canWrite = hasSeccion(user, "viajes_listado", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const { choferId, filtro } = await searchParams;
   const supabase = createAdminClient();

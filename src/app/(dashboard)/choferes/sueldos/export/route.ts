@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { getSueldosResumenAction, type SueldoChoferRow } from "../actions";
 import { buildSingleSheetWorkbook, type ProColumn, type CellValue } from "@/lib/excel/professional-sheet";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  await requireAdmin();
+  await requireSeccion("sueldos", "read");
   const month = req.nextUrl.searchParams.get("month") || undefined;
   const data = await getSueldosResumenAction(month);
 

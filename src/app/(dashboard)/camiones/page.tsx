@@ -3,7 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Truck, Plus, Fuel, Wrench, ShieldCheck, AlertCircle, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion, hasArea } from "@/lib/auth";
 import AddCamionDialog from "./components/AddCamionDialog";
 import AddServiceDialog from "./components/AddServiceDialog";
 import AddGasoilDialog from "./components/AddGasoilDialog";
@@ -21,8 +21,8 @@ export default async function CamionesPage({
 }: {
   searchParams: Promise<{ documentoId?: string }>;
 }) {
-  const user = await requireArea("flota", "read");
-  const canWrite = hasArea(user, "flota", "write");
+  const user = await requireSeccion("camiones", "read");
+  const canWrite = hasSeccion(user, "camiones", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
   const supabase = createAdminClient();
 

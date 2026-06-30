@@ -1,4 +1,4 @@
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { listChoferesMesAction } from "./actions";
 import HojaRutaMensualClient from "./HojaRutaMensualClient";
 
@@ -13,8 +13,8 @@ export default async function HojaRutaPage({
 }: {
   searchParams: Promise<{ mes?: string; chofer?: string }>;
 }) {
-  const user = await requireArea("viajes", "read");
-  const canWrite = hasArea(user, "viajes", "write");
+  const user = await requireSeccion("viajes_hoja_ruta", "read");
+  const canWrite = hasSeccion(user, "viajes_hoja_ruta", "write");
   const { mes: mesQS, chofer: choferQS } = await searchParams;
 
   // Mes default: el actual (formato YYYY-MM)

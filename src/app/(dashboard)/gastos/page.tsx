@@ -3,7 +3,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Receipt, Plus, AlertCircle, Truck, Calendar } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import AddGastoDialog from "./components/AddGastoDialog";
 import GastosTable from "./components/GastosTable";
 import HelpTutorialButton from "./help-tutorial-button";
@@ -17,8 +17,8 @@ function formatARS(n: number): string {
 }
 
 export default async function GastosPage() {
-  const user = await requireArea("finanzas", "read");
-  const canWrite = hasArea(user, "finanzas", "write");
+  const user = await requireSeccion("gastos", "read");
+  const canWrite = hasSeccion(user, "gastos", "write");
   const supabase = createAdminClient();
 
   const hoy = new Date();

@@ -30,3 +30,11 @@ export const NIVEL_INFO: Record<string, { label: string; desc: string; clase: st
   write: { label: "Edición", desc: "Puede ver y cargar/editar", clase: "bg-green-50 text-green-700" },
   admin: { label: "Admin", desc: "Control total del área", clase: "bg-amber-50 text-amber-700" },
 };
+
+// Nombre de rol acortado para listas/desplegables angostos:
+// "Representante de Combustible" -> "Rep. Combustible".
+export function rolLabel(nombre: string): string {
+  return nombre
+    .replace(/^Representante de\s+/i, "Rep. ")
+    .replace(/^Representante\s+/i, "Rep. ");
+}

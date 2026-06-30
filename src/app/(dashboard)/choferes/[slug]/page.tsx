@@ -170,6 +170,7 @@ export default function ChoferDetailPage() {
               roturas={chofer.roturas_detalle}
               pesos={chofer.pesos_score}
               is_admin={chofer.is_admin}
+              can_ver_sueldos={chofer.can_ver_sueldos}
               onRefresh={loadData}
             />
           )}

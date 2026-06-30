@@ -1,4 +1,4 @@
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getComplianceEstadoAction } from "../actions";
 import { listLiqLomaAction } from "./liq/actions";
 import ComplianceLomaPage from "./ComplianceLomaPage";
@@ -15,9 +15,9 @@ import ComplianceLomaPage from "./ComplianceLomaPage";
  * solo para Loma Negra.
  */
 export default async function ComplianceLomaRoute() {
-  const user = await requireArea("compliance", "read");
-  const canWrite = hasArea(user, "compliance", "write");
-  const canDelete = hasArea(user, "compliance", "admin");
+  const user = await requireSeccion("compliance_loma", "read");
+  const canWrite = hasSeccion(user, "compliance_loma", "write");
+  const canDelete = hasSeccion(user, "compliance_loma", "admin");
 
   const [{ rows, requisitos }, liqs] = await Promise.all([
     getComplianceEstadoAction("LOMA_NEGRA"),

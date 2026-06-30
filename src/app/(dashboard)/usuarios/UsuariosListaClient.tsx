@@ -15,6 +15,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { updateUsuarioRolAction } from "./actions";
+import { rolLabel } from "./area-meta";
 
 export type UsuarioRow = {
   id: string;
@@ -96,7 +97,7 @@ export default function UsuariosListaClient({
             onValueChange={setRolFiltro}
             options={[
               { id: "", label: "Todos los roles" },
-              ...roles.map((r) => ({ id: r.codigo, label: r.nombre })),
+              ...roles.map((r) => ({ id: r.codigo, label: rolLabel(r.nombre) })),
             ]}
             searchable={false}
             triggerClassName="h-9 w-44"
@@ -149,7 +150,7 @@ export default function UsuariosListaClient({
                           value={u.rol_id ?? ""}
                           disabled={savingId === u.id}
                           onValueChange={(v) => handleRolChange(u.id, v)}
-                          options={roles.map((r) => ({ id: r.id, label: r.nombre }))}
+                          options={roles.map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
                           searchable={false}
                           triggerClassName="h-8 w-40"
                         />
@@ -159,7 +160,7 @@ export default function UsuariosListaClient({
                       </div>
                     ) : (
                       <StatusBadge
-                        label={u.rol_nombre ?? "—"}
+                        label={u.rol_nombre ? rolLabel(u.rol_nombre) : "—"}
                         tone={u.rol_codigo === "admin" ? "warning" : "info"}
                       />
                     )}

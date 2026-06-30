@@ -5,8 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
+import { SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
 
 const NIVELES_VALIDOS: AreaNivel[] = ["none", "read", "write", "admin"];
+const NIVEL_RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
 export async function updateUsuarioRolAction(
   usuario_id: string,
@@ -177,6 +179,108 @@ export async function updateRolAreaAction(
     metadata: { rol_codigo: rol.codigo },
   });
 
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Override de subsección por rol (un nivel más fino que el área)
+// ---------------------------------------------------------------------------
+
+export async function updateRolSeccionAction(
+  rol_id: string,
+  seccion_codigo: SeccionCodigo,
+  nivel: AreaNivel | "hereda",
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireAdmin();
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `rol_secciones` aún no está en los tipos generados
+  const sb = supabase as any;
+
+  const { data: rol } = await supabase
+    .from("roles")
+    .select("codigo")
+    .eq("id", rol_id)
+    .single();
+  if (!rol) return { error: "Rol inexistente" };
+  if (rol.codigo === "admin") {
+    return { error: "El rol admin ve todo: no se configura por subsección." };
+  }
+
+  const { data: previo } = (await sb
+    .from("rol_secciones")
+    .select("nivel")
+    .eq("rol_id", rol_id)
+    .eq("seccion_codigo", seccion_codigo)
+    .maybeSingle()) as { data: { nivel: AreaNivel } | null };
+  const nivelAnterior = previo?.nivel ?? null;
+
+  // "hereda" = sin override: la subsección vuelve a seguir el nivel del área.
+  if (nivel === "hereda") {
+    if (!previo) return { ok: true };
+    const { error } = await sb
+      .from("rol_secciones")
+      .delete()
+      .eq("rol_id", rol_id)
+      .eq("seccion_codigo", seccion_codigo);
+    if (error) return { error: (error as { message: string }).message };
+
+    await logAudit({
+      client: supabase,
+      usuarioId: admin.id,
+      accion: "eliminar",
+      entidadTipo: "rol_secciones",
+      entidadId: null,
+      valoresAnteriores: { rol_id, seccion_codigo, nivel: nivelAnterior },
+      valoresNuevos: null,
+      metadata: { rol_codigo: rol.codigo },
+    });
+    revalidatePath("/usuarios");
+    return { ok: true };
+  }
+
+  if (!NIVELES_VALIDOS.includes(nivel)) {
+    return { error: "Nivel inválido" };
+  }
+
+  // Para subsecciones NO confidenciales el override solo puede RESTRINGIR: nunca
+  // igualar ni superar el nivel del área (eso ya es "Hereda del área"). Espeja el
+  // cap de la resolución en auth.ts, así no se guardan estados que se ignorarían.
+  const sec = SECCION_BY_CODIGO[seccion_codigo];
+  if (sec && !sec.confidencial) {
+    const { data: ra } = await supabase
+      .from("rol_areas")
+      .select("nivel")
+      .eq("rol_id", rol_id)
+      .eq("area_codigo", sec.area)
+      .maybeSingle();
+    const areaLvl = (ra?.nivel as AreaNivel) ?? "none";
+    if (NIVEL_RANK[nivel] >= NIVEL_RANK[areaLvl]) {
+      return {
+        error: 'El override no puede igualar ni superar el nivel del área. Para igualarlo usá "Hereda del área".',
+      };
+    }
+  }
+
+  if (nivelAnterior === nivel) return { ok: true };
+
+  const { error } = (await sb.from("rol_secciones").upsert(
+    { rol_id, seccion_codigo, nivel, updated_at: new Date().toISOString() },
+    { onConflict: "rol_id,seccion_codigo" },
+  )) as { error: { message: string } | null };
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "rol_secciones",
+    entidadId: null,
+    valoresAnteriores: nivelAnterior ? { rol_id, seccion_codigo, nivel: nivelAnterior } : null,
+    valoresNuevos: { rol_id, seccion_codigo, nivel },
+    metadata: { rol_codigo: rol.codigo },
+  });
   revalidatePath("/usuarios");
   return { ok: true };
 }

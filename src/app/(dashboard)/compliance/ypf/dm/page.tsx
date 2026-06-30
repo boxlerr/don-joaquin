@@ -1,4 +1,4 @@
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { listDmYpfAction } from "./actions";
 import DmYpfListClient from "./DmYpfListClient";
 
@@ -15,7 +15,7 @@ import DmYpfListClient from "./DmYpfListClient";
  *  - Ver los viajes asociados a cada DM (cuántos son, cuadran)
  */
 export default async function DmYpfPage() {
-  await requireArea("compliance", "read");
+  await requireSeccion("compliance_ypf", "read");
   const dms = await listDmYpfAction();
 
   return <DmYpfListClient dms={dms} />;

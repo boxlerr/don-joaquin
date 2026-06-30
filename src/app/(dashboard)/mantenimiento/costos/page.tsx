@@ -1,5 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireSeccion, hasSeccion } from "@/lib/auth";
 import {
   getMesesCostosAction,
   getCostosRepRepAction,
@@ -10,8 +10,8 @@ import CostosRepRepClient from "./CostosRepRepClient";
 export const dynamic = "force-dynamic";
 
 export default async function CostosRepRepPage() {
-  const user = await requireArea("mantenimiento", "read");
-  const canWrite = hasArea(user, "mantenimiento", "write");
+  const user = await requireSeccion("mantenimiento_costos", "read");
+  const canWrite = hasSeccion(user, "mantenimiento_costos", "write");
 
   const meses = await getMesesCostosAction();
   const mesInicial = meses[0] ?? null;

@@ -24,11 +24,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
+import type { SeccionCodigo } from "@/lib/secciones";
 
 export interface NavChild {
   label: string;
   href: string;
-  /** Si se omite, hereda el área del padre. */
+  /** Subsección que controla la visibilidad. Tiene prioridad sobre `area`. */
+  seccion?: SeccionCodigo;
+  /** Si se omite (y no hay `seccion`), hereda el área del padre. */
   area?: AreaCodigo;
 }
 
@@ -36,7 +39,9 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Área que controla la visibilidad. Si se omite, el item es visible siempre. */
+  /** Subsección que controla la visibilidad. Tiene prioridad sobre `area`. */
+  seccion?: SeccionCodigo;
+  /** Área que controla la visibilidad. Si se omite (y no hay `seccion`), siempre visible. */
   area?: AreaCodigo;
   children?: NavChild[];
 }
@@ -52,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Notificaciones", href: "/notificaciones", icon: Bell },
-      { label: "Reportes", href: "/reportes", icon: BarChart3, area: "logistica" },
+      { label: "Reportes", href: "/reportes", icon: BarChart3, seccion: "reportes" },
     ],
   },
   {
@@ -64,10 +69,10 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: MapPin,
         area: "viajes",
         children: [
-          { label: "Listado", href: "/viajes" },
-          { label: "Hoja de ruta", href: "/viajes/hoja-ruta" },
-          { label: "Carga rápida", href: "/viajes/carga-rapida" },
-          { label: "Planilla diaria", href: "/viajes/planilla-diaria" },
+          { label: "Listado", href: "/viajes", seccion: "viajes_listado" },
+          { label: "Hoja de ruta", href: "/viajes/hoja-ruta", seccion: "viajes_hoja_ruta" },
+          { label: "Carga rápida", href: "/viajes/carga-rapida", seccion: "viajes_carga_rapida" },
+          { label: "Planilla diaria", href: "/viajes/planilla-diaria", seccion: "viajes_planilla" },
         ],
       },
       {
@@ -76,11 +81,11 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Users,
         area: "logistica",
         children: [
-          { label: "Legajos", href: "/choferes" },
-          { label: "Ranking", href: "/choferes/ranking" },
-          { label: "Rotación", href: "/choferes/rotacion" },
-          { label: "Vacaciones", href: "/choferes/vacaciones" },
-          { label: "Sueldos", href: "/choferes/sueldos", area: "rrhh" },
+          { label: "Legajos", href: "/choferes", seccion: "choferes" },
+          { label: "Ranking", href: "/choferes/ranking", seccion: "choferes_ranking" },
+          { label: "Rotación", href: "/choferes/rotacion", seccion: "choferes_rotacion" },
+          { label: "Vacaciones", href: "/choferes/vacaciones", seccion: "choferes_vacaciones" },
+          { label: "Sueldos", href: "/choferes/sueldos", seccion: "sueldos" },
         ],
       },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
@@ -89,15 +94,15 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "FLOTA",
     items: [
-      { label: "Camiones", href: "/camiones", icon: Truck, area: "flota" },
+      { label: "Camiones", href: "/camiones", icon: Truck, seccion: "camiones" },
       {
         label: "Mantenimiento",
         href: "/mantenimiento",
         icon: Wrench,
         area: "mantenimiento",
         children: [
-          { label: "Servicios", href: "/mantenimiento" },
-          { label: "Costos rep. y rep.", href: "/mantenimiento/costos" },
+          { label: "Servicios", href: "/mantenimiento", seccion: "mantenimiento_servicios" },
+          { label: "Costos rep. y rep.", href: "/mantenimiento/costos", seccion: "mantenimiento_costos" },
         ],
       },
     ],
@@ -105,8 +110,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "SEGURIDAD",
     items: [
-      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, area: "logistica" },
-      { label: "Extintores", href: "/extintores", icon: Flame, area: "flota" },
+      { label: "Siniestros", href: "/siniestros", icon: AlertTriangle, seccion: "siniestros" },
+      { label: "Extintores", href: "/extintores", icon: Flame, seccion: "extintores" },
     ],
   },
   {
@@ -118,42 +123,42 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "COMERCIAL",
     items: [
-      { label: "Clientes", href: "/clientes", icon: Briefcase, area: "comercial" },
-      { label: "Tarifas", href: "/tarifas", icon: DollarSign, area: "comercial" },
+      { label: "Clientes", href: "/clientes", icon: Briefcase, seccion: "clientes" },
+      { label: "Tarifas", href: "/tarifas", icon: DollarSign, seccion: "tarifas" },
     ],
   },
   {
     group: "FINANZAS",
     items: [
       { label: "Caja", href: "/caja", icon: Wallet, area: "caja" },
-      { label: "Gastos", href: "/gastos", icon: Receipt, area: "finanzas" },
-      { label: "Cheques", href: "/cheques", icon: FileText, area: "finanzas" },
-      { label: "Impuestos", href: "/impuestos", icon: Landmark, area: "finanzas" },
+      { label: "Gastos", href: "/gastos", icon: Receipt, seccion: "gastos" },
+      { label: "Cheques", href: "/cheques", icon: FileText, seccion: "cheques" },
+      { label: "Impuestos", href: "/impuestos", icon: Landmark, seccion: "impuestos" },
     ],
   },
   {
     group: "COMPLIANCE",
     items: [
-      { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, area: "compliance" },
-      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, area: "compliance" },
-      { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, area: "compliance" },
-      { label: "Secondi", href: "/compliance/organismos/secondi", icon: ShieldCheck, area: "compliance" },
+      { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, seccion: "compliance_loma" },
+      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, seccion: "compliance_ypf" },
+      { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, seccion: "compliance_sicop" },
+      { label: "Secondi", href: "/compliance/organismos/secondi", icon: ShieldCheck, seccion: "compliance_secondi" },
     ],
   },
   {
     group: "SISTEMA",
     items: [
-      { label: "Usuarios", href: "/usuarios", icon: UsersRound, area: "sistema" },
-      { label: "Auditoría", href: "/auditoria", icon: ShieldAlert, area: "sistema" },
+      { label: "Usuarios", href: "/usuarios", icon: UsersRound, seccion: "usuarios" },
+      { label: "Auditoría", href: "/auditoria", icon: ShieldAlert, seccion: "auditoria" },
       {
         label: "Configuración",
         href: "/configuracion",
         icon: Settings,
         area: "sistema",
         children: [
-          { label: "General", href: "/configuracion" },
-          { label: "Negocio", href: "/configuracion/negocio" },
-          { label: "Notificaciones", href: "/configuracion/notificaciones" },
+          { label: "General", href: "/configuracion", seccion: "configuracion" },
+          { label: "Negocio", href: "/configuracion/negocio", seccion: "configuracion" },
+          { label: "Notificaciones", href: "/configuracion/notificaciones", seccion: "configuracion" },
         ],
       },
     ],

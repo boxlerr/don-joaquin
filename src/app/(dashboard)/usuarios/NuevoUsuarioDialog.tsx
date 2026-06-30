@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { Plus } from "lucide-react";
 import { crearUsuarioAction } from "./actions";
+import { rolLabel } from "./area-meta";
 
 type Rol = { id: string; codigo: string; nombre: string };
 
@@ -137,7 +138,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
               <Combobox
                 value={rolId}
                 onValueChange={setRolId}
-                options={roles.map((r) => ({ id: r.id, label: r.nombre }))}
+                options={roles.map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
                 searchable={false}
                 triggerClassName="h-10 w-full"
               />

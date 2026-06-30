@@ -2,16 +2,18 @@ import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OpenAuditButton } from "@/components/open-audit-button";
-import { getCurrentUser, requireArea } from "@/lib/auth";
+import { getCurrentUser, requireSeccion } from "@/lib/auth";
 import RolesPermisosMatrix from "./RolesPermisosMatrix";
+import RolSeccionesEditor from "./RolSeccionesEditor";
 import UsuariosListaClient, { type UsuarioRow } from "./UsuariosListaClient";
 import NuevoUsuarioDialog from "./NuevoUsuarioDialog";
 import UsuarioPermisosOverrides from "./UsuarioPermisosOverrides";
 import HelpUsuariosDialog from "./HelpUsuariosDialog";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
+import type { SeccionCodigo } from "@/lib/secciones";
 
 export default async function UsuariosPage() {
-  await requireArea("sistema", "read");
+  await requireSeccion("usuarios", "read");
   const supabase = createAdminClient();
   const currentUser = await getCurrentUser();
   const showMatriz = currentUser?.rol.codigo === "admin";
@@ -25,6 +27,7 @@ export default async function UsuariosPage() {
     areasRes,
     rolAreasRes,
     usuarioAreasRes,
+    rolSeccionesRes,
   ] = await Promise.all([
     supabase
       .from("usuarios")
@@ -55,6 +58,12 @@ export default async function UsuariosPage() {
           .from("usuario_areas")
           .select("usuario_id, area_codigo, nivel, vence_en, motivo")
       : Promise.resolve({ data: null }),
+    showMatriz
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rol_secciones aún no está en los tipos generados de Supabase
+      ? (supabase as any)
+          .from("rol_secciones")
+          .select("rol_id, seccion_codigo, nivel")
+      : Promise.resolve({ data: null }),
   ]);
 
   const roles = (rolesRes.data ?? []) as { id: string; codigo: string; nombre: string }[];
@@ -73,6 +82,17 @@ export default async function UsuariosPage() {
   for (const ra of rolAreas) {
     if (!matrizInicial[ra.rol_id]) matrizInicial[ra.rol_id] = {};
     matrizInicial[ra.rol_id][ra.area_codigo] = ra.nivel;
+  }
+
+  const rolSecciones = (rolSeccionesRes.data ?? []) as {
+    rol_id: string;
+    seccion_codigo: SeccionCodigo;
+    nivel: AreaNivel;
+  }[];
+  const rolSeccionesInicial: Record<string, Partial<Record<SeccionCodigo, AreaNivel>>> = {};
+  for (const rs of rolSecciones) {
+    if (!rolSeccionesInicial[rs.rol_id]) rolSeccionesInicial[rs.rol_id] = {};
+    rolSeccionesInicial[rs.rol_id][rs.seccion_codigo] = rs.nivel;
   }
 
   const usuariosFila = (usuarios ?? []).map((u) => {
@@ -129,6 +149,15 @@ export default async function UsuariosPage() {
 
       {showMatriz && roles.length > 0 && areas.length > 0 && (
         <RolesPermisosMatrix roles={roles} areas={areas} initialMatriz={matrizInicial} />
+      )}
+
+      {showMatriz && roles.length > 0 && areas.length > 0 && (
+        <RolSeccionesEditor
+          roles={roles}
+          areas={areas}
+          matriz={matrizInicial}
+          initial={rolSeccionesInicial}
+        />
       )}
 
       {showMatriz && areas.length > 0 && (
