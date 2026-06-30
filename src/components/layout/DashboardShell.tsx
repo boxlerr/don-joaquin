@@ -7,6 +7,8 @@ import CommandPalette from "./CommandPalette";
 import { AuditDrawer } from "@/components/audit-drawer";
 import NotificationBell from "./NotificationBell";
 import AreaErrorBanner from "@/components/AreaErrorBanner";
+import NotificacionesProvider from "@/components/notificaciones/NotificacionesProvider";
+import NotifToaster from "@/components/notificaciones/NotifToaster";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
@@ -14,10 +16,12 @@ export default function DashboardShell({
   children,
   user,
   alertasCount = 0,
+  userId = null,
 }: {
   children: React.ReactNode;
   user: SidebarUser | null;
   alertasCount?: number;
+  userId?: string | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -30,7 +34,7 @@ export default function DashboardShell({
     return () => window.removeEventListener(AUDIT_DRAWER_EVENT, openAudit);
   }, [openAudit]);
 
-  return (
+  const shell = (
     <div className="flex h-full bg-background">
       <div
         className={`transition-[width] duration-300 ease-in-out overflow-hidden shrink-0 ${
@@ -85,5 +89,17 @@ export default function DashboardShell({
 
       <AuditDrawer open={auditOpen} onClose={() => setAuditOpen(false)} />
     </div>
+  );
+
+  // El provider es la ÚNICA fuente de polling; la campana y el toaster lo consumen.
+  // Sin usuario (no debería pasar: el layout redirige a /login) la campana degrada
+  // a un ícono estático.
+  if (!userId) return shell;
+
+  return (
+    <NotificacionesProvider userId={userId} initialCount={alertasCount}>
+      {shell}
+      <NotifToaster />
+    </NotificacionesProvider>
   );
 }

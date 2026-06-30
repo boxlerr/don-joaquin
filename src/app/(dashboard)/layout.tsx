@@ -2,22 +2,21 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth";
+import { getResumenUsuario } from "@/lib/alertas-lecturas";
 import type { SidebarUser } from "@/components/layout/Sidebar";
 
 const getLayoutData = cache(async () => {
   const supabase = await createClient();
-  const adminSupabase = createAdminClient();
 
-  const [{ data: { user: authUser } }, { count: alertasCount }, currentUser] = await Promise.all([
+  const [{ data: { user: authUser } }, currentUser] = await Promise.all([
     supabase.auth.getUser(),
-    adminSupabase
-      .from("alertas")
-      .select("*", { count: "exact", head: true })
-      .eq("estado", "pendiente"),
     getCurrentUser(),
   ]);
+
+  // Contador POR USUARIO: alertas pendientes que ESTE usuario no leyó (misma
+  // definición que /api/alertas, así el badge llega a 0 al marcar todo).
+  const alertasCount = currentUser ? (await getResumenUsuario(currentUser.id)).count : 0;
 
   let sidebarUser: SidebarUser | null = null;
   if (currentUser) {
@@ -38,7 +37,8 @@ const getLayoutData = cache(async () => {
 
   return {
     sidebarUser,
-    alertasCount: alertasCount ?? 0,
+    alertasCount,
+    userId: currentUser?.id ?? null,
     mustChangePassword: currentUser?.must_change_password ?? false,
   };
 });
@@ -48,7 +48,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarUser, alertasCount, mustChangePassword } = await getLayoutData();
+  const { sidebarUser, alertasCount, userId, mustChangePassword } = await getLayoutData();
 
   // Usuario con contraseña provisoria (alta nueva o reseteo por admin): debe
   // definir una contraseña propia antes de entrar a cualquier parte del sistema.
@@ -57,7 +57,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardShell user={sidebarUser} alertasCount={alertasCount}>
+    <DashboardShell user={sidebarUser} alertasCount={alertasCount} userId={userId}>
       {children}
     </DashboardShell>
   );

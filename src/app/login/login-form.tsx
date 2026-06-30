@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type LoginState } from "./actions";
+import { clearForLogin } from "@/components/notificaciones/seenStore";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
@@ -13,6 +14,12 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     null,
   );
   const [showPassword, setShowPassword] = useState(false);
+
+  // Al pasar por el login reseteamos la memoria de toasts: así, tras entrar,
+  // el primer pop-up resumen ("tenés N sin leer") vuelve a aparecer.
+  useEffect(() => {
+    clearForLogin();
+  }, []);
 
   return (
     <form action={action} className="space-y-5">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertOctagon, Clock, ShieldCheck } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
+import { getHistorialLeidas, getPendientesNoLeidasIds } from "@/lib/alertas-lecturas";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
@@ -12,12 +13,13 @@ import HelpTutorialButton from "./help-tutorial-button";
 import { diasRestantes, type AlertaItem } from "./utils";
 
 export default async function NotificacionesPage() {
-  await requireUser();
+  const user = await requireUser();
   const supabase = createAdminClient();
 
   const [
     { data: alertasRaw },
-    { data: leidasRaw },
+    leidasUsuario,
+    pendientesNoLeidasIds,
     { data: tiposDoc },
     { data: camionDocs },
     { data: choferDocs },
@@ -29,13 +31,10 @@ export default async function NotificacionesPage() {
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
       .limit(200),
-    // Historial de leídas (se conservan al marcarlas; el usuario las borra cuando quiere).
-    supabase
-      .from("alertas")
-      .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
-      .eq("estado", "vista")
-      .order("vista_en", { ascending: false, nullsFirst: false })
-      .limit(200),
+    // Historial de leídas POR USUARIO (lo que ESTE usuario marcó leído y no borró).
+    getHistorialLeidas(user.id),
+    // IDs de pendientes que ESTE usuario aún no leyó (para particionar más abajo).
+    getPendientesNoLeidasIds(user.id),
     supabase
       .from("tipos_documento")
       .select("id, nombre, aplica_a, dias_alerta_vencimiento, obligatorio")
@@ -48,13 +47,11 @@ export default async function NotificacionesPage() {
       .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
   ]);
 
-  const alertas = (alertasRaw ?? []) as AlertaItem[];
+  // Sólo las pendientes que ESTE usuario no leyó (estado leído es per-user).
+  const noLeidasSet = new Set(pendientesNoLeidasIds);
+  const alertas = ((alertasRaw ?? []) as AlertaItem[]).filter((a) => noLeidasSet.has(a.id));
 
-  // Historial de leídas. Excluimos los docs (se calculan en vivo más abajo y se
-  // resuelven al renovar el documento, no se "leen").
-  const leidas = ((leidasRaw ?? []) as AlertaItem[]).filter(
-    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
-  );
+  const leidas = leidasUsuario;
 
   const tipos = (tiposDoc ?? []) as {
     id: string;
