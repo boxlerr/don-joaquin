@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,7 @@ const FIELD_COMBO_TRIGGER =
 import {
   getViajeParaEditarAction,
   getViajeFormData,
+  getImporteSugeridoAction,
   updateViajeAction,
   type ViajeParaEditar,
   type ViajeFormData,
@@ -77,8 +78,16 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const [kmVacios, setKmVacios] = useState("0");
   const [tonelaje, setTonelaje] = useState("0");
   const [montoFlete, setMontoFlete] = useState("0");
+  const [tarifaId, setTarifaId] = useState("");
+  const [importeHint, setImporteHint] = useState<string | null>(null);
   const [nroViajeYpf, setNroViajeYpf] = useState("");
   const [material, setMaterial] = useState("");
+
+  // El monto cargado es la fuente de verdad al abrir: solo recalculamos por
+  // tarifa si el operador CAMBIA cliente/destino/tonelaje (routeTouched) y no
+  // editó el monto a mano (montoDirty). Así abrir a editar otra cosa no lo pisa.
+  const montoDirty = useRef(false);
+  const routeTouched = useRef(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +100,9 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
     setLoadError(null);
     setError(null);
     setFieldErrors({});
+    montoDirty.current = false;
+    routeTouched.current = false;
+    setImporteHint(null);
 
     Promise.all([
       getViajeParaEditarAction(viaje.id),
@@ -115,10 +127,51 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       setKmVacios(String(vd.km_vacios));
       setTonelaje(String(vd.tonelaje_real));
       setMontoFlete(String(vd.monto_flete));
+      setTarifaId(vd.tarifa_id ?? "");
       setNroViajeYpf(vd.nro_viaje_ypf ?? "");
       setMaterial(vd.material ?? "");
     }).finally(() => setLoadingData(false));
   }, [open, viaje.id]);
+
+  // Edición manual del monto: la tarifa no lo pisa y deja de atribuirse a una tarifa.
+  const handleMontoManual = (v: string) => {
+    montoDirty.current = true;
+    setImporteHint(null);
+    setTarifaId("");
+    setMontoFlete(v);
+  };
+
+  // Recalcular el monto desde la tarifa del destino, SOLO si el operador cambió
+  // cliente/destino/tonelaje (routeTouched) y no editó el monto a mano. Igual que
+  // en el alta: toneladas × precio del destino. Debounce para no spamear el server.
+  useEffect(() => {
+    if (!routeTouched.current || montoDirty.current) return;
+    if (!clienteId || !destinoNombre.trim()) return;
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      const res = await getImporteSugeridoAction(
+        clienteId,
+        origenNombre.trim() || null,
+        destinoNombre.trim() || null,
+        Number(tonelaje) || 0,
+        Number(kmConCarga) || 0,
+        fechaViaje || null,
+      );
+      if (cancelado || montoDirty.current) return;
+      if (!res) {
+        setImporteHint(null);
+        setTarifaId("");
+        return;
+      }
+      setMontoFlete(String(res.importe));
+      setTarifaId(res.tarifaId);
+      setImporteHint(`Importe recalculado por tarifa (${res.detalle}). Editá si fue distinto.`);
+    }, 350);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [clienteId, origenNombre, destinoNombre, tonelaje, kmConCarga, fechaViaje]);
 
   const isFacturado = viaje.estado === "cerrado" && viaje.facturado;
 
@@ -137,6 +190,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
 
   // Al elegir un circuito: autocompletar origen, destino y km (quedan editables).
   const handleCircuitoChange = (circuitoId: string) => {
+    routeTouched.current = true;
     setRutaId(circuitoId);
     const c = formOptions?.circuitos.find((x) => x.id === circuitoId);
     if (c) {
@@ -168,6 +222,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       km_vacios: Number(kmVacios) || 0,
       tonelaje_real: Number(tonelaje) || 0,
       monto_flete: Number(montoFlete) || 0,
+      tarifa_id: tarifaId || null,
       nro_viaje_ypf: nroViajeYpf.trim() || null,
       material: material.trim() || null,
     });
@@ -285,7 +340,10 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             <CField label="Cliente *" icon={User} error={fieldErrors.cliente_id}>
               <Combobox
                 value={clienteId}
-                onValueChange={setClienteId}
+                onValueChange={(v) => {
+                  routeTouched.current = true;
+                  setClienteId(v);
+                }}
                 options={formOptions?.clientes ?? []}
                 placeholder="Seleccioná un cliente..."
                 searchPlaceholder="Buscar cliente..."
@@ -391,7 +449,10 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 placeholder="Escribí o elegí un lugar..."
                 options={formOptions?.puntos_ruta ?? []}
                 value={origenNombre}
-                onValueChange={setOrigenNombre}
+                onValueChange={(v) => {
+                  routeTouched.current = true;
+                  setOrigenNombre(v);
+                }}
                 error={fieldErrors.origen_nombre}
               />
               <PlaceCombobox
@@ -401,7 +462,10 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 placeholder="Escribí o elegí un lugar..."
                 options={formOptions?.puntos_ruta ?? []}
                 value={destinoNombre}
-                onValueChange={setDestinoNombre}
+                onValueChange={(v) => {
+                  routeTouched.current = true;
+                  setDestinoNombre(v);
+                }}
                 error={fieldErrors.destino_nombre}
               />
             </div>
@@ -430,7 +494,10 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
                 <input
                   type="number"
                   value={tonelaje}
-                  onChange={(e) => setTonelaje(e.target.value)}
+                  onChange={(e) => {
+                    routeTouched.current = true;
+                    setTonelaje(e.target.value);
+                  }}
                   min="0"
                   step="0.01"
                   className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
@@ -438,16 +505,22 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               </CField>
             </div>
 
-            {/* Monto de flete */}
+            {/* Monto de flete — se recalcula por tarifa si cambiás destino/tonelaje (editable) */}
             <CField label="Monto de flete (ARS)" icon={DollarSign} error={fieldErrors.monto_flete}>
               <input
                 type="number"
                 value={montoFlete}
-                onChange={(e) => setMontoFlete(e.target.value)}
+                onChange={(e) => handleMontoManual(e.target.value)}
                 min="0"
                 className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
               />
             </CField>
+            {importeHint && (
+              <p className="flex items-center gap-1.5 text-[11px] text-[#0277BD] font-medium animate-in fade-in duration-200">
+                <DollarSign size={12} className="shrink-0" />
+                {importeHint}
+              </p>
+            )}
 
             {/* Material (opcional) */}
             <CField label="Material" icon={Package} error={fieldErrors.material}>

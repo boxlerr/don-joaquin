@@ -11,8 +11,14 @@ import {
   Loader2,
   AlertTriangle,
   RotateCcw,
+  DollarSign,
 } from "lucide-react";
-import { createViajesBatchAction, type ViajeFormData, type ViajeFilaRapida } from "../actions";
+import {
+  createViajesBatchAction,
+  getImporteSugeridoAction,
+  type ViajeFormData,
+  type ViajeFilaRapida,
+} from "../actions";
 
 // ── Tipos internos ────────────────────────────────────────────────────────────
 
@@ -29,6 +35,8 @@ type Fila = {
   km_vacios: string;
   tonelaje_real: string;
   monto_flete: string;
+  /** Tarifa que precargó el monto (snapshot). Vacío = cargado a mano. */
+  tarifa_id: string;
   nro_viaje_ypf: string;
   es_vacio: boolean;
 };
@@ -51,6 +59,7 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
     km_vacios: "0",
     tonelaje_real: "0",
     monto_flete: "0",
+    tarifa_id: "",
     nro_viaje_ypf: "",
     es_vacio: false,
     ...overrides,
@@ -76,6 +85,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
   const [filas, setFilas] = useState<Fila[]>([filaVacia()]);
   const [guardando, setGuardando] = useState(false);
+  const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; creados?: number; mensaje: string } | null>(null);
   const [erroresValidacion, setErroresValidacion] = useState<{ fila: number; mensaje: string }[]>([]);
 
@@ -95,6 +105,15 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
           // Auto-completar camión al cambiar chofer
           if (campo === "chofer_id" && camionPorChofer.has(valor)) {
             updated.camion_id = camionPorChofer.get(valor)!;
+          }
+          // Editar a mano el monto o la ruta/tonelaje invalida el snapshot de tarifa.
+          if (
+            campo === "monto_flete" ||
+            campo === "origen_nombre" ||
+            campo === "destino_nombre" ||
+            campo === "tonelaje_real"
+          ) {
+            updated.tarifa_id = "";
           }
           return updated;
         }),
@@ -118,6 +137,8 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
             destino_nombre: c.destino === "—" ? "" : c.destino,
             km_con_carga: String(c.km_con_carga),
             km_vacios: String(c.km_vacios),
+            // Cambió la ruta: el monto se recalcula con "Calcular $ por tarifa".
+            tarifa_id: "",
           };
         }),
       );
@@ -171,6 +192,54 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
     });
   };
 
+  // Completa el monto de cada fila desde la tarifa vigente del destino (igual que
+  // el DM: tn × precio del destino). Es explícito —no por celda— porque en la
+  // carga rápida el valor a veces se conoce recién con el DM. Solo pisa filas no
+  // vacías con destino; las que no tengan tarifa quedan como están.
+  const calcularImportes = async () => {
+    if (!globalClienteId) {
+      setResultado({ ok: false, mensaje: "Seleccioná un cliente global para calcular los importes." });
+      return;
+    }
+    setCalculando(true);
+    setResultado(null);
+    try {
+      const objetivo = filas.filter((f) => !f.es_vacio && f.destino_nombre.trim());
+      const results = await Promise.all(
+        objetivo.map(async (f) => ({
+          id: f.id,
+          res: await getImporteSugeridoAction(
+            globalClienteId,
+            f.origen_nombre.trim() || null,
+            f.destino_nombre.trim() || null,
+            Number(f.tonelaje_real) || 0,
+            Number(f.km_con_carga) || 0,
+            f.fecha_viaje || null,
+          ),
+        })),
+      );
+      const byId = new Map(results.filter((r) => r.res).map((r) => [r.id, r.res!]));
+      setFilas((prev) =>
+        prev.map((f) => {
+          const r = byId.get(f.id);
+          if (!r) return f;
+          return { ...f, monto_flete: String(r.importe), tarifa_id: r.tarifaId };
+        }),
+      );
+      setResultado(
+        byId.size > 0
+          ? { ok: true, mensaje: `${byId.size} importe(s) calculados por tarifa. Revisá y guardá.` }
+          : {
+              ok: false,
+              mensaje:
+                "No se encontró tarifa vigente para esos destinos. Cargá las tarifas en /tarifas o importá el DM de YPF.",
+            },
+      );
+    } finally {
+      setCalculando(false);
+    }
+  };
+
   const handleGuardar = async () => {
     if (!globalClienteId) {
       setResultado({ ok: false, mensaje: "Seleccioná un cliente global antes de guardar." });
@@ -195,6 +264,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       km_vacios: Number(f.km_vacios) || 0,
       tonelaje_real: Number(f.tonelaje_real) || 0,
       monto_flete: Number(f.monto_flete) || 0,
+      tarifa_id: f.tarifa_id || null,
       nro_viaje_ypf: f.nro_viaje_ypf.trim() || null,
       es_vacio: f.es_vacio,
     }));
@@ -544,8 +614,22 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         </ul>
       )}
 
-      {/* Botón guardar */}
-      <div className="flex justify-end">
+      {/* Acciones */}
+      <div className="flex justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={calcularImportes}
+          disabled={calculando || guardando}
+          className="font-semibold h-10 gap-2"
+          title="Completa el monto de cada fila desde la tarifa vigente del destino"
+        >
+          {calculando ? (
+            <><Loader2 size={15} className="animate-spin" /> Calculando...</>
+          ) : (
+            <><DollarSign size={15} /> Calcular $ por tarifa</>
+          )}
+        </Button>
         <Button
           type="button"
           onClick={handleGuardar}

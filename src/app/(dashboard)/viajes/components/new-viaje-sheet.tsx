@@ -40,6 +40,7 @@ function fmtDia(iso: string): string {
 import {
   createViajeAction,
   getKmHistoricoAction,
+  getImporteSugeridoAction,
   type CreateViajeState,
   type ViajeFormData,
 } from "../actions";
@@ -47,6 +48,8 @@ import {
 export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
   const [tipoCarga, setTipoCarga] = useState("");
+  // Cliente: necesario para buscar la tarifa que precarga el monto del flete.
+  const [selectedClienteId, setSelectedClienteId] = useState("");
   // Auto-camión: al elegir chofer, se pre-selecciona su camión asignado
   // (pero el usuario puede cambiarlo: los choferes rotan unidades).
   const [selectedChoferId, setSelectedChoferId] = useState("");
@@ -57,14 +60,24 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [destino, setDestino] = useState("");
   const [kmConCarga, setKmConCarga] = useState("0");
   const [kmVacios, setKmVacios] = useState("0");
+  const [tonelaje, setTonelaje] = useState("0");
+  // Monto de flete (controlado): lo precarga la tarifa del destino y queda editable.
+  const [montoFlete, setMontoFlete] = useState("0");
+  // Tarifa que precargó el monto (snapshot). Se limpia si el operador edita el
+  // monto a mano (entonces el monto ya no proviene de esa tarifa).
+  const [tarifaId, setTarifaId] = useState("");
   // `true` cuando los km se cargaron a mano o por circuito: el autocompletado
   // por historial no debe pisarlos al tipear. Al elegir un destino del
   // desplegable sí se vuelven a calcular (eso es autoritativo).
   const kmDirty = useRef(false);
+  // Mismo flag para el monto: si se editó a mano, la tarifa no lo pisa.
+  const montoDirty = useRef(false);
   // Mismo flag pero para los km de la vuelta.
   const vKmDirty = useRef(false);
   // Aviso cuando los km se precargan desde el historial del par origen→destino.
   const [kmHistHint, setKmHistHint] = useState<string | null>(null);
+  // Aviso cuando el monto se precarga desde la tarifa vigente del destino.
+  const [importeHint, setImporteHint] = useState<string | null>(null);
   // Viaje de vuelta (opcional): se carga junto con la ida en el mismo submit.
   // El modo distingue si el camión vuelve vacío (sin flete) o cargado (puede
   // traer un material distinto).
@@ -99,6 +112,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
 
   const resetCampos = () => {
     setTipoCarga("");
+    setSelectedClienteId("");
     setSelectedChoferId("");
     setSelectedCamionId("");
     setSelectedCircuitoId("");
@@ -106,6 +120,11 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setDestino("");
     setKmConCarga("0");
     setKmVacios("0");
+    setTonelaje("0");
+    setMontoFlete("0");
+    setTarifaId("");
+    montoDirty.current = false;
+    setImporteHint(null);
     kmDirty.current = false;
     setKmHistHint(null);
     setCargarVuelta(false);
@@ -226,6 +245,49 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       clearTimeout(t);
     };
   }, [origen, destino]);
+
+  // Marca el monto como editado a mano: la tarifa no lo pisa y dejamos de
+  // atribuirlo a una tarifa (se limpia el snapshot tarifa_id).
+  const setMontoManual = (v: string) => {
+    montoDirty.current = true;
+    setImporteHint(null);
+    setTarifaId("");
+    setMontoFlete(v);
+  };
+
+  // Autocompletar el MONTO DE FLETE desde la tarifa vigente del destino, igual
+  // que lo calcula el DM (toneladas × precio del destino). Solo precarga si el
+  // operador no tocó el monto a mano. Se recalcula al cambiar cliente, destino o
+  // tonelaje (la tarifa por tonelada depende del tonelaje). Debounce para no
+  // pegarle al server en cada tecla.
+  useEffect(() => {
+    if (montoDirty.current) return;
+    const o = origen.trim();
+    const d = destino.trim();
+    const tn = Number(tonelaje) || 0;
+    if (!selectedClienteId || !d || d === "—") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- limpiar el aviso cuando faltan datos para calcular
+      setImporteHint(null);
+      return;
+    }
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      const res = await getImporteSugeridoAction(selectedClienteId, o, d, tn, Number(kmConCarga) || 0);
+      if (cancelado || montoDirty.current) return;
+      if (!res) {
+        setImporteHint(null);
+        setTarifaId("");
+        return;
+      }
+      setMontoFlete(String(res.importe));
+      setTarifaId(res.tarifaId);
+      setImporteHint(`Importe calculado por tarifa (${res.detalle}). Editá si esta vez fue distinto.`);
+    }, 350);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [selectedClienteId, origen, destino, tonelaje, kmConCarga]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -357,7 +419,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               error={state?.fieldErrors?.fecha_viaje}
             />
 
-            {/* Cliente */}
+            {/* Cliente — al elegirlo se puede precargar el monto desde su tarifa */}
             <SelectField
               label="Cliente *"
               name="cliente_id"
@@ -365,6 +427,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               required
               icon={User}
               error={state?.fieldErrors?.cliente_id}
+              onValueChange={setSelectedClienteId}
               searchPlaceholder="Buscar cliente..."
             />
 
@@ -518,7 +581,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 label="Tonelaje (tn)"
                 name="tonelaje_real"
                 type="number"
-                defaultValue="0"
+                value={tonelaje}
+                onChange={setTonelaje}
                 icon={Scale}
                 error={state?.fieldErrors?.tonelaje_real}
               />
@@ -531,15 +595,24 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               </p>
             )}
 
-            {/* Monto de Flete */}
+            {/* Monto de Flete — lo precarga la tarifa del destino (editable) */}
             <InputFieldWithIcon
               label="Monto de flete (ARS)"
               name="monto_flete"
               type="number"
-              defaultValue="0"
+              value={montoFlete}
+              onChange={setMontoManual}
               icon={DollarSign}
               error={state?.fieldErrors?.monto_flete}
             />
+            {/* Snapshot de la tarifa que precargó el monto (vacío = cargado a mano) */}
+            <input type="hidden" name="tarifa_id" value={tarifaId} />
+            {importeHint && (
+              <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-[#0277BD] font-medium animate-in fade-in duration-200">
+                <DollarSign size={12} className="shrink-0" />
+                {importeHint}
+              </p>
+            )}
 
             {/* Material (opcional) */}
             <InputFieldWithIcon

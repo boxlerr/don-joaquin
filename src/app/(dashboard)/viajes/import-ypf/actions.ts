@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { parseYpfPdf, type YpfTarifa } from "./parser-ypf";
+import { seedTarifasFromYpf } from "./tarifas-seed";
 
 // ============================================================================
 // Importador del DM de YPF — modelo "match por remito + completar".
@@ -198,6 +199,10 @@ export type ConfirmYpfState = {
     yaTenian: number;
     noCargados: number;
     dmYpfId?: string;
+    // Tarifas sembradas en la tabla `tarifas` (alimentan el cálculo de importe
+    // en el alta de viajes).
+    tarifasCreadas?: number;
+    tarifasActualizadas?: number;
   };
   error?: string;
 } | null;
@@ -227,6 +232,18 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     dmYpfId = await guardarDmYpf(supabase, user.id, file, parsed);
   } catch (e) {
     console.error("Error guardando DM YPF en compliance:", e);
+  }
+
+  // Sembrar las tarifas del DM en la tabla `tarifas` (best-effort): así el alta
+  // de viajes precarga el monto por destino y "coincide con el DM".
+  let tarifasCreadas = 0;
+  let tarifasActualizadas = 0;
+  try {
+    const seed = await seedTarifasFromYpf(supabase, user.id, parsed);
+    tarifasCreadas = seed.creadas;
+    tarifasActualizadas = seed.actualizadas;
+  } catch (e) {
+    console.error("Error sembrando tarifas desde el DM de YPF:", e);
   }
 
   // Solo completamos los que coinciden y no son tramos vacíos.
@@ -279,6 +296,7 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
   revalidatePath("/viajes/hoja-ruta");
   revalidatePath("/compliance/ypf");
   revalidatePath("/compliance/ypf/dm");
+  revalidatePath("/tarifas");
 
   return {
     ok: true,
@@ -287,6 +305,8 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
       yaTenian: rows.filter((r) => r.status === "ya_con_valor").length,
       noCargados: rows.filter((r) => r.status === "no_cargado").length,
       dmYpfId: dmYpfId ?? undefined,
+      tarifasCreadas,
+      tarifasActualizadas,
     },
   };
 }

@@ -9,6 +9,13 @@ import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
+import {
+  pickTarifaAplicable,
+  computeImporteTarifa,
+  detalleTarifa,
+  rutaDeTarifa,
+  type TarifaModalidad,
+} from "@/domain/viajes/tarifa-importe";
 
 const PAGE_SIZE = 20;
 
@@ -328,6 +335,9 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
            destino:puntos_ruta!rutas_destino_id_fkey (nombre)`,
         )
         .eq("estado", "activa")
+        // Las rutas que sembramos solo para anclar una tarifa van con km 0; no son
+        // circuitos reales y no deben aparecer en el desplegable de la carga.
+        .gt("km_oficiales", 0)
         .order("codigo_interno", { ascending: true }),
       // Planilla diaria de HOY: antes era una consulta serial después del batch;
       // ahora va en paralelo con el resto. Su error se ignora igual que antes
@@ -536,6 +546,111 @@ export async function getKmHistoricoAction(
 }
 
 // ============================================================================
+// Autocompletado de importe por tarifa (el destino define el precio)
+// ----------------------------------------------------------------------------
+// Al cargar un viaje, una vez elegidos cliente + destino + tonelaje, buscamos la
+// tarifa vigente que aplica y devolvemos el importe sugerido — igual que lo
+// calcula el DM (toneladas × precio del destino). El monto queda EDITABLE: esto
+// solo lo precarga, y al guardar persistimos `tarifa_id` como snapshot de la
+// tarifa usada.
+//
+// "El destino define el precio": priorizamos el match por destino. La tabla
+// `tarifas` ancla el precio a una ruta (origen→destino) por cliente; para YPF el
+// origen es constante (la cantera) y el destino varía, así que el match por
+// destino cubre el caso aunque el origen difiera levemente.
+// ============================================================================
+
+export type ImporteSugerido = {
+  importe: number;
+  tarifaId: string;
+  modalidad: TarifaModalidad;
+  valor: number;
+  moneda: string;
+  detalle: string;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TarifaVigente = any;
+
+export async function getImporteSugeridoAction(
+  clienteId: string,
+  origenNombre: string | null,
+  destinoNombre: string | null,
+  tonelaje: number,
+  kmConCarga: number,
+  fechaViaje?: string | null,
+): Promise<ImporteSugerido | null> {
+  await requireArea("viajes", "read");
+
+  if (!clienteId) return null;
+  const tn = Number.isFinite(tonelaje) ? tonelaje : 0;
+  const km = Number.isFinite(kmConCarga) ? kmConCarga : 0;
+
+  const supabase = createAdminClient();
+  const ref =
+    fechaViaje && /^\d{4}-\d{2}-\d{2}$/.test(fechaViaje)
+      ? fechaViaje
+      : new Date().toISOString().slice(0, 10);
+
+  // Resolver origen/destino por nombre (puede no resolver: una tarifa con ruta
+  // null igual aplica como tarifa general del cliente).
+  const resolvePunto = async (nombre: string | null): Promise<string | null> => {
+    const n = (nombre ?? "").trim();
+    if (!n || n === "—") return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", n)
+      .limit(1);
+    return data?.[0]?.id ?? null;
+  };
+  const [origenId, destinoId] = await Promise.all([
+    resolvePunto(origenNombre),
+    resolvePunto(destinoNombre),
+  ]);
+
+  // Tarifas activas y vigentes del cliente, con su ruta (origen/destino/km).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: tarifas } = await (supabase as any)
+    .from("tarifas")
+    .select(
+      "id, modalidad, valor, moneda, ruta_id, vigencia_desde, vigencia_hasta, ruta:ruta_id(origen_id, destino_id, km_oficiales)",
+    )
+    .eq("cliente_id", clienteId)
+    .eq("activa", true)
+    .lte("vigencia_desde", ref)
+    .order("vigencia_desde", { ascending: false });
+
+  const vigentes: TarifaVigente[] = (tarifas ?? []).filter(
+    (t: TarifaVigente) => t.vigencia_hasta == null || t.vigencia_hasta >= ref,
+  );
+  if (vigentes.length === 0) return null;
+
+  // Selección (ruta exacta → mismo destino → general) y cálculo: lógica pura,
+  // testeable, en domain/viajes/tarifa-importe.
+  const elegida = pickTarifaAplicable(vigentes, origenId, destinoId);
+  if (!elegida) return null;
+
+  const modalidad = elegida.modalidad as TarifaModalidad;
+  const valor = Number(elegida.valor) || 0;
+  const kmRuta = rutaDeTarifa(elegida)?.km_oficiales ?? null;
+
+  const importe = computeImporteTarifa(modalidad, valor, { tonelaje: tn, kmConCarga: km, kmRuta });
+  if (!(importe > 0)) return null;
+
+  const kmUsado = kmRuta && kmRuta > 0 ? Number(kmRuta) : km;
+  return {
+    importe,
+    tarifaId: elegida.id as string,
+    modalidad,
+    valor,
+    moneda: (elegida.moneda as string) ?? "ARS",
+    detalle: detalleTarifa(modalidad, valor, { tonelaje: tn, km: kmUsado }),
+  };
+}
+
+// ============================================================================
 // Crear viaje
 // ============================================================================
 
@@ -560,6 +675,9 @@ const viajeSchema = z
     monto_flete: z.number().min(0, "Debe ser ≥ 0."),
     nro_viaje_ypf: z.string().max(60, "Máximo 60 caracteres.").optional().nullable(),
     material: z.string().trim().max(120, "Máximo 120 caracteres.").optional().nullable(),
+    // Tarifa usada para precargar el monto (snapshot). El monto sigue siendo
+    // editable; si el operador lo cambió a mano, el front no envía tarifa_id.
+    tarifa_id: z.string().uuid("Tarifa inválida.").optional().nullable(),
   })
   .refine(
     (d) =>
@@ -773,6 +891,7 @@ export async function createViajeAction(
     monto_flete: parseNumber(formData.get("monto_flete")),
     nro_viaje_ypf: emptyOrNull(formData.get("nro_viaje_ypf")),
     material: emptyOrNull(formData.get("material")),
+    tarifa_id: emptyOrNull(formData.get("tarifa_id")),
   });
 
   if (!parsed.success) {
@@ -928,6 +1047,8 @@ export async function createViajeAction(
     nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
     material: parsed.data.material || null,
     es_vacio: false,
+    // Snapshot de la tarifa que precargó el monto (null si se cargó/editó a mano).
+    tarifa_id: parsed.data.tarifa_id ?? null,
     // Regla unificada: con monto de flete > 0 el viaje queda facturado (igual
     // que importadores/hoja de ruta/cierre). Sin monto queda sin facturar.
     facturado: viajeEstaFacturado(parsed.data.monto_flete),
@@ -1631,6 +1752,7 @@ export type ViajeParaEditar = {
   km_vacios: number;
   tonelaje_real: number;
   monto_flete: number;
+  tarifa_id: string | null;
   descripcion_otros: string | null;
   nro_viaje_ypf: string | null;
   material: string | null;
@@ -1648,7 +1770,7 @@ export async function getViajeParaEditarAction(
       `id, codigo, fecha_viaje, estado, facturado,
        cliente_id, chofer_id, camion_id, tipo_carga_id, ruta_id,
        origen_id, destino_id,
-       km_con_carga, km_vacios, tonelaje_real, monto_flete, observaciones,
+       km_con_carga, km_vacios, tonelaje_real, monto_flete, tarifa_id, observaciones,
        nro_viaje_ypf, material,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
@@ -1683,6 +1805,7 @@ export async function getViajeParaEditarAction(
     km_vacios: data.km_vacios ?? 0,
     tonelaje_real: data.tonelaje_real ?? 0,
     monto_flete: data.monto_flete ?? 0,
+    tarifa_id: data.tarifa_id ?? null,
     descripcion_otros: otrosMatch ? otrosMatch[1].trim() : null,
     nro_viaje_ypf: data.nro_viaje_ypf ?? null,
     material: data.material ?? extractMaterialFromObs(data.observaciones),
@@ -1716,6 +1839,7 @@ export async function updateViajeAction(
     km_vacios: number;
     tonelaje_real: number;
     monto_flete: number;
+    tarifa_id?: string | null;
     nro_viaje_ypf: string | null;
     material: string | null;
   },
@@ -1735,6 +1859,7 @@ export async function updateViajeAction(
     km_vacios: data.km_vacios,
     tonelaje_real: data.tonelaje_real,
     monto_flete: data.monto_flete,
+    tarifa_id: data.tarifa_id ?? null,
     nro_viaje_ypf: data.nro_viaje_ypf,
     material: data.material,
   });
@@ -1824,6 +1949,7 @@ export async function updateViajeAction(
       km_vacios: parsed.data.km_vacios,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
+      tarifa_id: parsed.data.tarifa_id ?? null,
       observaciones: observacionesDB,
       nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
       material: parsed.data.material || null,
@@ -1931,6 +2057,8 @@ export type ViajeFilaRapida = {
   km_vacios: number;
   tonelaje_real: number;
   monto_flete: number;
+  /** Tarifa que precargó el monto (snapshot). Vacío = cargado a mano. */
+  tarifa_id?: string | null;
   nro_viaje_ypf: string | null;
   /** Tramo vacío (vuelta sin carga): no factura ni suma tonelaje. */
   es_vacio?: boolean;
@@ -2038,6 +2166,7 @@ export async function createViajesBatchAction(
         km_vacios: p.km_vacios,
         tonelaje_real: esVacio ? 0 : p.tonelaje_real,
         monto_flete: esVacio ? 0 : p.monto_flete,
+        tarifa_id: esVacio ? null : p.tarifa_id ?? null,
         moneda: "ARS",
         nro_viaje_ypf: p.nro_viaje_ypf ?? null,
         material: p.material || null,

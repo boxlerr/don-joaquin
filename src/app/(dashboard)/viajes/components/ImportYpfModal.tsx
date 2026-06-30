@@ -242,6 +242,13 @@ export default function ImportYpfModal({
                 {result.result.yaTenian > 0 && (
                   <div className="text-muted-foreground"><strong>{result.result.yaTenian}</strong> ya tenían valor (no se tocaron)</div>
                 )}
+                {((result.result.tarifasCreadas ?? 0) + (result.result.tarifasActualizadas ?? 0)) > 0 && (
+                  <div className="text-[#047857]">
+                    Tarifas por destino guardadas: <strong>{result.result.tarifasCreadas ?? 0}</strong> nuevas
+                    {(result.result.tarifasActualizadas ?? 0) > 0 && <> · <strong>{result.result.tarifasActualizadas}</strong> actualizadas</>}
+                    . Ahora el alta de viajes precarga el importe por destino.
+                  </div>
+                )}
               </div>
               <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">
                 <Button type="button" variant="brand" onClick={() => setOpen(false)}>Cerrar</Button>
