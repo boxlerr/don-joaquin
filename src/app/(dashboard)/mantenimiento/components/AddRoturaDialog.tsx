@@ -86,6 +86,7 @@ export default function AddRoturaDialog({
   const [unidadAuto, setUnidadAuto] = useState(false);
   const [tipo, setTipo] = useState("goma");
   const [tipoCustom, setTipoCustom] = useState("");
+  const [gravedad, setGravedad] = useState<"leve" | "grave">("leve");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [cantidad, setCantidad] = useState("1");
   const [costo, setCosto] = useState("");
@@ -103,6 +104,9 @@ export default function AddRoturaDialog({
   const choferSel = choferes.find((c) => c.id === choferId);
   const esGoma = tipo === "goma";
   const esOtro = tipo === "otro";
+  // La gravedad solo aplica a roturas que NO son gomas/llantas (esas cuentan en
+  // su propio concepto del score). "Grave" pesa más que "leve" en "roturas varias".
+  const mostrarGravedad = tipo !== "goma" && tipo !== "llanta";
 
   useEffect(() => {
     if (!open) return;
@@ -119,6 +123,7 @@ export default function AddRoturaDialog({
         setTipo("otro");
         setTipoCustom(t);
       }
+      setGravedad(editing.gravedad === "grave" ? "grave" : "leve");
       setFecha(editing.fecha);
       setCantidad(String(editing.cantidad ?? 1));
       setCosto(editing.costo != null ? String(editing.costo) : "");
@@ -128,6 +133,7 @@ export default function AddRoturaDialog({
       setUnidad("");
       setTipo("goma");
       setTipoCustom("");
+      setGravedad("leve");
       setFecha(new Date().toISOString().split("T")[0]);
       setCantidad("1");
       setCosto("");
@@ -185,6 +191,7 @@ export default function AddRoturaDialog({
         camion_id,
         acoplado_id,
         tipo: tipoFinal,
+        gravedad: mostrarGravedad ? gravedad : "leve",
         fecha,
         cantidad: parseInt(cantidad) || 1,
         costo: costo ? parseFloat(costo) : null,
@@ -250,6 +257,42 @@ export default function AddRoturaDialog({
               />
             )}
           </div>
+
+          {mostrarGravedad && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Gravedad</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: "leve", label: "Leve", hint: "Daño menor (ej: rayón)" },
+                  { value: "grave", label: "Grave", hint: "Por mal uso (ej: caja volcadora)" },
+                ] as const).map((g) => {
+                  const activo = gravedad === g.value;
+                  return (
+                    <button
+                      key={g.value}
+                      type="button"
+                      onClick={() => setGravedad(g.value)}
+                      className={`rounded-lg border p-2.5 text-left transition-colors ${
+                        activo
+                          ? g.value === "grave"
+                            ? "border-[#EF4444] bg-[#FEF2F2]"
+                            : "border-[#0088D1] bg-[#F0F9FF]"
+                          : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <span className={`block text-sm font-semibold ${activo && g.value === "grave" ? "text-[#991B1B]" : "text-foreground"}`}>
+                        {g.label}
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">{g.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Una rotura grave penaliza más que una leve en el score del chofer.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="chofer" className="text-sm font-medium text-foreground">

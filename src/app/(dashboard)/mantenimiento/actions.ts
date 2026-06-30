@@ -220,6 +220,7 @@ export type RoturaRow = {
   id: string;
   fecha: string;
   tipo: string;
+  gravedad: string; // "leve" | "grave" (relevante solo para roturas que no son gomas)
   cantidad: number;
   costo: number | null;
   moneda: string;
@@ -239,7 +240,7 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
   const { data } = await supabase
     .from("roturas_gomas")
     .select(
-      "id, fecha, tipo, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
+      "id, fecha, tipo, gravedad, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
     )
     .order("fecha", { ascending: false })
     .limit(200);
@@ -254,6 +255,7 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
       id: r.id,
       fecha: r.fecha,
       tipo: r.tipo ?? "goma",
+      gravedad: r.gravedad ?? "leve",
       cantidad: r.cantidad,
       costo: r.costo,
       moneda: r.moneda,
@@ -305,6 +307,7 @@ export async function addRoturaAction(data: {
   acoplado_id?: string | null;
   chofer_id?: string | null;
   tipo?: string | null;
+  gravedad?: string | null;
   fecha: string;
   cantidad: number;
   costo?: number | null;
@@ -329,6 +332,7 @@ export async function addRoturaAction(data: {
       acoplado_id: data.acoplado_id || null,
       chofer_id: data.chofer_id || null,
       tipo: (data.tipo || "goma").trim() || "goma",
+      gravedad: data.gravedad === "grave" ? "grave" : "leve",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
       costo: data.costo ?? null,
@@ -485,6 +489,7 @@ export async function updateRoturaAction(
     acoplado_id?: string | null;
     chofer_id?: string | null;
     tipo?: string | null;
+    gravedad?: string | null;
     fecha: string;
     cantidad: number;
     costo?: number | null;
@@ -508,6 +513,7 @@ export async function updateRoturaAction(
       acoplado_id: data.acoplado_id || null,
       chofer_id: data.chofer_id || null,
       tipo: (data.tipo || "goma").trim() || "goma",
+      gravedad: data.gravedad === "grave" ? "grave" : "leve",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
       costo: data.costo ?? null,

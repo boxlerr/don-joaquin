@@ -338,7 +338,7 @@ export function calcularScore(
   // 4. Gomas rotas/dañadas
   push("gomas", descuentoGomas(porMes(inp.gomas), c.tramos.gomas), eventosTxt(inp.gomas, meses));
 
-  // 5. Roturas varias (por mal uso) — sin campo de gravedad aún: se asumen leves.
+  // 5. Roturas varias (por mal uso) — leves vs graves según el campo `gravedad`.
   push(
     "roturas_varias",
     descuentoRoturasVarias(porMes(inp.roturas_leves), porMes(inp.roturas_graves), c.tramos.roturas_varias),

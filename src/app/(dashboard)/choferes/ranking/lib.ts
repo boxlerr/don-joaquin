@@ -321,7 +321,7 @@ export async function computeRanking({
   const ranking: RankingChofer[] = (choferes ?? []).map((c) => {
     const cv = (viajes ?? []).filter((v) => v.chofer_id === c.id);
     const ca = (apercibimientos ?? []).filter((a) => a.chofer_id === c.id);
-    const cr = ((roturas ?? []) as { chofer_id: string; tipo: string | null }[]).filter((r) => r.chofer_id === c.id);
+    const cr = ((roturas ?? []) as { chofer_id: string; tipo: string | null; gravedad: string | null }[]).filter((r) => r.chofer_id === c.id);
     const cl = (licencias ?? []).filter((l) => l.chofer_id === c.id);
     const cs = (siniestros ?? []).filter((s) => s.chofer_id === c.id);
     const cai = ((ausenciasInjust ?? []) as { chofer_id: string }[]).filter((a) => a.chofer_id === c.id);
@@ -339,9 +339,11 @@ export async function computeRanking({
     }, 0);
     const pesos_por_km = km_total > 0 && facturacion_total > 0 ? facturacion_total / km_total : null;
 
-    // Roturas: separar gomas de roturas varias por tipo.
+    // Roturas: separar gomas de roturas varias por tipo, y las varias por gravedad.
     const gomas_count = cr.filter((r) => esGoma(r.tipo)).length;
-    const varias_count = cr.length - gomas_count;
+    const varias = cr.filter((r) => !esGoma(r.tipo));
+    const varias_graves = varias.filter((r) => r.gravedad === "grave").length;
+    const varias_leves = varias.length - varias_graves;
 
     const apercibimientos_count = ca.length;
     const roturas_count = cr.length;
@@ -394,8 +396,8 @@ export async function computeRanking({
           ton_pct: toneladas_pct,
           combustible_lp100,
           gomas: gomas_count,
-          roturas_leves: varias_count, // sin campo de gravedad: se asumen leves
-          roturas_graves: 0,
+          roturas_leves: varias_leves,
+          roturas_graves: varias_graves,
           seguridad: apercibimientos_count,
           siniestros: siniestros_count,
           conducta: ausencias_injustificadas_count,
@@ -476,7 +478,7 @@ export async function computeScoreChofer(
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta),
     supabase.from("chofer_apercibimientos").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
-    supabase.from("roturas_gomas").select("tipo").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
+    supabase.from("roturas_gomas").select("tipo, gravedad").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     supabase.from("siniestros").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("chofer_ausencias").select("id").eq("chofer_id", choferId).eq("es_vacaciones", false).eq("justificada", false).is("deleted_at", null).gte("fecha_inicio", desde).lte("fecha_inicio", hasta),
@@ -572,9 +574,11 @@ export async function computeScoreChofer(
   }
   void taller; // el taller no pondera en el score de Bárbara (se muestra en el ranking).
 
-  const cr = (roturas ?? []) as { tipo: string | null }[];
+  const cr = (roturas ?? []) as { tipo: string | null; gravedad: string | null }[];
   const gomas_count = cr.filter((r) => esGoma(r.tipo)).length;
-  const varias_count = cr.length - gomas_count;
+  const varias = cr.filter((r) => !esGoma(r.tipo));
+  const varias_graves = varias.filter((r) => r.gravedad === "grave").length;
+  const varias_leves = varias.length - varias_graves;
 
   const { score, desglose, conceptos } = calcularScore(
     {
@@ -583,8 +587,8 @@ export async function computeScoreChofer(
       ton_pct: toneladas_pct,
       combustible_lp100,
       gomas: gomas_count,
-      roturas_leves: varias_count,
-      roturas_graves: 0,
+      roturas_leves: varias_leves,
+      roturas_graves: varias_graves,
       seguridad: (apercibimientos ?? []).length,
       siniestros: (siniestros ?? []).length,
       conducta: (ausenciasInjust ?? []).length,

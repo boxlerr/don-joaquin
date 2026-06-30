@@ -313,8 +313,15 @@ export default function MantenimientoClient({
                       <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center rounded-full bg-[#F59E0B]/10 text-[#B45309] px-2 py-0.5 text-[11px] font-semibold">
-                          {tipoRoturaLabel(r.tipo)}
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-flex items-center rounded-full bg-[#F59E0B]/10 text-[#B45309] px-2 py-0.5 text-[11px] font-semibold">
+                            {tipoRoturaLabel(r.tipo)}
+                          </span>
+                          {r.gravedad === "grave" && (
+                            <span className="inline-flex items-center rounded-full bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                              Grave
+                            </span>
+                          )}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">

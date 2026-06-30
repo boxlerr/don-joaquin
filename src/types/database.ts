@@ -3635,6 +3635,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           fecha: string
+          gravedad: string
           id: string
           mantenimiento_id: string | null
           moneda: string
@@ -3651,6 +3652,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha?: string
+          gravedad?: string
           id?: string
           mantenimiento_id?: string | null
           moneda?: string
@@ -3667,6 +3669,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           fecha?: string
+          gravedad?: string
           id?: string
           mantenimiento_id?: string | null
           moneda?: string
