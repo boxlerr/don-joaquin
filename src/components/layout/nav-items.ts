@@ -21,6 +21,7 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -139,6 +140,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "COMPLIANCE",
     items: [
+      { label: "Formulario 931", href: "/compliance/form-931", icon: FileCheck2, area: "compliance" },
       { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, seccion: "compliance_loma" },
       { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, seccion: "compliance_ypf" },
       { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, seccion: "compliance_sicop" },

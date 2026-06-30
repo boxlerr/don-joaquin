@@ -690,6 +690,62 @@ export async function generarAlertas() {
     }
   }
 
+  // Formulario 931 (Compliance) — debe enviarse a YPF (Nico) y a Loma (Noelia).
+  // Bloqueante: sin 931 no puede cargar nadie. Disparos discretos 30/15/5 + vencido;
+  // se apaga cuando AMBOS envíos están marcados. Usa tipo "vencimiento_compliance"
+  // para rutear al toggle "Compliance Loma/YPF" (llega a todos los que lo tengan).
+  // `as any`: form931_presentaciones es tabla nueva, aún no está en database.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: form931 } = await (supabase as any)
+    .from("form931_presentaciones")
+    .select("id, periodo, fecha_limite, enviado_ypf, enviado_loma")
+    .or("enviado_ypf.eq.false,enviado_loma.eq.false");
+
+  for (const f of (form931 ?? []) as {
+    id: string; periodo: string | null; fecha_limite: string; enviado_ypf: boolean; enviado_loma: boolean;
+  }[]) {
+    if (f.enviado_ypf && f.enviado_loma) continue; // por las dudas
+    const [iy, im, idd] = f.fecha_limite.split("-").map(Number);
+    const venceMid = new Date(iy!, im! - 1, idd!);
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const dias = Math.round((venceMid.getTime() - hoyMid.getTime()) / 86400000);
+
+    type DispF931 = { umbral: "vencido" | "T5" | "T15" | "T30"; severidad: "info" | "advertencia" | "critica" };
+    const disparos: DispF931[] = [];
+    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    if (dias === 5) disparos.push({ umbral: "T5", severidad: "critica" });
+    if (dias === 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
+    if (dias === 30) disparos.push({ umbral: "T30", severidad: "info" });
+    if (disparos.length === 0) continue;
+
+    const faltan = [!f.enviado_ypf ? "YPF" : null, !f.enviado_loma ? "Loma Negra" : null]
+      .filter(Boolean)
+      .join(" y ");
+    const periodoLabel = f.periodo ? ` ${f.periodo}` : "";
+
+    for (const d of disparos) {
+      const entidad_tipo = `form931:${d.umbral}`;
+      const key = `vencimiento_compliance:${f.id}:${entidad_tipo}:${f.fecha_limite}`;
+      if (existentesSet.has(key)) continue;
+
+      const mensaje =
+        d.umbral === "vencido"
+          ? `El Formulario 931${periodoLabel} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y falta enviarlo a ${faltan}. Es bloqueante: sin 931 no puede cargar nadie.`
+          : `El Formulario 931${periodoLabel} vence en ${dias} día${dias !== 1 ? "s" : ""} y falta enviarlo a ${faltan}.`;
+
+      nuevasAlertas.push({
+        tipo: "vencimiento_compliance",
+        severidad: d.severidad,
+        titulo: `Formulario 931 ${d.umbral === "vencido" ? "VENCIDO" : "por vencer"} — falta ${faltan}`,
+        mensaje,
+        entidad_id: f.id,
+        entidad_tipo,
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: f.fecha_limite,
+      });
+    }
+  }
+
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);

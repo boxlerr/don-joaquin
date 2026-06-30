@@ -71,6 +71,7 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   camion: "Camión",
   carga_combustible: "Carga de combustible",
   impuesto: "Impuesto",
+  form931: "Formulario 931",
   mantenimiento: "Mantenimiento",
   rotura_goma: "Rotura de goma",
   tarifa: "Tarifa",
