@@ -49,6 +49,7 @@ import {
   type ViajeOrderBy,
 } from "../actions";
 import type { ViajeBasico } from "../types";
+import { formatFecha } from "@/lib/utils";
 import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
@@ -534,7 +535,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                    {formatFecha(v.fecha_viaje)}
                   </TableCell>
                   <TableCell className="text-sm font-medium text-foreground">
                     {v.cliente ?? "—"}
@@ -683,7 +684,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                                     <CheckCircle2 size={14} className="text-green-600 shrink-0" />
                                     <span className="text-[11px] font-semibold text-green-700">
                                       Viaje cobrado — registrado en caja
-                                      {v.fecha_cobro ? ` (${new Date(v.fecha_cobro).toLocaleDateString("es-AR")})` : ""}
+                                      {v.fecha_cobro ? ` (${formatFecha(v.fecha_cobro)})` : ""}
                                     </span>
                                   </div>
                                 ) : (

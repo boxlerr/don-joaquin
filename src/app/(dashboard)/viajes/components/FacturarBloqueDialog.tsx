@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Receipt, Check, AlertTriangle } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import { formatFecha } from "@/lib/utils";
 import { facturarViajesEnBloqueAction, type FacturarBloqueItem } from "../actions";
 import type { ViajeBasico } from "../types";
 
@@ -139,7 +140,7 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
                       <td className="px-3 py-2 align-top">
                         <p className="font-medium text-foreground leading-tight">{v.cliente ?? "—"}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {new Date(v.fecha_viaje).toLocaleDateString("es-AR")} · {v.chofer ?? "sin chofer"}
+                          {formatFecha(v.fecha_viaje)} · {v.chofer ?? "sin chofer"}
                         </p>
                       </td>
                       <td className="px-3 py-2 align-top">

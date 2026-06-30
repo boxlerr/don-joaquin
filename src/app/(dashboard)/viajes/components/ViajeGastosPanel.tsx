@@ -14,6 +14,7 @@ import AddGastoDialog, {
   type CamionOption,
   type ChoferOption,
 } from "../../gastos/components/AddGastoDialog";
+import { formatFecha } from "@/lib/utils";
 
 const MEDIO_LABEL: Record<string, string> = {
   efectivo_caja: "Efectivo",
@@ -178,7 +179,7 @@ export default function ViajeGastosPanel({
                 </span>
                 <span className="text-[10px] text-muted-foreground/70 flex items-center gap-0.5 shrink-0">
                   <Calendar size={9} />
-                  {new Date(g.fecha).toLocaleDateString("es-AR")}
+                  {formatFecha(g.fecha)}
                 </span>
                 <span className="text-muted-foreground truncate">
                   {g.descripcion ?? g.proveedor ?? ""}

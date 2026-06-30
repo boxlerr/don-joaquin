@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Coins, Check, AlertTriangle } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import { formatFecha } from "@/lib/utils";
 import { cobrarViajesEnBloqueAction, type CobrarBloqueItem } from "../actions";
 import type { ViajeBasico } from "../types";
 
@@ -172,7 +173,7 @@ export default function CobrarBloqueDialog({ viajes, open, onOpenChange, onSucce
                           {v.codigo} · {v.cliente ?? "—"}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
-                          {new Date(v.fecha_viaje).toLocaleDateString("es-AR")} · {v.chofer ?? "sin chofer"}
+                          {formatFecha(v.fecha_viaje)} · {v.chofer ?? "sin chofer"}
                         </p>
                       </td>
                       <td className="px-3 py-2 align-top">
