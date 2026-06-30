@@ -64,7 +64,7 @@ export default async function RankingChoferes({
         desdeActual={periodo.desde}
         hastaActual={periodo.hasta}
       />
-      <RankingTable ranking={ranking} periodoQuery={periodoQuery} />
+      <RankingTable ranking={ranking} periodoQuery={periodoQuery} criterios={criterios} />
     </div>
   );
 }

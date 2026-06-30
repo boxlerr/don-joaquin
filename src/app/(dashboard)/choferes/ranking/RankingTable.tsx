@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import type { RankingChofer } from "./lib";
+import type { RankingCriterios } from "./criterios";
 import ScoreBadge from "./ScoreBadge";
 import ScoreInfoButton from "./ScoreInfoButton";
 import { choferSlug } from "@/lib/chofer-slug";
@@ -25,6 +26,7 @@ import { choferSlug } from "@/lib/chofer-slug";
 interface Props {
   ranking: RankingChofer[];
   periodoQuery: string;
+  criterios: RankingCriterios;
 }
 
 // Columnas por las que se puede ordenar la tabla.
@@ -236,7 +238,7 @@ function SortableTh({
   );
 }
 
-export default function RankingTable({ ranking, periodoQuery }: Props) {
+export default function RankingTable({ ranking, periodoQuery, criterios }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -402,7 +404,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
               <p className="text-xs text-muted-foreground">
                 Score por 8 conceptos (km, toneladas, combustible, gomas, roturas, seguridad, siniestros, conducta). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
               </p>
-              <ScoreInfoButton />
+              <ScoreInfoButton criterios={criterios} />
             </div>
           </div>
 

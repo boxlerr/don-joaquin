@@ -3,26 +3,27 @@
 import { useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { HelpCircle, X, Info } from "lucide-react";
-import { CONCEPTOS_META, RANKING_CRITERIOS_DEFAULT, type ConceptoKey } from "./criterios";
+import {
+  CONCEPTOS_META,
+  TRAMOS_META,
+  RANKING_CRITERIOS_DEFAULT,
+  type RankingCriterios,
+  type ConceptoKey,
+} from "./criterios";
 
-// Resumen de los tramos de cada concepto (texto para la metodología).
-const TRAMOS_TXT: Record<ConceptoKey, string> = {
-  km: "≥100% del objetivo: sin descuento · 85–99%: −35% del tope · 70–84%: −70% · <70%: tope completo",
-  toneladas:
-    "95–105% de la capacidad: sin descuento · ±15%: −40% · ±25%: −70% · más lejos: tope completo",
-  combustible:
-    "≤ referencia: sin descuento · hasta +7%: −35% · +7% a +15%: −70% · +15% o más: tope completo",
-  gomas: "0: sin descuento · 1/mes: −30% · 2/mes: −65% · 3+/mes: tope completo",
-  roturas_varias:
-    "0: sin descuento · 1 leve: −30% · 1 grave o 2 leves: −70% · más: tope completo",
-  seguridad: "0: sin descuento · 1/mes: −70% del tope · 2+/mes: tope completo",
-  siniestros: "0: sin descuento · 1/mes: −60% del tope · 2+/mes: tope completo",
-  conducta: "0–1/mes: sin descuento · 2: −35% · 3: −70% · 4+/mes: tope completo",
-};
-
-export default function ScoreInfoButton() {
+export default function ScoreInfoButton({
+  criterios = RANKING_CRITERIOS_DEFAULT,
+}: {
+  criterios?: RankingCriterios;
+}) {
   const [open, setOpen] = useState(false);
-  const topes = RANKING_CRITERIOS_DEFAULT.topes;
+
+  const tramoTxt = (key: ConceptoKey) => {
+    const grupo = criterios.tramos[key] as Record<string, number>;
+    return TRAMOS_META[key]
+      .map((n) => `${n.label} (${n.condicion}): −${Math.round((grupo[n.key] ?? 0) * 100)}%`)
+      .join(" · ");
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -67,19 +68,17 @@ export default function ScoreInfoButton() {
             <p className="text-sm text-muted-foreground leading-relaxed">
               Cada chofer arranca el período con <b className="text-foreground">100 puntos</b>. Cada
               uno de los <b className="text-foreground">8 conceptos</b> puede restar como máximo su{" "}
-              <b className="text-foreground">tope</b>, según en qué tramo cae el dato del mes. El
-              puntaje de un concepto nunca es negativo y el score final se acota entre 0 y 100.
+              <b className="text-foreground">tope</b>, según en qué nivel cae el dato del mes. El
+              puntaje de un concepto nunca es negativo y el score final se acota entre 0 y 100.{" "}
+              <b className="text-foreground">Los topes y los % son configurables</b> desde
+              &ldquo;Configurar criterios&rdquo;.
             </p>
 
             {/* Tabla de conceptos */}
             <div className="rounded-[8px] border border-border overflow-hidden">
               <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 bg-muted/40 border-b border-border">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Concepto
-                </span>
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Tope
-                </span>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Concepto</span>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tope</span>
               </div>
               <ul className="divide-y divide-border">
                 {CONCEPTOS_META.map((c) => (
@@ -90,12 +89,10 @@ export default function ScoreInfoButton() {
                         <p className="text-[11px] text-muted-foreground">{c.categoria}</p>
                       </div>
                       <span className="text-sm font-bold text-foreground shrink-0 tabular-nums">
-                        {topes[c.key]} pts
+                        {criterios.topes[c.key]} pts
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                      {TRAMOS_TXT[c.key]}
-                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{tramoTxt(c.key)}</p>
                   </li>
                 ))}
               </ul>
@@ -103,9 +100,7 @@ export default function ScoreInfoButton() {
 
             {/* Bandas de color */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Bandas del puntaje
-              </p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Bandas del puntaje</p>
               <div className="grid grid-cols-3 gap-2">
                 <Banda color="#10B981" rango="≥ 80" label="Bueno" />
                 <Banda color="#F59E0B" rango="60–79" label="Regular" />
