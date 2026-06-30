@@ -60,6 +60,12 @@ export default async function ChequesPage() {
     .map(([nombre, cuit]) => ({ nombre, cuit }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
+  // Loma Negra siempre disponible como sugerencia (es el librador habitual),
+  // aunque todavía no se haya cargado ningún cheque suyo.
+  if (!libradores.some((l) => l.nombre.toLowerCase() === "loma negra")) {
+    libradores.unshift({ nombre: "Loma Negra", cuit: null });
+  }
+
   const rows: ChequeRow[] = (cheques ?? []).map((c) => ({
     id: c.id,
     numero: c.numero,

@@ -141,6 +141,10 @@ export default function AddChequeDialog({
               icon={Fingerprint}
             />
           </div>
+          <p className="-mt-2 text-[11px] text-muted-foreground">
+            Elegí uno de la lista o <strong>escribí uno nuevo</strong> y completá su CUIT: queda
+            guardado para la próxima vez.
+          </p>
 
           {/* Importe + Vencimiento */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
