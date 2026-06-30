@@ -38,6 +38,8 @@ export type ComplianceEstadoRow = {
   archivo_id: string | null;
   estado: ComplianceEstado;
   dias_restantes: number | null;
+  // Observaciones del documento vigente (se adjuntan aparte: la vista no las trae).
+  observaciones?: string | null;
 };
 
 export type ProximaPresentacion = ComplianceEstadoRow & {

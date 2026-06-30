@@ -25,6 +25,8 @@ import {
   Users,
   Truck,
   Building2,
+  Pencil,
+  MessageSquare,
 } from "lucide-react";
 import {
   CLIENTE_LABEL,
@@ -35,7 +37,7 @@ import {
   type ComplianceNivel,
   type ComplianceRequisito,
 } from "../types";
-import CargarComplianceDocDialog from "./CargarComplianceDocDialog";
+import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplianceDocDialog";
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
@@ -115,6 +117,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
     requisito: ComplianceRequisito;
     chofer_id?: string;
     camion_id?: string;
+    edit?: EditVencimiento;
   } | null>(null);
   const [historialState, setHistorialState] = useState<{
     requisito: ComplianceRequisito;
@@ -209,6 +212,26 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
     target?: { chofer_id?: string; camion_id?: string },
   ) => {
     setDialogState({ requisito: req, chofer_id: target?.chofer_id, camion_id: target?.camion_id });
+  };
+
+  // Editar vencimiento de un doc ya cargado, sin re-subir el archivo.
+  const handleEditVencimiento = (
+    req: ComplianceRequisito,
+    row: ComplianceEstadoRow,
+    target?: { chofer_id?: string; camion_id?: string },
+  ) => {
+    if (!row.documento_id || !row.documento_fuente) return;
+    setDialogState({
+      requisito: req,
+      chofer_id: target?.chofer_id,
+      camion_id: target?.camion_id,
+      edit: {
+        documento_id: row.documento_id,
+        fuente: row.documento_fuente as EditVencimiento["fuente"],
+        fecha_vencimiento: row.fecha_vencimiento,
+        observaciones: row.observaciones ?? null,
+      },
+    });
   };
 
   const handleHistorial = (
@@ -481,6 +504,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           onUpload={handleUpload}
           onArchivo={(id) => startTransition(() => abrirSignedUrl(id))}
           onHistorial={(req) => handleHistorial(req, "Empresa")}
+          onEditVencimiento={(req, row) => handleEditVencimiento(req, row)}
         />
       ) : vista === "matriz" ? (
         <MatrizSection
@@ -502,6 +526,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           onUpload={handleUpload}
           onArchivo={(id) => startTransition(() => abrirSignedUrl(id))}
           onHistorial={handleHistorial}
+          onEditVencimiento={handleEditVencimiento}
         />
       )}
 
@@ -510,6 +535,7 @@ export default function ComplianceChecklistPage({ cliente, rows, requisitos, can
           requisito={dialogState.requisito}
           chofer_id={dialogState.chofer_id}
           camion_id={dialogState.camion_id}
+          edit={dialogState.edit}
           open={true}
           onOpenChange={(o) => !o && setDialogState(null)}
           onSuccess={() => {
@@ -668,6 +694,7 @@ function ListaEntidadesSection({
   onUpload,
   onArchivo,
   onHistorial,
+  onEditVencimiento,
 }: {
   nivel: ComplianceNivel;
   requisitos: ComplianceRequisito[];
@@ -680,6 +707,11 @@ function ListaEntidadesSection({
   onHistorial: (
     req: ComplianceRequisito,
     entidadLabel: string,
+    target?: { chofer_id?: string; camion_id?: string },
+  ) => void;
+  onEditVencimiento: (
+    req: ComplianceRequisito,
+    row: ComplianceEstadoRow,
     target?: { chofer_id?: string; camion_id?: string },
   ) => void;
 }) {
@@ -763,6 +795,7 @@ function ListaEntidadesSection({
                       onUpload={() => onUpload(req, target)}
                       onArchivo={onArchivo}
                       onHistorial={() => onHistorial(req, ent.label, target)}
+                      onEditVencimiento={() => onEditVencimiento(req, r, target)}
                     />
                   );
                 })}
@@ -812,12 +845,14 @@ function RequisitoRow({
   onUpload,
   onArchivo,
   onHistorial,
+  onEditVencimiento,
 }: {
   row: ComplianceEstadoRow;
   canWrite: boolean;
   onUpload: () => void;
   onArchivo: (archivo_id: string) => void;
   onHistorial: () => void;
+  onEditVencimiento: () => void;
 }) {
   const estado = row.estado;
   const dotColor =
@@ -829,6 +864,7 @@ function RequisitoRow({
       ? "bg-[#EF4444]"
       : "bg-[#94A3B8]";
   const sub = diasTexto(estado, row.dias_restantes);
+  const tieneDoc = !!row.documento_id;
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 pl-11 hover:bg-muted/20">
       <span className={`size-2 rounded-full shrink-0 ${dotColor}`} />
@@ -838,6 +874,12 @@ function RequisitoRow({
           {row.fecha_vencimiento ? `Vence ${formatFecha(row.fecha_vencimiento)}` : "Sin documento"}
           {sub && <span className="text-muted-foreground/70"> · {sub}</span>}
         </p>
+        {row.observaciones && (
+          <p className="text-xs text-muted-foreground/80 italic flex items-center gap-1 mt-0.5 truncate">
+            <MessageSquare size={11} className="shrink-0" />
+            {row.observaciones}
+          </p>
+        )}
       </div>
       <StatusBadge label={ESTADO_LABEL[estado]} tone={ESTADO_TONE[estado]} />
       <div className="flex items-center gap-1 shrink-0 print:hidden">
@@ -849,8 +891,13 @@ function RequisitoRow({
         <IconAction title="Ver historial" onClick={onHistorial}>
           <History size={14} />
         </IconAction>
+        {canWrite && tieneDoc && (
+          <IconAction title="Editar vencimiento (sin re-subir archivo)" onClick={onEditVencimiento}>
+            <Pencil size={14} />
+          </IconAction>
+        )}
         {canWrite && (
-          <IconAction title={row.archivo_id ? "Reemplazar" : "Cargar"} onClick={onUpload}>
+          <IconAction title={row.archivo_id ? "Reemplazar / cargar PDF" : "Cargar"} onClick={onUpload}>
             <Upload size={14} />
           </IconAction>
         )}
@@ -888,6 +935,7 @@ function EmpresaSection({
   onUpload,
   onArchivo,
   onHistorial,
+  onEditVencimiento,
 }: {
   requisitos: ComplianceRequisito[];
   rows: ComplianceEstadoRow[];
@@ -895,6 +943,7 @@ function EmpresaSection({
   onUpload: (req: ComplianceRequisito) => void;
   onArchivo: (archivo_id: string) => void;
   onHistorial: (req: ComplianceRequisito) => void;
+  onEditVencimiento: (req: ComplianceRequisito, row: ComplianceEstadoRow) => void;
 }) {
   const ordenados = useMemo(() => {
     return [...requisitos].sort((a, b) => {
@@ -925,6 +974,7 @@ function EmpresaSection({
             onUpload={() => onUpload(req)}
             onArchivo={onArchivo}
             onHistorial={() => onHistorial(req)}
+            onEditVencimiento={() => row && onEditVencimiento(req, row)}
           />
         );
       })}
@@ -939,6 +989,7 @@ function RequisitoCard({
   onUpload,
   onArchivo,
   onHistorial,
+  onEditVencimiento,
 }: {
   req: ComplianceRequisito;
   row: ComplianceEstadoRow | undefined;
@@ -946,8 +997,10 @@ function RequisitoCard({
   onUpload: () => void;
   onArchivo: (archivo_id: string) => void;
   onHistorial: () => void;
+  onEditVencimiento: () => void;
 }) {
   const estado = (row?.estado ?? "faltante") as ComplianceEstado;
+  const tieneDoc = !!row?.documento_id;
   return (
     <div className="rounded-[8px] border border-border p-3 flex flex-col gap-2 bg-card shadow-xs">
       <div className="flex items-start justify-between gap-2">
@@ -961,6 +1014,12 @@ function RequisitoCard({
             {row.dias_restantes >= 0
               ? `${row.dias_restantes} días restantes`
               : `Vencido hace ${Math.abs(row.dias_restantes)} días`}
+          </p>
+        )}
+        {row?.observaciones && (
+          <p className="italic text-muted-foreground/80 flex items-center gap-1">
+            <MessageSquare size={11} className="shrink-0" />
+            {row.observaciones}
           </p>
         )}
       </div>
@@ -983,6 +1042,16 @@ function RequisitoCard({
           <History size={11} />
           Historial
         </button>
+        {canWrite && tieneDoc && (
+          <button
+            type="button"
+            onClick={onEditVencimiento}
+            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+          >
+            <Pencil size={11} />
+            Editar venc.
+          </button>
+        )}
         {canWrite && (
           <button
             type="button"

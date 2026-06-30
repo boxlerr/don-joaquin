@@ -38,10 +38,67 @@ export async function getComplianceEstadoAction(cliente: ComplianceCliente): Pro
       .order("orden", { ascending: true }),
   ]);
 
+  const rows = (rowsRes.data as ComplianceEstadoRow[] | null) ?? [];
+  await adjuntarObservaciones(supabase, rows);
+
   return {
-    rows: (rowsRes.data as ComplianceEstadoRow[] | null) ?? [],
+    rows,
     requisitos: (reqRes.data as ComplianceRequisito[] | null) ?? [],
   };
+}
+
+/**
+ * La vista v_compliance_estado no trae las observaciones del documento vigente.
+ * Las traemos aparte por documento_id (agrupado por fuente) y las pegamos a cada
+ * fila — así se ven en el checklist sin tener que modificar la vista. Muta `rows`.
+ */
+async function adjuntarObservaciones(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: ComplianceEstadoRow[],
+): Promise<void> {
+  const ids = {
+    compliance_documentos: new Set<string>(),
+    chofer_documentos: new Set<string>(),
+    camion_documentos: new Set<string>(),
+  };
+  for (const r of rows) {
+    if (!r.documento_id || !r.documento_fuente) continue;
+    const set = ids[r.documento_fuente as keyof typeof ids];
+    if (set) set.add(r.documento_id);
+  }
+
+  const obsPorId = new Map<string, string | null>();
+  const collect = (data: { id: string; observaciones: string | null }[] | null) => {
+    for (const d of data ?? []) obsPorId.set(d.id, d.observaciones ?? null);
+  };
+
+  await Promise.all([
+    ids.compliance_documentos.size
+      ? supabase
+          .from("compliance_documentos")
+          .select("id, observaciones")
+          .in("id", [...ids.compliance_documentos])
+          .then((r) => collect(r.data))
+      : Promise.resolve(),
+    ids.chofer_documentos.size
+      ? supabase
+          .from("chofer_documentos")
+          .select("id, observaciones")
+          .in("id", [...ids.chofer_documentos])
+          .then((r) => collect(r.data))
+      : Promise.resolve(),
+    ids.camion_documentos.size
+      ? supabase
+          .from("camion_documentos")
+          .select("id, observaciones")
+          .in("id", [...ids.camion_documentos])
+          .then((r) => collect(r.data))
+      : Promise.resolve(),
+  ]);
+
+  for (const r of rows) {
+    if (r.documento_id) r.observaciones = obsPorId.get(r.documento_id) ?? null;
+  }
 }
 
 /**
@@ -161,12 +218,15 @@ export async function uploadComplianceDocAction(formData: FormData) {
   const fecha_vencimiento = formData.get("fecha_vencimiento") as string;
   const observaciones = (formData.get("observaciones") as string) || null;
   const numero = (formData.get("numero") as string) || null;
-  const file = formData.get("file") as File;
+  // El archivo es OPCIONAL: Noelia puede registrar/actualizar solo el vencimiento
+  // (lo que mantiene en su Excel) sin volver a subir el PDF. archivo_id es nullable
+  // en las 3 tablas, así que el documento se guarda igual.
+  const fileRaw = formData.get("file");
+  const file = fileRaw instanceof File && fileRaw.size > 0 ? fileRaw : null;
 
   if (!requisito_id) return { error: "Requisito requerido" };
   if (!fecha_vencimiento) return { error: "Fecha de vencimiento requerida" };
-  if (!file || !file.size) return { error: "Archivo requerido" };
-  if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+  if (file && file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
 
   const { data: req } = await supabase
     .from("compliance_requisitos")
@@ -181,38 +241,42 @@ export async function uploadComplianceDocAction(formData: FormData) {
     return { error: "Los requisitos de empresa no llevan chofer ni camión" };
   }
 
-  const ext = file.name.split(".").pop();
-
-  // Cuando el requisito está mapeado a un tipo_documento existente, el PDF
+  // Cuando el requisito está mapeado a un tipo_documento existente, el doc
   // se guarda en chofer_documentos / camion_documentos (no en compliance_documentos).
   // Esto evita duplicar el archivo: aparece tanto en el legajo como en compliance,
   // porque v_compliance_estado cruza ambas fuentes.
   const usaLegajo = !!req.tipo_documento_id;
 
-  const storagePath = usaLegajo
-    ? req.nivel === "chofer"
-      ? `choferes/${chofer_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
-      : `camiones/${camion_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
-    : `compliance/${req.codigo}/${chofer_id ?? camion_id ?? "empresa"}_${Date.now()}.${ext}`;
+  // Subir el PDF solo si vino uno; si no, el documento queda sin archivo.
+  let archivoId: string | null = null;
+  if (file) {
+    const ext = file.name.split(".").pop();
+    const storagePath = usaLegajo
+      ? req.nivel === "chofer"
+        ? `choferes/${chofer_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
+        : `camiones/${camion_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
+      : `compliance/${req.codigo}/${chofer_id ?? camion_id ?? "empresa"}_${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from("documentos-personal")
-    .upload(storagePath, file);
-  if (uploadError) return { error: "Error al subir el archivo" };
+    const { error: uploadError } = await supabase.storage
+      .from("documentos-personal")
+      .upload(storagePath, file);
+    if (uploadError) return { error: "Error al subir el archivo" };
 
-  const { data: archivo, error: archivoError } = await supabase
-    .from("documentos_archivos")
-    .insert({
-      bucket: "documentos-personal",
-      nombre_original: file.name,
-      path: storagePath,
-      tamano_bytes: file.size,
-      mime_type: file.type,
-      subido_por: user.id,
-    })
-    .select("id")
-    .single();
-  if (archivoError || !archivo) return { error: "Error al registrar el archivo" };
+    const { data: archivo, error: archivoError } = await supabase
+      .from("documentos_archivos")
+      .insert({
+        bucket: "documentos-personal",
+        nombre_original: file.name,
+        path: storagePath,
+        tamano_bytes: file.size,
+        mime_type: file.type,
+        subido_por: user.id,
+      })
+      .select("id")
+      .single();
+    if (archivoError || !archivo) return { error: "Error al registrar el archivo" };
+    archivoId = archivo.id;
+  }
 
   if (usaLegajo && req.nivel === "chofer") {
     const { error: dbError } = await supabase.from("chofer_documentos").insert({
@@ -221,7 +285,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
       numero,
       fecha_emision,
       fecha_vencimiento,
-      archivo_id: archivo.id,
+      archivo_id: archivoId,
       observaciones,
       created_by: user.id,
     });
@@ -234,7 +298,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
       numero,
       fecha_emision,
       fecha_vencimiento,
-      archivo_id: archivo.id,
+      archivo_id: archivoId,
       observaciones,
       created_by: user.id,
     });
@@ -248,12 +312,96 @@ export async function uploadComplianceDocAction(formData: FormData) {
       periodo,
       fecha_emision,
       fecha_vencimiento,
-      archivo_id: archivo.id,
+      archivo_id: archivoId,
       observaciones,
       created_by: user.id,
     });
     if (dbError) return { error: "Error al guardar el documento" };
   }
+
+  revalidatePath("/compliance/loma-negra");
+  revalidatePath("/compliance/ypf");
+  revalidatePath("/compliance/organismos", "layout");
+  return { success: true };
+}
+
+/**
+ * Edita el vencimiento (y observaciones) de un documento YA cargado, sin re-subir
+ * el archivo. Replica lo que Noelia mantiene a mano en su Excel. La fuente
+ * (`documento_fuente`) y el `documento_id` salen de cada fila de v_compliance_estado.
+ */
+const FUENTES_VENCIMIENTO = [
+  "compliance_documentos",
+  "chofer_documentos",
+  "camion_documentos",
+] as const;
+type FuenteVencimiento = (typeof FUENTES_VENCIMIENTO)[number];
+
+export async function setComplianceVencimientoAction(input: {
+  documento_id: string;
+  fuente: FuenteVencimiento;
+  fecha_vencimiento: string;
+  observaciones?: string | null;
+}) {
+  const user = await requireArea("compliance", "write");
+  const supabase = createAdminClient();
+
+  if (!input.documento_id) return { error: "Documento requerido" };
+  if (!input.fecha_vencimiento) return { error: "Fecha de vencimiento requerida" };
+  if (!FUENTES_VENCIMIENTO.includes(input.fuente)) return { error: "Fuente inválida" };
+
+  const observaciones = input.observaciones?.trim() || null;
+  const upd = { fecha_vencimiento: input.fecha_vencimiento, observaciones };
+
+  // Estado previo (para auditoría) + update. Ramas por tabla literal para mantener
+  // el tipado del cliente de Supabase.
+  let prev: { fecha_vencimiento: string | null; observaciones: string | null } | null = null;
+  let updError = false;
+  if (input.fuente === "compliance_documentos") {
+    const r = await supabase
+      .from("compliance_documentos")
+      .select("fecha_vencimiento, observaciones")
+      .eq("id", input.documento_id)
+      .single();
+    prev = r.data;
+    if (prev)
+      updError = !!(
+        await supabase.from("compliance_documentos").update(upd).eq("id", input.documento_id)
+      ).error;
+  } else if (input.fuente === "chofer_documentos") {
+    const r = await supabase
+      .from("chofer_documentos")
+      .select("fecha_vencimiento, observaciones")
+      .eq("id", input.documento_id)
+      .single();
+    prev = r.data;
+    if (prev)
+      updError = !!(
+        await supabase.from("chofer_documentos").update(upd).eq("id", input.documento_id)
+      ).error;
+  } else {
+    const r = await supabase
+      .from("camion_documentos")
+      .select("fecha_vencimiento, observaciones")
+      .eq("id", input.documento_id)
+      .single();
+    prev = r.data;
+    if (prev)
+      updError = !!(
+        await supabase.from("camion_documentos").update(upd).eq("id", input.documento_id)
+      ).error;
+  }
+  if (!prev) return { error: "Documento no encontrado" };
+  if (updError) return { error: "No se pudo actualizar el vencimiento" };
+
+  await supabase.from("audit_log").insert({
+    usuario_id: user.id,
+    accion: "editar_vencimiento_compliance",
+    entidad_tipo: input.fuente,
+    entidad_id: input.documento_id,
+    valores_anteriores: prev,
+    valores_nuevos: { fecha_vencimiento: input.fecha_vencimiento, observaciones },
+  });
 
   revalidatePath("/compliance/loma-negra");
   revalidatePath("/compliance/ypf");

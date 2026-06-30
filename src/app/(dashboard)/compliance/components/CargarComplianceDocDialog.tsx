@@ -13,13 +13,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
-import { uploadComplianceDocAction } from "../actions";
+import { uploadComplianceDocAction, setComplianceVencimientoAction } from "../actions";
 import type { ComplianceRequisito } from "../types";
+
+// Cuando se pasa `edit`, el diálogo edita el vencimiento/observaciones de un
+// documento YA cargado (sin re-subir el archivo). Si no, carga uno nuevo (con el
+// archivo opcional: se puede registrar solo el vencimiento).
+export type EditVencimiento = {
+  documento_id: string;
+  fuente: "compliance_documentos" | "chofer_documentos" | "camion_documentos";
+  fecha_vencimiento: string | null;
+  observaciones: string | null;
+};
 
 interface Props {
   requisito: ComplianceRequisito;
   chofer_id?: string;
   camion_id?: string;
+  edit?: EditVencimiento;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSuccess: () => void;
@@ -29,16 +40,18 @@ export default function CargarComplianceDocDialog({
   requisito,
   chofer_id,
   camion_id,
+  edit,
   open,
   onOpenChange,
   onSuccess,
 }: Props) {
+  const esEdicion = !!edit;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState("");
   const [fechaEmision, setFechaEmision] = useState("");
-  const [fechaVencimiento, setFechaVencimiento] = useState("");
-  const [observaciones, setObservaciones] = useState("");
+  const [fechaVencimiento, setFechaVencimiento] = useState(edit?.fecha_vencimiento ?? "");
+  const [observaciones, setObservaciones] = useState(edit?.observaciones ?? "");
   const [numero, setNumero] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -46,8 +59,8 @@ export default function CargarComplianceDocDialog({
   const reset = () => {
     setPeriodo("");
     setFechaEmision("");
-    setFechaVencimiento("");
-    setObservaciones("");
+    setFechaVencimiento(edit?.fecha_vencimiento ?? "");
+    setObservaciones(edit?.observaciones ?? "");
     setNumero("");
     setFileName(null);
     setError(null);
@@ -57,23 +70,32 @@ export default function CargarComplianceDocDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fechaVencimiento) return setError("Fecha de vencimiento requerida");
-    if (!fileRef.current?.files?.[0]) return setError("Seleccioná un archivo");
 
     setLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.set("requisito_id", requisito.id);
-    if (chofer_id) formData.set("chofer_id", chofer_id);
-    if (camion_id) formData.set("camion_id", camion_id);
-    if (periodo) formData.set("periodo", periodo);
-    if (fechaEmision) formData.set("fecha_emision", fechaEmision);
-    formData.set("fecha_vencimiento", fechaVencimiento);
-    if (observaciones) formData.set("observaciones", observaciones);
-    if (numero) formData.set("numero", numero);
-    formData.set("file", fileRef.current.files[0]);
+    const res = esEdicion
+      ? await setComplianceVencimientoAction({
+          documento_id: edit!.documento_id,
+          fuente: edit!.fuente,
+          fecha_vencimiento: fechaVencimiento,
+          observaciones: observaciones || null,
+        })
+      : await (async () => {
+          const formData = new FormData();
+          formData.set("requisito_id", requisito.id);
+          if (chofer_id) formData.set("chofer_id", chofer_id);
+          if (camion_id) formData.set("camion_id", camion_id);
+          if (periodo) formData.set("periodo", periodo);
+          if (fechaEmision) formData.set("fecha_emision", fechaEmision);
+          formData.set("fecha_vencimiento", fechaVencimiento);
+          if (observaciones) formData.set("observaciones", observaciones);
+          if (numero) formData.set("numero", numero);
+          const f = fileRef.current?.files?.[0];
+          if (f) formData.set("file", f);
+          return uploadComplianceDocAction(formData);
+        })();
 
-    const res = await uploadComplianceDocAction(formData);
     setLoading(false);
 
     if ("error" in res && res.error) {
@@ -97,11 +119,15 @@ export default function CargarComplianceDocDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Cargar {requisito.nombre}</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">
+            {esEdicion ? "Editar vencimiento" : "Cargar"} — {requisito.nombre}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            {vaAlLegajo
-              ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá.`
-              : "Cualquier formato — máximo 10 MB."}
+            {esEdicion
+              ? "Actualizá la fecha de vencimiento y observaciones sin volver a subir el archivo."
+              : vaAlLegajo
+                ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá. El archivo es opcional.`
+                : "El archivo es opcional — podés registrar solo el vencimiento. Cualquier formato, máximo 10 MB."}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,7 +138,7 @@ export default function CargarComplianceDocDialog({
             </div>
           )}
 
-          {esMensual && !vaAlLegajo && (
+          {!esEdicion && esMensual && !vaAlLegajo && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Período (mes)</Label>
               <Input
@@ -123,7 +149,7 @@ export default function CargarComplianceDocDialog({
             </div>
           )}
 
-          {vaAlLegajo && (
+          {!esEdicion && vaAlLegajo && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Número</Label>
               <Input
@@ -135,14 +161,16 @@ export default function CargarComplianceDocDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
-              <Input
-                type="date"
-                value={fechaEmision}
-                onChange={(e) => setFechaEmision(e.target.value)}
-              />
-            </div>
+            {!esEdicion && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
+                <Input
+                  type="date"
+                  value={fechaEmision}
+                  onChange={(e) => setFechaEmision(e.target.value)}
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Vencimiento <span className="text-red-400">*</span>
@@ -159,27 +187,27 @@ export default function CargarComplianceDocDialog({
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">Observaciones</Label>
             <Input
-              placeholder="Opcional"
+              placeholder='Opcional (ej. "solo Loma Negra")'
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">
-              Archivo <span className="text-red-400">*</span>
-            </Label>
-            <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
-              <Upload size={16} className="text-muted-foreground/70" />
-              <span className="text-sm text-muted-foreground">{fileName ?? "Elegir archivo..."}</span>
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-              />
-            </label>
-          </div>
+          {!esEdicion && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">Archivo (opcional)</Label>
+              <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
+                <Upload size={16} className="text-muted-foreground/70" />
+                <span className="text-sm text-muted-foreground">{fileName ?? "Elegir archivo..."}</span>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                />
+              </label>
+            </div>
+          )}
 
           <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">
             <Button
@@ -195,7 +223,7 @@ export default function CargarComplianceDocDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Subiendo..." : "Cargar"}
+              {loading ? "Guardando..." : esEdicion ? "Guardar vencimiento" : "Cargar"}
             </Button>
           </DialogFooter>
         </form>
