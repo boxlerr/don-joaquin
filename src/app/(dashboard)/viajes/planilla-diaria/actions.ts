@@ -89,6 +89,81 @@ export async function getPlanillaDiariaData(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Impresión: hoja de asignación con el formato de la fotocopia que usan a mano.
+// ---------------------------------------------------------------------------
+
+export type PlanillaImpresionRow = {
+  nombre: string;
+  cuil: string;
+  tractor: string; // patente del camión asignado
+  acoplado: string; // patente del semi/acoplado
+  telefono: string;
+  localidad: string;
+};
+
+export async function getPlanillaImpresionAction(
+  fecha: string,
+): Promise<{ fecha: string; rows: PlanillaImpresionRow[] } | { error: string }> {
+  await requireArea("viajes", "read");
+  if (!ISO.test(fecha)) return { error: "Fecha inválida." };
+
+  const supabase = createAdminClient();
+  const [choferesRes, camionesRes, asignacionesRes, vinculosRes, acopladosRes] = await Promise.all([
+    supabase
+      .from("choferes")
+      .select("id, nombre, apellido, cuil, telefono, localidad")
+      .eq("estado", "activo")
+      .order("apellido", { ascending: true }),
+    supabase.from("camiones").select("id, patente, chofer_actual_id").eq("estado", "activo"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("asignacion_diaria").select("chofer_id, camion_id").eq("fecha", fecha),
+    supabase.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
+    supabase.from("acoplados").select("id, patente"),
+  ]);
+
+  if (choferesRes.error || camionesRes.error) {
+    return { error: "No se pudieron cargar los datos para imprimir." };
+  }
+
+  const patentePorCamion = new Map<string, string>();
+  const habitualPorChofer = new Map<string, string>();
+  for (const c of camionesRes.data ?? []) {
+    patentePorCamion.set(c.id, c.patente);
+    const chid = (c as { chofer_actual_id?: string | null }).chofer_actual_id;
+    if (chid) habitualPorChofer.set(chid, c.id);
+  }
+
+  const asigPorChofer = new Map<string, string>();
+  for (const a of (asignacionesRes.data ?? []) as { chofer_id: string; camion_id: string }[]) {
+    asigPorChofer.set(a.chofer_id, a.camion_id);
+  }
+
+  const patenteAcoplado = new Map<string, string>();
+  for (const a of acopladosRes.data ?? []) patenteAcoplado.set(a.id, a.patente);
+  const acopladoPorCamion = new Map<string, string>();
+  for (const v of vinculosRes.data ?? []) {
+    if (!acopladoPorCamion.has(v.camion_id)) {
+      const pat = patenteAcoplado.get(v.acoplado_id);
+      if (pat) acopladoPorCamion.set(v.camion_id, pat);
+    }
+  }
+
+  const rows: PlanillaImpresionRow[] = (choferesRes.data ?? []).map((c) => {
+    const camionId = asigPorChofer.get(c.id) ?? habitualPorChofer.get(c.id) ?? null;
+    return {
+      nombre: `${c.apellido} ${c.nombre}`.trim(),
+      cuil: c.cuil ?? "",
+      tractor: camionId ? patentePorCamion.get(camionId) ?? "" : "",
+      acoplado: camionId ? acopladoPorCamion.get(camionId) ?? "" : "",
+      telefono: c.telefono ?? "",
+      localidad: c.localidad ?? "",
+    };
+  });
+
+  return { fecha, rows };
+}
+
 const guardarSchema = z.object({
   fecha: z.string().regex(ISO, "Fecha inválida."),
   items: z.array(

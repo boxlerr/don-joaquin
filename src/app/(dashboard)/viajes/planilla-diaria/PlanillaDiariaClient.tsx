@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import ImprimirPlanillaButton from "./ImprimirPlanillaButton";
 import {
   CheckCircle2,
   Loader2,
@@ -196,6 +197,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
             <RotateCcw size={13} />
             Restaurar habituales
           </Button>
+          <ImprimirPlanillaButton fecha={data.fecha} />
         </div>
 
         <div className="self-center ml-auto flex items-center gap-3 text-xs text-muted-foreground/80">
