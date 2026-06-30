@@ -1,10 +1,11 @@
 import ExcelJS from "exceljs";
 
-// Construcción del Excel "Hoja de ruta" con el MISMO diseño que el maestro del
-// cliente: una hoja por chofer, fila de patentes arriba, encabezado amarillo
-// (DIA · SALE DE · LLEGA A · KM REC · TN COM 29 · TN ESC 35 · TN ESC 37,5 ·
-// REMITO Nº · MATERIAL · KM VACIOS · $) y una fila por viaje. Usa exceljs porque
-// el SheetJS gratis no escribe estilos (rellenos, formato de fecha, bordes).
+// Export "Hoja de ruta" con look profesional/corporativo (grises suaves, info
+// centrada, bordes finos, filas zebra) y fiel a la estructura del Excel maestro:
+// una hoja por chofer, fila de patentes arriba, encabezado y columnas
+// DIA · SALE DE · LLEGA A · KM REC · TN COM 29 · TN ESC 35 · TN ESC 37,5 ·
+// REMITO Nº · MATERIAL · KM VACIOS · $. Cuando el viaje es vacío, "VACIO" en rojo
+// en la columna REMITO. Usa exceljs porque el SheetJS gratis no escribe estilos.
 
 export type ExportViaje = {
   fecha: string; // YYYY-MM-DD
@@ -12,7 +13,7 @@ export type ExportViaje = {
   destino: string;
   km_con_carga: number;
   km_vacios: number;
-  capacidad: number | null; // capacidad_tn del camión → define la columna de toneladas
+  capacidad: number | null;
   tonelaje: number | null;
   remito: string;
   material: string;
@@ -32,14 +33,27 @@ const HEADER = [
   "DIA", "SALE DE", "LLEGA A", "KM REC", "TN COM 29", "TN ESC 35",
   "TN ESC 37,5", "REMITO Nº", "MATERIAL", "KM VACIOS", "$",
 ];
-const WIDTHS = [10, 14, 14, 9, 10, 10, 11, 12, 16, 11, 15];
+const WIDTHS = [11, 16, 16, 9, 11, 11, 11, 13, 18, 11, 16];
+// Alineación por columna (1-based): l=izquierda, c=centro, r=derecha.
+const ALIGN: ("l" | "c" | "r")[] = ["c", "l", "l", "c", "c", "c", "c", "c", "l", "c", "r"];
 
-const AMARILLO = "FFFFFF99";
-const NARANJA = "FFE46C0A";
+// Paleta sobria.
+const GRIS_HEADER = "FF595959"; // encabezado (gris medio-oscuro)
+const GRIS_PATENTE = "FFD9D9D9"; // fila de patentes
+const GRIS_ZEBRA = "FFF7F7F7"; // filas pares
+const GRIS_BORDE = "FFE0E0E0";
+const GRIS_TOTAL = "FFD0D0D0";
+const ROJO_VACIO = "FFC00000";
 
-function thin() {
-  const s = { style: "thin" as const, color: { argb: "FFBFBFBF" } };
+function borde(color = GRIS_BORDE) {
+  const s = { style: "thin" as const, color: { argb: color } };
   return { top: s, left: s, bottom: s, right: s };
+}
+function fill(argb: string): ExcelJS.Fill {
+  return { type: "pattern", pattern: "solid", fgColor: { argb } };
+}
+function alinear(a: "l" | "c" | "r"): Partial<ExcelJS.Alignment> {
+  return { horizontal: a === "l" ? "left" : a === "r" ? "right" : "center", vertical: "middle" };
 }
 
 /** Columna de toneladas según la capacidad del camión: 29 → E, 35 → F, 37,5 → G. */
@@ -63,45 +77,53 @@ function sheetName(apellido: string, used: Set<string>): string {
 export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Don Joaquín — Sistema de Gestión";
+
   const used = new Set<string>();
 
   for (const ch of choferes) {
-    const ws = wb.addWorksheet(sheetName(ch.apellido, used));
+    const ws = wb.addWorksheet(sheetName(ch.apellido, used), {
+      views: [{ state: "frozen", ySplit: 2 }], // fijar patentes + encabezado
+    });
     ws.columns = WIDTHS.map((width) => ({ width }));
 
-    // Fila 1: patentes (tractor / Y / acoplado) — igual que el maestro (cols D-F).
-    const pat = ws.getCell("D1");
-    pat.value = ch.tractor || "";
-    pat.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NARANJA } };
-    pat.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    pat.alignment = { horizontal: "center" };
-    ws.getCell("E1").value = ch.tractor && ch.acoplado ? "Y" : "";
-    ws.getCell("E1").alignment = { horizontal: "center" };
-    const aco = ws.getCell("F1");
-    aco.value = ch.acoplado || "";
-    aco.font = { bold: true };
-    aco.alignment = { horizontal: "center" };
+    // Fila 1: patentes (tractor / Y / acoplado) — gris suave, centrado.
+    const r1 = ws.getRow(1);
+    r1.height = 18;
+    for (let c = 1; c <= 11; c++) {
+      const cell = r1.getCell(c);
+      cell.fill = fill(GRIS_PATENTE);
+      cell.border = borde();
+    }
+    r1.getCell(4).value = ch.tractor || "";
+    r1.getCell(5).value = ch.tractor && ch.acoplado ? "Y" : "";
+    r1.getCell(6).value = ch.acoplado || "";
+    for (const c of [4, 5, 6]) {
+      r1.getCell(c).font = { bold: true, color: { argb: "FF404040" } };
+      r1.getCell(c).alignment = { horizontal: "center", vertical: "middle" };
+    }
 
-    // Fila 2: encabezado amarillo.
-    const headerRow = ws.getRow(2);
+    // Fila 2: encabezado.
+    const hr = ws.getRow(2);
+    hr.height = 24;
     HEADER.forEach((h, i) => {
-      const cell = headerRow.getCell(i + 1);
+      const cell = hr.getCell(i + 1);
       cell.value = h;
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AMARILLO } };
-      cell.font = { bold: true };
+      cell.fill = fill(GRIS_HEADER);
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cell.border = thin();
+      cell.border = borde("FF808080");
     });
-    headerRow.height = 26;
 
     // Filas de viajes.
     let r = 3;
     let sumKm = 0, sumTn = 0, sumVac = 0, sumImp = 0;
+    let idx = 0;
     for (const v of ch.viajes) {
       const row = ws.getRow(r);
+      row.height = 16;
+      const zebra = idx % 2 === 1;
 
       const dia = row.getCell(1);
-      // Mediodía para evitar corrimientos de día por zona horaria al serializar.
       dia.value = v.fecha ? new Date(`${v.fecha}T12:00:00`) : null;
       dia.numFmt = "dd-mmm-yy";
 
@@ -115,36 +137,54 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
         row.getCell(bucketCol(v.capacidad)).value = v.tonelaje;
       }
 
-      row.getCell(8).value = v.remito || "";
-      row.getCell(9).value = v.es_vacio ? "VACIO" : v.material || "";
+      // REMITO Nº: "VACIO" en rojo cuando el viaje es vacío.
+      const remito = row.getCell(8);
+      if (v.es_vacio) {
+        remito.value = "VACIO";
+        remito.font = { bold: true, color: { argb: ROJO_VACIO } };
+      } else {
+        remito.value = v.remito || "";
+      }
+
+      row.getCell(9).value = v.es_vacio ? "" : v.material || "";
       row.getCell(10).value = v.km_vacios || null;
 
       const imp = row.getCell(11);
-      imp.value = v.importe ?? null;
-      imp.numFmt = "#,##0.00";
+      imp.value = v.es_vacio ? 0 : v.importe ?? null;
+      imp.numFmt = '"$" #,##0.00';
 
-      for (let c = 1; c <= 11; c++) row.getCell(c).border = thin();
+      // Estilo de toda la fila (zebra + bordes + alineación).
+      for (let c = 1; c <= 11; c++) {
+        const cell = row.getCell(c);
+        cell.border = borde();
+        cell.alignment = alinear(ALIGN[c - 1]);
+        if (zebra) cell.fill = fill(GRIS_ZEBRA);
+      }
 
       sumKm += kmRec || 0;
       sumTn += v.tonelaje ?? 0;
       sumVac += v.km_vacios || 0;
-      sumImp += v.importe ?? 0;
+      sumImp += v.es_vacio ? 0 : v.importe ?? 0;
       r++;
+      idx++;
     }
 
     // Fila de totales.
     const tot = ws.getRow(r);
+    tot.height = 18;
     tot.getCell(3).value = "TOTALES";
     tot.getCell(4).value = sumKm || null;
     tot.getCell(7).value = sumTn ? Number(sumTn.toFixed(2)) : null;
     tot.getCell(10).value = sumVac || null;
     const totImp = tot.getCell(11);
     totImp.value = sumImp || null;
-    totImp.numFmt = "#,##0.00";
+    totImp.numFmt = '"$" #,##0.00';
     for (let c = 1; c <= 11; c++) {
-      tot.getCell(c).font = { bold: true };
-      tot.getCell(c).border = thin();
-      tot.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+      const cell = tot.getCell(c);
+      cell.font = { bold: true, color: { argb: "FF404040" } };
+      cell.fill = fill(GRIS_TOTAL);
+      cell.border = borde("FFBFBFBF");
+      cell.alignment = alinear(ALIGN[c - 1]);
     }
   }
 

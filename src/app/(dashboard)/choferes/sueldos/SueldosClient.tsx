@@ -2,11 +2,11 @@
 
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx";
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table";
 import ExportButton from "@/components/ExportButton";
+import { descargarExport } from "@/lib/download-export";
 import { Wallet, ChevronRight, ChevronDown, Loader2, MapPin } from "lucide-react";
 import {
   getViajesChoferMesAction,
@@ -63,24 +63,11 @@ export default function SueldosClient({
     router.refresh(); // recalcular los totales del resumen
   };
 
-  const handleExport = async () => {
-    if (resumen.length === 0) throw new Error("No hay viajes cerrados para exportar en este período.");
-    const rows = resumen.map((r) => ({
-      Chofer: r.chofer,
-      Viajes: r.viajes,
-      "Km al 100% (con carga)": r.km_con_carga,
-      "Km vacíos": r.km_vacios,
-      "Km total": r.km_total,
-      Toneladas: r.tonelaje,
-      "Viajes al sur": r.sur,
-      "Viajes zona petrolera": r.pozo,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{ wch: 24 }, { wch: 8 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 18 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Sueldos");
-    XLSX.writeFile(wb, `sueldos_${month || "mes-actual"}.xlsx`);
-  };
+  const handleExport = () =>
+    descargarExport(
+      `/choferes/sueldos/export?month=${month ?? ""}`,
+      `sueldos_${month || "mes-actual"}.xlsx`,
+    );
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
