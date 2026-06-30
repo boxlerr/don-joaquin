@@ -505,24 +505,34 @@ export async function getKmHistoricoAction(
   const destinoId = destinoRes.data?.[0]?.id as string | undefined;
   if (!origenId || !destinoId) return null;
 
-  // Último viaje con ese par y km cargados > 0 (el dato "oficial" más reciente).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("viajes")
-    .select("km_con_carga, km_vacios")
-    .eq("origen_id", origenId)
-    .eq("destino_id", destinoId)
-    .gt("km_con_carga", 0)
-    .neq("estado", "cancelado")
-    .order("fecha_viaje", { ascending: false })
-    .limit(1);
+  // Buscamos km con carga y km vacíos POR SEPARADO: un par puede tener su
+  // distancia "cargada" en un viaje y la "vacía" en otro (ej. rutas que algunas
+  // veces van cargadas y otras de retorno vacío). Y hay rutas que SIEMPRE van
+  // vacías (km_con_carga = 0): antes el filtro `km_con_carga > 0` las dejaba sin
+  // precargar los km vacíos. Tomamos el valor más reciente de cada uno.
+  const base = (col: "km_con_carga" | "km_vacios") =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("viajes")
+      .select(col)
+      .eq("origen_id", origenId)
+      .eq("destino_id", destinoId)
+      .neq("estado", "cancelado")
+      .gt(col, 0)
+      .order("fecha_viaje", { ascending: false })
+      .limit(1);
 
-  if (error || !data || data.length === 0) return null;
+  const [conCargaRes, vaciosRes] = await Promise.all([
+    base("km_con_carga"),
+    base("km_vacios"),
+  ]);
 
-  return {
-    km_con_carga: Number(data[0].km_con_carga) || 0,
-    km_vacios: Number(data[0].km_vacios) || 0,
-  };
+  const km_con_carga = Number(conCargaRes.data?.[0]?.km_con_carga) || 0;
+  const km_vacios = Number(vaciosRes.data?.[0]?.km_vacios) || 0;
+
+  if (!km_con_carga && !km_vacios) return null;
+
+  return { km_con_carga, km_vacios };
 }
 
 // ============================================================================

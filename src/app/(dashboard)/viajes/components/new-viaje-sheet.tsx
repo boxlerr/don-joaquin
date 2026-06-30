@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/combobox";
+import { PlaceCombobox } from "@/components/ui/place-combobox";
 import {
   Plus,
   X,
@@ -25,6 +26,9 @@ import {
   Route,
   CalendarOff,
   RotateCcw,
+  ArrowLeftRight,
+  PackageX,
+  PackageCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +57,12 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [destino, setDestino] = useState("");
   const [kmConCarga, setKmConCarga] = useState("0");
   const [kmVacios, setKmVacios] = useState("0");
+  // `true` cuando los km se cargaron a mano o por circuito: el autocompletado
+  // por historial no debe pisarlos al tipear. Al elegir un destino del
+  // desplegable sí se vuelven a calcular (eso es autoritativo).
+  const kmDirty = useRef(false);
+  // Mismo flag pero para los km de la vuelta.
+  const vKmDirty = useRef(false);
   // Aviso cuando los km se precargan desde el historial del par origen→destino.
   const [kmHistHint, setKmHistHint] = useState<string | null>(null);
   // Viaje de vuelta (opcional): se carga junto con la ida en el mismo submit.
@@ -96,6 +106,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setDestino("");
     setKmConCarga("0");
     setKmVacios("0");
+    kmDirty.current = false;
     setKmHistHint(null);
     setCargarVuelta(false);
     setVueltaModo("vacio");
@@ -103,6 +114,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setVDestino("");
     setVKmConCarga("0");
     setVKmVacios("0");
+    vKmDirty.current = false;
     setVTonelaje("0");
     setVMonto("0");
     setVMaterial("");
@@ -119,9 +131,79 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     }
   }, [state, router]);
 
-  // Autocompletar km desde el historial cuando hay origen + destino y todavía no
-  // se cargaron km (ni a mano ni por circuito). Debounce para no pegarle al
-  // server en cada tecla.
+  // Trae los km del último viaje con ese par origen→destino.
+  //  - authoritative=true  (al elegir del desplegable): recalcula al instante y
+  //    pisa lo que haya (cambiar de destino redefine la ruta).
+  //  - authoritative=false (al tipear): solo completa si nadie tocó los km.
+  const applyKmHistorico = async (o: string, d: string, authoritative: boolean) => {
+    const oo = o.trim();
+    const dd = d.trim();
+    if (!oo || !dd || oo === "—" || dd === "—") {
+      setKmHistHint(null);
+      return;
+    }
+    if (!authoritative && kmDirty.current) return;
+    const res = await getKmHistoricoAction(oo, dd);
+    if (!res) {
+      // Par nuevo sin historial: al elegirlo a propósito, no dejes los km de
+      // otra ruta colgados.
+      if (authoritative) {
+        setKmConCarga("0");
+        setKmVacios("0");
+        setKmHistHint(null);
+        kmDirty.current = false;
+      }
+      return;
+    }
+    setKmConCarga(String(res.km_con_carga));
+    setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
+    kmDirty.current = false;
+    setKmHistHint(
+      `Km precargados del historial (${oo} → ${dd}). Editá si esta vez fue distinto.`,
+    );
+  };
+
+  // Marca los km como editados a mano (no los pisa el autocompletado al tipear).
+  const setKmManual = (which: "con" | "vac", v: string) => {
+    kmDirty.current = true;
+    setKmHistHint(null);
+    if (which === "con") setKmConCarga(v);
+    else setKmVacios(v);
+  };
+
+  // Autocompletar los km de la VUELTA desde el historial del par (al elegir
+  // origen/destino del desplegable). Según el modo, completa el campo que
+  // corresponde; si para ese par no hay el dato exacto, usa el otro como
+  // estimación de la distancia de la ruta.
+  const applyVueltaKmHistorico = async (
+    o: string,
+    d: string,
+    modo: "vacio" | "cargado",
+  ) => {
+    const oo = o.trim();
+    const dd = d.trim();
+    if (!oo || !dd || oo === "—" || dd === "—") return;
+    if (vKmDirty.current) return;
+    const res = await getKmHistoricoAction(oo, dd);
+    if (!res) return;
+    if (modo === "cargado") {
+      setVKmConCarga(String(res.km_con_carga || res.km_vacios || 0));
+    } else {
+      setVKmVacios(String(res.km_vacios || res.km_con_carga || 0));
+    }
+    vKmDirty.current = false;
+  };
+
+  // Marca los km de la vuelta como editados a mano.
+  const setVKmManual = (which: "con" | "vac", v: string) => {
+    vKmDirty.current = true;
+    if (which === "con") setVKmConCarga(v);
+    else setVKmVacios(v);
+  };
+
+  // Fallback para cuando se escribe el lugar a mano (sin elegir del desplegable):
+  // completa los km si todavía nadie los tocó. Debounce para no pegarle al server
+  // en cada tecla. El caso "elegí del desplegable" lo maneja onSelect, al instante.
   useEffect(() => {
     const o = origen.trim();
     const d = destino.trim();
@@ -130,21 +212,19 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setKmHistHint(null);
       return;
     }
-    // No pisar km cargados a mano ni traídos por un circuito.
-    if (kmConCarga !== "0" || kmVacios !== "0") return;
+    if (kmDirty.current) return;
     let cancelado = false;
     const t = setTimeout(async () => {
       const res = await getKmHistoricoAction(o, d);
-      if (cancelado || !res) return;
+      if (cancelado || !res || kmDirty.current) return;
       setKmConCarga(String(res.km_con_carga));
-      if (res.km_vacios) setKmVacios(String(res.km_vacios));
+      setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
       setKmHistHint(`Km precargados del historial (${o} → ${d}). Editá si esta vez fue distinto.`);
-    }, 450);
+    }, 350);
     return () => {
       cancelado = true;
       clearTimeout(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo dispara al cambiar origen/destino
   }, [origen, destino]);
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -161,6 +241,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setDestino(c.destino === "—" ? "" : c.destino);
       setKmConCarga(String(c.km_con_carga));
       setKmVacios(String(c.km_vacios));
+      // Km del circuito = valores explícitos: que el autocompletado no los pise.
+      kmDirty.current = true;
+      setKmHistHint(null);
     }
   };
 
@@ -188,6 +271,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setVMonto("0");
       setVMaterial("");
       setVNroYpf("");
+      vKmDirty.current = false;
+      // La vuelta suele ser la ruta invertida: precargamos sus km vacíos desde
+      // el historial de ese par (destino→origen), si lo tenemos.
+      if (destino && origen) applyVueltaKmHistorico(destino, origen, "vacio");
     }
   };
 
@@ -195,6 +282,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   // para que no haya que recargarla a mano.
   const handleVueltaModo = (modo: "vacio" | "cargado") => {
     setVueltaModo(modo);
+    vKmDirty.current = false;
     if (modo === "cargado") {
       const dist = vKmVacios !== "0" ? vKmVacios : kmConCarga;
       setVKmConCarga(dist);
@@ -364,12 +452,6 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               </div>
             )}
 
-            <datalist id="puntos-ruta-list">
-              {data.puntos_ruta.map((p) => (
-                <option key={p.id} value={p.label} />
-              ))}
-            </datalist>
-
             {/* Circuito predefinido (opcional): autocompleta origen, destino y km */}
             {data.circuitos.length > 0 && (
               <SelectField
@@ -385,26 +467,29 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               />
             )}
 
-            {/* Ruta Origen / Destino */}
+            {/* Ruta Origen / Destino — autocompletado con desplegable propio.
+                Al elegir un lugar de la lista, los km se recalculan al instante. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <InputFieldWithIcon
+              <PlaceCombobox
                 label="Origen"
                 name="origen_nombre"
-                placeholder="Escribí ciudad o lugar..."
+                placeholder="Escribí o elegí un lugar..."
                 icon={MapPin}
-                list="puntos-ruta-list"
+                options={data.puntos_ruta}
                 value={origen}
-                onChange={setOrigen}
+                onValueChange={setOrigen}
+                onSelect={(o) => applyKmHistorico(o, destino, true)}
                 error={state?.fieldErrors?.origen_nombre}
               />
-              <InputFieldWithIcon
+              <PlaceCombobox
                 label="Destino"
                 name="destino_nombre"
-                placeholder="Escribí ciudad o lugar..."
+                placeholder="Escribí o elegí un lugar..."
                 icon={Flag}
-                list="puntos-ruta-list"
+                options={data.puntos_ruta}
                 value={destino}
-                onChange={setDestino}
+                onValueChange={setDestino}
+                onSelect={(d) => applyKmHistorico(origen, d, true)}
                 error={state?.fieldErrors?.destino_nombre}
               />
             </div>
@@ -416,7 +501,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 name="km_con_carga"
                 type="number"
                 value={kmConCarga}
-                onChange={setKmConCarga}
+                onChange={(v) => setKmManual("con", v)}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_con_carga}
               />
@@ -425,7 +510,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 name="km_vacios"
                 type="number"
                 value={kmVacios}
-                onChange={setKmVacios}
+                onChange={(v) => setKmManual("vac", v)}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_vacios}
               />
@@ -465,9 +550,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               error={state?.fieldErrors?.material}
             />
 
-            {/* Nº Viaje YPF (opcional) */}
+            {/* Nº de viaje (opcional) — remito / comprobante, no es solo de YPF */}
             <InputFieldWithIcon
-              label="Nº viaje YPF"
+              label="Nº de viaje"
               name="nro_viaje_ypf"
               placeholder="Ej: 123456 (opcional)"
               icon={Hash}
@@ -475,91 +560,133 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             />
 
             {/* Viaje de vuelta (opcional): carga ida + vuelta en un solo submit */}
-            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <div
+              className={`rounded-xl border p-3.5 transition-colors ${
+                cargarVuelta
+                  ? "border-[#0088D1]/40 bg-[#0088D1]/5"
+                  : "border-border bg-muted/20"
+              }`}
+            >
+              <label className="flex items-start gap-3 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={cargarVuelta}
                   onChange={(e) => handleToggleVuelta(e.target.checked)}
-                  className="size-4 rounded accent-[#0088D1]"
+                  className="mt-0.5 size-4 rounded accent-[#0088D1]"
                 />
-                <span className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
-                  <RotateCcw size={15} className="text-primary" />
-                  Cargar viaje de vuelta
+                <span className="flex flex-col">
+                  <span className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
+                    <RotateCcw size={15} className="text-primary" />
+                    Cargar viaje de vuelta
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    En el mismo paso registrás el regreso del camión: vacío o con otra carga.
+                  </span>
                 </span>
               </label>
 
               <input type="hidden" name="cargar_vuelta" value={cargarVuelta ? "1" : "0"} />
 
               {cargarVuelta && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
                   <input type="hidden" name="vuelta_modo" value={vueltaModo} />
 
-                  {/* Modo: vuelve vacío / vuelve cargado */}
-                  <div className="inline-flex rounded-lg border border-border overflow-hidden">
+                  {/* Modo: vuelve vacío / vuelve cargado — selector grande con icono */}
+                  <div className="grid grid-cols-2 gap-2">
                     {([
-                      { v: "vacio", label: "Vuelve vacío" },
-                      { v: "cargado", label: "Vuelve cargado" },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.v}
-                        type="button"
-                        onClick={() => handleVueltaModo(opt.v)}
-                        className={`px-4 h-9 text-xs font-semibold transition-colors ${
-                          vueltaModo === opt.v
-                            ? "bg-[#0088D1] text-white"
-                            : "bg-card text-muted-foreground hover:bg-muted/40"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                      {
+                        v: "vacio",
+                        label: "Vuelve vacío",
+                        sub: "Sin flete ni carga",
+                        Icon: PackageX,
+                      },
+                      {
+                        v: "cargado",
+                        label: "Vuelve cargado",
+                        sub: "Trae otra carga",
+                        Icon: PackageCheck,
+                      },
+                    ] as const).map((opt) => {
+                      const active = vueltaModo === opt.v;
+                      return (
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => handleVueltaModo(opt.v)}
+                          aria-pressed={active}
+                          className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                            active
+                              ? "border-[#0088D1] bg-[#0088D1]/10 ring-1 ring-[#0088D1]/30"
+                              : "border-border bg-card hover:bg-muted/40"
+                          }`}
+                        >
+                          <opt.Icon
+                            size={18}
+                            className={active ? "text-[#0277BD]" : "text-muted-foreground"}
+                          />
+                          <span className="flex flex-col">
+                            <span
+                              className={`text-xs font-semibold ${
+                                active ? "text-[#0277BD]" : "text-foreground"
+                              }`}
+                            >
+                              {opt.label}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {opt.sub}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Origen / destino de la vuelta (prellenados invertidos) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InputFieldWithIcon
-                      label="Origen (vuelta)"
-                      name="vuelta_origen_nombre"
-                      placeholder="Escribí ciudad o lugar..."
-                      icon={MapPin}
-                      list="puntos-ruta-list"
-                      value={vOrigen}
-                      onChange={setVOrigen}
-                      error={state?.fieldErrors?.vuelta_origen_nombre}
-                    />
-                    <InputFieldWithIcon
-                      label="Destino (vuelta)"
-                      name="vuelta_destino_nombre"
-                      placeholder="Escribí ciudad o lugar..."
-                      icon={Flag}
-                      list="puntos-ruta-list"
-                      value={vDestino}
-                      onChange={setVDestino}
-                      error={state?.fieldErrors?.vuelta_destino_nombre}
-                    />
+                  {/* Ruta de la vuelta — se invierte la ida por defecto, editable */}
+                  <div className="space-y-2">
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                      <ArrowLeftRight size={12} className="shrink-0 text-primary" />
+                      Por defecto invertimos la ruta de la ida. Ajustá si la vuelta es por otro lado.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <PlaceCombobox
+                        label="Origen (vuelta)"
+                        name="vuelta_origen_nombre"
+                        placeholder="Escribí o elegí un lugar..."
+                        icon={MapPin}
+                        options={data.puntos_ruta}
+                        value={vOrigen}
+                        onValueChange={setVOrigen}
+                        onSelect={(o) => applyVueltaKmHistorico(o, vDestino, vueltaModo)}
+                        error={state?.fieldErrors?.vuelta_origen_nombre}
+                      />
+                      <PlaceCombobox
+                        label="Destino (vuelta)"
+                        name="vuelta_destino_nombre"
+                        placeholder="Escribí o elegí un lugar..."
+                        icon={Flag}
+                        options={data.puntos_ruta}
+                        value={vDestino}
+                        onValueChange={setVDestino}
+                        onSelect={(d) => applyVueltaKmHistorico(vOrigen, d, vueltaModo)}
+                        error={state?.fieldErrors?.vuelta_destino_nombre}
+                      />
+                    </div>
                   </div>
 
                   {vueltaModo === "cargado" ? (
                     <>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Vuelve cargado: la pata es "con carga". Los km vacíos
+                          no aplican a una pata cargada. */}
+                      <input type="hidden" name="vuelta_km_vacios" value="0" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <InputFieldWithIcon
                           label="Km con carga"
                           name="vuelta_km_con_carga"
                           type="number"
                           value={vKmConCarga}
-                          onChange={setVKmConCarga}
+                          onChange={(v) => setVKmManual("con", v)}
                           icon={Navigation}
                           error={state?.fieldErrors?.vuelta_km_con_carga}
-                        />
-                        <InputFieldWithIcon
-                          label="Km vacíos"
-                          name="vuelta_km_vacios"
-                          type="number"
-                          value={vKmVacios}
-                          onChange={setVKmVacios}
-                          icon={Navigation}
-                          error={state?.fieldErrors?.vuelta_km_vacios}
                         />
                         <InputFieldWithIcon
                           label="Tonelaje (tn)"
@@ -591,7 +718,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                           error={state?.fieldErrors?.vuelta_monto_flete}
                         />
                         <InputFieldWithIcon
-                          label="Nº viaje YPF"
+                          label="Nº de viaje"
                           name="vuelta_nro_viaje_ypf"
                           placeholder="Opcional"
                           value={vNroYpf}
@@ -613,12 +740,13 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                           name="vuelta_km_vacios"
                           type="number"
                           value={vKmVacios}
-                          onChange={setVKmVacios}
+                          onChange={(v) => setVKmManual("vac", v)}
                           icon={Navigation}
                           error={state?.fieldErrors?.vuelta_km_vacios}
                         />
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <PackageX size={12} className="shrink-0" />
                         La vuelta vacía no factura ni suma tonelaje.
                       </p>
                     </>

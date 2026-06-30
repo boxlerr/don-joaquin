@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Combobox } from "@/components/ui/combobox";
+import { PlaceCombobox } from "@/components/ui/place-combobox";
 
 const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
@@ -380,35 +381,29 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               </CField>
             )}
 
-            {/* Datalist puntos de ruta */}
-            <datalist id="edit-puntos-ruta">
-              {formOptions?.puntos_ruta.map((p) => (
-                <option key={p.id} value={p.label} />
-              ))}
-            </datalist>
-
-            {/* Origen y Destino */}
+            {/* Origen y Destino — desplegable propio con texto libre (reemplaza
+                al <datalist> nativo, feo en macOS) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CField label="Origen" icon={MapPin} error={fieldErrors.origen_nombre}>
-                <input
-                  type="text"
-                  value={origenNombre}
-                  onChange={(e) => setOrigenNombre(e.target.value)}
-                  placeholder="Ciudad o lugar..."
-                  list="edit-puntos-ruta"
-                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
-                />
-              </CField>
-              <CField label="Destino" icon={Flag} error={fieldErrors.destino_nombre}>
-                <input
-                  type="text"
-                  value={destinoNombre}
-                  onChange={(e) => setDestinoNombre(e.target.value)}
-                  placeholder="Ciudad o lugar..."
-                  list="edit-puntos-ruta"
-                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
-                />
-              </CField>
+              <PlaceCombobox
+                label="Origen"
+                name="origen_nombre"
+                icon={MapPin}
+                placeholder="Escribí o elegí un lugar..."
+                options={formOptions?.puntos_ruta ?? []}
+                value={origenNombre}
+                onValueChange={setOrigenNombre}
+                error={fieldErrors.origen_nombre}
+              />
+              <PlaceCombobox
+                label="Destino"
+                name="destino_nombre"
+                icon={Flag}
+                placeholder="Escribí o elegí un lugar..."
+                options={formOptions?.puntos_ruta ?? []}
+                value={destinoNombre}
+                onValueChange={setDestinoNombre}
+                error={fieldErrors.destino_nombre}
+              />
             </div>
 
             {/* KM y Tonelaje */}
@@ -466,8 +461,8 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               />
             </CField>
 
-            {/* Nº Viaje YPF (opcional) */}
-            <CField label="Nº viaje YPF" icon={Hash} error={fieldErrors.nro_viaje_ypf}>
+            {/* Nº de viaje (opcional) */}
+            <CField label="Nº de viaje" icon={Hash} error={fieldErrors.nro_viaje_ypf}>
               <input
                 type="text"
                 value={nroViajeYpf}

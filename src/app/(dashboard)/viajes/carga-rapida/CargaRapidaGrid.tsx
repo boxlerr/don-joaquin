@@ -283,7 +283,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                   "Tonelaje",
                   "$ Flete",
                   "Vacío",
-                  "Nº YPF",
+                  "Nº viaje",
                   "",
                 ].map((h) => (
                   <th
@@ -445,7 +445,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                       />
                     </td>
 
-                    {/* Nº YPF */}
+                    {/* Nº viaje */}
                     <td className="px-1 py-1">
                       <input
                         type="text"
