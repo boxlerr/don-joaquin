@@ -16,6 +16,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/auth";
+import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
@@ -91,6 +93,13 @@ export default async function DashboardPage({
     supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
   ]);
 
+  // Estado leído/descartado POR USUARIO: las alertas de tabla que ESTE usuario ya
+  // marcó leídas/descartó no deben seguir contando como "activas" en el dashboard
+  // (coherencia con la campana y /notificaciones, que son per-user).
+  const currentUser = await getCurrentUser();
+  const ocultasUsuario = currentUser ? await getOcultasPorUsuario(currentUser.id) : new Set<string>();
+  const alertasVisibles = (docPorVencer.data ?? []).filter((a) => !ocultasUsuario.has(a.id));
+
   // Vencimientos reales calculados desde los documentos, con la MISMA lógica
   // que /notificaciones (mismo diasRestantes + filtro por tipos activos), para
   // que los totales coincidan. Antes usábamos parsing distinto (Date(string)
@@ -125,7 +134,7 @@ export default async function DashboardPage({
   // sean de documentos (esas ya se cuentan arriba en vivo). Son cosas como
   // cheques rechazados, compliance, viajes sin cerrar, etc. Esto alinea el
   // conteo con el filtro "Crítica" de /notificaciones.
-  const otrasCriticas = (docPorVencer.data ?? []).filter(
+  const otrasCriticas = alertasVisibles.filter(
     (a) =>
       a.severidad === "critica" &&
       a.tipo !== "vencimiento_doc_camion" &&
@@ -150,7 +159,7 @@ export default async function DashboardPage({
   // Para no contar dos veces las alertas de documentos, ignoramos las del tipo
   // `vencimiento_doc_*` de la tabla (mismo criterio que /notificaciones, donde
   // las reemplaza por las calculadas en vivo desde camion_documentos / chofer_documentos).
-  const dbAlertasOtras = (docPorVencer.data ?? []).filter(
+  const dbAlertasOtras = alertasVisibles.filter(
     (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
   );
 
@@ -187,7 +196,7 @@ export default async function DashboardPage({
     catCounts.personal_aniversario +
     catCounts.personal_prueba +
     catCounts.sistema;
-  const firstAlert = docPorVencer.data?.[0];
+  const firstAlert = alertasVisibles[0];
   const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/notificaciones";
   const ultimosViajes = (viajesResult && "data" in viajesResult) ? viajesResult.data : [];
 

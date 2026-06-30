@@ -27,11 +27,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "no_auth" }, { status: 401 });
   }
 
-  const { count, items } = await getResumenUsuario(user.id, 8);
+  const { count, items, allIds } = await getResumenUsuario(user.id, 8);
 
   const mode = request.nextUrl.searchParams.get("mode");
   if (mode === "resumen") {
-    return NextResponse.json({ count, items });
+    return NextResponse.json({ count, items, allIds });
   }
 
   return NextResponse.json(items);

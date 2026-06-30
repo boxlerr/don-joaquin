@@ -54,12 +54,15 @@ export default function NotificacionesProvider({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefreshRef = useRef(0);
   const inFlightRef = useRef(false);
+  // IDs ya marcados (optimista) en esta sesión: evita que un doble-click descuente
+  // el badge dos veces por la misma alerta. El poll del finally reconcilia igual.
+  const marcadasRef = useRef<Set<string>>(new Set());
 
   // Aplica la regla de pop-up sobre el resultado de un poll:
   //   - primer load de la sesión (no bootstrapped) y hay sin leer → 1 toast RESUMEN.
   //   - polls siguientes → 1 toast por cada alerta genuinamente nueva (dedup localStorage).
   const aplicarReglaToast = useCallback(
-    (nextItems: ResumenItem[], nextCount: number) => {
+    (nextItems: ResumenItem[], nextCount: number, allIds: string[]) => {
       if (!isBootstrapped(userId)) {
         if (nextCount > 0) {
           pushToast({
@@ -71,8 +74,9 @@ export default function NotificacionesProvider({
             href: "/notificaciones",
           });
         }
-        // Marcamos lo visible como ya avisado para no repetirlo individualmente.
-        addToasted(userId, nextItems.map((i) => i.id));
+        // Marcamos TODAS las no leídas como ya avisadas (no sólo el top-8 visible),
+        // así una alerta vieja que después suba al top-8 no aparece como "nueva".
+        addToasted(userId, allIds.length ? allIds : nextItems.map((i) => i.id));
         setBootstrapped(userId);
         return;
       }
@@ -105,10 +109,10 @@ export default function NotificacionesProvider({
     try {
       const res = await fetch("/api/alertas?mode=resumen", { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
-      const data = (await res.json()) as { count: number; items: ResumenItem[] };
+      const data = (await res.json()) as { count: number; items: ResumenItem[]; allIds?: string[] };
       setCount(data.count);
       setItems(data.items);
-      aplicarReglaToast(data.items, data.count);
+      aplicarReglaToast(data.items, data.count, data.allIds ?? []);
       backoffRef.current = POLL_MS; // éxito → vuelve al intervalo normal
     } catch {
       backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF_MS);
@@ -162,9 +166,12 @@ export default function NotificacionesProvider({
   const marcarVista = useCallback(
     async (id: string) => {
       // Optimista: sale de la lista, baja el badge, se cierra su toast y queda como
-      // "ya avisada" para que no reaparezca.
+      // "ya avisada". El badge sólo baja la primera vez que se marca ese id (evita
+      // doble-decremento por doble-click); el poll del finally reconcilia con el server.
+      const yaMarcada = marcadasRef.current.has(id);
+      marcadasRef.current.add(id);
       setItems((prev) => prev.filter((i) => i.id !== id));
-      setCount((c) => Math.max(0, c - 1));
+      if (!yaMarcada) setCount((c) => Math.max(0, c - 1));
       dismissToast(id);
       addToasted(userId, [id]);
       try {

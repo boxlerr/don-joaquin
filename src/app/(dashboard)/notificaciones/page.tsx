@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertOctagon, Clock, ShieldCheck } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
-import { getHistorialLeidas, getPendientesNoLeidasIds } from "@/lib/alertas-lecturas";
+import { DOC_LIVE, getHistorialLeidas, getPendientesNoLeidasIds } from "@/lib/alertas-lecturas";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
@@ -28,9 +28,12 @@ export default async function NotificacionesPage() {
       .from("alertas")
       .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
       .eq("estado", "pendiente")
+      // Mismo filtro/cap que getPendientesNoLeidasIds, para que badge, lista y
+      // "Marcar todas" operen sobre exactamente el mismo conjunto.
+      .not("tipo", "in", `(${DOC_LIVE.join(",")})`)
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
-      .limit(200),
+      .limit(1000),
     // Historial de leídas POR USUARIO (lo que ESTE usuario marcó leído y no borró).
     getHistorialLeidas(user.id),
     // IDs de pendientes que ESTE usuario aún no leyó (para particionar más abajo).

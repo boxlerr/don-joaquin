@@ -72,14 +72,27 @@ export async function getPendientesNoLeidasIds(usuarioId: string): Promise<strin
   return (alertas ?? []).map((a: { id: string }) => a.id).filter((id: string) => noLeida(lecturas.get(id)));
 }
 
+/** IDs de alertas que el usuario ya ocultó (leídas o descartadas). */
+export async function getOcultasPorUsuario(usuarioId: string): Promise<Set<string>> {
+  const supabase = createAdminClient();
+  const lecturas = await getLecturasMap(supabase, usuarioId);
+  const ocultas = new Set<string>();
+  for (const [id, l] of lecturas) {
+    if (l.leida_en || l.descartada_en) ocultas.add(id);
+  }
+  return ocultas;
+}
+
 /**
  * Resumen para el badge y el polling: `count` de no leídas + top-`limit` ítems con
  * el `href` ya resuelto server-side (el cliente sólo navega). Orden severidad↓, fecha↓.
+ * `allIds` trae TODAS las no leídas (no sólo el top-`limit`) para que el cliente
+ * pueda marcar como "ya avisadas" todas en el primer load y no toastear viejas.
  */
 export async function getResumenUsuario(
   usuarioId: string,
   limit = 8,
-): Promise<{ count: number; items: ResumenItem[] }> {
+): Promise<{ count: number; items: ResumenItem[]; allIds: string[] }> {
   const supabase = createAdminClient();
   const [{ data: alertas }, lecturas] = await Promise.all([
     supabase
@@ -104,22 +117,21 @@ export async function getResumenUsuario(
 
   const noLeidas: Row[] = (alertas ?? []).filter((a: Row) => noLeida(lecturas.get(a.id)));
 
-  const items: ResumenItem[] = [...noLeidas]
-    .sort((a, b) => {
-      const s = SEV_ORDER[a.severidad] - SEV_ORDER[b.severidad];
-      if (s !== 0) return s;
-      return b.fecha_disparo.localeCompare(a.fecha_disparo);
-    })
-    .slice(0, limit)
-    .map((a) => ({
-      id: a.id,
-      severidad: a.severidad,
-      titulo: a.titulo,
-      mensaje: a.mensaje,
-      href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
-    }));
+  const ordenadas = [...noLeidas].sort((a, b) => {
+    const s = SEV_ORDER[a.severidad] - SEV_ORDER[b.severidad];
+    if (s !== 0) return s;
+    return b.fecha_disparo.localeCompare(a.fecha_disparo);
+  });
 
-  return { count: noLeidas.length, items };
+  const items: ResumenItem[] = ordenadas.slice(0, limit).map((a) => ({
+    id: a.id,
+    severidad: a.severidad,
+    titulo: a.titulo,
+    mensaje: a.mensaje,
+    href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
+  }));
+
+  return { count: noLeidas.length, items, allIds: ordenadas.map((a) => a.id) };
 }
 
 /**
@@ -128,27 +140,33 @@ export async function getResumenUsuario(
  */
 export async function getHistorialLeidas(usuarioId: string, limit = 200): Promise<AlertaItem[]> {
   const supabase = createAdminClient();
-  const [{ data: alertas }, { data: lecturas }] = await Promise.all([
-    supabase
-      .from("alertas")
-      .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
-      .eq("estado", "pendiente")
-      .not("tipo", "in", `(${DOC_LIVE.join(",")})`),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("alerta_lecturas")
-      .select("alerta_id, leida_en, descartada_en")
-      .eq("usuario_id", usuarioId)
-      .not("leida_en", "is", null)
-      .is("descartada_en", null)
-      .order("leida_en", { ascending: false }) as { data: LecturaRow[] | null },
-  ]);
+
+  // 1) IDs que el usuario marcó leídos (acotado por lo que marcó a mano).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lecturas } = (await (supabase as any)
+    .from("alerta_lecturas")
+    .select("alerta_id, leida_en, descartada_en")
+    .eq("usuario_id", usuarioId)
+    .not("leida_en", "is", null)
+    .is("descartada_en", null)
+    .order("leida_en", { ascending: false })
+    .limit(limit)) as { data: LecturaRow[] | null };
+
+  const ids = (lecturas ?? []).map((l) => l.alerta_id);
+  if (ids.length === 0) return [];
 
   const ordenLeida = new Map<string, number>();
-  (lecturas ?? []).forEach((l: LecturaRow, i: number) => ordenLeida.set(l.alerta_id, i));
+  ids.forEach((id, i) => ordenLeida.set(id, i));
 
-  return ((alertas ?? []) as AlertaItem[])
-    .filter((a) => ordenLeida.has(a.id))
-    .sort((a, b) => (ordenLeida.get(a.id)! - ordenLeida.get(b.id)!))
-    .slice(0, limit);
+  // 2) Traer SÓLO esas alertas (no todas las pendientes) → no depende del tope de filas.
+  const { data: alertas } = await supabase
+    .from("alertas")
+    .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, fecha_vencimiento, entidad_tipo, entidad_id")
+    .eq("estado", "pendiente")
+    .not("tipo", "in", `(${DOC_LIVE.join(",")})`)
+    .in("id", ids);
+
+  return ((alertas ?? []) as AlertaItem[]).sort(
+    (a, b) => (ordenLeida.get(a.id) ?? 0) - (ordenLeida.get(b.id) ?? 0),
+  );
 }

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, requireAdmin, hasArea } from "@/lib/auth";
+import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
@@ -316,6 +317,12 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   }
 
   const { data: activeAlerts } = await alertsQuery;
+
+  // Estado leído/descartado per-user: ocultamos del legajo las alertas (de cumpleaños,
+  // prueba, ausencia, etc.) que ESTE usuario ya marcó leídas. Las de documentos
+  // (vencimiento_doc_*) no son marcables, así que nunca quedan en este set.
+  const ocultasUsuario = await getOcultasPorUsuario(user.id);
+  const activeAlertsVisibles = (activeAlerts ?? []).filter((a) => !ocultasUsuario.has(a.id));
 
   // Consultar archivos y campos adicionales asociados a los documentos
   const { data: dbDocsWithFields } = docIds.length > 0
@@ -716,7 +723,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     score_trimestre_desglose: scoreRes?.desglose ?? [],
     foto: fotoObj as { bucket: string; path: string } | null,
     documentos_vigencia: mappedDocs,
-    alertas: (activeAlerts ?? []).map((a) => ({
+    alertas: activeAlertsVisibles.map((a) => ({
       id: a.id,
       tipo: a.tipo,
       severidad: a.severidad,

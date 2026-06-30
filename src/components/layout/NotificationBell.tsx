@@ -43,9 +43,13 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Severidad dominante para teñir el badge/halo. Si todavía no llegó el primer
-  // poll (items vacíos pero count>0), usamos rojo para no pasar desapercibido.
-  const sevMax: Severidad = items.reduce<Severidad>((acc, it) => (SEV_RANK[it.severidad] > SEV_RANK[acc] ? it.severidad : acc), items.length ? "info" : "critica");
+  // Severidad dominante para teñir el badge/halo. Mientras no llegó el primer poll
+  // (items vacíos), caemos a "info" (azul de marca) para no mostrar un rojo "crítico"
+  // falso en cada carga; al resolver el poll se ajusta a la severidad real.
+  const sevMax: Severidad = items.reduce<Severidad>(
+    (acc, it) => (SEV_RANK[it.severidad] > SEV_RANK[acc] ? it.severidad : acc),
+    "info",
+  );
 
   const handleOpen = () => {
     setOpen((prev) => {

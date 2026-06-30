@@ -13,7 +13,9 @@
 
 const TOASTED_PREFIX = "dj_notif_toasted_";
 const BOOT_PREFIX = "dj_notif_boot_";
-const CAP = 200;
+// Tope FIFO holgado: en el bootstrap marcamos TODAS las no leídas como avisadas,
+// así que conviene que entren sin evicción aun con bastante volumen acumulado.
+const CAP = 500;
 
 function safeLocal(): Storage | null {
   try {

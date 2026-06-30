@@ -51,17 +51,26 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
   const Icon = toast.variant === "resumen" ? Bell : sev.Icon;
   const autoMs = AUTO_MS[toast.severidad];
 
+  // Tiempo restante real: el hover PAUSA (no reinicia) la cuenta regresiva.
+  const remainingRef = useRef(autoMs ?? 0);
+  const startRef = useRef(0);
+
   const close = () => {
     if (closedRef.current) return;
     closedRef.current = true;
     onDismiss();
   };
 
-  // Auto-cierre (pausado en hover/focus). Las críticas no entran acá.
+  // Auto-cierre con tiempo restante: al pausar descuenta lo transcurrido; al
+  // reanudar arranca un timer por lo que queda. Las críticas (autoMs null) no cierran solas.
   useEffect(() => {
     if (autoMs == null || paused) return;
-    const t = setTimeout(close, autoMs);
-    return () => clearTimeout(t);
+    startRef.current = Date.now();
+    const t = setTimeout(close, remainingRef.current);
+    return () => {
+      clearTimeout(t);
+      remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startRef.current));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMs, paused]);
 
@@ -110,11 +119,12 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
         <X size={15} />
       </button>
 
-      {autoMs != null && !paused && (
+      {autoMs != null && (
+        // Barra montada una sola vez; el hover la PAUSA (animation-play-state) en
+        // vez de remontarla, así queda en sync con el tiempo restante real.
         <span
-          key={`${toast.key}-bar`}
           className={`absolute bottom-0 left-0 h-0.5 ${sev.bar} motion-safe:animate-[toast-progress_linear_forwards] motion-reduce:hidden`}
-          style={{ animationDuration: `${autoMs}ms` }}
+          style={{ animationDuration: `${autoMs}ms`, animationPlayState: paused ? "paused" : "running" }}
         />
       )}
     </div>
