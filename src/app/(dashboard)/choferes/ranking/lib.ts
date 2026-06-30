@@ -1,9 +1,17 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CRITERIO_CLAVE, RANKING_CRITERIOS_DEFAULT, type RankingCriterios } from "./criterios";
+import {
+  RANKING_CRITERIOS_DEFAULT,
+  CONFIG_CLAVE,
+  mergeCriterios,
+  calcularScore,
+  type RankingCriterios,
+  type ScoreDesglose,
+  type ConceptoResultado,
+} from "./criterios";
 
-export { RANKING_CRITERIOS_DEFAULT, CRITERIO_CLAVE };
-export type { RankingCriterios };
+export { RANKING_CRITERIOS_DEFAULT, calcularScore };
+export type { RankingCriterios, ScoreDesglose, ConceptoResultado };
 
 export type RankingChofer = {
   id: string;
@@ -23,86 +31,42 @@ export type RankingChofer = {
   licencias_activas: number;
   facturacion_total: number;
   pesos_por_km: number | null;
+  // Métricas nuevas del modelo de score de Bárbara (para columnas/desglose).
+  km_mensual: number | null;
+  toneladas_pct: number | null;
+  combustible_lp100: number | null;
   score: number | null;
-  // Penalizaciones aplicadas (para el desglose "por qué" del score).
-  desglose: { label: string; puntos: number }[];
+  // Penalizaciones aplicadas (desglose "por qué" del score, compat. con la UI).
+  desglose: ScoreDesglose[];
+  // Detalle por concepto (base 100 − descuento por concepto).
+  conceptos: ConceptoResultado[];
 };
-
-export type ScoreDesglose = { label: string; puntos: number };
-
-/** Calcula score (0-100) + desglose a partir de los conteos del período.
- * Único lugar donde vive la lógica de penalización (lo usan el ranking y el
- * score individual del legajo, así nunca se desincronizan). */
-export function calcularScore(
-  cnt: {
-    pct_vacios: number;
-    apercibimientos: number;
-    roturas: number;
-    siniestros: number;
-    ausencias_injust: number;
-    taller: number;
-    licencias_activas: number;
-  },
-  p: RankingCriterios,
-): { score: number; desglose: ScoreDesglose[] } {
-  const desglose: ScoreDesglose[] = [];
-  let s = 100;
-
-  let penVacios = 0;
-  let labelVacios = "";
-  if (cnt.pct_vacios > 40) {
-    penVacios = p.vacios_alto;
-    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (más del 40%)`;
-  } else if (cnt.pct_vacios > 30) {
-    penVacios = p.vacios_moderado;
-    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (30–40%)`;
-  } else if (cnt.pct_vacios > 20) {
-    penVacios = p.vacios_leve;
-    labelVacios = `Km vacíos ${cnt.pct_vacios.toFixed(0)}% (20–30%)`;
-  }
-  if (penVacios > 0) {
-    desglose.push({ label: labelVacios, puntos: -penVacios });
-    s -= penVacios;
-  }
-  const restar = (c: number, peso: number, label: string) => {
-    const total = c * peso;
-    if (total > 0) {
-      desglose.push({ label: `${label} (${c})`, puntos: -total });
-      s -= total;
-    }
-  };
-  restar(cnt.siniestros, p.siniestro, "Siniestros");
-  restar(cnt.apercibimientos, p.aperc, "Apercibimientos");
-  restar(cnt.ausencias_injust, p.ausencia_injust, "Ausencias injustificadas");
-  restar(cnt.roturas, p.rotura, "Roturas");
-  restar(cnt.taller, p.taller, "Visitas al taller");
-  if (cnt.licencias_activas > 0) {
-    desglose.push({ label: "Licencia médica activa", puntos: -p.licencia });
-    s -= p.licencia;
-  }
-  return { score: Math.max(0, Math.min(100, s)), desglose };
-}
 
 export async function getRankingCriterios(): Promise<RankingCriterios> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("parametros_sistema")
-    .select("clave, valor")
-    .in("clave", Object.values(CRITERIO_CLAVE));
-
-  const map = new Map((data ?? []).map((r) => [r.clave, Number(r.valor)]));
-  const criterios = { ...RANKING_CRITERIOS_DEFAULT };
-  for (const k of Object.keys(CRITERIO_CLAVE) as (keyof RankingCriterios)[]) {
-    const v = map.get(CRITERIO_CLAVE[k]);
-    if (Number.isFinite(v)) criterios[k] = v as number;
+    .select("valor")
+    .eq("clave", CONFIG_CLAVE)
+    .maybeSingle();
+  let raw: unknown = undefined;
+  if (data?.valor) {
+    try {
+      raw = JSON.parse(data.valor);
+    } catch {
+      raw = undefined; // JSON corrupto → caemos a defaults
+    }
   }
-  return criterios;
+  return mergeCriterios(raw);
 }
 
 type ViajeMetricaRow = {
   chofer_id: string | null;
+  camion_id: string | null;
+  fecha_viaje: string | null;
   km_con_carga: number | null;
   km_vacios: number | null;
+  tonelaje_real: number | null;
   monto_flete: number | null;
   moneda: string | null;
   tipo_cambio: number | null;
@@ -122,7 +86,9 @@ async function fetchViajesMetricas(
   for (let from = 0; ; from += PAGE) {
     let q = supabase
       .from("viajes")
-      .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio")
+      .select(
+        "chofer_id, camion_id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio",
+      )
       .gte("fecha_viaje", opts.desde)
       .lte("fecha_viaje", opts.hasta);
     if (opts.conChofer) q = q.not("chofer_id", "is", null);
@@ -166,6 +132,59 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
   return { viajes: rows.length, choferesActivos: choferes.size, kmConCarga, kmVacios, facturacion };
 }
 
+// Tipos de rotura que cuentan como "gomas" (concepto 4); el resto va a
+// "roturas varias" (concepto 5). La tabla roturas_gomas hoy guarda también
+// daños generales (guardabarros, carrocería, mecánica, etc.).
+const GOMA_TIPOS = new Set(["goma", "llanta", "cubierta", "neumatico", "neumático"]);
+function esGoma(tipo: string | null): boolean {
+  if (!tipo) return true; // sin tipo en la tabla de gomas → se asume goma
+  return GOMA_TIPOS.has(tipo.trim().toLowerCase());
+}
+
+type CargaComb = { camion_id: string | null; litros: number | null; km_odometro: number | null };
+
+/**
+ * L/100km por camión, método tanque-a-tanque: entre la primera y la última
+ * carga del período, litros consumidos / km recorridos × 100. Necesita ≥2
+ * cargas con odómetro. Descarta valores no realistas (odómetro mal cargado).
+ */
+function lp100PorCamion(cargas: CargaComb[]): Map<string, number> {
+  const porCamion = new Map<string, { km: number; litros: number }[]>();
+  for (const c of cargas) {
+    if (!c.camion_id || !c.km_odometro || c.km_odometro <= 0 || !c.litros || c.litros <= 0) continue;
+    if (!porCamion.has(c.camion_id)) porCamion.set(c.camion_id, []);
+    porCamion.get(c.camion_id)!.push({ km: c.km_odometro, litros: c.litros });
+  }
+  const out = new Map<string, number>();
+  const MAX_TRAMO_KM = 3000; // un tanque rinde ~1.500–2.500 km; un salto mayor = lectura mala u omitida
+  for (const [camion, arr] of porCamion) {
+    if (arr.length < 2) continue;
+    arr.sort((a, b) => a.km - b.km);
+    // Tanque-a-tanque por TRAMOS consecutivos válidos: así una sola lectura de
+    // odómetro mal cargada (salto imposible) no contamina todo el cálculo del
+    // camión; se descartan solo los tramos absurdos y se promedian los buenos.
+    let kmTotal = 0;
+    let litrosTotal = 0;
+    for (let i = 1; i < arr.length; i++) {
+      const dkm = arr[i].km - arr[i - 1].km;
+      if (dkm > 0 && dkm <= MAX_TRAMO_KM) {
+        kmTotal += dkm;
+        litrosTotal += arr[i].litros; // el llenado i repone lo consumido en el tramo
+      }
+    }
+    if (kmTotal < 200) continue; // muy poco recorrido medido → no es representativo
+    const lp100 = (litrosTotal / kmTotal) * 100;
+    if (lp100 >= 15 && lp100 <= 120) out.set(camion, lp100); // filtro de sanidad
+  }
+  return out;
+}
+
+function mesesActivos(fechas: (string | null)[]): number {
+  const set = new Set<string>();
+  for (const f of fechas) if (f) set.add(f.slice(0, 7)); // YYYY-MM
+  return Math.max(1, set.size);
+}
+
 export async function computeRanking({
   desde,
   hasta,
@@ -186,9 +205,10 @@ export async function computeRanking({
     { data: licencias },
     { data: siniestros },
     { data: ausenciasInjust },
-    { data: camionActuales },
+    { data: camiones },
     { data: historial },
     { data: asignacionDiaria },
+    { data: cargasComb },
   ] = await Promise.all([
     supabase
       .from("choferes")
@@ -203,15 +223,11 @@ export async function computeRanking({
       data: await fetchViajesMetricas(supabase, { desde, hasta, conChofer: true }),
     }))(),
 
-    supabase
-      .from("chofer_apercibimientos")
-      .select("chofer_id")
-      .gte("fecha", desde)
-      .lte("fecha", hasta),
+    supabase.from("chofer_apercibimientos").select("chofer_id").gte("fecha", desde).lte("fecha", hasta),
 
     supabase
       .from("roturas_gomas")
-      .select("chofer_id")
+      .select("chofer_id, tipo")
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .not("chofer_id", "is", null),
@@ -222,7 +238,6 @@ export async function computeRanking({
       .lte("fecha_desde", hasta)
       .or(`fecha_hasta.is.null,fecha_hasta.gte.${desde}`),
 
-    // Siniestros / accidentes del período (cada uno pesa fuerte en el score).
     supabase
       .from("siniestros")
       .select("chofer_id")
@@ -230,8 +245,6 @@ export async function computeRanking({
       .lte("fecha", hasta)
       .not("chofer_id", "is", null),
 
-    // Ausencias INJUSTIFICADAS del período: no vacaciones, no canceladas y
-    // marcadas justificada=false. Cada una resta puntos.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("chofer_ausencias")
@@ -242,43 +255,47 @@ export async function computeRanking({
       .gte("fecha_inicio", desde)
       .lte("fecha_inicio", hasta),
 
-    // Camión asignado actualmente a cada chofer.
-    supabase
-      .from("camiones")
-      .select("id, chofer_actual_id")
-      .not("chofer_actual_id", "is", null),
+    // Todos los camiones (con capacidad) — para asignación actual y capacidad nominal.
+    supabase.from("camiones").select("id, chofer_actual_id, capacidad_tn"),
 
-    // Historial de camiones que solape el período (para contar visitas al taller).
-    supabase
-      .from("chofer_camion_historial")
-      .select("chofer_id, camion_id, desde, hasta"),
+    supabase.from("chofer_camion_historial").select("chofer_id, camion_id, desde, hasta"),
 
-    // Asignación diaria (reemplazos puntuales chofer↔camión) dentro del período:
-    // un chofer que tomó otra unidad por un día también "manejó" ese camión.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("asignacion_diaria")
       .select("chofer_id, camion_id")
       .gte("fecha", desde)
       .lte("fecha", hasta),
+
+    // Cargas de combustible del período (para L/100km por camión).
+    supabase
+      .from("cargas_combustible")
+      .select("camion_id, litros, km_odometro")
+      .gte("fecha", desde)
+      .lte("fecha", `${hasta}T23:59:59`),
   ]);
 
   // Mapa chofer → camiones que manejó en el período (actual + historial que solapa).
   const camionesPorChofer = new Map<string, Set<string>>();
+  const capacidadPorCamion = new Map<string, number>();
   const add = (choferId: string | null, camionId: string | null) => {
     if (!choferId || !camionId) return;
     if (!camionesPorChofer.has(choferId)) camionesPorChofer.set(choferId, new Set());
     camionesPorChofer.get(choferId)!.add(camionId);
   };
-  for (const c of camionActuales ?? []) add(c.chofer_actual_id, c.id);
+  for (const c of (camiones ?? []) as { id: string; chofer_actual_id: string | null; capacidad_tn: number | null }[]) {
+    if (c.capacidad_tn && c.capacidad_tn > 0) capacidadPorCamion.set(c.id, c.capacidad_tn);
+    add(c.chofer_actual_id, c.id);
+  }
   for (const h of historial ?? []) {
     const solapa = h.desde <= hasta && (!h.hasta || h.hasta >= desde);
     if (solapa) add(h.chofer_id, h.camion_id);
   }
-  // La asignación diaria ya viene filtrada por fecha dentro del período.
   for (const a of (asignacionDiaria ?? []) as { chofer_id: string; camion_id: string }[]) {
     add(a.chofer_id, a.camion_id);
   }
+
+  const lp100Camion = lp100PorCamion((cargasComb ?? []) as CargaComb[]);
 
   // Visitas al taller (reparación/avería + gomería) por camión en el período.
   const todosCamionIds = [...new Set([...camionesPorChofer.values()].flatMap((s) => [...s]))];
@@ -304,7 +321,7 @@ export async function computeRanking({
   const ranking: RankingChofer[] = (choferes ?? []).map((c) => {
     const cv = (viajes ?? []).filter((v) => v.chofer_id === c.id);
     const ca = (apercibimientos ?? []).filter((a) => a.chofer_id === c.id);
-    const cr = (roturas ?? []).filter((r) => r.chofer_id === c.id);
+    const cr = ((roturas ?? []) as { chofer_id: string; tipo: string | null }[]).filter((r) => r.chofer_id === c.id);
     const cl = (licencias ?? []).filter((l) => l.chofer_id === c.id);
     const cs = (siniestros ?? []).filter((s) => s.chofer_id === c.id);
     const cai = ((ausenciasInjust ?? []) as { chofer_id: string }[]).filter((a) => a.chofer_id === c.id);
@@ -314,8 +331,6 @@ export async function computeRanking({
     const km_total = km_con_carga + km_vacios;
     const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
 
-    // Facturación del período, normalizada a ARS (convierte si la moneda no es ARS
-    // y hay tipo de cambio cargado). monto_flete puede venir nulo.
     const facturacion_total = cv.reduce((s, v) => {
       const m = v.monto_flete ?? 0;
       if (!m) return s;
@@ -324,36 +339,72 @@ export async function computeRanking({
     }, 0);
     const pesos_por_km = km_total > 0 && facturacion_total > 0 ? facturacion_total / km_total : null;
 
+    // Roturas: separar gomas de roturas varias por tipo.
+    const gomas_count = cr.filter((r) => esGoma(r.tipo)).length;
+    const varias_count = cr.length - gomas_count;
+
     const apercibimientos_count = ca.length;
     const roturas_count = cr.length;
     const siniestros_count = cs.length;
     const ausencias_injustificadas_count = cai.length;
     const licencias_activas = cl.length;
 
-    // Visitas al taller de todos los camiones que manejó el chofer en el período.
+    // Visitas al taller de todos los camiones que manejó el chofer.
     let taller_count = 0;
     const camsChofer = camionesPorChofer.get(c.id);
-    if (camsChofer) {
-      for (const camId of camsChofer) taller_count += tallerPorCamion.get(camId) ?? 0;
+    if (camsChofer) for (const camId of camsChofer) taller_count += tallerPorCamion.get(camId) ?? 0;
+
+    const meses = mesesActivos(cv.map((v) => v.fecha_viaje));
+    const km_mensual = km_total > 0 ? km_total / meses : null;
+
+    // Toneladas: promedio de (tonelaje real / capacidad del camión) por viaje.
+    let tonSum = 0;
+    let tonN = 0;
+    for (const v of cv) {
+      const cap = v.camion_id ? capacidadPorCamion.get(v.camion_id) : undefined;
+      if (v.tonelaje_real && v.tonelaje_real > 0 && cap && cap > 0) {
+        tonSum += v.tonelaje_real / cap;
+        tonN += 1;
+      }
     }
+    const toneladas_pct = tonN > 0 ? tonSum / tonN : null;
+
+    // Combustible: promedio de L/100km de los camiones que manejó (con dato).
+    let combSum = 0;
+    let combN = 0;
+    if (camsChofer) {
+      for (const camId of camsChofer) {
+        const v = lp100Camion.get(camId);
+        if (v != null) {
+          combSum += v;
+          combN += 1;
+        }
+      }
+    }
+    const combustible_lp100 = combN > 0 ? combSum / combN : null;
 
     let score: number | null = null;
     let desglose: ScoreDesglose[] = [];
+    let conceptos: ConceptoResultado[] = [];
     if (cv.length > 0) {
       const res = calcularScore(
         {
-          pct_vacios,
-          apercibimientos: apercibimientos_count,
-          roturas: roturas_count,
+          meses,
+          km_mensual,
+          ton_pct: toneladas_pct,
+          combustible_lp100,
+          gomas: gomas_count,
+          roturas_leves: varias_count, // sin campo de gravedad: se asumen leves
+          roturas_graves: 0,
+          seguridad: apercibimientos_count,
           siniestros: siniestros_count,
-          ausencias_injust: ausencias_injustificadas_count,
-          taller: taller_count,
-          licencias_activas,
+          conducta: ausencias_injustificadas_count,
         },
         p,
       );
       score = res.score;
       desglose = res.desglose;
+      conceptos = res.conceptos;
     }
 
     return {
@@ -374,8 +425,12 @@ export async function computeRanking({
       licencias_activas,
       facturacion_total,
       pesos_por_km,
+      km_mensual,
+      toneladas_pct,
+      combustible_lp100,
       score,
       desglose,
+      conceptos,
     };
   });
 
@@ -395,7 +450,12 @@ export async function computeScoreChofer(
   choferId: string,
   desde: string,
   hasta: string,
-): Promise<{ score: number; desglose: ScoreDesglose[]; viajes_count: number } | null> {
+): Promise<{
+  score: number;
+  desglose: ScoreDesglose[];
+  conceptos: ConceptoResultado[];
+  viajes_count: number;
+} | null> {
   const supabase = createAdminClient();
   const p = await getRankingCriterios();
 
@@ -403,21 +463,24 @@ export async function computeScoreChofer(
     { data: viajes },
     { data: apercibimientos },
     { data: roturas },
-    { data: licencias },
     { data: siniestros },
     { data: ausenciasInjust },
     { data: camionActuales },
     { data: historial },
     { data: asignacionDiaria },
   ] = await Promise.all([
-    supabase.from("viajes").select("km_con_carga, km_vacios").eq("chofer_id", choferId).gte("fecha_viaje", desde).lte("fecha_viaje", hasta),
+    supabase
+      .from("viajes")
+      .select("camion_id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real")
+      .eq("chofer_id", choferId)
+      .gte("fecha_viaje", desde)
+      .lte("fecha_viaje", hasta),
     supabase.from("chofer_apercibimientos").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
-    supabase.from("roturas_gomas").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
-    supabase.from("chofer_licencias_medicas").select("id").eq("chofer_id", choferId).lte("fecha_desde", hasta).or(`fecha_hasta.is.null,fecha_hasta.gte.${desde}`),
+    supabase.from("roturas_gomas").select("tipo").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     supabase.from("siniestros").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("chofer_ausencias").select("id").eq("chofer_id", choferId).eq("es_vacaciones", false).eq("justificada", false).is("deleted_at", null).gte("fecha_inicio", desde).lte("fecha_inicio", hasta),
-    supabase.from("camiones").select("id").eq("chofer_actual_id", choferId),
+    supabase.from("camiones").select("id, capacidad_tn").eq("chofer_actual_id", choferId),
     supabase.from("chofer_camion_historial").select("camion_id, desde, hasta").eq("chofer_id", choferId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("asignacion_diaria").select("camion_id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
@@ -425,26 +488,81 @@ export async function computeScoreChofer(
 
   if (!viajes || viajes.length === 0) return null;
 
-  const km_con_carga = viajes.reduce((s, v) => s + (v.km_con_carga ?? 0), 0);
-  const km_vacios = viajes.reduce((s, v) => s + (v.km_vacios ?? 0), 0);
-  const km_total = km_con_carga + km_vacios;
-  const pct_vacios = km_total > 0 ? (km_vacios / km_total) * 100 : 0;
+  const vs = viajes as {
+    camion_id: string | null;
+    fecha_viaje: string | null;
+    km_con_carga: number | null;
+    km_vacios: number | null;
+    tonelaje_real: number | null;
+  }[];
 
+  const km_total = vs.reduce((s, v) => s + (v.km_con_carga ?? 0) + (v.km_vacios ?? 0), 0);
+  const meses = mesesActivos(vs.map((v) => v.fecha_viaje));
+  const km_mensual = km_total > 0 ? km_total / meses : null;
+
+  // Camiones que manejó + capacidad nominal de cada uno.
   const camIds = new Set<string>();
-  for (const c of camionActuales ?? []) camIds.add(c.id);
+  const capacidadPorCamion = new Map<string, number>();
+  for (const c of (camionActuales ?? []) as { id: string; capacidad_tn: number | null }[]) {
+    camIds.add(c.id);
+    if (c.capacidad_tn && c.capacidad_tn > 0) capacidadPorCamion.set(c.id, c.capacidad_tn);
+  }
   for (const h of (historial ?? []) as { camion_id: string; desde: string; hasta: string | null }[]) {
     if (h.desde <= hasta && (!h.hasta || h.hasta >= desde)) camIds.add(h.camion_id);
   }
   for (const a of (asignacionDiaria ?? []) as { camion_id: string }[]) camIds.add(a.camion_id);
 
+  // Capacidad de los camiones que no son el actual (historial/asignación).
+  const faltanCap = [...camIds].filter((id) => !capacidadPorCamion.has(id));
+  if (faltanCap.length > 0) {
+    const { data: caps } = await supabase.from("camiones").select("id, capacidad_tn").in("id", faltanCap);
+    for (const c of (caps ?? []) as { id: string; capacidad_tn: number | null }[]) {
+      if (c.capacidad_tn && c.capacidad_tn > 0) capacidadPorCamion.set(c.id, c.capacidad_tn);
+    }
+  }
+
+  // Toneladas: promedio de tonelaje real / capacidad.
+  let tonSum = 0;
+  let tonN = 0;
+  for (const v of vs) {
+    const cap = v.camion_id ? capacidadPorCamion.get(v.camion_id) : undefined;
+    if (v.tonelaje_real && v.tonelaje_real > 0 && cap && cap > 0) {
+      tonSum += v.tonelaje_real / cap;
+      tonN += 1;
+    }
+  }
+  const toneladas_pct = tonN > 0 ? tonSum / tonN : null;
+
+  // Combustible + taller: requieren las cargas/mantenimientos de sus camiones.
+  let combustible_lp100: number | null = null;
   let taller = 0;
   if (camIds.size > 0) {
-    const { data: mant } = await supabase
-      .from("mantenimientos")
-      .select("tipo, tipo_servicio:tipos_servicio(codigo)")
-      .in("camion_id", [...camIds])
-      .gte("fecha", desde)
-      .lte("fecha", hasta);
+    const [{ data: cargas }, { data: mant }] = await Promise.all([
+      supabase
+        .from("cargas_combustible")
+        .select("camion_id, litros, km_odometro")
+        .in("camion_id", [...camIds])
+        .gte("fecha", desde)
+        .lte("fecha", `${hasta}T23:59:59`),
+      supabase
+        .from("mantenimientos")
+        .select("tipo, camion_id, tipo_servicio:tipos_servicio(codigo)")
+        .in("camion_id", [...camIds])
+        .gte("fecha", desde)
+        .lte("fecha", hasta),
+    ]);
+    const lp100 = lp100PorCamion((cargas ?? []) as CargaComb[]);
+    let combSum = 0;
+    let combN = 0;
+    for (const id of camIds) {
+      const v = lp100.get(id);
+      if (v != null) {
+        combSum += v;
+        combN += 1;
+      }
+    }
+    combustible_lp100 = combN > 0 ? combSum / combN : null;
+
     const TALLER = new Set(["reparacion", "gomeria"]);
     for (const m of mant ?? []) {
       const ts = Array.isArray(m.tipo_servicio) ? m.tipo_servicio[0] : m.tipo_servicio;
@@ -452,21 +570,29 @@ export async function computeScoreChofer(
       if (codigo ? TALLER.has(codigo) : m.tipo === "reparacion") taller += 1;
     }
   }
+  void taller; // el taller no pondera en el score de Bárbara (se muestra en el ranking).
 
-  const { score, desglose } = calcularScore(
+  const cr = (roturas ?? []) as { tipo: string | null }[];
+  const gomas_count = cr.filter((r) => esGoma(r.tipo)).length;
+  const varias_count = cr.length - gomas_count;
+
+  const { score, desglose, conceptos } = calcularScore(
     {
-      pct_vacios,
-      apercibimientos: (apercibimientos ?? []).length,
-      roturas: (roturas ?? []).length,
+      meses,
+      km_mensual,
+      ton_pct: toneladas_pct,
+      combustible_lp100,
+      gomas: gomas_count,
+      roturas_leves: varias_count,
+      roturas_graves: 0,
+      seguridad: (apercibimientos ?? []).length,
       siniestros: (siniestros ?? []).length,
-      ausencias_injust: (ausenciasInjust ?? []).length,
-      taller,
-      licencias_activas: (licencias ?? []).length,
+      conducta: (ausenciasInjust ?? []).length,
     },
     p,
   );
 
-  return { score, desglose, viajes_count: viajes.length };
+  return { score, desglose, conceptos, viajes_count: vs.length };
 }
 
 export type RangoKey = "1m" | "3m" | "1y" | "total" | "custom";

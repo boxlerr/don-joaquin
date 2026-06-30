@@ -2,22 +2,27 @@
 
 import { useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { HelpCircle, X, TrendingDown, Info } from "lucide-react";
+import { HelpCircle, X, Info } from "lucide-react";
+import { CONCEPTOS_META, RANKING_CRITERIOS_DEFAULT, type ConceptoKey } from "./criterios";
 
-// Penalizaciones del score (valores por defecto, editables en "Configurar criterios").
-const PENALIZACIONES: { metrica: string; detalle: string; descuento: string }[] = [
-  { metrica: "Siniestro / accidente", detalle: "por cada uno del período", descuento: "−20" },
-  { metrica: "Ausencia injustificada", detalle: "por cada falta sin justificar", descuento: "−10" },
-  { metrica: "Apercibimiento", detalle: "por cada uno del período", descuento: "−8" },
-  { metrica: "Rotura (goma, llanta, etc.)", detalle: "por cada evento del período", descuento: "−5" },
-  { metrica: "Visita al taller", detalle: "del camión que maneja", descuento: "−3" },
-  { metrica: "Licencia médica activa", detalle: "durante el período", descuento: "−10" },
-  { metrica: "Km vacíos", detalle: "más del 40% (pesa poco a propósito)", descuento: "−10" },
-  { metrica: "Km vacíos", detalle: "entre 30% y 40%", descuento: "−5" },
-];
+// Resumen de los tramos de cada concepto (texto para la metodología).
+const TRAMOS_TXT: Record<ConceptoKey, string> = {
+  km: "≥100% del objetivo: sin descuento · 85–99%: −35% del tope · 70–84%: −70% · <70%: tope completo",
+  toneladas:
+    "95–105% de la capacidad: sin descuento · ±15%: −40% · ±25%: −70% · más lejos: tope completo",
+  combustible:
+    "≤ referencia: sin descuento · hasta +7%: −35% · +7% a +15%: −70% · +15% o más: tope completo",
+  gomas: "0: sin descuento · 1/mes: −30% · 2/mes: −65% · 3+/mes: tope completo",
+  roturas_varias:
+    "0: sin descuento · 1 leve: −30% · 1 grave o 2 leves: −70% · más: tope completo",
+  seguridad: "0: sin descuento · 1/mes: −70% del tope · 2+/mes: tope completo",
+  siniestros: "0: sin descuento · 1/mes: −60% del tope · 2+/mes: tope completo",
+  conducta: "0–1/mes: sin descuento · 2: −35% · 3: −70% · 4+/mes: tope completo",
+};
 
 export default function ScoreInfoButton() {
   const [open, setOpen] = useState(false);
+  const topes = RANKING_CRITERIOS_DEFAULT.topes;
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -33,7 +38,7 @@ export default function ScoreInfoButton() {
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(540px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(620px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
@@ -41,7 +46,7 @@ export default function ScoreInfoButton() {
                 <HelpCircle size={18} />
               </span>
               <Dialog.Title className="text-foreground text-sm font-bold">
-                Cómo se calcula el score operativo
+                Cómo se calcula el score
               </Dialog.Title>
             </div>
             <Dialog.Close
@@ -60,28 +65,37 @@ export default function ScoreInfoButton() {
           {/* Body */}
           <div className="px-5 py-4 overflow-y-auto space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Cada chofer arranca el período con{" "}
-              <b className="text-foreground">100 puntos</b>. Solo entran al ranking
-              los choferes con al menos un viaje en el período seleccionado. Se
-              descuentan puntos según estas métricas:
+              Cada chofer arranca el período con <b className="text-foreground">100 puntos</b>. Cada
+              uno de los <b className="text-foreground">8 conceptos</b> puede restar como máximo su{" "}
+              <b className="text-foreground">tope</b>, según en qué tramo cae el dato del mes. El
+              puntaje de un concepto nunca es negativo y el score final se acota entre 0 y 100.
             </p>
 
-            {/* Tabla de penalizaciones */}
+            {/* Tabla de conceptos */}
             <div className="rounded-[8px] border border-border overflow-hidden">
-              <div className="flex items-center gap-1.5 px-4 py-2 bg-muted/40 border-b border-border">
-                <TrendingDown size={13} className="text-muted-foreground" />
+              <div className="grid grid-cols-[1fr_auto] items-center px-4 py-2 bg-muted/40 border-b border-border">
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Penalizaciones
+                  Concepto
+                </span>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Tope
                 </span>
               </div>
               <ul className="divide-y divide-border">
-                {PENALIZACIONES.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground">{p.metrica}</p>
-                      <p className="text-xs text-muted-foreground">{p.detalle}</p>
+                {CONCEPTOS_META.map((c) => (
+                  <li key={c.key} className="px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">{c.label}</p>
+                        <p className="text-[11px] text-muted-foreground">{c.categoria}</p>
+                      </div>
+                      <span className="text-sm font-bold text-foreground shrink-0 tabular-nums">
+                        {topes[c.key]} pts
+                      </span>
                     </div>
-                    <span className="text-sm font-bold text-[#EF4444] shrink-0">{p.descuento}</span>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      {TRAMOS_TXT[c.key]}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -103,20 +117,10 @@ export default function ScoreInfoButton() {
             <div className="flex items-start gap-2 rounded-[8px] border border-[#BAE6FD] bg-[#F0F9FF] px-4 py-3 text-[#075985]">
               <Info size={14} className="mt-0.5 shrink-0 text-primary" />
               <p className="text-xs leading-relaxed">
-                El puntaje final se acota entre 0 y 100. El ranking ordena de mayor a
-                menor score; los choferes sin viajes en el período quedan como{" "}
-                <b>&ldquo;Sin actividad&rdquo;</b> al final del listado. Los KM oficiales
-                prevalecen sobre los cálculos automáticos.
-              </p>
-            </div>
-
-            {/* Productividad */}
-            <div className="flex items-start gap-2 rounded-[8px] border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-3 text-[#065F46]">
-              <Info size={14} className="mt-0.5 shrink-0 text-[#059669]" />
-              <p className="text-xs leading-relaxed">
-                <b>Facturación</b> (suma de fletes del período, en ARS) y <b>$/km</b>{" "}
-                miden productividad y <b>no</b> afectan el score de conducta. Tocá el
-                encabezado de cualquier columna para ordenar el ranking por esa métrica.
+                Los conceptos por eventos (gomas, seguridad, siniestros, conducta) se miden{" "}
+                <b>por mes</b>. Si un concepto no tiene datos cargados (ej. sin cargas de gasoil, sin
+                tonelaje), <b>no resta puntos</b>: la ausencia de datos nunca penaliza. La
+                facturación y el $/km miden productividad y <b>no</b> afectan el score.
               </p>
             </div>
           </div>

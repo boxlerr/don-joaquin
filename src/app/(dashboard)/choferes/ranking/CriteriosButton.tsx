@@ -15,22 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import InlineFeedback from "@/components/ui/InlineFeedback";
-import { SlidersHorizontal, RotateCcw } from "lucide-react";
+import { SlidersHorizontal, RotateCcw, CheckCircle2, AlertTriangle } from "lucide-react";
 import { updateRankingCriteriosAction } from "./actions";
-import { RANKING_CRITERIOS_DEFAULT, type RankingCriterios } from "./criterios";
-
-// Criterios en orden de aparición, con etiqueta amigable para Bárbara.
-const CRITERIOS: { key: keyof RankingCriterios; label: string; hint: string }[] = [
-  { key: "vacios_leve", label: "Km vacíos 20–30%", hint: "Resta si maneja con 20% a 30% sin carga" },
-  { key: "vacios_moderado", label: "Km vacíos 30–40%", hint: "Resta si maneja con 30% a 40% sin carga" },
-  { key: "vacios_alto", label: "Km vacíos +40%", hint: "Resta si maneja con más del 40% sin carga" },
-  { key: "rotura", label: "Cada rotura", hint: "Resta por cada rotura (goma, llanta, etc.) del período" },
-  { key: "siniestro", label: "Cada siniestro / accidente", hint: "Resta por cada siniestro del período. Es lo más grave." },
-  { key: "ausencia_injust", label: "Cada ausencia injustificada", hint: "Resta por cada falta sin justificar (no vacaciones ni licencia)" },
-  { key: "taller", label: "Cada visita al taller", hint: "Resta por cada reparación o gomería" },
-  { key: "aperc", label: "Cada apercibimiento", hint: "Resta por cada apercibimiento del chofer" },
-  { key: "licencia", label: "Licencia médica activa", hint: "Resta si tuvo una licencia en el período" },
-];
+import {
+  RANKING_CRITERIOS_DEFAULT,
+  CONCEPTOS_META,
+  type RankingCriterios,
+  type ConceptoKey,
+} from "./criterios";
 
 export default function CriteriosButton({ criterios }: { criterios: RankingCriterios }) {
   const router = useRouter();
@@ -40,8 +32,20 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const setVal = (k: keyof RankingCriterios, v: string) =>
-    setValores((prev) => ({ ...prev, [k]: v === "" ? 0 : Math.max(0, parseInt(v) || 0) }));
+  const setTope = (k: ConceptoKey, v: string) =>
+    setValores((prev) => ({
+      ...prev,
+      topes: { ...prev.topes, [k]: v === "" ? 0 : Math.max(0, parseInt(v) || 0) },
+    }));
+
+  const setRef = (field: "km_ref_mensual" | "combustible_ref", v: string) =>
+    setValores((prev) => ({ ...prev, [field]: v === "" ? 0 : Math.max(0, parseFloat(v) || 0) }));
+
+  const sumaTopes = (Object.keys(valores.topes) as ConceptoKey[]).reduce(
+    (s, k) => s + (valores.topes[k] || 0),
+    0,
+  );
+  const sumaOk = sumaTopes === 100;
 
   const handleSave = async () => {
     setLoading(true);
@@ -78,13 +82,13 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
           </button>
         }
       />
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Criterios del ranking</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">Pesos del score</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Cada chofer arranca en <strong>100 puntos</strong>. Definí cuántos puntos resta cada
-            cosa: mientras más puntos le pongas a un criterio, más castiga la nota. El ranking se
-            recalcula con estos valores.
+            Cada chofer arranca en <strong>100 puntos</strong>. Cada concepto puede restar como
+            máximo su <strong>tope</strong> (cuanto más alto, más castiga). Los topes deberían sumar
+            100. El ranking se recalcula con estos valores.
           </DialogDescription>
         </DialogHeader>
 
@@ -92,27 +96,95 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
-          {CRITERIOS.map((c) => (
+          {/* Suma de topes */}
+          <div
+            className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
+              sumaOk
+                ? "border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]"
+                : "border-amber-300 bg-amber-50 text-amber-800"
+            }`}
+          >
+            <span className="flex items-center gap-1.5 font-medium">
+              {sumaOk ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+              {sumaOk ? "Los topes suman 100" : "Los topes deberían sumar 100"}
+            </span>
+            <span className="font-bold tabular-nums">{sumaTopes}</span>
+          </div>
+
+          {/* Topes por concepto */}
+          {CONCEPTOS_META.map((c) => (
             <div key={c.key} className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2">
               <div className="min-w-0">
-                <Label htmlFor={`peso-${c.key}`} className="text-sm font-medium text-foreground">{c.label}</Label>
-                <p className="text-[11px] text-muted-foreground">{c.hint}</p>
+                <Label htmlFor={`tope-${c.key}`} className="text-sm font-medium text-foreground">
+                  {c.label}
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  {c.categoria} · {c.comoSeMide}
+                </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-xs text-muted-foreground">−</span>
                 <Input
-                  id={`peso-${c.key}`}
+                  id={`tope-${c.key}`}
                   type="number"
                   min={0}
                   max={100}
-                  value={String(valores[c.key])}
-                  onChange={(e) => setVal(c.key, e.target.value)}
+                  value={String(valores.topes[c.key])}
+                  onChange={(e) => setTope(c.key, e.target.value)}
                   className="w-16 h-8 text-sm text-right"
                 />
                 <span className="text-xs text-muted-foreground">pts</span>
               </div>
             </div>
           ))}
+
+          {/* Referencias */}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-2 px-1">
+            Referencias
+          </p>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2">
+            <div className="min-w-0">
+              <Label htmlFor="ref-km" className="text-sm font-medium text-foreground">
+                Objetivo de km por mes
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Km mensuales considerados &ldquo;muy bueno&rdquo; (100% del objetivo)
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Input
+                id="ref-km"
+                type="number"
+                min={0}
+                step={500}
+                value={String(valores.km_ref_mensual)}
+                onChange={(e) => setRef("km_ref_mensual", e.target.value)}
+                className="w-24 h-8 text-sm text-right"
+              />
+              <span className="text-xs text-muted-foreground">km</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2">
+            <div className="min-w-0">
+              <Label htmlFor="ref-comb" className="text-sm font-medium text-foreground">
+                Consumo de referencia
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Hasta este consumo el chofer no pierde puntos
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Input
+                id="ref-comb"
+                type="number"
+                min={0}
+                step={0.1}
+                value={String(valores.combustible_ref)}
+                onChange={(e) => setRef("combustible_ref", e.target.value)}
+                className="w-24 h-8 text-sm text-right"
+              />
+              <span className="text-xs text-muted-foreground">L/100km</span>
+            </div>
+          </div>
         </div>
 
         <DialogFooter className="pt-2 sm:justify-between gap-2">
@@ -123,7 +195,7 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
             disabled={loading}
             className="text-muted-foreground border-border hover:bg-muted/40 gap-1.5"
           >
-            <RotateCcw size={13} /> Valores por defecto
+            <RotateCcw size={13} /> Valores de la planilla
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading} className="text-muted-foreground border-border hover:bg-muted/40">
@@ -138,4 +210,3 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
     </Dialog>
   );
 }
-

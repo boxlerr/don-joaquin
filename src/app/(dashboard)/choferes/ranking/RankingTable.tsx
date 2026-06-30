@@ -400,7 +400,7 @@ export default function RankingTable({ ranking, periodoQuery }: Props) {
             </p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground">
-                Score por conducta (apercibimientos, roturas, taller, siniestros, ausencias injustificadas, km vacíos). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
+                Score por 8 conceptos (km, toneladas, combustible, gomas, roturas, seguridad, siniestros, conducta). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
               </p>
               <ScoreInfoButton />
             </div>
