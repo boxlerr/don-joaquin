@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     { header: "Patente", width: 12, align: "c" },
     { header: "Marca / Modelo", width: 22, align: "l" },
     { header: "Chofer", width: 24, align: "l" },
-    { header: "Tipo de carga", width: 14, align: "c" },
+    { header: "Lugar de carga", width: 16, align: "c" },
     { header: "Estación", width: 18, align: "l" },
     { header: "Combustible", width: 18, align: "c" },
     { header: "KM odómetro", width: 13, align: "c", numFmt: "#,##0" },

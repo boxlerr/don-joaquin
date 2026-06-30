@@ -24,6 +24,15 @@ export type ExportViaje = {
 export type ExportChofer = {
   apellido: string;
   nombre: string;
+  // Ficha del chofer (legajo) para el encabezado de la hoja.
+  dni: string;
+  cuil: string;
+  telefono: string;
+  telefonoEmergencia: string;
+  domicilio: string;
+  localidad: string;
+  provincia: string;
+  fechaIngreso: string; // YYYY-MM-DD
   tractor: string;
   acoplado: string;
   viajes: ExportViaje[];
@@ -41,11 +50,11 @@ const ALIGN: ("l" | "c" | "r")[] = ["c", "l", "l", "c", "c", "c", "c", "c", "l",
 const GRIS_HEADER = "FF595959"; // encabezado (gris medio-oscuro)
 const GRIS_PATENTE = "FFD9D9D9"; // fila de patentes
 const GRIS_ZEBRA = "FFF7F7F7"; // filas pares
-const GRIS_BORDE = "FFE0E0E0";
+const BORDE_NEGRO = "FF000000"; // grilla negra fina para que no "flote"
 const GRIS_TOTAL = "FFD0D0D0";
 const ROJO_VACIO = "FFC00000";
 
-function borde(color = GRIS_BORDE) {
+function borde(color = BORDE_NEGRO) {
   const s = { style: "thin" as const, color: { argb: color } };
   return { top: s, left: s, bottom: s, right: s };
 }
@@ -54,6 +63,31 @@ function fill(argb: string): ExcelJS.Fill {
 }
 function alinear(a: "l" | "c" | "r"): Partial<ExcelJS.Alignment> {
   return { horizontal: a === "l" ? "left" : a === "r" ? "right" : "center", vertical: "middle" };
+}
+
+function fmtFecha(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+}
+
+/** Fila combinada A:K (banner) con texto a la izquierda — para la ficha del chofer. */
+function bannerRow(
+  ws: ExcelJS.Worksheet,
+  row: number,
+  text: string,
+  opts: { fillArgb: string; fontColor: string; bold: boolean; size: number; height: number },
+) {
+  ws.mergeCells(row, 1, row, 11);
+  for (let c = 1; c <= 11; c++) {
+    const cell = ws.getCell(row, c);
+    cell.fill = fill(opts.fillArgb);
+    cell.border = borde();
+  }
+  const cell = ws.getCell(row, 1);
+  cell.value = text;
+  cell.font = { bold: opts.bold, size: opts.size, color: { argb: opts.fontColor } };
+  cell.alignment = { horizontal: "left", vertical: "middle", indent: 1 };
+  ws.getRow(row).height = opts.height;
 }
 
 /** Columna de toneladas según la capacidad del camión: 29 → E, 35 → F, 37,5 → G. */
@@ -82,12 +116,31 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
 
   for (const ch of choferes) {
     const ws = wb.addWorksheet(sheetName(ch.apellido, used), {
-      views: [{ state: "frozen", ySplit: 2 }], // fijar patentes + encabezado
+      views: [{ state: "frozen", ySplit: 5 }], // fijar ficha + patentes + encabezado
     });
     ws.columns = WIDTHS.map((width) => ({ width }));
 
-    // Fila 1: patentes (tractor / Y / acoplado) — gris suave, centrado.
-    const r1 = ws.getRow(1);
+    // Filas 1-3: ficha del chofer (legajo) — nombre + datos de contacto.
+    const nombreCompleto = [ch.apellido, ch.nombre].filter(Boolean).join(", ").toUpperCase() || "CHOFER";
+    bannerRow(ws, 1, nombreCompleto, { fillArgb: GRIS_HEADER, fontColor: "FFFFFFFF", bold: true, size: 13, height: 22 });
+
+    const datos = [
+      ch.dni ? `DNI: ${ch.dni}` : "",
+      ch.cuil ? `CUIL: ${ch.cuil}` : "",
+      ch.telefono ? `Tel.: ${ch.telefono}` : "",
+      ch.telefonoEmergencia ? `Emergencia: ${ch.telefonoEmergencia}` : "",
+    ].filter(Boolean).join("      ·      ");
+    const ubic = [ch.localidad, ch.provincia].filter(Boolean).join(", ");
+    const ubicacion = [
+      ch.domicilio ? `Domicilio: ${ch.domicilio}` : "",
+      ubic ? `Localidad: ${ubic}` : "",
+      ch.fechaIngreso ? `Ingreso: ${fmtFecha(ch.fechaIngreso)}` : "",
+    ].filter(Boolean).join("      ·      ");
+    bannerRow(ws, 2, datos, { fillArgb: "FFF2F2F2", fontColor: "FF404040", bold: false, size: 10, height: 16 });
+    bannerRow(ws, 3, ubicacion, { fillArgb: "FFF2F2F2", fontColor: "FF404040", bold: false, size: 10, height: 16 });
+
+    // Fila 4: patentes (tractor / Y / acoplado).
+    const r1 = ws.getRow(4);
     r1.height = 18;
     for (let c = 1; c <= 11; c++) {
       const cell = r1.getCell(c);
@@ -102,8 +155,8 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
       r1.getCell(c).alignment = { horizontal: "center", vertical: "middle" };
     }
 
-    // Fila 2: encabezado.
-    const hr = ws.getRow(2);
+    // Fila 5: encabezado.
+    const hr = ws.getRow(5);
     hr.height = 24;
     HEADER.forEach((h, i) => {
       const cell = hr.getCell(i + 1);
@@ -111,11 +164,11 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
       cell.fill = fill(GRIS_HEADER);
       cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cell.border = borde("FF808080");
+      cell.border = borde();
     });
 
     // Filas de viajes.
-    let r = 3;
+    let r = 6;
     let sumKm = 0, sumTn = 0, sumVac = 0, sumImp = 0;
     let idx = 0;
     for (const v of ch.viajes) {
@@ -183,7 +236,7 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
       const cell = tot.getCell(c);
       cell.font = { bold: true, color: { argb: "FF404040" } };
       cell.fill = fill(GRIS_TOTAL);
-      cell.border = borde("FFBFBFBF");
+      cell.border = borde();
       cell.alignment = alinear(ALIGN[c - 1]);
     }
   }

@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
 
 const GRIS_HEADER = "FF595959";
 const GRIS_ZEBRA = "FFF7F7F7";
-const GRIS_BORDE = "FFE0E0E0";
+const BORDE_NEGRO = "FF000000"; // grilla negra fina para que no "flote"
 const GRIS_TOTAL = "FFD0D0D0";
 const GRIS_TITULO = "FF404040";
 
@@ -21,7 +21,7 @@ export type ProColumn = {
 };
 export type CellValue = string | number | Date | null;
 
-function borde(color = GRIS_BORDE) {
+function borde(color = BORDE_NEGRO) {
   const s = { style: "thin" as const, color: { argb: color } };
   return { top: s, left: s, bottom: s, right: s };
 }
@@ -81,7 +81,7 @@ export function writeProfessionalTable(
     cell.fill = fill(GRIS_HEADER);
     cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.border = borde("FF808080");
+    cell.border = borde();
   });
   cursor++;
 
@@ -112,7 +112,7 @@ export function writeProfessionalTable(
       cell.font = { bold: true, color: { argb: GRIS_TITULO } };
       cell.fill = fill(GRIS_TOTAL);
       cell.alignment = align(c.align);
-      cell.border = borde("FFBFBFBF");
+      cell.border = borde();
     });
     cursor++;
   }

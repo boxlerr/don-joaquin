@@ -79,15 +79,30 @@ export async function GET(req: NextRequest) {
   // 2) Choferes, camiones habituales y acoplados (para nombres + fila de patentes).
   const [{ data: choferesRaw }, { data: camionesRaw }, { data: vinculosRaw }, { data: acopladosRaw }] =
     await Promise.all([
-      sb.from("choferes").select("id, apellido, nombre"),
+      sb.from("choferes").select(
+        "id, apellido, nombre, dni, cuil, telefono, telefono_emergencia, domicilio, localidad, provincia, fecha_ingreso",
+      ),
       sb.from("camiones").select("id, patente, chofer_actual_id"),
       sb.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
       sb.from("acoplados").select("id, patente"),
     ]);
 
-  const nombreChofer = new Map<string, { apellido: string; nombre: string }>();
-  for (const c of (choferesRaw ?? []) as { id: string; apellido: string; nombre: string }[]) {
-    nombreChofer.set(c.id, { apellido: c.apellido, nombre: c.nombre });
+  type ChoferFicha = {
+    id: string;
+    apellido: string;
+    nombre: string;
+    dni: string | null;
+    cuil: string | null;
+    telefono: string | null;
+    telefono_emergencia: string | null;
+    domicilio: string | null;
+    localidad: string | null;
+    provincia: string | null;
+    fecha_ingreso: string | null;
+  };
+  const fichaChofer = new Map<string, ChoferFicha>();
+  for (const c of (choferesRaw ?? []) as ChoferFicha[]) {
+    fichaChofer.set(c.id, c);
   }
 
   const tractorPorChofer = new Map<string, { camionId: string; patente: string }>();
@@ -131,11 +146,19 @@ export async function GET(req: NextRequest) {
   // 4) Armar la lista ordenada por apellido (una hoja por chofer con viajes).
   const choferes: ExportChofer[] = [...porChofer.entries()]
     .map(([choferId, vs]) => {
-      const nom = nombreChofer.get(choferId);
+      const f = fichaChofer.get(choferId);
       const tractor = tractorPorChofer.get(choferId);
       return {
-        apellido: nom?.apellido ?? "CHOFER",
-        nombre: nom?.nombre ?? "",
+        apellido: f?.apellido ?? "CHOFER",
+        nombre: f?.nombre ?? "",
+        dni: f?.dni ?? "",
+        cuil: f?.cuil ?? "",
+        telefono: f?.telefono ?? "",
+        telefonoEmergencia: f?.telefono_emergencia ?? "",
+        domicilio: f?.domicilio ?? "",
+        localidad: f?.localidad ?? "",
+        provincia: f?.provincia ?? "",
+        fechaIngreso: f?.fecha_ingreso ?? "",
         tractor: tractor?.patente ?? "",
         acoplado: tractor ? acopladoPorCamion.get(tractor.camionId) ?? "" : "",
         viajes: vs,
