@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useContext } from "react";
-import { Bell, Check, CheckCheck } from "lucide-react";
+import { Bell, Check, CheckCheck, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { NotificacionesContext } from "@/components/notificaciones/NotificacionesProvider";
 import type { Severidad } from "@/app/(dashboard)/notificaciones/utils";
@@ -126,6 +126,11 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-foreground truncate">{item.titulo}</p>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{item.mensaje}</p>
+                      {item.href && (
+                        <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-primary/70 group-hover:text-primary transition-colors">
+                          Ir <ChevronRight size={12} />
+                        </span>
+                      )}
                     </div>
                   </>
                 );

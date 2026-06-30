@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, AlertOctagon, AlertTriangle, Info, Bell } from "lucide-react";
+import { X, AlertOctagon, AlertTriangle, Info, Bell, ChevronRight } from "lucide-react";
 import type { ToastData } from "./toastStore";
 import { useNotificaciones } from "./useNotificaciones";
 
@@ -104,6 +104,11 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
         <span className="min-w-0 flex-1 pr-5">
           <span className="block text-sm font-semibold text-foreground truncate">{toast.titulo}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground line-clamp-2">{toast.mensaje}</span>
+          {toast.variant === "single" && toast.href && (
+            <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-primary/80">
+              Ir <ChevronRight size={12} />
+            </span>
+          )}
         </span>
       </button>
 
