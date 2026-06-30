@@ -41,6 +41,9 @@ export async function getPlanillaDiariaData(
       .from("choferes")
       .select("id, nombre, apellido")
       .eq("estado", "activo")
+      // Solo choferes (no administración, mantenimiento ni fleteros). Null = chofer,
+      // misma definición que la tarjeta "Choferes" del legajo.
+      .or("rol.is.null,rol.eq.chofer")
       .order("apellido", { ascending: true }),
     supabase
       .from("camiones")
@@ -114,6 +117,8 @@ export async function getPlanillaImpresionAction(
       .from("choferes")
       .select("id, nombre, apellido, cuil, telefono, localidad")
       .eq("estado", "activo")
+      // Solo choferes (no administración, mantenimiento ni fleteros).
+      .or("rol.is.null,rol.eq.chofer")
       .order("apellido", { ascending: true }),
     supabase.from("camiones").select("id, patente, chofer_actual_id").eq("estado", "activo"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
