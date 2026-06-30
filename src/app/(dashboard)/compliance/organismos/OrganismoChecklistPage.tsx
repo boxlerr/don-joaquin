@@ -13,6 +13,8 @@ import {
   ExternalLink,
   CalendarClock,
   User,
+  Pencil,
+  MessageSquare,
 } from "lucide-react";
 import type {
   ComplianceDestinatario,
@@ -47,7 +49,10 @@ const ESTADO_LABEL: Record<ComplianceEstado, string> = {
 export default function OrganismoChecklistPage({ destinatario, rows, canWrite }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [dialogReq, setDialogReq] = useState<OrganismoChecklistRow | null>(null);
+  const [dialogState, setDialogState] = useState<{
+    row: OrganismoChecklistRow;
+    edit: boolean;
+  } | null>(null);
 
   const resumen = rows.reduce<Record<ComplianceEstado, number>>(
     (acc, r) => { acc[r.estado] += 1; return acc; },
@@ -60,7 +65,8 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite }:
     else alert(res.error ?? "No se pudo abrir el archivo");
   };
 
-  const handleUpload = (row: OrganismoChecklistRow) => setDialogReq(row);
+  const handleUpload = (row: OrganismoChecklistRow) => setDialogState({ row, edit: false });
+  const handleEdit = (row: OrganismoChecklistRow) => setDialogState({ row, edit: true });
 
   return (
     <div className="p-8 space-y-6">
@@ -105,6 +111,7 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite }:
                 row={row}
                 canWrite={canWrite}
                 onUpload={() => handleUpload(row)}
+                onEdit={() => handleEdit(row)}
                 onOpenFile={abrirSignedUrl}
               />
             ))}
@@ -112,13 +119,14 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite }:
         </div>
       )}
 
-      {/* Dialog de carga */}
-      {dialogReq && (
+      {/* Dialog de carga / edición */}
+      {dialogState && (
         <CargarOrganismoDocDialog
           destinatario={destinatario}
-          row={dialogReq}
+          row={dialogState.row}
+          edit={dialogState.edit}
           onClose={() => {
-            setDialogReq(null);
+            setDialogState(null);
             startTransition(() => router.refresh());
           }}
         />
@@ -131,11 +139,13 @@ function RequisitoPresentacionRow({
   row,
   canWrite,
   onUpload,
+  onEdit,
   onOpenFile,
 }: {
   row: OrganismoChecklistRow;
   canWrite: boolean;
   onUpload: () => void;
+  onEdit: () => void;
   onOpenFile: (id: string) => void;
 }) {
   const faltante = row.estado === "faltante";
@@ -198,6 +208,12 @@ function RequisitoPresentacionRow({
                 Vence {formatFecha(row.fecha_vencimiento)}
               </span>
             )}
+            {row.observaciones && (
+              <span className="text-[11px] text-muted-foreground/80 italic inline-flex items-center gap-1">
+                <MessageSquare size={11} />
+                {row.observaciones}
+              </span>
+            )}
           </div>
         ) : (
           <p className="text-[11px] text-muted-foreground/60 mt-1">Sin presentación registrada</p>
@@ -214,6 +230,17 @@ function RequisitoPresentacionRow({
           >
             <ExternalLink size={12} />
             Ver
+          </button>
+        )}
+        {canWrite && row.documento_id && (
+          <button
+            type="button"
+            onClick={onEdit}
+            title="Editar vencimiento (sin re-subir archivo)"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-border text-muted-foreground hover:text-primary hover:border-[#BAE6FD] hover:bg-[#F0F9FF] transition-colors"
+          >
+            <Pencil size={12} />
+            Editar venc.
           </button>
         )}
         {canWrite && (

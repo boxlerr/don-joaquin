@@ -83,6 +83,7 @@ type DocRow = {
   fecha_emision: string | null;
   fecha_vencimiento: string | null;
   archivo_id: string | null;
+  observaciones: string | null;
   created_at: string | null;
   created_by: string | null;
   usuarios: { nombre: string; apellido: string | null } | null;
@@ -130,6 +131,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
       fecha_emision,
       fecha_vencimiento,
       archivo_id,
+      observaciones,
       created_at,
       created_by,
       usuarios!compliance_documentos_created_by_fkey(nombre, apellido)
@@ -143,6 +145,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
     fecha_emision: string | null;
     fecha_vencimiento: string | null;
     archivo_id: string | null;
+    observaciones: string | null;
     presentado_por_nombre: string | null;
     created_at: string | null;
   }>();
@@ -155,6 +158,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
         fecha_emision: doc.fecha_emision,
         fecha_vencimiento: doc.fecha_vencimiento,
         archivo_id: doc.archivo_id,
+        observaciones: doc.observaciones,
         presentado_por_nombre: usuario
           ? `${usuario.nombre}${usuario.apellido ? " " + usuario.apellido : ""}`
           : null,
@@ -178,6 +182,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
         fecha_emision: null,
         fecha_vencimiento: null,
         archivo_id: null,
+        observaciones: null,
         presentado_por_nombre: null,
         created_at: null,
         estado: "faltante",
@@ -198,6 +203,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
       fecha_emision: doc.fecha_emision,
       fecha_vencimiento: doc.fecha_vencimiento,
       archivo_id: doc.archivo_id,
+      observaciones: doc.observaciones,
       presentado_por_nombre: doc.presentado_por_nombre,
       created_at: doc.created_at,
       estado,
@@ -220,12 +226,13 @@ export async function uploadOrganismoDocAction(formData: FormData) {
   const fecha_emision = (formData.get("fecha_emision") as string) || null;
   const fecha_vencimiento = (formData.get("fecha_vencimiento") as string) || null;
   const observaciones = (formData.get("observaciones") as string) || null;
-  const file = formData.get("file") as File;
+  // Archivo OPCIONAL: se puede registrar solo el vencimiento/observaciones.
+  const fileRaw = formData.get("file");
+  const file = fileRaw instanceof File && fileRaw.size > 0 ? fileRaw : null;
   const destinatario_slug = (formData.get("destinatario_slug") as string) || "";
 
   if (!requisito_id) return { error: "Requisito requerido" };
-  if (!file || !file.size) return { error: "Archivo requerido" };
-  if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+  if (file && file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
 
   const { data: req } = await supabase
     .from("compliance_requisitos")
@@ -234,27 +241,31 @@ export async function uploadOrganismoDocAction(formData: FormData) {
     .single();
   if (!req) return { error: "Requisito no encontrado" };
 
-  const ext = file.name.split(".").pop();
-  const storagePath = `compliance/organismos/${(req as { codigo: string }).codigo}_${Date.now()}.${ext}`;
+  let archivoId: string | null = null;
+  if (file) {
+    const ext = file.name.split(".").pop();
+    const storagePath = `compliance/organismos/${(req as { codigo: string }).codigo}_${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from("documentos-personal")
-    .upload(storagePath, file);
-  if (uploadError) return { error: "Error al subir el archivo" };
+    const { error: uploadError } = await supabase.storage
+      .from("documentos-personal")
+      .upload(storagePath, file);
+    if (uploadError) return { error: "Error al subir el archivo" };
 
-  const { data: archivo, error: archivoError } = await supabase
-    .from("documentos_archivos")
-    .insert({
-      bucket: "documentos-personal",
-      nombre_original: file.name,
-      path: storagePath,
-      tamano_bytes: file.size,
-      mime_type: file.type,
-      subido_por: user.id,
-    })
-    .select("id")
-    .single();
-  if (archivoError || !archivo) return { error: "Error al registrar el archivo" };
+    const { data: archivo, error: archivoError } = await supabase
+      .from("documentos_archivos")
+      .insert({
+        bucket: "documentos-personal",
+        nombre_original: file.name,
+        path: storagePath,
+        tamano_bytes: file.size,
+        mime_type: file.type,
+        subido_por: user.id,
+      })
+      .select("id")
+      .single();
+    if (archivoError || !archivo) return { error: "Error al registrar el archivo" };
+    archivoId = (archivo as { id: string }).id;
+  }
 
   const { error: dbError } = await supabase.from("compliance_documentos").insert({
     requisito_id,
@@ -263,7 +274,7 @@ export async function uploadOrganismoDocAction(formData: FormData) {
     periodo: null,
     fecha_emision,
     fecha_vencimiento,  // nullable tras la migración
-    archivo_id: (archivo as { id: string }).id,
+    archivo_id: archivoId,
     observaciones,
     created_by: user.id,
   });

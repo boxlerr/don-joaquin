@@ -86,6 +86,7 @@ export type OrganismoChecklistRow = {
   fecha_emision: string | null;
   fecha_vencimiento: string | null;
   archivo_id: string | null;
+  observaciones: string | null;            // observaciones del doc vigente
   presentado_por_nombre: string | null;   // nombre del usuario que cargó
   created_at: string | null;              // fecha/hora de la presentación
   // estado calculado
