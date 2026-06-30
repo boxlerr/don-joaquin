@@ -13,6 +13,7 @@
 // confirmación del DM.
 
 import type { YpfParseResult } from "./parser-ypf";
+import { normPuntoNombre } from "@/domain/viajes/puntos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any;
@@ -20,17 +21,6 @@ type Admin = any;
 export type SeedTarifasResult = { creadas: number; actualizadas: number };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-
-/** Normaliza un nombre de punto para matchear sin acentos ni mayúsculas. */
-function norm(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 async function getOrCreateYpfCliente(supabase: Admin, userId: string): Promise<string | null> {
   const { data } = await supabase
@@ -59,11 +49,30 @@ async function getOrCreateYpfCliente(supabase: Admin, userId: string): Promise<s
   return creado.id as string;
 }
 
-async function ensurePunto(supabase: Admin, nombre: string): Promise<string | null> {
+/** Precarga todos los puntos en un mapa `normPuntoNombre(nombre) -> id` para
+ *  matchear sin acentos/mayúsculas/espacios y NO crear duplicados. */
+async function preloadPuntos(supabase: Admin): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const { data } = await supabase.from("puntos_ruta").select("id, nombre");
+  for (const p of (data ?? []) as { id: string; nombre: string }[]) {
+    const key = normPuntoNombre(p.nombre);
+    if (key && !map.has(key)) map.set(key, p.id);
+  }
+  return map;
+}
+
+/** Devuelve el id del punto (matcheo normalizado contra el mapa precargado); si
+ *  no existe lo crea con el nombre canónico y lo agrega al mapa. */
+async function ensurePunto(
+  supabase: Admin,
+  map: Map<string, string>,
+  nombre: string,
+): Promise<string | null> {
   const clean = nombre.trim();
-  if (!clean) return null;
-  const { data } = await supabase.from("puntos_ruta").select("id").ilike("nombre", clean).limit(1);
-  if (data && data.length > 0) return data[0].id as string;
+  const key = normPuntoNombre(clean);
+  if (!key) return null;
+  const existente = map.get(key);
+  if (existente) return existente; // match normalizado: no duplicamos
   const { data: creado, error } = await supabase
     .from("puntos_ruta")
     .insert({ nombre: clean, estado: "activo" })
@@ -73,6 +82,7 @@ async function ensurePunto(supabase: Admin, nombre: string): Promise<string | nu
     console.error(`No se pudo crear el punto "${clean}":`, error);
     return null;
   }
+  map.set(key, creado.id as string);
   return creado.id as string;
 }
 
@@ -217,18 +227,21 @@ export async function seedTarifasFromYpf(
       : "";
   const observaciones = `Sembrada del DM de YPF${periodo}`;
 
+  // Precargamos los puntos una sola vez: matcheo normalizado para no duplicar.
+  const puntos = await preloadPuntos(supabase);
+
   // Dedup por destino normalizado dentro del propio DM (el parser ya deduplica,
   // pero por las dudas no creamos la misma ruta dos veces).
   const vistos = new Set<string>();
   for (const t of parsed.tarifas) {
     const precio = round2(Number(t.precioUnitario));
     if (!(precio > 0)) continue;
-    const key = `${norm(t.origen)}→${norm(t.destino)}`;
+    const key = `${normPuntoNombre(t.origen)}→${normPuntoNombre(t.destino)}`;
     if (vistos.has(key)) continue;
     vistos.add(key);
 
-    const origenId = await ensurePunto(supabase, t.origen);
-    const destinoId = await ensurePunto(supabase, t.destino);
+    const origenId = await ensurePunto(supabase, puntos, t.origen);
+    const destinoId = await ensurePunto(supabase, puntos, t.destino);
     if (!origenId || !destinoId) continue;
     const rutaId = await ensureRuta(supabase, origenId, destinoId);
     if (!rutaId) continue;
