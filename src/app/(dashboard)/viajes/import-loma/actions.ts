@@ -54,6 +54,8 @@ export async function confirmLomaImportAction(
     return { error: "Faltan datos del preview (expedidores / asignaciones)." };
   }
 
+  const crearNoCargados = formData.get("crearNoCargados") === "true";
+
   let expedidoresLoma: string[];
   let asignaciones: ChoferAsignacion[];
   try {
@@ -67,7 +69,7 @@ export async function confirmLomaImportAction(
   const result = await runLomaImport(
     supabase,
     Buffer.from(await file.arrayBuffer()),
-    { expedidoresLoma, asignaciones },
+    { expedidoresLoma, asignaciones, crearNoCargados },
     user.id,
     { archivo: file.name },
   );

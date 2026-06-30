@@ -1,14 +1,19 @@
 // Núcleo del importador de la "Liquidación de Fletes" de Loma Negra (sin
-// "use server"). Toda la lógica de matching, clasificación, dedup/enrich y
-// escritura vive acá para que la puedan usar tanto los server actions (con auth)
-// como scripts de mantenimiento.
+// "use server"). Toda la lógica de matching, clasificación y escritura vive acá
+// para que la puedan usar tanto los server actions (con auth) como tests/scripts.
 //
-// Diferencias con el importador de la HOJA DE RUTA interna:
-//   - Identidad del flete: `nro_transporte` (único, siempre presente).
-//   - Cliente: Loma Negra para los fletes propios de Loma (clasificación por
-//     expedidor). Los fletes de terceros NO se tocan (no se importan).
-//   - Enrich: si el remito ya existe como viaje (cargado por la hoja interna),
-//     se completa con los datos oficiales en vez de duplicar.
+// MODELO "match + completar" (igual que el DM de YPF):
+//   El operador YA cargó el viaje a mano —con el nº de transporte/remito en el
+//   campo "Nº de viaje"— sin valor. La liquidación de Loma llega después y trae,
+//   por flete, el importe oficial + toneladas + km oficiales. Este importador
+//   CRUZA cada flete contra los viajes cargados y, en los que coinciden y aún no
+//   tienen valor, COMPLETA importe + tonelaje + km y los marca facturados. Los
+//   fletes sin viaje cargado se listan para RECLAMAR (no se crean), salvo que el
+//   operador active "crear los no cargados" (backfill de meses viejos).
+//
+// El match es robusto: cruza el Nº de transporte y el Remito de Loma contra las
+// TRES columnas donde puede estar el identificador del viaje cargado a mano:
+// nro_transporte, nro_remito y nro_viaje_ypf (el campo "Nº de viaje" del alta).
 
 import { parseLomaXlsx, type LomaRow } from "./parser-loma";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
@@ -25,7 +30,11 @@ export type ChoferMatch =
   | { status: "ambiguo"; candidatos: { id: string; label: string }[] }
   | { status: "missing"; nombreLoma: string };
 
-export type RowStatus = "nuevo" | "enriquecer" | "duplicado";
+// Estado de cada flete de Loma frente a los viajes ya cargados.
+//   completar    → hay viaje cargado sin valor: se completa importe + tn + km.
+//   ya_con_valor → hay viaje cargado y ya tiene valor (o es vacío): no se toca.
+//   no_cargado   → no hay viaje: se reclama (o se crea si el operador lo pide).
+export type FleteStatus = "completar" | "ya_con_valor" | "no_cargado";
 
 export type RowPreview = {
   rowNum: number;
@@ -41,7 +50,9 @@ export type RowPreview = {
   choferNombre: string;
   choferId: string | null; // match automático (o null si no resolvió)
   choferStatus: ChoferMatch["status"];
-  status: RowStatus;
+  status: FleteStatus;
+  viajeCodigo: string | null; // código del viaje matcheado (si lo hay)
+  montoActual: number | null; // monto del viaje matcheado (para ya_con_valor)
 };
 
 export type ExpedidorPreview = {
@@ -69,10 +80,10 @@ export type LomaPreviewData = {
   warnings?: string[];
   summary?: {
     totalFilas: number;
-    nuevos: number;
-    enriquecer: number;
-    duplicados: number;
-    totalImporteLoma: number;
+    completar: number;
+    yaConValor: number;
+    noCargados: number;
+    totalImporteCompletar: number;
   };
 } | null;
 
@@ -80,12 +91,13 @@ export type ConfirmLomaData = {
   ok?: boolean;
   error?: string;
   imported?: {
-    creados: number;
-    enriquecidos: number;
-    duplicados: number;
-    tercerosOmitidos: number;
-    sinFecha: number;
-    sinChofer: number;
+    completados: number; // viajes cargados a los que se les completó el valor
+    yaConValor: number; // matcheaban pero ya tenían valor → no se tocaron
+    noCargados: number; // fletes sin viaje cargado (reclamar)
+    creados: number; // de los no cargados, cuántos se crearon (si se pidió)
+    tercerosOmitidos: number; // expedidores no marcados como Loma
+    sinFecha: number; // no cargados sin fecha → no se pudieron crear
+    sinChofer: number; // creados sin chofer asignado
     puntosCreados: number;
     archivado: boolean; // ¿se archivó el Excel en Compliance → Loma?
     liqId: string | null;
@@ -110,6 +122,16 @@ export function normPatente(s: string): string {
   return s.replace(/\s|-/g, "").toUpperCase();
 }
 
+/** Identificador genérico (Nº transporte / Nº de viaje): sin espacios, mayúsculas. */
+export function normId(s: string | null | undefined): string {
+  return (s ?? "").toUpperCase().replace(/\s+/g, "").trim();
+}
+
+/** Remito: solo dígitos (mismo criterio que el importador del DM de YPF). */
+export function normRem(s: string | null | undefined): string {
+  return (s ?? "").replace(/\D/g, "");
+}
+
 // ============================================================================
 // Clasificación de expedidor (Loma vs tercero)
 // ============================================================================
@@ -121,6 +143,83 @@ export function normPatente(s: string): string {
 // no para incluirlo.
 export function esExpedidorLoma(): boolean {
   return true;
+}
+
+// ============================================================================
+// Matching flete de Loma ↔ viaje cargado (por transporte / remito / nº de viaje)
+// ============================================================================
+
+/** Forma mínima del viaje cargado que necesitamos para matchear y completar. */
+export type ViajeRow = {
+  id: string;
+  codigo: string;
+  nro_remito: string | null;
+  nro_transporte: string | null;
+  nro_viaje_ypf: string | null;
+  monto_flete: number | null;
+  tonelaje_real: number | null;
+  es_vacio: boolean | null;
+  km_con_carga: number | null;
+};
+
+export type ViajesIndices = {
+  byTransporte: Map<string, ViajeRow>; // viaje.nro_transporte
+  byNroViajeId: Map<string, ViajeRow>; // viaje.nro_viaje_ypf como identificador
+  byRemito: Map<string, ViajeRow>; // viaje.nro_remito (dígitos)
+  byNroViajeRem: Map<string, ViajeRow>; // viaje.nro_viaje_ypf como remito (dígitos)
+};
+
+/** Construye los índices de match a partir de los viajes candidatos (puro). */
+export function buildViajesIndices(viajes: ViajeRow[]): ViajesIndices {
+  const byTransporte = new Map<string, ViajeRow>();
+  const byNroViajeId = new Map<string, ViajeRow>();
+  const byRemito = new Map<string, ViajeRow>();
+  const byNroViajeRem = new Map<string, ViajeRow>();
+  for (const v of viajes) {
+    const t = normId(v.nro_transporte);
+    if (t && !byTransporte.has(t)) byTransporte.set(t, v);
+    const nvId = normId(v.nro_viaje_ypf);
+    if (nvId && !byNroViajeId.has(nvId)) byNroViajeId.set(nvId, v);
+    const rem = normRem(v.nro_remito);
+    if (rem && !byRemito.has(rem)) byRemito.set(rem, v);
+    const nvRem = normRem(v.nro_viaje_ypf);
+    if (nvRem && !byNroViajeRem.has(nvRem)) byNroViajeRem.set(nvRem, v);
+  }
+  return { byTransporte, byNroViajeId, byRemito, byNroViajeRem };
+}
+
+/**
+ * Devuelve el viaje cargado que corresponde a un flete de Loma, o null. Prioridad:
+ *   1) Nº transporte == viaje.nro_transporte
+ *   2) Nº transporte == viaje.nro_viaje_ypf  (lo que el operador tipeó en "Nº de viaje")
+ *   3) Remito        == viaje.nro_remito
+ *   4) Remito        == viaje.nro_viaje_ypf  (remito completado en "Nº de viaje")
+ */
+export function matchFleteLoma(
+  row: { nroTransporte: string | null; remito: string | null },
+  idx: ViajesIndices,
+): ViajeRow | null {
+  const t = normId(row.nroTransporte);
+  if (t) {
+    const m = idx.byTransporte.get(t) ?? idx.byNroViajeId.get(t);
+    if (m) return m;
+  }
+  const rem = normRem(row.remito);
+  if (rem) {
+    const m = idx.byRemito.get(rem) ?? idx.byNroViajeRem.get(rem);
+    if (m) return m;
+  }
+  return null;
+}
+
+/** Clasifica un flete según el viaje matcheado (puro). */
+export function clasificarFleteLoma(
+  match: { monto_flete: number | null; es_vacio: boolean | null } | null,
+): FleteStatus {
+  if (!match) return "no_cargado";
+  const yaTiene = Number(match.monto_flete ?? 0) > 0;
+  if (yaTiene || match.es_vacio) return "ya_con_valor";
+  return "completar";
 }
 
 // ============================================================================
@@ -191,57 +290,48 @@ export function matchChofer(nombreLoma: string, choferes: ChoferRow[]): ChoferMa
 }
 
 // ============================================================================
-// Existentes: dedup por nro_transporte, enrich por remito
+// Carga de viajes candidatos para el match
 // ============================================================================
 
-type Existentes = {
-  transportes: Set<string>; // nro_transporte ya cargados
-  remitoToViaje: Map<string, { id: string; tieneTransporte: boolean }>;
-};
+/** Suma/resta días a una fecha ISO (YYYY-MM-DD). Puro. */
+function shiftIsoDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
-async function loadExistentes(supabase: AdminDb, rows: LomaRow[]): Promise<Existentes> {
-  const transportes = new Set<string>();
-  const remitoToViaje = new Map<string, { id: string; tieneTransporte: boolean }>();
-
+/**
+ * Trae los viajes candidatos a matchear, acotando por el período de la liquidación
+ * (ensanchado ±31 días: un viaje cargado a mano puede tener una fecha algo distinta
+ * a la del transporte de Loma). Devuelve los índices ya construidos.
+ */
+async function loadViajesIndices(supabase: AdminDb, rows: LomaRow[]): Promise<ViajesIndices> {
   const fechas = rows.map((r) => r.fecha).filter((f): f is string => !!f);
-  if (fechas.length === 0) return { transportes, remitoToViaje };
-  let fechaMin = "9999-12-31";
-  let fechaMax = "0000-01-01";
+  if (fechas.length === 0) return buildViajesIndices([]);
+  let min = "9999-12-31";
+  let max = "0000-01-01";
   for (const f of fechas) {
-    if (f < fechaMin) fechaMin = f;
-    if (f > fechaMax) fechaMax = f;
+    if (f < min) min = f;
+    if (f > max) max = f;
   }
+  const desde = shiftIsoDays(min, -31);
+  const hasta = shiftIsoDays(max, 31);
 
+  const all: ViajeRow[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await supabase
       .from("viajes")
-      .select("id, nro_remito, nro_transporte")
-      .gte("fecha_viaje", fechaMin)
-      .lte("fecha_viaje", fechaMax)
+      .select(
+        "id, codigo, nro_remito, nro_transporte, nro_viaje_ypf, monto_flete, tonelaje_real, es_vacio, km_con_carga",
+      )
+      .gte("fecha_viaje", desde)
+      .lte("fecha_viaje", hasta)
       .range(from, from + 999);
-    const batch = (data ?? []) as {
-      id: string;
-      nro_remito: string | null;
-      nro_transporte: string | null;
-    }[];
-    for (const v of batch) {
-      if (v.nro_transporte) transportes.add(v.nro_transporte);
-      if (v.nro_remito && !remitoToViaje.has(v.nro_remito)) {
-        remitoToViaje.set(v.nro_remito, { id: v.id, tieneTransporte: !!v.nro_transporte });
-      }
-    }
+    const batch = (data ?? []) as ViajeRow[];
+    all.push(...batch);
     if (batch.length < 1000) break;
   }
-  return { transportes, remitoToViaje };
-}
-
-function clasificarStatus(r: LomaRow, ex: Existentes): RowStatus {
-  if (r.nroTransporte && ex.transportes.has(r.nroTransporte)) return "duplicado";
-  if (r.remito) {
-    const m = ex.remitoToViaje.get(r.remito);
-    if (m && !m.tieneTransporte) return "enriquecer";
-  }
-  return "nuevo";
+  return buildViajesIndices(all);
 }
 
 // ============================================================================
@@ -270,9 +360,9 @@ export async function buildLomaPreview(
   const choferes = (choferesRaw ?? []) as ChoferRow[];
 
   const clienteLoma = await findLomaCliente(supabase);
-  const existentes = await loadExistentes(supabase, parsed.rows);
+  const indices = await loadViajesIndices(supabase, parsed.rows);
 
-  // Cache de match por nombre (muchas filas comparten chofer).
+  // Cache de match de chofer por nombre (muchas filas comparten chofer).
   const matchCache = new Map<string, ChoferMatch>();
   const matchDe = (nombre: string): ChoferMatch => {
     const key = normName(nombre);
@@ -285,6 +375,8 @@ export async function buildLomaPreview(
   };
 
   const rows: RowPreview[] = parsed.rows.map((r) => {
+    const viaje = matchFleteLoma(r, indices);
+    const status = clasificarFleteLoma(viaje);
     const m = matchDe(r.choferNombre);
     return {
       rowNum: r.rowNum,
@@ -300,7 +392,9 @@ export async function buildLomaPreview(
       choferNombre: r.choferNombre,
       choferId: m.status === "ok" ? m.id : null,
       choferStatus: m.status,
-      status: clasificarStatus(r, existentes),
+      status,
+      viajeCodigo: viaje?.codigo ?? null,
+      montoActual: viaje?.monto_flete ?? null,
     };
   });
 
@@ -320,32 +414,29 @@ export async function buildLomaPreview(
   }
   const expedidores = [...expMap.values()].sort((a, b) => b.filas - a.filas);
 
-  // Asignaciones de chofer (una por nombre distinto del Excel).
+  // Asignaciones de chofer: solo sobre los fletes NO cargados (los creables). Los
+  // que se completan ya tienen su chofer del viaje cargado a mano.
   const nombresVistos = new Map<string, ChoferAsignacion>();
   const ambiguos: { nombreLoma: string; candidatos: { id: string; label: string }[] }[] = [];
   const missing: string[] = [];
-  for (const r of parsed.rows) {
+  for (const r of rows) {
+    if (r.status !== "no_cargado") continue;
     const nombre = r.choferNombre;
     const key = normName(nombre);
     if (nombresVistos.has(key)) continue;
     const m = matchDe(nombre);
-    nombresVistos.set(key, {
-      nombreLoma: nombre,
-      chofer_id: m.status === "ok" ? m.id : null,
-    });
+    nombresVistos.set(key, { nombreLoma: nombre, chofer_id: m.status === "ok" ? m.id : null });
     if (m.status === "ambiguo") ambiguos.push({ nombreLoma: nombre, candidatos: m.candidatos });
     if (m.status === "missing" && nombre) missing.push(nombre);
   }
 
-  // Resumen solo sobre filas DE LOMA (las que por defecto se importan).
-  const lomaExpedidores = new Set(expedidores.filter((e) => e.esLomaDefault).map((e) => e.nombre));
-  const lomaRows = rows.filter((r) => lomaExpedidores.has(r.expedidor || "(sin expedidor)"));
+  const completarRows = rows.filter((r) => r.status === "completar");
   const summary = {
     totalFilas: rows.length,
-    nuevos: lomaRows.filter((r) => r.status === "nuevo").length,
-    enriquecer: lomaRows.filter((r) => r.status === "enriquecer").length,
-    duplicados: lomaRows.filter((r) => r.status === "duplicado").length,
-    totalImporteLoma: lomaRows.reduce((acc, r) => acc + (r.importe ?? 0), 0),
+    completar: completarRows.length,
+    yaConValor: rows.filter((r) => r.status === "ya_con_valor").length,
+    noCargados: rows.filter((r) => r.status === "no_cargado").length,
+    totalImporteCompletar: completarRows.reduce((acc, r) => acc + (r.importe ?? 0), 0),
   };
 
   return {
@@ -368,13 +459,16 @@ export async function buildLomaPreview(
 }
 
 // ============================================================================
-// CONFIRMACIÓN: crear / enriquecer viajes
+// CONFIRMACIÓN: completar viajes cargados (+ crear los no cargados si se pide)
 // ============================================================================
 
 export type LomaImportInput = {
-  expedidoresLoma: string[]; // expedidores marcados como Loma (se importan)
-  asignaciones: ChoferAsignacion[]; // chofer elegido por nombre del Excel
+  expedidoresLoma: string[]; // expedidores marcados como Loma (se procesan)
+  asignaciones: ChoferAsignacion[]; // chofer elegido por nombre del Excel (para crear)
+  crearNoCargados?: boolean; // crear los fletes sin viaje cargado (default: false)
 };
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export async function runLomaImport(
   supabase: AdminDb,
@@ -392,214 +486,222 @@ export async function runLomaImport(
   }
 
   const expedidoresLoma = new Set(input.expedidoresLoma);
+  const crearNoCargados = !!input.crearNoCargados;
   const asignPorNombre = new Map(
     input.asignaciones.map((a) => [normName(a.nombreLoma), a.chofer_id] as const),
   );
 
-  const [clienteLomaId, tipoCargaId, puntos, camionesRaw, ultimoCodigo] = await Promise.all([
-    getOrCreateLomaCliente(supabase, userId),
-    getOrCreateTipoCarga(supabase, "Otros"),
-    preloadPuntos(supabase),
-    supabase.from("camiones").select("id, patente"),
-    getLastCodigo(supabase, `V-${new Date().getFullYear()}-`),
-  ]);
+  const indices = await loadViajesIndices(supabase, parsed.rows);
 
-  const camionPorPatente = new Map<string, string>();
-  for (const c of (camionesRaw.data ?? []) as { id: string; patente: string }[]) {
-    camionPorPatente.set(normPatente(c.patente), c.id);
-  }
+  // Solo procesamos fletes de Loma; los de terceros no se tocan.
+  const incluidas = parsed.rows.filter((r) =>
+    expedidoresLoma.has(r.expedidor || "(sin expedidor)"),
+  );
+  const tercerosOmitidos = parsed.rows.length - incluidas.length;
 
-  const existentes = await loadExistentes(supabase, parsed.rows);
-  const yearPrefix = `V-${new Date().getFullYear()}-`;
-  let codigoSeq = ultimoCodigo;
+  type Clasificada = { row: LomaRow; match: ViajeRow | null; status: FleteStatus };
+  const clasificadas: Clasificada[] = incluidas.map((row) => {
+    const match = matchFleteLoma(row, indices);
+    return { row, match, status: clasificarFleteLoma(match) };
+  });
 
-  let creados = 0;
-  let enriquecidos = 0;
-  let duplicados = 0;
-  let tercerosOmitidos = 0;
-  let sinFecha = 0;
-  let sinChofer = 0;
-  let puntosCreados = 0;
-  const seenTransporte = new Set<string>();
-  const viajesPayload: Record<string, unknown>[] = [];
-  // Para la liquidación archivada: ids enriquecidos a estampar + totales/período.
-  const enrichedIds: string[] = [];
-  let importeTotal = 0;
+  const aCompletar = clasificadas.filter((c) => c.status === "completar" && c.match);
+  const noCargadas = clasificadas.filter((c) => c.status === "no_cargado");
+  const yaConValor = clasificadas.filter((c) => c.status === "ya_con_valor").length;
+
+  // Período + total para archivar (sobre lo que efectivamente se importa).
   let fechaMin: string | null = null;
   let fechaMax: string | null = null;
+  let importeTotal = 0;
   const trackPeriodo = (f: string | null) => {
     if (!f) return;
     if (fechaMin === null || f < fechaMin) fechaMin = f;
     if (fechaMax === null || f > fechaMax) fechaMax = f;
   };
-
-  for (const r of parsed.rows) {
-    const expKey = r.expedidor || "(sin expedidor)";
-    if (!expedidoresLoma.has(expKey)) {
-      tercerosOmitidos++;
-      continue; // flete de tercero: no se toca
-    }
-
-    // Dedup por nro_transporte (en base o dentro de esta corrida).
-    if (
-      r.nroTransporte &&
-      (existentes.transportes.has(r.nroTransporte) || seenTransporte.has(r.nroTransporte))
-    ) {
-      duplicados++;
-      continue;
-    }
-    if (r.nroTransporte) seenTransporte.add(r.nroTransporte);
-
-    if (!r.fecha) {
-      sinFecha++;
-      continue;
-    }
-
-    const choferId = asignPorNombre.has(normName(r.choferNombre))
-      ? asignPorNombre.get(normName(r.choferNombre))!
-      : null;
-    if (!choferId) sinChofer++;
-
-    const importe = r.importe;
-    const facturado = viajeEstaFacturado(importe);
-    // fecha_viaje = cierre del transporte (Fin.act.transp.); si falta, el inicio.
-    const fechaViaje = r.fechaFin ?? r.fecha;
-    const acoplados = r.acoplados.length > 0 ? r.acoplados : null;
-
-    // Enrich: el remito ya existe como viaje (cargado por la hoja interna) y aún
-    // no tiene nro_transporte → completar con los datos oficiales en vez de duplicar.
-    if (r.remito) {
-      const m = existentes.remitoToViaje.get(r.remito);
-      if (m && !m.tieneTransporte) {
-        const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {
-          localidad: r.origenLoc,
-          provincia: r.origenProv,
-        });
-        const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++, {
-          localidad: r.destinoLoc,
-          provincia: r.destinoProv,
-        });
-        await supabase
-          .from("viajes")
-          .update({
-            nro_transporte: r.nroTransporte,
-            cliente_id: clienteLomaId,
-            monto_flete: importe,
-            km_con_carga: r.kmTotal != null ? Math.round(r.kmTotal) : undefined,
-            tonelaje_real: r.tonelaje ?? undefined,
-            origen_id: origenId,
-            destino_id: destinoId,
-            fecha_salida: r.fecha ?? undefined,
-            fecha_llegada: r.fechaFin ?? undefined,
-            acoplados,
-            facturado,
-            estado: importe == null ? "pendiente" : "cerrado",
-          })
-          .eq("id", m.id);
-        m.tieneTransporte = true;
-        enriquecidos++;
-        enrichedIds.push(m.id);
-        importeTotal += importe ?? 0;
-        trackPeriodo(fechaViaje);
-        continue;
-      }
-    }
-
-    // Alta nueva.
-    const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {
-      localidad: r.origenLoc,
-      provincia: r.origenProv,
-    });
-    const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++, {
-      localidad: r.destinoLoc,
-      provincia: r.destinoProv,
-    });
-    const camionId = r.chasis ? camionPorPatente.get(normPatente(r.chasis)) ?? null : null;
-
-    importeTotal += importe ?? 0;
-    trackPeriodo(fechaViaje);
-    codigoSeq++;
-    viajesPayload.push({
-      id: crypto.randomUUID(),
-      codigo: `${yearPrefix}${String(codigoSeq).padStart(5, "0")}`,
-      fecha_viaje: fechaViaje,
-      cliente_id: clienteLomaId,
-      chofer_id: choferId,
-      camion_id: camionId,
-      tipo_carga_id: tipoCargaId,
-      origen_id: origenId,
-      destino_id: destinoId,
-      km_con_carga: r.kmTotal != null ? Math.round(r.kmTotal) : 0,
-      km_vacios: 0, // Loma no informa el tramo vacío (columna entera)
-      tonelaje_real: r.tonelaje,
-      monto_flete: importe,
-      nro_remito: r.remito,
-      nro_transporte: r.nroTransporte,
-      fecha_salida: r.fecha,
-      fecha_llegada: r.fechaFin,
-      acoplados,
-      material: r.material,
-      es_vacio: false,
-      moneda: r.moneda || "ARS",
-      estado: importe == null ? "pendiente" : "cerrado",
-      facturado,
-      observaciones: [
-        `[Import Loma · Nº transporte ${r.nroTransporte}]`,
-        r.material ? `Material: ${r.material}` : null,
-        `Exp: ${r.expedidor} → ${r.destinatario}`,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      created_by: userId,
-    });
+  const fuentesArchivo = crearNoCargados ? [...aCompletar, ...noCargadas] : aCompletar;
+  for (const c of fuentesArchivo) {
+    importeTotal += c.row.importe ?? 0;
+    trackPeriodo(c.row.fechaFin ?? c.row.fecha);
   }
 
-  // Archivar el Excel en Compliance → Loma (una fila por liquidación) y vincular
-  // los viajes con ella. Si nada se importó, no se archiva nada.
+  // Archivar el Excel en Compliance → Loma para tener el liqId y estamparlo.
   let liqId: string | null = null;
   let archivado = false;
-  const totalImportadas = viajesPayload.length + enrichedIds.length;
+  const totalImportadas = aCompletar.length + (crearNoCargados ? noCargadas.length : 0);
   if (totalImportadas > 0) {
     try {
       liqId = await archivarLiquidacionLoma(supabase, buffer, opts?.archivo ?? null, userId, {
         periodoDesde: fechaMin,
         periodoHasta: fechaMax,
-        total: Math.round(importeTotal * 100) / 100,
+        total: round2(importeTotal),
         fletes: totalImportadas,
       });
       archivado = !!liqId;
     } catch (e) {
-      console.error("No se pudo archivar la liquidación Loma (los viajes igual se cargan):", e);
+      console.error("No se pudo archivar la liquidación Loma (igual se procesa):", e);
     }
   }
-  // Estampar el vínculo en las altas antes de insertarlas.
-  if (liqId) {
-    for (const p of viajesPayload) p.liq_loma_id = liqId;
-  }
 
-  // Insertar altas en lotes de 500.
-  for (let i = 0; i < viajesPayload.length; i += 500) {
-    const lote = viajesPayload.slice(i, i + 500);
-    const { data: inserted, error } = await supabase.from("viajes").insert(lote).select("id");
+  // ── 1) COMPLETAR los viajes cargados sin valor ───────────────────────────
+  let completados = 0;
+  const completedIds = new Set<string>();
+  const auditRows: Record<string, unknown>[] = [];
+  for (const c of aCompletar) {
+    const v = c.match!;
+    if (completedIds.has(v.id)) continue; // el mismo viaje no se completa dos veces
+    const r = c.row;
+    const importe = r.importe;
+
+    const update: Record<string, unknown> = {
+      monto_flete: importe,
+      // El valor de Loma certifica el flete → queda facturado (igual que el DM de YPF).
+      facturado: viajeEstaFacturado(importe, !!v.es_vacio),
+      estado: importe == null ? "pendiente" : "cerrado",
+      // Estampamos la identidad oficial del flete para futuros cruces.
+      nro_transporte: r.nroTransporte,
+    };
+    // No pisamos lo cargado a mano: tonelaje y km solo si faltan (km oficiales prevalecen).
+    if (v.tonelaje_real == null && r.tonelaje != null) update.tonelaje_real = r.tonelaje;
+    if ((v.km_con_carga == null || v.km_con_carga === 0) && r.kmTotal != null) {
+      update.km_con_carga = Math.round(r.kmTotal);
+    }
+    if (liqId) update.liq_loma_id = liqId;
+
+    const { error } = await supabase.from("viajes").update(update).eq("id", v.id);
     if (error) {
-      console.error("Error insertando viajes Loma:", error);
-      return {
-        error: `Error al insertar viajes (lote ${i / 500 + 1}, ${creados} ya insertados): ${error.message}`,
-      };
+      console.error("Error completando viaje Loma:", v.codigo, error);
+      continue;
     }
-    creados += inserted?.length ?? 0;
+    completados++;
+    completedIds.add(v.id);
+    auditRows.push({
+      usuario_id: userId,
+      accion: "completar_liq_loma",
+      entidad_tipo: "viaje",
+      entidad_id: v.id,
+      valores_anteriores: {
+        monto_flete: v.monto_flete,
+        tonelaje_real: v.tonelaje_real,
+        km_con_carga: v.km_con_carga,
+      },
+      valores_nuevos: {
+        monto_flete: importe,
+        nro_transporte: r.nroTransporte,
+        facturado: update.facturado,
+        remito: r.remito,
+        liq_loma_id: liqId,
+      },
+    });
   }
 
-  // Estampar el vínculo en los viajes enriquecidos.
-  if (liqId && enrichedIds.length > 0) {
-    for (let i = 0; i < enrichedIds.length; i += 500) {
-      await supabase
-        .from("viajes")
-        .update({ liq_loma_id: liqId })
-        .in("id", enrichedIds.slice(i, i + 500));
+  // ── 2) CREAR los no cargados (opcional, default off) ──────────────────────
+  let creados = 0;
+  let sinFecha = 0;
+  let sinChofer = 0;
+  let puntosCreados = 0;
+  if (crearNoCargados && noCargadas.length > 0) {
+    const [clienteLomaId, tipoCargaId, puntos, camionesRaw, ultimoCodigo] = await Promise.all([
+      getOrCreateLomaCliente(supabase, userId),
+      getOrCreateTipoCarga(supabase, "Otros"),
+      preloadPuntos(supabase),
+      supabase.from("camiones").select("id, patente"),
+      getLastCodigo(supabase, `V-${new Date().getFullYear()}-`),
+    ]);
+
+    const camionPorPatente = new Map<string, string>();
+    for (const cm of (camionesRaw.data ?? []) as { id: string; patente: string }[]) {
+      camionPorPatente.set(normPatente(cm.patente), cm.id);
+    }
+
+    const yearPrefix = `V-${new Date().getFullYear()}-`;
+    let codigoSeq = ultimoCodigo;
+    const seenTransporte = new Set<string>();
+    const viajesPayload: Record<string, unknown>[] = [];
+
+    for (const c of noCargadas) {
+      const r = c.row;
+      // Dedup dentro del propio archivo.
+      if (r.nroTransporte && seenTransporte.has(r.nroTransporte)) continue;
+      if (r.nroTransporte) seenTransporte.add(r.nroTransporte);
+      if (!r.fecha) {
+        sinFecha++;
+        continue;
+      }
+
+      const choferId = asignPorNombre.get(normName(r.choferNombre)) ?? null;
+      if (!choferId) sinChofer++;
+
+      const importe = r.importe;
+      const facturado = viajeEstaFacturado(importe);
+      const fechaViaje = r.fechaFin ?? r.fecha; // cierre del transporte; si falta, el inicio
+      const acoplados = r.acoplados.length > 0 ? r.acoplados : null;
+
+      const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {
+        localidad: r.origenLoc,
+        provincia: r.origenProv,
+      });
+      const destinoId = await ensurePunto(supabase, puntos, r.destinatario, () => puntosCreados++, {
+        localidad: r.destinoLoc,
+        provincia: r.destinoProv,
+      });
+      const camionId = r.chasis ? camionPorPatente.get(normPatente(r.chasis)) ?? null : null;
+
+      codigoSeq++;
+      viajesPayload.push({
+        id: crypto.randomUUID(),
+        codigo: `${yearPrefix}${String(codigoSeq).padStart(5, "0")}`,
+        fecha_viaje: fechaViaje,
+        cliente_id: clienteLomaId,
+        chofer_id: choferId,
+        camion_id: camionId,
+        tipo_carga_id: tipoCargaId,
+        origen_id: origenId,
+        destino_id: destinoId,
+        km_con_carga: r.kmTotal != null ? Math.round(r.kmTotal) : 0,
+        km_vacios: 0, // Loma no informa el tramo vacío (columna entera)
+        tonelaje_real: r.tonelaje,
+        monto_flete: importe,
+        nro_remito: r.remito,
+        nro_transporte: r.nroTransporte,
+        fecha_salida: r.fecha,
+        fecha_llegada: r.fechaFin,
+        acoplados,
+        material: r.material,
+        es_vacio: false,
+        moneda: r.moneda || "ARS",
+        estado: importe == null ? "pendiente" : "cerrado",
+        facturado,
+        liq_loma_id: liqId,
+        observaciones: [
+          `[Import Loma · Nº transporte ${r.nroTransporte}]`,
+          r.material ? `Material: ${r.material}` : null,
+          `Exp: ${r.expedidor} → ${r.destinatario}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        created_by: userId,
+      });
+    }
+
+    for (let i = 0; i < viajesPayload.length; i += 500) {
+      const lote = viajesPayload.slice(i, i + 500);
+      const { data: inserted, error } = await supabase.from("viajes").insert(lote).select("id");
+      if (error) {
+        console.error("Error insertando viajes Loma:", error);
+        return {
+          error: `Error al insertar viajes (lote ${i / 500 + 1}, ${creados} ya insertados): ${error.message}`,
+        };
+      }
+      creados += inserted?.length ?? 0;
     }
   }
 
+  // ── Auditoría ─────────────────────────────────────────────────────────────
+  if (auditRows.length > 0) {
+    for (let i = 0; i < auditRows.length; i += 500) {
+      await supabase.from("audit_log").insert(auditRows.slice(i, i + 500));
+    }
+  }
   await supabase.from("audit_log").insert({
     usuario_id: userId,
     accion: "importar",
@@ -609,20 +711,21 @@ export async function runLomaImport(
       origen: "liquidacion_loma",
       archivo: opts?.archivo ?? null,
       liq_loma_id: liqId,
+      completados,
+      ya_con_valor: yaConValor,
+      no_cargados: noCargadas.length,
       creados,
-      enriquecidos,
-      duplicados,
       terceros_omitidos: tercerosOmitidos,
-      sin_chofer: sinChofer,
     },
   });
 
   return {
     ok: true,
     imported: {
+      completados,
+      yaConValor,
+      noCargados: noCargadas.length,
       creados,
-      enriquecidos,
-      duplicados,
       tercerosOmitidos,
       sinFecha,
       sinChofer,
@@ -641,7 +744,7 @@ export async function runLomaImport(
  * Sube el Excel original a storage y crea la fila en compliance_liq_loma para que
  * aparezca en Compliance → Loma (mismo patrón que el DM de YPF). Devuelve el id de
  * la liquidación, o lanza si falla la subida (el caller lo cachea: los viajes igual
- * se cargan, solo no quedan vinculados al archivo).
+ * se procesan, solo no quedan vinculados al archivo).
  */
 const LOMA_BUCKET = "documentos-personal";
 

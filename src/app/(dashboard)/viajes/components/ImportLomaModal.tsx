@@ -61,6 +61,7 @@ export default function ImportLomaModal({
   const [preview, setPreview] = useState<NonNullable<LomaPreviewState> | null>(null);
   const [expedidoresLoma, setExpedidoresLoma] = useState<Set<string>>(new Set());
   const [asignaciones, setAsignaciones] = useState<ChoferAsignacion[]>([]);
+  const [crearNoCargados, setCrearNoCargados] = useState(false);
   const [result, setResult] = useState<NonNullable<ConfirmLomaState> | null>(null);
   const [showRows, setShowRows] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -104,6 +105,7 @@ export default function ImportLomaModal({
       fd.set("file", fileObjRef.current);
       fd.set("expedidoresLoma", JSON.stringify([...expedidoresLoma]));
       fd.set("asignaciones", JSON.stringify(asignaciones));
+      fd.set("crearNoCargados", crearNoCargados ? "true" : "false");
       const res = await confirmLomaImportAction(fd);
       if (!res || res.error) {
         setError(res?.error ?? "Error al confirmar.");
@@ -122,6 +124,7 @@ export default function ImportLomaModal({
     setPreview(null);
     setExpedidoresLoma(new Set());
     setAsignaciones([]);
+    setCrearNoCargados(false);
     setResult(null);
     setShowRows(false);
     fileObjRef.current = null;
@@ -148,14 +151,15 @@ export default function ImportLomaModal({
     return m;
   }, [asignaciones]);
 
-  // Conteos en vivo: dependen de qué expedidores están marcados como Loma.
+  // Conteos en vivo: dependen de qué expedidores están marcados como Loma y de si
+  // se van a crear los no cargados.
   const live = useMemo(() => {
     const rows = preview?.rows ?? [];
-    let nuevos = 0,
-      enriquecer = 0,
-      duplicados = 0,
+    let completar = 0,
+      yaConValor = 0,
+      noCargados = 0,
       terceros = 0,
-      importe = 0,
+      importeCompletar = 0,
       sinChofer = 0;
     for (const r of rows) {
       const incluida = expedidoresLoma.has(r.expedidor || "(sin expedidor)");
@@ -163,18 +167,30 @@ export default function ImportLomaModal({
         terceros++;
         continue;
       }
-      if (r.status === "duplicado") {
-        duplicados++;
-        continue;
+      if (r.status === "completar") {
+        completar++;
+        importeCompletar += r.importe ?? 0;
+      } else if (r.status === "ya_con_valor") {
+        yaConValor++;
+      } else {
+        noCargados++;
+        if (crearNoCargados && !choferPorNombre.get(norm(r.choferNombre))) sinChofer++;
       }
-      if (r.status === "enriquecer") enriquecer++;
-      else nuevos++;
-      importe += r.importe ?? 0;
-      if (!choferPorNombre.get(norm(r.choferNombre))) sinChofer++;
     }
-    return { nuevos, enriquecer, duplicados, terceros, importe, sinChofer, aImportar: nuevos + enriquecer };
-  }, [preview, expedidoresLoma, choferPorNombre]);
+    const crear = crearNoCargados ? noCargados : 0;
+    return {
+      completar,
+      yaConValor,
+      noCargados,
+      terceros,
+      importeCompletar,
+      sinChofer,
+      crear,
+      aProcesar: completar + crear,
+    };
+  }, [preview, expedidoresLoma, crearNoCargados, choferPorNombre]);
 
+  // Choferes a revisar: solo importan si se van a crear los no cargados.
   const choferesARevisar = [
     ...(preview?.choferesAmbiguos ?? []).map((c) => ({ ...c, missing: false })),
     ...(preview?.choferesMissing ?? []).map((n) => ({ nombreLoma: n, candidatos: [], missing: true })),
@@ -184,6 +200,8 @@ export default function ImportLomaModal({
     () => (preview?.rows ?? []).filter((r) => expedidoresLoma.has(r.expedidor || "(sin expedidor)")),
     [preview, expedidoresLoma],
   );
+
+  const reclamar = Math.max(0, (result?.imported?.noCargados ?? 0) - (result?.imported?.creados ?? 0));
 
   return (
     <>
@@ -215,25 +233,28 @@ export default function ImportLomaModal({
               )}
               {step === "preview" && preview && (
                 <>
-                  <span className="text-[#047857] font-semibold">{live.aImportar} a importar</span>
-                  {live.enriquecer > 0 && (
-                    <> · <span className="text-[#075985]">{live.enriquecer} enriquecen un viaje existente</span></>
+                  <span className="text-[#047857] font-semibold">{live.completar} a completar</span>
+                  {live.yaConValor > 0 && (
+                    <> · <span className="text-muted-foreground">{live.yaConValor} ya con valor</span></>
                   )}
-                  {live.duplicados > 0 && (
-                    <> · <span className="text-muted-foreground">{live.duplicados} duplicados</span></>
+                  {live.noCargados > 0 && (
+                    <>
+                      {" "}·{" "}
+                      <span className="text-[#92400E]">
+                        {live.noCargados} no cargados ({crearNoCargados ? "se crean" : "reclamar"})
+                      </span>
+                    </>
                   )}
                   {live.terceros > 0 && (
-                    <> · <span className="text-muted-foreground">{live.terceros} de terceros (no se tocan)</span></>
+                    <> · <span className="text-muted-foreground">{live.terceros} de terceros</span></>
                   )}
-                  {" "}· {money(live.importe)}
+                  {" "}· {money(live.importeCompletar)}
                 </>
               )}
               {step === "done" && result?.imported && (
                 <>
-                  {result.imported.creados} viajes creados
-                  {result.imported.enriquecidos > 0 && (
-                    <> · {result.imported.enriquecidos} enriquecidos</>
-                  )}
+                  {result.imported.completados} viajes completados
+                  {result.imported.creados > 0 && <> · {result.imported.creados} creados</>}
                 </>
               )}
             </DialogDescription>
@@ -248,11 +269,10 @@ export default function ImportLomaModal({
                   Cómo funciona
                 </p>
                 <ul className="list-disc list-inside space-y-0.5 mt-1">
-                  <li>Una fila = un flete. Identidad: <code>Nº transporte</code> (único)</li>
-                  <li>Los fletes <strong>de Loma</strong> (según expedidor) van con cliente Loma Negra; los de terceros no se tocan</li>
-                  <li>Cliente, km oficiales (Distancia total) e importe salen del archivo</li>
-                  <li>Si el remito ya está cargado, completa ese viaje en vez de duplicar</li>
-                  <li>El chofer se cruza por nombre; el chasis por patente</li>
+                  <li>Una fila = un flete. Se cruza contra los viajes ya cargados por Nº de transporte, remito o Nº de viaje</li>
+                  <li>Si el viaje ya está cargado sin valor, <strong>completa</strong> importe + toneladas + km oficiales y lo marca facturado</li>
+                  <li>Los fletes sin viaje cargado quedan para <strong>reclamar</strong> (no se crean, salvo que lo pidas)</li>
+                  <li>Solo se procesan los fletes <strong>de Loma</strong> (según expedidor); los de terceros no se tocan</li>
                 </ul>
               </div>
               <input
@@ -279,22 +299,11 @@ export default function ImportLomaModal({
           {step === "preview" && preview && (
             <div className="flex flex-col flex-1 min-h-0 gap-3 py-2 overflow-y-auto">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                <Stat label="A importar" value={`${live.aImportar}`} tone="success" />
-                <Stat label="Enriquecen viaje" value={`${live.enriquecer}`} tone="info" />
-                <Stat label="Duplicados" value={`${live.duplicados}`} tone="neutral" />
-                <Stat label="Importe total" value={money(live.importe)} tone="info" />
+                <Stat label="A completar" value={`${live.completar}`} tone="success" />
+                <Stat label="Ya con valor" value={`${live.yaConValor}`} tone="neutral" />
+                <Stat label={crearNoCargados ? "A crear" : "A reclamar"} value={`${live.noCargados}`} tone="warning" />
+                <Stat label="Importe a completar" value={money(live.importeCompletar)} tone="info" />
               </div>
-
-              {preview.clienteLoma ? (
-                <div className="text-[11px] text-muted-foreground">
-                  Cliente de los fletes de Loma:{" "}
-                  <span className="font-semibold text-foreground">{preview.clienteLoma.label}</span>
-                </div>
-              ) : (
-                <div className="rounded-md border border-[#FCD34D] bg-[#FFFBEB] text-[#92400E] text-xs px-3 py-2">
-                  No se encontró un cliente «Loma Negra». Se creará automáticamente al confirmar.
-                </div>
-              )}
 
               {preview.warnings && preview.warnings.length > 0 && (
                 <div className="rounded-md border border-[#FCD34D] bg-[#FFFBEB] text-[#92400E] text-xs px-3 py-2">
@@ -305,7 +314,7 @@ export default function ImportLomaModal({
               {/* Clasificación por expedidor */}
               <div>
                 <p className="text-[11px] font-semibold text-foreground mb-1.5">
-                  Expedidores — marcá cuáles son de Loma (los desmarcados no se importan)
+                  Expedidores — marcá cuáles son de Loma (los desmarcados no se procesan)
                 </p>
                 <div className="border border-border rounded-md overflow-hidden">
                   <table className="w-full text-xs">
@@ -346,8 +355,42 @@ export default function ImportLomaModal({
                 </div>
               </div>
 
-              {/* Choferes a revisar */}
-              {choferesARevisar.length > 0 && (
+              {/* Crear los no cargados (opcional) */}
+              {live.noCargados > 0 && (
+                <label className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 px-3 py-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={crearNoCargados}
+                    onChange={(e) => setCrearNoCargados(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span className="text-xs">
+                    <span className="font-semibold text-foreground">
+                      Crear los {live.noCargados} fletes no cargados
+                    </span>
+                    <span className="block text-muted-foreground mt-0.5">
+                      Por defecto los fletes sin viaje cargado quedan para reclamar. Activá esto solo
+                      para cargar de cero un mes viejo (crea los viajes con los datos de Loma).
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              {/* Cliente Loma (relevante al crear) */}
+              {crearNoCargados &&
+                (preview.clienteLoma ? (
+                  <div className="text-[11px] text-muted-foreground">
+                    Los fletes creados se asignan al cliente:{" "}
+                    <span className="font-semibold text-foreground">{preview.clienteLoma.label}</span>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-[#FCD34D] bg-[#FFFBEB] text-[#92400E] text-xs px-3 py-2">
+                    No se encontró un cliente «Loma Negra». Se creará automáticamente al confirmar.
+                  </div>
+                ))}
+
+              {/* Choferes a revisar — solo si se van a crear */}
+              {crearNoCargados && choferesARevisar.length > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold text-foreground mb-1.5 inline-flex items-center gap-1.5">
                     <AlertTriangle size={12} className="text-[#F59E0B]" />
@@ -388,9 +431,9 @@ export default function ImportLomaModal({
                 </div>
               )}
 
-              {live.sinChofer > 0 && (
+              {crearNoCargados && live.sinChofer > 0 && (
                 <div className="text-[11px] text-[#92400E]">
-                  {live.sinChofer} fletes quedarían sin chofer asignado (se importan igual, los corregís después).
+                  {live.sinChofer} fletes se crearían sin chofer asignado (los corregís después).
                 </div>
               )}
 
@@ -402,7 +445,7 @@ export default function ImportLomaModal({
                   className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
                 >
                   {showRows ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  {showRows ? "Ocultar" : "Ver"} fletes a importar ({rowsIncluidas.length})
+                  {showRows ? "Ocultar" : "Ver"} fletes ({rowsIncluidas.length})
                 </button>
                 {showRows && (
                   <div className="mt-1.5 border border-border rounded-md overflow-hidden max-h-[260px] overflow-y-auto">
@@ -413,7 +456,6 @@ export default function ImportLomaModal({
                           <th className="text-left px-2 py-1.5">Fecha</th>
                           <th className="text-left px-2 py-1.5">Ruta</th>
                           <th className="text-left px-2 py-1.5">Remito</th>
-                          <th className="text-left px-2 py-1.5">Chofer</th>
                           <th className="text-right px-2 py-1.5">Tn</th>
                           <th className="text-right px-2 py-1.5">Importe</th>
                           <th className="text-left px-2 py-1.5">Estado</th>
@@ -421,7 +463,7 @@ export default function ImportLomaModal({
                       </thead>
                       <tbody className="divide-y divide-[#F1F5F9]">
                         {rowsIncluidas.map((r) => (
-                          <RowLine key={r.nroTransporte} r={r} resolvedChofer={choferPorNombre.get(norm(r.choferNombre)) ?? null} />
+                          <RowLine key={r.nroTransporte} r={r} crearNoCargados={crearNoCargados} />
                         ))}
                       </tbody>
                     </table>
@@ -439,10 +481,12 @@ export default function ImportLomaModal({
                   type="button"
                   variant="brand"
                   onClick={handleConfirm}
-                  disabled={loading || live.aImportar === 0}
+                  disabled={loading || live.aProcesar === 0}
                 >
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {loading ? "Importando…" : `Confirmar ${live.aImportar} fletes`}
+                  {loading
+                    ? "Procesando…"
+                    : `Completar ${live.completar} viajes${live.crear > 0 ? ` y crear ${live.crear}` : ""}`}
                 </Button>
               </DialogFooter>
             </div>
@@ -456,24 +500,27 @@ export default function ImportLomaModal({
                   <CheckCircle2 size={18} className="text-[#10B981]" />
                   Importación completa
                 </div>
-                <div><strong>{result.imported?.creados ?? 0}</strong> viajes creados</div>
-                {(result.imported?.enriquecidos ?? 0) > 0 && (
-                  <div><strong>{result.imported?.enriquecidos}</strong> viajes existentes enriquecidos con datos oficiales</div>
+                <div><strong>{result.imported?.completados ?? 0}</strong> viajes completados con el valor oficial</div>
+                {(result.imported?.creados ?? 0) > 0 && (
+                  <div><strong>{result.imported?.creados}</strong> viajes nuevos creados</div>
                 )}
-                {(result.imported?.duplicados ?? 0) > 0 && (
-                  <div><strong>{result.imported?.duplicados}</strong> duplicados (ya tenían Nº transporte)</div>
+                {(result.imported?.yaConValor ?? 0) > 0 && (
+                  <div className="text-muted-foreground"><strong>{result.imported?.yaConValor}</strong> ya tenían valor (no se tocaron)</div>
+                )}
+                {reclamar > 0 && (
+                  <div className="text-[#92400E]"><strong>{reclamar}</strong> fletes sin viaje cargado — <strong>reclamar</strong></div>
                 )}
                 {(result.imported?.tercerosOmitidos ?? 0) > 0 && (
-                  <div><strong>{result.imported?.tercerosOmitidos}</strong> fletes de terceros omitidos (no se tocaron)</div>
+                  <div className="text-muted-foreground"><strong>{result.imported?.tercerosOmitidos}</strong> fletes de terceros omitidos</div>
                 )}
                 {(result.imported?.sinChofer ?? 0) > 0 && (
-                  <div className="text-[#92400E]"><strong>{result.imported?.sinChofer}</strong> sin chofer asignado (revisar en /viajes)</div>
+                  <div className="text-[#92400E]"><strong>{result.imported?.sinChofer}</strong> creados sin chofer (revisar en /viajes)</div>
                 )}
                 {(result.imported?.puntosCreados ?? 0) > 0 && (
                   <div><strong>{result.imported?.puntosCreados}</strong> puntos de ruta nuevos creados</div>
                 )}
                 {(result.imported?.sinFecha ?? 0) > 0 && (
-                  <div><strong>{result.imported?.sinFecha}</strong> omitidos sin fecha de transporte</div>
+                  <div><strong>{result.imported?.sinFecha}</strong> no cargados sin fecha (no se pudieron crear)</div>
                 )}
                 {result.imported?.archivado && (
                   <div className="text-[#047857]">
@@ -501,14 +548,16 @@ function Stat({
 }: {
   label: string;
   value: string;
-  tone: "success" | "info" | "neutral";
+  tone: "success" | "info" | "neutral" | "warning";
 }) {
   const cls =
     tone === "success"
       ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"
       : tone === "info"
         ? "bg-[#F0F9FF] border-[#BAE6FD] text-[#075985]"
-        : "bg-muted/40 border-border text-muted-foreground";
+        : tone === "warning"
+          ? "bg-[#FFFBEB] border-[#FCD34D] text-[#92400E]"
+          : "bg-muted/40 border-border text-muted-foreground";
   return (
     <div className={`border rounded-md px-3 py-2 ${cls}`}>
       <p className="text-[10px] uppercase tracking-widest font-bold opacity-80">{label}</p>
@@ -517,26 +566,27 @@ function Stat({
   );
 }
 
-function RowLine({ r, resolvedChofer }: { r: RowPreview; resolvedChofer: string | null }) {
-  const dup = r.status === "duplicado";
+function RowLine({ r, crearNoCargados }: { r: RowPreview; crearNoCargados: boolean }) {
+  const muted = r.status === "ya_con_valor";
   return (
-    <tr className={dup ? "opacity-50" : ""}>
+    <tr className={muted ? "opacity-50" : ""}>
       <td className="px-2 py-1.5 font-mono whitespace-nowrap">{r.nroTransporte}</td>
       <td className="px-2 py-1.5 font-mono whitespace-nowrap">{r.fecha ?? "—"}</td>
       <td className="px-2 py-1.5">{r.saleDe} → {r.llegaA}</td>
       <td className="px-2 py-1.5 font-mono">{r.remito ?? "—"}</td>
-      <td className="px-2 py-1.5">
-        {resolvedChofer ? r.choferNombre : <span className="text-[#92400E]">{r.choferNombre || "—"} (sin match)</span>}
-      </td>
       <td className="px-2 py-1.5 text-right font-mono">{r.ton != null ? num(r.ton) : "—"}</td>
       <td className="px-2 py-1.5 text-right font-mono">{money(r.importe)}</td>
       <td className="px-2 py-1.5">
-        {dup ? (
-          <span className="text-muted-foreground">ya cargado</span>
-        ) : r.status === "enriquecer" ? (
-          <span className="text-[#075985]">enriquece</span>
+        {r.status === "completar" ? (
+          <span className="text-[#047857]">
+            a completar{r.viajeCodigo ? <span className="text-muted-foreground"> · {r.viajeCodigo}</span> : null}
+          </span>
+        ) : r.status === "ya_con_valor" ? (
+          <span className="text-muted-foreground">ya con valor</span>
+        ) : crearNoCargados ? (
+          <span className="text-[#075985]">se crea</span>
         ) : (
-          <span className="text-[#047857]">nuevo</span>
+          <span className="text-[#92400E]">reclamar</span>
         )}
       </td>
     </tr>
