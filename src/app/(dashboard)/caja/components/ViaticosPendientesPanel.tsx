@@ -1,6 +1,7 @@
 "use client";
 
 import { Receipt } from "lucide-react";
+import { formatFecha } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import RendirViaticoDialog, { type ViaticoPendiente } from "./RendirViaticoDialog";
 
@@ -32,7 +33,7 @@ export default function ViaticosPendientesPanel({
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground/90 truncate">{v.chofer}</p>
               <p className="text-muted-foreground">
-                {new Date(v.fecha_entrega).toLocaleDateString("es-AR")}
+                {formatFecha(v.fecha_entrega)}
                 {v.observaciones ? ` · ${v.observaciones}` : ""}
               </p>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatFecha } from "@/lib/utils";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,7 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
         <TableCell className="text-muted-foreground">{chofer.localidad ?? "—"}</TableCell>
         <TableCell className="text-muted-foreground">{chofer.telefono ?? "—"}</TableCell>
         <TableCell className="text-muted-foreground text-xs">
-          {new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}
+          {formatFecha(chofer.fecha_ingreso)}
         </TableCell>
         <TableCell>
           <StatusBadge label={chofer.estado} tone={estadoTone} />

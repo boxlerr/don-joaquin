@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatFecha } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -738,7 +739,7 @@ export default function CamionDetailSheet({
                           </Badge>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar size={11} />
-                            {new Date(s.fecha).toLocaleDateString("es-AR")}
+                            {formatFecha(s.fecha)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -827,7 +828,7 @@ export default function CamionDetailSheet({
                       <div className="flex items-center justify-between mb-1">
                         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Calendar size={11} />
-                          {new Date(r.fecha).toLocaleDateString("es-AR")}
+                          {formatFecha(r.fecha)}
                         </span>
                         <span className="text-sm font-semibold text-[#F59E0B]">
                           {r.cantidad} {r.cantidad === 1 ? "goma" : "gomas"}

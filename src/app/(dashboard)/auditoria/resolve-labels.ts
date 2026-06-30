@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatFecha } from "@/lib/utils";
 
 type SupabaseAdmin = ReturnType<typeof createAdminClient>;
 
@@ -106,7 +107,7 @@ async function resolverViajes(supabase: SupabaseAdmin, ids: Ids, labels: Labels)
   for (const r of data ?? []) {
     labels[`viaje:${r.id}`] = {
       label: r.codigo ?? "Viaje",
-      detalle: r.fecha_viaje ? new Date(r.fecha_viaje).toLocaleDateString("es-AR") : null,
+      detalle: r.fecha_viaje ? formatFecha(r.fecha_viaje) : null,
     };
   }
 }

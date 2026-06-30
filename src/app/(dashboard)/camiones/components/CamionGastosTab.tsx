@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatFecha } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Plus, Receipt, Calendar, AlertCircle } from "lucide-react";
 import {
@@ -124,7 +125,7 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
                     <Calendar size={11} />
-                    {new Date(g.fecha).toLocaleDateString("es-AR")}
+                    {formatFecha(g.fecha)}
                   </span>
                   {g.numero_comprobante && (
                     <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide truncate">

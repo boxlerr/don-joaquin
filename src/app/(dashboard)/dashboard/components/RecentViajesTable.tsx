@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { formatFecha } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -101,7 +102,7 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                         {v.origen || "—"} → {v.destino || "—"}
                       </span>
                       <span className="text-[10px] text-muted-foreground/80 mt-0.5">
-                        {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                        {formatFecha(v.fecha_viaje)}
                       </span>
                     </div>
                   </TableCell>

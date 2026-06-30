@@ -6,6 +6,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
+import { formatFecha } from "@/lib/utils";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import type { ViajeBasico } from "./types";
@@ -53,7 +54,7 @@ export default function ChoferViajesTab({ viajes }: Props) {
                 <TableRow key={v.id} className="hover:bg-muted/40">
                   <TableCell className="font-mono text-xs text-primary">{v.codigo}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(v.fecha_viaje).toLocaleDateString("es-AR")}
+                    {formatFecha(v.fecha_viaje)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {(v.km_con_carga + v.km_vacios).toLocaleString("es-AR")} km

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatFecha } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ type ServicioAcoplado = {
 type Tab = "info" | "roturas" | "services";
 
 function fmtFecha(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-AR");
+  return formatFecha(iso);
 }
 
 export default function AcopladoDetailSheet({

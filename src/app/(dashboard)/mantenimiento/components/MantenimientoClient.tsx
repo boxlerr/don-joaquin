@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatFecha } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import {
   ResponsiveContainer,
@@ -51,7 +52,7 @@ type Tab = "servicios" | "roturas" | "alertas" | "reportes";
 
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-AR");
+  return formatFecha(iso);
 }
 
 function fmtNum(n: number | null): string {

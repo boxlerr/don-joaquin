@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFecha } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { getCuentaClienteAction, type CuentaResumen } from "./actions";
 
@@ -87,7 +88,7 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
               return (
                 <tr key={m.id} className="hover:bg-muted/40">
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
-                    {new Date(m.fecha).toLocaleDateString("es-AR")}
+                    {formatFecha(m.fecha)}
                   </td>
                   <td className="px-3 py-2 text-foreground">
                     {m.concepto ?? <span className="text-muted-foreground/70">—</span>}

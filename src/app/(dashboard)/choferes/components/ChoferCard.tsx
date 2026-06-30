@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { formatFecha } from "@/lib/utils";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -262,7 +263,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <Calendar size={13} className="text-muted-foreground/70 flex-shrink-0" />
               <span>
                 {chofer.fecha_ingreso
-                  ? `Ingreso: ${new Date(chofer.fecha_ingreso).toLocaleDateString("es-AR")}`
+                  ? `Ingreso: ${formatFecha(chofer.fecha_ingreso)}`
                   : "Fecha de ingreso: pendiente"}
               </span>
             </div>
@@ -311,7 +312,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               {chofer.fecha_egreso && (
                 <div className="text-foreground/90">
                   <span className="text-muted-foreground">Fecha de egreso:</span>{" "}
-                  {new Date(chofer.fecha_egreso).toLocaleDateString("es-AR")}
+                  {formatFecha(chofer.fecha_egreso)}
                 </div>
               )}
               {chofer.fecha_ingreso && chofer.fecha_egreso && (

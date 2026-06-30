@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatFecha } from "@/lib/utils";
 import Link from "next/link";
 import { Loader2, ArrowRight, ExternalLink } from "lucide-react";
 import { getViajesClienteAction, type ViajeReciente } from "./actions";
@@ -70,7 +71,7 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
                 {v.codigo ?? "—"}
               </td>
               <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
-                {v.fecha_viaje ? new Date(v.fecha_viaje).toLocaleDateString("es-AR") : "—"}
+                {v.fecha_viaje ? formatFecha(v.fecha_viaje) : "—"}
               </td>
               <td className="px-3 py-2 text-foreground">
                 <span className="inline-flex items-center gap-1 text-xs">

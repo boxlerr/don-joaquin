@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
+import { formatFecha } from "@/lib/utils";
 import { useFormStatus } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
@@ -196,7 +197,7 @@ export default function RequisitosTab({ clienteId }: { clienteId: string }) {
                           }`}
                         >
                           <Calendar size={11} />
-                          {new Date(r.proxima_fecha).toLocaleDateString("es-AR")}
+                          {formatFecha(r.proxima_fecha)}
                           {vencida && " · vencida"}
                         </span>
                       )}
