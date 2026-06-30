@@ -474,6 +474,58 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
 
 
 // ============================================================================
+// Autocompletado de km por historial (origen → destino)
+// ----------------------------------------------------------------------------
+// Cuando el operador completa origen y destino, traemos los km del último viaje
+// con ese mismo par para precargarlos (ej. Lomaser → Ramallo = 300 km). Es
+// direccional: la vuelta usa el par invertido, que tiene su propio historial.
+// ============================================================================
+
+export async function getKmHistoricoAction(
+  origenNombre: string,
+  destinoNombre: string,
+): Promise<{ km_con_carga: number; km_vacios: number } | null> {
+  await requireArea("viajes", "read");
+
+  const o = origenNombre.trim();
+  const d = destinoNombre.trim();
+  if (!o || !d || o === "—" || d === "—") return null;
+
+  const supabase = createAdminClient();
+
+  // Resolver los puntos por nombre (match exacto case-insensitive).
+  const [origenRes, destinoRes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("puntos_ruta").select("id").ilike("nombre", o).limit(1),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("puntos_ruta").select("id").ilike("nombre", d).limit(1),
+  ]);
+
+  const origenId = origenRes.data?.[0]?.id as string | undefined;
+  const destinoId = destinoRes.data?.[0]?.id as string | undefined;
+  if (!origenId || !destinoId) return null;
+
+  // Último viaje con ese par y km cargados > 0 (el dato "oficial" más reciente).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("viajes")
+    .select("km_con_carga, km_vacios")
+    .eq("origen_id", origenId)
+    .eq("destino_id", destinoId)
+    .gt("km_con_carga", 0)
+    .neq("estado", "cancelado")
+    .order("fecha_viaje", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) return null;
+
+  return {
+    km_con_carga: Number(data[0].km_con_carga) || 0,
+    km_vacios: Number(data[0].km_vacios) || 0,
+  };
+}
+
+// ============================================================================
 // Crear viaje
 // ============================================================================
 
@@ -513,6 +565,23 @@ const viajeSchema = z
     },
   );
 
+// Tramo de vuelta (opcional) que se carga junto con la ida en el mismo submit.
+// `modo` distingue si el camión vuelve vacío (sin flete) o cargado (puede ser
+// con material distinto al de la ida).
+const VUELTA_MODO_VALUES = ["vacio", "cargado"] as const;
+
+const vueltaSchema = z.object({
+  modo: z.enum(VUELTA_MODO_VALUES),
+  origen_nombre: z.string().optional().nullable(),
+  destino_nombre: z.string().optional().nullable(),
+  km_con_carga: z.number().int().min(0, "Debe ser ≥ 0."),
+  km_vacios: z.number().int().min(0, "Debe ser ≥ 0."),
+  tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
+  monto_flete: z.number().min(0, "Debe ser ≥ 0."),
+  material: z.string().trim().max(120, "Máximo 120 caracteres.").optional().nullable(),
+  nro_viaje_ypf: z.string().max(60, "Máximo 60 caracteres.").optional().nullable(),
+});
+
 export type CreateViajeState = {
   ok?: boolean;
   error?: string;
@@ -532,9 +601,12 @@ function parseNumber(v: FormDataEntryValue | null): number {
   return Number.isFinite(n) ? n : NaN;
 }
 
-async function generarCodigoViaje(
+/** Genera `count` códigos de viaje secuenciales (`V-AAAA-NNNNN`). Se usa para
+ *  alta unitaria (count=1) y para el alta ida+vuelta (count=2). */
+async function generarCodigosViaje(
   supabase: ReturnType<typeof createAdminClient>,
-): Promise<string> {
+  count: number,
+): Promise<string[]> {
   const year = new Date().getFullYear();
   const prefix = `V-${year}-`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -555,7 +627,9 @@ async function generarCodigoViaje(
     if (Number.isFinite(parsed)) next = parsed + 1;
   }
 
-  return `${prefix}${String(next).padStart(5, "0")}`;
+  return Array.from({ length: count }, (_, i) =>
+    `${prefix}${String(next + i).padStart(5, "0")}`,
+  );
 }
 
 async function getOrCreatePuntoRuta(
@@ -702,17 +776,56 @@ export async function createViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
+  // Tramo de vuelta (opcional): permite cargar ida + vuelta en un solo submit.
+  // Se valida antes de tocar la base para no dejar una ida creada sin su vuelta.
+  const cargarVuelta = String(formData.get("cargar_vuelta") ?? "") === "1";
+  let vuelta: z.infer<typeof vueltaSchema> | null = null;
+  if (cargarVuelta) {
+    const vParsed = vueltaSchema.safeParse({
+      modo: String(formData.get("vuelta_modo") ?? "vacio"),
+      origen_nombre: emptyOrNull(formData.get("vuelta_origen_nombre")),
+      destino_nombre: emptyOrNull(formData.get("vuelta_destino_nombre")),
+      km_con_carga: parseNumber(formData.get("vuelta_km_con_carga")),
+      km_vacios: parseNumber(formData.get("vuelta_km_vacios")),
+      tonelaje_real: parseNumber(formData.get("vuelta_tonelaje_real")),
+      monto_flete: parseNumber(formData.get("vuelta_monto_flete")),
+      material: emptyOrNull(formData.get("vuelta_material")),
+      nro_viaje_ypf: emptyOrNull(formData.get("vuelta_nro_viaje_ypf")),
+    });
+    if (!vParsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of vParsed.error.issues) {
+        const key = issue.path[0];
+        if (typeof key === "string" && !fieldErrors[`vuelta_${key}`]) {
+          fieldErrors[`vuelta_${key}`] = issue.message;
+        }
+      }
+      return { error: "Revisá los datos del viaje de vuelta.", fieldErrors };
+    }
+    vuelta = vParsed.data;
+    // Si vuelve vacío no hay flete, tonelaje ni material: lo forzamos acá para
+    // no confiar en lo que mande el form.
+    if (vuelta.modo === "vacio") {
+      vuelta.tonelaje_real = 0;
+      vuelta.monto_flete = 0;
+      vuelta.material = null;
+    }
+    if (
+      vuelta.origen_nombre &&
+      vuelta.destino_nombre &&
+      vuelta.origen_nombre.toLowerCase().trim() ===
+        vuelta.destino_nombre.toLowerCase().trim()
+    ) {
+      return {
+        error: "El origen y el destino de la vuelta deben ser distintos.",
+        fieldErrors: { vuelta_destino_nombre: "Origen y destino deben ser distintos." },
+      };
+    }
+  }
+
   const user = await requireArea("viajes", "write");
 
   const supabase = createAdminClient();
-
-  let codigo: string;
-  try {
-    codigo = await generarCodigoViaje(supabase);
-  } catch (e) {
-    console.error("Error generando código de viaje", e);
-    return { error: "No se pudo generar el código del viaje." };
-  }
 
   let realTipoCargaId = parsed.data.tipo_carga_id;
   const notasAdicionales: string[] = [];
@@ -763,10 +876,30 @@ export async function createViajeAction(
     }
   }
 
+  // Origen/destino del tramo de vuelta (si se cargó).
+  let vueltaOrigenId: string | null = null;
+  let vueltaDestinoId: string | null = null;
+  if (vuelta) {
+    if (vuelta.origen_nombre && vuelta.origen_nombre !== "—") {
+      vueltaOrigenId = await getOrCreatePuntoRuta(supabase, vuelta.origen_nombre.trim());
+    }
+    if (vuelta.destino_nombre && vuelta.destino_nombre !== "—") {
+      vueltaDestinoId = await getOrCreatePuntoRuta(supabase, vuelta.destino_nombre.trim());
+    }
+  }
+
+  let codigos: string[];
+  try {
+    codigos = await generarCodigosViaje(supabase, vuelta ? 2 : 1);
+  } catch (e) {
+    console.error("Error generando código de viaje", e);
+    return { error: "No se pudo generar el código del viaje." };
+  }
+
   const observacionesDB = notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
 
-  const viajeData = {
-    codigo,
+  const idaData = {
+    codigo: codigos[0],
     fecha_viaje: parsed.data.fecha_viaje,
     estado: parsed.data.estado,
     cliente_id: parsed.data.cliente_id,
@@ -784,6 +917,7 @@ export async function createViajeAction(
     observaciones: observacionesDB,
     nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
     material: parsed.data.material || null,
+    es_vacio: false,
     // Regla unificada: con monto de flete > 0 el viaje queda facturado (igual
     // que importadores/hoja de ruta/cierre). Sin monto queda sin facturar.
     facturado: viajeEstaFacturado(parsed.data.monto_flete),
@@ -791,18 +925,53 @@ export async function createViajeAction(
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payloads: Record<string, any>[] = [idaData];
+
+  if (vuelta) {
+    const esVacioVuelta = vuelta.modo === "vacio";
+    payloads.push({
+      codigo: codigos[1],
+      fecha_viaje: parsed.data.fecha_viaje,
+      estado: parsed.data.estado,
+      cliente_id: parsed.data.cliente_id,
+      chofer_id: parsed.data.chofer_id,
+      camion_id: parsed.data.camion_id,
+      tipo_carga_id: realTipoCargaId,
+      ruta_id: null,
+      origen_id: vueltaOrigenId,
+      destino_id: vueltaDestinoId,
+      km_con_carga: vuelta.km_con_carga,
+      km_vacios: vuelta.km_vacios,
+      tonelaje_real: vuelta.tonelaje_real,
+      monto_flete: vuelta.monto_flete,
+      moneda: "ARS",
+      observaciones: `Vuelta de ${codigos[0]}${esVacioVuelta ? " · vuelve vacío" : ""}`,
+      nro_viaje_ypf: vuelta.nro_viaje_ypf ?? null,
+      material: vuelta.material || null,
+      es_vacio: esVacioVuelta,
+      facturado: viajeEstaFacturado(vuelta.monto_flete, esVacioVuelta),
+      created_by: user.id,
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error } = await (supabase as any)
     .from("viajes")
-    .insert(viajeData)
-    .select("id")
-    .single();
+    .insert(payloads)
+    .select("id, codigo");
 
   if (error) {
     console.error("Error al crear viaje:", error);
     return { error: error.message };
   }
 
-  await logViajeAudit(supabase, inserted.id, "crear", null, viajeData, user.id);
+  // Auditar cada viaje creado, emparejando por código (el orden de retorno del
+  // insert no está garantizado).
+  const payloadPorCodigo = new Map(payloads.map((p) => [p.codigo as string, p]));
+  for (const row of (inserted ?? []) as { id: string; codigo: string }[]) {
+    const p = payloadPorCodigo.get(row.codigo);
+    if (p) await logViajeAudit(supabase, row.id, "crear", null, p, user.id);
+  }
 
   revalidatePath("/viajes");
   return { ok: true };
@@ -1753,6 +1922,8 @@ export type ViajeFilaRapida = {
   tonelaje_real: number;
   monto_flete: number;
   nro_viaje_ypf: string | null;
+  /** Tramo vacío (vuelta sin carga): no factura ni suma tonelaje. */
+  es_vacio?: boolean;
 };
 
 export type BatchViajesResult = {
@@ -1829,12 +2000,15 @@ export async function createViajesBatchAction(
     }
   }
 
-  // Construir payload batch
+  // Construir payload batch. `parseadas` está alineado por índice con `filas`
+  // (si hubiera error de validación se retorna antes), así que tomamos es_vacio
+  // de la fila original — viajeSchema no lo incluye.
   const payload = await Promise.all(
-    parseadas.map(async (p) => {
+    parseadas.map(async (p, idx) => {
       seq++;
       const codigo = `${prefix}${String(seq).padStart(5, "0")}`;
       const tipoCargaId = tipoCargaResuelto.get(p.tipo_carga_id) ?? p.tipo_carga_id;
+      const esVacio = filas[idx]?.es_vacio ?? false;
 
       const origen_id = p.origen_nombre ? await getOrCreatePuntoRuta(supabase, p.origen_nombre) : null;
       const destino_id = p.destino_nombre ? await getOrCreatePuntoRuta(supabase, p.destino_nombre) : null;
@@ -1852,12 +2026,13 @@ export async function createViajesBatchAction(
         destino_id,
         km_con_carga: p.km_con_carga,
         km_vacios: p.km_vacios,
-        tonelaje_real: p.tonelaje_real,
-        monto_flete: p.monto_flete,
+        tonelaje_real: esVacio ? 0 : p.tonelaje_real,
+        monto_flete: esVacio ? 0 : p.monto_flete,
         moneda: "ARS",
         nro_viaje_ypf: p.nro_viaje_ypf ?? null,
         material: p.material || null,
-        facturado: viajeEstaFacturado(p.monto_flete),
+        es_vacio: esVacio,
+        facturado: viajeEstaFacturado(p.monto_flete, esVacio),
         created_by: user.id,
       };
     }),

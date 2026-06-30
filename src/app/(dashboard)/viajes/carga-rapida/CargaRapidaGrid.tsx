@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Loader2,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { createViajesBatchAction, type ViajeFormData, type ViajeFilaRapida } from "../actions";
 
@@ -29,6 +30,7 @@ type Fila = {
   tonelaje_real: string;
   monto_flete: string;
   nro_viaje_ypf: string;
+  es_vacio: boolean;
 };
 
 let nextId = 1;
@@ -50,6 +52,7 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
     tonelaje_real: "0",
     monto_flete: "0",
     nro_viaje_ypf: "",
+    es_vacio: false,
     ...overrides,
   };
 }
@@ -138,6 +141,36 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
     });
   };
 
+  const toggleVacio = (id: number) =>
+    setFilas((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, es_vacio: !f.es_vacio } : f)),
+    );
+
+  // Inserta debajo una fila de "vuelta": origen/destino invertidos, marcada como
+  // vacía (caso típico de la vuelta) con la distancia movida a km vacíos. Si la
+  // vuelta vino cargada, se destilda "Vacío" y se completan monto/tonelaje.
+  const agregarVuelta = (id: number) => {
+    setFilas((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx === -1) return prev;
+      const o = prev[idx];
+      const vuelta = filaVacia({
+        fecha_viaje: o.fecha_viaje,
+        estado: o.estado,
+        chofer_id: o.chofer_id,
+        camion_id: o.camion_id,
+        origen_nombre: o.destino_nombre,
+        destino_nombre: o.origen_nombre,
+        km_con_carga: "0",
+        km_vacios: o.km_con_carga !== "0" ? o.km_con_carga : o.km_vacios,
+        es_vacio: true,
+      });
+      const next = [...prev];
+      next.splice(idx + 1, 0, vuelta);
+      return next;
+    });
+  };
+
   const handleGuardar = async () => {
     if (!globalClienteId) {
       setResultado({ ok: false, mensaje: "Seleccioná un cliente global antes de guardar." });
@@ -163,6 +196,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       tonelaje_real: Number(f.tonelaje_real) || 0,
       monto_flete: Number(f.monto_flete) || 0,
       nro_viaje_ypf: f.nro_viaje_ypf.trim() || null,
+      es_vacio: f.es_vacio,
     }));
 
     setGuardando(true);
@@ -248,6 +282,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                   "KM vacíos",
                   "Tonelaje",
                   "$ Flete",
+                  "Vacío",
                   "Nº YPF",
                   "",
                 ].map((h) => (
@@ -378,11 +413,12 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                     <td className="px-1 py-1">
                       <input
                         type="number"
-                        value={fila.tonelaje_real}
+                        value={fila.es_vacio ? "0" : fila.tonelaje_real}
                         onChange={(e) => actualizarFila(fila.id, "tonelaje_real", e.target.value)}
+                        disabled={fila.es_vacio}
                         min="0"
                         step="0.01"
-                        className="h-8 w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-8 w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
                       />
                     </td>
 
@@ -390,10 +426,22 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                     <td className="px-1 py-1">
                       <input
                         type="number"
-                        value={fila.monto_flete}
+                        value={fila.es_vacio ? "0" : fila.monto_flete}
                         onChange={(e) => actualizarFila(fila.id, "monto_flete", e.target.value)}
+                        disabled={fila.es_vacio}
                         min="0"
-                        className="h-8 w-24 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-8 w-24 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
+                      />
+                    </td>
+
+                    {/* Vacío (vuelta sin carga): no factura ni suma tonelaje */}
+                    <td className="px-1 py-1 text-center">
+                      <input
+                        type="checkbox"
+                        checked={fila.es_vacio}
+                        onChange={() => toggleVacio(fila.id)}
+                        title="Marcar como tramo vacío"
+                        className="size-4 rounded accent-[#0088D1] align-middle"
                       />
                     </td>
 
@@ -412,6 +460,14 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                     {/* Acciones fila */}
                     <td className="px-1 py-1">
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Agregar viaje de vuelta (origen/destino invertidos, vacío)"
+                          onClick={() => agregarVuelta(fila.id)}
+                          className="size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-colors"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
                         <button
                           type="button"
                           title="Duplicar fila"

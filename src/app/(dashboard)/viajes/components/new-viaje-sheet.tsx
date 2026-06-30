@@ -24,6 +24,7 @@ import {
   Hash,
   Route,
   CalendarOff,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ function fmtDia(iso: string): string {
 }
 import {
   createViajeAction,
+  getKmHistoricoAction,
   type CreateViajeState,
   type ViajeFormData,
 } from "../actions";
@@ -51,6 +53,21 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [destino, setDestino] = useState("");
   const [kmConCarga, setKmConCarga] = useState("0");
   const [kmVacios, setKmVacios] = useState("0");
+  // Aviso cuando los km se precargan desde el historial del par origen→destino.
+  const [kmHistHint, setKmHistHint] = useState<string | null>(null);
+  // Viaje de vuelta (opcional): se carga junto con la ida en el mismo submit.
+  // El modo distingue si el camión vuelve vacío (sin flete) o cargado (puede
+  // traer un material distinto).
+  const [cargarVuelta, setCargarVuelta] = useState(false);
+  const [vueltaModo, setVueltaModo] = useState<"vacio" | "cargado">("vacio");
+  const [vOrigen, setVOrigen] = useState("");
+  const [vDestino, setVDestino] = useState("");
+  const [vKmConCarga, setVKmConCarga] = useState("0");
+  const [vKmVacios, setVKmVacios] = useState("0");
+  const [vTonelaje, setVTonelaje] = useState("0");
+  const [vMonto, setVMonto] = useState("0");
+  const [vMaterial, setVMaterial] = useState("");
+  const [vNroYpf, setVNroYpf] = useState("");
   const router = useRouter();
 
   // Camión "habitual" del chofer seleccionado (puede no haber).
@@ -79,6 +96,17 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setDestino("");
     setKmConCarga("0");
     setKmVacios("0");
+    setKmHistHint(null);
+    setCargarVuelta(false);
+    setVueltaModo("vacio");
+    setVOrigen("");
+    setVDestino("");
+    setVKmConCarga("0");
+    setVKmVacios("0");
+    setVTonelaje("0");
+    setVMonto("0");
+    setVMaterial("");
+    setVNroYpf("");
   };
 
   useEffect(() => {
@@ -90,6 +118,34 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       router.refresh();
     }
   }, [state, router]);
+
+  // Autocompletar km desde el historial cuando hay origen + destino y todavía no
+  // se cargaron km (ni a mano ni por circuito). Debounce para no pegarle al
+  // server en cada tecla.
+  useEffect(() => {
+    const o = origen.trim();
+    const d = destino.trim();
+    if (!o || !d || o === "—" || d === "—") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- limpiar el aviso cuando el par queda incompleto
+      setKmHistHint(null);
+      return;
+    }
+    // No pisar km cargados a mano ni traídos por un circuito.
+    if (kmConCarga !== "0" || kmVacios !== "0") return;
+    let cancelado = false;
+    const t = setTimeout(async () => {
+      const res = await getKmHistoricoAction(o, d);
+      if (cancelado || !res) return;
+      setKmConCarga(String(res.km_con_carga));
+      if (res.km_vacios) setKmVacios(String(res.km_vacios));
+      setKmHistHint(`Km precargados del historial (${o} → ${d}). Editá si esta vez fue distinto.`);
+    }, 450);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo dispara al cambiar origen/destino
+  }, [origen, destino]);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
@@ -115,6 +171,41 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     const chofer = data.choferes.find((c) => c.id === choferId);
     if (chofer?.camionId) {
       setSelectedCamionId(chofer.camionId);
+    }
+  };
+
+  // Al activar la vuelta: prellenar origen/destino invertidos respecto de la ida
+  // y, por defecto (vuelve vacío), llevar la distancia de la ida a "km vacíos".
+  const handleToggleVuelta = (on: boolean) => {
+    setCargarVuelta(on);
+    if (on) {
+      setVOrigen(destino);
+      setVDestino(origen);
+      setVueltaModo("vacio");
+      setVKmConCarga("0");
+      setVKmVacios(kmConCarga !== "0" ? kmConCarga : kmVacios);
+      setVTonelaje("0");
+      setVMonto("0");
+      setVMaterial("");
+      setVNroYpf("");
+    }
+  };
+
+  // Al cambiar de modo movemos la distancia entre "km con carga" y "km vacíos"
+  // para que no haya que recargarla a mano.
+  const handleVueltaModo = (modo: "vacio" | "cargado") => {
+    setVueltaModo(modo);
+    if (modo === "cargado") {
+      const dist = vKmVacios !== "0" ? vKmVacios : kmConCarga;
+      setVKmConCarga(dist);
+      setVKmVacios("0");
+    } else {
+      const dist = vKmConCarga !== "0" ? vKmConCarga : kmConCarga;
+      setVKmVacios(dist);
+      setVKmConCarga("0");
+      setVTonelaje("0");
+      setVMonto("0");
+      setVMaterial("");
     }
   };
 
@@ -348,6 +439,13 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               />
             </div>
 
+            {kmHistHint && (
+              <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-[#0277BD] font-medium animate-in fade-in duration-200">
+                <Navigation size={12} className="shrink-0" />
+                {kmHistHint}
+              </p>
+            )}
+
             {/* Monto de Flete */}
             <InputFieldWithIcon
               label="Monto de flete (ARS)"
@@ -375,6 +473,159 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               icon={Hash}
               error={state?.fieldErrors?.nro_viaje_ypf}
             />
+
+            {/* Viaje de vuelta (opcional): carga ida + vuelta en un solo submit */}
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cargarVuelta}
+                  onChange={(e) => handleToggleVuelta(e.target.checked)}
+                  className="size-4 rounded accent-[#0088D1]"
+                />
+                <span className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
+                  <RotateCcw size={15} className="text-primary" />
+                  Cargar viaje de vuelta
+                </span>
+              </label>
+
+              <input type="hidden" name="cargar_vuelta" value={cargarVuelta ? "1" : "0"} />
+
+              {cargarVuelta && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <input type="hidden" name="vuelta_modo" value={vueltaModo} />
+
+                  {/* Modo: vuelve vacío / vuelve cargado */}
+                  <div className="inline-flex rounded-lg border border-border overflow-hidden">
+                    {([
+                      { v: "vacio", label: "Vuelve vacío" },
+                      { v: "cargado", label: "Vuelve cargado" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => handleVueltaModo(opt.v)}
+                        className={`px-4 h-9 text-xs font-semibold transition-colors ${
+                          vueltaModo === opt.v
+                            ? "bg-[#0088D1] text-white"
+                            : "bg-card text-muted-foreground hover:bg-muted/40"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Origen / destino de la vuelta (prellenados invertidos) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InputFieldWithIcon
+                      label="Origen (vuelta)"
+                      name="vuelta_origen_nombre"
+                      placeholder="Escribí ciudad o lugar..."
+                      icon={MapPin}
+                      list="puntos-ruta-list"
+                      value={vOrigen}
+                      onChange={setVOrigen}
+                      error={state?.fieldErrors?.vuelta_origen_nombre}
+                    />
+                    <InputFieldWithIcon
+                      label="Destino (vuelta)"
+                      name="vuelta_destino_nombre"
+                      placeholder="Escribí ciudad o lugar..."
+                      icon={Flag}
+                      list="puntos-ruta-list"
+                      value={vDestino}
+                      onChange={setVDestino}
+                      error={state?.fieldErrors?.vuelta_destino_nombre}
+                    />
+                  </div>
+
+                  {vueltaModo === "cargado" ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <InputFieldWithIcon
+                          label="Km con carga"
+                          name="vuelta_km_con_carga"
+                          type="number"
+                          value={vKmConCarga}
+                          onChange={setVKmConCarga}
+                          icon={Navigation}
+                          error={state?.fieldErrors?.vuelta_km_con_carga}
+                        />
+                        <InputFieldWithIcon
+                          label="Km vacíos"
+                          name="vuelta_km_vacios"
+                          type="number"
+                          value={vKmVacios}
+                          onChange={setVKmVacios}
+                          icon={Navigation}
+                          error={state?.fieldErrors?.vuelta_km_vacios}
+                        />
+                        <InputFieldWithIcon
+                          label="Tonelaje (tn)"
+                          name="vuelta_tonelaje_real"
+                          type="number"
+                          value={vTonelaje}
+                          onChange={setVTonelaje}
+                          icon={Scale}
+                          error={state?.fieldErrors?.vuelta_tonelaje_real}
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <InputFieldWithIcon
+                          label="Material (vuelta)"
+                          name="vuelta_material"
+                          placeholder="Ej: Arena (opcional)"
+                          value={vMaterial}
+                          onChange={setVMaterial}
+                          icon={Package}
+                          error={state?.fieldErrors?.vuelta_material}
+                        />
+                        <InputFieldWithIcon
+                          label="Monto de flete (ARS)"
+                          name="vuelta_monto_flete"
+                          type="number"
+                          value={vMonto}
+                          onChange={setVMonto}
+                          icon={DollarSign}
+                          error={state?.fieldErrors?.vuelta_monto_flete}
+                        />
+                        <InputFieldWithIcon
+                          label="Nº viaje YPF"
+                          name="vuelta_nro_viaje_ypf"
+                          placeholder="Opcional"
+                          value={vNroYpf}
+                          onChange={setVNroYpf}
+                          icon={Hash}
+                          error={state?.fieldErrors?.vuelta_nro_viaje_ypf}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Vuelve vacío: sin flete, tonelaje ni material */}
+                      <input type="hidden" name="vuelta_km_con_carga" value="0" />
+                      <input type="hidden" name="vuelta_tonelaje_real" value="0" />
+                      <input type="hidden" name="vuelta_monto_flete" value="0" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <InputFieldWithIcon
+                          label="Km recorridos (vacío)"
+                          name="vuelta_km_vacios"
+                          type="number"
+                          value={vKmVacios}
+                          onChange={setVKmVacios}
+                          icon={Navigation}
+                          error={state?.fieldErrors?.vuelta_km_vacios}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        La vuelta vacía no factura ni suma tonelaje.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             {state?.error && (
               <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-xs rounded-lg px-3 py-2 font-medium">
