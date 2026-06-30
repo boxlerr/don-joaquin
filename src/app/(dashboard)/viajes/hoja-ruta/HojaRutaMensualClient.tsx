@@ -230,6 +230,14 @@ export default function HojaRutaMensualClient({
               </Button>
             </>
           )}
+          <a
+            href={`/viajes/hoja-ruta/export?mes=${mes}`}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
+            title="Exportar la hoja de ruta: una hoja por chofer con sus viajes"
+          >
+            <FileSpreadsheet size={14} className="text-[#10B981]" />
+            Exportar a Excel
+          </a>
         </div>
       </div>
 
