@@ -15,8 +15,8 @@ import {
   previewYpfImportAction,
   confirmYpfImportAction,
   type YpfPreviewState,
-  type YpfViajePreview,
   type ConfirmYpfState,
+  type DmRowPreview,
 } from "../import-ypf/actions";
 
 type Step = "select" | "preview" | "done";
@@ -109,7 +109,7 @@ export default function ImportYpfModal({
       {showTrigger && (
         <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
           <FileText size={14} />
-          Importar PDF de YPF
+          Importar DM de YPF
         </Button>
       )}
       <Dialog
@@ -125,34 +125,31 @@ export default function ImportYpfModal({
           <DialogHeader>
             <DialogTitle className="text-foreground text-xl">
               {step === "preview"
-                ? "Vista previa — Liquidación YPF"
+                ? "Vista previa — DM de YPF"
                 : step === "done"
-                ? "Importación completada"
-                : "Importar PDF quincenal de YPF"}
+                ? "Viajes completados"
+                : "Importar DM de YPF"}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               {step === "select" && (
-                <>Subí el PDF (&quot;DM Joaquín Directa&quot;). El sistema lee el detalle por viaje y la tarifa, cruza el chofer por CUIL y calcula el importe (neto × precio unitario).</>
+                <>Subí el PDF del DM (&quot;DM Joaquín Directa&quot;). El sistema cruza cada renglón por <strong>nº de remito</strong> contra los viajes ya cargados y completa el tonelaje y el importe (neto × precio del destino). Los remitos que no estén cargados se listan para reclamar.</>
               )}
               {step === "preview" && preview && (
                 <>
                   {preview.quincenaDesde} → {preview.quincenaHasta} ·{" "}
-                  <span className="text-[#047857] font-semibold">{s?.importables ?? 0} a importar</span>
-                  {(s?.sinChofer ?? 0) > 0 && <> · <span className="text-red-600 font-semibold">{s?.sinChofer} sin chofer</span></>}
-                  {(s?.sinCamion ?? 0) > 0 && <> · <span className="text-[#92400E] font-semibold">{s?.sinCamion} sin camión</span></>}
-                  {(s?.yaImportados ?? 0) > 0 && <> · <span className="text-muted-foreground">{s?.yaImportados} ya importados</span></>}
-                  {" "}· {money(s?.totalImporte)}
+                  <span className="text-[#047857] font-semibold">{s?.coinciden ?? 0} a completar</span>
+                  {(s?.noCargados ?? 0) > 0 && <> · <span className="text-red-600 font-semibold">{s?.noCargados} sin cargar (reclamar)</span></>}
+                  {(s?.yaConValor ?? 0) > 0 && <> · <span className="text-muted-foreground">{s?.yaConValor} ya con valor</span></>}
+                  {" "}· {money(s?.totalImporteACompletar)} a aplicar
                 </>
               )}
-              {step === "done" && result?.imported && (
+              {step === "done" && result?.result && (
                 <>
-                  {result.imported.viajes} viajes creados
-                  {(result.imported.incompletos ?? 0) > 0 && (
-                    <> · <span className="text-[#92400E] font-semibold">{result.imported.incompletos} a completar</span></>
+                  <span className="text-[#047857] font-semibold">{result.result.completados} viajes completados</span>
+                  {result.result.noCargados > 0 && (
+                    <> · <span className="text-red-600 font-semibold">{result.result.noCargados} a reclamar</span></>
                   )}
-                  {(result.imported.omitidos ?? 0) > 0 && (
-                    <> · {result.imported.omitidos} omitidos</>
-                  )}
+                  {result.result.yaTenian > 0 && <> · {result.result.yaTenian} ya tenían valor</>}
                 </>
               )}
             </DialogDescription>
@@ -163,10 +160,10 @@ export default function ImportYpfModal({
               <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
                 <p className="font-semibold text-foreground">Cómo funciona:</p>
                 <ul className="list-disc list-inside space-y-0.5">
-                  <li>Lee el detalle por viaje (fecha de descarga, remito, chofer, toneladas).</li>
-                  <li>Cruza el chofer por <strong>CUIL</strong> y le calcula el importe con la tarifa del PDF.</li>
-                  <li>El camión sale del asignado a cada chofer. Cliente: <strong>YPF</strong>.</li>
-                  <li>Vas a revisar todo antes de confirmar. No se duplican viajes ya importados.</li>
+                  <li>Cruza cada viaje del DM por <strong>nº de remito</strong> con los viajes ya cargados.</li>
+                  <li>A los que coinciden les completa <strong>toneladas + importe</strong> (neto × precio del destino) y los marca facturados.</li>
+                  <li>Los remitos del DM que <strong>no estén cargados</strong> se marcan en rojo para reclamar (no se crean solos).</li>
+                  <li>El PDF firmado queda archivado en Compliance → YPF.</li>
                 </ul>
               </div>
               <input
@@ -181,7 +178,7 @@ export default function ImportYpfModal({
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
                 <Button type="submit" variant="brand" disabled={loading}>
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {loading ? "Analizando..." : "Analizar PDF"}
+                  {loading ? "Analizando..." : "Analizar DM"}
                 </Button>
               </DialogFooter>
             </form>
@@ -197,8 +194,8 @@ export default function ImportYpfModal({
               )}
               {(preview.tarifas?.length ?? 0) > 0 && (
                 <div className="text-xs text-muted-foreground shrink-0">
-                  <span className="font-semibold text-foreground">Tarifas detectadas:</span>{" "}
-                  {preview.tarifas!.map((t) => `${t.origen}→${t.destino}: ${money(t.precioUnitario)}/tn`).join("  ·  ")}
+                  <span className="font-semibold text-foreground">Precios por destino:</span>{" "}
+                  {preview.tarifas!.map((t) => `${t.destino}: ${money(t.precioUnitario)}/tn`).join("  ·  ")}
                 </div>
               )}
               <div className="overflow-auto flex-1 min-h-0 border border-border rounded-md">
@@ -207,18 +204,17 @@ export default function ImportYpfModal({
                     <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wide bg-card">
                       <th className="px-2 py-1.5 border-b border-border bg-card"></th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Fecha</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card">Chofer</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card">Camión</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card">Origen</th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card">Remito</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Destino</th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card">Chofer (DM)</th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card">Viaje</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card text-right">Neto tn</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card text-right">Importe</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card">Remito</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.viajes!.map((v) => (
-                      <ViajeRow key={v.idx} v={v} />
+                    {preview.rows!.map((r) => (
+                      <DmRow key={r.idx} r={r} />
                     ))}
                   </tbody>
                 </table>
@@ -226,28 +222,25 @@ export default function ImportYpfModal({
               {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg shrink-0">{error}</div>}
               <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2 shrink-0">
                 <Button type="button" variant="outline" onClick={reset} disabled={loading}>Volver</Button>
-                <Button type="button" variant="brand" onClick={handleConfirm} disabled={loading || (s?.importables ?? 0) === 0}>
+                <Button type="button" variant="brand" onClick={handleConfirm} disabled={loading || (s?.coinciden ?? 0) === 0}>
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {loading ? "Importando..." : `Confirmar ${s?.importables ?? 0} viajes`}
+                  {loading ? "Completando..." : `Completar ${s?.coinciden ?? 0} viajes`}
                 </Button>
               </DialogFooter>
             </div>
           )}
 
-          {step === "done" && result && (
+          {step === "done" && result?.result && (
             <div className="space-y-3 py-2">
               <div className="bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] text-sm rounded-lg p-3 space-y-1">
-                <div><strong>{result.imported?.viajes ?? 0}</strong> viajes insertados</div>
-                {(result.imported?.incompletos ?? 0) > 0 && (
-                  <div className="text-[#92400E]">
-                    <strong>{result.imported?.incompletos}</strong> a completar — viajes cargados con chofer o camión sin asignar. Buscalos en /viajes filtrando por la observación &quot;⚠&quot; o entrá uno por uno desde el listado para asignar el chofer/camión.
+                <div><strong>{result.result.completados}</strong> viajes completados (tonelaje + importe + facturado)</div>
+                {result.result.noCargados > 0 && (
+                  <div className="text-red-600">
+                    <strong>{result.result.noCargados}</strong> remitos del DM sin viaje cargado — <strong>a reclamar</strong>. Cargá esos viajes y volvé a importar el DM para completarlos.
                   </div>
                 )}
-                {(result.imported?.omitidos ?? 0) > 0 && (
-                  <div><strong>{result.imported?.omitidos ?? 0}</strong> omitidos (sin fecha, sin precio o ya importados)</div>
-                )}
-                {(result.imported?.puntosCreados ?? 0) > 0 && (
-                  <div><strong>{result.imported?.puntosCreados}</strong> puntos de ruta nuevos</div>
+                {result.result.yaTenian > 0 && (
+                  <div className="text-muted-foreground"><strong>{result.result.yaTenian}</strong> ya tenían valor (no se tocaron)</div>
                 )}
               </div>
               <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">
@@ -261,72 +254,41 @@ export default function ImportYpfModal({
   );
 }
 
-function ViajeRow({ v }: { v: YpfViajePreview }) {
-  const status: { icon: React.ReactNode; cls: string; label: string } = v.importable
-    ? { icon: <CheckCircle2 size={12} className="text-[#10B981]" />, cls: "", label: "" }
-    : v.chofer.status === "not_found"
-    ? { icon: <XCircle size={12} className="text-red-500" />, cls: "bg-red-50/50", label: "sin chofer" }
-    : v.chofer.status === "inactivo"
-    ? { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "chofer de baja" }
-    : v.yaImportado
-    ? { icon: <span className="w-2 h-2 rounded-full bg-muted-foreground/30 inline-block" />, cls: "text-muted-foreground", label: "ya importado" }
-    : v.camion.status === "missing"
-    ? { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin camión" }
-    : v.precioUnitario == null
-    ? { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin precio" }
-    : { icon: <CheckCircle2 size={12} className="text-[#10B981]" />, cls: "", label: "" };
+function DmRow({ r }: { r: DmRowPreview }) {
+  const meta: Record<DmRowPreview["status"], { icon: React.ReactNode; cls: string; label: string }> = {
+    coincide: { icon: <CheckCircle2 size={12} className="text-[#10B981]" />, cls: "", label: "" },
+    ya_con_valor: { icon: <span className="w-2 h-2 rounded-full bg-muted-foreground/30 inline-block" />, cls: "text-muted-foreground", label: "ya tenía valor" },
+    no_cargado: { icon: <XCircle size={12} className="text-red-500" />, cls: "bg-red-50/60", label: "falta cargar · reclamar" },
+    sin_remito: { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin remito en el DM" },
+    sin_precio: { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin precio" },
+  };
+  const st = meta[r.status];
+  const resalta = r.status === "coincide";
+  const reclama = r.status === "no_cargado";
 
   return (
-    <tr className={`border-t border-[#F1F5F9] ${status.cls}`}>
-      <td className="px-2 py-1" title={status.label}>{status.icon}</td>
-      <td className="px-2 py-1 font-mono">{v.fechaDescarga ?? "—"}</td>
-      <td className="px-2 py-1"><ChoferCell v={v} /></td>
-      <td className="px-2 py-1 font-mono text-[10px]">{v.camion.status === "ok" ? v.camion.patente : "—"}</td>
-      <td className="px-2 py-1">{v.origen ?? "—"}</td>
-      <td className="px-2 py-1">{v.destino ?? "—"}</td>
-      <td className="px-2 py-1 text-right font-mono">{v.netoTn}</td>
-      <td className="px-2 py-1 text-right font-mono">{money(v.importe)}</td>
-      <td className="px-2 py-1 font-mono text-[10px]">
-        {v.remito ?? "—"}
-        {status.label && <span className="ml-1 text-muted-foreground italic">· {status.label}</span>}
+    <tr className={`border-t border-[#F1F5F9] ${st.cls}`}>
+      <td className="px-2 py-1" title={st.label}>{st.icon}</td>
+      <td className="px-2 py-1 font-mono">{r.fecha ?? "—"}</td>
+      <td className={`px-2 py-1 font-mono ${resalta || reclama ? "font-bold" : ""} ${reclama ? "text-red-600" : ""}`}>
+        {r.remito ?? "—"}
       </td>
+      <td className="px-2 py-1">{r.destino ?? "—"}</td>
+      <td className="px-2 py-1">{r.choferDm || "—"}</td>
+      <td className="px-2 py-1 font-mono text-[10px]">
+        {r.viaje ? (
+          <a href={`/viajes`} className="text-primary hover:underline" title={r.viaje.chofer ?? undefined}>
+            {r.viaje.codigo}
+          </a>
+        ) : reclama ? (
+          <span className="text-red-600 italic">falta cargar</span>
+        ) : (
+          "—"
+        )}
+        {st.label && r.status !== "no_cargado" && <span className="ml-1 text-muted-foreground italic">· {st.label}</span>}
+      </td>
+      <td className="px-2 py-1 text-right font-mono">{r.netoTn}</td>
+      <td className={`px-2 py-1 text-right font-mono ${resalta ? "font-bold text-[#047857]" : ""}`}>{money(r.importe)}</td>
     </tr>
-  );
-}
-
-// Chofer clickeable: abre el legajo en otra pestaña. Si está dado de baja, link
-// al legajo (para reactivar); si no está en el sistema, link a /choferes (alta).
-function ChoferCell({ v }: { v: YpfViajePreview }) {
-  const ch = v.chofer;
-  if (ch.status === "ok") {
-    return (
-      <a href={`/choferes/${ch.id}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-        {ch.apellido}, {ch.nombre}
-      </a>
-    );
-  }
-  if (ch.status === "inactivo") {
-    return (
-      <a
-        href={`/choferes/${ch.id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-[#92400E] hover:underline"
-        title={`Chofer en estado "${ch.estado}". Abrí el legajo para reactivarlo.`}
-      >
-        {ch.apellido}, {ch.nombre} <span className="text-[10px]">(dado de baja)</span>
-      </a>
-    );
-  }
-  return (
-    <a
-      href="/choferes"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-red-600 hover:underline"
-      title="El CUIL no figura en ningún chofer del sistema. Abrí Choferes para darlo de alta."
-    >
-      {v.choferNombre} <span className="text-[10px]">({v.choferCuil}) · no está en el sistema</span>
-    </a>
   );
 }
