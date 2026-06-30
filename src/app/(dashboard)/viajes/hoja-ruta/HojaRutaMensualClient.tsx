@@ -5,8 +5,6 @@ import {
   Users,
   Search,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   FileSpreadsheet,
   Truck,
   Receipt,
@@ -16,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import MonthPicker from "@/components/ui/MonthPicker";
 import {
   getPanelChoferAction,
   listChoferesMesAction,
@@ -52,11 +50,6 @@ function fmtMesLabel(mesISO: string): string {
   const d = new Date(y, m - 1, 1);
   const txt = d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
   return txt.charAt(0).toUpperCase() + txt.slice(1);
-}
-function shiftMes(mesISO: string, delta: number): string {
-  const [y, m] = mesISO.split("-").map((x) => parseInt(x, 10));
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 // Componente principal --------------------------------------------------------
@@ -180,56 +173,7 @@ export default function HojaRutaMensualClient({
         </div>
         <div className="flex items-center gap-2">
           {cargandoLista && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
-          {mes === "total" ? (
-            <>
-              <span className="h-9 px-3 inline-flex items-center rounded-md border border-border bg-muted/40 text-sm font-medium text-foreground">
-                Histórico — todos los meses
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => cambiarMes(new Date().toISOString().slice(0, 7))}
-              >
-                Ver por mes
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => cambiarMes(shiftMes(mes, -1))}
-                aria-label="Mes anterior"
-              >
-                <ChevronLeft size={14} />
-              </Button>
-              <Input
-                type="month"
-                value={mes}
-                onChange={(e) => cambiarMes(e.target.value)}
-                className="h-9 w-40 text-sm"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => cambiarMes(shiftMes(mes, +1))}
-                aria-label="Mes siguiente"
-              >
-                <ChevronRight size={14} />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => cambiarMes("total")}
-              >
-                Total
-              </Button>
-            </>
-          )}
+          <MonthPicker value={mes} onChange={cambiarMes} allowTotal />
           <a
             href={`/viajes/hoja-ruta/export?mes=${mes}`}
             className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
