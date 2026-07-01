@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { ensureProximoForm931 } from "./periodo";
 
 // `form931_presentaciones` es tabla nueva; se accede con `as any` hasta regenerar database.ts.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -22,8 +23,10 @@ export type Form931Row = {
 };
 
 export async function getForm931Action(): Promise<Form931Row[]> {
-  await requireArea("compliance", "read");
+  const user = await requireArea("compliance", "read");
   const supabase = createAdminClient();
+  // Auto-genera el próximo período (día 20) si falta, para no cargarlo a mano.
+  await ensureProximoForm931(supabase, user.id);
   const { data } = await (supabase as any)
     .from("form931_presentaciones")
     .select(
