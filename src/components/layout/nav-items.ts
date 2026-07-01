@@ -13,7 +13,6 @@ import {
   FileText,
   Fuel,
   Receipt,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Settings,
@@ -21,7 +20,6 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
-  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -140,11 +138,20 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "COMPLIANCE",
     items: [
-      { label: "Formulario 931", href: "/compliance/form-931", icon: FileCheck2, area: "compliance" },
-      { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, seccion: "compliance_loma" },
-      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, seccion: "compliance_ypf" },
-      { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, seccion: "compliance_sicop" },
-      { label: "Secondi", href: "/compliance/organismos/secondi", icon: ShieldCheck, seccion: "compliance_secondi" },
+      {
+        label: "Compliance",
+        href: "/compliance",
+        icon: ShieldCheck,
+        area: "compliance",
+        children: [
+          { label: "Resumen", href: "/compliance", area: "compliance" },
+          { label: "Formulario 931", href: "/compliance/form-931", area: "compliance" },
+          { label: "Loma Negra", href: "/compliance/loma-negra", seccion: "compliance_loma" },
+          { label: "YPF", href: "/compliance/ypf", seccion: "compliance_ypf" },
+          { label: "SICOP", href: "/compliance/organismos/sicop", seccion: "compliance_sicop" },
+          { label: "Secondi", href: "/compliance/organismos/secondi", seccion: "compliance_secondi" },
+        ],
+      },
     ],
   },
   {
