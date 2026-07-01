@@ -9,6 +9,14 @@ import { eliminarApercibimientoAction } from "./actions";
 import type { Apercibimiento, CategoriaApercibimiento } from "./types";
 import { formatFecha } from "@/lib/utils";
 
+// Badge por tipo — indica a qué concepto del score suma (Seguridad vs Conducta).
+const TIPO_META: Record<string, { label: string; cls: string }> = {
+  apercibimiento: { label: "Apercibimiento", cls: "bg-amber-50 text-amber-700 border-amber-200/70" },
+  multa: { label: "Multa de tránsito", cls: "bg-red-50 text-red-700 border-red-200/70" },
+  llamado_atencion: { label: "Llamado de atención", cls: "bg-sky-50 text-sky-700 border-sky-200/70" },
+  adelanto: { label: "Adelanto de sueldo", cls: "bg-indigo-50 text-indigo-700 border-indigo-200/70" },
+};
+
 interface Props {
   chofer_id: string;
   apercibimientos: Apercibimiento[];
@@ -40,7 +48,7 @@ export default function ChoferApercibimientosTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">
-          Apercibimientos
+          Apercibimientos y sanciones
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
             {apercibimientos.length} registro{apercibimientos.length !== 1 ? "s" : ""}
           </span>
@@ -71,6 +79,13 @@ export default function ChoferApercibimientosTab({
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-sm font-medium text-foreground">
                     {formatFecha(a.fecha)}
+                  </span>
+                  <span
+                    className={`text-[11px] font-semibold rounded-full px-2 py-0.5 border ${
+                      (TIPO_META[a.tipo] ?? TIPO_META.apercibimiento).cls
+                    }`}
+                  >
+                    {(TIPO_META[a.tipo] ?? TIPO_META.apercibimiento).label}
                   </span>
                   {a.categoria_nombre && (
                     <span className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-full px-2 py-0.5">

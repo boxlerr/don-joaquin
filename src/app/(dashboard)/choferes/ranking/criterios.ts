@@ -195,6 +195,23 @@ export function descuentoConducta(eventos: number, t: TramosConfig["conducta"]):
   return t.cuatro_mas;
 }
 
+// ── Eventos manuales por chofer (tabla chofer_apercibimientos.tipo) ───────────
+// Cada evento cargado a mano suma a un concepto distinto del score:
+//   Seguridad ← apercibimiento, multa (de tránsito)
+//   Conducta  ← llamado_atencion, adelanto (de sueldo)
+// Las ausencias injustificadas también suman a Conducta, pero salen de otra tabla.
+export type ApercibimientoTipo = "apercibimiento" | "multa" | "llamado_atencion" | "adelanto";
+
+/** true si el evento pesa en Seguridad (default para tipo nulo/desconocido). */
+export function eventoCuentaSeguridad(tipo: string | null | undefined): boolean {
+  return tipo === "multa" || tipo === "apercibimiento" || tipo == null;
+}
+
+/** true si el evento pesa en Conducta laboral. */
+export function eventoCuentaConducta(tipo: string | null | undefined): boolean {
+  return tipo === "llamado_atencion" || tipo === "adelanto";
+}
+
 // ---------------------------------------------------------------------------
 // Persistencia: TODA la config va en una sola fila JSON de `parametros_sistema`
 // (clave `ranking_score_config`). Más limpio que decenas de filas sueltas.
