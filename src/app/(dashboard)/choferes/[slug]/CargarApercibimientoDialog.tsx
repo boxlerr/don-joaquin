@@ -20,7 +20,15 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { crearApercibimientoAction, crearUrlSubidaDocumentoAction } from "./actions";
-import type { CategoriaApercibimiento } from "./types";
+import type { ApercibimientoTipo, CategoriaApercibimiento } from "./types";
+
+// El tipo define a qué concepto del score suma el evento (planilla de Bárbara).
+const TIPO_OPCIONES: { value: ApercibimientoTipo; label: string; concepto: string }[] = [
+  { value: "apercibimiento", label: "Apercibimiento / Acta", concepto: "Seguridad" },
+  { value: "multa", label: "Multa de tránsito", concepto: "Seguridad" },
+  { value: "llamado_atencion", label: "Llamado de atención", concepto: "Conducta laboral" },
+  { value: "adelanto", label: "Adelanto de sueldo", concepto: "Conducta laboral" },
+];
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
 import { Upload, Trash2, AlertCircle, Paperclip } from "lucide-react";
 
@@ -52,6 +60,7 @@ export default function CargarApercibimientoDialog({
   const [progreso, setProgreso] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0]);
+  const [tipo, setTipo] = useState<ApercibimientoTipo>("apercibimiento");
   const [categoriaId, setCategoriaId] = useState<string>("");
   const [motivo, setMotivo] = useState("");
   const [observaciones, setObservaciones] = useState("");
@@ -60,6 +69,7 @@ export default function CargarApercibimientoDialog({
 
   const reset = () => {
     setFecha(new Date().toISOString().split("T")[0]);
+    setTipo("apercibimiento");
     setCategoriaId("");
     setMotivo("");
     setObservaciones("");
@@ -108,6 +118,7 @@ export default function CargarApercibimientoDialog({
 
       const res = await crearApercibimientoAction(chofer_id, {
         fecha,
+        tipo,
         categoria_id: categoriaId || null,
         motivo,
         observaciones: observaciones || null,
@@ -141,9 +152,10 @@ export default function CargarApercibimientoDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Nuevo apercibimiento</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">Nuevo apercibimiento o sanción</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Quedará registrado en el historial del chofer. Podés adjuntar el archivo firmado.
+            Apercibimiento/acta, multa, llamado de atención o adelanto. Suma al score y queda en el
+            historial del chofer. Podés adjuntar el archivo firmado.
           </DialogDescription>
         </DialogHeader>
 
@@ -154,6 +166,28 @@ export default function CargarApercibimientoDialog({
               <span>{error}</span>
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">Tipo</Label>
+            <Select value={tipo} disabled={loading} onValueChange={(v) => v && setTipo(v as ApercibimientoTipo)}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {(value: unknown) => TIPO_OPCIONES.find((o) => o.value === value)?.label ?? ""}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TIPO_OPCIONES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Suma al concepto{" "}
+              <strong>{TIPO_OPCIONES.find((o) => o.value === tipo)?.concepto}</strong> del score.
+            </p>
+          </div>
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">

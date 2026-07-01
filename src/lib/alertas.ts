@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
+import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
 
 // Hitos de antigüedad (en años) para los que se emite una alerta de aniversario.
 // Los hitos más "rutinarios" (1/2/3/4) se omiten a propósito para no sobrecargar alertas.
@@ -694,6 +695,10 @@ export async function generarAlertas() {
   // Bloqueante: sin 931 no puede cargar nadie. Disparos discretos 30/15/5 + vencido;
   // se apaga cuando AMBOS envíos están marcados. Usa tipo "vencimiento_compliance"
   // para rutear al toggle "Compliance Loma/YPF" (llega a todos los que lo tengan).
+  // Asegura que el próximo período (día 20) exista antes de alertar, así el aviso
+  // sale aunque nadie haya abierto la pantalla del F931 este mes. Sin usuario (cron).
+  await ensureProximoForm931(supabase, null, hoy);
+
   // `as any`: form931_presentaciones es tabla nueva, aún no está en database.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: form931 } = await (supabase as any)

@@ -9,9 +9,10 @@
 //
 // Centralizamos acá la regla para que todos los flujos la usen igual.
 //
-// Excepción intencional: el importador de YPF deja `facturado = false` aunque
-// haya importe, porque la facturación a YPF se gestiona por su flujo de
-// liquidación/compliance aparte (no por el monto del viaje).
+// Nota: al completar un viaje con el valor oficial del cliente, los importadores
+// del DM de YPF y de la liquidación de Loma lo dejan facturado (esa certificación
+// ES la facturación): el de Loma pasa por esta función; el del DM de YPF setea
+// `facturado = true` directo.
 export function viajeEstaFacturado(
   montoFlete: number | null | undefined,
   esVacio: boolean = false,

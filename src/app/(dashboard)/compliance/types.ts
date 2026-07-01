@@ -73,6 +73,22 @@ export const NIVEL_LABEL: Record<ComplianceNivel, string> = {
   empresa: "Empresa",
 };
 
+// Fila normalizada del panel unificado `/compliance` — reúne en un solo checklist
+// todas las fuentes (F931, YPF, Loma Negra, organismos) para ver de un vistazo qué
+// vence y su estado. Es de solo lectura: cada fila abre su sección de detalle vía `href`.
+export type ComplianceResumenRow = {
+  id: string;
+  /** Etiqueta de la fuente, sirve además como clave de filtro: "F931", "YPF", "Loma Negra", "Ambos", "SICOP", "Secondi"… */
+  fuente: string;
+  requisito: string;
+  entidad: string;
+  fecha_vencimiento: string | null;
+  estado: ComplianceEstado;
+  dias_restantes: number | null;
+  observaciones: string | null;
+  href: string;
+};
+
 // Tipo de fila para el checklist de organismos (más simple: sin cliente_aplica)
 export type OrganismoChecklistRow = {
   requisito_id: string;

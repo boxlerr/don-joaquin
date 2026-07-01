@@ -102,9 +102,11 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .eq("aplica_a", "chofer")
       .eq("estado", "activo"),
 
-    supabase
+    // `tipo` es columna nueva (no está en database.ts) → cliente laxo.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("chofer_apercibimientos")
-      .select("id, fecha, categoria_id, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre), archivo:documentos_archivos(bucket, path, nombre_original)")
+      .select("id, fecha, tipo, categoria_id, motivo, observaciones, created_at, categoria:apercibimiento_categorias(nombre), archivo:documentos_archivos(bucket, path, nombre_original)")
       .eq("chofer_id", chofer_id)
       .order("fecha", { ascending: false }),
 
@@ -191,10 +193,14 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .lte("fecha_viaje", ultimoDia)
       .not("chofer_id", "is", null),
 
-    // Apercibimientos del mes de todos los choferes (para score ranking)
-    supabase
+    // Apercibimientos del mes de todos los choferes (para el score legacy del legajo).
+    // Solo los que pesan en "apercibimientos" (apercibimiento/multa); los eventos de
+    // conducta (llamado/adelanto) no inflan este conteo. `as any`: `tipo` es nueva.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("chofer_apercibimientos")
       .select("chofer_id")
+      .in("tipo", ["apercibimiento", "multa"])
       .gte("fecha", primerDia)
       .lte("fecha", ultimoDia),
 
@@ -391,10 +397,25 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     };
   });
 
+  // `apercibimientos` viene de un cliente casteado a any (columna `tipo` nueva).
+  type ArchivoEmbed = { bucket: string; path: string; nombre_original: string };
+  type ApeRowRaw = {
+    id: string;
+    fecha: string;
+    tipo: string | null;
+    categoria_id: string | null;
+    motivo: string;
+    observaciones: string | null;
+    created_at: string;
+    categoria: { nombre?: string } | { nombre?: string }[] | null;
+    archivo: ArchivoEmbed | ArchivoEmbed[] | null;
+  };
+  const apercibimientosRows = (apercibimientos ?? []) as ApeRowRaw[];
+
   // URLs firmadas de los archivos adjuntos a apercibimientos (ej: escaneo firmado).
   const apercArchivoMap = new Map<string, { url: string | null; nombre: string | null }>();
   {
-    const conArchivo = (apercibimientos ?? [])
+    const conArchivo = apercibimientosRows
       .map((a) => {
         const arch = Array.isArray(a.archivo) ? a.archivo[0] : a.archivo;
         return arch ? { id: a.id, bucket: arch.bucket, path: arch.path, nombre: arch.nombre_original } : null;
@@ -462,9 +483,14 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const roturas_mes = roturasMesArr.length;
   const roturas_cantidad_mes = roturasMesArr.reduce((acc, r) => acc + (r.cantidad ?? 1), 0);
 
-  // Apercibimientos del mes (filtrar del array ya traído)
-  const apercibimientosMesArr = (apercibimientos ?? []).filter(
-    (a) => a.fecha >= primerDia && a.fecha <= ultimoDia,
+  // Apercibimientos del mes (filtrar del array ya traído). Para el score/KPI legacy
+  // no contamos los eventos de conducta (llamado/adelanto), solo apercibimiento/multa.
+  const apercibimientosMesArr = apercibimientosRows.filter(
+    (a) =>
+      a.fecha >= primerDia &&
+      a.fecha <= ultimoDia &&
+      a.tipo !== "llamado_atencion" &&
+      a.tipo !== "adelanto",
   );
   const apercibimientos_mes = apercibimientosMesArr.length;
 
@@ -755,11 +781,12 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           ano: camionActual.ano,
         }
       : null,
-    apercibimientos: (apercibimientos ?? []).map((a) => {
+    apercibimientos: apercibimientosRows.map((a) => {
       const cat = Array.isArray(a.categoria) ? a.categoria[0] : a.categoria;
       return {
         id: a.id,
         fecha: a.fecha,
+        tipo: (a.tipo as string | null) ?? "apercibimiento",
         categoria_id: a.categoria_id,
         categoria_nombre: (cat as { nombre?: string } | null)?.nombre ?? null,
         motivo: a.motivo,
@@ -882,10 +909,13 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
 // Apercibimientos
 // ---------------------------------------------------------------------------
 
+const APERCIBIMIENTO_TIPOS = ["apercibimiento", "multa", "llamado_atencion", "adelanto"];
+
 export async function crearApercibimientoAction(
   chofer_id: string,
   data: {
     fecha: string;
+    tipo?: string;
     categoria_id: string | null;
     motivo: string;
     observaciones?: string | null;
@@ -896,6 +926,7 @@ export async function crearApercibimientoAction(
   const supabase = createAdminClient();
 
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
+  const tipo = APERCIBIMIENTO_TIPOS.includes(data.tipo ?? "") ? data.tipo! : "apercibimiento";
 
   // Archivo opcional (ej: el apercibimiento escaneado y firmado). Ya viene
   // subido al Storage vía URL firmada; acá solo lo registramos.
@@ -920,11 +951,13 @@ export async function crearApercibimientoAction(
     archivo_id = archivoData.id;
   }
 
-  const { data: nuevo, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: nuevo, error } = await (supabase as any)
     .from("chofer_apercibimientos")
     .insert({
       chofer_id,
       fecha: data.fecha,
+      tipo,
       categoria_id: data.categoria_id,
       motivo: data.motivo.trim(),
       observaciones: data.observaciones?.trim() || null,

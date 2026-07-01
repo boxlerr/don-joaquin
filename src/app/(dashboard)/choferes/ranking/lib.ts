@@ -5,6 +5,8 @@ import {
   CONFIG_CLAVE,
   mergeCriterios,
   calcularScore,
+  eventoCuentaSeguridad,
+  eventoCuentaConducta,
   type RankingCriterios,
   type ScoreDesglose,
   type ConceptoResultado,
@@ -185,6 +187,32 @@ function mesesActivos(fechas: (string | null)[]): number {
   return Math.max(1, set.size);
 }
 
+/**
+ * Apercibimientos del período con su `tipo`, tolerando que la columna aún no exista
+ * en remoto (migración `20260630_apercibimientos_tipo.sql` sin aplicar): si el select
+ * con `tipo` falla, reintenta sin él y los trata como apercibimiento (comportamiento
+ * previo — no se pierde la penalización de Seguridad).
+ */
+async function fetchApercibimientosTipo(
+  supabase: ReturnType<typeof createAdminClient>,
+  opts: { desde: string; hasta: string; choferId?: string },
+): Promise<{ chofer_id: string; tipo: string | null }[]> {
+  const build = (cols: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (supabase as any)
+      .from("chofer_apercibimientos")
+      .select(cols)
+      .gte("fecha", opts.desde)
+      .lte("fecha", opts.hasta);
+    if (opts.choferId) q = q.eq("chofer_id", opts.choferId);
+    return q;
+  };
+  const conTipo = await build("chofer_id, tipo");
+  if (!conTipo.error) return (conTipo.data ?? []) as { chofer_id: string; tipo: string | null }[];
+  const sinTipo = await build("chofer_id");
+  return ((sinTipo.data ?? []) as { chofer_id: string }[]).map((a) => ({ chofer_id: a.chofer_id, tipo: null }));
+}
+
 export async function computeRanking({
   desde,
   hasta,
@@ -200,7 +228,6 @@ export async function computeRanking({
   const [
     { data: choferes },
     { data: viajes },
-    { data: apercibimientos },
     { data: roturas },
     { data: licencias },
     { data: siniestros },
@@ -222,8 +249,6 @@ export async function computeRanking({
     (async () => ({
       data: await fetchViajesMetricas(supabase, { desde, hasta, conChofer: true }),
     }))(),
-
-    supabase.from("chofer_apercibimientos").select("chofer_id").gte("fecha", desde).lte("fecha", hasta),
 
     supabase
       .from("roturas_gomas")
@@ -275,6 +300,9 @@ export async function computeRanking({
       .lte("fecha", `${hasta}T23:59:59`),
   ]);
 
+  // Apercibimientos/sanciones del período (resiliente a la migración de `tipo`).
+  const apercibimientos = await fetchApercibimientosTipo(supabase, { desde, hasta });
+
   // Mapa chofer → camiones que manejó en el período (actual + historial que solapa).
   const camionesPorChofer = new Map<string, Set<string>>();
   const capacidadPorCamion = new Map<string, number>();
@@ -320,7 +348,9 @@ export async function computeRanking({
 
   const ranking: RankingChofer[] = (choferes ?? []).map((c) => {
     const cv = (viajes ?? []).filter((v) => v.chofer_id === c.id);
-    const ca = (apercibimientos ?? []).filter((a) => a.chofer_id === c.id);
+    const ca = apercibimientos.filter((a) => a.chofer_id === c.id);
+    const seguridad_eventos = ca.filter((a) => eventoCuentaSeguridad(a.tipo)).length;
+    const conducta_eventos = ca.filter((a) => eventoCuentaConducta(a.tipo)).length;
     const cr = ((roturas ?? []) as { chofer_id: string; tipo: string | null; gravedad: string | null }[]).filter((r) => r.chofer_id === c.id);
     const cl = (licencias ?? []).filter((l) => l.chofer_id === c.id);
     const cs = (siniestros ?? []).filter((s) => s.chofer_id === c.id);
@@ -345,7 +375,7 @@ export async function computeRanking({
     const varias_graves = varias.filter((r) => r.gravedad === "grave").length;
     const varias_leves = varias.length - varias_graves;
 
-    const apercibimientos_count = ca.length;
+    const apercibimientos_count = seguridad_eventos; // Seguridad = apercibimientos + multas
     const roturas_count = cr.length;
     const siniestros_count = cs.length;
     const ausencias_injustificadas_count = cai.length;
@@ -398,9 +428,9 @@ export async function computeRanking({
           gomas: gomas_count,
           roturas_leves: varias_leves,
           roturas_graves: varias_graves,
-          seguridad: apercibimientos_count,
+          seguridad: seguridad_eventos,
           siniestros: siniestros_count,
-          conducta: ausencias_injustificadas_count,
+          conducta: ausencias_injustificadas_count + conducta_eventos,
         },
         p,
       );
@@ -463,7 +493,6 @@ export async function computeScoreChofer(
 
   const [
     { data: viajes },
-    { data: apercibimientos },
     { data: roturas },
     { data: siniestros },
     { data: ausenciasInjust },
@@ -477,7 +506,6 @@ export async function computeScoreChofer(
       .eq("chofer_id", choferId)
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta),
-    supabase.from("chofer_apercibimientos").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     supabase.from("roturas_gomas").select("tipo, gravedad").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     supabase.from("siniestros").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -489,6 +517,9 @@ export async function computeScoreChofer(
   ]);
 
   if (!viajes || viajes.length === 0) return null;
+
+  // Apercibimientos/sanciones del chofer (resiliente a la migración de `tipo`).
+  const apercibimientos = await fetchApercibimientosTipo(supabase, { desde, hasta, choferId });
 
   const vs = viajes as {
     camion_id: string | null;
@@ -580,6 +611,9 @@ export async function computeScoreChofer(
   const varias_graves = varias.filter((r) => r.gravedad === "grave").length;
   const varias_leves = varias.length - varias_graves;
 
+  const seguridad_eventos = apercibimientos.filter((a) => eventoCuentaSeguridad(a.tipo)).length;
+  const conducta_eventos = apercibimientos.filter((a) => eventoCuentaConducta(a.tipo)).length;
+
   const { score, desglose, conceptos } = calcularScore(
     {
       meses,
@@ -589,9 +623,9 @@ export async function computeScoreChofer(
       gomas: gomas_count,
       roturas_leves: varias_leves,
       roturas_graves: varias_graves,
-      seguridad: (apercibimientos ?? []).length,
+      seguridad: seguridad_eventos,
       siniestros: (siniestros ?? []).length,
-      conducta: (ausenciasInjust ?? []).length,
+      conducta: (ausenciasInjust ?? []).length + conducta_eventos,
     },
     p,
   );

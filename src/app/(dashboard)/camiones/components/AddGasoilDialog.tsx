@@ -79,6 +79,8 @@ export default function AddGasoilDialog({
   const [tipo, setTipo] = useState("grado_2");
   const [lugarCarga, setLugarCarga] = useState("propia");
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Aviso de odómetro incoherente (baja/salto): el server pide confirmar antes de guardar.
+  const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -116,6 +118,7 @@ export default function AddGasoilDialog({
     setError(null);
     setSuccess(null);
     setErrors({});
+    setConfirmMsg(null);
   }, [open, editing, defaultCamionId]);
 
   const validate = (): FieldErrors => {
@@ -129,11 +132,7 @@ export default function AddGasoilDialog({
     return e;
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const errs = validate();
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+  const enviar = async (confirmarOdometro: boolean) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -148,24 +147,38 @@ export default function AddGasoilDialog({
         estacion,
         lugar_carga: lugarCarga,
         observaciones: `Tipo de combustible: ${tipo === "grado_2" ? "Grado 2" : "Grado 3"}`,
+        confirmarOdometro,
       };
 
       const result = editing
         ? await updateGasoilAction(editing.id, payload)
         : await addGasoilAction({ camion_id: camionId, ...payload });
 
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setSuccess(editing ? "Cambios guardados" : "Carga registrada");
-        onSaved?.();
-        setTimeout(() => setOpen(false), 900);
+      if ("needsConfirm" in result && result.needsConfirm) {
+        setConfirmMsg(result.aviso);
+        return;
       }
+      if ("error" in result && result.error) {
+        setError(result.error);
+        return;
+      }
+      setSuccess(editing ? "Cambios guardados" : "Carga registrada");
+      onSaved?.();
+      setTimeout(() => setOpen(false), 900);
     } catch {
       setError("Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setConfirmMsg(null);
+    void enviar(false);
   };
 
   const errClass = (key: keyof FieldErrors) => (errors[key] ? "border-red-300 focus-visible:ring-red-300" : "");
@@ -186,6 +199,15 @@ export default function AddGasoilDialog({
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
+          {confirmMsg && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
+              <p className="text-sm font-semibold">Revisá el kilometraje</p>
+              <p className="text-xs mt-0.5">{confirmMsg}</p>
+              <p className="text-xs mt-1 text-amber-700">
+                Corregí el KM y volvé a guardar, o usá <strong>“Guardar igual”</strong> si el dato es correcto.
+              </p>
+            </div>
+          )}
 
           {!editing && (
             <div className="space-y-2">
@@ -195,6 +217,17 @@ export default function AddGasoilDialog({
                 onValueChange={(v) => {
                   const id = (v as string) ?? "";
                   setCamionId(id);
+                  setConfirmMsg(null);
+                  // Mostrar el último odómetro del camión como referencia (evita el dato malo).
+                  if (id) {
+                    getUltimoKmCamionAction(id).then((ultimo) => {
+                      setKmPlaceholder(
+                        ultimo != null ? `Último: ${ultimo.toLocaleString("es-AR")} KM` : "Ej: 150000",
+                      );
+                    });
+                  } else {
+                    setKmPlaceholder("Ej: 150000");
+                  }
                   // Autocompletar el chofer habitual del camión (planilla diaria),
                   // solo si está activo y disponible en la lista.
                   const cam = camiones.find((c) => c.id === id);
@@ -267,7 +300,10 @@ export default function AddGasoilDialog({
                 placeholder={kmPlaceholder}
                 required
                 value={km}
-                onChange={(e) => setKm(e.target.value)}
+                onChange={(e) => {
+                  setKm(e.target.value);
+                  if (confirmMsg) setConfirmMsg(null);
+                }}
                 onBlur={() => setErrors(validate())}
                 className={errClass("km")}
               />
@@ -360,14 +396,26 @@ export default function AddGasoilDialog({
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              variant="brand"
-              disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
-            >
-              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar carga"}
-            </Button>
+            {confirmMsg ? (
+              <Button
+                type="button"
+                variant="brand"
+                disabled={loading}
+                onClick={() => void enviar(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {loading ? "Guardando..." : "Guardar igual"}
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                variant="brand"
+                disabled={loading}
+                className="bg-[#0088D1] hover:bg-[#0277BD] text-white"
+              >
+                {loading ? "Guardando..." : editing ? "Guardar cambios" : "Registrar carga"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

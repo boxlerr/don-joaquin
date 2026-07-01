@@ -48,3 +48,31 @@ export function calcularEficienciaPorDeltas(
   const eficiencia = kmRecorridos > 0 ? (litrosUsados / kmRecorridos) * 100 : null;
   return { litrosUsados, kmRecorridos, eficiencia };
 }
+
+// ── Guard de odómetro ────────────────────────────────────────────────────────
+// El odómetro del tablero solo sube: una carga no puede tener MENOS km que la carga
+// anterior (por fecha) ni MÁS que la posterior. Esto detecta el dato mal cargado
+// (ej. una carga dice 120.000 y la siguiente 5.000) que arruina el cálculo de
+// consumo. Puro y testeable; la consulta de las cargas vecinas la hace el server
+// action, que le pasa acá los km ya resueltos.
+
+export type OdometroMotivo = "menor_al_anterior" | "mayor_al_siguiente";
+
+export type OdometroCheck =
+  | { ok: true }
+  | { ok: false; motivo: OdometroMotivo; kmVecino: number };
+
+export function evaluarOdometro(input: {
+  km: number;
+  kmPrevio: number | null;
+  kmSiguiente: number | null;
+}): OdometroCheck {
+  const { km, kmPrevio, kmSiguiente } = input;
+  if (kmPrevio != null && km < kmPrevio) {
+    return { ok: false, motivo: "menor_al_anterior", kmVecino: kmPrevio };
+  }
+  if (kmSiguiente != null && km > kmSiguiente) {
+    return { ok: false, motivo: "mayor_al_siguiente", kmVecino: kmSiguiente };
+  }
+  return { ok: true };
+}

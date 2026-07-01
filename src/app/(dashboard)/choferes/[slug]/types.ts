@@ -88,9 +88,12 @@ export type CategoriaApercibimiento = {
   descripcion: string | null;
 };
 
+export type ApercibimientoTipo = "apercibimiento" | "multa" | "llamado_atencion" | "adelanto";
+
 export type Apercibimiento = {
   id: string;
   fecha: string;
+  tipo: ApercibimientoTipo;
   categoria_id: string | null;
   categoria_nombre: string | null;
   motivo: string;
