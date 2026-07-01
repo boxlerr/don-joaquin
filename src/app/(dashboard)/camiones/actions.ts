@@ -8,6 +8,7 @@ import { getLegajoEstado } from "@/lib/chofer-validation";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
+import { evaluarOdometro } from "@/lib/combustible-eficiencia";
 import {
   buildHeaderToColMap,
   isCellHighlighted,
@@ -348,6 +349,58 @@ export async function addServiceAction(data: {
   return { success: true };
 }
 
+/**
+ * Chequea que el odómetro de una carga sea coherente con las cargas vecinas del
+ * mismo camión (por fecha): no puede ser menor que la anterior ni mayor que la
+ * posterior — el kilometraje del tablero solo sube. Devuelve un aviso listo para
+ * mostrar (o null si está OK). Compara solo contra cargas de fecha estrictamente
+ * anterior/posterior para no dar falsos positivos entre dos cargas del mismo día.
+ */
+async function avisoOdometro(
+  supabase: ReturnType<typeof createAdminClient>,
+  camion_id: string,
+  fecha: string,
+  km: number,
+  excluirId?: string,
+): Promise<string | null> {
+  const previoQ = supabase
+    .from("cargas_combustible")
+    .select("km_odometro, fecha")
+    .eq("camion_id", camion_id)
+    .lt("fecha", fecha)
+    .order("fecha", { ascending: false })
+    .limit(1);
+  const siguienteQ = supabase
+    .from("cargas_combustible")
+    .select("km_odometro, fecha")
+    .eq("camion_id", camion_id)
+    .gt("fecha", fecha)
+    .order("fecha", { ascending: true })
+    .limit(1);
+
+  const [prevRes, nextRes] = await Promise.all([
+    excluirId ? previoQ.neq("id", excluirId).maybeSingle() : previoQ.maybeSingle(),
+    excluirId ? siguienteQ.neq("id", excluirId).maybeSingle() : siguienteQ.maybeSingle(),
+  ]);
+
+  const prev = prevRes.data as { km_odometro: number; fecha: string } | null;
+  const next = nextRes.data as { km_odometro: number; fecha: string } | null;
+
+  const res = evaluarOdometro({
+    km,
+    kmPrevio: prev ? Number(prev.km_odometro) : null,
+    kmSiguiente: next ? Number(next.km_odometro) : null,
+  });
+  if (res.ok) return null;
+
+  const fmt = (n: number) => n.toLocaleString("es-AR");
+  const dm = (iso: string) => iso.split("-").reverse().join("/");
+  if (res.motivo === "menor_al_anterior") {
+    return `El odómetro (${fmt(km)} km) es MENOR al de la carga del ${dm(prev!.fecha)} (${fmt(res.kmVecino)} km). El kilometraje del tablero solo debería subir. ¿Es correcto?`;
+  }
+  return `El odómetro (${fmt(km)} km) es MAYOR al de una carga posterior del ${dm(next!.fecha)} (${fmt(res.kmVecino)} km). Revisá el número.`;
+}
+
 export async function addGasoilAction(data: {
   camion_id: string;
   chofer_id?: string | null;
@@ -358,10 +411,17 @@ export async function addGasoilAction(data: {
   estacion?: string;
   observaciones?: string;
   lugar_carga?: string | null;
+  /** Si es true, se salta el aviso de odómetro (el usuario ya confirmó guardarlo igual). */
+  confirmarOdometro?: boolean;
 }) {
   const user = await requireArea("combustible", "write");
 
   const supabase = createAdminClient();
+
+  if (!data.confirmarOdometro) {
+    const aviso = await avisoOdometro(supabase, data.camion_id, data.fecha, data.km_odometro);
+    if (aviso) return { needsConfirm: true as const, aviso };
+  }
 
   const { data: inserted, error } = await supabase.from("cargas_combustible").insert({
     camion_id: data.camion_id,
@@ -849,17 +909,24 @@ export async function updateGasoilAction(id: string, data: {
   estacion?: string;
   observaciones?: string;
   lugar_carga?: string | null;
+  /** Si es true, se salta el aviso de odómetro (el usuario ya confirmó guardarlo igual). */
+  confirmarOdometro?: boolean;
 }) {
   const user = await requireArea("combustible", "write");
 
   const supabase = createAdminClient();
 
-  // Estado previo para la auditoría
+  // Estado previo para la auditoría (y el camión, para el chequeo de odómetro)
   const { data: previo } = await supabase
     .from("cargas_combustible")
-    .select("fecha, litros, km_odometro, importe_total, chofer_id, estacion, observaciones, lugar_carga")
+    .select("camion_id, fecha, litros, km_odometro, importe_total, chofer_id, estacion, observaciones, lugar_carga")
     .eq("id", id)
     .maybeSingle();
+
+  if (!data.confirmarOdometro && previo?.camion_id) {
+    const aviso = await avisoOdometro(supabase, previo.camion_id, data.fecha, data.km_odometro, id);
+    if (aviso) return { needsConfirm: true as const, aviso };
+  }
 
   const { error } = await supabase
     .from("cargas_combustible")
