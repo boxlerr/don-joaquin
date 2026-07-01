@@ -21,7 +21,7 @@ import {
   getLiqLomaFileUrlAction,
   deleteLiqLomaAction,
   type LiqLomaRow,
-} from "./actions";
+} from "./liq-actions";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato

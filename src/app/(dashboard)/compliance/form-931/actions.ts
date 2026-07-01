@@ -64,7 +64,7 @@ export async function toggleEnvioForm931Action(
     metadata: { evento: enviado ? "marcado_enviado" : "desmarcado", canal },
   });
 
-  revalidatePath("/compliance/form-931");
+  revalidatePath("/compliance");
   return { ok: true };
 }
 
@@ -109,7 +109,7 @@ export async function updateForm931Action(
     },
   });
 
-  revalidatePath("/compliance/form-931");
+  revalidatePath("/compliance");
   return { ok: true };
 }
 
@@ -154,7 +154,7 @@ export async function createForm931Action(data: {
     },
   });
 
-  revalidatePath("/compliance/form-931");
+  revalidatePath("/compliance");
   return { ok: true };
 }
 
@@ -180,6 +180,6 @@ export async function deleteForm931Action(id: string): Promise<{ ok: true } | { 
     valoresAnteriores: previo ?? null,
   });
 
-  revalidatePath("/compliance/form-931");
+  revalidatePath("/compliance");
   return { ok: true };
 }

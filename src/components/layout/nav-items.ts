@@ -21,7 +21,6 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
-  FileCheck2,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -74,6 +73,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Hoja de ruta", href: "/viajes/hoja-ruta", seccion: "viajes_hoja_ruta" },
           { label: "Carga rápida", href: "/viajes/carga-rapida", seccion: "viajes_carga_rapida" },
           { label: "Planilla diaria", href: "/viajes/planilla-diaria", seccion: "viajes_planilla" },
+          { label: "DM y liquidaciones", href: "/viajes/liquidaciones", seccion: "viajes_liquidaciones" },
         ],
       },
       {
@@ -140,11 +140,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "COMPLIANCE",
     items: [
-      { label: "Formulario 931", href: "/compliance/form-931", icon: FileCheck2, area: "compliance" },
-      { label: "Loma Negra", href: "/compliance/loma-negra", icon: ShieldCheck, seccion: "compliance_loma" },
-      { label: "YPF", href: "/compliance/ypf", icon: ShieldCheck, seccion: "compliance_ypf" },
-      { label: "SICOP", href: "/compliance/organismos/sicop", icon: ShieldCheck, seccion: "compliance_sicop" },
-      { label: "Secondi", href: "/compliance/organismos/secondi", icon: ShieldCheck, seccion: "compliance_secondi" },
+      { label: "Compliance", href: "/compliance", icon: ShieldCheck, area: "compliance" },
     ],
   },
   {

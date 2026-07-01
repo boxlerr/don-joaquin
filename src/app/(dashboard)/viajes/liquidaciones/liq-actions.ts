@@ -28,7 +28,7 @@ export type LiqLomaRow = {
 // ---------------------------------------------------------------------------
 
 export async function listLiqLomaAction(): Promise<LiqLomaRow[]> {
-  await requireArea("compliance", "read");
+  await requireArea("viajes", "read");
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,7 +95,7 @@ export async function listLiqLomaAction(): Promise<LiqLomaRow[]> {
 export async function getLiqLomaFileUrlAction(
   liqId: string,
 ): Promise<{ url?: string; error?: string }> {
-  await requireArea("compliance", "read");
+  await requireArea("viajes", "read");
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: liq } = await (supabase as any)
@@ -127,7 +127,7 @@ export async function getLiqLomaFileUrlAction(
 export async function deleteLiqLomaAction(
   liqId: string,
 ): Promise<{ ok?: boolean; error?: string }> {
-  await requireArea("compliance", "admin");
+  await requireArea("viajes", "admin");
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,6 +150,6 @@ export async function deleteLiqLomaAction(
     await sb.from("documentos_archivos").delete().eq("id", liq.archivo_id);
   }
 
-  revalidatePath("/compliance/loma-negra");
+  revalidatePath("/viajes/liquidaciones");
   return { ok: true };
 }

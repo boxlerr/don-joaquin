@@ -280,6 +280,7 @@ export async function uploadOrganismoDocAction(formData: FormData) {
   });
   if (dbError) return { error: "Error al guardar la presentación" };
 
+  revalidatePath("/compliance");
   revalidatePath(`/compliance/organismos/${destinatario_slug}`);
   return { success: true };
 }

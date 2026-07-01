@@ -1,8 +1,8 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { requireArea, hasArea } from "@/lib/auth";
 import { getComplianceEstadoAction } from "../actions";
 import ComplianceChecklistPage from "../components/ComplianceChecklistPage";
-import type { ComplianceCliente } from "../types";
+import { CLIENTE_LABEL, type ComplianceCliente } from "../types";
 
 const SLUG_TO_CLIENTE: Record<string, ComplianceCliente> = {
   "loma-negra": "LOMA_NEGRA",
@@ -25,7 +25,7 @@ export default async function ComplianceClientePage({
 
   return (
     <ComplianceChecklistPage
-      cliente={cliente}
+      titulo={`Compliance — ${CLIENTE_LABEL[cliente]}`}
       rows={rows}
       requisitos={requisitos}
       canWrite={canWrite}

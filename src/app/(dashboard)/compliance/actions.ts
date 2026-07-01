@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import type {
   ComplianceCliente,
+  ComplianceClienteAplica,
   ComplianceEstadoRow,
   ComplianceHistorialDoc,
   ComplianceRequisito,
@@ -14,27 +15,44 @@ function clienteToEnum(c: ComplianceCliente): "YPF" | "LOMA_NEGRA" {
   return c;
 }
 
-export async function getComplianceEstadoAction(cliente: ComplianceCliente): Promise<{
+/** Convierte un nombre en un segmento de path/carpeta legible (sin acentos ni símbolos). */
+function slugify(s: string): string {
+  return (
+    (s || "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "sin-nombre"
+  );
+}
+
+/**
+ * Estado de compliance filtrado por los valores EXACTOS de `cliente_aplica`.
+ * - `["AMBOS"]` → documentos generales (van a todas las plataformas).
+ * - `["YPF"]` / `["LOMA_NEGRA"]` → solo lo específico de esa plataforma.
+ * - `["AMBOS","YPF"]` → todo lo que aplica a YPF (general + específico).
+ */
+export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[]): Promise<{
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
 }> {
   await requireArea("compliance", "read");
   const supabase = createAdminClient();
 
-  const clienteEnum = clienteToEnum(cliente);
-
   const [rowsRes, reqRes] = await Promise.all([
     supabase
       .from("v_compliance_estado")
       .select("*")
-      .in("cliente_aplica", ["AMBOS", clienteEnum])
+      .in("cliente_aplica", aplica)
       .order("nivel", { ascending: true })
       .order("requisito_codigo", { ascending: true }),
     supabase
       .from("compliance_requisitos")
       .select("*")
       .eq("activo", true)
-      .in("cliente_aplica", ["AMBOS", clienteEnum])
+      .in("cliente_aplica", aplica)
       .order("orden", { ascending: true }),
   ]);
 
@@ -45,6 +63,13 @@ export async function getComplianceEstadoAction(cliente: ComplianceCliente): Pro
     rows,
     requisitos: (reqRes.data as ComplianceRequisito[] | null) ?? [],
   };
+}
+
+export async function getComplianceEstadoAction(cliente: ComplianceCliente): Promise<{
+  rows: ComplianceEstadoRow[];
+  requisitos: ComplianceRequisito[];
+}> {
+  return getComplianceEstadoAplica(["AMBOS", clienteToEnum(cliente)]);
 }
 
 /**
@@ -230,7 +255,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
 
   const { data: req } = await supabase
     .from("compliance_requisitos")
-    .select("nivel, codigo, tipo_documento_id")
+    .select("nivel, codigo, nombre, tipo_documento_id")
     .eq("id", requisito_id)
     .single();
   if (!req) return { error: "Requisito no encontrado" };
@@ -250,12 +275,36 @@ export async function uploadComplianceDocAction(formData: FormData) {
   // Subir el PDF solo si vino uno; si no, el documento queda sin archivo.
   let archivoId: string | null = null;
   if (file) {
-    const ext = file.name.split(".").pop();
-    const storagePath = usaLegajo
-      ? req.nivel === "chofer"
-        ? `choferes/${chofer_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
-        : `camiones/${camion_id}/${req.tipo_documento_id}_${Date.now()}.${ext}`
-      : `compliance/${req.codigo}/${chofer_id ?? camion_id ?? "empresa"}_${Date.now()}.${ext}`;
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+
+    // Nombre legible de la entidad, para ordenar el storage en carpetas y para
+    // que el archivo se descargue con un nombre prolijo (no el UUID interno).
+    let scope: "choferes" | "camiones" | "empresa" = "empresa";
+    let entidadNombre = "Empresa";
+    if (chofer_id) {
+      scope = "choferes";
+      const { data: ch } = await supabase
+        .from("choferes")
+        .select("nombre, apellido")
+        .eq("id", chofer_id)
+        .single();
+      entidadNombre = [ch?.nombre, ch?.apellido].filter(Boolean).join(" ").trim() || "Chofer";
+    } else if (camion_id) {
+      scope = "camiones";
+      const { data: cm } = await supabase
+        .from("camiones")
+        .select("patente")
+        .eq("id", camion_id)
+        .single();
+      entidadNombre = cm?.patente || "Unidad";
+    }
+
+    const reqNombre = req.nombre ?? req.codigo;
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    // Carpeta legible: compliance/<scope>/<entidad>/<documento>-<fecha>-<rand>.<ext>
+    const storagePath = `compliance/${scope}/${slugify(entidadNombre)}/${slugify(reqNombre)}-${fechaHoy}-${Date.now().toString(36).slice(-4)}.${ext}`;
+    // Nombre con el que se descarga desde la web: "<Entidad> - <Documento>.<ext>"
+    const nombreDescarga = `${entidadNombre} - ${reqNombre}.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("documentos-personal")
@@ -266,7 +315,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
       .from("documentos_archivos")
       .insert({
         bucket: "documentos-personal",
-        nombre_original: file.name,
+        nombre_original: nombreDescarga,
         path: storagePath,
         tamano_bytes: file.size,
         mime_type: file.type,
@@ -319,8 +368,7 @@ export async function uploadComplianceDocAction(formData: FormData) {
     if (dbError) return { error: "Error al guardar el documento" };
   }
 
-  revalidatePath("/compliance/loma-negra");
-  revalidatePath("/compliance/ypf");
+  revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
@@ -403,8 +451,7 @@ export async function setComplianceVencimientoAction(input: {
     valores_nuevos: { fecha_vencimiento: input.fecha_vencimiento, observaciones },
   });
 
-  revalidatePath("/compliance/loma-negra");
-  revalidatePath("/compliance/ypf");
+  revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
@@ -414,22 +461,28 @@ export async function deleteComplianceDocAction(doc_id: string) {
   const supabase = createAdminClient();
   const { error } = await supabase.from("compliance_documentos").delete().eq("id", doc_id);
   if (error) return { error: "Error al eliminar" };
-  revalidatePath("/compliance/loma-negra");
-  revalidatePath("/compliance/ypf");
+  revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };
 }
 
-export async function getSignedUrlComplianceArchivoAction(archivo_id: string) {
+export async function getSignedUrlComplianceArchivoAction(
+  archivo_id: string,
+  opts?: { download?: boolean },
+) {
   await requireArea("compliance", "read");
   const supabase = createAdminClient();
   const { data: arch } = await supabase
     .from("documentos_archivos")
-    .select("bucket, path")
+    .select("bucket, path, nombre_original")
     .eq("id", archivo_id)
     .single();
   if (!arch) return { error: "Archivo no encontrado" };
-  const { data, error } = await supabase.storage.from(arch.bucket).createSignedUrl(arch.path, 60);
+  // Con `download` fuerza la descarga con el nombre prolijo (ej. "Juan Pérez - Carnet.pdf");
+  // sin él, abre el PDF en el navegador para verlo.
+  const { data, error } = await supabase.storage
+    .from(arch.bucket)
+    .createSignedUrl(arch.path, 60, opts?.download && arch.nombre_original ? { download: arch.nombre_original } : undefined);
   if (error || !data) return { error: "No se pudo generar el link" };
   return { url: data.signedUrl };
 }

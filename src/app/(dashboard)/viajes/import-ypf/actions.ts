@@ -294,8 +294,8 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
 
   revalidatePath("/viajes");
   revalidatePath("/viajes/hoja-ruta");
-  revalidatePath("/compliance/ypf");
-  revalidatePath("/compliance/ypf/dm");
+  revalidatePath("/compliance");
+  revalidatePath("/viajes/liquidaciones");
   revalidatePath("/tarifas");
 
   return {

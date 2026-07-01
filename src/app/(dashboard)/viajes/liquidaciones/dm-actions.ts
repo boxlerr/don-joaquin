@@ -32,7 +32,7 @@ export type DmYpfRow = {
 // ---------------------------------------------------------------------------
 
 export async function listDmYpfAction(): Promise<DmYpfRow[]> {
-  await requireArea("compliance", "read");
+  await requireArea("viajes", "read");
   const supabase = createAdminClient();
 
   // Traemos los DMs + el archivo (para mostrar nombre y poder descargar)
@@ -108,7 +108,7 @@ export async function listDmYpfAction(): Promise<DmYpfRow[]> {
 export async function getDmYpfPdfUrlAction(
   dmId: string,
 ): Promise<{ url?: string; error?: string }> {
-  await requireArea("compliance", "read");
+  await requireArea("viajes", "read");
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dm } = await (supabase as any)
@@ -141,7 +141,7 @@ export async function getDmYpfPdfUrlAction(
 export async function deleteDmYpfAction(
   dmId: string,
 ): Promise<{ ok?: boolean; error?: string }> {
-  await requireArea("compliance", "admin");
+  await requireArea("viajes", "admin");
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -165,6 +165,6 @@ export async function deleteDmYpfAction(
     await sb.from("documentos_archivos").delete().eq("id", dm.archivo_id);
   }
 
-  revalidatePath("/compliance/ypf/dm");
+  revalidatePath("/viajes/liquidaciones");
   return { ok: true };
 }

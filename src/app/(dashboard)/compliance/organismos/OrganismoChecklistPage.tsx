@@ -30,6 +30,8 @@ interface Props {
   destinatario: ComplianceDestinatario;
   rows: OrganismoChecklistRow[];
   canWrite: boolean;
+  /** Cuando es true, omite el padding lateral del root (lo asume el wrapper). */
+  embedded?: boolean;
 }
 
 const ESTADO_TONE: Record<ComplianceEstado, "success" | "warning" | "error" | "neutral"> = {
@@ -46,7 +48,7 @@ const ESTADO_LABEL: Record<ComplianceEstado, string> = {
   faltante: "Falta",
 };
 
-export default function OrganismoChecklistPage({ destinatario, rows, canWrite }: Props) {
+export default function OrganismoChecklistPage({ destinatario, rows, canWrite, embedded = false }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [dialogState, setDialogState] = useState<{
@@ -69,7 +71,7 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite }:
   const handleEdit = (row: OrganismoChecklistRow) => setDialogState({ row, edit: true });
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={embedded ? "space-y-6" : "p-8 space-y-6"}>
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

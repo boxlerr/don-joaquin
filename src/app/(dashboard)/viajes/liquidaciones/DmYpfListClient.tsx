@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { getDmYpfPdfUrlAction, type DmYpfRow } from "./actions";
+import { getDmYpfPdfUrlAction, type DmYpfRow } from "./dm-actions";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato

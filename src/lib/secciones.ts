@@ -26,6 +26,7 @@ export type SeccionCodigo =
   | "viajes_hoja_ruta"
   | "viajes_carga_rapida"
   | "viajes_planilla"
+  | "viajes_liquidaciones"
   // Flota
   | "camiones"
   | "extintores"
@@ -77,6 +78,7 @@ export const SECCIONES: Seccion[] = [
   { codigo: "viajes_hoja_ruta", area: "viajes", nombre: "Hoja de ruta", orden: 11 },
   { codigo: "viajes_carga_rapida", area: "viajes", nombre: "Carga rápida", orden: 12 },
   { codigo: "viajes_planilla", area: "viajes", nombre: "Planilla diaria", orden: 13 },
+  { codigo: "viajes_liquidaciones", area: "viajes", nombre: "DM y liquidaciones", orden: 14 },
   // --- Flota ---------------------------------------------------------------
   { codigo: "camiones", area: "flota", nombre: "Camiones", orden: 10 },
   { codigo: "extintores", area: "flota", nombre: "Extintores", orden: 11 },
