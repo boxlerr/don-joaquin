@@ -9,14 +9,26 @@ import {
   getAlertasProximosServicesAction,
   getReporteMantenimientoPorUnidadAction,
   getTiposServicioAction,
+  getInsumosAction,
+  getCostoRepuestosPorChoferAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function MantenimientoPage() {
+type Tab = "servicios" | "roturas" | "insumos" | "alertas" | "reportes";
+const TABS_VALIDAS: Tab[] = ["servicios", "roturas", "insumos", "alertas", "reportes"];
+
+export default async function MantenimientoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const user = await requireSeccion("mantenimiento_servicios", "read");
   const canWrite = hasSeccion(user, "mantenimiento_servicios", "write");
   const supabase = createAdminClient();
+
+  const { tab } = await searchParams;
+  const initialTab = TABS_VALIDAS.includes(tab as Tab) ? (tab as Tab) : undefined;
 
   const [
     servicios,
@@ -25,6 +37,8 @@ export default async function MantenimientoPage() {
     alertas,
     reportePorUnidad,
     tiposServicio,
+    insumos,
+    costoPorChofer,
     camionesResult,
     acopladosResult,
     choferesResult,
@@ -35,6 +49,8 @@ export default async function MantenimientoPage() {
     getAlertasProximosServicesAction(),
     getReporteMantenimientoPorUnidadAction(),
     getTiposServicioAction(),
+    getInsumosAction(),
+    getCostoRepuestosPorChoferAction(),
     supabase
       .from("camiones")
       .select("id, patente, marca, modelo, tercerizacion_estado, km_actual, chofer_actual_id")
@@ -70,11 +86,14 @@ export default async function MantenimientoPage() {
       roturasPorChofer={roturasPorChofer}
       alertas={alertas}
       reportePorUnidad={reportePorUnidad}
+      insumos={insumos}
+      costoPorChofer={costoPorChofer}
       tiposServicio={tiposServicio}
       camiones={camionesResult.data ?? []}
       acoplados={acopladosResult.data ?? []}
       choferes={choferesParaSelector}
       canWrite={canWrite}
+      initialTab={initialTab}
     />
   );
 }

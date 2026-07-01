@@ -33,22 +33,26 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
-import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3 } from "lucide-react";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Clock } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
+import AddInsumoDialog from "./AddInsumoDialog";
 import HelpTutorialButton from "../help-tutorial-button";
 import type { AcopladoOption, CamionOption, ChoferOption, TipoServicioOption } from "../types";
 import {
   deleteServicioAction,
   deleteRoturaAction,
+  deleteInsumoAction,
   type ServicioRow,
   type RoturaRow,
   type RoturaPorChofer,
   type AlertaServicio,
   type ReporteUnidadMant,
+  type InsumoRow,
+  type CostoRepuestosPorChofer,
 } from "../actions";
 
-type Tab = "servicios" | "roturas" | "alertas" | "reportes";
+type Tab = "servicios" | "roturas" | "insumos" | "alertas" | "reportes";
 
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
@@ -71,31 +75,38 @@ export default function MantenimientoClient({
   roturasPorChofer,
   alertas,
   reportePorUnidad,
+  insumos,
+  costoPorChofer,
   camiones,
   acoplados,
   choferes,
   tiposServicio,
   canWrite,
+  initialTab,
 }: {
   servicios: ServicioRow[];
   roturas: RoturaRow[];
   roturasPorChofer: RoturaPorChofer[];
   alertas: AlertaServicio[];
   reportePorUnidad: ReporteUnidadMant[];
+  insumos: InsumoRow[];
+  costoPorChofer: CostoRepuestosPorChofer[];
   camiones: CamionOption[];
   acoplados: AcopladoOption[];
   choferes: ChoferOption[];
   tiposServicio: TipoServicioOption[];
   canWrite: boolean;
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("servicios");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "servicios");
 
   // Edición
   const [editServicio, setEditServicio] = useState<ServicioRow | null>(null);
   const [editRotura, setEditRotura] = useState<RoturaRow | null>(null);
+  const [editInsumo, setEditInsumo] = useState<InsumoRow | null>(null);
   // Borrado (confirmación)
-  const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura"; id: string; label: string } | null>(null);
+  const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura" | "insumo"; id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
 
@@ -104,9 +115,12 @@ export default function MantenimientoClient({
     setDeleting(true);
     setDelError(null);
     try {
-      const res = confirmDel.tipo === "servicio"
-        ? await deleteServicioAction(confirmDel.id)
-        : await deleteRoturaAction(confirmDel.id);
+      const res =
+        confirmDel.tipo === "servicio"
+          ? await deleteServicioAction(confirmDel.id)
+          : confirmDel.tipo === "insumo"
+          ? await deleteInsumoAction(confirmDel.id)
+          : await deleteRoturaAction(confirmDel.id);
       if (res.error) {
         setDelError(res.error);
       } else {
@@ -122,16 +136,22 @@ export default function MantenimientoClient({
 
   const totalGomasRotas = roturas.reduce((acc, r) => acc + (r.cantidad ?? 0), 0);
   const alertasVencidas = alertas.filter((a) => a.estado === "vencido").length;
+  const insumosDesactualizados = insumos.filter((i) => i.precio_desactualizado).length;
 
   const chartData = roturasPorChofer.slice(0, 10);
   const tallerChartData = reportePorUnidad
     .filter((u) => u.visitas_taller > 0)
     .slice(0, 10)
     .map((u) => ({ unidad: u.unidad_patente, visitas: u.visitas_taller }));
+  const costoChartData = costoPorChofer
+    .filter((c) => c.costo_total > 0)
+    .slice(0, 10)
+    .map((c) => ({ chofer: c.chofer, costo: c.costo_total }));
 
   const tabs: { key: Tab; label: string; icon: typeof Wrench }[] = [
     { key: "servicios", label: "Servicios", icon: Wrench },
     { key: "roturas", label: "Roturas", icon: CircleDot },
+    { key: "insumos", label: "Insumos", icon: Package },
     { key: "alertas", label: "Alertas Pendientes", icon: BellRing },
     { key: "reportes", label: "Reportes", icon: BarChart3 },
   ];
@@ -155,7 +175,7 @@ export default function MantenimientoClient({
                   <Wrench size={15} strokeWidth={2.5} /> Cargar servicio
                 </Button>
               </AddServicioDialog>
-              <AddRoturaDialog camiones={camiones} acoplados={acoplados} choferes={choferes}>
+              <AddRoturaDialog camiones={camiones} acoplados={acoplados} choferes={choferes} insumos={insumos}>
                 <Button
                   variant="brand"
                   className="bg-[#F59E0B] hover:bg-[#D97706] text-white gap-2 shadow-sm"
@@ -338,7 +358,9 @@ export default function MantenimientoClient({
                           "—"
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{r.posicion ?? r.observaciones ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {[r.marca, r.estado_uso, r.posicion ?? r.observaciones].filter(Boolean).join(" · ") || "—"}
+                      </TableCell>
                       <TableCell className="text-right font-medium text-[#F59E0B]">{r.cantidad}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
                       {canWrite && (
@@ -348,6 +370,100 @@ export default function MantenimientoClient({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` });
+                              }}
+                              className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
+                              title="Borrar"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {tab === "insumos" && (
+        <div className="space-y-4">
+          {insumosDesactualizados > 0 && (
+            <div className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
+              <Clock size={16} className="mt-0.5 text-[#B45309] shrink-0" />
+              <p className="text-sm text-[#92400E]">
+                Hay <strong>{insumosDesactualizados}</strong> insumo{insumosDesactualizados !== 1 ? "s" : ""} con el
+                precio sin actualizar hace tiempo. Revisá los precios para que el costo por chofer sea confiable.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Catálogo de insumos con precio aproximado. Al cargar una rotura se elige de acá y el costo se trae solo.
+            </p>
+            {canWrite && (
+              <AddInsumoDialog>
+                <Button variant="brand" className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 shadow-sm">
+                  <Package size={15} strokeWidth={2.5} /> Agregar insumo
+                </Button>
+              </AddInsumoDialog>
+            )}
+          </div>
+
+          <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Insumo</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Categoría</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Marca</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Precio</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Actualizado</TableHead>
+                  {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {insumos.length === 0 ? (
+                  <EmptyTableRow message="Sin insumos cargados. Agregá los más comunes con el botón de arriba." />
+                ) : (
+                  insumos.map((i) => (
+                    <TableRow
+                      key={i.id}
+                      onClick={canWrite ? () => setEditInsumo(i) : undefined}
+                      className={canWrite ? "cursor-pointer" : undefined}
+                      title={canWrite ? "Editar insumo" : undefined}
+                    >
+                      <TableCell className="pl-6 font-medium">
+                        {i.nombre}
+                        {i.estado === "inactivo" && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            Inactivo
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{tipoRoturaLabel(i.tipo)}</TableCell>
+                      <TableCell className="text-muted-foreground">{i.marca ?? "—"}</TableCell>
+                      <TableCell className="text-right font-medium">{fmtMoneda(i.precio)}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          {fmtFecha(i.precio_actualizado_en)}
+                          {i.precio_desactualizado && (
+                            <span className="inline-flex items-center rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                              Desactualizado
+                            </span>
+                          )}
+                        </span>
+                      </TableCell>
+                      {canWrite && (
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDel({ tipo: "insumo", id: i.id, label: `Insumo ${i.nombre}` });
                               }}
                               className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
                               title="Borrar"
@@ -436,6 +552,59 @@ export default function MantenimientoClient({
       {tab === "reportes" && (
         <div className="space-y-6">
           <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
+            <h2 className="text-foreground text-sm font-semibold mb-1 inline-flex items-center gap-1.5">
+              <DollarSign size={15} className="text-[#16A34A]" /> Costo de repuestos por chofer
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Roturas con costo cargado en los últimos 6 meses (top 10). Sirve para saber cuánto le costó cada chofer.
+            </p>
+            {costoChartData.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Todavía no hay roturas con costo asociado a un chofer. Cargá el precio en el catálogo de Insumos.
+              </p>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={Math.max(160, costoChartData.length * 34)}>
+                  <BarChart data={costoChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
+                    <XAxis type="number" tickFormatter={(v) => `$${Number(v).toLocaleString("es-AR")}`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                    <YAxis type="category" dataKey="chofer" width={140} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                    <Tooltip
+                      cursor={{ fill: "var(--muted)", opacity: 0.3 }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
+                      formatter={(v) => [fmtMoneda(Number(v)), "Costo"] as [string, string]}
+                    />
+                    <Bar dataKey="costo" radius={[0, 3, 3, 0]} barSize={20}>
+                      {costoChartData.map((_, i) => (
+                        <Cell key={i} fill="#16A34A" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-4 overflow-hidden rounded-[8px] border border-border">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Chofer</TableHead>
+                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Roturas c/costo</TableHead>
+                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {costoPorChofer.map((c) => (
+                        <TableRow key={c.chofer}>
+                          <TableCell className="pl-6 font-medium">{c.chofer}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{c.eventos}</TableCell>
+                          <TableCell className="text-right pr-6 font-medium text-[#16A34A]">{fmtMoneda(c.costo_total)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
             <h2 className="text-foreground text-sm font-semibold mb-1">Visitas a taller por unidad</h2>
             <p className="text-xs text-muted-foreground mb-4">
               Reparaciones y gomería en los últimos 6 meses (top 10). Misma métrica que penaliza el ranking de choferes.
@@ -521,9 +690,17 @@ export default function MantenimientoClient({
           camiones={camiones}
           acoplados={acoplados}
           choferes={choferes}
+          insumos={insumos}
           editing={editRotura}
           open={!!editRotura}
           onOpenChange={(v) => { if (!v) setEditRotura(null); }}
+        />
+      )}
+      {editInsumo && (
+        <AddInsumoDialog
+          editing={editInsumo}
+          open={!!editInsumo}
+          onOpenChange={(v) => { if (!v) setEditInsumo(null); }}
         />
       )}
 

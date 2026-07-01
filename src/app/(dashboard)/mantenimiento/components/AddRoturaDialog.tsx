@@ -25,6 +25,7 @@ import {
   getArchivosRoturaAction,
   deleteArchivoRoturaAction,
   type RoturaRow,
+  type InsumoRow,
 } from "../actions";
 import type { AcopladoOption, CamionOption, ChoferOption } from "../types";
 
@@ -58,6 +59,7 @@ export default function AddRoturaDialog({
   camiones,
   acoplados,
   choferes,
+  insumos,
   editing,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -66,6 +68,7 @@ export default function AddRoturaDialog({
   camiones: CamionOption[];
   acoplados: AcopladoOption[];
   choferes: ChoferOption[];
+  insumos: InsumoRow[];
   editing?: RoturaRow | null;
   open?: boolean;
   onOpenChange?: (v: boolean) => void;
@@ -91,6 +94,13 @@ export default function AddRoturaDialog({
   const [cantidad, setCantidad] = useState("1");
   const [costo, setCosto] = useState("");
   const [posicion, setPosicion] = useState("");
+  const [insumoId, setInsumoId] = useState("");
+  const [marca, setMarca] = useState("");
+  const [estadoUso, setEstadoUso] = useState("");
+  // Marca que el costo se trajo del catálogo (para mostrar el aviso "traído del catálogo").
+  const [costoDeInsumo, setCostoDeInsumo] = useState(false);
+
+  const insumosActivos = insumos.filter((i) => i.estado === "activo");
 
   const adj = useAdjuntos({
     open,
@@ -107,6 +117,8 @@ export default function AddRoturaDialog({
   // La gravedad solo aplica a roturas que NO son gomas/llantas (esas cuentan en
   // su propio concepto del score). "Grave" pesa más que "leve" en "roturas varias".
   const mostrarGravedad = tipo !== "goma" && tipo !== "llanta";
+  // El "% de uso / estado" (como lo anota la planilla real) solo tiene sentido en gomas/llantas.
+  const mostrarEstadoUso = tipo === "goma" || tipo === "llanta";
 
   useEffect(() => {
     if (!open) return;
@@ -128,6 +140,10 @@ export default function AddRoturaDialog({
       setCantidad(String(editing.cantidad ?? 1));
       setCosto(editing.costo != null ? String(editing.costo) : "");
       setPosicion(editing.posicion ?? "");
+      setInsumoId(editing.insumo_id ?? "");
+      setMarca(editing.marca ?? "");
+      setEstadoUso(editing.estado_uso ?? "");
+      setCostoDeInsumo(false);
     } else {
       setChoferId("");
       setUnidad("");
@@ -138,6 +154,10 @@ export default function AddRoturaDialog({
       setCantidad("1");
       setCosto("");
       setPosicion("");
+      setInsumoId("");
+      setMarca("");
+      setEstadoUso("");
+      setCostoDeInsumo(false);
     }
     setUnidadAuto(false);
     setError(null);
@@ -168,6 +188,24 @@ export default function AddRoturaDialog({
     setUnidadAuto(false);
   };
 
+  // Elegir un insumo del catálogo: setea la categoría, la marca y trae el precio
+  // (queda editable). Así el taller no tipea el importe.
+  const elegirInsumo = (id: string) => {
+    setInsumoId(id);
+    const ins = id ? insumos.find((i) => i.id === id) : undefined;
+    if (ins) {
+      if (VALORES_CONOCIDOS.has(ins.tipo)) {
+        setTipo(ins.tipo);
+        setTipoCustom("");
+      }
+      if (ins.marca) setMarca(ins.marca);
+      setCosto(String(ins.precio ?? 0));
+      setCostoDeInsumo(true);
+    } else {
+      setCostoDeInsumo(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!choferId && !unidad) return setError("Elegí el chofer o la unidad (camión / acoplado).");
@@ -196,6 +234,9 @@ export default function AddRoturaDialog({
         cantidad: parseInt(cantidad) || 1,
         costo: costo ? parseFloat(costo) : null,
         posicion: posicion || null,
+        insumo_id: insumoId || null,
+        marca: marca.trim() || null,
+        estado_uso: mostrarEstadoUso ? estadoUso.trim() || null : null,
         archivos,
       };
       const result = editing
@@ -231,6 +272,32 @@ export default function AddRoturaDialog({
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
+          {insumosActivos.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="insumo" className="text-sm font-medium text-foreground">
+                Insumo del catálogo <span className="text-muted-foreground font-normal">(trae el costo)</span>
+              </Label>
+              <Select value={insumoId || "__none__"} onValueChange={(v) => elegirInsumo(v === "__none__" ? "" : (v ?? ""))}>
+                <SelectTrigger id="insumo" className="w-full">
+                  <span className={insumoId ? "" : "text-muted-foreground"}>
+                    {(() => {
+                      const ins = insumos.find((i) => i.id === insumoId);
+                      return ins ? `${ins.nombre}${ins.marca ? ` · ${ins.marca}` : ""}` : "Sin insumo del catálogo";
+                    })()}
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin insumo del catálogo</SelectItem>
+                  {insumosActivos.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>
+                      {i.nombre}{i.marca ? ` · ${i.marca}` : ""} — ${i.precio.toLocaleString("es-AR")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="tipo" className="text-sm font-medium text-foreground">
               ¿Qué se rompió? <span className="text-red-400">*</span>
@@ -256,6 +323,18 @@ export default function AddRoturaDialog({
                 autoFocus
               />
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="marca" className="text-sm font-medium text-foreground">
+              Marca <span className="text-muted-foreground font-normal">(opcional)</span>
+            </Label>
+            <Input
+              id="marca"
+              placeholder="Ej: Michelin, Bazán, Work…"
+              value={marca}
+              onChange={(e) => setMarca(e.target.value)}
+            />
           </div>
 
           {mostrarGravedad && (
@@ -347,9 +426,35 @@ export default function AddRoturaDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="costo" className="text-sm font-medium text-foreground">Costo $</Label>
-              <Input id="costo" type="number" placeholder="Opcional" value={costo} onChange={(e) => setCosto(e.target.value)} />
+              <Input
+                id="costo"
+                type="number"
+                placeholder="Opcional"
+                value={costo}
+                onChange={(e) => { setCosto(e.target.value); setCostoDeInsumo(false); }}
+              />
             </div>
           </div>
+
+          {costoDeInsumo && costo && (
+            <p className="-mt-2 text-[11px] text-muted-foreground">
+              Costo traído del catálogo — podés ajustarlo si hace falta.
+            </p>
+          )}
+
+          {mostrarEstadoUso && (
+            <div className="space-y-2">
+              <Label htmlFor="estado-uso" className="text-sm font-medium text-foreground">
+                % de uso / estado <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Input
+                id="estado-uso"
+                placeholder="Ej: 30% de uso, media, casi nueva…"
+                value={estadoUso}
+                onChange={(e) => setEstadoUso(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="pos" className="text-sm font-medium text-foreground">

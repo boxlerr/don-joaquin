@@ -232,20 +232,27 @@ export type RoturaRow = {
   unidad_patente: string | null;
   unidad_tipo: "camion" | "acoplado" | null;
   chofer_nombre: string | null;
+  insumo_id: string | null;
+  marca: string | null;
+  estado_uso: string | null;
 };
 
 export async function getRoturasAction(): Promise<RoturaRow[]> {
   await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
-  const { data } = await supabase
+  // insumo_id/marca/estado_uso son columnas nuevas todavía no reflejadas en los
+  // tipos generados; usamos un cast puntual para poder pedirlas en el select.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from("roturas_gomas")
     .select(
-      "id, fecha, tipo, gravedad, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
+      "id, fecha, tipo, gravedad, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, insumo_id, marca, estado_uso, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
     )
     .order("fecha", { ascending: false })
     .limit(200);
 
-  return (data ?? []).map((r) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((r) => {
     const camion = Array.isArray(r.camion) ? r.camion[0] : r.camion;
     const acoplado = Array.isArray(r.acoplado) ? r.acoplado[0] : r.acoplado;
     const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
@@ -267,6 +274,9 @@ export async function getRoturasAction(): Promise<RoturaRow[]> {
       unidad_patente,
       unidad_tipo,
       chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
+      insumo_id: r.insumo_id ?? null,
+      marca: r.marca ?? null,
+      estado_uso: r.estado_uso ?? null,
     };
   });
 }
@@ -302,6 +312,267 @@ export async function getRoturasPorChoferAction(): Promise<RoturaPorChofer[]> {
   return [...map.values()].sort((a, b) => b.cantidad - a.cantidad);
 }
 
+export type CostoRepuestosPorChofer = {
+  chofer: string;
+  eventos: number;
+  costo_total: number;
+};
+
+// Cuánto costó cada chofer en repuestos (roturas con costo) en los últimos 6
+// meses. Es lo que Bárbara quiere sumarle al sueldo para saber el costo real.
+export async function getCostoRepuestosPorChoferAction(): Promise<CostoRepuestosPorChofer[]> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - 6);
+  const { data } = await supabase
+    .from("roturas_gomas")
+    .select("costo, chofer:choferes(nombre, apellido)")
+    .gte("fecha", desde.toISOString().split("T")[0])
+    .not("chofer_id", "is", null)
+    .not("costo", "is", null);
+
+  const map = new Map<string, CostoRepuestosPorChofer>();
+  for (const r of data ?? []) {
+    const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
+    if (!chofer) continue;
+    const nombre = `${chofer.apellido}, ${chofer.nombre}`;
+    const prev = map.get(nombre) ?? { chofer: nombre, eventos: 0, costo_total: 0 };
+    prev.eventos += 1;
+    prev.costo_total += Number(r.costo ?? 0);
+    map.set(nombre, prev);
+  }
+  return [...map.values()].sort((a, b) => b.costo_total - a.costo_total);
+}
+
+// ── Catálogo de insumos ──────────────────────────────────────────────────────
+//
+// El taller no carga facturas. Administración mantiene un catálogo de los insumos
+// comunes (goma, lámpara, óptica, etc.) con marca + precio, y al cargar una rotura
+// se elige el insumo para traer el importe (queda editable). El sistema recuerda
+// actualizar los precios cada `alerta_insumo_precio_meses` (motor de alertas).
+
+export type InsumoRow = {
+  id: string;
+  tipo: string;
+  nombre: string;
+  marca: string | null;
+  precio: number;
+  moneda: string;
+  estado: string; // "activo" | "inactivo"
+  orden: number;
+  precio_actualizado_en: string;
+  observaciones: string | null;
+  precio_desactualizado: boolean;
+};
+
+/** Meses configurados antes de considerar un precio "desactualizado" (default 3). */
+async function getInsumoPrecioMeses(supabase: ReturnType<typeof createAdminClient>): Promise<number> {
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", "alerta_insumo_precio_meses")
+    .maybeSingle();
+  const n = Number(data?.valor);
+  return Number.isFinite(n) && n > 0 ? n : 3;
+}
+
+export async function getInsumosAction(): Promise<InsumoRow[]> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+  const meses = await getInsumoPrecioMeses(supabase);
+  const limite = new Date();
+  limite.setMonth(limite.getMonth() - meses);
+  const limiteStr = limite.toISOString().split("T")[0];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("insumos_catalogo")
+    .select("id, tipo, nombre, marca, precio, moneda, estado, orden, precio_actualizado_en, observaciones")
+    .order("estado", { ascending: true }) // activo antes que inactivo
+    .order("orden", { ascending: true })
+    .order("nombre", { ascending: true });
+
+  if (error) {
+    console.error("Error al cargar insumos:", error);
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((r) => ({
+    id: r.id,
+    tipo: r.tipo ?? "goma",
+    nombre: r.nombre,
+    marca: r.marca ?? null,
+    precio: Number(r.precio ?? 0),
+    moneda: r.moneda ?? "ARS",
+    estado: r.estado ?? "activo",
+    orden: r.orden ?? 0,
+    precio_actualizado_en: r.precio_actualizado_en,
+    observaciones: r.observaciones ?? null,
+    precio_desactualizado:
+      r.estado === "activo" && !!r.precio_actualizado_en && String(r.precio_actualizado_en) < limiteStr,
+  }));
+}
+
+/** Trae precio y marca del insumo elegido para autocompletar la rotura. */
+async function resolverInsumoRotura(
+  supabase: ReturnType<typeof createAdminClient>,
+  data: { insumo_id?: string | null; costo?: number | null; marca?: string | null },
+): Promise<{ costo: number | null; marca: string | null }> {
+  let costo = data.costo ?? null;
+  let marca = data.marca?.trim() || null;
+  if (data.insumo_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ins } = await (supabase as any)
+      .from("insumos_catalogo")
+      .select("precio, marca")
+      .eq("id", data.insumo_id)
+      .maybeSingle();
+    if (ins) {
+      if (costo == null) costo = Number(ins.precio ?? 0);
+      if (!marca) marca = ins.marca ?? null;
+    }
+  }
+  return { costo, marca };
+}
+
+export async function addInsumoAction(data: {
+  tipo: string;
+  nombre: string;
+  marca?: string | null;
+  precio: number;
+  estado?: string;
+  observaciones?: string | null;
+}) {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const nombre = data.nombre?.trim();
+  if (!nombre) return { error: "Escribí el nombre del insumo." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
+    .from("insumos_catalogo")
+    .insert({
+      tipo: (data.tipo || "goma").trim() || "goma",
+      nombre,
+      marca: data.marca?.trim() || null,
+      precio: data.precio > 0 ? data.precio : 0,
+      estado: data.estado === "inactivo" ? "inactivo" : "activo",
+      observaciones: data.observaciones?.trim() || null,
+      created_by: user?.id ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error al insertar insumo:", error);
+    return { error: "No se pudo guardar el insumo." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "crear",
+    entidadTipo: "insumo_catalogo",
+    entidadId: inserted?.id ?? null,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: data,
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
+export async function updateInsumoAction(
+  id: string,
+  data: {
+    tipo: string;
+    nombre: string;
+    marca?: string | null;
+    precio: number;
+    estado?: string;
+    observaciones?: string | null;
+  },
+) {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const nombre = data.nombre?.trim();
+  if (!nombre) return { error: "Escribí el nombre del insumo." };
+
+  // Si cambia el precio, refrescamos precio_actualizado_en (apaga el recordatorio).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: prev } = await (supabase as any)
+    .from("insumos_catalogo")
+    .select("precio")
+    .eq("id", id)
+    .maybeSingle();
+  const precio = data.precio > 0 ? data.precio : 0;
+  const precioCambio = !prev || Number(prev.precio) !== precio;
+
+  const update: Record<string, unknown> = {
+    tipo: (data.tipo || "goma").trim() || "goma",
+    nombre,
+    marca: data.marca?.trim() || null,
+    precio,
+    estado: data.estado === "inactivo" ? "inactivo" : "activo",
+    observaciones: data.observaciones?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  if (precioCambio) update.precio_actualizado_en = new Date().toISOString().split("T")[0];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("insumos_catalogo").update(update).eq("id", id);
+  if (error) {
+    console.error("Error al actualizar insumo:", error);
+    return { error: "No se pudo actualizar el insumo." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "insumo_catalogo",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: data,
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
+export async function deleteInsumoAction(id: string) {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  // Las roturas que lo referencian quedan con insumo_id = null (ON DELETE SET NULL);
+  // no se pierde el costo ya cargado en cada rotura.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("insumos_catalogo").delete().eq("id", id);
+  if (error) {
+    console.error("Error al eliminar insumo:", error);
+    return { error: "No se pudo eliminar el insumo." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "eliminar",
+    entidadTipo: "insumo_catalogo",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
 export async function addRoturaAction(data: {
   camion_id?: string | null;
   acoplado_id?: string | null;
@@ -313,6 +584,9 @@ export async function addRoturaAction(data: {
   costo?: number | null;
   posicion?: string | null;
   observaciones?: string | null;
+  insumo_id?: string | null;
+  marca?: string | null;
+  estado_uso?: string | null;
   archivos?: AdjuntoArchivoMeta[];
 }) {
   await requireArea("mantenimiento", "write");
@@ -325,7 +599,15 @@ export async function addRoturaAction(data: {
   if (!data.camion_id && !data.acoplado_id && !data.chofer_id)
     return { error: "Indicá al menos el camión, el acoplado o el chofer." };
 
-  const { data: inserted, error } = await supabase
+  // El taller no carga facturas: si eligió un insumo del catálogo, tomamos su
+  // precio (cuando no se cargó un costo a mano) y su marca (cuando no se escribió
+  // una). El costo queda editable, así que un costo cargado explícito prevalece.
+  const { costo: costoFinal, marca: marcaFinal } = await resolverInsumoRotura(supabase, data);
+
+  // insumo_id/marca/estado_uso son columnas nuevas aún no reflejadas en los tipos
+  // generados; cast puntual (mismo patrón que el resto de tablas nuevas del repo).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
     .from("roturas_gomas")
     .insert({
       camion_id: data.camion_id || null,
@@ -335,10 +617,13 @@ export async function addRoturaAction(data: {
       gravedad: data.gravedad === "grave" ? "grave" : "leve",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
-      costo: data.costo ?? null,
+      costo: costoFinal,
       moneda: "ARS",
       posicion: data.posicion || null,
       observaciones: data.observaciones || null,
+      insumo_id: data.insumo_id || null,
+      marca: marcaFinal,
+      estado_uso: data.estado_uso?.trim() || null,
       created_by: user?.id ?? null,
     })
     .select("id")
@@ -495,6 +780,9 @@ export async function updateRoturaAction(
     costo?: number | null;
     posicion?: string | null;
     observaciones?: string | null;
+    insumo_id?: string | null;
+    marca?: string | null;
+    estado_uso?: string | null;
     archivos?: AdjuntoArchivoMeta[];
   },
 ) {
@@ -506,7 +794,10 @@ export async function updateRoturaAction(
   if (!data.camion_id && !data.acoplado_id && !data.chofer_id)
     return { error: "Indicá al menos el camión, el acoplado o el chofer." };
 
-  const { error } = await supabase
+  const { costo: costoFinal, marca: marcaFinal } = await resolverInsumoRotura(supabase, data);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from("roturas_gomas")
     .update({
       camion_id: data.camion_id || null,
@@ -516,9 +807,12 @@ export async function updateRoturaAction(
       gravedad: data.gravedad === "grave" ? "grave" : "leve",
       fecha: data.fecha,
       cantidad: data.cantidad > 0 ? data.cantidad : 1,
-      costo: data.costo ?? null,
+      costo: costoFinal,
       posicion: data.posicion || null,
       observaciones: data.observaciones || null,
+      insumo_id: data.insumo_id || null,
+      marca: marcaFinal,
+      estado_uso: data.estado_uso?.trim() || null,
     })
     .eq("id", id);
 

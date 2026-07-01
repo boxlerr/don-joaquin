@@ -18,6 +18,7 @@ async function getUmbralesAlertas() {
     "alerta_cumple_dias_preaviso",
     "alerta_aniversario_dias_preaviso",
     "alerta_ausencia_dias_preaviso",
+    "alerta_insumo_precio_meses",
   ];
 
   const { data } = await supabase
@@ -40,6 +41,7 @@ async function getUmbralesAlertas() {
     diasCumplePreaviso: map["alerta_cumple_dias_preaviso"] ?? 30,
     diasAniversarioPreaviso: map["alerta_aniversario_dias_preaviso"] ?? 30,
     diasAusenciaPreaviso: map["alerta_ausencia_dias_preaviso"] ?? 7,
+    mesesInsumoPrecio: map["alerta_insumo_precio_meses"] ?? 3,
   };
 }
 
@@ -76,7 +78,7 @@ export async function generarAlertas() {
     severidad: string;
     titulo: string;
     mensaje: string;
-    entidad_id: string;
+    entidad_id: string | null;
     entidad_tipo: string;
     fecha_disparo: string;
     fecha_vencimiento?: string;
@@ -748,6 +750,44 @@ export async function generarAlertas() {
         fecha_disparo: new Date().toISOString(),
         fecha_vencimiento: f.fecha_limite,
       });
+    }
+  }
+
+  // Catálogo de insumos — recordatorio de actualización de precios. Una sola
+  // alerta agregada por mes si hay insumos activos con el precio viejo, para que
+  // administración lo refresque y el costo por chofer siga siendo confiable.
+  // El vencimiento se fija a fin de mes para que la alerta siga "viva" (y no se
+  // duplique) aunque se la marque leída dentro del mismo mes.
+  {
+    const limite = new Date(hoy);
+    limite.setMonth(limite.getMonth() - umbrales.mesesInsumoPrecio);
+    const limiteStr = limite.toISOString().split("T")[0]!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { count } = await (supabase as any)
+      .from("insumos_catalogo")
+      .select("id", { count: "exact", head: true })
+      .eq("estado", "activo")
+      .lt("precio_actualizado_en", limiteStr);
+    const desactualizados = count ?? 0;
+    if (desactualizados > 0) {
+      const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+      const finMesStr = `${finMes.getFullYear()}-${String(finMes.getMonth() + 1).padStart(2, "0")}-${String(finMes.getDate()).padStart(2, "0")}`;
+      // entidad_id null (alerta agregada, no apunta a una fila puntual). La clave
+      // de dedup se arma igual que existentesSet: `otro:${entidad_id}:${entidad_tipo}:${fecha_venc}`.
+      const key = `otro:${null}:insumo_precio_desactualizado:${finMesStr}`;
+      if (!existentesSet.has(key)) {
+        const mesesTxt = `${umbrales.mesesInsumoPrecio} mes${umbrales.mesesInsumoPrecio !== 1 ? "es" : ""}`;
+        nuevasAlertas.push({
+          tipo: "otro",
+          severidad: "info",
+          titulo: "Actualizar precios del catálogo de insumos",
+          mensaje: `Hay ${desactualizados} insumo${desactualizados !== 1 ? "s" : ""} del catálogo con el precio sin actualizar hace más de ${mesesTxt}. Revisalos en Mantenimiento → Insumos.`,
+          entidad_id: null,
+          entidad_tipo: "insumo_precio_desactualizado",
+          fecha_disparo: new Date().toISOString(),
+          fecha_vencimiento: finMesStr,
+        });
+      }
     }
   }
 

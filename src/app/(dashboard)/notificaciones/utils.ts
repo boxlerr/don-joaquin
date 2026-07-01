@@ -60,6 +60,10 @@ export function categoriaDeAlerta(tipo: string, entidadTipo?: string | null): Al
 }
 
 export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "entidad_id">): string | null {
+  // Recordatorio de precios del catálogo → tab Insumos de Mantenimiento.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo === "insumo_precio_desactualizado") {
+    return "/mantenimiento?tab=insumos";
+  }
   // Ausencia programada → legajo del chofer, tab Ausencias.
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "chofer_ausencia" && alerta.entidad_id) {
     return `/choferes/${alerta.entidad_id}?tab=ausencias`;
