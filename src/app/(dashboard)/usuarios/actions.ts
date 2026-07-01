@@ -247,8 +247,15 @@ export async function updateRolSeccionAction(
   // Para subsecciones NO confidenciales el override solo puede RESTRINGIR: nunca
   // igualar ni superar el nivel del área (eso ya es "Hereda del área"). Espeja el
   // cap de la resolución en auth.ts, así no se guardan estados que se ignorarían.
+  // La confidencialidad es editable (tabla `secciones`), con fallback al catálogo.
   const sec = SECCION_BY_CODIGO[seccion_codigo];
-  if (sec && !sec.confidencial) {
+  const { data: secRow } = (await sb
+    .from("secciones")
+    .select("confidencial")
+    .eq("codigo", seccion_codigo)
+    .maybeSingle()) as { data: { confidencial: boolean } | null };
+  const esConfidencial = secRow?.confidencial ?? !!sec?.confidencial;
+  if (sec && !esConfidencial) {
     const { data: ra } = await supabase
       .from("rol_areas")
       .select("nivel")
@@ -281,6 +288,54 @@ export async function updateRolSeccionAction(
     valoresNuevos: { rol_id, seccion_codigo, nivel },
     metadata: { rol_codigo: rol.codigo },
   });
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Confidencialidad de subsección (global, no por rol)
+// ---------------------------------------------------------------------------
+//
+// Marca/desmarca una subsección como "confidencial": arranca cerrada para todos
+// los roles no-admin (hay que otorgarla explícitamente por rol). Editable acá
+// para poder ajustar la lista sensible "sobre la marcha" sin un deploy.
+
+export async function setSeccionConfidencialAction(
+  seccion_codigo: SeccionCodigo,
+  confidencial: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireAdmin();
+
+  const sec = SECCION_BY_CODIGO[seccion_codigo];
+  if (!sec) return { error: "Subsección inexistente" };
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `secciones` aún no está en los tipos generados
+  const sb = supabase as any;
+
+  // Upsert desde el catálogo de código: garantiza que la fila exista (las columnas
+  // NOT NULL salen de SECCIONES) y deja `confidencial` con el valor pedido.
+  const { error } = (await sb.from("secciones").upsert(
+    {
+      codigo: sec.codigo,
+      area_codigo: sec.area,
+      nombre: sec.nombre,
+      orden: sec.orden,
+      confidencial,
+    },
+    { onConflict: "codigo" },
+  )) as { error: { message: string } | null };
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "secciones",
+    entidadId: seccion_codigo,
+    valoresNuevos: { seccion_codigo, confidencial },
+  });
+
   revalidatePath("/usuarios");
   return { ok: true };
 }

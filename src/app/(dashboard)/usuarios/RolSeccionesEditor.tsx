@@ -30,6 +30,8 @@ interface Props {
   matriz: Matriz;
   /** Overrides actuales rol×subsección. */
   initial: Overrides;
+  /** Confidencialidad efectiva por subsección (DB > catálogo de código). */
+  confidencial: Record<SeccionCodigo, boolean>;
 }
 
 const RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
@@ -38,7 +40,9 @@ const ESCALA: AreaNivel[] = ["none", "read", "write", "admin"];
 // Áreas que tienen al menos una subsección, en orden.
 const AREAS_CON_SECCIONES = [...new Set(SECCIONES.map((s) => s.area))];
 
-export default function RolSeccionesEditor({ roles, areas, matriz, initial }: Props) {
+export default function RolSeccionesEditor({ roles, areas, matriz, initial, confidencial }: Props) {
+  const esConf = (s: { codigo: SeccionCodigo; confidencial?: boolean }) =>
+    confidencial[s.codigo] ?? !!s.confidencial;
   const editables = useMemo(() => roles.filter((r) => r.codigo !== "admin"), [roles]);
   const [rolId, setRolId] = useState<string>(editables[0]?.id ?? "");
   const [overrides, setOverrides] = useState<Overrides>(initial);
@@ -129,7 +133,7 @@ export default function RolSeccionesEditor({ roles, areas, matriz, initial }: Pr
           const areaLvl = (matriz[rolId]?.[area] ?? "none") as AreaNivel;
           const subs = seccionesDeArea(area).filter(
             // si el rol no tiene el área, solo tiene sentido mostrar las confidenciales (otorgables aparte)
-            (s) => s.confidencial || RANK[areaLvl] > 0,
+            (s) => esConf(s) || RANK[areaLvl] > 0,
           );
           if (subs.length === 0) return null;
 
@@ -151,7 +155,8 @@ export default function RolSeccionesEditor({ roles, areas, matriz, initial }: Pr
                   const isSaving = saving === cellKey && isPending;
 
                   // Opciones: "Hereda" + niveles válidos. No confidencial: solo restringir (<= área).
-                  const opciones = s.confidencial
+                  const confSec = esConf(s);
+                  const opciones = confSec
                     ? [
                         { id: "hereda", label: "Sin acceso (cerrado)" },
                         { id: "read", label: "Lectura" },
@@ -171,12 +176,12 @@ export default function RolSeccionesEditor({ roles, areas, matriz, initial }: Pr
                   // quedó por encima del tope del área, se muestra como "Hereda").
                   const value = ov && opciones.some((o) => o.id === ov) ? ov : "hereda";
                   // Clase del trigger según el nivel efectivo mostrado.
-                  const efectivo: AreaNivel = ov ?? (s.confidencial ? "none" : areaLvl);
+                  const efectivo: AreaNivel = ov ?? (confSec ? "none" : areaLvl);
 
                   return (
                     <div key={s.codigo} className="flex items-center justify-between gap-2 px-3 py-2">
                       <span className="flex items-center gap-1.5 text-xs text-foreground min-w-0">
-                        {s.confidencial && <Lock size={12} className="text-amber-600 shrink-0" />}
+                        {confSec && <Lock size={12} className="text-amber-600 shrink-0" />}
                         <span className="truncate">{s.nombre}</span>
                       </span>
                       <Combobox

@@ -146,6 +146,18 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     overrideSeccion.set(row.seccion_codigo, row.nivel as AreaNivel);
   }
 
+  // Confidencialidad efectiva: editable desde /usuarios (tabla `secciones`), con
+  // fallback al catálogo de código. Así se puede marcar/desmarcar una sección como
+  // sensible "sobre la marcha" sin un deploy. `as any`: `secciones` no está en los
+  // tipos generados todavía.
+  type SeccionConfRow = { codigo: string; confidencial: boolean };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: seccionesDb } = (await (supabase as any)
+    .from("secciones")
+    .select("codigo, confidencial")) as { data: SeccionConfRow[] | null };
+  const confidencialDb = new Map<string, boolean>();
+  for (const row of seccionesDb ?? []) confidencialDb.set(row.codigo, !!row.confidencial);
+
   const esAdmin = rol.codigo === "admin";
   const secciones = {} as Record<SeccionCodigo, AreaNivel>;
   for (const s of SECCIONES) {
@@ -154,7 +166,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       continue;
     }
     const ov = overrideSeccion.get(s.codigo);
-    if (s.confidencial) {
+    const esConfidencial = confidencialDb.get(s.codigo) ?? !!s.confidencial;
+    if (esConfidencial) {
       // Confidencial: cerrada salvo que se otorgue explícitamente (puede darse sin el área).
       secciones[s.codigo] = ov ?? "none";
       continue;

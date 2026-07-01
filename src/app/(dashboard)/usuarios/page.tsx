@@ -5,12 +5,13 @@ import { OpenAuditButton } from "@/components/open-audit-button";
 import { getCurrentUser, requireSeccion } from "@/lib/auth";
 import RolesPermisosMatrix from "./RolesPermisosMatrix";
 import RolSeccionesEditor from "./RolSeccionesEditor";
+import SeccionesConfidencialEditor from "./SeccionesConfidencialEditor";
 import UsuariosListaClient, { type UsuarioRow } from "./UsuariosListaClient";
 import NuevoUsuarioDialog from "./NuevoUsuarioDialog";
 import UsuarioPermisosOverrides from "./UsuarioPermisosOverrides";
 import HelpUsuariosDialog from "./HelpUsuariosDialog";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
-import type { SeccionCodigo } from "@/lib/secciones";
+import { SECCIONES, type SeccionCodigo } from "@/lib/secciones";
 
 export default async function UsuariosPage() {
   await requireSeccion("usuarios", "read");
@@ -28,6 +29,7 @@ export default async function UsuariosPage() {
     rolAreasRes,
     usuarioAreasRes,
     rolSeccionesRes,
+    seccionesConfRes,
   ] = await Promise.all([
     supabase
       .from("usuarios")
@@ -64,6 +66,12 @@ export default async function UsuariosPage() {
           .from("rol_secciones")
           .select("rol_id, seccion_codigo, nivel")
       : Promise.resolve({ data: null }),
+    showMatriz
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- secciones aún no está en los tipos generados de Supabase
+      ? (supabase as any)
+          .from("secciones")
+          .select("codigo, confidencial")
+      : Promise.resolve({ data: null }),
   ]);
 
   const roles = (rolesRes.data ?? []) as { id: string; codigo: string; nombre: string }[];
@@ -94,6 +102,15 @@ export default async function UsuariosPage() {
     if (!rolSeccionesInicial[rs.rol_id]) rolSeccionesInicial[rs.rol_id] = {};
     rolSeccionesInicial[rs.rol_id][rs.seccion_codigo] = rs.nivel;
   }
+
+  // Confidencialidad efectiva por subsección: valor de la DB (editable) con
+  // fallback al catálogo de código. Alimenta el editor de confidencialidad y hace
+  // que "Permisos finos" muestre el candado según el estado real.
+  const seccionesConf = (seccionesConfRes.data ?? []) as { codigo: string; confidencial: boolean }[];
+  const confDb = new Map(seccionesConf.map((s) => [s.codigo, !!s.confidencial]));
+  const confidencialMap = Object.fromEntries(
+    SECCIONES.map((s) => [s.codigo, confDb.get(s.codigo) ?? !!s.confidencial]),
+  ) as Record<SeccionCodigo, boolean>;
 
   const usuariosFila = (usuarios ?? []).map((u) => {
     const rol = (u.roles as unknown as { codigo: string; nombre: string } | null) ?? null;
@@ -151,12 +168,17 @@ export default async function UsuariosPage() {
         <RolesPermisosMatrix roles={roles} areas={areas} initialMatriz={matrizInicial} />
       )}
 
+      {showMatriz && areas.length > 0 && (
+        <SeccionesConfidencialEditor areas={areas} initial={confidencialMap} />
+      )}
+
       {showMatriz && roles.length > 0 && areas.length > 0 && (
         <RolSeccionesEditor
           roles={roles}
           areas={areas}
           matriz={matrizInicial}
           initial={rolSeccionesInicial}
+          confidencial={confidencialMap}
         />
       )}
 
