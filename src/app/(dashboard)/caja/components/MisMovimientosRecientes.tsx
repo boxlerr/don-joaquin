@@ -45,9 +45,9 @@ function formatFecha(iso: string): string {
 }
 
 /**
- * Lista para el "modo operador" (operar ≠ ver): solo las últimas cargas
- * PROPIAS de la caja diaria, sin totales ni saldo. Sirve para que quien
- * carga movimientos pueda verificar que lo suyo quedó registrado.
+ * Lista para el "modo operador" (operar ≠ ver): los movimientos de la caja
+ * diaria de ayer y hoy, sin totales ni saldo. Pedido de Bárbara (02/07):
+ * que el operador vea el día anterior para guiarse al cargar.
  */
 export default function MisMovimientosRecientes() {
   const [rows, setRows] = useState<MisMovimientoRow[]>([]);
@@ -85,9 +85,9 @@ export default function MisMovimientosRecientes() {
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2">
           <Wallet size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Tus últimos movimientos cargados</h2>
+          <h2 className="text-foreground text-sm font-semibold">Movimientos de ayer y hoy</h2>
         </div>
-        <p className="text-xs text-muted-foreground">Se muestran hasta 20</p>
+        <p className="text-xs text-muted-foreground">Para guiarte al cargar — sin saldos ni historial</p>
       </div>
 
       <Table>
@@ -118,7 +118,7 @@ export default function MisMovimientosRecientes() {
               </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
-            <EmptyTableRow message="Todavía no cargaste movimientos" />
+            <EmptyTableRow message="Sin movimientos entre ayer y hoy" />
           ) : (
             rows.map((m) => {
               const esIngreso = m.tipo === "ingreso";

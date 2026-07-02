@@ -101,7 +101,7 @@ export default async function CajaPage() {
     .reverse();
 
   // Modo operador: puede cargar movimientos de la caja diaria pero el saldo y
-  // el historial completo son privados. Solo ve sus propias cargas recientes.
+  // el historial completo son privados. Ve ayer y hoy para guiarse (pedido 02/07).
   if (!puedeVerSaldo) {
     return (
       <div className="p-8">
@@ -137,7 +137,7 @@ export default async function CajaPage() {
           <EyeOff size={16} className="text-amber-600 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-700">
             Podés cargar movimientos de la caja; el saldo y el historial completo son privados.
-            Abajo se muestran solo los movimientos que cargaste vos.
+            Abajo se muestran los movimientos de ayer y de hoy, para guiarte.
           </p>
         </div>
 

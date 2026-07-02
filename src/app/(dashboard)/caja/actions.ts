@@ -345,29 +345,34 @@ export type MisMovimientoRow = {
 };
 
 /**
- * Modo operador (operar ≠ ver): quien puede cargar movimientos pero no tiene
- * caja_saldo solo ve SUS últimas cargas de la caja diaria — sin totales ni
- * saldo — para chequear que lo suyo quedó registrado.
+ * Modo operador (operar ≠ ver): quien carga movimientos sin tener caja_saldo
+ * ve los movimientos de la caja diaria de AYER y HOY — sin totales ni saldo.
+ * Bárbara (audios 02/07): "ellos deberían poder ver el día anterior para
+ * guiarse y anotar lo que entra y lo que sale"; el historial completo y los
+ * retiros sensibles no (esos viven en la caja grande o más atrás en el tiempo).
  */
 export async function getMisMovimientosRecientesAction(): Promise<
   MisMovimientoRow[] | { error: string }
 > {
-  const user = await requireArea("caja", "write");
+  await requireArea("caja", "write");
   const supabase = createAdminClient();
+
+  // Ayer a las 00:00 en adelante (fecha es date, alcanza con el día).
+  const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("caja_movimientos")
     .select("id, fecha, tipo, categoria, concepto, monto, medio")
     .eq("caja", "diaria")
-    .eq("created_by", user.id)
+    .gte("fecha", ayer)
     .order("fecha", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(20);
+    .limit(60);
 
   if (error) {
-    console.error("Error al obtener movimientos propios:", error);
-    return { error: "No se pudieron cargar tus movimientos." };
+    console.error("Error al obtener movimientos del operador:", error);
+    return { error: "No se pudieron cargar los movimientos." };
   }
 
   return ((data ?? []) as MisMovimientoRow[]).map((m) => ({
