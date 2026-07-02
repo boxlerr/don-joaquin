@@ -10,6 +10,12 @@ interface Props {
   periodoLabel: string;
   /** Selector de período (client component) renderizado en el encabezado. */
   periodoSelector?: ReactNode;
+  /**
+   * Si es false (dashboard general) la card de facturación se reemplaza por
+   * "Km vacíos del período": pedido de Bárbara de que los montos no queden
+   * a la vista de todos. Los $ solo se ven en /dashboard/completo.
+   */
+  mostrarFacturacion: boolean;
 }
 
 function fmtNum(n: number): string {
@@ -25,11 +31,11 @@ function fmtMoneyCompact(n: number): string {
 
 /**
  * Fila "Resumen del mes en curso": cards en vivo de viajes hechos, km y
- * facturación del mes, agregadas desde el ranking del período (mismo cálculo
- * que /choferes/ranking, para que los números coincidan). Cada card lleva al
- * desglose por chofer.
+ * facturación (o km vacíos, según `mostrarFacturacion`) del mes, agregadas
+ * desde el ranking del período (mismo cálculo que /choferes/ranking, para que
+ * los números coincidan). Cada card lleva al desglose por chofer.
  */
-export default function ResumenMes({ totales, periodoLabel, periodoSelector }: Props) {
+export default function ResumenMes({ totales, periodoLabel, periodoSelector, mostrarFacturacion }: Props) {
   const viajesMes = totales.viajes;
   const kmMes = totales.kmConCarga + totales.kmVacios;
   const kmVaciosMes = totales.kmVacios;
@@ -53,13 +59,23 @@ export default function ResumenMes({ totales, periodoLabel, periodoSelector }: P
       icon: Route,
       accent: "warning" as const,
     },
-    {
-      label: "Facturación del período",
-      value: fmtMoneyCompact(facturacionMes),
-      sub: pesosPorKm > 0 ? `${fmtMoneyCompact(pesosPorKm)}/km` : "Sin facturación cargada",
-      icon: DollarSign,
-      accent: "success" as const,
-    },
+    // Tercera card: facturación solo en /dashboard/completo; en el dashboard
+    // general va km vacíos, que es el dato operativo que sí puede ver cualquiera.
+    mostrarFacturacion
+      ? {
+          label: "Facturación del período",
+          value: fmtMoneyCompact(facturacionMes),
+          sub: pesosPorKm > 0 ? `${fmtMoneyCompact(pesosPorKm)}/km` : "Sin facturación cargada",
+          icon: DollarSign,
+          accent: "success" as const,
+        }
+      : {
+          label: "Km vacíos del período",
+          value: `${fmtNum(kmVaciosMes)} km`,
+          sub: kmMes > 0 ? `${pctVacios.toFixed(0)}% del total recorrido` : "Sin recorridos",
+          icon: Route,
+          accent: "success" as const,
+        },
   ];
 
   return (

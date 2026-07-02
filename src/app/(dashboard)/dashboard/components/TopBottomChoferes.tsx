@@ -7,6 +7,11 @@ import { choferSlug } from "@/lib/chofer-slug";
 interface Props {
   top: RankingChofer[];
   bottom: RankingChofer[];
+  /**
+   * Mostrar el "· $X" facturado por chofer. Default false: en el dashboard
+   * general no van montos (los ve solo dirección en /dashboard/completo).
+   */
+  mostrarFacturacion?: boolean;
 }
 
 function fmtNum(n: number) {
@@ -20,7 +25,7 @@ function fmtMoneyCompact(n: number) {
   return `$ ${fmtNum(n)}`;
 }
 
-export default function TopBottomChoferes({ top, bottom }: Props) {
+export default function TopBottomChoferes({ top, bottom, mostrarFacturacion = false }: Props) {
   const sinDatos = top.length === 0 && bottom.length === 0;
 
   if (sinDatos) {
@@ -52,6 +57,7 @@ export default function TopBottomChoferes({ top, bottom }: Props) {
         icon={Trophy}
         accent="emerald"
         emptyText="Sin choferes con actividad este mes."
+        mostrarFacturacion={mostrarFacturacion}
       />
       <ChoferList
         items={bottom}
@@ -60,6 +66,7 @@ export default function TopBottomChoferes({ top, bottom }: Props) {
         icon={TriangleAlert}
         accent="rose"
         emptyText="No hay choferes con score bajo este mes."
+        mostrarFacturacion={mostrarFacturacion}
       />
     </div>
   );
@@ -72,9 +79,10 @@ interface ListProps {
   icon: typeof Trophy;
   accent: "emerald" | "rose";
   emptyText: string;
+  mostrarFacturacion: boolean;
 }
 
-function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: ListProps) {
+function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText, mostrarFacturacion }: ListProps) {
   const iconColor =
     accent === "emerald"
       ? "text-[#10B981]"
@@ -120,7 +128,7 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText }: L
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {r.viajes_count} {r.viajes_count === 1 ? "viaje" : "viajes"} ·{" "}
                     {fmtNum(r.km_total)} km · {r.pct_vacios.toFixed(0)}% vacíos
-                    {r.facturacion_total > 0 && (
+                    {mostrarFacturacion && r.facturacion_total > 0 && (
                       <span className="text-[#10B981] font-medium">
                         {" "}· {fmtMoneyCompact(r.facturacion_total)}
                       </span>

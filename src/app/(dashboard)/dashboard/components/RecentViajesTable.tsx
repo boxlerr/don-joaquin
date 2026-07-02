@@ -28,9 +28,15 @@ import type { ViajeBasico } from "@/app/(dashboard)/viajes/types";
 
 interface Props {
   initialViajes: ViajeBasico[];
+  /**
+   * Mostrar el monto de flete en el detalle expandido. Default false: en el
+   * dashboard general no van montos (solo dirección los ve en /dashboard/completo).
+   * El "Sí/No" de facturado queda siempre — es un estado, no un importe.
+   */
+  mostrarFacturacion?: boolean;
 }
 
-export default function RecentViajesTable({ initialViajes }: Props) {
+export default function RecentViajesTable({ initialViajes, mostrarFacturacion = false }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<ViajeBasico[]>(initialViajes);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -166,10 +172,14 @@ export default function RecentViajesTable({ initialViajes }: Props) {
                             <Coins size={13} className="text-[#10B981]" /> Detalles Financieros
                           </h4>
                           <div className="grid grid-cols-2 gap-1.5">
-                            <span className="text-muted-foreground text-[11px]">Monto Flete:</span>
-                            <span className="font-bold text-foreground text-right">
-                              {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
-                            </span>
+                            {mostrarFacturacion && (
+                              <>
+                                <span className="text-muted-foreground text-[11px]">Monto Flete:</span>
+                                <span className="font-bold text-foreground text-right">
+                                  {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
+                                </span>
+                              </>
+                            )}
                             <span className="text-muted-foreground text-[11px]">KM con Carga:</span>
                             <span className="font-mono text-foreground/90 text-right">{v.km_con_carga ?? 0} km</span>
                             <span className="text-muted-foreground text-[11px]">KM Vacíos:</span>
