@@ -65,6 +65,9 @@ export default function AddServicioDialog({
   const acopladoId = unidad.startsWith("a:") ? unidad.slice(2) : "";
   const esAcoplado = !!acopladoId;
   const [tipoServicioId, setTipoServicioId] = useState("");
+  // Texto libre para el tipo "Otro" (igual que en roturas): describe qué
+  // servicio fue y se guarda como descripción del mantenimiento.
+  const [tipoDetalle, setTipoDetalle] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [km, setKm] = useState("");
   const [taller, setTaller] = useState("");
@@ -92,6 +95,7 @@ export default function AddServicioDialog({
     : tiposServicio;
 
   const tipoSel = tiposServicio.find((t) => t.id === tipoServicioId);
+  const esOtro = tipoSel?.codigo === "otro";
 
   useEffect(() => {
     if (!open) return;
@@ -99,6 +103,13 @@ export default function AddServicioDialog({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setUnidad(editing.camion_id ? `c:${editing.camion_id}` : editing.acoplado_id ? `a:${editing.acoplado_id}` : "");
       setTipoServicioId(editing.tipo_servicio_id ?? "");
+      // En "Otro" la descripción guarda el texto libre; si quedó el genérico
+      // "Otro" de registros viejos, arranca vacío para que lo escriban.
+      setTipoDetalle(
+        editing.tipo_servicio_codigo === "otro" && editing.descripcion !== "Otro"
+          ? editing.descripcion
+          : "",
+      );
       setFecha(editing.fecha);
       setKm(editing.km_odometro ? String(editing.km_odometro) : "");
       setTaller(editing.taller ?? "");
@@ -109,6 +120,7 @@ export default function AddServicioDialog({
     } else {
       setUnidad("");
       setTipoServicioId("");
+      setTipoDetalle("");
       setFecha(new Date().toISOString().split("T")[0]);
       setKm("");
       setTaller("");
@@ -159,6 +171,7 @@ export default function AddServicioDialog({
     e.preventDefault();
     if (!camionId && !acopladoId) return setError("Elegí un camión o acoplado.");
     if (!tipoServicioId) return setError("Elegí el tipo de servicio.");
+    if (esOtro && !tipoDetalle.trim()) return setError("Escribí qué servicio se hizo.");
     // El acoplado no tiene odómetro; el KM solo es obligatorio para camiones.
     const kmN = km ? parseInt(km) : 0;
     if (!esAcoplado && (!Number.isFinite(kmN) || kmN <= 0)) return setError("Cargá el KM del camión.");
@@ -172,6 +185,7 @@ export default function AddServicioDialog({
 
       const payload = {
         tipo_servicio_id: tipoServicioId,
+        tipo_detalle: esOtro ? tipoDetalle.trim() : null,
         fecha,
         km_odometro: Number.isFinite(kmN) ? kmN : 0,
         taller: taller || null,
@@ -255,6 +269,15 @@ export default function AddServicioDialog({
                 ))}
               </SelectContent>
             </Select>
+            {esOtro && (
+              <Input
+                className="mt-2"
+                placeholder="Escribí qué servicio se hizo (ej: alineación y balanceo)"
+                value={tipoDetalle}
+                onChange={(e) => setTipoDetalle(e.target.value)}
+                autoFocus
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -107,6 +107,8 @@ export async function addServicioAction(data: {
   camion_id?: string | null;
   acoplado_id?: string | null;
   tipo_servicio_id: string;
+  /** Texto libre cuando el tipo es "Otro": qué servicio se hizo. */
+  tipo_detalle?: string | null;
   fecha: string;
   km_odometro: number;
   taller?: string | null;
@@ -142,7 +144,8 @@ export async function addServicioAction(data: {
       acoplado_id: data.acoplado_id || null,
       tipo_servicio_id: data.tipo_servicio_id,
       tipo: tipoEnumFromCodigo(ts.codigo),
-      descripcion: ts.nombre,
+      // "Otro" con texto libre: la descripción guarda qué servicio fue.
+      descripcion: ts.codigo === "otro" && data.tipo_detalle?.trim() ? data.tipo_detalle.trim() : ts.nombre,
       fecha: data.fecha,
       km_odometro: data.km_odometro,
       taller: data.taller || null,
@@ -661,6 +664,8 @@ export async function updateServicioAction(
   id: string,
   data: {
     tipo_servicio_id: string;
+    /** Texto libre cuando el tipo es "Otro": qué servicio se hizo. */
+    tipo_detalle?: string | null;
     fecha: string;
     km_odometro: number;
     taller?: string | null;
@@ -688,7 +693,8 @@ export async function updateServicioAction(
     .update({
       tipo_servicio_id: data.tipo_servicio_id,
       tipo: tipoEnumFromCodigo(ts.codigo),
-      descripcion: ts.nombre,
+      // "Otro" con texto libre: la descripción guarda qué servicio fue.
+      descripcion: ts.codigo === "otro" && data.tipo_detalle?.trim() ? data.tipo_detalle.trim() : ts.nombre,
       fecha: data.fecha,
       km_odometro: data.km_odometro,
       taller: data.taller || null,

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Plus, Trash2, Loader2, Wrench } from "lucide-react";
 import AddCostoDialog from "./AddCostoDialog";
 import {
@@ -37,6 +39,7 @@ export default function CostosRepRepClient({
   resumen: CostosResumenMes[];
   canWrite: boolean;
 }) {
+  const router = useRouter();
   const [mes, setMes] = useState<string | null>(mesInicial);
   const [rows, setRows] = useState<CostoRepRep[]>(rowsIniciales);
   const [loading, setLoading] = useState(false);
@@ -50,12 +53,28 @@ export default function CostosRepRepClient({
     setLoading(false);
   }
 
+  // Al guardar un costo saltamos al mes cargado (aunque sea un mes nuevo que
+  // todavía no figuraba) y refrescamos: así el mes aparece al toque en las
+  // cards y el selector, sin recargar la página a mano.
+  function onCostoGuardado(mesYYYYMM: string) {
+    void cambiarMes(`${mesYYYYMM}-01`);
+  }
+
   async function borrar(id: string) {
     setDeletingId(id);
     const res = await deleteCostoRepRepAction(id);
-    if (res.ok) setRows((prev) => prev.filter((r) => r.id !== id));
+    if (res.ok) {
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      // Actualiza cards y lista de meses (si el mes quedó vacío, desaparece).
+      router.refresh();
+    }
     setDeletingId(null);
   }
+
+  // Cards solo de los últimos meses; el resto se elige desde el selector.
+  const resumenReciente = resumen.slice(0, 3);
+  const mesesChips = meses.slice(0, 3);
+  const hayMasMeses = meses.length > mesesChips.length;
 
   const totNetoGrav = rows.reduce((a, r) => a + Number(r.neto_gravado), 0);
   const totFactGrav = rows.reduce((a, r) => a + Number(r.facturado_gravado), 0);
@@ -66,10 +85,10 @@ export default function CostosRepRepClient({
 
   return (
     <div className="space-y-4">
-      {/* Resumen por mes */}
-      {resumen.length > 0 && (
+      {/* Resumen de los últimos meses (los anteriores se eligen en el selector) */}
+      {resumenReciente.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {resumen.map((r) => (
+          {resumenReciente.map((r) => (
             <button
               key={r.mes}
               type="button"
@@ -94,14 +113,27 @@ export default function CostosRepRepClient({
           <Button size="sm" variant={mes === null ? "default" : "outline"} onClick={() => cambiarMes(null)}>
             Todos
           </Button>
-          {meses.map((m) => (
+          {mesesChips.map((m) => (
             <Button key={m} size="sm" variant={mes === m ? "default" : "outline"} onClick={() => cambiarMes(m)}>
               {mesLabel(m)}
             </Button>
           ))}
+          {/* Con historia larga los chips no escalan: los meses viejos van en
+              un selector buscable en vez de una fila infinita de botones. */}
+          {hayMasMeses && (
+            <Combobox
+              options={meses.slice(mesesChips.length).map((m) => ({ id: m, label: mesLabel(m) }))}
+              value={mes && !mesesChips.includes(mes) ? mes : ""}
+              onValueChange={(id) => { if (id) void cambiarMes(id); }}
+              placeholder="Meses anteriores…"
+              searchPlaceholder="Buscar mes…"
+              aria-label="Elegir un mes anterior"
+              triggerClassName="h-8 w-[180px]"
+            />
+          )}
         </div>
         {canWrite && (
-          <AddCostoDialog mesInicial={mes ? mes.slice(0, 7) : undefined}>
+          <AddCostoDialog mesInicial={mes ? mes.slice(0, 7) : undefined} onSaved={onCostoGuardado}>
             <Button size="sm">
               <Plus size={14} /> Cargar costo
             </Button>

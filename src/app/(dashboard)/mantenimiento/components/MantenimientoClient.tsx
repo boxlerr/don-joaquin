@@ -69,6 +69,16 @@ function fmtMoneda(n: number | null): string {
   return `$ ${n.toLocaleString("es-AR")}`;
 }
 
+/**
+ * Qué mostrar como nombre del servicio: para el tipo "Otro" la descripción
+ * guarda el texto libre que escribió el usuario ("alineación y balanceo"),
+ * así que va esa en lugar del genérico "Otro".
+ */
+function servicioLabel(s: ServicioRow): string {
+  if (s.tipo_servicio_codigo === "otro" && s.descripcion) return s.descripcion;
+  return s.tipo_servicio_nombre ?? s.descripcion;
+}
+
 export default function MantenimientoClient({
   servicios,
   roturas,
@@ -252,7 +262,7 @@ export default function MantenimientoClient({
                       </span>
                       {s.unidad_marca_modelo && <span className="ml-1.5 text-xs text-muted-foreground">{s.unidad_marca_modelo}</span>}
                     </TableCell>
-                    <TableCell>{s.tipo_servicio_nombre ?? s.descripcion}</TableCell>
+                    <TableCell>{servicioLabel(s)}</TableCell>
                     <TableCell className="text-muted-foreground">{s.taller ?? "—"}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{s.unidad_tipo === "acoplado" ? "—" : fmtNum(s.km_odometro)}</TableCell>
                     <TableCell className="text-right font-medium">{fmtMoneda(s.costo)}</TableCell>
@@ -262,7 +272,7 @@ export default function MantenimientoClient({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setConfirmDel({ tipo: "servicio", id: s.id, label: `${s.tipo_servicio_nombre ?? s.descripcion} — ${s.unidad_patente}` });
+                              setConfirmDel({ tipo: "servicio", id: s.id, label: `${servicioLabel(s)} — ${s.unidad_patente}` });
                             }}
                             className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
                             title="Borrar"

@@ -21,9 +21,12 @@ const ars = (n: number) => `$ ${n.toLocaleString("es-AR")}`;
 export default function AddCostoDialog({
   children,
   mesInicial,
+  onSaved,
 }: {
   children: React.ReactNode;
   mesInicial?: string; // YYYY-MM
+  /** Avisa el mes (YYYY-MM) recién guardado, para que la vista salte a ese mes. */
+  onSaved?: (mes: string) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -69,6 +72,7 @@ export default function AddCostoDialog({
       setFactNg("");
       setObs("");
       router.refresh();
+      onSaved?.(mes);
     } finally {
       setLoading(false);
     }
