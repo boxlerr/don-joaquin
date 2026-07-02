@@ -1,20 +1,46 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight, ArrowDownRight, Receipt } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, EyeOff, Lock, Receipt } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, hasArea } from "@/lib/auth";
+import { requireArea, hasArea, hasSeccion } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
-import ImportMovimientosDialog from "./components/ImportMovimientosDialog";
-import CajaDashboard from "./components/CajaDashboard";
-import ViaticosPendientesPanel from "./components/ViaticosPendientesPanel";
+import CajaViewCompleta from "./components/CajaViewCompleta";
+import MisMovimientosRecientes from "./components/MisMovimientosRecientes";
 import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function CajaPage() {
   const user = await requireArea("caja", "read");
-  const canWrite = hasArea(user, "caja", "write");
+
+  // Operar ≠ ver (pedido de Bárbara): cargar movimientos viene del área, pero
+  // el saldo/historial (caja_saldo) y la caja grande (caja_grande) son
+  // subsecciones confidenciales que se otorgan aparte. Admin tiene todo.
+  const puedeOperar = hasArea(user, "caja", "write");
+  const puedeVerSaldo = hasSeccion(user, "caja_saldo", "read");
+  const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
+  const puedeOperarGrande = hasSeccion(user, "caja_grande", "write");
+
+  // Sin saldo ni carga: solo el aviso de acceso restringido.
+  if (!puedeVerSaldo && !puedeOperar) {
+    return (
+      <div className="p-8">
+        <PageHeader
+          title="Caja General"
+          description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
+        />
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
+          <Lock size={16} className="text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-700">
+            No tenés acceso al detalle de la caja. Si necesitás verlo, pedile a un administrador
+            que te habilite la sección.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const supabase = createAdminClient();
 
   const [{ data: tiposGasto }, { data: choferesRaw }, { data: fechasMovs }, { data: viaticosRaw }] =
@@ -30,12 +56,19 @@ export default async function CajaPage() {
         .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
         .eq("estado", "activo")
         .order("apellido"),
-      supabase.from("caja_movimientos").select("fecha"),
-      supabase
-        .from("viaticos")
-        .select("id, fecha_entrega, monto_entregado, observaciones, chofer:choferes!chofer_id(nombre, apellido)")
-        .eq("estado", "pendiente_rendicion")
-        .order("fecha_entrega", { ascending: true }),
+      // Fechas y viáticos pendientes solo hacen falta para la vista completa.
+      puedeVerSaldo
+        ? supabase.from("caja_movimientos").select("fecha")
+        : Promise.resolve({ data: [] as { fecha: string }[] }),
+      puedeVerSaldo
+        ? supabase
+            .from("viaticos")
+            .select(
+              "id, fecha_entrega, monto_entregado, observaciones, chofer:choferes!chofer_id(nombre, apellido)",
+            )
+            .eq("estado", "pendiente_rendicion")
+            .order("fecha_entrega", { ascending: true })
+        : Promise.resolve({ data: [] }),
     ]);
 
   type ChoferRef = { nombre: string | null; apellido: string | null };
@@ -67,17 +100,17 @@ export default async function CajaPage() {
     .sort()
     .reverse();
 
-  return (
-    <div className="p-8">
-      <PageHeader
-        title="Caja General"
-        description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
-        action={
-          <div className="flex items-center gap-2">
-            <HelpTutorialButton />
-            {canWrite && (
-              <>
-                <ImportMovimientosDialog />
+  // Modo operador: puede cargar movimientos de la caja diaria pero el saldo y
+  // el historial completo son privados. Solo ve sus propias cargas recientes.
+  if (!puedeVerSaldo) {
+    return (
+      <div className="p-8">
+        <PageHeader
+          title="Caja General"
+          description="Carga de movimientos de la caja diaria"
+          action={
+            <div className="flex items-center gap-2">
+              <HelpTutorialButton />
               <AddViaticoDialog choferes={choferes}>
                 <Button variant="outline" size="sm">
                   <Receipt size={14} />
@@ -96,15 +129,36 @@ export default async function CajaPage() {
                   Egreso
                 </Button>
               </AddEgresoDialog>
-              </>
-            )}
-          </div>
-        }
+            </div>
+          }
+        />
+
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
+          <EyeOff size={16} className="text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-700">
+            Podés cargar movimientos de la caja; el saldo y el historial completo son privados.
+            Abajo se muestran solo los movimientos que cargaste vos.
+          </p>
+        </div>
+
+        <MisMovimientosRecientes />
+      </div>
+    );
+  }
+
+  // Vista completa (caja_saldo): dashboard + tabla + viáticos, con el switcher
+  // de caja grande si corresponde.
+  return (
+    <div className="p-8">
+      <CajaViewCompleta
+        tiposGasto={tiposGasto || []}
+        choferes={choferes}
+        mesesConDatos={mesesConDatos}
+        viaticos={viaticosPendientes}
+        puedeOperar={puedeOperar}
+        puedeVerGrande={puedeVerGrande}
+        puedeOperarGrande={puedeOperarGrande}
       />
-
-      <CajaDashboard tiposGasto={tiposGasto || []} mesesConDatos={mesesConDatos} />
-
-      <ViaticosPendientesPanel viaticos={viaticosPendientes} canWrite={canWrite} />
     </div>
   );
 }

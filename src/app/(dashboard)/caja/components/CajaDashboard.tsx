@@ -6,7 +6,7 @@ import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import MovimientosCajaTable from "./MovimientosCajaTable";
-import { getCajaResumenAction, type CajaResumen } from "../actions";
+import { getCajaResumenAction, type CajaId, type CajaResumen } from "../actions";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -49,9 +49,11 @@ interface Props {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
   /** Meses con movimientos ("YYYY-MM"), ordenados descendente. */
   mesesConDatos: string[];
+  /** Caja activa: la diaria (operativa) o la grande (privada de dirección). */
+  caja?: CajaId;
 }
 
-export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
+export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diaria" }: Props) {
   // "YYYY-MM" | "todos" | "custom" (rango manual desde la tabla)
   const [mes, setMes] = useState<string>(() => {
     const actual = mesActual();
@@ -76,6 +78,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
     getCajaResumenAction({
       desde: rango.desde || undefined,
       hasta: rango.hasta || undefined,
+      caja,
     }).then((result) => {
       if (cancelled) return;
       if (!("error" in result)) setResumen(result);
@@ -83,7 +86,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [rango, refreshTick]);
+  }, [rango, refreshTick, caja]);
 
   const seleccionarMes = (nuevo: string) => {
     setMes(nuevo);
@@ -167,11 +170,11 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className={`grid gap-4 mb-6 ${caja === "grande" ? "grid-cols-4" : "grid-cols-5"}`}>
         <StatCard
           label="Saldo actual"
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
-          sub="Caja general (histórico)"
+          sub={caja === "grande" ? "Caja grande (histórico)" : "Caja diaria (histórico)"}
           color="brand"
         />
         <StatCard
@@ -186,13 +189,16 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
           sub={periodoLabel}
           color="error"
         />
-        <StatCard
-          label="Pendiente de cobro"
-          value={resumen ? `$ ${formatARS(resumen.pendienteCobro)}` : "—"}
-          sub="Fletes facturados sin cobrar"
-          color="warning"
-          href="/viajes?filtro=pendiente_cobro"
-        />
+        {/* El pendiente de cobro es operativo: solo tiene sentido en la diaria. */}
+        {caja === "diaria" && (
+          <StatCard
+            label="Pendiente de cobro"
+            value={resumen ? `$ ${formatARS(resumen.pendienteCobro)}` : "—"}
+            sub="Fletes facturados sin cobrar"
+            color="warning"
+            href="/viajes?filtro=pendiente_cobro"
+          />
+        )}
         <StatCard
           label="Movimientos"
           value={resumen ? String(resumen.movimientos) : "—"}
@@ -206,6 +212,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos }: Props) {
         desde={rango.desde}
         hasta={rango.hasta}
         onRangeChange={onRangeChange}
+        caja={caja}
       />
     </>
   );

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addEgresoAction } from "../actions";
+import { addEgresoAction, type CajaId } from "../actions";
 
 const CATEGORIA_LABEL: Record<string, string> = {
   gasto_operativo: "Gasto Operativo",
@@ -36,9 +36,12 @@ const MEDIO_LABEL: Record<string, string> = {
 export default function AddEgresoDialog({
   children,
   tiposGasto,
+  caja = "diaria",
 }: {
   children: React.ReactNode;
   tiposGasto?: { id: string; nombre: string; categoria: string }[];
+  /** De qué caja sale la plata: diaria (default) o grande (privada de dirección). */
+  caja?: CajaId;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,6 +68,7 @@ export default function AddEgresoDialog({
         categoria,
         tipo_gasto_id: tipoGastoId || null,
         fecha,
+        caja,
       });
       if (res.error) {
         setError(res.error);
@@ -88,9 +92,13 @@ export default function AddEgresoDialog({
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Registrar Egreso de Caja</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">
+            {caja === "grande" ? "Registrar Egreso — Caja Grande" : "Registrar Egreso de Caja"}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Ingresá los detalles del dinero saliente de la caja general.
+            {caja === "grande"
+              ? "Ingresá los detalles del dinero saliente de la caja grande."
+              : "Ingresá los detalles del dinero saliente de la caja general."}
           </DialogDescription>
         </DialogHeader>
 

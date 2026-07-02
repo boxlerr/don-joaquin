@@ -2,12 +2,29 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { requireArea } from "@/lib/auth";
+import { requireArea, requireSeccion } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
 
 const MOVIMIENTOS_PAGE_SIZE = 20;
+
+/**
+ * Las dos cajas físicas (audios Bárbara 30/06): la "diaria" es la operativa
+ * multiusuario; la "grande" es privada de dirección (subsección caja_grande).
+ * La columna `caja` es nueva (migración 20260701) y no está en los tipos
+ * generados, por eso las queries que la tocan usan `(supabase as any)`.
+ */
+export type CajaId = "diaria" | "grande";
+
+/**
+ * Saldo/historial son confidenciales: la caja diaria exige la subsección
+ * caja_saldo y la grande caja_grande (los admin tienen ambas siempre).
+ */
+async function requireVerCaja(caja: CajaId) {
+  if (caja === "grande") await requireSeccion("caja_grande", "read");
+  else await requireSeccion("caja_saldo", "read");
+}
 
 async function logCajaAudit(
   supabase: ReturnType<typeof createAdminClient>,
@@ -53,11 +70,17 @@ export type CajaResumen = {
 export async function getCajaResumenAction(params: {
   desde?: string;
   hasta?: string;
+  caja?: CajaId;
 }): Promise<CajaResumen | { error: string }> {
-  await requireArea("caja", "read");
+  const caja = params.caja ?? "diaria";
+  await requireVerCaja(caja);
   const supabase = createAdminClient();
 
-  let rangoQuery = supabase.from("caja_movimientos").select("tipo, monto");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rangoQuery = (supabase as any)
+    .from("caja_movimientos")
+    .select("tipo, monto")
+    .eq("caja", caja);
   if (params.desde) rangoQuery = rangoQuery.gte("fecha", params.desde);
   if (params.hasta) rangoQuery = rangoQuery.lte("fecha", params.hasta);
 
@@ -67,14 +90,18 @@ export async function getCajaResumenAction(params: {
     { data: pendientes, error: pendientesError },
   ] = await Promise.all([
     rangoQuery,
-    supabase.from("caja_movimientos").select("tipo, monto"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("caja_movimientos").select("tipo, monto").eq("caja", caja),
     // Fletes facturados y todavía no cobrados (lo que falta volcar a la caja).
-    supabase
-      .from("viajes")
-      .select("monto_flete")
-      .eq("facturado", true)
-      .eq("cobrado", false)
-      .eq("es_vacio", false),
+    // Es un concepto operativo: solo tiene sentido para la caja diaria.
+    caja === "diaria"
+      ? supabase
+          .from("viajes")
+          .select("monto_flete")
+          .eq("facturado", true)
+          .eq("cobrado", false)
+          .eq("es_vacio", false)
+      : Promise.resolve({ data: [] as { monto_flete: number | null }[], error: null }),
   ]);
 
   if (rangoError || todosError || pendientesError) {
@@ -91,7 +118,8 @@ export async function getCajaResumenAction(params: {
     if (m.tipo === "ingreso") ingresos += Number(m.monto || 0);
     else egresos += Number(m.monto || 0);
   }
-  const saldoTotal = (todos ?? []).reduce(
+  type TipoMonto = { tipo: string; monto: number | null };
+  const saldoTotal = ((todos ?? []) as TipoMonto[]).reduce(
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
@@ -153,6 +181,7 @@ export type GetCajaMovimientosParams = {
   categoria?: string;
   search?: string;
   page?: number;
+  caja?: CajaId;
 };
 
 export type GetCajaMovimientosResult =
@@ -162,7 +191,8 @@ export type GetCajaMovimientosResult =
 export async function getCajaMovimientosAction(
   params: GetCajaMovimientosParams = {}
 ): Promise<GetCajaMovimientosResult> {
-  const { desde, hasta, tipoGastoId, categoria, search, page = 0 } = params;
+  const { desde, hasta, tipoGastoId, categoria, search, page = 0, caja = "diaria" } = params;
+  await requireVerCaja(caja);
   const supabase = createAdminClient();
   const from = page * MOVIMIENTOS_PAGE_SIZE;
   const to = from + MOVIMIENTOS_PAGE_SIZE - 1;
@@ -180,12 +210,14 @@ export async function getCajaMovimientosAction(
     }
   }
 
-  let query = supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any)
     .from("caja_movimientos")
     .select(
       "id, fecha, tipo, categoria, concepto, monto, medio, cliente_id, chofer_id, viaje_id, gasto_id, created_by",
       { count: "exact" }
     )
+    .eq("caja", caja)
     .order("fecha", { ascending: false })
     .order("created_at", { ascending: false })
     .range(from, to);
@@ -203,7 +235,21 @@ export async function getCajaMovimientosAction(
     return { error: "No se pudieron cargar los movimientos." };
   }
 
-  const rows = data ?? [];
+  type MovRow = {
+    id: string;
+    fecha: string;
+    tipo: "ingreso" | "egreso";
+    categoria: string;
+    concepto: string;
+    monto: number;
+    medio: string;
+    cliente_id: string | null;
+    chofer_id: string | null;
+    viaje_id: string | null;
+    gasto_id: string | null;
+    created_by: string | null;
+  };
+  const rows: MovRow[] = data ?? [];
   const clienteIds = [...new Set(rows.map((r) => r.cliente_id).filter(Boolean) as string[])];
   const choferIds = [...new Set(rows.map((r) => r.chofer_id).filter(Boolean) as string[])];
   const viajeIds = [...new Set(rows.map((r) => r.viaje_id).filter(Boolean) as string[])];
@@ -288,6 +334,53 @@ export async function getCajaMovimientosAction(
   };
 }
 
+export type MisMovimientoRow = {
+  id: string;
+  fecha: string;
+  tipo: "ingreso" | "egreso";
+  categoria: string;
+  concepto: string;
+  monto: number;
+  medio: string;
+};
+
+/**
+ * Modo operador (operar ≠ ver): quien puede cargar movimientos pero no tiene
+ * caja_saldo solo ve SUS últimas cargas de la caja diaria — sin totales ni
+ * saldo — para chequear que lo suyo quedó registrado.
+ */
+export async function getMisMovimientosRecientesAction(): Promise<
+  MisMovimientoRow[] | { error: string }
+> {
+  const user = await requireArea("caja", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("caja_movimientos")
+    .select("id, fecha, tipo, categoria, concepto, monto, medio")
+    .eq("caja", "diaria")
+    .eq("created_by", user.id)
+    .order("fecha", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("Error al obtener movimientos propios:", error);
+    return { error: "No se pudieron cargar tus movimientos." };
+  }
+
+  return ((data ?? []) as MisMovimientoRow[]).map((m) => ({
+    id: m.id,
+    fecha: m.fecha,
+    tipo: m.tipo,
+    categoria: m.categoria,
+    concepto: m.concepto,
+    monto: Number(m.monto),
+    medio: m.medio,
+  }));
+}
+
 export async function addIngresoAction(data: {
   concepto: string;
   monto: number;
@@ -296,9 +389,13 @@ export async function addIngresoAction(data: {
   fecha: string;
   viaje_id?: string | null;
   cliente_id?: string | null;
+  caja?: CajaId;
 }) {
 
   const user = await requireArea("caja", "write");
+  const caja = data.caja ?? "diaria";
+  // La caja grande es privada de dirección: además del área hace falta la subsección.
+  if (caja === "grande") await requireSeccion("caja_grande", "write");
   const supabase = createAdminClient();
 
   const insertData = {
@@ -311,10 +408,12 @@ export async function addIngresoAction(data: {
     viaje_id: data.viaje_id ?? null,
     cliente_id: data.cliente_id ?? null,
     moneda: "ARS",
+    caja,
     created_by: user.id,
   };
 
-  const { data: inserted, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
     .from("caja_movimientos")
     .insert(insertData)
     .select("id")
@@ -331,7 +430,8 @@ export async function addIngresoAction(data: {
 
   // Si el ingreso es un cobro de flete vinculado a un viaje, marcamos el viaje
   // como cobrado para que no quede pendiente de cobro ni se cobre dos veces.
-  if (data.viaje_id && data.categoria === "cobro_cliente") {
+  // Solo aplica a la diaria: el cobro de fletes es operativo.
+  if (caja === "diaria" && data.viaje_id && data.categoria === "cobro_cliente") {
     const { data: viajePrev } = await supabase
       .from("viajes")
       .select("cobrado, facturado")
@@ -366,9 +466,13 @@ export async function addEgresoAction(data: {
   categoria: "pago_proveedor" | "gasto_operativo" | "pago_chofer" | "transferencia_interna" | "ajuste" | "otro";
   tipo_gasto_id?: string | null;
   fecha: string;
+  caja?: CajaId;
 }) {
 
   const user = await requireArea("caja", "write");
+  const caja = data.caja ?? "diaria";
+  // La caja grande es privada de dirección: además del área hace falta la subsección.
+  if (caja === "grande") await requireSeccion("caja_grande", "write");
   const supabase = createAdminClient();
 
   let gastoId: string | null = null;
@@ -414,10 +518,12 @@ export async function addEgresoAction(data: {
     gasto_id: gastoId,
     fecha: data.fecha,
     moneda: "ARS",
+    caja,
     created_by: user.id,
   };
 
-  const { data: inserted, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
     .from("caja_movimientos")
     .insert(insertData)
     .select("id")
@@ -430,6 +536,76 @@ export async function addEgresoAction(data: {
 
   if (inserted?.id) {
     await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
+  }
+
+  revalidatePath("/caja");
+  return { success: true };
+}
+
+// ============================================================================
+// Transferencias entre cajas
+// ----------------------------------------------------------------------------
+// Mover plata de la caja diaria a la grande (retiro de dirección) o al revés
+// (fondeo de la operativa). Queda registrado como un PAR de movimientos con
+// categoría transferencia_interna unidos por transferencia_id: egreso en la
+// caja origen e ingreso en la destino. Siempre en efectivo (es plata física
+// que pasa de una caja a la otra).
+// ============================================================================
+export async function transferirEntreCajasAction(data: {
+  direccion: "diaria_a_grande" | "grande_a_diaria";
+  monto: number;
+  fecha: string;
+  concepto?: string | null;
+}): Promise<{ success?: boolean; error?: string }> {
+  const user = await requireSeccion("caja_grande", "write");
+  const supabase = createAdminClient();
+
+  if (!Number.isFinite(data.monto) || data.monto <= 0) {
+    return { error: "El monto debe ser mayor a cero." };
+  }
+  if (!data.fecha) {
+    return { error: "Indicá la fecha de la transferencia." };
+  }
+
+  const origen: CajaId = data.direccion === "diaria_a_grande" ? "diaria" : "grande";
+  const destino: CajaId = origen === "diaria" ? "grande" : "diaria";
+  const concepto =
+    data.concepto?.trim() ||
+    (data.direccion === "diaria_a_grande"
+      ? "Transferencia caja diaria → caja grande"
+      : "Transferencia caja grande → caja diaria");
+
+  const transferenciaId = crypto.randomUUID();
+  const base = {
+    categoria: "transferencia_interna" as const,
+    concepto,
+    monto: data.monto,
+    medio: "efectivo" as const,
+    fecha: data.fecha,
+    moneda: "ARS",
+    transferencia_id: transferenciaId,
+    created_by: user.id,
+  };
+  const movimientos = [
+    { ...base, tipo: "egreso" as const, caja: origen },
+    { ...base, tipo: "ingreso" as const, caja: destino },
+  ];
+
+  // Insert único para que el par sea atómico: o entran los dos o ninguno.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: inserted, error } = await (supabase as any)
+    .from("caja_movimientos")
+    .insert(movimientos)
+    .select("id, tipo");
+
+  if (error) {
+    console.error("Error al transferir entre cajas:", error);
+    return { error: "No se pudo registrar la transferencia." };
+  }
+
+  for (const mov of (inserted ?? []) as { id: string; tipo: "ingreso" | "egreso" }[]) {
+    const valores = movimientos.find((m) => m.tipo === mov.tipo) ?? null;
+    await logCajaAudit(supabase, mov.id, "crear", null, valores, user.id);
   }
 
   revalidatePath("/caja");

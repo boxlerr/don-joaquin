@@ -16,7 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { addIngresoAction, getViajesParaCobroAction, type ViajeCobroOption } from "../actions";
+import {
+  addIngresoAction,
+  getViajesParaCobroAction,
+  type CajaId,
+  type ViajeCobroOption,
+} from "../actions";
 
 const CATEGORIA_LABEL: Record<string, string> = {
   cobro_cliente: "Cobro a Cliente",
@@ -42,7 +47,14 @@ function formatFechaCorta(iso: string): string {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
-export default function AddIngresoDialog({ children }: { children: React.ReactNode }) {
+export default function AddIngresoDialog({
+  children,
+  caja = "diaria",
+}: {
+  children: React.ReactNode;
+  /** A qué caja va el ingreso: diaria (default) o grande (privada de dirección). */
+  caja?: CajaId;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -57,12 +69,13 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
   const [viajes, setViajes] = useState<ViajeCobroOption[] | null>(null);
   const [viajeId, setViajeId] = useState("");
 
+  // Vincular viajes solo aplica a la diaria (el cobro de fletes es operativo).
   useEffect(() => {
-    if (!open || viajes !== null) return;
+    if (!open || caja === "grande" || viajes !== null) return;
     getViajesParaCobroAction().then((result) => {
       if (!("error" in result)) setViajes(result);
     });
-  }, [open, viajes]);
+  }, [open, caja, viajes]);
 
   const seleccionarViaje = (id: string) => {
     setViajeId(id);
@@ -78,15 +91,20 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
     setLoading(true);
     setError(null);
     try {
-      const viaje = viajes?.find((v) => v.id === viajeId);
+      // Vincular viajes solo aplica a la diaria (el cobro de fletes es operativo).
+      const viaje =
+        caja === "diaria" && categoria === "cobro_cliente"
+          ? viajes?.find((v) => v.id === viajeId) ?? null
+          : null;
       const res = await addIngresoAction({
         concepto,
         monto: parseFloat(monto),
         medio,
         categoria,
         fecha,
-        viaje_id: categoria === "cobro_cliente" && viaje ? viaje.id : null,
-        cliente_id: categoria === "cobro_cliente" && viaje ? viaje.cliente_id : null,
+        viaje_id: viaje?.id ?? null,
+        cliente_id: viaje?.cliente_id ?? null,
+        caja,
       });
       if (res.error) {
         setError(res.error);
@@ -110,9 +128,13 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Registrar Ingreso de Caja</DialogTitle>
+          <DialogTitle className="text-foreground text-xl">
+            {caja === "grande" ? "Registrar Ingreso — Caja Grande" : "Registrar Ingreso de Caja"}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Ingresá los detalles del dinero entrante a la caja general.
+            {caja === "grande"
+              ? "Ingresá los detalles del dinero entrante a la caja grande."
+              : "Ingresá los detalles del dinero entrante a la caja general."}
           </DialogDescription>
         </DialogHeader>
 
@@ -123,7 +145,7 @@ export default function AddIngresoDialog({ children }: { children: React.ReactNo
             </div>
           )}
 
-          {categoria === "cobro_cliente" && (
+          {categoria === "cobro_cliente" && caja === "diaria" && (
             <div className="space-y-2">
               <Label htmlFor="ing-viaje" className="text-sm font-medium text-foreground">
                 Viaje vinculado{" "}

@@ -24,6 +24,7 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Wallet, X, Loader2 } from "lucide-react";
 import {
   getCajaMovimientosAction,
+  type CajaId,
   type CajaMovimientoRow,
 } from "../actions";
 
@@ -76,9 +77,17 @@ interface Props {
   desde: string;
   hasta: string;
   onRangeChange: (desde: string, hasta: string) => void;
+  /** Caja activa: diaria (operativa) o grande (privada de dirección). */
+  caja?: CajaId;
 }
 
-export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRangeChange }: Props) {
+export default function MovimientosCajaTable({
+  tiposGasto,
+  desde,
+  hasta,
+  onRangeChange,
+  caja = "diaria",
+}: Props) {
   const [rows, setRows] = useState<CajaMovimientoRow[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -125,6 +134,7 @@ export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRange
       tipoGastoId: parsedFiltro.tipoGastoId,
       search: debouncedSearch || undefined,
       page: 0,
+      caja,
     }).then((result) => {
       if (cancelled) return;
       if ("error" in result) {
@@ -140,7 +150,7 @@ export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRange
     return () => {
       cancelled = true;
     };
-  }, [desde, hasta, tipoFiltro, debouncedSearch, refreshTick]);
+  }, [desde, hasta, tipoFiltro, debouncedSearch, refreshTick, caja]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -152,6 +162,7 @@ export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRange
         tipoGastoId: parsedFiltro.tipoGastoId,
         search: debouncedSearch || undefined,
         page: nextPage,
+        caja,
       });
       if ("data" in result) {
         setRows((prev) => [...prev, ...result.data]);
@@ -174,7 +185,9 @@ export default function MovimientosCajaTable({ tiposGasto, desde, hasta, onRange
       <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Wallet size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Movimientos de Caja</h2>
+          <h2 className="text-foreground text-sm font-semibold">
+            {caja === "grande" ? "Movimientos de Caja Grande" : "Movimientos de Caja"}
+          </h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Input
