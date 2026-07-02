@@ -57,6 +57,47 @@ export async function updateUsuarioRolAction(
   return { ok: true };
 }
 
+/**
+ * Excepción al bloqueo por horario laboral: "acceso 24 hs" por usuario.
+ * Solo tiene efecto con el parámetro acceso_horario_activo prendido; los
+ * admin entran siempre sin necesidad de esto.
+ */
+export async function setUsuarioAcceso24Action(
+  usuario_id: string,
+  valor: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireAdmin();
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columna nueva, database.ts sin regenerar
+  const { data: previo } = await (supabase as any)
+    .from("usuarios")
+    .select("acceso_fuera_horario")
+    .eq("id", usuario_id)
+    .single();
+  if (!previo) return { error: "Usuario inexistente" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columna nueva, database.ts sin regenerar
+  const { error } = await (supabase as any)
+    .from("usuarios")
+    .update({ acceso_fuera_horario: valor, updated_at: new Date().toISOString() })
+    .eq("id", usuario_id);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    valoresAnteriores: { acceso_fuera_horario: previo.acceso_fuera_horario },
+    valoresNuevos: { acceso_fuera_horario: valor },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
 export async function crearUsuarioAction(
   formData: FormData,
 ): Promise<{ ok: true } | { error: string }> {

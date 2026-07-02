@@ -134,6 +134,8 @@ export default async function UsuariosPage() {
       rol_nombre: rol?.nombre ?? null,
       estado: u.estado,
       last_login: u.last_login,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columna nueva, database.ts sin regenerar
+      acceso_fuera_horario: Boolean((u as any).acceso_fuera_horario),
     };
   });
 

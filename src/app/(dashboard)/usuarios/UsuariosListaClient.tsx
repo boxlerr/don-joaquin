@@ -14,7 +14,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { updateUsuarioRolAction } from "./actions";
+import { updateUsuarioRolAction, setUsuarioAcceso24Action } from "./actions";
 import { rolLabel } from "./area-meta";
 
 export type UsuarioRow = {
@@ -27,6 +27,8 @@ export type UsuarioRow = {
   rol_nombre: string | null;
   estado: string;
   last_login: string | null;
+  /** Excepción al bloqueo por horario laboral ("acceso 24 hs"). */
+  acceso_fuera_horario: boolean;
 };
 
 type Rol = { id: string; codigo: string; nombre: string };
@@ -81,6 +83,16 @@ export default function UsuariosListaClient({
     });
   };
 
+  const handleAcceso24 = (usuarioId: string, valor: boolean) => {
+    setSavingId(usuarioId);
+    setError(null);
+    startTransition(async () => {
+      const res = await setUsuarioAcceso24Action(usuarioId, valor);
+      setSavingId(null);
+      if ("error" in res) setError(res.error);
+    });
+  };
+
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -121,7 +133,7 @@ export default function UsuariosListaClient({
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
-            {["Nombre", "Email", "Rol", "Último acceso", "Estado"].map((col) => (
+            {["Nombre", "Email", "Rol", "Último acceso", "24 hs", "Estado"].map((col) => (
               <TableHead
                 key={col}
                 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
@@ -167,6 +179,42 @@ export default function UsuariosListaClient({
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {fmtDate(u.last_login)}
+                  </TableCell>
+                  {/* Excepción al bloqueo por horario laboral. Los admin entran
+                      siempre, así que para ellos no aplica. */}
+                  <TableCell>
+                    {u.rol_codigo === "admin" ? (
+                      <span
+                        className="text-xs text-muted-foreground/60"
+                        title="Los administradores entran siempre, a cualquier hora."
+                      >
+                        Siempre
+                      </span>
+                    ) : canEdit ? (
+                      <button
+                        type="button"
+                        disabled={savingId === u.id}
+                        onClick={() => handleAcceso24(u.id, !u.acceso_fuera_horario)}
+                        title={
+                          u.acceso_fuera_horario
+                            ? "Puede entrar a cualquier hora aunque el bloqueo por horario esté activo. Clic para quitar."
+                            : "Respeta el horario laboral (si el bloqueo está activo). Clic para permitir acceso 24 hs."
+                        }
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                          u.acceso_fuera_horario ? "bg-primary" : "bg-muted-foreground/25"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform ${
+                            u.acceso_fuera_horario ? "translate-x-4.5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {u.acceso_fuera_horario ? "Sí" : "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge
