@@ -37,6 +37,9 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
+  const [ciudadNacimiento, setCiudadNacimiento] = useState(chofer.ciudad_nacimiento ?? "");
+  const [localidad, setLocalidad] = useState(chofer.localidad ?? "");
+  const [provincia, setProvincia] = useState(chofer.provincia ?? "");
   const [banco, setBanco] = useState(chofer.banco ?? "");
   // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
@@ -71,6 +74,9 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     setTelefono(chofer.telefono ?? "");
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
+    setCiudadNacimiento(chofer.ciudad_nacimiento ?? "");
+    setLocalidad(chofer.localidad ?? "");
+    setProvincia(chofer.provincia ?? "");
     setBanco(chofer.banco ?? "");
     setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
@@ -109,6 +115,9 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
         telefono: telefono.trim() || undefined,
         telefono_emergencia: telefonoEmergencia.trim() || undefined,
         domicilio: domicilio.trim() || undefined,
+        ciudad_nacimiento: ciudadNacimiento.trim() || undefined,
+        localidad: localidad.trim() || undefined,
+        provincia: provincia.trim() || undefined,
         banco: banco.trim() || undefined,
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
@@ -170,7 +179,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
       {/* 3 columnas en paralelo: Personal/Laboral, Contacto, Bancarios */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-        {/* Datos personales y laborales (solo lectura) */}
+        {/* Datos personales y laborales (fechas y DNI/CUIL solo lectura) */}
         <section className="space-y-2.5">
           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Personal y laboral
@@ -196,10 +205,20 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
               </Field>
             )}
             <Field label="Ciudad de nacimiento">
-              <Value v={chofer.ciudad_nacimiento} />
+              {editing
+                ? <Input value={ciudadNacimiento} onChange={(e) => setCiudadNacimiento(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.ciudad_nacimiento} />}
             </Field>
-            <Field label="Localidad (residencia)"><Value v={chofer.localidad} /></Field>
-            <Field label="Provincia"><Value v={chofer.provincia} /></Field>
+            <Field label="Localidad (residencia)">
+              {editing
+                ? <Input value={localidad} onChange={(e) => setLocalidad(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.localidad} />}
+            </Field>
+            <Field label="Provincia">
+              {editing
+                ? <Input value={provincia} onChange={(e) => setProvincia(e.target.value)} className="h-8 text-sm" placeholder="—" />
+                : <Value v={chofer.provincia} />}
+            </Field>
             <div className="col-span-2">
               <Field label="Camión actual">
                 <CamionAsignacion
