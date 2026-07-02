@@ -40,6 +40,7 @@ export type SeccionCodigo =
   | "gastos"
   | "cheques"
   | "impuestos"
+  | "prestamos"
   | "dashboard_completo"
   // Caja
   | "caja_saldo"
@@ -101,6 +102,9 @@ export const SECCIONES: Seccion[] = [
   // 30/06, tema 8): datos fiscales de la empresa. Se destapa por rol desde
   // /usuarios → "Secciones confidenciales" si Bárbara decide abrirla.
   { codigo: "impuestos", area: "finanzas", nombre: "Impuestos", orden: 12, confidencial: true },
+  // Préstamos bancarios (planilla de la mamá): cuotas, avisos y carga semanal.
+  // Confidencial como el resto de finanzas sensibles (audios Bárbara 02/07).
+  { codigo: "prestamos", area: "finanzas", nombre: "Préstamos", orden: 14, confidencial: true },
   // El dashboard general (/dashboard) queda sin facturación para todos; la
   // facturación acumulada vive en /dashboard/completo, solo Bárbara + Nicolás
   // (audios 30/06, tema 6 — opción B "dos dashboards").

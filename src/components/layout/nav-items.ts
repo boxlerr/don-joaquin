@@ -21,6 +21,7 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
+  PiggyBank,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
@@ -140,6 +141,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Gastos", href: "/gastos", icon: Receipt, seccion: "gastos" },
       { label: "Cheques", href: "/cheques", icon: FileText, seccion: "cheques" },
       { label: "Impuestos", href: "/impuestos", icon: Landmark, seccion: "impuestos" },
+      // Cuotas de préstamos bancarios — confidencial (solo dirección).
+      { label: "Préstamos", href: "/prestamos", icon: PiggyBank, seccion: "prestamos" },
     ],
   },
   {

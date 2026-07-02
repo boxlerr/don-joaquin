@@ -693,6 +693,68 @@ export async function generarAlertas() {
     }
   }
 
+  // Préstamos bancarios (Finanzas) — cuotas por vencer o vencidas sin marcar
+  // como pagadas (audio Bárbara 02/07: "ojo, mañana vence el préstamo de
+  // Galicia, cuota 44 de 48"). Disparos discretos 7 días / 1 día / vencida;
+  // se apagan al tildar la cuota como pagada.
+  // `as any`: prestamo_cuotas es tabla nueva, aún no está en database.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cuotasPrestamo } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, nro, fecha_vencimiento, importe, prestamo:prestamos!inner(banco, tasa, cuotas_total, estado)")
+    .eq("pagada", false)
+    .eq("prestamo.estado", "activo");
+
+  for (const cu of (cuotasPrestamo ?? []) as {
+    id: string;
+    nro: number;
+    fecha_vencimiento: string;
+    importe: number;
+    prestamo: { banco: string; tasa: number | null; cuotas_total: number };
+  }[]) {
+    const pr = Array.isArray(cu.prestamo) ? cu.prestamo[0] : cu.prestamo;
+    if (!pr) continue;
+    const [py, pm, pd] = cu.fecha_vencimiento.split("-").map(Number);
+    const venceMid = new Date(py!, pm! - 1, pd!);
+    const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const dias = Math.round((venceMid.getTime() - hoyMid.getTime()) / 86400000);
+
+    type DispPrestamo = { umbral: "vencido" | "T1" | "T7"; severidad: "info" | "advertencia" | "critica" };
+    const disparos: DispPrestamo[] = [];
+    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    if (dias === 1) disparos.push({ umbral: "T1", severidad: "advertencia" });
+    if (dias === 7) disparos.push({ umbral: "T7", severidad: "info" });
+    if (disparos.length === 0) continue;
+
+    const cuotaLabel = `cuota ${cu.nro}/${pr.cuotas_total}`;
+    const tasaLabel = pr.tasa != null ? ` · tasa ${Number(pr.tasa).toLocaleString("es-AR")}%` : "";
+    const importeLabel = `$${Math.round(Number(cu.importe)).toLocaleString("es-AR")}`;
+
+    for (const d of disparos) {
+      const entidad_tipo = `prestamo_cuota:${d.umbral}`;
+      const key = `otro:${cu.id}:${entidad_tipo}:${cu.fecha_vencimiento}`;
+      if (existentesSet.has(key)) continue;
+
+      const mensaje =
+        d.umbral === "vencido"
+          ? `La ${cuotaLabel} de ${pr.banco} (${importeLabel}${tasaLabel}) venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura pagada.`
+          : d.umbral === "T1"
+            ? `Mañana vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`
+            : `En 7 días vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`;
+
+      nuevasAlertas.push({
+        tipo: "otro",
+        severidad: d.severidad,
+        titulo: `Préstamo ${pr.banco} — ${d.umbral === "vencido" ? "cuota vencida" : "cuota por vencer"} (${cu.nro}/${pr.cuotas_total})`,
+        mensaje,
+        entidad_id: cu.id,
+        entidad_tipo,
+        fecha_disparo: new Date().toISOString(),
+        fecha_vencimiento: cu.fecha_vencimiento,
+      });
+    }
+  }
+
   // Formulario 931 (Compliance) — debe enviarse a YPF (Nico) y a Loma (Noelia).
   // Bloqueante: sin 931 no puede cargar nadie. Disparos discretos 30/15/5 + vencido;
   // se apaga cuando AMBOS envíos están marcados. Usa tipo "vencimiento_compliance"

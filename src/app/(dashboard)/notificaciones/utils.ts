@@ -64,6 +64,10 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "insumo_precio_desactualizado") {
     return "/mantenimiento?tab=insumos";
   }
+  // Cuota de préstamo por vencer / vencida → módulo de préstamos.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo?.startsWith("prestamo_cuota")) {
+    return "/prestamos";
+  }
   // Ausencia programada → legajo del chofer, tab Ausencias.
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "chofer_ausencia" && alerta.entidad_id) {
     return `/choferes/${alerta.entidad_id}?tab=ausencias`;
