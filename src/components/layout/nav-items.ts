@@ -21,6 +21,7 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -56,6 +57,8 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "PRINCIPAL",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      // Dashboard con facturación — confidencial, solo quien tenga la sección.
+      { label: "Dashboard completo", href: "/dashboard/completo", icon: TrendingUp, seccion: "dashboard_completo" },
       { label: "Notificaciones", href: "/notificaciones", icon: Bell },
       { label: "Reportes", href: "/reportes", icon: BarChart3, seccion: "reportes" },
     ],
@@ -119,6 +122,8 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "RRHH",
     items: [
       { label: "Entrevistas", href: "/entrevistas", icon: UserSearch, area: "rrhh" },
+      // Planilla confidencial de sueldos sobre facturación (admin + taller).
+      { label: "Sueldos admin y taller", href: "/sueldos-admin", icon: DollarSign, seccion: "sueldos_admin" },
     ],
   },
   {

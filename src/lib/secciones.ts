@@ -40,6 +40,12 @@ export type SeccionCodigo =
   | "gastos"
   | "cheques"
   | "impuestos"
+  | "dashboard_completo"
+  // Caja
+  | "caja_saldo"
+  | "caja_grande"
+  // RRHH
+  | "sueldos_admin"
   // Compliance
   | "compliance_loma"
   | "compliance_ypf"
@@ -91,7 +97,23 @@ export const SECCIONES: Seccion[] = [
   // --- Finanzas ------------------------------------------------------------
   { codigo: "gastos", area: "finanzas", nombre: "Gastos", orden: 10 },
   { codigo: "cheques", area: "finanzas", nombre: "Cheques", orden: 11 },
-  { codigo: "impuestos", area: "finanzas", nombre: "Impuestos", orden: 12 },
+  // Impuestos va confidencial junto con Sueldos y Caja grande (audios Bárbara
+  // 30/06, tema 8): datos fiscales de la empresa. Se destapa por rol desde
+  // /usuarios → "Secciones confidenciales" si Bárbara decide abrirla.
+  { codigo: "impuestos", area: "finanzas", nombre: "Impuestos", orden: 12, confidencial: true },
+  // El dashboard general (/dashboard) queda sin facturación para todos; la
+  // facturación acumulada vive en /dashboard/completo, solo Bárbara + Nicolás
+  // (audios 30/06, tema 6 — opción B "dos dashboards").
+  { codigo: "dashboard_completo", area: "finanzas", nombre: "Dashboard completo", orden: 13, confidencial: true },
+  // --- Caja ------------------------------------------------------------------
+  // "Operar ≠ ver": con área caja en write se pueden CARGAR movimientos, pero
+  // saldo/historial/retiros (caja_saldo) y la caja grande (caja_grande) son
+  // confidenciales — solo dirección, salvo permiso explícito (tema 3).
+  { codigo: "caja_saldo", area: "caja", nombre: "Saldo e historial", orden: 10, confidencial: true },
+  { codigo: "caja_grande", area: "caja", nombre: "Caja grande", orden: 11, confidencial: true },
+  // --- RRHH ------------------------------------------------------------------
+  // Planilla de sueldos de administración + taller sobre facturación (tema 2).
+  { codigo: "sueldos_admin", area: "rrhh", nombre: "Sueldos admin y taller", orden: 11, confidencial: true },
   // --- Compliance ----------------------------------------------------------
   { codigo: "compliance_loma", area: "compliance", nombre: "Loma Negra", orden: 10 },
   { codigo: "compliance_ypf", area: "compliance", nombre: "YPF", orden: 11 },
