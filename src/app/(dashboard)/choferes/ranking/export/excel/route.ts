@@ -34,11 +34,16 @@ export async function GET(req: NextRequest) {
       "KM con carga": r.km_con_carga,
       "KM vacíos": r.km_vacios,
       "KM totales": r.km_total,
+      "Toneladas": Math.round(r.toneladas_total),
       "Facturación (ARS)": Math.round(r.facturacion_total),
       "$ / km": r.pesos_por_km != null ? Math.round(r.pesos_por_km) : "",
       "% Vacíos": Number(r.pct_vacios.toFixed(1)),
+      "Consumo (L/100km)": r.combustible_lp100 != null ? Number(r.combustible_lp100.toFixed(1)) : "",
+      Gomas: r.gomas_count,
+      "Roturas varias": r.roturas_varias_count,
       Apercibimientos: r.apercibimientos_count,
-      Roturas: r.roturas_count,
+      Siniestros: r.siniestros_count,
+      Conducta: r.conducta_count,
       Taller: r.taller_count,
       "Licencias activas": r.licencias_activas,
     })),
@@ -52,11 +57,16 @@ export async function GET(req: NextRequest) {
       "KM con carga": 0,
       "KM vacíos": 0,
       "KM totales": 0,
+      "Toneladas": 0,
       "Facturación (ARS)": 0,
       "$ / km": "",
       "% Vacíos": 0,
+      "Consumo (L/100km)": "",
+      Gomas: 0,
+      "Roturas varias": 0,
       Apercibimientos: 0,
-      Roturas: 0,
+      Siniestros: 0,
+      Conducta: 0,
       Taller: 0,
       "Licencias activas": 0,
     })),
@@ -73,7 +83,7 @@ export async function GET(req: NextRequest) {
   XLSX.utils.sheet_add_json(ws, rows, { origin: "A5" });
 
   const widths = [
-    4, 18, 18, 16, 6, 8, 12, 12, 12, 16, 8, 9, 13, 10, 8, 14,
+    4, 18, 18, 16, 6, 8, 12, 12, 12, 10, 16, 8, 9, 16, 7, 13, 13, 10, 9, 8, 14,
   ];
   ws["!cols"] = widths.map((wch) => ({ wch }));
 

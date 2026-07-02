@@ -34,6 +34,11 @@ export type TramosConfig = {
   conducta: { dos: number; tres: number; cuatro_mas: number };
 };
 
+/** De dónde sale la referencia de consumo: número fijo o promedio de la flota
+ * del mes anterior (idea de Bárbara; ella misma dijo que si complica se deja
+ * el fijo → default "fijo", el dinámico es opt-in). */
+export type CombustibleRefModo = "fijo" | "flota_mes_anterior";
+
 /** Configuración completa del score, editable por el admin. */
 export type RankingCriterios = {
   /** Puntos máximos de cada concepto (ponderación). Deberían sumar 100. */
@@ -42,6 +47,9 @@ export type RankingCriterios = {
   km_ref_mensual: number;
   /** L/100km de referencia: hasta este valor el consumo es "muy bueno". */
   combustible_ref: number;
+  /** Modo de la referencia de consumo. En "flota_mes_anterior" la fija de
+   * arriba queda de respaldo para cuando ese mes no tiene cargas. */
+  combustible_ref_modo: CombustibleRefModo;
   /** % de descuento por nivel de cada concepto. */
   tramos: TramosConfig;
 };
@@ -61,6 +69,7 @@ export const RANKING_CRITERIOS_DEFAULT: RankingCriterios = {
   },
   km_ref_mensual: 13500,
   combustible_ref: 33.6,
+  combustible_ref_modo: "fijo",
   tramos: {
     km: { promedio: 0.35, malo: 0.7, muy_malo: 1 },
     toneladas: { leve: 0.4, importante: 0.7, grave: 1 },
@@ -255,6 +264,8 @@ export function mergeCriterios(raw: unknown): RankingCriterios {
     topes,
     km_ref_mensual: Math.max(1, Math.round(numOr(obj.km_ref_mensual, d.km_ref_mensual))),
     combustible_ref: Math.max(0.1, numOr(obj.combustible_ref, d.combustible_ref)),
+    // Configs viejas guardadas sin este campo (o con basura) → "fijo".
+    combustible_ref_modo: obj.combustible_ref_modo === "flota_mes_anterior" ? "flota_mes_anterior" : "fijo",
     tramos,
   };
 }
@@ -349,7 +360,10 @@ export function calcularScore(
   if (inp.combustible_lp100 == null) {
     push("combustible", 0, "sin cargas de gasoil", true);
   } else {
-    push("combustible", descuentoCombustible(inp.combustible_lp100, c.combustible_ref, c.tramos.combustible), `${fmtDec1(inp.combustible_lp100)} L/100km`);
+    // En modo dinámico la referencia cambia mes a mes, así que se muestra en el
+    // detalle contra qué se comparó. En modo fijo el detalle queda como siempre.
+    const refTxt = c.combustible_ref_modo === "flota_mes_anterior" ? ` (ref. ${fmtDec1(c.combustible_ref)})` : "";
+    push("combustible", descuentoCombustible(inp.combustible_lp100, c.combustible_ref, c.tramos.combustible), `${fmtDec1(inp.combustible_lp100)} L/100km${refTxt}`);
   }
 
   // 4. Gomas rotas/dañadas

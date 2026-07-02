@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calcularEficienciaPorDeltas, type CargaEficiencia } from "@/lib/combustible-eficiencia";
 import {
   RANKING_CRITERIOS_DEFAULT,
   CONFIG_CLAVE,
@@ -27,15 +28,23 @@ export type RankingChofer = {
   pct_vacios: number;
   apercibimientos_count: number;
   roturas_count: number;
+  /** Roturas de gomas/llantas (concepto "gomas" del score). */
+  gomas_count: number;
+  /** Roturas varias, sin gomas (concepto "roturas" del score). */
+  roturas_varias_count: number;
   taller_count: number;
   siniestros_count: number;
   ausencias_injustificadas_count: number;
+  /** Eventos de conducta del score: ausencias injustificadas + llamados/adelantos. */
+  conducta_count: number;
   licencias_activas: number;
   facturacion_total: number;
   pesos_por_km: number | null;
   // Métricas nuevas del modelo de score de Bárbara (para columnas/desglose).
   km_mensual: number | null;
   toneladas_pct: number | null;
+  /** Toneladas transportadas en el período (suma de tonelaje real). */
+  toneladas_total: number;
   combustible_lp100: number | null;
   score: number | null;
   // Penalizaciones aplicadas (desglose "por qué" del score, compat. con la UI).
@@ -188,6 +197,46 @@ function mesesActivos(fechas: (string | null)[]): number {
 }
 
 /**
+ * Resuelve la referencia efectiva de consumo (concepto combustible). En modo
+ * "flota_mes_anterior" (idea de Bárbara: comparar contra cómo vino la flota y
+ * no contra un número fijo) la referencia pasa a ser el promedio de TODAS las
+ * cargas de la flota en el mes calendario ANTERIOR al mes de `hasta`, con la
+ * misma lógica tanque-a-tanque del módulo /combustible. Si ese mes no tiene
+ * datos suficientes, se cae a la referencia fija ("si complica, queda el fijo").
+ * En modo "fijo" devuelve la config tal cual, sin tocar la DB.
+ */
+async function conRefCombustibleEfectiva(
+  supabase: ReturnType<typeof createAdminClient>,
+  p: RankingCriterios,
+  hastaISO: string,
+): Promise<RankingCriterios> {
+  if (p.combustible_ref_modo !== "flota_mes_anterior") return p;
+
+  // Mes calendario anterior al mes de `hasta` (fechas ISO yyyy-mm-dd).
+  const y = Number(hastaISO.slice(0, 4));
+  const m = Number(hastaISO.slice(5, 7)); // 1..12
+  const desde = toISO(new Date(y, m - 2, 1));
+  const hasta = toISO(new Date(y, m - 1, 0)); // día 0 = último día del mes anterior
+
+  // Cargas de toda la flota en ese mes (sin filtrar por chofer ni camión).
+  const { data } = await supabase
+    .from("cargas_combustible")
+    .select("camion_id, litros, km_odometro")
+    .gte("fecha", desde)
+    .lte("fecha", `${hasta}T23:59:59`);
+
+  const cargas: CargaEficiencia[] = [];
+  for (const c of (data ?? []) as CargaComb[]) {
+    if (!c.camion_id || !c.litros || c.litros <= 0 || !c.km_odometro || c.km_odometro <= 0) continue;
+    cargas.push({ camion_id: c.camion_id, litros: c.litros, km_odometro: c.km_odometro });
+  }
+  const { eficiencia } = calcularEficienciaPorDeltas(cargas);
+  if (eficiencia == null) return p; // sin dato del mes anterior → respaldo fijo
+
+  return { ...p, combustible_ref: eficiencia };
+}
+
+/**
  * Apercibimientos del período con su `tipo`, tolerando que la columna aún no exista
  * en remoto (migración `20260630_apercibimientos_tipo.sql` sin aplicar): si el select
  * con `tipo` falla, reintenta sin él y los trata como apercibimiento (comportamiento
@@ -224,6 +273,9 @@ export async function computeRanking({
 }): Promise<RankingChofer[]> {
   const supabase = createAdminClient();
   const p = criterios ?? (await getRankingCriterios());
+  // Con el modo dinámico activado, la referencia de consumo pasa a ser el
+  // promedio de la flota del mes anterior (misma para todos los choferes).
+  const pScore = await conRefCombustibleEfectiva(supabase, p, hasta);
 
   const [
     { data: choferes },
@@ -400,6 +452,7 @@ export async function computeRanking({
       }
     }
     const toneladas_pct = tonN > 0 ? tonSum / tonN : null;
+    const toneladas_total = cv.reduce((s, v) => s + (v.tonelaje_real ?? 0), 0);
 
     // Combustible: promedio de L/100km de los camiones que manejó (con dato).
     let combSum = 0;
@@ -432,7 +485,7 @@ export async function computeRanking({
           siniestros: siniestros_count,
           conducta: ausencias_injustificadas_count + conducta_eventos,
         },
-        p,
+        pScore,
       );
       score = res.score;
       desglose = res.desglose;
@@ -451,14 +504,18 @@ export async function computeRanking({
       pct_vacios,
       apercibimientos_count,
       roturas_count,
+      gomas_count,
+      roturas_varias_count: varias.length,
       taller_count,
       siniestros_count,
       ausencias_injustificadas_count,
+      conducta_count: ausencias_injustificadas_count + conducta_eventos,
       licencias_activas,
       facturacion_total,
       pesos_por_km,
       km_mensual,
       toneladas_pct,
+      toneladas_total,
       combustible_lp100,
       score,
       desglose,
@@ -490,6 +547,8 @@ export async function computeScoreChofer(
 } | null> {
   const supabase = createAdminClient();
   const p = await getRankingCriterios();
+  // Misma referencia efectiva de consumo que usa el ranking (fija o flota).
+  const pScore = await conRefCombustibleEfectiva(supabase, p, hasta);
 
   const [
     { data: viajes },
@@ -627,7 +686,7 @@ export async function computeScoreChofer(
       siniestros: (siniestros ?? []).length,
       conducta: (ausenciasInjust ?? []).length + conducta_eventos,
     },
-    p,
+    pScore,
   );
 
   return { score, desglose, conceptos, viajes_count: vs.length };

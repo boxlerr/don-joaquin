@@ -23,6 +23,7 @@ import {
   TRAMOS_META,
   type RankingCriterios,
   type ConceptoKey,
+  type CombustibleRefModo,
 } from "./criterios";
 
 export default function CriteriosButton({ criterios }: { criterios: RankingCriterios }) {
@@ -49,6 +50,9 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
 
   const setRef = (field: "km_ref_mensual" | "combustible_ref", v: string) =>
     setValores((prev) => ({ ...prev, [field]: v === "" ? 0 : Math.max(0, parseFloat(v) || 0) }));
+
+  const setRefModo = (modo: CombustibleRefModo) =>
+    setValores((prev) => ({ ...prev, combustible_ref_modo: modo }));
 
   const tramoPct = (concepto: ConceptoKey, nivel: string) =>
     Math.round(((valores.tramos[concepto] as Record<string, number>)[nivel] ?? 0) * 100);
@@ -180,15 +184,49 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
               <span className="text-xs text-muted-foreground">km</span>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2">
-            <div className="min-w-0">
-              <Label htmlFor="ref-comb" className="text-sm font-medium text-foreground">Consumo de referencia</Label>
-              <p className="text-[11px] text-muted-foreground">Hasta este consumo el chofer no pierde puntos</p>
+          <div className="rounded-lg border border-border px-3 py-2 space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <Label htmlFor="ref-comb" className="text-sm font-medium text-foreground">Consumo de referencia</Label>
+                <p className="text-[11px] text-muted-foreground">Hasta este consumo el chofer no pierde puntos</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Input id="ref-comb" type="number" min={0} step={0.1} value={String(valores.combustible_ref)} onChange={(e) => setRef("combustible_ref", e.target.value)} className="w-24 h-8 text-sm text-right" />
+                <span className="text-xs text-muted-foreground">L/100km</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <Input id="ref-comb" type="number" min={0} step={0.1} value={String(valores.combustible_ref)} onChange={(e) => setRef("combustible_ref", e.target.value)} className="w-24 h-8 text-sm text-right" />
-              <span className="text-xs text-muted-foreground">L/100km</span>
+            {/* Modo de la referencia: fija vs. promedio de la flota del mes anterior
+                (idea de Bárbara; el fijo es el default y el respaldo). */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(
+                [
+                  { key: "fijo", label: "Referencia fija" },
+                  { key: "flota_mes_anterior", label: "Promedio flota mes anterior" },
+                ] as { key: CombustibleRefModo; label: string }[]
+              ).map((op) => {
+                const activo = valores.combustible_ref_modo === op.key;
+                return (
+                  <button
+                    key={op.key}
+                    type="button"
+                    onClick={() => setRefModo(op.key)}
+                    className={`inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${
+                      activo
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                );
+              })}
             </div>
+            {valores.combustible_ref_modo === "flota_mes_anterior" && (
+              <p className="text-[11px] text-muted-foreground">
+                Se compara contra el consumo promedio de la flota del mes anterior. El número de arriba
+                queda de respaldo si ese mes no tiene cargas.
+              </p>
+            )}
           </div>
         </div>
 

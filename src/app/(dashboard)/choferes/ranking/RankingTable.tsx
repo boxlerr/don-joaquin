@@ -34,11 +34,16 @@ type SortKey =
   | "score"
   | "viajes_count"
   | "km_total"
+  | "toneladas_total"
   | "facturacion_total"
   | "pesos_por_km"
   | "pct_vacios"
+  | "combustible_lp100"
+  | "gomas_count"
+  | "roturas_varias_count"
   | "apercibimientos_count"
-  | "roturas_count"
+  | "siniestros_count"
+  | "conducta_count"
   | "taller_count";
 
 function fmtNum(n: number) {
@@ -454,6 +459,9 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             </p>
           </div>
         ) : (
+          // Con las columnas de todos los conceptos la tabla puede superar el
+          // ancho en pantallas chicas: scroll horizontal en vez de apretujar.
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -467,11 +475,16 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                 <SortableTh label="Score" col="score" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" className="min-w-[160px]" />
                 <SortableTh label="Viajes" col="viajes_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortableTh label="KM totales" col="km_total" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Toneladas" col="toneladas_total" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortableTh label="Facturación" col="facturacion_total" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortableTh label="$ / km" col="pesos_por_km" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <SortableTh label="% Vacíos" col="pct_vacios" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Consumo" col="combustible_lp100" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Gomas" col="gomas_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Roturas" col="roturas_varias_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
                 <SortableTh label="Apercib." col="apercibimientos_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
-                <SortableTh label="Roturas" col="roturas_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Siniestros" col="siniestros_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
+                <SortableTh label="Conducta" col="conducta_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" />
                 <SortableTh label="Taller" col="taller_count" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" className="pr-5" />
               </tr>
             </thead>
@@ -555,6 +568,23 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                     <td className="px-4 py-3.5 text-right tabular-nums text-muted-foreground">
                       {r.km_total > 0 ? fmtNum(r.km_total) : <span className="text-muted-foreground/40">—</span>}
                     </td>
+                    {/* Toneladas transportadas */}
+                    <td
+                      className="px-4 py-3.5 text-right tabular-nums text-muted-foreground"
+                      title={
+                        r.toneladas_pct != null
+                          ? `${Math.round(r.toneladas_pct * 100)}% de la capacidad del camión en promedio`
+                          : "Sin tonelaje cargado en los viajes"
+                      }
+                    >
+                      {r.toneladas_total > 0 ? (
+                        <>
+                          {fmtNum(r.toneladas_total)} <span className="text-xs text-muted-foreground/60">tn</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
                     {/* Facturación */}
                     <td className="px-4 py-3.5 text-right tabular-nums">
                       {r.facturacion_total > 0 ? (
@@ -575,8 +605,40 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                     <td className="px-4 py-3.5 text-center">
                       <PctBadge pct={r.pct_vacios} viajes={r.viajes_count} />
                     </td>
-                    {/* Apercibimientos */}
-                    <td className="px-4 py-3.5 text-center">
+                    {/* Consumo de combustible */}
+                    <td
+                      className="px-4 py-3.5 text-center tabular-nums text-muted-foreground"
+                      title="L/100km promedio de los camiones que manejó (tanque a tanque)"
+                    >
+                      {r.combustible_lp100 != null ? (
+                        <>
+                          {r.combustible_lp100.toLocaleString("es-AR", { maximumFractionDigits: 1 })}{" "}
+                          <span className="text-xs text-muted-foreground/60">L/100</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* Gomas rotas */}
+                    <td className="px-4 py-3.5 text-center" title="Roturas de gomas / llantas">
+                      {r.gomas_count > 0 ? (
+                        <span className="text-[#EF4444] font-semibold">{r.gomas_count}</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* Roturas varias (sin gomas) */}
+                    <td className="px-4 py-3.5 text-center" title="Roturas varias (sin gomas): espejos, ópticas, chapa, etc.">
+                      {r.roturas_varias_count > 0 ? (
+                        <span className="text-[#EF4444] font-semibold">
+                          {r.roturas_varias_count}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* Apercibimientos (seguridad: actas + multas) */}
+                    <td className="px-4 py-3.5 text-center" title="Seguridad: actas y multas de tránsito">
                       {r.apercibimientos_count > 0 ? (
                         <span className="inline-flex items-center gap-1 font-semibold text-[#F59E0B]">
                           {r.apercibimientos_count}
@@ -585,12 +647,18 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                         <span className="text-muted-foreground/40">—</span>
                       )}
                     </td>
-                    {/* Roturas */}
-                    <td className="px-4 py-3.5 text-center">
-                      {r.roturas_count > 0 ? (
-                        <span className="text-[#EF4444] font-semibold">
-                          {r.roturas_count}
-                        </span>
+                    {/* Siniestros */}
+                    <td className="px-4 py-3.5 text-center" title="Accidentes / siniestros del período">
+                      {r.siniestros_count > 0 ? (
+                        <span className="text-[#EF4444] font-semibold">{r.siniestros_count}</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+                    {/* Conducta (ausencias injustificadas + llamados de atención) */}
+                    <td className="px-4 py-3.5 text-center" title="Conducta: ausencias injustificadas + llamados de atención / adelantos">
+                      {r.conducta_count > 0 ? (
+                        <span className="text-[#F59E0B] font-semibold">{r.conducta_count}</span>
                       ) : (
                         <span className="text-muted-foreground/40">—</span>
                       )}
@@ -608,7 +676,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                   </tr>
                   {isExpanded && (
                     <tr className="bg-muted/20 border-l-[3px] border-l-transparent">
-                      <td colSpan={12} className="px-5 py-3">
+                      <td colSpan={17} className="px-5 py-3">
                         <DesglosePanel
                           r={r}
                           onVerLegajo={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
@@ -623,7 +691,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
               {/* Sin resultados de búsqueda */}
               {filteredActivos.length === 0 && filteredSinActividad.length === 0 && query && (
                 <tr>
-                  <td colSpan={12} className="px-6 py-10 text-center">
+                  <td colSpan={17} className="px-6 py-10 text-center">
                     <p className="text-sm text-muted-foreground">
                       Sin coincidencias para &ldquo;{query}&rdquo;
                     </p>
@@ -632,6 +700,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
               )}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Sección sin actividad — colapsable */}
