@@ -52,10 +52,11 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
   );
 
   const handleOpen = () => {
-    setOpen((prev) => {
-      if (!prev) ctx?.refresh();
-      return !prev;
-    });
+    const willOpen = !open;
+    setOpen(willOpen);
+    // El refresh dispara setState en el provider: debe correr en el handler del
+    // click, nunca dentro del updater de setOpen (React lo ejecuta en render).
+    if (willOpen) ctx?.refresh();
   };
 
   return (
