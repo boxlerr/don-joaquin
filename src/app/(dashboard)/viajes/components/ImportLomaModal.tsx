@@ -19,6 +19,7 @@ import {
   HelpCircle,
   ChevronRight,
   ChevronDown,
+  Pencil,
 } from "lucide-react";
 import {
   previewLomaImportAction,
@@ -37,6 +38,14 @@ const num = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+const normTransp = (s: string) => (s ?? "").toUpperCase().replace(/\s+/g, "").trim();
+// Formato argentino en las celdas editables: miles con "." y decimales con ",".
+const parseNum = (d: string) => d.replace(/[^\d,]/g, "").replace(",", ".");
+const fmtMoneyCell = (raw: string) =>
+  raw.trim() === "" ? "" : (Number(raw) || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+const fmtTnCell = (raw: string) => raw.replace(".", ",");
+const cellInput =
+  "bg-muted/40 border border-border rounded px-1 py-0.5 font-mono text-foreground cursor-text transition-colors hover:bg-card hover:border-[#60A5FA] focus:border-primary focus:ring-2 focus:ring-primary/25 focus:bg-card outline-none";
 
 type ImportLomaModalProps = {
   open?: boolean;
@@ -63,9 +72,19 @@ export default function ImportLomaModal({
   const [asignaciones, setAsignaciones] = useState<ChoferAsignacion[]>([]);
   const [crearNoCargados, setCrearNoCargados] = useState(false);
   const [result, setResult] = useState<NonNullable<ConfirmLomaState> | null>(null);
-  const [showRows, setShowRows] = useState(false);
+  const [showRows, setShowRows] = useState(true);
+  // Ediciones manuales de toneladas/importe por Nº de transporte.
+  const [ediciones, setEdiciones] = useState<Record<string, { ton: string; importe: string }>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const fileObjRef = useRef<File | null>(null);
+
+  const valOf = (r: RowPreview) =>
+    ediciones[r.nroTransporte] ?? {
+      ton: r.ton != null ? String(r.ton) : "",
+      importe: r.importe != null ? String(Math.round(r.importe)) : "",
+    };
+  const patchEd = (r: RowPreview, patch: Partial<{ ton: string; importe: string }>) =>
+    setEdiciones((prev) => ({ ...prev, [r.nroTransporte]: { ...valOf(r), ...patch } }));
 
   const handlePreview = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -106,6 +125,14 @@ export default function ImportLomaModal({
       fd.set("expedidoresLoma", JSON.stringify([...expedidoresLoma]));
       fd.set("asignaciones", JSON.stringify(asignaciones));
       fd.set("crearNoCargados", crearNoCargados ? "true" : "false");
+      const edPayload: Record<string, { ton: number | null; importe: number | null }> = {};
+      for (const [key, v] of Object.entries(ediciones)) {
+        edPayload[normTransp(key)] = {
+          ton: v.ton.trim() === "" ? null : Number(v.ton) || 0,
+          importe: v.importe.trim() === "" ? null : Number(v.importe) || 0,
+        };
+      }
+      fd.set("ediciones", JSON.stringify(edPayload));
       const res = await confirmLomaImportAction(fd);
       if (!res || res.error) {
         setError(res?.error ?? "Error al confirmar.");
@@ -126,7 +153,8 @@ export default function ImportLomaModal({
     setAsignaciones([]);
     setCrearNoCargados(false);
     setResult(null);
-    setShowRows(false);
+    setShowRows(true);
+    setEdiciones({});
     fileObjRef.current = null;
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -169,7 +197,8 @@ export default function ImportLomaModal({
       }
       if (r.status === "completar") {
         completar++;
-        importeCompletar += r.importe ?? 0;
+        const impEd = ediciones[r.nroTransporte]?.importe;
+        importeCompletar += (impEd != null && impEd !== "" ? Number(impEd) : r.importe ?? 0) || 0;
       } else if (r.status === "ya_con_valor") {
         yaConValor++;
       } else {
@@ -188,7 +217,7 @@ export default function ImportLomaModal({
       crear,
       aProcesar: completar + crear,
     };
-  }, [preview, expedidoresLoma, crearNoCargados, choferPorNombre]);
+  }, [preview, expedidoresLoma, crearNoCargados, choferPorNombre, ediciones]);
 
   // Choferes a revisar: solo importan si se van a crear los no cargados.
   const choferesARevisar = [
@@ -437,16 +466,47 @@ export default function ImportLomaModal({
                 </div>
               )}
 
-              {/* Detalle de filas (colapsable) */}
+              {/* No cargados → reclamar (prominente) */}
+              {(() => {
+                const recl = rowsIncluidas.filter((r) => r.status === "no_cargado");
+                if (recl.length === 0 || crearNoCargados) return null;
+                return (
+                  <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] text-[#991B1B] text-xs px-3 py-2">
+                    <div className="font-semibold flex items-center gap-1.5">
+                      <AlertTriangle size={13} />
+                      {recl.length} flete{recl.length !== 1 ? "s" : ""} sin viaje cargado — a reclamar
+                    </div>
+                    <ul className="mt-1 space-y-0.5 max-h-24 overflow-y-auto">
+                      {recl.map((r) => (
+                        <li key={r.nroTransporte} className="font-mono text-[11px]">
+                          <strong>{r.nroTransporte}</strong> · {r.fecha ?? "s/f"} · {r.saleDe}→{r.llegaA} · {r.choferNombre || "s/chofer"} · {money(r.importe)}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-1 text-[11px] text-[#991B1B]/80">
+                      No hay ningún viaje cargado con esos Nº de transporte. Cargalos y reimportá, o activá «crear los no cargados».
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Detalle de filas (editable) */}
               <div>
-                <button
-                  type="button"
-                  onClick={() => setShowRows((v) => !v)}
-                  className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
-                >
-                  {showRows ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  {showRows ? "Ocultar" : "Ver"} fletes ({rowsIncluidas.length})
-                </button>
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setShowRows((v) => !v)}
+                    className="text-[11px] text-primary inline-flex items-center gap-1 hover:underline"
+                  >
+                    {showRows ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    {showRows ? "Ocultar" : "Ver"} fletes ({rowsIncluidas.length})
+                  </button>
+                  {showRows && (
+                    <span className="text-[11px] text-primary inline-flex items-center gap-1">
+                      <Pencil size={11} /> toneladas e importe editables
+                    </span>
+                  )}
+                </div>
                 {showRows && (
                   <div className="mt-1.5 border border-border rounded-md overflow-hidden max-h-[260px] overflow-y-auto">
                     <table className="w-full text-[11px]">
@@ -463,7 +523,13 @@ export default function ImportLomaModal({
                       </thead>
                       <tbody className="divide-y divide-[#F1F5F9]">
                         {rowsIncluidas.map((r) => (
-                          <RowLine key={r.nroTransporte} r={r} crearNoCargados={crearNoCargados} />
+                          <RowLine
+                            key={r.nroTransporte}
+                            r={r}
+                            crearNoCargados={crearNoCargados}
+                            vals={valOf(r)}
+                            onPatch={(p) => patchEd(r, p)}
+                          />
                         ))}
                       </tbody>
                     </table>
@@ -566,16 +632,44 @@ function Stat({
   );
 }
 
-function RowLine({ r, crearNoCargados }: { r: RowPreview; crearNoCargados: boolean }) {
+function RowLine({
+  r,
+  crearNoCargados,
+  vals,
+  onPatch,
+}: {
+  r: RowPreview;
+  crearNoCargados: boolean;
+  vals: { ton: string; importe: string };
+  onPatch: (p: Partial<{ ton: string; importe: string }>) => void;
+}) {
   const muted = r.status === "ya_con_valor";
+  const reclama = r.status === "no_cargado";
   return (
-    <tr className={muted ? "opacity-50" : ""}>
+    <tr className={`${muted ? "opacity-60" : ""} ${reclama ? "bg-red-50/50" : ""}`}>
       <td className="px-2 py-1.5 font-mono whitespace-nowrap">{r.nroTransporte}</td>
       <td className="px-2 py-1.5 font-mono whitespace-nowrap">{r.fecha ?? "—"}</td>
       <td className="px-2 py-1.5">{r.saleDe} → {r.llegaA}</td>
       <td className="px-2 py-1.5 font-mono">{r.remito ?? "—"}</td>
-      <td className="px-2 py-1.5 text-right font-mono">{r.ton != null ? num(r.ton) : "—"}</td>
-      <td className="px-2 py-1.5 text-right font-mono">{money(r.importe)}</td>
+      <td className="px-1 py-0.5 text-right">
+        <input
+          value={fmtTnCell(vals.ton)}
+          onChange={(e) => onPatch({ ton: parseNum(e.target.value) })}
+          inputMode="decimal"
+          className={`${cellInput} w-14 text-right`}
+        />
+      </td>
+      <td className="px-1 py-0.5 text-right">
+        <div className="flex items-center justify-end">
+          <span className="text-muted-foreground pr-0.5">$</span>
+          <input
+            value={fmtMoneyCell(vals.importe)}
+            onChange={(e) => onPatch({ importe: parseNum(e.target.value) })}
+            inputMode="decimal"
+            className={`${cellInput} w-24 text-right`}
+          />
+        </div>
+      </td>
       <td className="px-2 py-1.5">
         {r.status === "completar" ? (
           <span className="text-[#047857]">
@@ -586,7 +680,7 @@ function RowLine({ r, crearNoCargados }: { r: RowPreview; crearNoCargados: boole
         ) : crearNoCargados ? (
           <span className="text-[#075985]">se crea</span>
         ) : (
-          <span className="text-[#92400E]">reclamar</span>
+          <span className="text-red-600">✗ reclamar</span>
         )}
       </td>
     </tr>

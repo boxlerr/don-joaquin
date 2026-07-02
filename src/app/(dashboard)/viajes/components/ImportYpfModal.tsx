@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Upload, Loader2, AlertTriangle, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { Upload, Loader2, AlertTriangle, FileText, Pencil } from "lucide-react";
 import {
   previewYpfImportAction,
   confirmYpfImportAction,
@@ -22,7 +22,54 @@ import {
 type Step = "select" | "preview" | "done";
 
 const money = (n: number | null | undefined) =>
-  n == null ? "—" : "$" + Math.round(n).toLocaleString("es-AR");
+  n == null || Number.isNaN(n) ? "—" : "$" + Math.round(n).toLocaleString("es-AR");
+
+// Formato argentino para las celdas editables: miles con "." y decimales con ",".
+const parseNum = (d: string) => d.replace(/[^\d,]/g, "").replace(",", ".");
+const fmtMoneyCell = (raw: string) =>
+  raw.trim() === "" ? "" : (Number(raw.replace(",", ".")) || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+const fmtTnCell = (raw: string) => raw.replace(".", ",");
+
+// Fila editable en la preview (los inputs se manejan como string).
+type EditRow = {
+  idx: number;
+  remito: string;
+  fecha: string | null;
+  destino: string | null;
+  choferDm: string;
+  precioUnitario: number | null;
+  netoTn: string;
+  importe: string;
+  status: DmRowPreview["status"];
+  viajeCodigo: string | null;
+  viajeChofer: string | null;
+  aplicar: boolean;
+};
+
+function toEdit(r: DmRowPreview): EditRow {
+  return {
+    idx: r.idx,
+    remito: r.remito ?? "",
+    fecha: r.fecha,
+    destino: r.destino,
+    choferDm: r.choferDm,
+    precioUnitario: r.precioUnitario,
+    netoTn: r.netoTn != null ? String(r.netoTn) : "",
+    importe: r.importe != null ? String(Math.round(r.importe)) : "",
+    status: r.status,
+    viajeCodigo: r.viaje?.codigo ?? null,
+    viajeChofer: r.viaje?.chofer ?? null,
+    aplicar: r.status === "coincide",
+  };
+}
+
+const ESTADO_INFO: Record<DmRowPreview["status"], string> = {
+  coincide: "Coincide con un viaje cargado — se va a completar",
+  ya_con_valor: "El viaje ya tenía un importe cargado (destildado por defecto)",
+  no_cargado: "El DM trae este remito pero ningún viaje cargado lo tiene. Cargá el viaje (aunque sea sin número) o corregí acá el remito de uno que exista.",
+  sin_remito: "El renglón del DM no trae número de remito",
+  sin_precio: "No hay precio del destino para calcular el importe",
+};
 
 type ImportYpfModalProps = {
   open?: boolean;
@@ -45,6 +92,7 @@ export default function ImportYpfModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<NonNullable<YpfPreviewState> | null>(null);
+  const [rows, setRows] = useState<EditRow[]>([]);
   const [result, setResult] = useState<NonNullable<ConfirmYpfState> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const fileObjRef = useRef<File | null>(null);
@@ -65,6 +113,7 @@ export default function ImportYpfModal({
         return;
       }
       setPreview(res);
+      setRows((res.rows ?? []).map(toEdit));
       setStep("preview");
     } catch (err) {
       console.error(err);
@@ -74,13 +123,47 @@ export default function ImportYpfModal({
     }
   };
 
+  // Editar una celda. Al cambiar las toneladas, recalcula el importe (tn × precio).
+  const patchRow = (idx: number, patch: Partial<EditRow>, recalcImporte = false) => {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.idx !== idx) return r;
+        const next = { ...r, ...patch };
+        if (recalcImporte && next.precioUnitario != null) {
+          const tn = Number(next.netoTn);
+          if (!Number.isNaN(tn)) next.importe = String(Math.round(tn * next.precioUnitario));
+        }
+        return next;
+      }),
+    );
+  };
+
+  const aplicarCount = useMemo(() => rows.filter((r) => r.aplicar).length, [rows]);
+  const totalAplicar = useMemo(
+    () => rows.filter((r) => r.aplicar).reduce((s, r) => s + (Number(r.importe) || 0), 0),
+    [rows],
+  );
+  const faltantes = useMemo(() => rows.filter((r) => r.status === "no_cargado"), [rows]);
+  // Los remitos sin viaje van arriba de todo para que no queden escondidos.
+  const rowsOrdenadas = useMemo(
+    () => [...rows].sort((a, b) => (a.status === "no_cargado" ? 0 : 1) - (b.status === "no_cargado" ? 0 : 1)),
+    [rows],
+  );
+
   const handleConfirm = async () => {
     if (!fileObjRef.current) return;
     setLoading(true);
     setError(null);
     try {
+      const payload = rows.map((r) => ({
+        remito: r.remito.trim() || null,
+        netoTn: Number(r.netoTn) || 0,
+        importe: r.importe.trim() === "" ? null : Number(r.importe) || 0,
+        aplicar: r.aplicar,
+      }));
       const fd = new FormData();
       fd.set("file", fileObjRef.current);
+      fd.set("rows", JSON.stringify(payload));
       const res = await confirmYpfImportAction(fd);
       if (!res || res.error) {
         setError(res?.error ?? "Error al confirmar.");
@@ -97,12 +180,11 @@ export default function ImportYpfModal({
     setStep("select");
     setError(null);
     setPreview(null);
+    setRows([]);
     setResult(null);
     fileObjRef.current = null;
     if (fileRef.current) fileRef.current.value = "";
   };
-
-  const s = preview?.summary;
 
   return (
     <>
@@ -120,7 +202,7 @@ export default function ImportYpfModal({
         }}
       >
         <DialogContent
-          className={step === "preview" ? "sm:max-w-[1100px] max-h-[90vh] flex flex-col" : "sm:max-w-[560px]"}
+          className={step === "preview" ? "sm:max-w-[1150px] max-h-[90vh] flex flex-col" : "sm:max-w-[560px]"}
         >
           <DialogHeader>
             <DialogTitle className="text-foreground text-xl">
@@ -132,15 +214,14 @@ export default function ImportYpfModal({
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               {step === "select" && (
-                <>Subí el PDF del DM (&quot;DM Joaquín Directa&quot;). El sistema cruza cada renglón por <strong>nº de remito</strong> contra los viajes ya cargados y completa el tonelaje y el importe (neto × precio del destino). Los remitos que no estén cargados se listan para reclamar.</>
+                <>Subí el PDF del DM. El sistema cruza cada renglón por <strong>nº de remito</strong> contra los viajes ya cargados. En la vista previa vas a poder <strong>revisar y editar</strong> remito, toneladas e importe antes de confirmar.</>
               )}
               {step === "preview" && preview && (
                 <>
                   {preview.quincenaDesde} → {preview.quincenaHasta} ·{" "}
-                  <span className="text-[#047857] font-semibold">{s?.coinciden ?? 0} a completar</span>
-                  {(s?.noCargados ?? 0) > 0 && <> · <span className="text-red-600 font-semibold">{s?.noCargados} sin cargar (reclamar)</span></>}
-                  {(s?.yaConValor ?? 0) > 0 && <> · <span className="text-muted-foreground">{s?.yaConValor} ya con valor</span></>}
-                  {" "}· {money(s?.totalImporteACompletar)} a aplicar
+                  <span className="text-[#047857] font-semibold">{aplicarCount} a aplicar</span>
+                  {faltantes.length > 0 && <> · <span className="text-red-600 font-semibold">{faltantes.length} sin cargar</span></>}
+                  {" "}· {money(totalAplicar)} en total
                 </>
               )}
               {step === "done" && result?.result && (
@@ -149,7 +230,6 @@ export default function ImportYpfModal({
                   {result.result.noCargados > 0 && (
                     <> · <span className="text-red-600 font-semibold">{result.result.noCargados} a reclamar</span></>
                   )}
-                  {result.result.yaTenian > 0 && <> · {result.result.yaTenian} ya tenían valor</>}
                 </>
               )}
             </DialogDescription>
@@ -161,8 +241,9 @@ export default function ImportYpfModal({
                 <p className="font-semibold text-foreground">Cómo funciona:</p>
                 <ul className="list-disc list-inside space-y-0.5">
                   <li>Cruza cada viaje del DM por <strong>nº de remito</strong> con los viajes ya cargados.</li>
-                  <li>A los que coinciden les completa <strong>toneladas + importe</strong> (neto × precio del destino) y los marca facturados.</li>
-                  <li>Los remitos del DM que <strong>no estén cargados</strong> se marcan en rojo para reclamar (no se crean solos).</li>
+                  <li>Mostramos <strong>todos los viajes con sus remitos y totales</strong> — podés editarlos antes de confirmar.</li>
+                  <li>A los que coinciden les completa <strong>toneladas + importe</strong> y los marca facturados.</li>
+                  <li>Los remitos del DM que <strong>no estén cargados</strong> se listan arriba de todo para reclamar (no se crean solos).</li>
                   <li>El PDF firmado queda archivado en Compliance → YPF.</li>
                 </ul>
               </div>
@@ -192,39 +273,78 @@ export default function ImportYpfModal({
                   <div>{preview.warnings!.map((w, i) => <div key={i}>{w}</div>)}</div>
                 </div>
               )}
+
+              {/* Remitos del DM sin viaje cargado → reclamar */}
+              {faltantes.length > 0 && (
+                <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] text-[#991B1B] text-xs px-3 py-2 shrink-0">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle size={13} />
+                    {faltantes.length} remito{faltantes.length !== 1 ? "s" : ""} del DM sin viaje cargado — a reclamar (arriba de todo en la tabla, en rojo)
+                  </div>
+                  <ul className="mt-1 space-y-0.5">
+                    {faltantes.map((r) => (
+                      <li key={r.idx} className="font-mono text-[11px]">
+                        <strong>{r.remito || "—"}</strong> · {r.fecha ?? "s/f"} · {r.destino ?? "—"} · {r.choferDm || "chofer s/d"} · {r.netoTn || "—"} tn · {money(Number(r.importe) || null)}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 text-[11px] text-[#991B1B]/80">
+                    No hay ningún viaje cargado con esos remitos. Cargá el viaje (con esos datos) y reimportá el DM, o corregí el remito acá si el viaje existe con otro número.
+                  </div>
+                </div>
+              )}
+
               {(preview.tarifas?.length ?? 0) > 0 && (
                 <div className="text-xs text-muted-foreground shrink-0">
                   <span className="font-semibold text-foreground">Precios por destino:</span>{" "}
                   {preview.tarifas!.map((t) => `${t.destino}: ${money(t.precioUnitario)}/tn`).join("  ·  ")}
                 </div>
               )}
+
+              <div className="text-[11px] text-primary flex items-center gap-1.5 shrink-0 bg-[#E1F5FE]/60 border border-[#BAE6FD] rounded-md px-2.5 py-1.5">
+                <Pencil size={12} className="shrink-0" />
+                <span>
+                  Las celdas con <span className="px-1 py-0.5 bg-muted/60 border border-border rounded mx-0.5 font-mono">borde gris</span> son{" "}
+                  <strong>editables</strong> — tocá <strong>remito</strong>, <strong>toneladas</strong> o <strong>importe</strong> para corregir antes de confirmar.
+                </span>
+              </div>
               <div className="overflow-auto flex-1 min-h-0 border border-border rounded-md">
                 <table className="w-full text-xs border-separate border-spacing-0">
                   <thead className="sticky top-0 z-10">
                     <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wide bg-card">
-                      <th className="px-2 py-1.5 border-b border-border bg-card"></th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card" title="Aplicar esta fila">✓</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Fecha</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card">Remito</th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card">
+                        <span className="inline-flex items-center gap-1">Remito <Pencil size={9} className="text-primary" /></span>
+                      </th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Destino</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Chofer (DM)</th>
                       <th className="px-2 py-1.5 border-b border-border bg-card">Viaje</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card text-right">Neto tn</th>
-                      <th className="px-2 py-1.5 border-b border-border bg-card text-right">Importe</th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card text-right">
+                        <span className="inline-flex items-center gap-1 justify-end">Neto tn <Pencil size={9} className="text-primary" /></span>
+                      </th>
+                      <th className="px-2 py-1.5 border-b border-border bg-card text-right">
+                        <span className="inline-flex items-center gap-1 justify-end">Importe <Pencil size={9} className="text-primary" /></span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.rows!.map((r) => (
-                      <DmRow key={r.idx} r={r} />
+                    {rowsOrdenadas.map((r) => (
+                      <EditableDmRow key={r.idx} r={r} onPatch={patchRow} />
                     ))}
                   </tbody>
                 </table>
               </div>
+
               {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg shrink-0">{error}</div>}
-              <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2 shrink-0">
+              <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2 shrink-0 items-center">
+                <span className="text-xs text-muted-foreground mr-auto">
+                  {aplicarCount} de {rows.length} filas · {money(totalAplicar)}
+                </span>
                 <Button type="button" variant="outline" onClick={reset} disabled={loading}>Volver</Button>
-                <Button type="button" variant="brand" onClick={handleConfirm} disabled={loading || (s?.coinciden ?? 0) === 0}>
+                <Button type="button" variant="brand" onClick={handleConfirm} disabled={loading || aplicarCount === 0}>
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {loading ? "Completando..." : `Completar ${s?.coinciden ?? 0} viajes`}
+                  {loading ? "Completando..." : `Completar ${aplicarCount} viaje${aplicarCount !== 1 ? "s" : ""}`}
                 </Button>
               </DialogFooter>
             </div>
@@ -236,11 +356,11 @@ export default function ImportYpfModal({
                 <div><strong>{result.result.completados}</strong> viajes completados (tonelaje + importe + facturado)</div>
                 {result.result.noCargados > 0 && (
                   <div className="text-red-600">
-                    <strong>{result.result.noCargados}</strong> remitos del DM sin viaje cargado — <strong>a reclamar</strong>. Cargá esos viajes y volvé a importar el DM para completarlos.
+                    <strong>{result.result.noCargados}</strong> remitos del DM sin viaje cargado — <strong>a reclamar</strong>. Cargá esos viajes y volvé a importar el DM.
                   </div>
                 )}
                 {result.result.yaTenian > 0 && (
-                  <div className="text-muted-foreground"><strong>{result.result.yaTenian}</strong> ya tenían valor (no se tocaron)</div>
+                  <div className="text-muted-foreground"><strong>{result.result.yaTenian}</strong> ya tenían valor (se sobrescribieron con lo que dejaste marcado)</div>
                 )}
                 {((result.result.tarifasCreadas ?? 0) + (result.result.tarifasActualizadas ?? 0)) > 0 && (
                   <div className="text-[#047857]">
@@ -261,41 +381,75 @@ export default function ImportYpfModal({
   );
 }
 
-function DmRow({ r }: { r: DmRowPreview }) {
-  const meta: Record<DmRowPreview["status"], { icon: React.ReactNode; cls: string; label: string }> = {
-    coincide: { icon: <CheckCircle2 size={12} className="text-[#10B981]" />, cls: "", label: "" },
-    ya_con_valor: { icon: <span className="w-2 h-2 rounded-full bg-muted-foreground/30 inline-block" />, cls: "text-muted-foreground", label: "ya tenía valor" },
-    no_cargado: { icon: <XCircle size={12} className="text-red-500" />, cls: "bg-red-50/60", label: "falta cargar · reclamar" },
-    sin_remito: { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin remito en el DM" },
-    sin_precio: { icon: <AlertTriangle size={12} className="text-[#F59E0B]" />, cls: "bg-[#FFFBEB]", label: "sin precio" },
-  };
-  const st = meta[r.status];
-  const resalta = r.status === "coincide";
+// Celdas editables: fondo tenue + borde visible para que se lea claramente como
+// un campo (no como texto plano). Resaltan al pasar el mouse y al enfocar.
+const cellInput =
+  "w-full bg-muted/40 border border-border rounded-md px-1.5 py-1 font-mono text-foreground cursor-text transition-colors hover:bg-card hover:border-[#60A5FA] focus:border-primary focus:ring-2 focus:ring-primary/25 focus:bg-card outline-none";
+
+function EditableDmRow({
+  r,
+  onPatch,
+}: {
+  r: EditRow;
+  onPatch: (idx: number, patch: Partial<EditRow>, recalc?: boolean) => void;
+}) {
   const reclama = r.status === "no_cargado";
+  const rowCls = reclama ? "bg-red-50/60" : r.status === "sin_remito" || r.status === "sin_precio" ? "bg-[#FFFBEB]/60" : "";
 
   return (
-    <tr className={`border-t border-[#F1F5F9] ${st.cls}`}>
-      <td className="px-2 py-1" title={st.label}>{st.icon}</td>
-      <td className="px-2 py-1 font-mono">{r.fecha ?? "—"}</td>
-      <td className={`px-2 py-1 font-mono ${resalta || reclama ? "font-bold" : ""} ${reclama ? "text-red-600" : ""}`}>
-        {r.remito ?? "—"}
+    <tr className={`border-t border-[#F1F5F9] ${rowCls}`}>
+      <td className="px-2 py-1 text-center">
+        <input
+          type="checkbox"
+          checked={r.aplicar}
+          onChange={(e) => onPatch(r.idx, { aplicar: e.target.checked })}
+          className="accent-primary align-middle"
+          title="Aplicar esta fila al confirmar"
+        />
       </td>
-      <td className="px-2 py-1">{r.destino ?? "—"}</td>
-      <td className="px-2 py-1">{r.choferDm || "—"}</td>
-      <td className="px-2 py-1 font-mono text-[10px]">
-        {r.viaje ? (
-          <a href={`/viajes`} className="text-primary hover:underline" title={r.viaje.chofer ?? undefined}>
-            {r.viaje.codigo}
-          </a>
+      <td className="px-2 py-1 font-mono text-muted-foreground whitespace-nowrap">{r.fecha ?? "—"}</td>
+      <td className="px-1 py-0.5">
+        <input
+          value={r.remito}
+          onChange={(e) => onPatch(r.idx, { remito: e.target.value })}
+          className={`${cellInput} w-24 ${reclama ? "text-red-600 font-bold" : ""}`}
+          placeholder="—"
+        />
+      </td>
+      <td className="px-2 py-1 whitespace-nowrap">{r.destino ?? "—"}</td>
+      <td className="px-2 py-1 whitespace-nowrap truncate max-w-[160px]" title={r.choferDm || undefined}>
+        {r.choferDm || "—"}
+      </td>
+      <td className="px-2 py-1 font-mono text-[10px] whitespace-nowrap" title={ESTADO_INFO[r.status]}>
+        {r.viajeCodigo ? (
+          <span className="text-primary" title={r.viajeChofer ?? undefined}>{r.viajeCodigo}</span>
         ) : reclama ? (
-          <span className="text-red-600 italic">falta cargar</span>
+          <span className="text-red-600 italic">✗ falta cargar</span>
+        ) : r.status === "ya_con_valor" ? (
+          <span className="text-muted-foreground italic">ya tenía valor</span>
         ) : (
-          "—"
+          <span className="text-[#92400E] italic">{r.status === "sin_precio" ? "sin precio" : "sin remito"}</span>
         )}
-        {st.label && r.status !== "no_cargado" && <span className="ml-1 text-muted-foreground italic">· {st.label}</span>}
       </td>
-      <td className="px-2 py-1 text-right font-mono">{r.netoTn}</td>
-      <td className={`px-2 py-1 text-right font-mono ${resalta ? "font-bold text-[#047857]" : ""}`}>{money(r.importe)}</td>
+      <td className="px-1 py-0.5 text-right">
+        <input
+          value={fmtTnCell(r.netoTn)}
+          onChange={(e) => onPatch(r.idx, { netoTn: parseNum(e.target.value) }, true)}
+          inputMode="decimal"
+          className={`${cellInput} w-16 text-right`}
+        />
+      </td>
+      <td className="px-1 py-0.5 text-right">
+        <div className="flex items-center justify-end">
+          <span className="text-muted-foreground pr-0.5">$</span>
+          <input
+            value={fmtMoneyCell(r.importe)}
+            onChange={(e) => onPatch(r.idx, { importe: parseNum(e.target.value) })}
+            inputMode="decimal"
+            className={`${cellInput} w-28 text-right ${r.aplicar ? "font-bold text-[#047857]" : ""}`}
+          />
+        </div>
+      </td>
     </tr>
   );
 }

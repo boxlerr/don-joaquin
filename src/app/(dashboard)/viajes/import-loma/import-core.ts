@@ -466,6 +466,9 @@ export type LomaImportInput = {
   expedidoresLoma: string[]; // expedidores marcados como Loma (se procesan)
   asignaciones: ChoferAsignacion[]; // chofer elegido por nombre del Excel (para crear)
   crearNoCargados?: boolean; // crear los fletes sin viaje cargado (default: false)
+  // Ediciones manuales de la preview, por Nº de transporte (normId): el operador
+  // pudo corregir toneladas / importe antes de confirmar.
+  ediciones?: Record<string, { ton: number | null; importe: number | null }>;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -543,6 +546,7 @@ export async function runLomaImport(
   }
 
   // ── 1) COMPLETAR los viajes cargados sin valor ───────────────────────────
+  const ediciones = input.ediciones ?? {};
   let completados = 0;
   const completedIds = new Set<string>();
   const auditRows: Record<string, unknown>[] = [];
@@ -550,7 +554,10 @@ export async function runLomaImport(
     const v = c.match!;
     if (completedIds.has(v.id)) continue; // el mismo viaje no se completa dos veces
     const r = c.row;
-    const importe = r.importe;
+    // Valores efectivos: los editados a mano en la preview pisan a los del Excel.
+    const ed = ediciones[normId(r.nroTransporte)];
+    const importe = ed && ed.importe !== undefined ? ed.importe : r.importe;
+    const ton = ed && ed.ton !== undefined ? ed.ton : r.tonelaje;
 
     const update: Record<string, unknown> = {
       monto_flete: importe,
@@ -561,7 +568,7 @@ export async function runLomaImport(
       nro_transporte: r.nroTransporte,
     };
     // No pisamos lo cargado a mano: tonelaje y km solo si faltan (km oficiales prevalecen).
-    if (v.tonelaje_real == null && r.tonelaje != null) update.tonelaje_real = r.tonelaje;
+    if (v.tonelaje_real == null && ton != null) update.tonelaje_real = ton;
     if ((v.km_con_carga == null || v.km_con_carga === 0) && r.kmTotal != null) {
       update.km_con_carga = Math.round(r.kmTotal);
     }

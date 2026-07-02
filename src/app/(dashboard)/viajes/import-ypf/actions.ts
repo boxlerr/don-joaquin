@@ -207,6 +207,15 @@ export type ConfirmYpfState = {
   error?: string;
 } | null;
 
+/** Fila tal como quedó en la preview (con las ediciones del usuario), lista para aplicar. */
+export type ConfirmRowInput = {
+  remito: string | null;
+  netoTn: number;
+  importe: number | null;
+  /** Si el usuario la dejó tildada para escribirla en el viaje. */
+  aplicar: boolean;
+};
+
 export async function confirmYpfImportAction(formData: FormData): Promise<ConfirmYpfState> {
   const user = await requireArea("viajes", "write");
 
@@ -222,9 +231,39 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
   }
 
   const supabase = createAdminClient();
-  const remitos = [...new Set(parsed.viajes.map((v) => onlyDigits(v.remito)).filter(Boolean))];
+
+  // Filas editadas por el usuario en la preview (pudo corregir remito/tonelaje/importe).
+  // Si no vinieron, se derivan del PDF (default: aplicar las que coinciden) para no
+  // romper llamados viejos.
+  let editedRows: ConfirmRowInput[] = [];
+  const rowsRaw = formData.get("rows");
+  if (typeof rowsRaw === "string" && rowsRaw) {
+    try {
+      editedRows = JSON.parse(rowsRaw) as ConfirmRowInput[];
+    } catch {
+      return { error: "No se pudieron leer las filas editadas del DM." };
+    }
+  }
+  if (editedRows.length === 0) {
+    const rows0 = buildRows(
+      parsed.viajes,
+      await matchViajesPorRemito(
+        supabase,
+        [...new Set(parsed.viajes.map((v) => onlyDigits(v.remito)).filter(Boolean))],
+      ),
+    );
+    editedRows = rows0.map((r) => ({
+      remito: r.remito,
+      netoTn: r.netoTn,
+      importe: r.importe,
+      aplicar: r.status === "coincide",
+    }));
+  }
+
+  // Re-matcheo por el remito FINAL (posiblemente corregido a mano) de todas las filas:
+  // sirve para contar los que faltan cargar y para aplicar solo los tildados.
+  const remitos = [...new Set(editedRows.map((r) => onlyDigits(r.remito)).filter(Boolean))];
   const matches = await matchViajesPorRemito(supabase, remitos);
-  const rows = buildRows(parsed.viajes, matches);
 
   // Archivar el DM firmado en Compliance → YPF (best-effort) y vincular su id.
   let dmYpfId: string | null = null;
@@ -246,15 +285,18 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     console.error("Error sembrando tarifas desde el DM de YPF:", e);
   }
 
-  // Solo completamos los que coinciden y no son tramos vacíos.
-  const aCompletar = rows.filter(
-    (r) => r.status === "coincide" && r.viaje && !matches.get(onlyDigits(r.remito))?.es_vacio,
-  );
-
+  // Aplica solo las filas que el usuario dejó tildadas y que matchean un viaje real
+  // (no vacío). Usa los valores EDITADOS (tonelaje/importe pudieron corregirse a mano).
   const auditRows: Record<string, unknown>[] = [];
   let completados = 0;
+  let yaTenian = 0;
 
-  for (const r of aCompletar) {
+  for (const r of editedRows) {
+    if (!r.aplicar) continue;
+    const key = onlyDigits(r.remito);
+    const m = key ? matches.get(key) : undefined;
+    if (!m || m.es_vacio) continue;
+
     const update: Record<string, unknown> = {
       tonelaje_real: r.netoTn,
       monto_flete: round2(r.importe ?? 0),
@@ -265,18 +307,19 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     if (dmYpfId) update.dm_ypf_id = dmYpfId;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("viajes").update(update).eq("id", r.viaje!.id);
+    const { error } = await (supabase as any).from("viajes").update(update).eq("id", m.id);
     if (error) {
-      console.error("Error completando viaje YPF:", r.viaje!.codigo, error);
+      console.error("Error completando viaje YPF:", m.codigo, error);
       continue;
     }
     completados++;
+    if ((m.monto_flete ?? 0) > 0) yaTenian++;
     auditRows.push({
       usuario_id: user.id,
       accion: "completar_dm_ypf",
       entidad_tipo: "viaje",
-      entidad_id: r.viaje!.id,
-      valores_anteriores: { monto_flete: r.viaje!.montoActual, tonelaje_real: r.viaje!.tonelajeActual },
+      entidad_id: m.id,
+      valores_anteriores: { monto_flete: m.monto_flete, tonelaje_real: m.tonelaje_real },
       valores_nuevos: {
         monto_flete: round2(r.importe ?? 0),
         tonelaje_real: r.netoTn,
@@ -302,8 +345,12 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     ok: true,
     result: {
       completados,
-      yaTenian: rows.filter((r) => r.status === "ya_con_valor").length,
-      noCargados: rows.filter((r) => r.status === "no_cargado").length,
+      yaTenian,
+      // Remitos del DM que no matchean ningún viaje cargado → a reclamar.
+      noCargados: editedRows.filter((r) => {
+        const k = onlyDigits(r.remito);
+        return k !== "" && !matches.get(k);
+      }).length,
       dmYpfId: dmYpfId ?? undefined,
       tarifasCreadas,
       tarifasActualizadas,

@@ -55,12 +55,15 @@ export async function confirmLomaImportAction(
   }
 
   const crearNoCargados = formData.get("crearNoCargados") === "true";
+  const edicionesRaw = formData.get("ediciones");
 
   let expedidoresLoma: string[];
   let asignaciones: ChoferAsignacion[];
+  let ediciones: Record<string, { ton: number | null; importe: number | null }> = {};
   try {
     expedidoresLoma = JSON.parse(expedidoresRaw);
     asignaciones = JSON.parse(asignacionesRaw);
+    if (typeof edicionesRaw === "string" && edicionesRaw) ediciones = JSON.parse(edicionesRaw);
   } catch {
     return { error: "Datos del preview inválidos." };
   }
@@ -69,7 +72,7 @@ export async function confirmLomaImportAction(
   const result = await runLomaImport(
     supabase,
     Buffer.from(await file.arrayBuffer()),
-    { expedidoresLoma, asignaciones, crearNoCargados },
+    { expedidoresLoma, asignaciones, crearNoCargados, ediciones },
     user.id,
     { archivo: file.name },
   );
