@@ -25,6 +25,7 @@ import {
   uploadFotoChoferAction,
   deleteFotoChoferAction,
   deleteChoferAction,
+  type ChoferMotivoEgreso,
 } from "../actions";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { createClient } from "@/lib/supabase/client";
@@ -48,6 +49,14 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
 
   const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
   const esBaja = chofer.estado === "baja";
+  // Fecha de egreso a mostrar: la real si está cargada; si no (bajas cargadas en
+  // masa), la fecha en que se registró la baja (updated_at), marcada como
+  // aproximada. Así el legajo siempre muestra cuándo egresó.
+  const fechaEgresoReal: string | null = chofer.fecha_egreso ?? null;
+  const fechaEgresoMostrar: string | null =
+    fechaEgresoReal ?? (chofer.updated_at ? String(chofer.updated_at).slice(0, 10) : null);
+  const fechaEgresoAprox = esBaja && !fechaEgresoReal;
+  const faltanDatosEgreso = esBaja && (!fechaEgresoReal || !chofer.motivo_egreso);
   const legajoEstado = getLegajoEstado(chofer);
   const estadoTone: "success" | "warning" | "neutral" =
     chofer.estado === "activo" ? "success" : esBaja ? "warning" : "neutral";
@@ -303,28 +312,54 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 <LogOut size={12} />
                 <span className="uppercase tracking-wide">Chofer egresado</span>
               </div>
-              {chofer.motivo_egreso && (
-                <div className="text-foreground/90">
-                  <span className="text-muted-foreground">Motivo:</span>{" "}
-                  <span className="font-medium capitalize">{chofer.motivo_egreso}</span>
-                </div>
-              )}
-              {chofer.fecha_egreso && (
-                <div className="text-foreground/90">
-                  <span className="text-muted-foreground">Fecha de egreso:</span>{" "}
-                  {formatFecha(chofer.fecha_egreso)}
-                </div>
-              )}
-              {chofer.fecha_ingreso && chofer.fecha_egreso && (
+              <div className="text-foreground/90">
+                <span className="text-muted-foreground">Motivo:</span>{" "}
+                <span className="font-medium capitalize">
+                  {chofer.motivo_egreso ?? <span className="text-amber-700/80 not-italic">Sin especificar</span>}
+                </span>
+              </div>
+              <div className="text-foreground/90">
+                <span className="text-muted-foreground">Fecha de egreso:</span>{" "}
+                {fechaEgresoMostrar ? (
+                  <>
+                    {formatFecha(fechaEgresoMostrar)}
+                    {fechaEgresoAprox && (
+                      <span
+                        className="ml-1 text-amber-600 font-mono"
+                        title="Aproximada: es la fecha en que se registró la baja, no un egreso cargado. Completala abajo."
+                      >
+                        ≈
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-amber-700/80">Sin cargar</span>
+                )}
+              </div>
+              {chofer.fecha_ingreso && fechaEgresoMostrar && (
                 <div className="text-foreground/90">
                   <span className="text-muted-foreground">Tiempo en la empresa:</span>{" "}
-                  {formatDuracionEmpresa(chofer.fecha_ingreso, chofer.fecha_egreso)}
+                  {formatDuracionEmpresa(chofer.fecha_ingreso, fechaEgresoMostrar)}
+                  {fechaEgresoAprox && <span className="text-amber-600 font-mono ml-0.5">≈</span>}
                 </div>
               )}
               {chofer.observaciones && (
                 <div className="pt-1 mt-1 border-t border-amber-200/60 text-muted-foreground italic line-clamp-2">
                   {chofer.observaciones}
                 </div>
+              )}
+              {faltanDatosEgreso && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError(null);
+                    setEgresarOpen(true);
+                  }}
+                  className="mt-1 inline-flex items-center gap-1 font-medium text-amber-700 hover:text-amber-900 hover:underline"
+                >
+                  <LogOut size={11} />
+                  Completar datos de egreso
+                </button>
               )}
             </div>
           )}
@@ -451,6 +486,15 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
         open={egresarOpen}
         onOpenChange={setEgresarOpen}
         chofer={{ id: chofer.id, nombre: chofer.nombre, apellido: chofer.apellido }}
+        mode={esBaja ? "editar" : "egresar"}
+        initial={
+          esBaja
+            ? {
+                motivo: (chofer.motivo_egreso as ChoferMotivoEgreso | null) ?? undefined,
+                fecha_egreso: fechaEgresoMostrar ?? undefined,
+              }
+            : undefined
+        }
         onSuccess={() => {
           router.refresh();
         }}

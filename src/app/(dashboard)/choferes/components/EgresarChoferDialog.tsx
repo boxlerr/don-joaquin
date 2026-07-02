@@ -19,6 +19,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   chofer: { id: string; nombre: string; apellido: string };
   onSuccess?: () => void;
+  /** Modo "editar": el chofer ya está egresado y sólo se completan/corrigen
+   *  la fecha y el motivo (típico de bajas cargadas en masa sin esos datos). */
+  mode?: "egresar" | "editar";
+  /** Valores iniciales para precargar (fecha de egreso YYYY-MM-DD y motivo). */
+  initial?: { motivo?: ChoferMotivoEgreso; fecha_egreso?: string };
 }
 
 const MOTIVOS: { value: ChoferMotivoEgreso; label: string }[] = [
@@ -28,10 +33,11 @@ const MOTIVOS: { value: ChoferMotivoEgreso; label: string }[] = [
   { value: "otro", label: "Otro" },
 ];
 
-export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSuccess }: Props) {
+export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSuccess, mode = "egresar", initial }: Props) {
   const today = new Date().toISOString().slice(0, 10);
-  const [motivo, setMotivo] = useState<ChoferMotivoEgreso>("renuncia");
-  const [fechaEgreso, setFechaEgreso] = useState(today);
+  const esEditar = mode === "editar";
+  const [motivo, setMotivo] = useState<ChoferMotivoEgreso>(initial?.motivo ?? "renuncia");
+  const [fechaEgreso, setFechaEgreso] = useState(initial?.fecha_egreso ?? today);
   const [observacion, setObservacion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -39,8 +45,8 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
   const handleClose = () => {
     if (isPending) return;
     setError(null);
-    setMotivo("renuncia");
-    setFechaEgreso(today);
+    setMotivo(initial?.motivo ?? "renuncia");
+    setFechaEgreso(initial?.fecha_egreso ?? today);
     setObservacion("");
     onOpenChange(false);
   };
@@ -72,10 +78,12 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
             </div>
             <div>
               <DialogTitle className="text-foreground text-base font-semibold">
-                Egresar a {chofer.apellido}, {chofer.nombre}
+                {esEditar ? "Datos de egreso de" : "Egresar a"} {chofer.apellido}, {chofer.nombre}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs mt-1">
-                El chofer se marca como egresado y pasa al historial. Los viajes, gastos y documentos quedan archivados intactos. Se puede reactivar en cualquier momento.
+                {esEditar
+                  ? "Cargá o corregí la fecha de egreso y el motivo. El chofer sigue egresado; sólo se completan estos datos."
+                  : "El chofer se marca como egresado y pasa al historial. Los viajes, gastos y documentos quedan archivados intactos. Se puede reactivar en cualquier momento."}
               </DialogDescription>
             </div>
           </div>
@@ -148,7 +156,7 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
             disabled={isPending || !fechaEgreso}
             className="bg-amber-600 hover:bg-amber-700 text-white"
           >
-            {isPending ? "Egresando..." : "Confirmar egreso"}
+            {isPending ? "Guardando..." : esEditar ? "Guardar datos" : "Confirmar egreso"}
           </Button>
         </div>
       </DialogContent>

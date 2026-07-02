@@ -1,18 +1,10 @@
 import { requireSeccion } from "@/lib/auth";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
-import { Users, UserPlus, UserMinus, Percent, RefreshCw, AlertTriangle } from "lucide-react";
+import { Users, UserPlus, UserMinus, Percent, RefreshCw } from "lucide-react";
 import AnioSelector from "./AnioSelector";
+import RotacionListas from "./RotacionListas";
 import { getRotacion } from "./lib";
-
-function fmtFecha(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 export default async function RotacionChoferes({
   searchParams,
@@ -23,7 +15,7 @@ export default async function RotacionChoferes({
 
   const { anio: anioParam } = await searchParams;
   const anioNum = anioParam && /^\d{4}$/.test(anioParam) ? Number(anioParam) : undefined;
-  const { data, anios, egresados_sin_fecha } = await getRotacion(anioNum);
+  const { data, anios } = await getRotacion(anioNum);
 
   const maxMotivo = Math.max(1, ...data.por_motivo.map((m) => m.count));
 
@@ -75,16 +67,6 @@ export default async function RotacionChoferes({
       />
 
       <AnioSelector anios={anios} anioActual={data.anio} />
-
-      {egresados_sin_fecha > 0 && (
-        <div className="flex items-start gap-2.5 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-          <span>
-            Hay <strong>{egresados_sin_fecha}</strong> chofer(es) dados de baja sin fecha de egreso cargada.
-            No se computan en la rotación de ningún año — completá la fecha de egreso desde su legajo para incluirlos.
-          </span>
-        </div>
-      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -139,55 +121,8 @@ export default async function RotacionChoferes({
         </div>
       </div>
 
-      {/* Detalle de egresados */}
-      <div className="bg-card border border-border rounded-[8px] overflow-hidden">
-        <div className="px-5 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Egresados de {data.anio}</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-separate border-spacing-0">
-            <thead>
-              <tr className="bg-muted/40">
-                {["Chofer", "Localidad", "Ingreso", "Egreso", "Antigüedad", "Motivo"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide text-xs border-b border-border whitespace-nowrap"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.egresados.map((e) => (
-                <tr key={e.id} className="border-b border-border/60 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-2 whitespace-nowrap font-medium text-foreground">
-                    {e.apellido}, {e.nombre}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">{e.localidad ?? "—"}</td>
-                  <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">{fmtFecha(e.fecha_ingreso)}</td>
-                  <td className="px-4 py-2 whitespace-nowrap text-foreground">{fmtFecha(e.fecha_egreso)}</td>
-                  <td className="px-4 py-2 whitespace-nowrap text-muted-foreground">
-                    {e.antiguedad_anios !== null ? `${e.antiguedad_anios} años` : "—"}
-                  </td>
-                  <td className="px-4 py-2 whitespace-nowrap">
-                    <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground">
-                      {e.motivo}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {data.egresados.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    No hubo egresos en {data.anio}.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Ingresos y egresados del año — filas clickeables al legajo */}
+      <RotacionListas anio={data.anio} altas={data.altas_detalle} egresados={data.egresados} />
     </div>
   );
 }
