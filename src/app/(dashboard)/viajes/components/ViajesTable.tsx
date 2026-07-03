@@ -512,7 +512,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     {v.destino ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
-                    {(v.km_con_carga ?? 0).toLocaleString("es-AR")} km
+                    {v.es_vacio ? (
+                      <span className="text-muted-foreground/50">—</span>
+                    ) : (
+                      `${(v.km_con_carga ?? 0).toLocaleString("es-AR")} km`
+                    )}
                   </TableCell>
                   <TableCell className="text-sm font-mono hidden sm:table-cell">
                     {(v.km_vacios ?? 0) > 0 ? (
@@ -547,20 +551,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <StatusBadge
-                        label={v.estado.replace("_", " ")}
-                        tone={ESTADO_TONE[v.estado] ?? "neutral"}
-                      />
-                      {v.es_vacio && (
-                        <span
-                          className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-muted text-muted-foreground"
-                          title="Viaje sin carga (retorno/posicionamiento). No se factura."
-                        >
-                          Vacío
-                        </span>
-                      )}
-                    </div>
+                    {/* El vacío ya se indica con "VACIO" en el remito y en KM vacíos. */}
+                    <StatusBadge
+                      label={v.estado.replace("_", " ")}
+                      tone={ESTADO_TONE[v.estado] ?? "neutral"}
+                    />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <span
