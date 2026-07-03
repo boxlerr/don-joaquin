@@ -1,7 +1,7 @@
 import { requireArea, hasArea, hasSeccion } from "@/lib/auth";
 import { getComplianceEstadoAplica } from "./actions";
 import { getOrganismosAction, getOrganismoChecklistAction } from "./organismos/actions";
-import { getForm931Action } from "./form-931/actions";
+import { getForm931Action, getForm931EnvioAction } from "./form-931/actions";
 import ComplianceUnifiedClient from "./ComplianceUnifiedClient";
 import type { ComplianceClienteAplica } from "./types";
 
@@ -36,9 +36,10 @@ export default async function ComplianceUnifiedPage({
     return true;
   });
 
-  const [documentacion, periodos931, organismos] = await Promise.all([
+  const [documentacion, periodos931, envio931, organismos] = await Promise.all([
     getComplianceEstadoAplica(aplica),
     getForm931Action(),
+    getForm931EnvioAction(),
     Promise.all(
       organismosVisibles.map(async (o) => {
         const { destinatario, rows } = await getOrganismoChecklistAction(o.id);
@@ -60,6 +61,7 @@ export default async function ComplianceUnifiedPage({
       documentacion={documentacion}
       organismos={organismos}
       periodos931={periodos931}
+      envio931={envio931}
       initialPlat={plat}
     />
   );

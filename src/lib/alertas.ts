@@ -399,6 +399,7 @@ export async function generarAlertas() {
       dias_alerta: number | null;
       tipo_destinatario: string;
       destinatario_id: string | null;
+      enviar_a: string | null;
       compliance_destinatarios: { nombre: string } | null;
     } | null;
   };
@@ -414,6 +415,7 @@ export async function generarAlertas() {
         dias_alerta,
         tipo_destinatario,
         destinatario_id,
+        enviar_a,
         compliance_destinatarios(nombre)
       )
     `)
@@ -456,10 +458,13 @@ export async function generarAlertas() {
       const key = `vencimiento_compliance:${doc.id}:${entidad_tipo}:${doc.fecha_vencimiento}`;
       if (existentesSet.has(key)) continue;
 
+      // "A dónde se manda" (reunión Nico 02/07): que la alerta diga a qué
+      // portal/mail enviar el doc, para cuando no está Noelia.
+      const envioOrg = req.enviar_a ? ` Se manda a: ${req.enviar_a}.` : "";
       const mensaje =
-        disparo.umbral === "vencido"
+        (disparo.umbral === "vencido"
           ? `El documento "${req.nombre}" presentado a ${organismoNombre} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
-          : `El documento "${req.nombre}" presentado a ${organismoNombre} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+          : `El documento "${req.nombre}" presentado a ${organismoNombre} vence en ${dias} día${dias !== 1 ? "s" : ""}.`) + envioOrg;
 
       nuevasAlertas.push({
         tipo: "vencimiento_compliance",
@@ -484,6 +489,18 @@ export async function generarAlertas() {
       "requisito_id, requisito_codigo, requisito_nombre, cliente_aplica, nivel, chofer_id, chofer_nombre, camion_id, camion_patente, documento_id, fecha_vencimiento, estado, dias_restantes",
     )
     .not("fecha_vencimiento", "is", null);
+
+  // "A dónde se manda" por requisito (la vista no lo trae): para que la alerta
+  // diga a qué portal/mail enviar el doc (reunión Nico 02/07).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: reqEnvios } = await (supabase as any)
+    .from("compliance_requisitos")
+    .select("id, enviar_a")
+    .not("enviar_a", "is", null);
+  const envioPorRequisito = new Map<string, string>();
+  for (const r of (reqEnvios ?? []) as { id: string; enviar_a: string | null }[]) {
+    if (r.enviar_a) envioPorRequisito.set(r.id, r.enviar_a);
+  }
 
   for (const row of compliance ?? []) {
     if (!row.fecha_vencimiento) continue;
@@ -516,10 +533,12 @@ export async function generarAlertas() {
       const key = `vencimiento_compliance:${entidad_id}:${entidad_tipo}:${row.fecha_vencimiento}`;
       if (existentesSet.has(key)) continue;
 
+      const envioReq = envioPorRequisito.get(row.requisito_id);
+      const envioSufijo = envioReq ? ` Se manda a: ${envioReq}.` : "";
       const mensaje =
-        d.umbral === "vencido"
+        (d.umbral === "vencido"
           ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
-          : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+          : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`) + envioSufijo;
 
       nuevasAlertas.push({
         tipo: "vencimiento_compliance",
@@ -770,6 +789,17 @@ export async function generarAlertas() {
     .select("id, periodo, fecha_limite, enviado_ypf, enviado_loma")
     .or("enviado_ypf.eq.false,enviado_loma.eq.false");
 
+  // A dónde se presenta el 931 (SICOP, Secondi, portal YPF…): parámetro editable,
+  // para que la alerta lo diga aunque no esté Noelia (reunión Nico 02/07).
+  const { data: paramEnvio931 } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", "form931_enviar_a")
+    .maybeSingle();
+  const envio931 = paramEnvio931?.valor?.trim()
+    ? ` Se presenta en: ${paramEnvio931.valor.trim()}.`
+    : "";
+
   for (const f of (form931 ?? []) as {
     id: string; periodo: string | null; fecha_limite: string; enviado_ypf: boolean; enviado_loma: boolean;
   }[]) {
@@ -799,8 +829,8 @@ export async function generarAlertas() {
 
       const mensaje =
         d.umbral === "vencido"
-          ? `El Formulario 931${periodoLabel} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y falta enviarlo a ${faltan}. Es bloqueante: sin 931 no puede cargar nadie.`
-          : `El Formulario 931${periodoLabel} vence en ${dias} día${dias !== 1 ? "s" : ""} y falta enviarlo a ${faltan}.`;
+          ? `El Formulario 931${periodoLabel} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y falta enviarlo a ${faltan}. Es bloqueante: sin 931 no puede cargar nadie.${envio931}`
+          : `El Formulario 931${periodoLabel} vence en ${dias} día${dias !== 1 ? "s" : ""} y falta enviarlo a ${faltan}.${envio931}`;
 
       nuevasAlertas.push({
         tipo: "vencimiento_compliance",

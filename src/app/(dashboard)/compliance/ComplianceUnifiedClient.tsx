@@ -28,6 +28,8 @@ interface Props {
   documentacion: ClienteData;
   organismos: OrganismoData[];
   periodos931: Form931Row[];
+  /** A dónde se presenta el 931 (SICOP, Secondi, portal YPF…) — parámetro editable. */
+  envio931: string | null;
   /** Plataforma inicial (de ?plat=) para deep-links desde rutas viejas. */
   initialPlat?: string;
 }
@@ -62,6 +64,7 @@ export default function ComplianceUnifiedClient({
   documentacion,
   organismos,
   periodos931,
+  envio931,
   initialPlat,
 }: Props) {
   const tabs = useMemo<TabDef[]>(() => {
@@ -106,11 +109,11 @@ export default function ComplianceUnifiedClient({
       label: "Formulario 931",
       icon: FileCheck2,
       alerta: periodos931.filter((p) => !(p.enviado_ypf && p.enviado_loma)).length,
-      render: () => <Form931Panel periodos={periodos931} canWrite={canWrite} />,
+      render: () => <Form931Panel periodos={periodos931} envio931={envio931} canWrite={canWrite} />,
     });
 
     return out;
-  }, [documentacion, organismos, periodos931, canWrite]);
+  }, [documentacion, organismos, periodos931, envio931, canWrite]);
 
   // Resolver la solapa inicial (?plat=). Las rutas viejas (ypf/loma/generales)
   // caen todas en "Documentación", que ahora las junta.
@@ -180,7 +183,15 @@ export default function ComplianceUnifiedClient({
 }
 
 /** Panel del Formulario 931 embebido: aviso + stats + checklist. */
-function Form931Panel({ periodos, canWrite }: { periodos: Form931Row[]; canWrite: boolean }) {
+function Form931Panel({
+  periodos,
+  envio931,
+  canWrite,
+}: {
+  periodos: Form931Row[];
+  envio931: string | null;
+  canWrite: boolean;
+}) {
   const completo = (p: Form931Row) => p.enviado_ypf && p.enviado_loma;
   const completos = periodos.filter(completo).length;
   const pendientes = periodos.filter((p) => !completo(p));
@@ -201,6 +212,11 @@ function Form931Panel({ periodos, canWrite }: { periodos: Form931Row[]; canWrite
             <strong>Noelia a Loma Negra</strong>. Marcá cada envío al hacerlo. Si llega la fecha límite
             sin enviarse, salta alerta a todos (campana + email de Compliance).
           </p>
+          {envio931 && (
+            <p className="text-xs mt-1 text-amber-800">
+              <strong>Se presenta en:</strong> {envio931}.
+            </p>
+          )}
         </div>
       </div>
 

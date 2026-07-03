@@ -15,6 +15,7 @@ import {
   User,
   Pencil,
   MessageSquare,
+  Send,
 } from "lucide-react";
 import type {
   ComplianceDestinatario,
@@ -188,6 +189,17 @@ function RequisitoPresentacionRow({
             </span>
           )}
         </div>
+
+        {/* A dónde se manda (portal/mail) — visible siempre, aunque no haya presentación */}
+        {row.enviar_a && (
+          <p
+            className="text-[11px] text-[#075985] mt-1 inline-flex items-center gap-1"
+            title={`Se manda a: ${row.enviar_a}`}
+          >
+            <Send size={11} className="shrink-0" />
+            Se manda a: {row.enviar_a}
+          </p>
+        )}
 
         {/* Detalle de la última presentación */}
         {row.documento_id ? (

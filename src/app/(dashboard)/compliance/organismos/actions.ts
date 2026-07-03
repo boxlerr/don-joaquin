@@ -75,6 +75,7 @@ type ReqRow = {
   nivel: string;
   periodicidad: string;
   dias_alerta: number | null;
+  enviar_a: string | null;
 };
 
 type DocRow = {
@@ -108,7 +109,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
   // Requisitos del organismo
   const { data: requisitos } = await supabase
     .from("compliance_requisitos")
-    .select("id, codigo, nombre, nivel, periodicidad, dias_alerta")
+    .select("id, codigo, nombre, nivel, periodicidad, dias_alerta, enviar_a")
     .eq("tipo_destinatario", "organismo")
     .eq("destinatario_id", destinatario_id)
     .eq("activo", true)
@@ -178,6 +179,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
         nivel: req.nivel as ComplianceNivel,
         periodicidad: req.periodicidad as OrganismoChecklistRow["periodicidad"],
         dias_alerta: req.dias_alerta ?? 30,
+        enviar_a: req.enviar_a ?? null,
         documento_id: null,
         fecha_emision: null,
         fecha_vencimiento: null,
@@ -199,6 +201,7 @@ export async function getOrganismoChecklistAction(destinatario_id: string): Prom
       nivel: req.nivel as ComplianceNivel,
       periodicidad: req.periodicidad as OrganismoChecklistRow["periodicidad"],
       dias_alerta: req.dias_alerta ?? 30,
+      enviar_a: req.enviar_a ?? null,
       documento_id: doc.id,
       fecha_emision: doc.fecha_emision,
       fecha_vencimiento: doc.fecha_vencimiento,

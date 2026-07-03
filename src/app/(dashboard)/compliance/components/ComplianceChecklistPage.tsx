@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   Printer,
   MessageSquare,
+  Send,
   ShieldCheck,
 } from "lucide-react";
 import {
@@ -337,6 +338,7 @@ export default function ComplianceChecklistPage({
                       key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
                       row={r}
                       nivel={n}
+                      enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
                       canWrite={canWrite}
                       primero={i === 0}
                       onCasilla={() => handleCasilla(r)}
@@ -384,6 +386,7 @@ export default function ComplianceChecklistPage({
 function ChecklistRow({
   row,
   nivel,
+  enviarA,
   canWrite,
   primero,
   onCasilla,
@@ -393,6 +396,7 @@ function ChecklistRow({
 }: {
   row: ComplianceEstadoRow;
   nivel: ComplianceNivel;
+  enviarA: string | null;
   canWrite: boolean;
   primero: boolean;
   onCasilla: () => void;
@@ -435,6 +439,15 @@ function ChecklistRow({
         </p>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {entidad && <span className="truncate">{entidad}</span>}
+          {enviarA && (
+            <span
+              className="inline-flex items-center gap-1 truncate text-[#075985]"
+              title={`Se manda a: ${enviarA}`}
+            >
+              <Send size={10} className="shrink-0" />
+              {enviarA}
+            </span>
+          )}
           {row.observaciones && (
             <span className="inline-flex items-center gap-1 italic truncate">
               <MessageSquare size={10} className="shrink-0" />

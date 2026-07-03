@@ -456,6 +456,52 @@ export async function setComplianceVencimientoAction(input: {
   return { success: true };
 }
 
+/**
+ * Guarda "a dónde se manda" un documento (portales/mails) a nivel requisito.
+ * Pedido de Nico (02/07): que cualquiera sepa a qué portal/mail enviar cada doc
+ * cuando no está Noelia. Se muestra en el checklist y en las alertas.
+ */
+export async function setComplianceEnviarAAction(input: {
+  requisito_id: string;
+  enviar_a: string | null;
+}) {
+  const user = await requireArea("compliance", "write");
+  const supabase = createAdminClient();
+
+  if (!input.requisito_id) return { error: "Requisito requerido" };
+  const enviarA = input.enviar_a?.trim() || null;
+
+  // `enviar_a` es columna nueva (no está en database.ts generado todavía).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: prev } = await sb
+    .from("compliance_requisitos")
+    .select("enviar_a")
+    .eq("id", input.requisito_id)
+    .single();
+  if (!prev) return { error: "Requisito no encontrado" };
+  if ((prev.enviar_a ?? null) === enviarA) return { success: true }; // sin cambios
+
+  const { error } = await sb
+    .from("compliance_requisitos")
+    .update({ enviar_a: enviarA })
+    .eq("id", input.requisito_id);
+  if (error) return { error: "No se pudo guardar el destino de envío" };
+
+  await supabase.from("audit_log").insert({
+    usuario_id: user.id,
+    accion: "editar_envio_compliance",
+    entidad_tipo: "compliance_requisitos",
+    entidad_id: input.requisito_id,
+    valores_anteriores: { enviar_a: prev.enviar_a ?? null },
+    valores_nuevos: { enviar_a: enviarA },
+  });
+
+  revalidatePath("/compliance");
+  revalidatePath("/compliance/organismos", "layout");
+  return { success: true };
+}
+
 export async function deleteComplianceDocAction(doc_id: string) {
   await requireArea("compliance", "admin");
   const supabase = createAdminClient();

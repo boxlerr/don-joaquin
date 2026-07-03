@@ -12,9 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload } from "lucide-react";
+import { Upload, Send } from "lucide-react";
 import { uploadOrganismoDocAction } from "./actions";
-import { setComplianceVencimientoAction } from "../actions";
+import { setComplianceVencimientoAction, setComplianceEnviarAAction } from "../actions";
 import type { ComplianceDestinatario, OrganismoChecklistRow } from "../types";
 
 interface Props {
@@ -33,6 +33,9 @@ export default function CargarOrganismoDocDialog({ destinatario, row, edit = fal
     edit ? row.fecha_vencimiento ?? "" : "",
   );
   const [observaciones, setObservaciones] = useState(edit ? row.observaciones ?? "" : "");
+  // A dónde se manda el doc (portal/mail). Vive en el requisito; se edita acá
+  // por comodidad y aplica a todas las presentaciones.
+  const [enviarA, setEnviarA] = useState(row.enviar_a ?? "");
   const [fileName, setFileName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -67,6 +70,11 @@ export default function CargarOrganismoDocDialog({ destinatario, row, edit = fal
       const file = fileRef.current?.files?.[0];
       if (file) fd.append("file", file); // archivo opcional
       res = await uploadOrganismoDocAction(fd);
+    }
+
+    // El destino de envío es del requisito: se guarda aparte, solo si cambió.
+    if (!(res && "error" in res && res.error) && (enviarA.trim() || null) !== (row.enviar_a ?? null)) {
+      await setComplianceEnviarAAction({ requisito_id: row.requisito_id, enviar_a: enviarA });
     }
 
     setLoading(false);
@@ -135,6 +143,22 @@ export default function CargarOrganismoDocDialog({ destinatario, row, edit = fal
               onChange={(e) => setObservaciones(e.target.value)}
               placeholder="Ej: presentado en ventanilla 3, turno 14hs…"
             />
+          </div>
+
+          {/* A dónde se manda (vive en el requisito) */}
+          <div className="space-y-1.5">
+            <Label className="inline-flex items-center gap-1.5">
+              <Send size={12} className="text-muted-foreground" />
+              A dónde se manda
+            </Label>
+            <Input
+              value={enviarA}
+              onChange={(e) => setEnviarA(e.target.value)}
+              placeholder='Portales / mails (ej. "portal SICOP + mail del estudio")'
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Queda asociado a «{row.requisito_nombre}» y se muestra en el checklist y en las alertas.
+            </p>
           </div>
 
           {/* Archivo (solo al registrar, opcional) */}

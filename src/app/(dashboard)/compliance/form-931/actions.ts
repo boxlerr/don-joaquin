@@ -36,6 +36,22 @@ export async function getForm931Action(): Promise<Form931Row[]> {
   return (data ?? []) as Form931Row[];
 }
 
+/**
+ * A dónde se presenta el 931 (SICOP, Secondi, portal YPF…). Parámetro editable
+ * (`form931_enviar_a` en parametros_sistema) para que cualquiera sepa a dónde
+ * mandarlo cuando no está Noelia (reunión Nico 02/07).
+ */
+export async function getForm931EnvioAction(): Promise<string | null> {
+  await requireArea("compliance", "read");
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", "form931_enviar_a")
+    .maybeSingle();
+  return data?.valor?.trim() || null;
+}
+
 /** Marca/desmarca el envío de un canal (YPF = Nico, Loma = Noelia). */
 export async function toggleEnvioForm931Action(
   id: string,

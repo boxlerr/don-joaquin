@@ -17,7 +17,12 @@ export type ComplianceDestinatario = {
 
 export type ComplianceEstado = "vigente" | "por_vencer" | "vencido" | "faltante";
 
-export type ComplianceRequisito = Database["public"]["Tables"]["compliance_requisitos"]["Row"];
+// `enviar_a` (a dónde se presenta el doc: portales/mails) es columna nueva y aún
+// no está en database.ts generado — se suma acá hasta regenerar los tipos.
+export type ComplianceRequisito =
+  Database["public"]["Tables"]["compliance_requisitos"]["Row"] & {
+    enviar_a?: string | null;
+  };
 
 // Vista v_compliance_estado — Row tal cual viene de la BD.
 export type ComplianceEstadoRow = {
@@ -97,6 +102,8 @@ export type OrganismoChecklistRow = {
   nivel: ComplianceNivel;
   periodicidad: CompliancePeriodicidad;
   dias_alerta: number;
+  // A dónde se presenta el documento (portal/mail) — texto libre del requisito.
+  enviar_a: string | null;
   // doc más reciente para este requisito (si existe)
   documento_id: string | null;
   fecha_emision: string | null;

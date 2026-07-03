@@ -12,8 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload } from "lucide-react";
-import { uploadComplianceDocAction, setComplianceVencimientoAction } from "../actions";
+import { Upload, Send } from "lucide-react";
+import {
+  uploadComplianceDocAction,
+  setComplianceVencimientoAction,
+  setComplianceEnviarAAction,
+} from "../actions";
 import type { ComplianceRequisito } from "../types";
 
 // Cuando se pasa `edit`, el diálogo edita el vencimiento/observaciones de un
@@ -53,6 +57,9 @@ export default function CargarComplianceDocDialog({
   const [fechaVencimiento, setFechaVencimiento] = useState(edit?.fecha_vencimiento ?? "");
   const [observaciones, setObservaciones] = useState(edit?.observaciones ?? "");
   const [numero, setNumero] = useState("");
+  // A dónde se manda el doc (portal/mail). Vive en el REQUISITO, no en el
+  // documento: se edita acá por comodidad y aplica a todas las presentaciones.
+  const [enviarA, setEnviarA] = useState(requisito.enviar_a ?? "");
   const [fileName, setFileName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -62,6 +69,7 @@ export default function CargarComplianceDocDialog({
     setFechaVencimiento(edit?.fecha_vencimiento ?? "");
     setObservaciones(edit?.observaciones ?? "");
     setNumero("");
+    setEnviarA(requisito.enviar_a ?? "");
     setFileName(null);
     setError(null);
     if (fileRef.current) fileRef.current.value = "";
@@ -95,6 +103,11 @@ export default function CargarComplianceDocDialog({
           if (f) formData.set("file", f);
           return uploadComplianceDocAction(formData);
         })();
+
+    // El destino de envío es del requisito: se guarda aparte, solo si cambió.
+    if (!("error" in res && res.error) && (enviarA.trim() || null) !== (requisito.enviar_a ?? null)) {
+      await setComplianceEnviarAAction({ requisito_id: requisito.id, enviar_a: enviarA });
+    }
 
     setLoading(false);
 
@@ -191,6 +204,22 @@ export default function CargarComplianceDocDialog({
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground inline-flex items-center gap-1.5">
+              <Send size={12} className="text-muted-foreground" />
+              A dónde se manda
+            </Label>
+            <Input
+              placeholder='Portales / mails (ej. "SICOP, Secondi y portal de YPF")'
+              value={enviarA}
+              onChange={(e) => setEnviarA(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Queda asociado al documento «{requisito.nombre}» (todas sus presentaciones) y
+              se muestra en el checklist y en las alertas de vencimiento.
+            </p>
           </div>
 
           {!esEdicion && (
