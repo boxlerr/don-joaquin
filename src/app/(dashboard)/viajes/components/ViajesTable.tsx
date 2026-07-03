@@ -108,6 +108,8 @@ const COLUMNS: ColumnDef[] = [
   { label: "Origen", cellClass: "hidden sm:table-cell" },
   { label: "Destino", cellClass: "hidden sm:table-cell" },
   { label: "KM", cellClass: "hidden sm:table-cell" },
+  // Igual que la planilla del cliente: los km vacíos van en su propia columna.
+  { label: "KM vacíos", cellClass: "hidden sm:table-cell" },
   { label: "Toneladas", sortKey: "toneladas", cellClass: "hidden sm:table-cell" },
   { label: "Remito Nº", cellClass: "hidden xl:table-cell" },
   { label: "Material", cellClass: "hidden xl:table-cell" },
@@ -297,12 +299,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   // Totales sobre las filas ya cargadas (no sobre el total del filtro completo).
   const totales = rows.reduce(
     (acc, v) => {
-      acc.km += v.km_totales ?? 0;
+      acc.km += v.km_con_carga ?? 0;
+      acc.kmVacios += v.km_vacios ?? 0;
       acc.toneladas += v.toneladas ?? 0;
       acc.flete += v.monto_flete ?? 0;
       return acc;
     },
-    { km: 0, toneladas: 0, flete: 0 },
+    { km: 0, kmVacios: 0, toneladas: 0, flete: 0 },
   );
 
   return (
@@ -509,13 +512,27 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     {v.destino ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
-                    {v.km_totales.toLocaleString("es-AR")} km
+                    {(v.km_con_carga ?? 0).toLocaleString("es-AR")} km
+                  </TableCell>
+                  <TableCell className="text-sm font-mono hidden sm:table-cell">
+                    {(v.km_vacios ?? 0) > 0 ? (
+                      <span className="text-[#C00000] font-semibold">{v.km_vacios.toLocaleString("es-AR")} km</span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
                     {v.toneladas ?? 0} tn
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono hidden xl:table-cell">
-                    {v.nro_remito && v.nro_remito.toUpperCase() !== "VACIO" ? v.nro_remito : "—"}
+                  <TableCell className="text-sm font-mono hidden xl:table-cell">
+                    {v.es_vacio ? (
+                      // Igual que la planilla Excel del cliente: "VACIO" en rojo en el remito.
+                      <span className="text-[#C00000] font-bold">VACIO</span>
+                    ) : v.nro_remito && v.nro_remito.toUpperCase() !== "VACIO" ? (
+                      <span className="text-muted-foreground">{v.nro_remito}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden xl:table-cell max-w-[12rem] truncate">
                     {v.material ?? "—"}
@@ -875,6 +892,12 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
             KM:{" "}
             <span className="font-mono font-semibold text-foreground">
               {totales.km.toLocaleString("es-AR")}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            KM vacíos:{" "}
+            <span className="font-mono font-semibold text-[#C00000]">
+              {totales.kmVacios.toLocaleString("es-AR")}
             </span>
           </span>
           <span className="text-muted-foreground">

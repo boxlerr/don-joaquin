@@ -170,7 +170,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 ${caja === "diaria" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <StatCard
           label="Saldo actual"
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
@@ -183,6 +183,17 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
           sub={periodoLabel}
           color="success"
         />
+        {/* El valor del flete entra con el remito → la facturación del período ES
+            el ingreso por viajes. Solo en la diaria (concepto operativo). */}
+        {caja === "diaria" && (
+          <StatCard
+            label="Fletes facturados"
+            value={resumen ? `$ ${formatARS(resumen.fletesFacturados)}` : "—"}
+            sub={`Ingresos por viajes · ${periodoLabel}`}
+            color="success"
+            href="/viajes"
+          />
+        )}
         <StatCard
           label="Egresos"
           value={resumen ? `$ ${formatARS(resumen.egresos)}` : "—"}

@@ -135,12 +135,15 @@ export function exportViajesToExcel(
       },
       width: 20,
     },
+    // Igual que la planilla del cliente: km con carga y km vacíos separados.
     {
       header: "KM",
-      key: (v) => {
-        const km = v.km_totales ?? ((Number(v.km_con_carga) || 0) + (Number(v.km_vacios) || 0));
-        return km > 0 ? km : 0;
-      },
+      key: (v) => Number(v.km_con_carga ?? v.km_totales ?? 0) || 0,
+      width: 10,
+    },
+    {
+      header: "KM vacíos",
+      key: (v) => Number(v.km_vacios ?? 0) || 0,
       width: 10,
     },
     { header: "Toneladas", key: (v) => Number(v.tonelaje_real || v.toneladas || 0), width: 12 },

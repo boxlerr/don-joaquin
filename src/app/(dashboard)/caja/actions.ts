@@ -63,6 +63,9 @@ export type CajaResumen = {
   egresos: number;
   movimientos: number;
   saldoTotal: number;
+  /** Suma de fletes facturados del período (por fecha de viaje). Solo caja diaria:
+   *  el valor entra con el remito, así que esto ES el ingreso por viajes. */
+  fletesFacturados: number;
 };
 
 export async function getCajaResumenAction(params: {
@@ -96,6 +99,34 @@ export async function getCajaResumenAction(params: {
     return { error: "No se pudo cargar el resumen de caja." };
   }
 
+  // Ingresos por fletes del período: con el remito entra el valor y el viaje ya
+  // queda facturado, así que la facturación por fecha de viaje ES el ingreso por
+  // viajes del mes. Solo caja diaria (concepto operativo). Paginado: el API REST
+  // corta en 1000 filas.
+  let fletesFacturados = 0;
+  if (caja === "diaria") {
+    for (let from = 0; ; from += 1000) {
+      let fq = supabase
+        .from("viajes")
+        .select("monto_flete")
+        .eq("facturado", true)
+        .eq("es_vacio", false)
+        .neq("estado", "cancelado")
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (params.desde) fq = fq.gte("fecha_viaje", params.desde);
+      if (params.hasta) fq = fq.lte("fecha_viaje", params.hasta);
+      const { data: fletes, error: fletesError } = await fq;
+      if (fletesError) {
+        console.error("Error al sumar fletes facturados:", fletesError);
+        break;
+      }
+      const batch = (fletes ?? []) as { monto_flete: number | null }[];
+      for (const f of batch) fletesFacturados += Number(f.monto_flete || 0);
+      if (batch.length < 1000) break;
+    }
+  }
+
   let ingresos = 0;
   let egresos = 0;
   for (const m of rango ?? []) {
@@ -107,7 +138,7 @@ export async function getCajaResumenAction(params: {
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
-  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal };
+  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal, fletesFacturados };
 }
 
 export type GetCajaMovimientosParams = {
