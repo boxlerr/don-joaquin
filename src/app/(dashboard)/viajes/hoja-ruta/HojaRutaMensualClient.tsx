@@ -484,6 +484,9 @@ function FilaViaje({
             placeholder="Nº remito"
             className="w-24 h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none"
           />
+        ) : esVacio ? (
+          // Igual que la planilla Excel del cliente: "VACIO" en rojo en la columna remito.
+          <span className="text-[#C00000] font-bold">VACIO</span>
         ) : (
           viaje.nro_remito ?? (esPendiente ? <span className="text-[#92400E] italic">pendiente</span> : "—")
         )}
