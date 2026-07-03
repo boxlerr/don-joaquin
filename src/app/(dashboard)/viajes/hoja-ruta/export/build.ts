@@ -183,6 +183,10 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
       row.getCell(2).value = v.origen || "";
       row.getCell(3).value = v.destino || "";
 
+      // Convención de la planilla del cliente: TODO tramo (cargado o vacío) lleva
+      // sus km en KM REC; el vacío se distingue solo por "VACIO" en remito. La
+      // columna KM VACIOS queda para km vacíos embebidos en un viaje cargado —
+      // nunca se repite ahí el km del tramo vacío (salía duplicado, reunión 02/07).
       const kmRec = v.es_vacio ? v.km_vacios : v.km_con_carga;
       row.getCell(4).value = kmRec || null;
 
@@ -200,7 +204,7 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
       }
 
       row.getCell(9).value = v.es_vacio ? "" : v.material || "";
-      row.getCell(10).value = v.km_vacios || null;
+      row.getCell(10).value = v.es_vacio ? null : v.km_vacios || null;
 
       const imp = row.getCell(11);
       imp.value = v.es_vacio ? 0 : v.importe ?? null;
@@ -216,7 +220,7 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
 
       sumKm += kmRec || 0;
       sumTn += v.tonelaje ?? 0;
-      sumVac += v.km_vacios || 0;
+      sumVac += v.es_vacio ? 0 : v.km_vacios || 0;
       sumImp += v.es_vacio ? 0 : v.importe ?? 0;
       r++;
       idx++;
