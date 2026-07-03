@@ -90,6 +90,11 @@ export type StatsMes = {
   importeTotal: number;
   eficienciaPromedio: number | null; // L/100km global del mes
   cargasConChofer: number;
+  // Promedio ponderado de lo que se pagó el litro en el mes ($ / L). Equivale al
+  // promedio del precio YER del reporte de YPF en Ruta: importe total ÷ litros
+  // (reunión Nico 02/07). Solo cuenta cargas con importe, para no diluir el
+  // promedio con cargas manuales sin valor.
+  precioPromedioLitro: number | null;
 };
 
 export async function getStatsMesAction(month?: string): Promise<StatsMes> {
@@ -109,12 +114,25 @@ export async function getStatsMesAction(month?: string): Promise<StatsMes> {
   >[];
 
   if (cargas.length === 0) {
-    return { cargasTotales: 0, litrosTotales: 0, importeTotal: 0, eficienciaPromedio: null, cargasConChofer: 0 };
+    return {
+      cargasTotales: 0, litrosTotales: 0, importeTotal: 0, eficienciaPromedio: null,
+      cargasConChofer: 0, precioPromedioLitro: null,
+    };
   }
 
   const litrosTotales = cargas.reduce((acc, c) => acc + Number(c.litros), 0);
   const importeTotal = cargas.reduce((acc, c) => acc + Number(c.importe_total), 0);
   const cargasConChofer = cargas.filter((c) => c.chofer_id).length;
+
+  let litrosPagados = 0;
+  let importePagado = 0;
+  for (const c of cargas) {
+    if (Number(c.litros) > 0 && Number(c.importe_total) > 0) {
+      litrosPagados += Number(c.litros);
+      importePagado += Number(c.importe_total);
+    }
+  }
+  const precioPromedioLitro = litrosPagados > 0 ? importePagado / litrosPagados : null;
 
   // Eficiencia promedio global: agrupar por camión, sumar deltas válidos
   const { eficiencia: eficienciaPromedio } = calcularEficienciaPorDeltas(
@@ -127,6 +145,7 @@ export async function getStatsMesAction(month?: string): Promise<StatsMes> {
     importeTotal,
     eficienciaPromedio,
     cargasConChofer,
+    precioPromedioLitro,
   };
 }
 
@@ -142,6 +161,9 @@ export type RankingEntry = {
   km_recorridos: number;
   eficiencia: number; // L/100km
   importe_total: number;
+  // $/L promedio del chofer: importe ÷ litros de TODAS sus cargas del mes (no
+  // los litros de deltas de la eficiencia, que excluyen la primera carga).
+  precio_litro: number | null;
 };
 
 export async function getRankingEficienciaMesAction(month?: string): Promise<RankingEntry[]> {
@@ -167,6 +189,7 @@ export async function getRankingEficienciaMesAction(month?: string): Promise<Ran
   type Acum = {
     cargas: number;
     litros: number;
+    litrosCrudos: number; // suma de todas las cargas (para el $/L)
     km: number;
     importe: number;
   };
@@ -186,6 +209,7 @@ export async function getRankingEficienciaMesAction(month?: string): Promise<Ran
     acum.set(chofer_id, {
       cargas: grupo.length,
       litros: litrosUsados,
+      litrosCrudos: grupo.reduce((a, c) => a + Number(c.litros), 0),
       km: kmRecorridos,
       importe: grupo.reduce((a, c) => a + Number(c.importe_total), 0),
     });
@@ -206,6 +230,7 @@ export async function getRankingEficienciaMesAction(month?: string): Promise<Ran
       km_recorridos: a.km,
       eficiencia: (a.litros / a.km) * 100,
       importe_total: a.importe,
+      precio_litro: a.litrosCrudos > 0 && a.importe > 0 ? a.importe / a.litrosCrudos : null,
     });
   }
 

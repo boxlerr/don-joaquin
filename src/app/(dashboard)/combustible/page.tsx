@@ -151,7 +151,11 @@ export default async function CombustiblePage({
         <StatCard
           label="Importe total"
           value={`$ ${formatARS(stats.importeTotal)}`}
-          sub="Mes en curso"
+          sub={
+            stats.precioPromedioLitro != null
+              ? `Promedio $ ${formatARS(stats.precioPromedioLitro)} por litro`
+              : "Mes en curso"
+          }
           color="error"
           icon={DollarSign}
           variant="dashboard"
@@ -235,13 +239,14 @@ export default async function CombustiblePage({
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM recorridos</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Litros</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cargas</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">$ / L</TableHead>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Importe</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {topRanking.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-16 text-center">
+                <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex flex-col items-center justify-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
                       <Trophy size={20} />
@@ -306,6 +311,9 @@ export default async function CombustiblePage({
                       <span className="bg-muted px-2 py-0.5 rounded text-[11px] text-muted-foreground">
                         {r.cargas} {r.cargas === 1 ? "carga" : "cargas"}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground py-3.5 font-mono">
+                      {r.precio_litro != null ? `$${formatARS(r.precio_litro)}` : "—"}
                     </TableCell>
                     <TableCell className="text-right pr-6 text-muted-foreground py-3.5 font-mono font-medium">
                       ${formatARS(r.importe_total)}
