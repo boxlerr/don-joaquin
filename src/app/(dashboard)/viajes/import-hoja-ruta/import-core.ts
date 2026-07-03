@@ -633,9 +633,10 @@ export async function runHojaRutaImport(
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
         // Regla del cliente: el viaje tiene valor solo cuando entra el remito y se
-        // factura → tener monto > 0 significa facturado. Vacíos (0) y "esperando
-        // remito" (null) quedan sin facturar.
+        // factura → tener monto > 0 significa facturado (y cobrado, espejo: no hay
+        // flujo de cobro aparte). Vacíos (0) y "esperando remito" (null) quedan sin facturar.
         facturado: viajeEstaFacturado(importeFinal, vacio),
+        cobrado: viajeEstaFacturado(importeFinal, vacio),
         observaciones: [
           `[Import HOJA DE RUTA · ${sp.sheetName}]`,
           v.material ? `Material: ${v.material}` : null,

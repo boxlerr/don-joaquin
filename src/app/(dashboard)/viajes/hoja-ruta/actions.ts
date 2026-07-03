@@ -306,8 +306,10 @@ export async function actualizarRemitoYMontoAction(
   if (data.nro_remito !== undefined) payload.nro_remito = data.nro_remito || null;
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
-    // Regla del cliente: tener valor = está facturado (el valor entra con el remito).
+    // Regla del cliente: tener valor = está facturado (el valor entra con el
+    // remito) y cobrado de una — no hay flujo de cobro aparte (03/07/2026).
     payload.facturado = viajeEstaFacturado(data.monto_flete);
+    payload.cobrado = payload.facturado;
   }
   // Si ahora tiene remito + monto, marcar como cerrado
   if (data.nro_remito && data.monto_flete != null) {

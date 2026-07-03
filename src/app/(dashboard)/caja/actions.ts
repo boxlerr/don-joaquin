@@ -63,8 +63,6 @@ export type CajaResumen = {
   egresos: number;
   movimientos: number;
   saldoTotal: number;
-  /** Suma de fletes facturados que todavía no se cobraron (no entraron a caja). */
-  pendienteCobro: number;
 };
 
 export async function getCajaResumenAction(params: {
@@ -87,28 +85,14 @@ export async function getCajaResumenAction(params: {
   const [
     { data: rango, error: rangoError },
     { data: todos, error: todosError },
-    { data: pendientes, error: pendientesError },
   ] = await Promise.all([
     rangoQuery,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("caja_movimientos").select("tipo, monto").eq("caja", caja),
-    // Fletes facturados y todavía no cobrados (lo que falta volcar a la caja).
-    // Es un concepto operativo: solo tiene sentido para la caja diaria.
-    caja === "diaria"
-      ? supabase
-          .from("viajes")
-          .select("monto_flete")
-          .eq("facturado", true)
-          .eq("cobrado", false)
-          .eq("es_vacio", false)
-      : Promise.resolve({ data: [] as { monto_flete: number | null }[], error: null }),
   ]);
 
-  if (rangoError || todosError || pendientesError) {
-    console.error(
-      "Error al obtener resumen de caja:",
-      rangoError ?? todosError ?? pendientesError,
-    );
+  if (rangoError || todosError) {
+    console.error("Error al obtener resumen de caja:", rangoError ?? todosError);
     return { error: "No se pudo cargar el resumen de caja." };
   }
 
@@ -123,56 +107,7 @@ export async function getCajaResumenAction(params: {
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
-  const pendienteCobro = (pendientes ?? []).reduce(
-    (acc, v) => acc + Number(v.monto_flete || 0),
-    0,
-  );
-
-  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal, pendienteCobro };
-}
-
-export type ViajeCobroOption = {
-  id: string;
-  codigo: string;
-  fecha: string;
-  cliente: string | null;
-  cliente_id: string | null;
-  monto_flete: number;
-  facturado: boolean;
-};
-
-export async function getViajesParaCobroAction(): Promise<
-  ViajeCobroOption[] | { error: string }
-> {
-  await requireArea("caja", "read");
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .from("viajes")
-    .select("id, codigo, fecha_viaje, monto_flete, facturado, cliente_id, clientes(razon_social)")
-    .not("monto_flete", "is", null)
-    .eq("es_vacio", false)
-    .neq("estado", "cancelado") // un viaje borrado no se puede cobrar
-    .order("fecha_viaje", { ascending: false })
-    .limit(300);
-
-  if (error) {
-    console.error("Error al obtener viajes para cobro:", error);
-    return { error: "No se pudieron cargar los viajes." };
-  }
-
-  return (data ?? []).map((v) => {
-    const cliente = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-    return {
-      id: v.id,
-      codigo: v.codigo,
-      fecha: v.fecha_viaje,
-      cliente: cliente?.razon_social ?? null,
-      cliente_id: v.cliente_id,
-      monto_flete: Number(v.monto_flete),
-      facturado: v.facturado,
-    };
-  });
+  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal };
 }
 
 export type GetCajaMovimientosParams = {
@@ -393,8 +328,6 @@ export async function addIngresoAction(data: {
   medio: "efectivo" | "transferencia" | "cheque" | "otro";
   categoria: "cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro";
   fecha: string;
-  viaje_id?: string | null;
-  cliente_id?: string | null;
   caja?: CajaId;
 }) {
 
@@ -411,8 +344,6 @@ export async function addIngresoAction(data: {
     medio: data.medio,
     categoria: data.categoria,
     fecha: data.fecha,
-    viaje_id: data.viaje_id ?? null,
-    cliente_id: data.cliente_id ?? null,
     moneda: "ARS",
     caja,
     created_by: user.id,
@@ -432,33 +363,6 @@ export async function addIngresoAction(data: {
 
   if (inserted?.id) {
     await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
-  }
-
-  // Si el ingreso es un cobro de flete vinculado a un viaje, marcamos el viaje
-  // como cobrado para que no quede pendiente de cobro ni se cobre dos veces.
-  // Solo aplica a la diaria: el cobro de fletes es operativo.
-  if (caja === "diaria" && data.viaje_id && data.categoria === "cobro_cliente") {
-    const { data: viajePrev } = await supabase
-      .from("viajes")
-      .select("cobrado, facturado")
-      .eq("id", data.viaje_id)
-      .single();
-
-    // Sólo se puede marcar cobrado un viaje facturado (constraint en DB).
-    if (viajePrev && viajePrev.facturado && !viajePrev.cobrado) {
-      const cobroUpdate = { cobrado: true, fecha_cobro: data.fecha };
-      await supabase.from("viajes").update(cobroUpdate).eq("id", data.viaje_id);
-      await logAudit({
-        accion: "cobrado",
-        entidadTipo: "viaje",
-        entidadId: data.viaje_id,
-        usuarioId: user.id,
-        valoresAnteriores: { cobrado: false, fecha_cobro: null },
-        valoresNuevos: cobroUpdate,
-        client: supabase,
-      });
-      revalidatePath("/viajes");
-    }
   }
 
   revalidatePath("/caja");

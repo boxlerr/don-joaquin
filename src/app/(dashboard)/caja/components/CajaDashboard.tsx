@@ -170,7 +170,7 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
         </p>
       </div>
 
-      <div className={`grid gap-4 mb-6 ${caja === "grande" ? "grid-cols-4" : "grid-cols-5"}`}>
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Saldo actual"
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
@@ -189,16 +189,6 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
           sub={periodoLabel}
           color="error"
         />
-        {/* El pendiente de cobro es operativo: solo tiene sentido en la diaria. */}
-        {caja === "diaria" && (
-          <StatCard
-            label="Pendiente de cobro"
-            value={resumen ? `$ ${formatARS(resumen.pendienteCobro)}` : "—"}
-            sub="Fletes facturados sin cobrar"
-            color="warning"
-            href="/viajes?filtro=pendiente_cobro"
-          />
-        )}
         <StatCard
           label="Movimientos"
           value={resumen ? String(resumen.movimientos) : "—"}

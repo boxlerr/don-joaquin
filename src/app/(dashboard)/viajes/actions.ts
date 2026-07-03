@@ -89,8 +89,6 @@ export type GetViajesParams = {
   hasta?: string;
   estado?: string[];
   facturado?: boolean;
-  /** Filtra por estado de cobro: "pendiente" (facturado sin cobrar) o "cobrado". */
-  cobroEstado?: "pendiente" | "cobrado";
   esVacio?: boolean;
   search?: string;
   orderBy?: ViajeOrderBy;
@@ -108,7 +106,6 @@ export async function getViajesAction(
     hasta,
     estado,
     facturado,
-    cobroEstado,
     esVacio,
     search,
     orderBy = "fecha",
@@ -159,12 +156,6 @@ export async function getViajesAction(
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
-  }
-
-  if (cobroEstado === "pendiente") {
-    query = query.eq("facturado", true).eq("cobrado", false);
-  } else if (cobroEstado === "cobrado") {
-    query = query.eq("cobrado", true);
   }
 
   if (typeof esVacio === "boolean") {
@@ -1054,7 +1045,9 @@ export async function createViajeAction(
     tarifa_id: parsed.data.tarifa_id ?? null,
     // Regla unificada: con monto de flete > 0 el viaje queda facturado (igual
     // que importadores/hoja de ruta/cierre). Sin monto queda sin facturar.
+    // `cobrado` es espejo de facturado: no hay flujo de cobro aparte (03/07/2026).
     facturado: viajeEstaFacturado(parsed.data.monto_flete),
+    cobrado: viajeEstaFacturado(parsed.data.monto_flete),
     created_by: user.id,
   };
 
@@ -1084,6 +1077,7 @@ export async function createViajeAction(
       material: vuelta.material || null,
       es_vacio: esVacioVuelta,
       facturado: viajeEstaFacturado(vuelta.monto_flete, esVacioVuelta),
+      cobrado: viajeEstaFacturado(vuelta.monto_flete, esVacioVuelta),
       created_by: user.id,
     });
   }
@@ -1265,10 +1259,18 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
     return { ok: false, error: "Viaje no encontrado." };
   }
 
-  if (viajeActual.facturado) {
+  // Un viaje facturado se puede borrar (el valor entra solo con el remito).
+  // Lo único que bloquea es tener movimientos reales vinculados en Caja
+  // (cobros históricos, de cuando existía el flujo de cobro).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count: movsCaja } = await (supabase as any)
+    .from("caja_movimientos")
+    .select("id", { count: "exact", head: true })
+    .eq("viaje_id", id);
+  if ((movsCaja ?? 0) > 0) {
     return {
       ok: false,
-      error: "El viaje está facturado: revertí el cobro en Caja antes de cancelarlo.",
+      error: "El viaje tiene movimientos vinculados en Caja: eliminalos primero desde Caja.",
     };
   }
 
@@ -1325,13 +1327,6 @@ export async function updateViajeEstadoAction(
     return { ok: false, error: "Viaje no encontrado." };
   }
 
-  if (viajeActual.facturado) {
-    return {
-      ok: false,
-      error: "El viaje está facturado: revertí el cobro en Caja antes de cambiar su estado.",
-    };
-  }
-
   if (viajeActual.estado === "cancelado") {
     return { ok: false, error: "El viaje está cancelado y no puede cambiar de estado." };
   }
@@ -1362,15 +1357,16 @@ export async function updateViajeEstadoAction(
 }
 
 // ============================================================================
-// Cerrar viaje con opción de registrar cobro
+// Cerrar viaje (cargar remito + valor)
+// ----------------------------------------------------------------------------
+// Regla del cliente (03/07/2026): no hay flujo de cobro aparte. Entra el remito
+// con su valor y el viaje queda facturado (y cobrado, como espejo) de una.
+// No impacta la Caja: los fletes no generan movimientos de caja.
 // ============================================================================
 
 export async function cerrarViajeAction(
   viajeId: string,
   datos: {
-    cobrado: boolean;
-    fecha: string;
-    medio: "efectivo" | "transferencia" | "cheque" | "otro";
     observaciones: string | null;
     // Datos de facturación que se pueden cargar al cerrar el viaje.
     nro_remito?: string | null;
@@ -1386,31 +1382,28 @@ export async function cerrarViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: viaje, error: fetchError } = await (supabase as any)
     .from("viajes")
-    .select("estado, monto_flete, tonelaje_real, nro_remito, es_vacio, facturado, cobrado, fecha_cobro, codigo, cliente_id, clientes(razon_social)")
+    .select("estado, monto_flete, tonelaje_real, nro_remito, es_vacio, facturado, cobrado, codigo")
     .eq("id", viajeId)
     .single();
 
   if (fetchError || !viaje) return { ok: false, error: "Viaje no encontrado." };
 
-  // Regla de cierre/facturación/cobro centralizada en flujo-logic (computeCierre).
+  // Regla de cierre/facturación centralizada en flujo-logic (computeCierre).
   const { montoFinal, facturado: facturadoFinal, cobrado: cobradoFinal } = computeCierre({
     montoActual: viaje.monto_flete,
     montoIngresado: datos.monto_flete ?? null,
     esVacio: viaje.es_vacio,
-    cobrado: datos.cobrado,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const update: Record<string, any> = { estado: "cerrado", facturado: facturadoFinal };
+  const update: Record<string, any> = {
+    estado: "cerrado",
+    facturado: facturadoFinal,
+    cobrado: cobradoFinal, // espejo de facturado (no hay flujo de cobro)
+  };
   if (datos.nro_remito !== undefined) update.nro_remito = datos.nro_remito?.trim()?.slice(0, 60) || null;
   if (datos.monto_flete != null) update.monto_flete = montoFinal;
   if (datos.tonelaje_real != null) update.tonelaje_real = Math.min(1000, Math.max(0, datos.tonelaje_real));
-  if (cobradoFinal) {
-    // Marcar cobrado evita que el viaje vuelva a aparecer como "pendiente de cobro"
-    // y que el flujo de cobro en bloque genere un segundo ingreso por el mismo flete.
-    update.cobrado = true;
-    update.fecha_cobro = datos.fecha;
-  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (supabase as any)
@@ -1432,36 +1425,10 @@ export async function cerrarViajeAction(
     cobrado: cobradoFinal,
     ...(datos.nro_remito !== undefined && { nro_remito: update.nro_remito }),
     ...(datos.monto_flete != null && { monto_flete: montoFinal }),
-    ...(cobradoFinal && { medio_cobro: datos.medio }),
     ...(datos.observaciones && { observaciones: datos.observaciones }),
   }, user.id);
 
-  if (cobradoFinal) {
-    const { count } = await supabase
-      .from("caja_movimientos")
-      .select("id", { count: "exact", head: true })
-      .eq("viaje_id", viajeId);
-
-    if (count === 0) {
-      const clienteNombre = viaje.clientes?.razon_social ?? "Cliente";
-      await supabase.from("caja_movimientos").insert({
-        tipo: "ingreso",
-        categoria: "cobro_cliente",
-        concepto: `Flete ${viaje.codigo} - ${clienteNombre}`,
-        monto: montoFinal,
-        medio: datos.medio,
-        fecha: datos.fecha,
-        moneda: "ARS",
-        viaje_id: viajeId,
-        cliente_id: viaje.cliente_id ?? null,
-        observaciones: datos.observaciones,
-        created_by: user.id,
-      });
-    }
-  }
-
   revalidatePath("/viajes");
-  revalidatePath("/caja");
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -1469,10 +1436,9 @@ export async function cerrarViajeAction(
 // ============================================================================
 // Facturación en bloque
 // ----------------------------------------------------------------------------
-// "Facturar" = factura emitida: carga remito + tonelaje real + monto y marca
-// el viaje como facturado. NO impacta caja (el cobro se registra aparte), para
-// no generar ingresos fantasma al facturar muchos viajes de una. Decisión de
-// negocio confirmada: facturar ≠ cobrar.
+// "Facturar" = carga remito + tonelaje real + monto y marca el viaje como
+// facturado (y cobrado, espejo: regla del cliente 03/07/2026 — no hay flujo
+// de cobro aparte). No impacta la Caja.
 // ============================================================================
 
 const facturarItemSchema = z.object({
@@ -1535,7 +1501,7 @@ export async function facturarViajesEnBloqueAction(
       continue;
     }
 
-    const update: Record<string, unknown> = { facturado: true };
+    const update: Record<string, unknown> = { facturado: true, cobrado: true };
     if (item.nro_remito !== undefined) update.nro_remito = item.nro_remito?.trim() || null;
     if (item.tonelaje_real != null) update.tonelaje_real = item.tonelaje_real;
     if (item.monto_flete != null) update.monto_flete = item.monto_flete;
@@ -1570,166 +1536,6 @@ export async function facturarViajesEnBloqueAction(
   revalidatePath("/viajes");
   revalidatePath("/dashboard");
   return { ok: true, facturados, omitidos };
-}
-
-// ============================================================================
-// Cobrar viajes (en bloque) — vuelca el flete a la Caja
-// ----------------------------------------------------------------------------
-// A diferencia de facturar (que sólo marca facturado=true), cobrar SÍ genera el
-// ingreso en caja_movimientos vinculado por viaje_id y marca el viaje como
-// cobrado. Es el puente Caja ↔ Viajes: hasta acá la caja mostraba $0 porque
-// nadie volcaba los fletes facturados.
-//
-// Sólo se pueden cobrar viajes facturados y todavía no cobrados.
-// ============================================================================
-
-const cobrarItemSchema = z.object({
-  id: z.string().min(1),
-  monto: z.number().min(0).optional().nullable(),
-});
-
-export type CobrarBloqueItem = {
-  id: string;
-  /** Override del monto a cobrar. Si no viene, se usa monto_flete del viaje. */
-  monto?: number | null;
-};
-
-export async function cobrarViajesEnBloqueAction(
-  items: CobrarBloqueItem[],
-  opts: { fecha_cobro: string; medio: "efectivo" | "transferencia" | "cheque" | "otro" },
-): Promise<{ ok: boolean; cobrados?: number; omitidos?: number; error?: string }> {
-  const user = await requireArea("caja", "write");
-
-  const parsed = z.array(cobrarItemSchema).min(1).max(200).safeParse(items);
-  if (!parsed.success) return { ok: false, error: "Datos de cobro inválidos." };
-
-  const fechaParsed = z
-    .object({
-      fecha_cobro: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      medio: z.enum(["efectivo", "transferencia", "cheque", "otro"]),
-    })
-    .safeParse(opts);
-  if (!fechaParsed.success) return { ok: false, error: "Fecha o medio de cobro inválidos." };
-  const { fecha_cobro, medio } = fechaParsed.data;
-
-  const supabase = createAdminClient();
-  const ids = parsed.data.map((i) => i.id);
-
-  // Estado previo: sólo se cobra lo facturado y no cobrado. Traemos el flete y
-  // el cliente para armar el ingreso de caja.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: actuales, error: fetchErr } = await (supabase as any)
-    .from("viajes")
-    .select("id, codigo, facturado, cobrado, es_vacio, estado, monto_flete, cliente_id, clientes(razon_social)")
-    .in("id", ids);
-
-  if (fetchErr) return { ok: false, error: "No se pudieron leer los viajes a cobrar." };
-
-  type Prev = {
-    id: string;
-    codigo: string;
-    facturado: boolean;
-    cobrado: boolean;
-    es_vacio: boolean;
-    estado: string;
-    monto_flete: number | null;
-    cliente_id: string;
-    clientes: { razon_social: string } | { razon_social: string }[] | null;
-  };
-  const byId = new Map<string, Prev>((actuales ?? []).map((v: Prev) => [v.id, v]));
-
-  let cobrados = 0;
-  let omitidos = 0;
-
-  for (const item of parsed.data) {
-    const prev = byId.get(item.id);
-    if (!prev) {
-      omitidos++;
-      continue;
-    }
-    // Sólo facturados, no cobrados, no vacíos, no cancelados.
-    if (!prev.facturado || prev.cobrado || prev.es_vacio || prev.estado === "cancelado") {
-      omitidos++;
-      continue;
-    }
-
-    const monto = item.monto != null ? item.monto : Number(prev.monto_flete ?? 0);
-    if (!(monto > 0)) {
-      omitidos++;
-      continue;
-    }
-
-    const cliente = Array.isArray(prev.clientes) ? prev.clientes[0] : prev.clientes;
-    const concepto = `Cobro flete ${prev.codigo}${cliente?.razon_social ? ` — ${cliente.razon_social}` : ""}`;
-
-    // 1) Crear el ingreso en la caja, vinculado al viaje.
-    const movInsert = {
-      tipo: "ingreso" as const,
-      categoria: "cobro_cliente" as const,
-      concepto,
-      monto,
-      medio,
-      moneda: "ARS",
-      fecha: fecha_cobro,
-      viaje_id: prev.id,
-      cliente_id: prev.cliente_id ?? null,
-      created_by: user.id,
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: mov, error: movErr } = await (supabase as any)
-      .from("caja_movimientos")
-      .insert(movInsert)
-      .select("id")
-      .single();
-
-    if (movErr || !mov?.id) {
-      omitidos++;
-      continue;
-    }
-
-    // 2) Marcar el viaje como cobrado.
-    const update = { cobrado: true, fecha_cobro };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: updErr } = await (supabase as any)
-      .from("viajes")
-      .update(update)
-      .eq("id", prev.id);
-
-    if (updErr) {
-      // Revertir el ingreso para no dejar caja inconsistente.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("caja_movimientos").delete().eq("id", mov.id);
-      omitidos++;
-      continue;
-    }
-
-    // Auditoría del viaje y del movimiento de caja.
-    await logViajeAudit(
-      supabase,
-      prev.id,
-      "cobrado",
-      { cobrado: prev.cobrado, fecha_cobro: null },
-      update,
-      user.id,
-    );
-    await logAudit({
-      accion: "crear",
-      entidadTipo: "caja",
-      entidadId: mov.id,
-      usuarioId: user.id,
-      valoresAnteriores: null,
-      valoresNuevos: movInsert,
-      client: supabase,
-    });
-
-    cobrados++;
-  }
-
-  revalidatePath("/viajes");
-  revalidatePath("/caja");
-  revalidatePath("/dashboard");
-  return { ok: true, cobrados, omitidos };
 }
 
 // ============================================================================
@@ -1907,6 +1713,12 @@ export async function updateViajeAction(
     .eq("id", id)
     .single();
 
+  // Los viajes borrados (soft delete) no se editan: no aparecen en las vistas
+  // y modificarlos generaría datos fantasma.
+  if (previo?.estado === "cancelado") {
+    return { error: "El viaje está eliminado y no se puede editar." };
+  }
+
   let realTipoCargaId = parsed.data.tipo_carga_id;
   const notasAdicionales: string[] = [];
 
@@ -1956,11 +1768,10 @@ export async function updateViajeAction(
       observaciones: observacionesDB,
       nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
       material: parsed.data.material || null,
-      // Regla unificada: facturado se deriva del monto. Si el viaje ya está
-      // cobrado se mantiene facturado (no se permite el estado inválido
-      // "cobrado pero no facturado").
-      facturado:
-        viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio) || !!previo?.cobrado,
+      // Regla unificada: facturado se deriva del monto, y cobrado es su espejo
+      // (no hay flujo de cobro aparte — 03/07/2026).
+      facturado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
+      cobrado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
     })
     .eq("id", id);
 
@@ -1987,8 +1798,8 @@ export async function updateViajeAction(
       km_vacios: parsed.data.km_vacios,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
-      facturado:
-        viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio) || !!previo?.cobrado,
+      facturado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
+      cobrado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
     },
     user.id,
   );
@@ -2175,6 +1986,7 @@ export async function createViajesBatchAction(
         material: p.material || null,
         es_vacio: esVacio,
         facturado: viajeEstaFacturado(p.monto_flete, esVacio),
+        cobrado: viajeEstaFacturado(p.monto_flete, esVacio),
         created_by: user.id,
       };
     }),

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useTransition, useRef } from "react";
-import { useRouter } from "next/navigation";
 import {
   Table,
   TableHeader,
@@ -54,16 +53,15 @@ import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
 import ViajeDocumentosPanel from "./ViajeDocumentosPanel";
-import { esFacturable, esCobrable } from "../flujo-logic";
+import { esFacturable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
 import FacturarBloqueDialog from "./FacturarBloqueDialog";
-import CobrarBloqueDialog from "./CobrarBloqueDialog";
 
-/** Una fila es seleccionable si se puede facturar o cobrar. */
+/** Una fila es seleccionable si se puede facturar. */
 function esSeleccionable(v: ViajeBasico): boolean {
-  return esFacturable(v) || esCobrable(v);
+  return esFacturable(v);
 }
 
 /** Filtro empujado desde las tarjetas de estadísticas (clic). */
@@ -71,8 +69,6 @@ export interface FiltroExterno {
   estado: string;
   facturado: boolean | null;
   esVacio: boolean | null;
-  /** Estado de cobro a aplicar (deep-link desde Caja). Vacío = sin filtro. */
-  cobro?: "" | "pendiente" | "cobrado";
   nonce: number;
 }
 
@@ -83,7 +79,6 @@ interface Props {
     estado: string;
     facturado: boolean | null;
     esVacio: boolean | null;
-    cobro: "" | "pendiente" | "cobrado";
   }) => void;
   /** Datos de formulario de gasto, resueltos en la página y compartidos por todas
    *  las filas (evita re-pedirlos al expandir cada viaje). */
@@ -119,12 +114,10 @@ const COLUMNS: ColumnDef[] = [
   { label: "Importe", sortKey: "monto", cellClass: "hidden lg:table-cell", align: "right" },
   { label: "Estado" },
   { label: "Facturado", cellClass: "hidden sm:table-cell" },
-  { label: "Cobro", cellClass: "hidden sm:table-cell" },
   { label: "" },
 ];
 
 export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData }: Props) {
-  const router = useRouter();
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -142,17 +135,15 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   const [editingViaje, setEditingViaje] = useState<ViajeBasico | null>(null);
   const [confirmEditViaje, setConfirmEditViaje] = useState<ViajeBasico | null>(null);
 
-  // Selección múltiple para facturación / cobro en bloque.
+  // Selección múltiple para facturación en bloque.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [facturarOpen, setFacturarOpen] = useState(false);
-  const [cobrarOpen, setCobrarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
-  const [cobroFiltro, setCobroFiltro] = useState<"" | "pendiente" | "cobrado">("");
   const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
@@ -183,14 +174,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     setEstadoFiltro(filtroExterno.estado);
     setFacturadoFiltro(filtroExterno.facturado);
     setEsVacioFiltro(filtroExterno.esVacio);
-    setCobroFiltro(filtroExterno.cobro ?? "");
   }
 
   // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).
   useEffect(() => {
-    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro, cobro: cobroFiltro });
+    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro, facturadoFiltro, esVacioFiltro, cobroFiltro]);
+  }, [estadoFiltro, facturadoFiltro, esVacioFiltro]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +195,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       hasta: hasta || undefined,
       estado: estadoFiltro ? [estadoFiltro] : undefined,
       facturado: facturadoFiltro ?? undefined,
-      cobroEstado: cobroFiltro || undefined,
       esVacio: esVacioFiltro ?? undefined,
       search: debouncedSearch || undefined,
       orderBy,
@@ -227,7 +216,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, cobroFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -239,7 +228,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         hasta: hasta || undefined,
         estado: estadoFiltro ? [estadoFiltro] : undefined,
         facturado: facturadoFiltro ?? undefined,
-        cobroEstado: cobroFiltro || undefined,
         esVacio: esVacioFiltro ?? undefined,
         search: debouncedSearch || undefined,
         orderBy,
@@ -255,7 +243,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || !!cobroFiltro || esVacioFiltro !== null;
+    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || esVacioFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
@@ -263,7 +251,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     setSearch("");
     setEstadoFiltro("");
     setFacturadoFiltro(null);
-    setCobroFiltro("");
     setEsVacioFiltro(null);
   };
 
@@ -276,12 +263,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     }
   };
 
-  // --- Selección múltiple (facturación / cobro en bloque) -----------------
+  // --- Selección múltiple (facturación en bloque) -------------------------
   const seleccionablesCargadas = rows.filter(esSeleccionable);
   const selectedViajes = rows.filter((v) => selectedIds.has(v.id));
-  // Subconjuntos elegibles para cada acción en bloque.
+  // Subconjunto elegible para la acción en bloque.
   const selectedFacturables = selectedViajes.filter(esFacturable);
-  const selectedCobrables = selectedViajes.filter(esCobrable);
   const allSeleccionablesSelected =
     seleccionablesCargadas.length > 0 && seleccionablesCargadas.every((v) => selectedIds.has(v.id));
 
@@ -304,11 +290,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   };
 
   const onFacturadoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
-    setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
-    setSelectedIds(new Set());
-  };
-
-  const onCobradoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
     setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
     setSelectedIds(new Set());
   };
@@ -365,18 +346,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
           triggerClassName="h-9 w-44"
           aria-label="Filtrar por estado"
         />
-        <Combobox
-          value={cobroFiltro}
-          onValueChange={(v) => setCobroFiltro((v as "" | "pendiente" | "cobrado") ?? "")}
-          options={[
-            { id: "", label: "Todo cobro" },
-            { id: "pendiente", label: "Pendiente de cobro" },
-            { id: "cobrado", label: "Cobrado" },
-          ]}
-          searchable={false}
-          triggerClassName="h-9 w-48"
-          aria-label="Filtrar por estado de cobro"
-        />
         {hayFiltros && (
           <Button
             variant="ghost"
@@ -403,7 +372,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         </div>
       </div>
 
-      {/* Barra de selección para facturar / cobrar en bloque */}
+      {/* Barra de selección para facturar en bloque */}
       {selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-[#10B981]/5">
           <span className="text-sm font-semibold text-foreground">
@@ -417,16 +386,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
             >
               <Receipt size={14} />
               Facturar {selectedFacturables.length}
-            </Button>
-          )}
-          {selectedCobrables.length > 0 && (
-            <Button
-              size="sm"
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-1.5"
-              onClick={() => setCobrarOpen(true)}
-            >
-              <Coins size={14} />
-              Cobrar {selectedCobrables.length}
             </Button>
           )}
           <Button
@@ -456,7 +415,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                   {i === 0 ? (
                     <input
                       type="checkbox"
-                      aria-label="Seleccionar todos los viajes facturables o cobrables"
+                      aria-label="Seleccionar todos los viajes facturables"
                       className="size-4 accent-[#0088D1] cursor-pointer align-middle disabled:cursor-not-allowed disabled:opacity-40"
                       checked={allSeleccionablesSelected}
                       disabled={seleccionablesCargadas.length === 0}
@@ -530,8 +489,8 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                         checked={selectedIds.has(v.id)}
                         onChange={() => toggleSeleccion(v.id)}
                       />
-                    ) : v.cobrado ? (
-                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Cobrado" />
+                    ) : v.facturado ? (
+                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Facturado" />
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -594,15 +553,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     >
                       {v.facturado ? "Sí" : "No"}
                     </span>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {v.cobrado ? (
-                      <StatusBadge label="Cobrado" tone="success" />
-                    ) : v.facturado && !v.es_vacio ? (
-                      <StatusBadge label="Pendiente" tone="warning" />
-                    ) : (
-                      <span className="text-xs text-muted-foreground/70">—</span>
-                    )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -679,58 +629,82 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                           <div className="pt-3 border-t border-border space-y-2.5">
                             {v.facturado ? (
                               <>
-                                {v.cobrado ? (
-                                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                    <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-                                    <span className="text-[11px] font-semibold text-green-700">
-                                      Viaje cobrado — registrado en caja
-                                      {v.fecha_cobro ? ` (${formatFecha(v.fecha_cobro)})` : ""}
-                                    </span>
+                                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                  <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+                                  <span className="text-[11px] font-semibold text-green-700">
+                                    Viaje facturado — remito y valor cargados
+                                  </span>
+                                </div>
+                                <div className="pt-1 flex justify-between items-center">
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAuditTrailViajeId(v.id);
+                                        setAuditTrailOpen(true);
+                                      }}
+                                    >
+                                      <Clock size={12} /> Historial
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmEditViaje(v);
+                                      }}
+                                    >
+                                      <Pencil size={12} /> Editar
+                                    </Button>
                                   </div>
-                                ) : (
-                                  <div className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                    <span className="text-[11px] font-semibold text-amber-700">
-                                      Facturado — pendiente de cobro
-                                    </span>
-                                    {esCobrable(v) && (
+                                  {deletingId === v.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
                                       <Button
+                                        variant="destructive"
                                         size="xs"
-                                        className="h-6 px-2 text-[11px] gap-1 bg-[#0088D1] hover:bg-[#0277BD] text-white"
-                                        onClick={(e) => {
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={async (e) => {
                                           e.stopPropagation();
-                                          setSelectedIds(new Set([v.id]));
-                                          setCobrarOpen(true);
+                                          const res = await deleteViajeAction(v.id);
+                                          if (res && res.ok) {
+                                            setRows((prev) => prev.filter((item) => item.id !== v.id));
+                                            setExpandedId(null);
+                                          }
+                                          setDeletingId(null);
                                         }}
                                       >
-                                        <Coins size={12} /> Cobrar
+                                        Sí, borrar
                                       </Button>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="flex items-center gap-1.5">
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setAuditTrailViajeId(v.id);
-                                      setAuditTrailOpen(true);
-                                    }}
-                                  >
-                                    <Clock size={12} /> Historial
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="xs"
-                                    className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setConfirmEditViaje(v);
-                                    }}
-                                  >
-                                    <Pencil size={12} /> Editar
-                                  </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="xs"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDeletingId(null);
+                                        }}
+                                      >
+                                        No
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeletingId(v.id);
+                                      }}
+                                    >
+                                      <Trash2 size={12} /> Eliminar Viaje
+                                    </Button>
+                                  )}
                                 </div>
                               </>
                             ) : (
@@ -787,7 +761,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                                       setCerrandoViaje(v);
                                     }}
                                   >
-                                    <Coins size={12} /> Cargar remito / cobro
+                                    <Coins size={12} /> Cargar remito / importe
                                   </Button>
                                 )}
 
@@ -985,10 +959,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
 
             <div className="py-4 space-y-2">
               <p className="text-sm text-foreground font-medium">
-                Este viaje ya está facturado y su cobro impactó en la caja.
+                Este viaje ya está facturado (tiene remito y valor cargados).
               </p>
               <p className="text-sm text-muted-foreground">
-                Podés editar los datos del viaje, pero si cambiás el monto de flete el movimiento en caja <span className="font-semibold text-amber-700">no se actualiza automáticamente</span>. Tendrás que ajustarlo desde la sección Caja.
+                Podés editar los datos igual: si cambiás el monto, el viaje se recalcula solo
+                (con monto queda facturado; sin monto vuelve a &quot;sin facturar&quot;).
               </p>
             </div>
 
@@ -1052,15 +1027,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         />
       )}
 
-      {/* Cobro en bloque */}
-      {cobrarOpen && selectedCobrables.length > 0 && (
-        <CobrarBloqueDialog
-          viajes={selectedCobrables}
-          open={cobrarOpen}
-          onOpenChange={setCobrarOpen}
-          onSuccess={onCobradoEnBloque}
-        />
-      )}
     </div>
   );
 }

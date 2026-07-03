@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 import { requireArea } from "@/lib/auth";
 import { parseYpfPdf, type YpfTarifa } from "./parser-ypf";
 import { seedTarifasFromYpf } from "./tarifas-seed";
@@ -297,12 +298,15 @@ export async function confirmYpfImportAction(formData: FormData): Promise<Confir
     const m = key ? matches.get(key) : undefined;
     if (!m || m.es_vacio) continue;
 
+    const montoDm = round2(r.importe ?? 0);
     const update: Record<string, unknown> = {
       tonelaje_real: r.netoTn,
-      monto_flete: round2(r.importe ?? 0),
+      monto_flete: montoDm,
       // El DM es la certificación de YPF: completar el viaje con su valor lo deja
-      // facturado (sale del estado "sin facturar"/$0).
-      facturado: true,
+      // facturado (sale del estado "sin facturar"/$0) y cobrado de una — no hay
+      // flujo de cobro aparte (03/07/2026). Regla unificada: solo con monto > 0.
+      facturado: viajeEstaFacturado(montoDm),
+      cobrado: viajeEstaFacturado(montoDm),
     };
     if (dmYpfId) update.dm_ypf_id = dmYpfId;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Clock, User, Plus, RefreshCw, CheckCircle2, Banknote, MessageSquare, ArrowRight } from "lucide-react";
+import { X, Clock, User, Plus, RefreshCw, CheckCircle2, MessageSquare, ArrowRight } from "lucide-react";
 import { getViajeAuditTrail, type AuditTrailEntry } from "../actions";
 
 interface AuditTrailDrawerProps {
@@ -15,13 +15,6 @@ const ESTADO_LABELS: Record<string, string> = {
   en_curso: "En Curso",
   cerrado: "Cerrado",
   cancelado: "Cancelado",
-};
-
-const MEDIO_LABELS: Record<string, string> = {
-  efectivo: "Efectivo",
-  transferencia: "Transferencia",
-  cheque: "Cheque",
-  otro: "Otro",
 };
 
 function EntryIcon({ accion, valores_nuevos }: { accion: string; valores_nuevos: Record<string, unknown> }) {
@@ -48,8 +41,6 @@ function EntryContent({ entry }: { entry: AuditTrailEntry }) {
   if (entry.accion === "cambio_estado") {
     const estadoAntes = (va.estado as string) ?? null;
     const estadoDespues = (nv.estado as string) ?? null;
-    const cobrado = nv.cobrado as boolean | undefined;
-    const medioCobro = nv.medio_cobro as string | undefined;
     const observaciones = nv.observaciones as string | undefined;
 
     return (
@@ -73,18 +64,6 @@ function EntryContent({ entry }: { entry: AuditTrailEntry }) {
             </div>
           )}
         </div>
-
-        {/* Info de cobro si cerró el viaje */}
-        {estadoDespues === "cerrado" && cobrado !== undefined && (
-          <div className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md w-fit ${
-            cobrado ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
-          }`}>
-            <Banknote size={12} />
-            {cobrado
-              ? `Cobrado${medioCobro ? ` · ${MEDIO_LABELS[medioCobro] ?? medioCobro}` : ""}`
-              : "Pago pendiente"}
-          </div>
-        )}
 
         {/* Observaciones */}
         {observaciones && (

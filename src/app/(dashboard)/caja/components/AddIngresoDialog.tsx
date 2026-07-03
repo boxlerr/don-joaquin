@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -14,14 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Combobox } from "@/components/ui/combobox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import {
-  addIngresoAction,
-  getViajesParaCobroAction,
-  type CajaId,
-  type ViajeCobroOption,
-} from "../actions";
+import { addIngresoAction, type CajaId } from "../actions";
 
 const CATEGORIA_LABEL: Record<string, string> = {
   cobro_cliente: "Cobro a Cliente",
@@ -37,15 +31,6 @@ const MEDIO_LABEL: Record<string, string> = {
   cheque: "Cheque",
   otro: "Otro",
 };
-
-function formatMontoCorto(n: number): string {
-  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-}
-
-function formatFechaCorta(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}/${m}/${y.slice(2)}`;
-}
 
 export default function AddIngresoDialog({
   children,
@@ -66,44 +51,18 @@ export default function AddIngresoDialog({
   const [categoria, setCategoria] = useState<"cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro">("cobro_cliente");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
 
-  const [viajes, setViajes] = useState<ViajeCobroOption[] | null>(null);
-  const [viajeId, setViajeId] = useState("");
-
-  // Vincular viajes solo aplica a la diaria (el cobro de fletes es operativo).
-  useEffect(() => {
-    if (!open || caja === "grande" || viajes !== null) return;
-    getViajesParaCobroAction().then((result) => {
-      if (!("error" in result)) setViajes(result);
-    });
-  }, [open, caja, viajes]);
-
-  const seleccionarViaje = (id: string) => {
-    setViajeId(id);
-    const v = viajes?.find((x) => x.id === id);
-    if (!v) return;
-    setMonto(String(v.monto_flete));
-    setConcepto(`Cobro flete ${v.codigo}${v.cliente ? ` — ${v.cliente}` : ""}`);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!monto || isNaN(Number(monto))) return;
     setLoading(true);
     setError(null);
     try {
-      // Vincular viajes solo aplica a la diaria (el cobro de fletes es operativo).
-      const viaje =
-        caja === "diaria" && categoria === "cobro_cliente"
-          ? viajes?.find((v) => v.id === viajeId) ?? null
-          : null;
       const res = await addIngresoAction({
         concepto,
         monto: parseFloat(monto),
         medio,
         categoria,
         fecha,
-        viaje_id: viaje?.id ?? null,
-        cliente_id: viaje?.cliente_id ?? null,
         caja,
       });
       if (res.error) {
@@ -112,7 +71,6 @@ export default function AddIngresoDialog({
         setOpen(false);
         setConcepto("");
         setMonto("");
-        setViajeId("");
         window.dispatchEvent(new CustomEvent("caja:refresh"));
         router.refresh();
       }
@@ -145,39 +103,11 @@ export default function AddIngresoDialog({
             </div>
           )}
 
-          {categoria === "cobro_cliente" && caja === "diaria" && (
-            <div className="space-y-2">
-              <Label htmlFor="ing-viaje" className="text-sm font-medium text-foreground">
-                Viaje vinculado{" "}
-                <span className="text-muted-foreground font-normal">(opcional)</span>
-              </Label>
-              <Combobox
-                id="ing-viaje"
-                value={viajeId}
-                onValueChange={seleccionarViaje}
-                options={(viajes ?? []).map((v) => ({
-                  id: v.id,
-                  label: `${v.codigo} · ${v.cliente ?? "Sin cliente"} · ${formatFechaCorta(v.fecha)} · $ ${formatMontoCorto(v.monto_flete)}`,
-                }))}
-                placeholder={
-                  viajes === null ? "Cargando viajes..." : "Buscar por código o cliente..."
-                }
-                searchPlaceholder="Código de viaje o cliente..."
-                emptyMessage="Ningún viaje coincide"
-                clearable
-                disabled={viajes === null}
-              />
-              <p className="text-xs text-muted-foreground">
-                Al elegir un viaje se completan el monto y el concepto con el flete.
-              </p>
-            </div>
-          )}
-
           <div className="space-y-2">
             <Label htmlFor="ing-concepto" className="text-sm font-medium text-foreground">Concepto / Descripción</Label>
             <Input
               id="ing-concepto"
-              placeholder="Ej: Cobro de flete de granos..."
+              placeholder="Ej: Rendición de vuelto, aporte, ajuste..."
               required
               value={concepto}
               onChange={(e) => setConcepto(e.target.value)}

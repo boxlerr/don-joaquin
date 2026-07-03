@@ -6,20 +6,20 @@
 import type { ViajeBasico } from "./types";
 
 // ── Cierre / facturación de un viaje ─────────────────────────────────────────
-// Tener factura (monto > 0) y no ser vacío ⇒ facturado. Sólo se cobra (impacta
-// caja) si hay factura y el usuario marcó "ya cobré".
+// Tener factura (monto > 0) y no ser vacío ⇒ facturado. Regla del cliente
+// (03/07/2026): no hay flujo de cobro aparte — entra el remito con su valor y
+// el viaje queda facturado y cobrado de una. `cobrado` es un espejo de
+// `facturado` que se mantiene por compatibilidad (cta. cte., datos históricos).
 export function computeCierre(opts: {
   montoActual: number | null;
   /** Monto ingresado ahora; null = no se tocó (se usa el actual). */
   montoIngresado: number | null;
   esVacio: boolean;
-  cobrado: boolean;
 }): { montoFinal: number; facturado: boolean; cobrado: boolean } {
   const montoFinal =
     opts.montoIngresado != null ? Math.max(0, opts.montoIngresado) : Number(opts.montoActual ?? 0);
   const facturado = montoFinal > 0 && !opts.esVacio;
-  const cobrado = opts.cobrado && facturado;
-  return { montoFinal, facturado, cobrado };
+  return { montoFinal, facturado, cobrado: facturado };
 }
 
 // ── Rendición de viático ─────────────────────────────────────────────────────
@@ -106,14 +106,9 @@ export function movimientosCuentaCorriente(viajes: ViajeParaCuenta[]): {
 }
 
 // ── Predicados de estado de un viaje (para la grilla y los flujos en bloque) ──
-type ViajeEstadoFlags = Pick<ViajeBasico, "facturado" | "cobrado" | "es_vacio" | "estado">;
+type ViajeEstadoFlags = Pick<ViajeBasico, "facturado" | "es_vacio" | "estado">;
 
 /** Se puede facturar si no está facturado, no es vacío y no está cancelado. */
 export function esFacturable(v: ViajeEstadoFlags): boolean {
   return !v.facturado && !v.es_vacio && v.estado !== "cancelado";
-}
-
-/** Se puede cobrar si está facturado, no cobrado, no vacío y no cancelado. */
-export function esCobrable(v: ViajeEstadoFlags): boolean {
-  return v.facturado && !v.cobrado && !v.es_vacio && v.estado !== "cancelado";
 }

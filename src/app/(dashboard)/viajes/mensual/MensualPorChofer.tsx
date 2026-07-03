@@ -215,7 +215,7 @@ export default function MensualPorChofer() {
       {!loading && rows.length > 0 && (
         <p className="text-xs text-muted-foreground/70">
           Incluye viajes pendientes, en curso y cerrados. Excluye cancelados.
-          El flete refleja el monto registrado (puede variar si hay cobros parciales).
+          El flete refleja el monto registrado en el viaje.
           La utilización compara el tonelaje cargado contra la capacidad del camión asignado al viaje.
         </p>
       )}

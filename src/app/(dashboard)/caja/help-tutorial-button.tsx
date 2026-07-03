@@ -35,7 +35,7 @@ const TABS: TutorialTab[] = [
       {
         title: "Registrá un ingreso",
         description:
-          'El botón verde "Ingreso" suma dinero a la caja (cobros, aportes). Cargás fecha, monto y concepto.',
+          'El botón verde "Ingreso" suma dinero a la caja (aportes, rendiciones). Cargás fecha, monto y concepto.',
         mockup: <MockIngreso />,
       },
       {
@@ -104,7 +104,7 @@ function MockIngreso() {
           <MockField label="Fecha *" value="20/05/2026" icon={<Calendar size={11} />} required />
           <MockField label="Monto *" value="$ 250.000" icon={<DollarSign size={11} />} required />
         </div>
-        <MockField label="Concepto *" value="Cobro flete V-2026-00040" required />
+        <MockField label="Concepto *" value="Rendición de vuelto viáticos" required />
       </div>
     </div>
   );

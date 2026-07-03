@@ -4,42 +4,39 @@ import {
   computeRendicion,
   movimientosCuentaCorriente,
   esFacturable,
-  esCobrable,
   type ViajeParaCuenta,
 } from "./flujo-logic";
 
-// ── Flujo: cerrar / facturar / cobrar un viaje ───────────────────────────────
+// ── Flujo: cerrar / facturar un viaje ────────────────────────────────────────
+// Regla del cliente (03/07/2026): no hay flujo de cobro aparte — facturado
+// implica cobrado (el espejo se mantiene por compatibilidad).
 describe("computeCierre (cerrar viaje)", () => {
-  it("con monto ingresado y sin cobrar: queda facturado pero no cobrado", () => {
-    const r = computeCierre({ montoActual: null, montoIngresado: 1000, esVacio: false, cobrado: false });
-    expect(r).toEqual({ montoFinal: 1000, facturado: true, cobrado: false });
+  it("con monto ingresado: queda facturado y cobrado de una", () => {
+    const r = computeCierre({ montoActual: null, montoIngresado: 1000, esVacio: false });
+    expect(r).toEqual({ montoFinal: 1000, facturado: true, cobrado: true });
   });
 
   it("monto ingresado null: usa el monto actual del viaje", () => {
-    const r = computeCierre({ montoActual: 500, montoIngresado: null, esVacio: false, cobrado: false });
+    const r = computeCierre({ montoActual: 500, montoIngresado: null, esVacio: false });
     expect(r.montoFinal).toBe(500);
     expect(r.facturado).toBe(true);
+    expect(r.cobrado).toBe(true);
   });
 
-  it("viaje vacío: nunca queda facturado aunque tenga monto", () => {
-    const r = computeCierre({ montoActual: null, montoIngresado: 1000, esVacio: true, cobrado: true });
+  it("viaje vacío: nunca queda facturado ni cobrado aunque tenga monto", () => {
+    const r = computeCierre({ montoActual: null, montoIngresado: 1000, esVacio: true });
     expect(r.facturado).toBe(false);
     expect(r.cobrado).toBe(false);
   });
 
-  it("'ya cobré' con factura: queda cobrado", () => {
-    const r = computeCierre({ montoActual: null, montoIngresado: 800, esVacio: false, cobrado: true });
-    expect(r).toEqual({ montoFinal: 800, facturado: true, cobrado: true });
-  });
-
-  it("'ya cobré' sin monto: NO queda cobrado (no hay factura)", () => {
-    const r = computeCierre({ montoActual: 0, montoIngresado: null, esVacio: false, cobrado: true });
+  it("sin monto: no facturado ni cobrado", () => {
+    const r = computeCierre({ montoActual: 0, montoIngresado: null, esVacio: false });
     expect(r.facturado).toBe(false);
     expect(r.cobrado).toBe(false);
   });
 
   it("monto negativo se normaliza a 0 (no facturado)", () => {
-    const r = computeCierre({ montoActual: null, montoIngresado: -50, esVacio: false, cobrado: false });
+    const r = computeCierre({ montoActual: null, montoIngresado: -50, esVacio: false });
     expect(r.montoFinal).toBe(0);
     expect(r.facturado).toBe(false);
   });
@@ -137,17 +134,11 @@ describe("movimientosCuentaCorriente", () => {
 });
 
 // ── Predicados de estado ─────────────────────────────────────────────────────
-describe("esFacturable / esCobrable", () => {
+describe("esFacturable", () => {
   it("facturable: no facturado, no vacío, no cancelado", () => {
-    expect(esFacturable({ facturado: false, cobrado: false, es_vacio: false, estado: "cerrado" })).toBe(true);
-    expect(esFacturable({ facturado: true, cobrado: false, es_vacio: false, estado: "cerrado" })).toBe(false);
-    expect(esFacturable({ facturado: false, cobrado: false, es_vacio: true, estado: "cerrado" })).toBe(false);
-    expect(esFacturable({ facturado: false, cobrado: false, es_vacio: false, estado: "cancelado" })).toBe(false);
-  });
-
-  it("cobrable: facturado, no cobrado, no vacío, no cancelado", () => {
-    expect(esCobrable({ facturado: true, cobrado: false, es_vacio: false, estado: "cerrado" })).toBe(true);
-    expect(esCobrable({ facturado: true, cobrado: true, es_vacio: false, estado: "cerrado" })).toBe(false);
-    expect(esCobrable({ facturado: false, cobrado: false, es_vacio: false, estado: "cerrado" })).toBe(false);
+    expect(esFacturable({ facturado: false, es_vacio: false, estado: "cerrado" })).toBe(true);
+    expect(esFacturable({ facturado: true, es_vacio: false, estado: "cerrado" })).toBe(false);
+    expect(esFacturable({ facturado: false, es_vacio: true, estado: "cerrado" })).toBe(false);
+    expect(esFacturable({ facturado: false, es_vacio: false, estado: "cancelado" })).toBe(false);
   });
 });

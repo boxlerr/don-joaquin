@@ -341,16 +341,16 @@ const ESTADOS_STEPS: TutorialStep[] = [
   {
     title: "Facturado",
     description:
-      'La columna "Facturado" es independiente del estado. Un viaje cerrado puede estar Sin facturar (rojo en las stats) hasta que se emita la factura.',
+      'La columna "Facturado" se prende sola cuando el viaje tiene su valor cargado (con el remito entra el monto). Un viaje cerrado sin valor aparece Sin facturar (rojo en las stats) hasta completarlo.',
     mockup: <MockFacturado />,
     hint: 'El stat card "Sin facturar" del encabezado muestra los viajes cerrados/en curso que todavía no tienen factura emitida.',
   },
   {
-    title: "Registrar cobro en viaje ya cerrado",
+    title: "Completar remito y valor después",
     description:
-      'Si cerraste un viaje sin marcar el cobro, podés registrarlo después. Expandí la fila del viaje cerrado y vas a ver el botón verde "Registrar cobro". Al hacer click se abre el mismo formulario para indicar fecha, medio y si el pago se suma a la caja.',
+      'Si cerraste un viaje sin remito o sin valor, podés completarlo después. Expandí la fila del viaje cerrado y usá el botón verde "Cargar remito / importe": con el valor cargado el viaje queda facturado y listo.',
     mockup: <MockRegistrarCobro />,
-    hint: 'El sistema verifica que no exista ya un movimiento en caja para ese viaje, así que podés usarlo sin riesgo de duplicar.',
+    hint: "También lo podés completar desde la Hoja de Ruta (lápiz en la fila) o dejar que la liquidación de Loma / el DM de YPF lo completen solos.",
   },
 ];
 
@@ -358,7 +358,7 @@ const CICLO_STEPS: TutorialStep[] = [
   {
     title: "El ciclo completo del viaje",
     description:
-      "De principio a fin: cargás el viaje, lo seguís hasta cerrarlo con su remito y factura, adjuntás los documentos y registrás el cobro. Cada paso impacta en la Caja y en la cuenta del cliente.",
+      "De principio a fin: cargás el viaje, lo seguís hasta cerrarlo con su remito y su valor, y adjuntás los documentos. Con el valor cargado el viaje queda facturado y listo — no hay un paso de cobro aparte.",
     mockup: <MockCicloEstados />,
   },
   {
@@ -375,11 +375,11 @@ const CICLO_STEPS: TutorialStep[] = [
     mockup: <MockEstadoBadge estado="en_curso" desc="Camión en ruta. En tránsito activo." />,
   },
   {
-    title: "3. Cerrar con remito y factura",
+    title: "3. Cerrar con remito y valor",
     description:
-      "Al cerrar cargás el Nº de remito, el monto del flete (la factura) y las toneladas. Si ya cobraste, marcás 'Sí, ya cobré' y el ingreso entra a la Caja automáticamente.",
+      "Al cerrar cargás el Nº de remito, el monto del flete y las toneladas. Con el valor cargado el viaje queda facturado de una.",
     mockup: <MockCerrarConDatos />,
-    hint: "Cargar el monto deja el viaje 'facturado' (pendiente de cobro hasta registrar el pago).",
+    hint: "Entra el remito con su valor → facturado y listo. La liquidación de Loma o el DM de YPF también completan estos datos solos.",
   },
   {
     title: "4. Adjuntar documentos",
@@ -388,18 +388,11 @@ const CICLO_STEPS: TutorialStep[] = [
     mockup: <MockDocumentos />,
   },
   {
-    title: "5. Facturar y cobrar en bloque",
+    title: "5. Facturar en bloque",
     description:
-      "Desde el listado, seleccioná varios viajes y usá Facturar (carga remito/monto y los marca facturados) o Cobrar (vuelca los fletes a la Caja y los marca cobrados).",
+      "Desde el listado, seleccioná varios viajes y usá Facturar: cargás remito y monto de cada uno y quedan facturados de una.",
     mockup: <MockFacturado />,
-    hint: "Facturar ≠ cobrar: la plata entra a la Caja recién cuando registrás el cobro.",
-  },
-  {
-    title: "6. Cobro, Caja y cuenta corriente",
-    description:
-      "Cada cobro genera un ingreso en la Caja vinculado al viaje. El saldo de la cuenta corriente del cliente se arma solo: debe = facturado, haber = cobrado.",
-    mockup: <MockRegistrarCobro />,
-    hint: 'El card "Pendiente de cobro" de Caja te lleva directo a los viajes facturados sin cobrar.',
+    hint: "Ideal cuando llegan varios remitos juntos.",
   },
 ];
 
@@ -425,12 +418,12 @@ function MockCerrarConDatos() {
         <span className="text-muted-foreground">Toneladas</span>
         <div className="text-foreground">34,6 tn</div>
       </div>
-      <div className="flex gap-2 pt-1">
-        <span className="flex-1 text-center rounded-md border border-green-400 bg-green-50 text-green-700 py-1 font-semibold">
-          Sí, ya cobré
+      <div className="flex gap-2 pt-1 justify-end">
+        <span className="text-center rounded-md border border-border text-muted-foreground py-1 px-3">
+          Cancelar
         </span>
-        <span className="flex-1 text-center rounded-md border border-border text-muted-foreground py-1">
-          No, pendiente
+        <span className="text-center rounded-md bg-[#0F172A] text-white py-1 px-3 font-semibold">
+          Confirmar cierre
         </span>
       </div>
     </div>
@@ -768,12 +761,12 @@ function MockRegistrarCobro() {
           </div>
           {/* botón destacado */}
           <div className="h-7 px-2.5 text-[11px] rounded border border-green-400 bg-green-50 text-green-700 font-bold inline-flex items-center gap-1.5 shadow-[0_0_0_3px_rgba(34,197,94,0.15)] w-full justify-center">
-            <Coins size={12} /> Registrar cobro
+            <Coins size={12} /> Cargar remito / importe
           </div>
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground text-center">
-        El botón aparece solo en viajes <strong>cerrados sin cobro</strong>
+        El botón aparece solo en viajes <strong>cerrados sin facturar</strong>
       </p>
     </div>
   );

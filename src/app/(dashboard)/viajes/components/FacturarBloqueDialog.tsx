@@ -110,7 +110,7 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
                 Facturar {viajes.length} viaje{viajes.length !== 1 ? "s" : ""} en bloque
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Cargá remito, tonelaje real y monto. Se marcan como facturados. No impacta caja — el cobro se registra aparte.
+                Cargá remito, tonelaje real y monto. Con el valor cargado quedan facturados y listos.
               </DialogDescription>
             </div>
           </div>

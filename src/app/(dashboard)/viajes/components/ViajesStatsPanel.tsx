@@ -12,7 +12,6 @@ interface Stats {
   enCurso: number;
   pendientes: number;
   sinFacturar: number;
-  pendienteCobro: number;
   vacios: number;
 }
 
@@ -40,7 +39,6 @@ interface CardDef {
   estado: string;
   facturado: boolean | null;
   esVacio: boolean | null;
-  cobro?: "" | "pendiente" | "cobrado";
 }
 
 export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtroInicial, gastoFormData, children }: Props) {
@@ -50,13 +48,10 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
     { key: "pendiente", label: "Pendientes", value: stats.pendientes, color: "warning", estado: "pendiente", facturado: null, esVacio: null },
     // "Sin facturar" excluye los vacíos: solo viajes reales pendientes de facturar.
     { key: "sin_facturar", label: "Sin facturar", value: stats.sinFacturar, color: "error", sub: "Finalizados", estado: "", facturado: false, esVacio: false },
-    // "Pendiente de cobro": facturados y aún sin cobrar (siguiente paso del ciclo).
-    { key: "pendiente_cobro", label: "Pendiente de cobro", value: stats.pendienteCobro, color: "warning", sub: "Facturados sin cobrar", estado: "", facturado: null, esVacio: null, cobro: "pendiente" },
     { key: "vacios", label: "Viajes vacíos", value: stats.vacios, color: "neutral", sub: "Sin carga", estado: "", facturado: null, esVacio: true },
   ];
 
-  // Si la URL trae un filtro (ej. desde el dashboard o el deep-link de Caja
-  // "pendiente_cobro"), lo aplicamos como estado inicial.
+  // Si la URL trae un filtro (ej. desde el dashboard), lo aplicamos como estado inicial.
   const cardInicial = cards.find((c) => c.key === filtroInicial && c.key !== "todos");
 
   // Filtro empujado a la tabla al hacer clic en una tarjeta.
@@ -66,7 +61,6 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
           estado: cardInicial.estado,
           facturado: cardInicial.facturado,
           esVacio: cardInicial.esVacio,
-          cobro: cardInicial.cobro ?? "",
           nonce: 1,
         }
       : undefined,
@@ -76,44 +70,39 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
     estado: string;
     facturado: boolean | null;
     esVacio: boolean | null;
-    cobro: "" | "pendiente" | "cobrado";
   }>({
     estado: cardInicial?.estado ?? "",
     facturado: cardInicial?.facturado ?? null,
     esVacio: cardInicial?.esVacio ?? null,
-    cobro: cardInicial?.cobro ?? "",
   });
 
   const activeKey =
-    current.cobro === "pendiente"
-      ? "pendiente_cobro"
-      : current.esVacio === true
-        ? "vacios"
-        : current.facturado === false
-          ? "sin_facturar"
-          : current.estado === "en_curso"
-            ? "en_curso"
-            : current.estado === "pendiente"
-              ? "pendiente"
-              : current.estado === "" && current.facturado === null && current.esVacio === null && !current.cobro
-                ? "todos"
-                : null;
+    current.esVacio === true
+      ? "vacios"
+      : current.facturado === false
+        ? "sin_facturar"
+        : current.estado === "en_curso"
+          ? "en_curso"
+          : current.estado === "pendiente"
+            ? "pendiente"
+            : current.estado === "" && current.facturado === null && current.esVacio === null
+              ? "todos"
+              : null;
 
   const aplicarFiltro = (
     estado: string,
     facturado: boolean | null,
     esVacio: boolean | null,
-    cobro: "" | "pendiente" | "cobrado" = "",
   ) => {
-    setFiltroExterno((prev) => ({ estado, facturado, esVacio, cobro, nonce: (prev?.nonce ?? 0) + 1 }));
+    setFiltroExterno((prev) => ({ estado, facturado, esVacio, nonce: (prev?.nonce ?? 0) + 1 }));
   };
 
   const onCardClick = (card: CardDef) => {
     // Volver a hacer clic en la tarjeta activa (salvo "Total") limpia el filtro.
     if (activeKey === card.key && card.key !== "todos") {
-      aplicarFiltro("", null, null, "");
+      aplicarFiltro("", null, null);
     } else {
-      aplicarFiltro(card.estado, card.facturado, card.esVacio, card.cobro ?? "");
+      aplicarFiltro(card.estado, card.facturado, card.esVacio);
     }
   };
 
@@ -121,7 +110,7 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         {cards.map((card) => (
           <StatCard
             key={card.key}

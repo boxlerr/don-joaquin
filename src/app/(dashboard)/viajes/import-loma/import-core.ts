@@ -565,8 +565,10 @@ export async function runLomaImport(
 
     const update: Record<string, unknown> = {
       monto_flete: importe,
-      // El valor de Loma certifica el flete → queda facturado (igual que el DM de YPF).
+      // El valor de Loma certifica el flete → queda facturado (igual que el DM
+      // de YPF) y cobrado de una: no hay flujo de cobro aparte (03/07/2026).
       facturado: viajeEstaFacturado(importe, !!v.es_vacio),
+      cobrado: viajeEstaFacturado(importe, !!v.es_vacio),
       estado: importe == null ? "pendiente" : "cerrado",
       // Estampamos la identidad oficial del flete para futuros cruces.
       nro_transporte: r.nroTransporte,
@@ -687,6 +689,7 @@ export async function runLomaImport(
         moneda: r.moneda || "ARS",
         estado: importe == null ? "pendiente" : "cerrado",
         facturado,
+        cobrado: facturado, // espejo: no hay flujo de cobro aparte
         liq_loma_id: liqId,
         observaciones: [
           `[Import Loma · Nº transporte ${r.nroTransporte}]`,
