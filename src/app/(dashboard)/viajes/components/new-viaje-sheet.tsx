@@ -74,6 +74,12 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const montoDirty = useRef(false);
   // Mismo flag pero para los km de la vuelta.
   const vKmDirty = useRef(false);
+  // Secuencia de consultas de km al historial: una edición manual o una consulta
+  // más nueva invalidan las respuestas en vuelo. Sin esto, una respuesta lenta
+  // del server pisaba lo que el operador ya había corregido a mano (reunión
+  // Nico 02/07: "tardaba en cargar y el km de la vuelta salía raro").
+  const kmReqSeq = useRef(0);
+  const vKmReqSeq = useRef(0);
   // Aviso cuando los km se precargan desde el historial del par origen→destino.
   const [kmHistHint, setKmHistHint] = useState<string | null>(null);
   // Aviso cuando el monto se precarga desde la tarifa vigente del destino.
@@ -162,7 +168,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       return;
     }
     if (!authoritative && kmDirty.current) return;
+    const seq = ++kmReqSeq.current;
     const res = await getKmHistoricoAction(oo, dd);
+    // Respuesta vieja: hubo otra consulta o una edición manual mientras viajaba.
+    if (seq !== kmReqSeq.current) return;
     if (!res) {
       // Par nuevo sin historial: al elegirlo a propósito, no dejes los km de
       // otra ruta colgados.
@@ -182,9 +191,11 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     );
   };
 
-  // Marca los km como editados a mano (no los pisa el autocompletado al tipear).
+  // Marca los km como editados a mano (no los pisa el autocompletado al tipear
+  // ni una respuesta del historial que siga en vuelo).
   const setKmManual = (which: "con" | "vac", v: string) => {
     kmDirty.current = true;
+    kmReqSeq.current++;
     setKmHistHint(null);
     if (which === "con") setKmConCarga(v);
     else setKmVacios(v);
@@ -203,7 +214,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     const dd = d.trim();
     if (!oo || !dd || oo === "—" || dd === "—") return;
     if (vKmDirty.current) return;
+    const seq = ++vKmReqSeq.current;
     const res = await getKmHistoricoAction(oo, dd);
+    // Respuesta vieja: el operador editó, cambió el modo o disparó otra consulta.
+    if (seq !== vKmReqSeq.current || vKmDirty.current) return;
     if (!res) return;
     if (modo === "cargado") {
       setVKmConCarga(String(res.km_con_carga || res.km_vacios || 0));
@@ -216,6 +230,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   // Marca los km de la vuelta como editados a mano.
   const setVKmManual = (which: "con" | "vac", v: string) => {
     vKmDirty.current = true;
+    vKmReqSeq.current++;
     if (which === "con") setVKmConCarga(v);
     else setVKmVacios(v);
   };
@@ -234,8 +249,11 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     if (kmDirty.current) return;
     let cancelado = false;
     const t = setTimeout(async () => {
+      // Solo lectura de la secuencia: si al volver cambió (edición manual o
+      // consulta autoritativa posterior), esta respuesta ya no aplica.
+      const seq = kmReqSeq.current;
       const res = await getKmHistoricoAction(o, d);
-      if (cancelado || !res || kmDirty.current) return;
+      if (cancelado || !res || kmDirty.current || seq !== kmReqSeq.current) return;
       setKmConCarga(String(res.km_con_carga));
       setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
       setKmHistHint(`Km precargados del historial (${o} → ${d}). Editá si esta vez fue distinto.`);
@@ -328,15 +346,23 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setVDestino(origen);
       setVueltaModo("vacio");
       setVKmConCarga("0");
-      setVKmVacios(kmConCarga !== "0" ? kmConCarga : kmVacios);
+      const distIda = kmConCarga !== "0" ? kmConCarga : kmVacios;
+      setVKmVacios(distIda);
       setVTonelaje("0");
       setVMonto("0");
       setVMaterial("");
       setVNroYpf("");
       vKmDirty.current = false;
-      // La vuelta suele ser la ruta invertida: precargamos sus km vacíos desde
-      // el historial de ese par (destino→origen), si lo tenemos.
-      if (destino && origen) applyVueltaKmHistorico(destino, origen, "vacio");
+      vKmReqSeq.current++;
+      // La distancia de la ida recién cargada es la mejor precarga para la ruta
+      // invertida. Al historial solo se le pregunta cuando la ida no tiene km:
+      // pisar la copia de la ida con una respuesta lenta hacía que el valor
+      // "cambiara solo" a algo viejo (reunión Nico 02/07). Si la vuelta fue por
+      // otra ruta, el operador la corrige (o cambia el origen/destino, que sí
+      // vuelve a consultar).
+      if (distIda === "0" && destino && origen) {
+        applyVueltaKmHistorico(destino, origen, "vacio");
+      }
     }
   };
 
@@ -345,6 +371,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const handleVueltaModo = (modo: "vacio" | "cargado") => {
     setVueltaModo(modo);
     vKmDirty.current = false;
+    vKmReqSeq.current++; // una consulta en vuelo del modo anterior ya no aplica
     if (modo === "cargado") {
       const dist = vKmVacios !== "0" ? vKmVacios : kmConCarga;
       setVKmConCarga(dist);
