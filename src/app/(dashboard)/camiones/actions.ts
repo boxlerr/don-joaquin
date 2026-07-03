@@ -1707,7 +1707,8 @@ export async function getCamionMetricasAction(camionId: string): Promise<CamionM
       .select("fecha_viaje, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio")
       .eq("camion_id", camionId)
       .gte("fecha_viaje", toISO(inicio6))
-      .lte("fecha_viaje", hasta),
+      .lte("fecha_viaje", hasta)
+      .neq("estado", "cancelado"), // los borrados (soft delete) no suman métricas
     // Mantenimientos del mes (visitas a taller = reparación / gomería).
     supabase
       .from("mantenimientos")

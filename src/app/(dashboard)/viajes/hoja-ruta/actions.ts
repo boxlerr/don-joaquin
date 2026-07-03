@@ -130,6 +130,7 @@ export async function listChoferesMesAction(
       .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, nro_remito, es_vacio")
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
+      .neq("estado", "cancelado") // los borrados (soft delete) no cuentan en la hoja
       .not("chofer_id", "is", null)
       .range(from, from + 999);
     const rows = (data ?? []) as ViajeRow[];
@@ -205,7 +206,11 @@ export async function getPanelChoferAction(
       .eq("chofer_id", choferId)
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
-      .order("fecha_viaje", { ascending: true }),
+      .neq("estado", "cancelado") // los borrados (soft delete) no aparecen en la hoja
+      .order("fecha_viaje", { ascending: true })
+      // Desempate dentro del mismo día por orden de carga (el código es secuencial):
+      // sin esto el par ida/vuelta puede salir invertido (la vuelta vacía arriba).
+      .order("codigo", { ascending: true }),
     sb.from("camiones").select("patente").eq("chofer_actual_id", choferId),
   ]);
 

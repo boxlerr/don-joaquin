@@ -9,7 +9,8 @@
 //   - Es la fuente OFICIAL del cliente: trae la facturación real (Importe) y los
 //     km oficiales (Distancia total), cosas que la hoja interna no tenía.
 //   - NO trae km vacíos ni desvíos (Loma solo paga el tramo con carga).
-//   - El "neto" viene en T o en KG según la columna UM; hay que normalizar a tn.
+//   - Tonelaje: el cliente usa el "Peso bruto" (las tn que el chofer descargó);
+//     viene en T o en KG según la columna UM y hay que normalizar a tn.
 
 import * as XLSX from "xlsx";
 
@@ -23,7 +24,7 @@ export type LomaRow = {
   remito: string | null; // "Referencia" (puede faltar)
   fecha: string | null; // ISO YYYY-MM-DD desde "In.act.transp." (inicio)
   fechaFin: string | null; // ISO YYYY-MM-DD desde "Fin.act.transp." (cierre)
-  tonelaje: number | null; // "Peso neto" normalizado a toneladas
+  tonelaje: number | null; // "Peso bruto" (tn descargadas) normalizado a toneladas
   importe: number | null; // "Importe" (facturación oficial al cliente)
   moneda: string;
   choferNombre: string; // "APELLIDO, NOMBRE" (orden no garantizado)
@@ -62,6 +63,16 @@ function excelSerialToISO(n: number): string | null {
 }
 
 function asISO(v: unknown): string | null {
+  const iso = asISORaw(v);
+  if (!iso) return null;
+  // El SAP de Loma a veces exporta años basura (ej. "2202-06-22" en
+  // Fin.act.transp. de fletes sin cierre real). Fuera de rango → null.
+  const y = parseInt(iso.slice(0, 4), 10);
+  if (y < 2000 || y > 2100) return null;
+  return iso;
+}
+
+function asISORaw(v: unknown): string | null {
   if (v == null || v === "") return null;
   if (v instanceof Date) {
     const yyyy = v.getUTCFullYear();
@@ -76,6 +87,9 @@ function asISO(v: unknown): string | null {
     const dmy = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
     if (dmy) {
       const [, d, m, yRaw] = dmy;
+      // Asumimos D/M/A (locale AR). Si el mes o el día son imposibles (p. ej. un
+      // export en M/D/A tipo "06/22/2026"), descartamos en vez de armar basura.
+      if (parseInt(m, 10) > 12 || parseInt(d, 10) > 31) return null;
       const y = yRaw.length === 2 ? "20" + yRaw : yRaw;
       return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     }
@@ -147,8 +161,12 @@ export function parseLomaXlsx(buffer: Buffer | ArrayBuffer): LomaParseResult {
 
   const iNT = idx("Nº transporte");
   const iRef = idx("Referencia");
-  const iNeto = idx("Peso neto");
-  const iUM = idx("UM peso neto");
+  // Tonelaje: el cliente toma el "Peso bruto" (lo que el chofer descargó).
+  // Si un export viejo no lo trae, caemos al "Peso neto".
+  const iBruto = idx("Peso bruto");
+  const iUMBruto = idx("UM peso bruto");
+  const iNeto = iBruto >= 0 ? iBruto : idx("Peso neto");
+  const iUM = iBruto >= 0 ? iUMBruto : idx("UM peso neto");
   const iImp = idx("Importe");
   const iMon = idx("Moneda");
   const iChof = idx("Nombre Chofer");

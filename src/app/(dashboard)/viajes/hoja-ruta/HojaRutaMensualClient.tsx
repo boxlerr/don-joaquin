@@ -12,6 +12,7 @@ import {
   Edit3,
   Check,
   X,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
@@ -23,6 +24,7 @@ import {
   type HrPanelChofer,
   type HrViajeItem,
 } from "./actions";
+import { deleteViajeAction } from "../actions";
 
 // Helpers ---------------------------------------------------------------------
 
@@ -135,8 +137,14 @@ export default function HojaRutaMensualClient({
   const refresh = () => {
     if (!choferId) return;
     startTransition(async () => {
-      const res = await getPanelChoferAction(choferId, mes);
+      // Panel + lista del sidebar juntos: borrar o editar un viaje también
+      // cambia los contadores y stats del mes.
+      const [res, lista] = await Promise.all([
+        getPanelChoferAction(choferId, mes),
+        listChoferesMesAction(mes),
+      ]);
       setPanel(res);
+      setChoferesMes(lista);
     });
   };
 
@@ -420,6 +428,9 @@ function FilaViaje({
   const [remito, setRemito] = useState(viaje.nro_remito ?? "");
   const [monto, setMonto] = useState(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
   const [guardando, setGuardando] = useState(false);
+  const [borrando, setBorrando] = useState(false); // pidiendo confirmación
+  const [eliminando, setEliminando] = useState(false);
+  const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
 
   const esVacio = viaje.es_vacio;
   const esPendiente = !esVacio && viaje.monto_flete == null;
@@ -440,6 +451,15 @@ function FilaViaje({
     setRemito(viaje.nro_remito ?? "");
     setMonto(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
     setEditando(false);
+  };
+
+  const eliminar = async () => {
+    setEliminando(true);
+    const res = await deleteViajeAction(viaje.id);
+    setEliminando(false);
+    setBorrando(false);
+    if (res.ok) onChanged();
+    else setErrorBorrar(res.error ?? "No se pudo borrar el viaje.");
   };
 
   return (
@@ -510,20 +530,58 @@ function FilaViaje({
               <X size={12} />
             </button>
           </div>
+        ) : borrando ? (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-red-600 font-semibold whitespace-nowrap">¿Borrar?</span>
+            <button
+              type="button"
+              onClick={eliminar}
+              disabled={eliminando}
+              className="inline-flex items-center justify-center h-6 px-1.5 rounded text-[10px] font-bold bg-red-600 text-white hover:bg-red-700"
+              title="Sí, borrar el viaje"
+            >
+              {eliminando ? <Loader2 size={11} className="animate-spin" /> : "Sí"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBorrando(false)}
+              disabled={eliminando}
+              className="inline-flex items-center justify-center h-6 px-1.5 rounded text-[10px] font-semibold border border-border text-muted-foreground hover:bg-muted"
+              title="No borrar"
+            >
+              No
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-1.5">
             <EstadoBadge viaje={viaje} />
             {canWrite && (
-              <button
-                type="button"
-                onClick={() => setEditando(true)}
-                className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Editar remito y monto"
-              >
-                <Edit3 size={11} />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditando(true)}
+                  className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Editar remito y monto"
+                >
+                  <Edit3 size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorBorrar(null);
+                    setBorrando(true);
+                  }}
+                  className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
+                  title="Eliminar viaje (si lo cargaste mal o se canceló)"
+                >
+                  <Trash2 size={11} />
+                </button>
+              </>
             )}
           </div>
+        )}
+        {errorBorrar && !borrando && (
+          <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px]">{errorBorrar}</p>
         )}
       </td>
     </tr>

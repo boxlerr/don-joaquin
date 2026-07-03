@@ -86,6 +86,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .from("viajes")
       .select("id, codigo, fecha_viaje, km_con_carga, km_vacios, estado, facturado")
       .eq("chofer_id", chofer_id)
+      .neq("estado", "cancelado") // los borrados (soft delete) no van al legajo
       .order("fecha_viaje", { ascending: false })
       .limit(20),
 

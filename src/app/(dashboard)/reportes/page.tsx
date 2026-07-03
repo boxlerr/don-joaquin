@@ -50,7 +50,8 @@ async function getReporteClientes(desde: string, hasta: string): Promise<Reporte
     .from("viajes")
     .select("cliente_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio, es_vacio, clientes(razon_social)")
     .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta);
+    .lte("fecha_viaje", hasta)
+    .neq("estado", "cancelado"); // los borrados (soft delete) no suman al reporte
 
   const map = new Map<string, ClienteReporte>();
   let conCliente = 0;

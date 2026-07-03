@@ -716,6 +716,7 @@ export async function getViajesClienteAction(cliente_id: string): Promise<ViajeR
       "id, codigo, fecha_viaje, estado, monto_flete, moneda, tonelaje_real, facturado, origen:puntos_ruta!viajes_origen_id_fkey(nombre), destino:puntos_ruta!viajes_destino_id_fkey(nombre)"
     )
     .eq("cliente_id", cliente_id)
+    .neq("estado", "cancelado") // los borrados (soft delete) no se muestran
     .order("fecha_viaje", { ascending: false, nullsFirst: false })
     .limit(20);
 

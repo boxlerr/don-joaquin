@@ -5,9 +5,10 @@
 // MODELO "match + completar" (igual que el DM de YPF):
 //   El operador YA cargó el viaje a mano —con el nº de transporte/remito en el
 //   campo "Nº de viaje"— sin valor. La liquidación de Loma llega después y trae,
-//   por flete, el importe oficial + toneladas + km oficiales. Este importador
-//   CRUZA cada flete contra los viajes cargados y, en los que coinciden y aún no
-//   tienen valor, COMPLETA importe + tonelaje + km y los marca facturados. Los
+//   por flete, el importe oficial + remito (Referencia) + material (Descripción)
+//   + toneladas (Peso bruto) + km oficiales. Este importador CRUZA cada flete
+//   contra los viajes cargados y, en los que coinciden y aún no tienen valor,
+//   COMPLETA esos datos y los marca facturados. Los
 //   fletes sin viaje cargado se listan para RECLAMAR (no se crean), salvo que el
 //   operador active "crear los no cargados" (backfill de meses viejos).
 //
@@ -160,6 +161,7 @@ export type ViajeRow = {
   tonelaje_real: number | null;
   es_vacio: boolean | null;
   km_con_carga: number | null;
+  material: string | null;
 };
 
 export type ViajesIndices = {
@@ -322,7 +324,7 @@ async function loadViajesIndices(supabase: AdminDb, rows: LomaRow[]): Promise<Vi
     const { data } = await supabase
       .from("viajes")
       .select(
-        "id, codigo, nro_remito, nro_transporte, nro_viaje_ypf, monto_flete, tonelaje_real, es_vacio, km_con_carga",
+        "id, codigo, nro_remito, nro_transporte, nro_viaje_ypf, monto_flete, tonelaje_real, es_vacio, km_con_carga, material",
       )
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
@@ -524,7 +526,9 @@ export async function runLomaImport(
   const fuentesArchivo = crearNoCargados ? [...aCompletar, ...noCargadas] : aCompletar;
   for (const c of fuentesArchivo) {
     importeTotal += c.row.importe ?? 0;
-    trackPeriodo(c.row.fechaFin ?? c.row.fecha);
+    // Período por inicio del transporte (In.act.transp.): es la fecha real del
+    // viaje. Fin.act.transp. puede cerrar semanas después (o venir basura).
+    trackPeriodo(c.row.fecha ?? c.row.fechaFin);
   }
 
   // Archivar el Excel en Compliance → Loma para tener el liqId y estamparlo.
@@ -567,7 +571,9 @@ export async function runLomaImport(
       // Estampamos la identidad oficial del flete para futuros cruces.
       nro_transporte: r.nroTransporte,
     };
-    // No pisamos lo cargado a mano: tonelaje y km solo si faltan (km oficiales prevalecen).
+    // No pisamos lo cargado a mano: remito, material, tonelaje y km solo si faltan.
+    if (!v.nro_remito && r.remito) update.nro_remito = r.remito;
+    if (!v.material && r.material) update.material = r.material;
     if (v.tonelaje_real == null && ton != null) update.tonelaje_real = ton;
     if ((v.km_con_carga == null || v.km_con_carga === 0) && r.kmTotal != null) {
       update.km_con_carga = Math.round(r.kmTotal);
@@ -640,7 +646,10 @@ export async function runLomaImport(
 
       const importe = r.importe;
       const facturado = viajeEstaFacturado(importe);
-      const fechaViaje = r.fechaFin ?? r.fecha; // cierre del transporte; si falta, el inicio
+      // Fecha del viaje = inicio del transporte (In.act.transp.), que es el día
+      // en que el chofer hizo el flete y donde lo anota la hoja de ruta. El fin
+      // (Fin.act.transp.) puede cerrar semanas después o traer basura del SAP.
+      const fechaViaje = r.fecha ?? r.fechaFin;
       const acoplados = r.acoplados.length > 0 ? r.acoplados : null;
 
       const origenId = await ensurePunto(supabase, puntos, r.expedidor, () => puntosCreados++, {

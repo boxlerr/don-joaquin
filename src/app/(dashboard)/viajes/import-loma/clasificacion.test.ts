@@ -19,6 +19,7 @@ function viaje(over: Partial<ViajeRow> & { id: string }): ViajeRow {
     tonelaje_real: null,
     es_vacio: false,
     km_con_carga: null,
+    material: null,
     ...over,
   };
 }

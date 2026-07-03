@@ -152,6 +152,7 @@ export async function getViajesParaCobroAction(): Promise<
     .select("id, codigo, fecha_viaje, monto_flete, facturado, cliente_id, clientes(razon_social)")
     .not("monto_flete", "is", null)
     .eq("es_vacio", false)
+    .neq("estado", "cancelado") // un viaje borrado no se puede cobrar
     .order("fecha_viaje", { ascending: false })
     .limit(300);
 

@@ -134,6 +134,9 @@ export async function getViajesAction(
       { count: "exact" }
     )
     .order(orderColumn, { ascending: orderDir === "asc" })
+    // Desempate estable por orden de carga (código secuencial): dentro del mismo
+    // día los viajes salen como se cargaron (la ida antes que su vuelta vacía).
+    .order("codigo", { ascending: true })
     .range(from, to);
 
   if (choferId) {

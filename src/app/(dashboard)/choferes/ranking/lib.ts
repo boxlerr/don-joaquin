@@ -564,7 +564,8 @@ export async function computeScoreChofer(
       .select("camion_id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real")
       .eq("chofer_id", choferId)
       .gte("fecha_viaje", desde)
-      .lte("fecha_viaje", hasta),
+      .lte("fecha_viaje", hasta)
+      .neq("estado", "cancelado"), // los borrados (soft delete) no puntúan
     supabase.from("roturas_gomas").select("tipo, gravedad").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     supabase.from("siniestros").select("id").eq("chofer_id", choferId).gte("fecha", desde).lte("fecha", hasta),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

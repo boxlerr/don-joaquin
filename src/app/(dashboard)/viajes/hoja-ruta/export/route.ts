@@ -68,8 +68,12 @@ export async function GET(req: NextRequest) {
       `)
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
+      .neq("estado", "cancelado") // los borrados (soft delete) no van al Excel
       .not("chofer_id", "is", null)
       .order("fecha_viaje", { ascending: true })
+      // Desempate dentro del mismo día por orden de carga (código secuencial):
+      // la ida antes que su vuelta vacía, igual que en la vista de hoja de ruta.
+      .order("codigo", { ascending: true })
       .range(from, from + 999);
     const rows = (data ?? []) as ViajeRaw[];
     viajes.push(...rows);
