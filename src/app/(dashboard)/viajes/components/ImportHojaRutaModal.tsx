@@ -30,9 +30,13 @@ import {
   type SheetViajePreview,
   type AsignacionSheet,
 } from "../import-hoja-ruta/actions";
-import { CREAR_CHOFER } from "../import-hoja-ruta/import-core";
 
 type Step = "select" | "preview" | "done";
+
+// Sentinel local del preview: el usuario decidió explícitamente NO importar un
+// sheet cuyo chofer no existe en Legajos (se manda como null al confirmar). Un
+// sheet missing sin decisión bloquea la confirmación (caso «Goiti», 02/07).
+const OMITIR_SHEET = "__omitir__";
 
 const money = (n: number | null | undefined) =>
   n == null ? "—" : "$" + Math.round(n).toLocaleString("es-AR");
@@ -99,7 +103,12 @@ export default function ImportHojaRutaModal({
     try {
       const fd = new FormData();
       fd.set("file", fileObjRef.current);
-      fd.set("asignaciones", JSON.stringify(asignaciones));
+      // El sentinel OMITIR_SHEET es solo del preview: al server va como null (saltear).
+      const payload: AsignacionSheet[] = asignaciones.map((a) => ({
+        ...a,
+        chofer_id: a.chofer_id === OMITIR_SHEET ? null : a.chofer_id,
+      }));
+      fd.set("asignaciones", JSON.stringify(payload));
       const res = await confirmHojaRutaImportAction(fd);
       if (!res || res.error) {
         setError(res?.error ?? "Error al confirmar.");
@@ -143,11 +152,19 @@ export default function ImportHojaRutaModal({
     });
 
   // Conteos: dependen del match automático (determinístico).
+  const choferRealDe = (sheetName: string) => {
+    const a = asignadoDe(sheetName);
+    return a && a !== OMITIR_SHEET ? a : null;
+  };
   const importablesLive = (preview?.sheets ?? []).reduce(
-    (acc, sh) => acc + (asignadoDe(sh.sheetName) ? sh.total - sh.yaImportados : 0),
+    (acc, sh) => acc + (choferRealDe(sh.sheetName) ? sh.total - sh.yaImportados : 0),
     0,
   );
-  const sinAsignar = (preview?.sheets ?? []).filter((sh) => !asignadoDe(sh.sheetName)).length;
+  const sinAsignar = (preview?.sheets ?? []).filter((sh) => !choferRealDe(sh.sheetName)).length;
+  // Sheets con chofer inexistente y sin decisión del usuario: bloquean el import.
+  const missingSinResolver = (preview?.sheets ?? []).filter(
+    (sh) => sh.chofer.status === "missing" && !asignadoDe(sh.sheetName),
+  );
 
   return (
     <>
@@ -214,7 +231,7 @@ export default function ImportHojaRutaModal({
                   <li>Estructura esperada: DIA · SALE DE · LLEGA A · KM · Tn 29/35/37,5 · Nº REMITO · MATERIAL · KM VACÍOS · $</li>
                   <li>Viajes sin <code>$</code> se cargan con monto NULL = &quot;esperando remito&quot;</li>
                   <li>Dedup por (chofer + fecha + remito): no se duplican viajes ya cargados por el importador YPF</li>
-                  <li>Si el chofer de un sheet no existe en la base, se crea automáticamente (podés elegir otro en el preview)</li>
+                  <li>Si el chofer de un sheet no está dado de alta en Legajos, el import se bloquea: dalo de alta en Choferes → Legajos y volvé a analizar (o asignale un chofer existente en el preview)</li>
                   <li>Sheets ignorados: TOTALES, HOJA DE GASTOS, FISCHER y PABLO FISCHER (fleteros, otro formato), TOTAL, Hoja1</li>
                 </ul>
               </div>
@@ -285,6 +302,14 @@ export default function ImportHojaRutaModal({
                 </table>
               </div>
 
+              {missingSinResolver.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg shrink-0">
+                  {missingSinResolver.map((sh) => `«${sh.sheetName.trim()}»`).join(", ")} no
+                  corresponde a ningún chofer dado de alta. Cargalo en Choferes → Legajos y
+                  volvé a analizar el archivo, o resolvelo en la tabla (asignar chofer / omitir sheet).
+                </div>
+              )}
+
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg shrink-0">{error}</div>
               )}
@@ -295,7 +320,7 @@ export default function ImportHojaRutaModal({
                   type="button"
                   variant="brand"
                   onClick={handleConfirm}
-                  disabled={loading || importablesLive === 0}
+                  disabled={loading || importablesLive === 0 || missingSinResolver.length > 0}
                 >
                   {loading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                   {loading ? "Importando…" : `Confirmar ${importablesLive} viajes`}
@@ -321,9 +346,6 @@ export default function ImportHojaRutaModal({
                 )}
                 {(result.imported?.duplicados ?? 0) > 0 && (
                   <div><strong>{result.imported?.duplicados}</strong> duplicados (ya estaban cargados)</div>
-                )}
-                {(result.imported?.choferesCreados ?? 0) > 0 && (
-                  <div><strong>{result.imported?.choferesCreados}</strong> choferes nuevos creados (completar legajo en /choferes)</div>
                 )}
                 {(result.imported?.omitidos ?? 0) > 0 && (
                   <div><strong>{result.imported?.omitidos}</strong> omitidos (sheets sin chofer matcheado)</div>
@@ -385,13 +407,14 @@ function SheetRow({
   const isAmbig = sheet.chofer.status === "ambiguo";
   const isMissing = sheet.chofer.status === "missing";
   const candidatos = sheet.chofer.status === "ambiguo" ? sheet.chofer.candidatos : [];
-  const resuelto = !!asignado;
+  const omitido = asignado === OMITIR_SHEET;
+  const resuelto = !!asignado && !omitido;
   const importables = resuelto ? sheet.total - sheet.yaImportados : 0;
 
   return (
     <>
       <tr
-        className={`cursor-pointer hover:bg-muted/30 ${!resuelto ? (isMissing ? "bg-red-50/40" : "bg-amber-50/40") : ""}`}
+        className={`cursor-pointer hover:bg-muted/30 ${!resuelto && !omitido ? (isMissing ? "bg-red-50/40" : "bg-amber-50/40") : ""}`}
         onClick={onToggle}
       >
         <td className="px-3 py-2 align-top">
@@ -403,6 +426,8 @@ function SheetRow({
             )}
             {resuelto ? (
               <CheckCircle2 size={13} className="text-[#10B981]" />
+            ) : omitido ? (
+              <XCircle size={13} className="text-muted-foreground" />
             ) : isAmbig ? (
               <AlertTriangle size={13} className="text-[#F59E0B]" />
             ) : (
@@ -421,18 +446,22 @@ function SheetRow({
                 <div className="text-[#92400E]">→ ambiguo · {candidatos.map((c) => c.label).join(" / ")}</div>
               )}
               {isMissing && (
-                <div className="text-red-600">→ no hay chofer con ese apellido — se creará automáticamente</div>
+                <div className="text-red-600">
+                  → no está dado de alta en Legajos — cargalo en Choferes → Legajos y volvé a analizar
+                </div>
               )}
               <select
                 value={asignado ?? ""}
                 onChange={(e) => onAsignar(e.target.value === "" ? null : e.target.value)}
                 className="h-7 max-w-[260px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
               >
-                <option value="">— Omitir este sheet —</option>
-                {isMissing && (
-                  <option value={CREAR_CHOFER}>
-                    ➕ Crear chofer «{sheet.sheetName.trim()}»
-                  </option>
+                {isMissing ? (
+                  <>
+                    <option value="">— Elegir qué hacer… —</option>
+                    <option value={OMITIR_SHEET}>Omitir este sheet (no importar sus viajes)</option>
+                  </>
+                ) : (
+                  <option value="">— Omitir este sheet —</option>
                 )}
                 {candidatos.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>

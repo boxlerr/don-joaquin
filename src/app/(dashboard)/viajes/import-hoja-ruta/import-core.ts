@@ -56,12 +56,15 @@ export type SheetPreview = {
 };
 
 // Valor especial de AsignacionSheet.chofer_id: crear el chofer a partir del
-// nombre del sheet al confirmar (sheets cuyo chofer no existe todavía).
+// nombre del sheet al confirmar. Regla del cliente (reunión Nico 02/07): un viaje
+// nunca puede quedar a nombre de un chofer que no está dado de alta en Legajos
+// (caso «Goiti»), así que el alta automática SOLO se acepta cuando el caller pasa
+// opts.permitirCrearChoferes (scripts de backfill histórico). El flujo web no lo usa.
 export const CREAR_CHOFER = "__crear__";
 
 export type AsignacionSheet = {
   sheetName: string;
-  chofer_id: string | null; // null = saltear · CREAR_CHOFER = alta automática
+  chofer_id: string | null; // null = saltear · CREAR_CHOFER = alta automática (solo scripts)
 };
 
 export type HojaRutaPreviewData = {
@@ -386,23 +389,19 @@ export async function buildHojaRutaPreview(
     totalViajes: sheets.reduce((acc, s) => acc + s.total, 0),
     totalImportables: sheets.reduce(
       (acc, s) =>
-        acc + (s.chofer.status !== "ambiguo" ? s.total - s.yaImportados : 0),
+        acc + (s.chofer.status === "ok" ? s.total - s.yaImportados : 0),
       0,
     ),
     totalDuplicados: sheets.reduce((acc, s) => acc + s.yaImportados, 0),
     totalImporte: sheets.reduce((acc, s) => acc + s.sumaImporte, 0),
   };
 
-  // Default por sheet: ok → ese chofer · missing → alta automática · ambiguo →
-  // sin asignar (lo resuelve el usuario en el preview).
+  // Default por sheet: ok → ese chofer · missing/ambiguo → sin asignar (missing
+  // bloquea la confirmación hasta que el chofer esté dado de alta en Legajos o el
+  // usuario lo resuelva a mano en el preview).
   const asignaciones: AsignacionSheet[] = sheets.map((s) => ({
     sheetName: s.sheetName,
-    chofer_id:
-      s.chofer.status === "ok"
-        ? s.chofer.id
-        : s.chofer.status === "missing"
-          ? CREAR_CHOFER
-          : null,
+    chofer_id: s.chofer.status === "ok" ? s.chofer.id : null,
   }));
 
   return {
@@ -499,7 +498,7 @@ export async function runHojaRutaImport(
   buffer: Buffer,
   asignaciones: AsignacionSheet[],
   userId: string,
-  opts?: { archivo?: string },
+  opts?: { archivo?: string; permitirCrearChoferes?: boolean },
 ): Promise<NonNullable<ConfirmImportData>> {
   let parsed: HrParseResult;
   try {
@@ -510,6 +509,31 @@ export async function runHojaRutaImport(
   }
 
   const asignPorSheet = new Map(asignaciones.map((a) => [a.sheetName, a.chofer_id]));
+
+  // Validación previa a cualquier escritura (caso «Goiti», 02/07): ningún viaje
+  // puede quedar a nombre de un chofer que no está dado de alta en Legajos. El
+  // alta automática solo se acepta desde scripts que pasan permitirCrearChoferes.
+  const { data: choferesExistentes } = await supabase.from("choferes").select("id");
+  const idsValidos = new Set(
+    ((choferesExistentes ?? []) as { id: string }[]).map((c) => c.id),
+  );
+  const sheetsSinChofer: string[] = [];
+  for (const sp of parsed.sheets) {
+    const ch = asignPorSheet.get(sp.sheetName);
+    if (!ch) continue; // null = saltear, se cuenta como omitido más abajo
+    const esAltaNoPermitida = ch === CREAR_CHOFER && !opts?.permitirCrearChoferes;
+    if (esAltaNoPermitida || (ch !== CREAR_CHOFER && !idsValidos.has(ch))) {
+      sheetsSinChofer.push(sp.sheetName.trim());
+    }
+  }
+  if (sheetsSinChofer.length > 0) {
+    return {
+      error:
+        `No se importó nada: ${sheetsSinChofer.map((s) => `«${s}»`).join(", ")} no ` +
+        `corresponde a un chofer dado de alta. Cargalo en Choferes → Legajos y volvé ` +
+        `a analizar el archivo, o asignale un chofer existente en el preview.`,
+    };
+  }
 
   // Cargar camiones para mapear chofer→camión actual
   const [{ data: camionesRaw }, clienteSinAsignarId, tipoCargaIdGenerico, puntosMap, ultimoCodigo] =
@@ -550,7 +574,7 @@ export async function runHojaRutaImport(
   for (const sp of parsed.sheets) {
     let choferId = asignPorSheet.get(sp.sheetName);
     if (choferId === CREAR_CHOFER) {
-      // Alta automática: el chofer del sheet no existe en la base todavía.
+      // Alta automática (solo scripts con permitirCrearChoferes; ya validado arriba).
       const { apellido, nombre } = choferDesdeSheetName(sp.sheetName);
       const { data: nuevo, error: chErr } = await supabase
         .from("choferes")

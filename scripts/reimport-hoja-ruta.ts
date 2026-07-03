@@ -108,6 +108,7 @@ async function main() {
   // ----- 4) Importar con el core real -----
   const result = await runHojaRutaImport(sb, buf, asignaciones, userId, {
     archivo: "hoja-de-ruta.xlsx (reimport script)",
+    permitirCrearChoferes: true, // backfill histórico: acá sí vale el alta automática
   });
   console.log("\nResultado import:", JSON.stringify(result?.imported ?? result, null, 2));
 
