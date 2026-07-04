@@ -488,6 +488,9 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
 export async function getKmHistoricoAction(
   origenNombre: string,
   destinoNombre: string,
+  // Vía del viaje (Ruta 5 / Ruta 22): los km cambian según por dónde fue, así
+  // que el historial se consulta por vía. Sin vía = cualquier viaje del par.
+  via?: "ruta_5" | "ruta_22" | null,
 ): Promise<{ km_con_carga: number; km_vacios: number } | null> {
   await requireArea("viajes", "read");
 
@@ -514,17 +517,20 @@ export async function getKmHistoricoAction(
   // veces van cargadas y otras de retorno vacío). Y hay rutas que SIEMPRE van
   // vacías (km_con_carga = 0): antes el filtro `km_con_carga > 0` las dejaba sin
   // precargar los km vacíos. Tomamos el valor más reciente de cada uno.
-  const base = (col: "km_con_carga" | "km_vacios") =>
+  const base = (col: "km_con_carga" | "km_vacios") => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    let q = (supabase as any)
       .from("viajes")
       .select(col)
       .eq("origen_id", origenId)
       .eq("destino_id", destinoId)
       .neq("estado", "cancelado")
-      .gt(col, 0)
-      .order("fecha_viaje", { ascending: false })
-      .limit(1);
+      .gt(col, 0);
+    // Con vía marcada, solo cuentan los viajes de ESA vía: la primera vez que
+    // usan una ruta los km se tipean a mano y de ahí en más se aprenden.
+    if (via) q = q.eq("ruta_via", via);
+    return q.order("fecha_viaje", { ascending: false }).limit(1);
+  };
 
   const [conCargaRes, vaciosRes] = await Promise.all([
     base("km_con_carga"),
@@ -650,6 +656,11 @@ export async function getImporteSugeridoAction(
 
 const VIAJE_ESTADO_VALUES = ["pendiente", "en_curso", "cerrado"] as const;
 
+// Vía del viaje (reunión Nico 02/07): Ruta 5 = directa (más corta) · Ruta 22 =
+// por la base/zona (combustible, roturas). De la vía dependen los km del par.
+const RUTA_VIA_VALUES = ["ruta_5", "ruta_22"] as const;
+export type RutaVia = (typeof RUTA_VIA_VALUES)[number];
+
 const viajeSchema = z
   .object({
     fecha_viaje: z
@@ -665,6 +676,7 @@ const viajeSchema = z
     destino_nombre: z.string().optional().nullable(),
     km_con_carga: z.number().int().min(0, "Debe ser ≥ 0."),
     km_vacios: z.number().int().min(0, "Debe ser ≥ 0."),
+    ruta_via: z.enum(RUTA_VIA_VALUES).optional().nullable(),
     tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
     monto_flete: z.number().min(0, "Debe ser ≥ 0."),
     nro_viaje_ypf: z.string().max(60, "Máximo 60 caracteres.").optional().nullable(),
@@ -698,6 +710,7 @@ const vueltaSchema = z.object({
   destino_nombre: z.string().optional().nullable(),
   km_con_carga: z.number().int().min(0, "Debe ser ≥ 0."),
   km_vacios: z.number().int().min(0, "Debe ser ≥ 0."),
+  ruta_via: z.enum(RUTA_VIA_VALUES).optional().nullable(),
   tonelaje_real: z.number().min(0, "Debe ser ≥ 0."),
   monto_flete: z.number().min(0, "Debe ser ≥ 0."),
   material: z.string().trim().max(120, "Máximo 120 caracteres.").optional().nullable(),
@@ -881,6 +894,7 @@ export async function createViajeAction(
     destino_nombre: emptyOrNull(formData.get("destino_nombre")),
     km_con_carga: parseNumber(formData.get("km_con_carga")),
     km_vacios: parseNumber(formData.get("km_vacios")),
+    ruta_via: emptyOrNull(formData.get("ruta_via")),
     tonelaje_real: parseNumber(formData.get("tonelaje_real")),
     monto_flete: parseNumber(formData.get("monto_flete")),
     nro_viaje_ypf: emptyOrNull(formData.get("nro_viaje_ypf")),
@@ -910,6 +924,7 @@ export async function createViajeAction(
       destino_nombre: emptyOrNull(formData.get("vuelta_destino_nombre")),
       km_con_carga: parseNumber(formData.get("vuelta_km_con_carga")),
       km_vacios: parseNumber(formData.get("vuelta_km_vacios")),
+      ruta_via: emptyOrNull(formData.get("vuelta_ruta_via")),
       tonelaje_real: parseNumber(formData.get("vuelta_tonelaje_real")),
       monto_flete: parseNumber(formData.get("vuelta_monto_flete")),
       material: emptyOrNull(formData.get("vuelta_material")),
@@ -1034,6 +1049,7 @@ export async function createViajeAction(
     destino_id,
     km_con_carga: parsed.data.km_con_carga,
     km_vacios: parsed.data.km_vacios,
+    ruta_via: parsed.data.ruta_via ?? null,
     tonelaje_real: parsed.data.tonelaje_real,
     monto_flete: parsed.data.monto_flete,
     moneda: "ARS",
@@ -1069,6 +1085,7 @@ export async function createViajeAction(
       destino_id: vueltaDestinoId,
       km_con_carga: vuelta.km_con_carga,
       km_vacios: vuelta.km_vacios,
+      ruta_via: vuelta.ruta_via ?? null,
       tonelaje_real: vuelta.tonelaje_real,
       monto_flete: vuelta.monto_flete,
       moneda: "ARS",
@@ -1869,6 +1886,8 @@ export type ViajeFilaRapida = {
   destino_nombre: string | null;
   km_con_carga: number;
   km_vacios: number;
+  /** Vía del viaje (Ruta 5 directa / Ruta 22 por la base) — define los km. */
+  ruta_via?: RutaVia | null;
   tonelaje_real: number;
   monto_flete: number;
   /** Tarifa que precargó el monto (snapshot). Vacío = cargado a mano. */
@@ -1978,6 +1997,7 @@ export async function createViajesBatchAction(
         destino_id,
         km_con_carga: p.km_con_carga,
         km_vacios: p.km_vacios,
+        ruta_via: p.ruta_via ?? null,
         tonelaje_real: esVacio ? 0 : p.tonelaje_real,
         monto_flete: esVacio ? 0 : p.monto_flete,
         tarifa_id: esVacio ? null : p.tarifa_id ?? null,

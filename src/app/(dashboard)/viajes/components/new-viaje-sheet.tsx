@@ -37,6 +37,47 @@ function fmtDia(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${d}/${m}`;
 }
+
+// Vías con distancia propia (reunión Nico 02/07): la Ruta 5 va derecho (más
+// corta) y la Ruta 22 pasa por la base/zona (combustible, roturas).
+const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
+  ruta_5: "Ruta 5",
+  ruta_22: "Ruta 22",
+};
+
+type ViaValue = "" | "ruta_5" | "ruta_22";
+
+/** Selector segmentado de vía: Sin marcar · Ruta 5 · Ruta 22. */
+function ViaSegmented({ value, onChange }: { value: ViaValue; onChange: (v: ViaValue) => void }) {
+  const opts: { v: ViaValue; label: string; title: string }[] = [
+    { v: "", label: "Sin marcar", title: "No aplica o no se sabe por dónde fue" },
+    { v: "ruta_5", label: "Ruta 5", title: "Directa (más corta): van derecho, no pasan por la base" },
+    { v: "ruta_22", label: "Ruta 22", title: "Por la base/zona: cargar combustible, arreglar roturas" },
+  ];
+  return (
+    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+      {opts.map((o, i) => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.label}
+            type="button"
+            title={o.title}
+            aria-pressed={active}
+            onClick={() => onChange(o.v)}
+            className={`px-3 h-8 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+              active
+                ? "bg-[#0088D1]/10 text-[#0277BD]"
+                : "bg-card text-muted-foreground hover:bg-muted/40"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 import {
   createViajeAction,
   getKmHistoricoAction,
@@ -60,6 +101,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [destino, setDestino] = useState("");
   const [kmConCarga, setKmConCarga] = useState("0");
   const [kmVacios, setKmVacios] = useState("0");
+  // Vía del viaje (reunión Nico 02/07): Ruta 5 = directa · Ruta 22 = por la
+  // base. De la vía dependen los km, así que el historial se consulta por vía.
+  const [rutaVia, setRutaVia] = useState<"" | "ruta_5" | "ruta_22">("");
   const [tonelaje, setTonelaje] = useState("0");
   // Monto de flete (controlado): lo precarga la tarifa del destino y queda editable.
   const [montoFlete, setMontoFlete] = useState("0");
@@ -93,6 +137,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [vDestino, setVDestino] = useState("");
   const [vKmConCarga, setVKmConCarga] = useState("0");
   const [vKmVacios, setVKmVacios] = useState("0");
+  const [vRutaVia, setVRutaVia] = useState<"" | "ruta_5" | "ruta_22">("");
   const [vTonelaje, setVTonelaje] = useState("0");
   const [vMonto, setVMonto] = useState("0");
   const [vMaterial, setVMaterial] = useState("");
@@ -126,6 +171,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setDestino("");
     setKmConCarga("0");
     setKmVacios("0");
+    setRutaVia("");
     setTonelaje("0");
     setMontoFlete("0");
     setTarifaId("");
@@ -139,6 +185,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setVDestino("");
     setVKmConCarga("0");
     setVKmVacios("0");
+    setVRutaVia("");
     vKmDirty.current = false;
     setVTonelaje("0");
     setVMonto("0");
@@ -156,11 +203,17 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     }
   }, [state, router]);
 
-  // Trae los km del último viaje con ese par origen→destino.
+  // Trae los km del último viaje con ese par origen→destino (y esa vía, si está
+  // marcada: Ruta 5 y Ruta 22 tienen distancias distintas).
   //  - authoritative=true  (al elegir del desplegable): recalcula al instante y
-  //    pisa lo que haya (cambiar de destino redefine la ruta).
+  //    pisa lo que haya (cambiar de destino o de vía redefine la ruta).
   //  - authoritative=false (al tipear): solo completa si nadie tocó los km.
-  const applyKmHistorico = async (o: string, d: string, authoritative: boolean) => {
+  const applyKmHistorico = async (
+    o: string,
+    d: string,
+    authoritative: boolean,
+    via: "" | "ruta_5" | "ruta_22" = rutaVia,
+  ) => {
     const oo = o.trim();
     const dd = d.trim();
     if (!oo || !dd || oo === "—" || dd === "—") {
@@ -169,16 +222,18 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     }
     if (!authoritative && kmDirty.current) return;
     const seq = ++kmReqSeq.current;
-    const res = await getKmHistoricoAction(oo, dd);
+    const res = await getKmHistoricoAction(oo, dd, via || null);
     // Respuesta vieja: hubo otra consulta o una edición manual mientras viajaba.
     if (seq !== kmReqSeq.current) return;
     if (!res) {
-      // Par nuevo sin historial: al elegirlo a propósito, no dejes los km de
-      // otra ruta colgados.
+      // Par (o vía) sin historial: al elegirlo a propósito, no dejes los km de
+      // otra ruta colgados. La primera vez se tipean a mano y quedan aprendidos.
       if (authoritative) {
         setKmConCarga("0");
         setKmVacios("0");
-        setKmHistHint(null);
+        setKmHistHint(
+          via ? `Sin historial de ${VIA_LABEL[via]} para ${oo} → ${dd}: cargá los km a mano esta vez.` : null,
+        );
         kmDirty.current = false;
       }
       return;
@@ -187,8 +242,14 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
     kmDirty.current = false;
     setKmHistHint(
-      `Km precargados del historial (${oo} → ${dd}). Editá si esta vez fue distinto.`,
+      `Km precargados del historial (${oo} → ${dd}${via ? ` por ${VIA_LABEL[via]}` : ""}). Editá si esta vez fue distinto.`,
     );
+  };
+
+  // Cambiar la vía redefine la distancia: recalcula los km del historial de ESA vía.
+  const handleRutaVia = (v: "" | "ruta_5" | "ruta_22") => {
+    setRutaVia(v);
+    if (origen && destino) applyKmHistorico(origen, destino, true, v);
   };
 
   // Marca los km como editados a mano (no los pisa el autocompletado al tipear
@@ -209,13 +270,14 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     o: string,
     d: string,
     modo: "vacio" | "cargado",
+    via: "" | "ruta_5" | "ruta_22" = vRutaVia,
   ) => {
     const oo = o.trim();
     const dd = d.trim();
     if (!oo || !dd || oo === "—" || dd === "—") return;
     if (vKmDirty.current) return;
     const seq = ++vKmReqSeq.current;
-    const res = await getKmHistoricoAction(oo, dd);
+    const res = await getKmHistoricoAction(oo, dd, via || null);
     // Respuesta vieja: el operador editó, cambió el modo o disparó otra consulta.
     if (seq !== vKmReqSeq.current || vKmDirty.current) return;
     if (!res) return;
@@ -225,6 +287,14 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setVKmVacios(String(res.km_vacios || res.km_con_carga || 0));
     }
     vKmDirty.current = false;
+  };
+
+  // Cambiar la vía de la vuelta recalcula sus km desde el historial de esa vía.
+  const handleVRutaVia = (v: "" | "ruta_5" | "ruta_22") => {
+    setVRutaVia(v);
+    vKmDirty.current = false;
+    vKmReqSeq.current++; // invalida consultas en vuelo de la vía anterior
+    if (vOrigen && vDestino) applyVueltaKmHistorico(vOrigen, vDestino, vueltaModo, v);
   };
 
   // Marca los km de la vuelta como editados a mano.
@@ -252,16 +322,19 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       // Solo lectura de la secuencia: si al volver cambió (edición manual o
       // consulta autoritativa posterior), esta respuesta ya no aplica.
       const seq = kmReqSeq.current;
-      const res = await getKmHistoricoAction(o, d);
+      const res = await getKmHistoricoAction(o, d, rutaVia || null);
       if (cancelado || !res || kmDirty.current || seq !== kmReqSeq.current) return;
       setKmConCarga(String(res.km_con_carga));
       setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
-      setKmHistHint(`Km precargados del historial (${o} → ${d}). Editá si esta vez fue distinto.`);
+      setKmHistHint(
+        `Km precargados del historial (${o} → ${d}${rutaVia ? ` por ${VIA_LABEL[rutaVia]}` : ""}). Editá si esta vez fue distinto.`,
+      );
     }, 350);
     return () => {
       cancelado = true;
       clearTimeout(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rutaVia dispara su propio recálculo autoritativo en handleRutaVia
   }, [origen, destino]);
 
   // Marca el monto como editado a mano: la tarifa no lo pisa y dejamos de
@@ -345,6 +418,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       setVOrigen(destino);
       setVDestino(origen);
       setVueltaModo("vacio");
+      setVRutaVia("");
       setVKmConCarga("0");
       const distIda = kmConCarga !== "0" ? kmConCarga : kmVacios;
       setVKmVacios(distIda);
@@ -584,6 +658,18 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               />
             </div>
 
+            {/* Vía del viaje: Ruta 5 (directa) vs Ruta 22 (por la base) — de la
+                vía dependen los km, así que al marcarla se recalculan del
+                historial de ESA vía. */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Route size={13} className="text-primary" />
+                ¿Por qué ruta fue?
+              </span>
+              <ViaSegmented value={rutaVia} onChange={handleRutaVia} />
+              <input type="hidden" name="ruta_via" value={rutaVia} />
+            </div>
+
             {/* Kms / Tonelaje */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <InputFieldWithIcon
@@ -770,6 +856,17 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                         onSelect={(d) => applyVueltaKmHistorico(vOrigen, d, vueltaModo)}
                         error={state?.fieldErrors?.vuelta_destino_nombre}
                       />
+                    </div>
+
+                    {/* Vía de la vuelta: puede ser distinta a la de la ida
+                        (ej. vuelven por la 22 para cargar combustible). */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                        <Route size={13} className="text-primary" />
+                        ¿Por qué ruta vuelve?
+                      </span>
+                      <ViaSegmented value={vRutaVia} onChange={handleVRutaVia} />
+                      <input type="hidden" name="vuelta_ruta_via" value={vRutaVia} />
                     </div>
                   </div>
 

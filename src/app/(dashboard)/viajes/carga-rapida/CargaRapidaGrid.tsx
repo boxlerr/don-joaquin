@@ -33,6 +33,8 @@ type Fila = {
   destino_nombre: string;
   km_con_carga: string;
   km_vacios: string;
+  /** Vía del viaje: "" (sin marcar) · ruta_5 (directa) · ruta_22 (por la base). */
+  ruta_via: string;
   tonelaje_real: string;
   monto_flete: string;
   /** Tarifa que precargó el monto (snapshot). Vacío = cargado a mano. */
@@ -57,6 +59,7 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
     destino_nombre: "",
     km_con_carga: "0",
     km_vacios: "0",
+    ruta_via: "",
     tonelaje_real: "0",
     monto_flete: "0",
     tarifa_id: "",
@@ -262,6 +265,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       destino_nombre: f.destino_nombre.trim() || null,
       km_con_carga: Number(f.km_con_carga) || 0,
       km_vacios: Number(f.km_vacios) || 0,
+      ruta_via: (f.ruta_via || null) as ViajeFilaRapida["ruta_via"],
       tonelaje_real: Number(f.tonelaje_real) || 0,
       monto_flete: Number(f.monto_flete) || 0,
       tarifa_id: f.tarifa_id || null,
@@ -348,6 +352,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                   ...(data.circuitos.length > 0 ? ["Circuito"] : []),
                   "Origen",
                   "Destino",
+                  "Vía",
                   "KM carga",
                   "KM vacíos",
                   "Tonelaje",
@@ -455,6 +460,20 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         list="carga-rapida-puntos"
                         className="h-8 w-28 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
+                    </td>
+
+                    {/* Vía: Ruta 5 (directa) vs Ruta 22 (por la base) — cambia los km */}
+                    <td className="px-1 py-1">
+                      <select
+                        value={fila.ruta_via}
+                        onChange={(e) => actualizarFila(fila.id, "ruta_via", e.target.value)}
+                        title="¿Por qué ruta fue? Ruta 5 = directa (más corta) · Ruta 22 = por la base/zona"
+                        className="h-8 w-[76px] px-1 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                      >
+                        <option value="">—</option>
+                        <option value="ruta_5">Ruta 5</option>
+                        <option value="ruta_22">Ruta 22</option>
+                      </select>
                     </td>
 
                     {/* KM carga */}
