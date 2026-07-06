@@ -327,8 +327,15 @@ export async function uploadComplianceDocAction(formData: FormData) {
     archivoId = archivo.id;
   }
 
+  // Guardamos el doc en la tabla que corresponda y capturamos su id + su tabla
+  // puente de adjuntos, para vincular el archivo. Los legajos y compliance leen
+  // los archivos desde la tabla puente (multi-archivo), NO desde archivo_id.
+  let nuevoDocId: string | null = null;
+  let junctionTable: string | null = null;
+  let junctionCol: string | null = null;
+
   if (usaLegajo && req.nivel === "chofer") {
-    const { error: dbError } = await supabase.from("chofer_documentos").insert({
+    const { data, error: dbError } = await supabase.from("chofer_documentos").insert({
       chofer_id: chofer_id!,
       tipo_documento_id: req.tipo_documento_id!,
       numero,
@@ -337,11 +344,14 @@ export async function uploadComplianceDocAction(formData: FormData) {
       archivo_id: archivoId,
       observaciones,
       created_by: user.id,
-    });
-    if (dbError) return { error: "Error al guardar el documento" };
+    }).select("id").single();
+    if (dbError || !data) return { error: "Error al guardar el documento" };
+    nuevoDocId = data.id;
+    junctionTable = "chofer_documento_archivos";
+    junctionCol = "chofer_documento_id";
     revalidatePath("/choferes/[slug]", "page");
   } else if (usaLegajo && req.nivel === "unidad") {
-    const { error: dbError } = await supabase.from("camion_documentos").insert({
+    const { data, error: dbError } = await supabase.from("camion_documentos").insert({
       camion_id: camion_id!,
       tipo_documento_id: req.tipo_documento_id!,
       numero,
@@ -350,11 +360,14 @@ export async function uploadComplianceDocAction(formData: FormData) {
       archivo_id: archivoId,
       observaciones,
       created_by: user.id,
-    });
-    if (dbError) return { error: "Error al guardar el documento" };
+    }).select("id").single();
+    if (dbError || !data) return { error: "Error al guardar el documento" };
+    nuevoDocId = data.id;
+    junctionTable = "camion_documento_archivos";
+    junctionCol = "camion_documento_id";
     revalidatePath(`/camiones/${camion_id}`);
   } else {
-    const { error: dbError } = await supabase.from("compliance_documentos").insert({
+    const { data, error: dbError } = await supabase.from("compliance_documentos").insert({
       requisito_id,
       chofer_id,
       camion_id,
@@ -364,8 +377,19 @@ export async function uploadComplianceDocAction(formData: FormData) {
       archivo_id: archivoId,
       observaciones,
       created_by: user.id,
-    });
-    if (dbError) return { error: "Error al guardar el documento" };
+    }).select("id").single();
+    if (dbError || !data) return { error: "Error al guardar el documento" };
+    nuevoDocId = data.id;
+    junctionTable = "compliance_documento_archivos";
+    junctionCol = "compliance_documento_id";
+  }
+
+  // Vincular el archivo a la tabla puente (lo que muestran los paneles multi-archivo).
+  if (archivoId && nuevoDocId && junctionTable && junctionCol) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from(junctionTable)
+      .insert({ [junctionCol]: nuevoDocId, archivo_id: archivoId, created_by: user.id });
   }
 
   revalidatePath("/compliance");
