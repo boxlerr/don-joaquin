@@ -8,6 +8,16 @@ import { getLegajoEstado } from "@/lib/chofer-validation";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
+import {
+  crearUrlSubidaAdjunto,
+  vincularAdjuntos,
+  getAdjuntos,
+  deleteAdjunto,
+  type AdjuntoCfg,
+  type AdjuntoExistente,
+  type ArchivoMeta as AdjuntoArchivoMeta,
+  type CrearUrlResult,
+} from "@/lib/adjuntos-server";
 import { evaluarOdometro } from "@/lib/combustible-eficiencia";
 import {
   buildHeaderToColMap,
@@ -487,7 +497,39 @@ export async function addGasoilAction(data: {
   return { success: true };
 }
 
+// Adjuntos de un documento del camión — VARIOS archivos por documento
+// (RTO/VTV/seguro renovados, frente+dorso, etc.).
+const CAMION_DOC_CFG: AdjuntoCfg = {
+  bucket: "documentos-personal",
+  junctionTable: "camion_documento_archivos",
+  entityColumn: "camion_documento_id",
+  folder: "camiones",
+};
+
+export async function crearUrlSubidaCamionDocAction(input: {
+  camion_id: string;
+  filename: string;
+}): Promise<CrearUrlResult> {
+  await requireArea("flota", "write");
+  return crearUrlSubidaAdjunto(CAMION_DOC_CFG, input.filename, input.camion_id);
+}
+
+export async function getCamionDocumentoArchivosAction(docId: string): Promise<AdjuntoExistente[]> {
+  await requireArea("flota", "read");
+  return getAdjuntos(CAMION_DOC_CFG, docId);
+}
+
+export async function deleteCamionDocumentoArchivoAction(
+  adjuntoId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireArea("flota", "write");
+  const res = await deleteAdjunto(CAMION_DOC_CFG, adjuntoId);
+  revalidatePath("/camiones");
+  return res;
+}
+
 export async function getCamionDocumentosAction(camion_id: string) {
+  await requireArea("flota", "read");
   const supabase = createAdminClient();
 
   const [{ data: docs }, { data: tipos }] = await Promise.all([
@@ -521,23 +563,33 @@ export async function getCamionDocumentosAction(camion_id: string) {
   };
 }
 
-export async function uploadDocumentoCamionAction(formData: FormData) {
+export async function registrarDocumentoCamionAction(input: {
+  camion_id: string;
+  tipo_documento_id?: string | null;
+  tipo_nombre_custom?: string | null;
+  numero?: string | null;
+  fecha_emision?: string | null;
+  fecha_vencimiento?: string | null;
+  adjuntos?: AdjuntoArchivoMeta[];
+}) {
+  const user = await requireArea("flota", "write");
   const supabase = createAdminClient();
 
-  const camion_id = formData.get("camion_id") as string;
-  const tipo_nombre_custom = formData.get("tipo_nombre_custom") as string | null;
-  let tipo_documento_id = formData.get("tipo_documento_id") as string;
-  const file = formData.get("file") as File;
-  const numero = formData.get("numero") as string | null;
-  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
-  const fecha_emision = formData.get("fecha_emision") as string | null;
+  const adjuntos = input.adjuntos ?? [];
+  let tipo_documento_id = input.tipo_documento_id ?? "";
 
-  if (!file || !file.size) return { error: "Archivo requerido" };
-  if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
+  const limpiarAdjuntos = async () => {
+    for (const a of adjuntos) {
+      if (a?.path) await supabase.storage.from(a.bucket).remove([a.path]).then(undefined, () => {});
+    }
+  };
 
-  if (tipo_nombre_custom) {
-    const nombreNorm = tipo_nombre_custom.trim();
-    if (!nombreNorm) return { error: "El nombre del tipo de documento no puede estar vacío" };
+  if (input.tipo_nombre_custom) {
+    const nombreNorm = input.tipo_nombre_custom.trim();
+    if (!nombreNorm) {
+      await limpiarAdjuntos();
+      return { error: "El nombre del tipo de documento no puede estar vacío" };
+    }
 
     const { data: existente } = await supabase
       .from("tipos_documento")
@@ -566,144 +618,108 @@ export async function uploadDocumentoCamionAction(formData: FormData) {
         .select("id")
         .single();
 
-      if (crearError || !nuevo) return { error: "No se pudo crear el tipo de documento" };
+      if (crearError || !nuevo) {
+        await limpiarAdjuntos();
+        return { error: "No se pudo crear el tipo de documento" };
+      }
       tipo_documento_id = nuevo.id;
     }
   }
 
-  if (!tipo_documento_id) return { error: "Tipo de documento requerido" };
+  if (!tipo_documento_id) {
+    await limpiarAdjuntos();
+    return { error: "Tipo de documento requerido" };
+  }
 
-  const ext = file.name.split(".").pop();
-  const storagePath = `camiones/${camion_id}/${tipo_documento_id}_${Date.now()}.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("documentos-personal")
-    .upload(storagePath, file);
-  if (uploadError) return { error: "Error al subir el archivo" };
-
-  const { data: archivoData, error: archivoError } = await supabase
-    .from("documentos_archivos")
+  const { data: nuevoDoc, error: dbError } = await supabase
+    .from("camion_documentos")
     .insert({
-      bucket: "documentos-personal",
-      nombre_original: file.name,
-      path: storagePath,
-      tamano_bytes: file.size,
-      mime_type: file.type,
+      camion_id: input.camion_id,
+      tipo_documento_id,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
     })
     .select("id")
     .single();
-  if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
+  if (dbError || !nuevoDoc) {
+    await limpiarAdjuntos();
+    return { error: "Error al guardar el documento" };
+  }
 
-  const { error: dbError } = await supabase.from("camion_documentos").insert({
-    camion_id,
-    tipo_documento_id,
-    numero: numero || null,
-    fecha_emision: fecha_emision || null,
-    fecha_vencimiento: fecha_vencimiento || null,
-    archivo_id: archivoData.id,
-  });
-  if (dbError) return { error: "Error al guardar el documento" };
+  let adjuntosFallidos = 0;
+  if (adjuntos.length) {
+    const r = await vincularAdjuntos(CAMION_DOC_CFG, nuevoDoc.id, adjuntos, user.id);
+    adjuntosFallidos = r.fallidos;
+  }
 
-  const { data: { user } } = await (await createClient()).auth.getUser();
   await logAudit({
     client: supabase,
     accion: "documento_agregado",
     entidadTipo: "camion",
-    entidadId: camion_id,
-    usuarioId: user?.id ?? null,
+    entidadId: input.camion_id,
+    usuarioId: user.id,
     valoresNuevos: {
       tipo_documento_id,
-      numero: numero || null,
-      fecha_emision: fecha_emision || null,
-      fecha_vencimiento: fecha_vencimiento || null,
-      archivo: file.name,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
+      archivos: adjuntos.length,
     },
   });
 
   revalidatePath("/camiones");
-  return { success: true };
+  return adjuntosFallidos > 0 ? { success: true, adjuntosFallidos } : { success: true };
 }
 
-export async function updateDocumentoCamionAction(formData: FormData) {
+export async function updateDocumentoCamionAction(input: {
+  doc_id: string;
+  numero?: string | null;
+  fecha_vencimiento?: string | null;
+  fecha_emision?: string | null;
+  /** Archivos nuevos a sumar (los existentes se borran desde la lista). */
+  adjuntos_nuevos?: AdjuntoArchivoMeta[];
+}) {
+  const user = await requireArea("flota", "write");
   const supabase = createAdminClient();
 
-  const doc_id = formData.get("doc_id") as string;
-  const numero = formData.get("numero") as string | null;
-  const fecha_vencimiento = formData.get("fecha_vencimiento") as string | null;
-  const fecha_emision = formData.get("fecha_emision") as string | null;
-  const file = formData.get("file") as File | null;
+  if (!input.doc_id) return { error: "Documento requerido" };
 
-  if (!doc_id) return { error: "Documento requerido" };
-
-  const updates: {
-    numero: string | null;
-    fecha_vencimiento: string | null;
-    fecha_emision?: string | null;
-    archivo_id?: string;
-  } = {
-    numero: numero || null,
-    fecha_vencimiento: fecha_vencimiento || null,
+  const updates: { numero: string | null; fecha_vencimiento: string | null; fecha_emision?: string | null } = {
+    numero: input.numero || null,
+    fecha_vencimiento: input.fecha_vencimiento || null,
   };
-  if (fecha_emision !== null) updates.fecha_emision = fecha_emision || null;
-
-  // Reemplazo de archivo opcional
-  if (file && file.size) {
-    if (file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
-
-    const { data: docRow } = await supabase
-      .from("camion_documentos")
-      .select("camion_id, tipo_documento_id")
-      .eq("id", doc_id)
-      .single();
-    if (!docRow) return { error: "No se encontró el documento" };
-
-    const ext = file.name.split(".").pop();
-    const storagePath = `camiones/${docRow.camion_id}/${docRow.tipo_documento_id}_${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("documentos-personal")
-      .upload(storagePath, file);
-    if (uploadError) return { error: "Error al subir el archivo" };
-
-    const { data: archivoData, error: archivoError } = await supabase
-      .from("documentos_archivos")
-      .insert({
-        bucket: "documentos-personal",
-        nombre_original: file.name,
-        path: storagePath,
-        tamano_bytes: file.size,
-        mime_type: file.type,
-      })
-      .select("id")
-      .single();
-    if (archivoError || !archivoData) return { error: "Error al registrar el archivo" };
-
-    updates.archivo_id = archivoData.id;
-  }
+  if (input.fecha_emision !== undefined) updates.fecha_emision = input.fecha_emision || null;
 
   const { data: updatedDoc, error } = await supabase
     .from("camion_documentos")
     .update(updates)
-    .eq("id", doc_id)
+    .eq("id", input.doc_id)
     .select("camion_id")
     .single();
   if (error) return { error: "No se pudo actualizar el documento" };
 
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  let adjuntosFallidos = 0;
+  if (input.adjuntos_nuevos?.length) {
+    const r = await vincularAdjuntos(CAMION_DOC_CFG, input.doc_id, input.adjuntos_nuevos, user.id);
+    adjuntosFallidos = r.fallidos;
+  }
+
   await logAudit({
     client: supabase,
     accion: "documento_actualizado",
     entidadTipo: "camion",
     entidadId: updatedDoc?.camion_id ?? null,
-    usuarioId: user?.id ?? null,
-    valoresNuevos: updates,
+    usuarioId: user.id,
+    valoresNuevos: { ...updates, archivos_nuevos: input.adjuntos_nuevos?.length ?? 0 },
   });
 
   revalidatePath("/camiones");
-  return { success: true };
+  return adjuntosFallidos > 0 ? { success: true, adjuntosFallidos } : { success: true };
 }
 
 export async function deleteDocumentoCamionAction(doc_id: string) {
+  await requireArea("flota", "write");
   const supabase = createAdminClient();
 
   const { data: doc } = await supabase

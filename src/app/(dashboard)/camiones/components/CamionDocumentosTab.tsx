@@ -5,10 +5,15 @@ import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import CargarDocumentoCamionDialog, { type DocumentoEditing } from "./CargarDocumentoCamionDialog";
-import { deleteDocumentoCamionAction } from "../actions";
+import {
+  deleteDocumentoCamionAction,
+  getCamionDocumentoArchivosAction,
+  deleteCamionDocumentoArchivoAction,
+} from "../actions";
 import { FileText, Plus, Trash2, Pencil, Calendar, Hash } from "lucide-react";
 import type { DocumentoVigenciaCamion, TipoDocumentoCamion } from "../types";
 import { formatFecha } from "@/lib/utils";
+import AdjuntosInline from "@/components/ui/AdjuntosInline";
 
 interface Props {
   camion_id: string;
@@ -173,6 +178,17 @@ function DocCard({
           </p>
         )}
       </div>
+
+      {doc.id && (
+        <AdjuntosInline
+          entidadId={doc.id}
+          getArchivos={getCamionDocumentoArchivosAction}
+          deleteArchivo={deleteCamionDocumentoArchivoAction}
+          canDelete
+          compact
+          emptyHint="Sin archivos"
+        />
+      )}
 
       <div className="mt-auto pt-2.5 border-t border-[#F1F5F9] flex items-center gap-2">
         <Button
