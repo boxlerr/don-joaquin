@@ -1555,13 +1555,28 @@ export async function crearUrlSubidaDocumentoAction(input: {
   return { signedUrl: data.signedUrl, token: data.token, path, bucket };
 }
 
-type ArchivoMeta = {
-  bucket: string;
-  path: string;
-  nombre_original: string;
-  mime_type: string | null;
-  tamano_bytes: number;
+// Adjuntos de un documento del chofer — VARIOS archivos por documento (ej: frente
+// y dorso del carnet, o el documento + un anexo).
+const CHOFER_DOC_CFG: AdjuntoCfg = {
+  bucket: "documentos-personal",
+  junctionTable: "chofer_documento_archivos",
+  entityColumn: "chofer_documento_id",
+  folder: "choferes",
 };
+
+export async function getChoferDocumentoArchivosAction(docId: string): Promise<AdjuntoExistente[]> {
+  await requireSeccion("choferes", "read");
+  return getAdjuntos(CHOFER_DOC_CFG, docId);
+}
+
+export async function deleteChoferDocumentoArchivoAction(
+  adjuntoId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireArea("logistica", "write");
+  const res = await deleteAdjunto(CHOFER_DOC_CFG, adjuntoId);
+  revalidatePath("/choferes/[slug]", "page");
+  return res;
+}
 
 /**
  * Registra en la base un documento de chofer cuyo archivo YA fue subido al
@@ -1575,26 +1590,27 @@ export async function registrarDocumentoChoferAction(input: {
   numero?: string | null;
   fecha_emision?: string | null;
   fecha_vencimiento?: string | null;
-  archivo: ArchivoMeta;
+  adjuntos?: AdjuntoArchivoMeta[];
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
-  const { chofer_id, archivo } = input;
+  const { chofer_id } = input;
+  const adjuntos = input.adjuntos ?? [];
   let tipo_documento_id = input.tipo_documento_id ?? "";
 
-  if (!archivo?.path) return { error: "Falta el archivo subido" };
-
-  // Si algo falla después de subido, borramos el huérfano del Storage.
-  const limpiarArchivo = async () => {
-    await supabase.storage.from(archivo.bucket).remove([archivo.path]).then(undefined, () => {});
+  // Si algo falla antes de vincular, borramos los huérfanos del Storage.
+  const limpiarAdjuntos = async () => {
+    for (const a of adjuntos) {
+      if (a?.path) await supabase.storage.from(a.bucket).remove([a.path]).then(undefined, () => {});
+    }
   };
 
   // Si el usuario eligió "Otro", buscar o crear el tipo de documento
   if (input.tipo_nombre_custom) {
     const nombreNorm = input.tipo_nombre_custom.trim();
     if (!nombreNorm) {
-      await limpiarArchivo();
+      await limpiarAdjuntos();
       return { error: "El nombre del tipo de documento no puede estar vacío" };
     }
 
@@ -1626,7 +1642,7 @@ export async function registrarDocumentoChoferAction(input: {
         .single();
 
       if (crearError || !nuevo) {
-        await limpiarArchivo();
+        await limpiarAdjuntos();
         return { error: "No se pudo crear el tipo de documento" };
       }
       tipo_documento_id = nuevo.id;
@@ -1634,39 +1650,31 @@ export async function registrarDocumentoChoferAction(input: {
   }
 
   if (!tipo_documento_id) {
-    await limpiarArchivo();
+    await limpiarAdjuntos();
     return { error: "Tipo de documento requerido" };
   }
 
-  const { data: archivoData, error: archivoError } = await supabase
-    .from("documentos_archivos")
+  const { data: nuevoDoc, error: dbError } = await supabase
+    .from("chofer_documentos")
     .insert({
-      bucket: archivo.bucket,
-      nombre_original: archivo.nombre_original,
-      path: archivo.path,
-      tamano_bytes: archivo.tamano_bytes,
-      mime_type: archivo.mime_type,
-      subido_por: user.id,
+      chofer_id,
+      tipo_documento_id,
+      numero: input.numero || null,
+      fecha_emision: input.fecha_emision || null,
+      fecha_vencimiento: input.fecha_vencimiento || null,
     })
     .select("id")
     .single();
-  if (archivoError || !archivoData) {
-    await limpiarArchivo();
-    return { error: "No se pudo registrar el archivo" };
+  if (dbError || !nuevoDoc) {
+    await limpiarAdjuntos();
+    return { error: "No se pudo guardar el documento" };
   }
 
-  const { error: dbError } = await supabase.from("chofer_documentos").insert({
-    chofer_id,
-    tipo_documento_id,
-    numero: input.numero || null,
-    fecha_emision: input.fecha_emision || null,
-    fecha_vencimiento: input.fecha_vencimiento || null,
-    archivo_id: archivoData.id,
-  });
-  if (dbError) {
-    await supabase.from("documentos_archivos").delete().eq("id", archivoData.id);
-    await limpiarArchivo();
-    return { error: "No se pudo guardar el documento" };
+  // Vincular los archivos (pueden ser varios).
+  let adjuntosFallidos = 0;
+  if (adjuntos.length) {
+    const r = await vincularAdjuntos(CHOFER_DOC_CFG, nuevoDoc.id, adjuntos, user.id);
+    adjuntosFallidos = r.fallidos;
   }
 
   const { data: tipoDoc } = await supabase
@@ -1681,7 +1689,7 @@ export async function registrarDocumentoChoferAction(input: {
     null,
     {
       tipo_documento: tipoDoc?.nombre ?? null,
-      archivo: archivo.nombre_original,
+      archivos: adjuntos.length,
       numero: input.numero || null,
       fecha_emision: input.fecha_emision || null,
       fecha_vencimiento: input.fecha_vencimiento || null,
@@ -1690,7 +1698,7 @@ export async function registrarDocumentoChoferAction(input: {
   );
 
   revalidatePath("/choferes/[slug]", "page");
-  return { success: true };
+  return adjuntosFallidos > 0 ? { success: true, adjuntosFallidos } : { success: true };
 }
 
 export async function updateDocumentoChoferAction(input: {
@@ -1700,8 +1708,9 @@ export async function updateDocumentoChoferAction(input: {
   numero?: string | null;
   fecha_emision?: string | null;
   fecha_vencimiento?: string | null;
-  eliminar_archivo?: boolean;
-  archivo?: ArchivoMeta | null;
+  /** Archivos nuevos a sumar al documento (los existentes se borran uno a uno
+   *  desde la lista de adjuntos, no acá). */
+  adjuntos_nuevos?: AdjuntoArchivoMeta[];
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
@@ -1711,53 +1720,11 @@ export async function updateDocumentoChoferAction(input: {
 
   const { data: previo } = await supabase
     .from("chofer_documentos")
-    .select("archivo_id, numero, fecha_emision, fecha_vencimiento, tipo_documento_id")
+    .select("numero, fecha_emision, fecha_vencimiento, tipo_documento_id")
     .eq("id", id)
     .single();
 
   if (!previo) return { error: "Documento no encontrado" };
-
-  let archivo_id = previo.archivo_id;
-
-  const borrarArchivoPrevio = async () => {
-    if (!previo.archivo_id) return;
-    const { data: oldFile } = await supabase
-      .from("documentos_archivos")
-      .select("bucket, path")
-      .eq("id", previo.archivo_id)
-      .single();
-    if (oldFile) {
-      await supabase.storage.from(oldFile.bucket).remove([oldFile.path]);
-      await supabase.from("documentos_archivos").delete().eq("id", previo.archivo_id);
-    }
-  };
-
-  if (input.eliminar_archivo) {
-    await borrarArchivoPrevio();
-    archivo_id = null;
-  } else if (input.archivo?.path) {
-    const { data: archivoData, error: archivoError } = await supabase
-      .from("documentos_archivos")
-      .insert({
-        bucket: input.archivo.bucket,
-        nombre_original: input.archivo.nombre_original,
-        path: input.archivo.path,
-        tamano_bytes: input.archivo.tamano_bytes,
-        mime_type: input.archivo.mime_type,
-        subido_por: user.id,
-      })
-      .select("id")
-      .single();
-
-    if (archivoError || !archivoData) {
-      await supabase.storage.from(input.archivo.bucket).remove([input.archivo.path]).then(undefined, () => {});
-      return { error: "No se pudo registrar el archivo" };
-    }
-
-    // Recién acá borramos el anterior, una vez que el nuevo quedó registrado.
-    await borrarArchivoPrevio();
-    archivo_id = archivoData.id;
-  }
 
   const { error: dbError } = await supabase
     .from("chofer_documentos")
@@ -1765,12 +1732,18 @@ export async function updateDocumentoChoferAction(input: {
       numero: input.numero || null,
       fecha_emision: input.fecha_emision || null,
       fecha_vencimiento: input.fecha_vencimiento || null,
-      archivo_id,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
   if (dbError) return { error: "Error al actualizar el documento" };
+
+  // Vincular los archivos nuevos agregados en la edición (varios).
+  let adjuntosFallidos = 0;
+  if (input.adjuntos_nuevos?.length) {
+    const r = await vincularAdjuntos(CHOFER_DOC_CFG, id, input.adjuntos_nuevos, user.id);
+    adjuntosFallidos = r.fallidos;
+  }
 
   const { data: tipoDoc } = await supabase
     .from("tipos_documento")
@@ -1784,7 +1757,7 @@ export async function updateDocumentoChoferAction(input: {
     previo,
     {
       tipo_documento: tipoDoc?.nombre ?? null,
-      archivo: input.archivo?.nombre_original ?? null,
+      archivos_nuevos: input.adjuntos_nuevos?.length ?? 0,
       numero: input.numero || null,
       fecha_emision: input.fecha_emision || null,
       fecha_vencimiento: input.fecha_vencimiento || null,
@@ -1793,7 +1766,7 @@ export async function updateDocumentoChoferAction(input: {
   );
 
   revalidatePath("/choferes/[slug]", "page");
-  return { success: true };
+  return adjuntosFallidos > 0 ? { success: true, adjuntosFallidos } : { success: true };
 }
 
 export async function updateChoferInfoAction(

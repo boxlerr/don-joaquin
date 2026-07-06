@@ -5,10 +5,15 @@ import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import CargarDocumentoDialog from "./CargarDocumentoDialog";
-import { deleteDocumentoAction } from "./actions";
-import { FileText, Plus, Trash2, ExternalLink, Pencil } from "lucide-react";
+import {
+  deleteDocumentoAction,
+  getChoferDocumentoArchivosAction,
+  deleteChoferDocumentoArchivoAction,
+} from "./actions";
+import { FileText, Plus, Trash2, Pencil } from "lucide-react";
 import type { ChoferDetail, DocumentoVigencia } from "./types";
 import { formatFecha } from "@/lib/utils";
+import AdjuntosInline from "@/components/ui/AdjuntosInline";
 
 interface Props {
   chofer: ChoferDetail;
@@ -78,6 +83,7 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
             <DocCard
               key={doc.id}
               doc={doc}
+              canWrite={chofer.can_logistica_write}
               onEdit={() => {
                 setSelectedDocForEdit(doc);
                 setCargarOpen(true);
@@ -110,11 +116,13 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
 
 function DocCard({
   doc,
+  canWrite,
   onEdit,
   onDelete,
   deleting,
 }: {
   doc: DocumentoVigencia;
+  canWrite: boolean;
   onEdit: () => void;
   onDelete: () => void;
   deleting: boolean;
@@ -149,21 +157,18 @@ function DocCard({
         )}
       </div>
 
+      {doc.id && (
+        <AdjuntosInline
+          entidadId={doc.id}
+          getArchivos={getChoferDocumentoArchivosAction}
+          deleteArchivo={deleteChoferDocumentoArchivoAction}
+          canDelete={canWrite}
+          compact
+          emptyHint="Sin archivos"
+        />
+      )}
+
       <div className="mt-auto pt-2 border-t border-[#F1F5F9] flex items-center gap-3">
-        {doc.archivo_url ? (
-          <a
-            href={doc.archivo_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[#0088D1] hover:underline flex items-center gap-1 font-semibold"
-          >
-            <ExternalLink size={11} />
-            Ver documento
-          </a>
-        ) : (
-          <span className="text-[10px] text-muted-foreground/60 italic">Sin archivo</span>
-        )}
-        
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={onEdit}
