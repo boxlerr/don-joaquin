@@ -6,11 +6,8 @@ import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { computeTotalesPeriodo } from "@/app/(dashboard)/choferes/ranking/lib";
 
-// Tablas nuevas (migración 20260701_sueldos_admin_taller.sql), aún sin regenerar
-// database.ts → acceso con `as any`, misma convención que insumos_catalogo.
+// Tablas de sueldos admin/taller. Acceso con `as any` (no están en database.ts).
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
-const VALOR_HORA_CLAVE = "sueldos_admin_valor_hora";
 
 /** Normaliza el mes pedido a { primer día ISO, rango desde/hasta } (default: mes actual). */
 function getMesInfo(monthStr?: string): { mes: string; desde: string; hasta: string } {
@@ -34,16 +31,25 @@ function getMesInfo(monthStr?: string): { mes: string; desde: string; hasta: str
   };
 }
 
+// Variables del mes fieles al Excel de Bárbara.
+export type VariablesMes = {
+  comisionLogistica: number;
+  combustible: number;
+  plusYpf: number;
+  sabados: number;
+};
+
 export type SueldoAdminEmpleado = {
   chofer_id: string;
   nombre: string; // "Apellido, Nombre"
   rol: "administrativo" | "mantenimiento";
   sueldoBase: number; // vigente al mes (0 si nunca se cargó un aumento)
-  horasExtras: number;
-  valorHora: number | null; // valor propio del mes; null → usa el default global
-  plus: number;
+  comisionLogistica: number;
+  combustible: number;
+  plusYpf: number;
+  sabados: number;
   observaciones: string | null;
-  total: number; // sueldoBase + horasExtras × valorHora efectivo + plus
+  total: number; // sueldoBase + comisión + combustible + plus YPF + sábados
 };
 
 export type AumentoRow = {
@@ -60,7 +66,6 @@ export type SueldosAdminResumen = {
   facturacionManual: number | null; // si Bárbara cargó un valor a mano, pisa la calculada
   facturacionEfectiva: number;
   porcentaje: number | null; // totalGeneral / facturación × 100; null si facturación 0
-  valorHoraDefault: number;
   aumentosPorEmpleado: Record<string, AumentoRow[]>; // historial (más reciente primero)
 };
 
@@ -69,8 +74,7 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
   const supabase = createAdminClient();
   const { mes, desde, hasta } = getMesInfo(month);
 
-  // Roster: personal de administración y taller activo. `rol` null significa
-  // chofer (el default histórico), por eso el filtro es .in() y no "not chofer".
+  // Roster: personal de administración y taller activo.
   const { data: personal } = await supabase
     .from("choferes")
     .select("id, nombre, apellido, rol")
@@ -81,7 +85,7 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
   const roster = (personal ?? []) as { id: string; nombre: string; apellido: string; rol: string }[];
   const ids = roster.map((c) => c.id);
 
-  const [aumentosRes, mesRes, configRes, paramRes, totales] = await Promise.all([
+  const [aumentosRes, mesRes, configRes, totales] = await Promise.all([
     ids.length
       ? (supabase as any)
           .from("sueldos_admin_aumentos")
@@ -91,25 +95,16 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
       : Promise.resolve({ data: [] }),
     (supabase as any)
       .from("sueldos_admin_mes")
-      .select("chofer_id, horas_extras, valor_hora, plus, observaciones")
+      .select("chofer_id, comision_logistica, combustible, plus_ypf, sabados, observaciones")
       .eq("mes", mes),
     (supabase as any)
       .from("sueldos_admin_meses")
       .select("facturacion_manual")
       .eq("mes", mes)
       .maybeSingle(),
-    supabase.from("parametros_sistema").select("valor").eq("clave", VALOR_HORA_CLAVE).maybeSingle(),
-    // Facturación del mes con la misma definición que usa el dashboard/ranking
-    // (todos los viajes no cancelados, convertidos a ARS).
     computeTotalesPeriodo(desde, hasta),
   ]);
 
-  const valorHoraDefault = (() => {
-    const n = Number(paramRes.data?.valor);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
-  })();
-
-  // Historial de aumentos por empleado (ya viene ordenado más reciente primero).
   const aumentosPorEmpleado: Record<string, AumentoRow[]> = {};
   for (const a of (aumentosRes.data ?? []) as (AumentoRow & { chofer_id: string })[]) {
     (aumentosPorEmpleado[a.chofer_id] ??= []).push({
@@ -120,36 +115,35 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
     });
   }
 
-  const mesPorChofer = new Map<
-    string,
-    { horas_extras: number; valor_hora: number | null; plus: number; observaciones: string | null }
-  >();
+  const mesPorChofer = new Map<string, VariablesMes & { observaciones: string | null }>();
   for (const r of (mesRes.data ?? []) as any[]) {
     mesPorChofer.set(r.chofer_id, {
-      horas_extras: Number(r.horas_extras ?? 0),
-      valor_hora: r.valor_hora == null ? null : Number(r.valor_hora),
-      plus: Number(r.plus ?? 0),
+      comisionLogistica: Number(r.comision_logistica ?? 0),
+      combustible: Number(r.combustible ?? 0),
+      plusYpf: Number(r.plus_ypf ?? 0),
+      sabados: Number(r.sabados ?? 0),
       observaciones: r.observaciones ?? null,
     });
   }
 
   const empleados: SueldoAdminEmpleado[] = roster.map((c) => {
-    // Sueldo base vigente = el aumento con mayor vigente_desde <= mes pedido.
     const vigente = (aumentosPorEmpleado[c.id] ?? []).find((a) => a.vigente_desde <= mes);
     const sueldoBase = vigente ? vigente.sueldo_base : 0;
     const m = mesPorChofer.get(c.id);
-    const horasExtras = m?.horas_extras ?? 0;
-    const valorHora = m?.valor_hora ?? null;
-    const plus = m?.plus ?? 0;
-    const total = sueldoBase + horasExtras * (valorHora ?? valorHoraDefault) + plus;
+    const comisionLogistica = m?.comisionLogistica ?? 0;
+    const combustible = m?.combustible ?? 0;
+    const plusYpf = m?.plusYpf ?? 0;
+    const sabados = m?.sabados ?? 0;
+    const total = sueldoBase + comisionLogistica + combustible + plusYpf + sabados;
     return {
       chofer_id: c.id,
       nombre: `${c.apellido}, ${c.nombre}`,
       rol: c.rol as "administrativo" | "mantenimiento",
       sueldoBase,
-      horasExtras,
-      valorHora,
-      plus,
+      comisionLogistica,
+      combustible,
+      plusYpf,
+      sabados,
       observaciones: m?.observaciones ?? null,
       total,
     };
@@ -169,7 +163,6 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
     facturacionManual,
     facturacionEfectiva,
     porcentaje,
-    valorHoraDefault,
     aumentosPorEmpleado,
   };
 }
@@ -177,21 +170,15 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
 export async function upsertSueldoAdminMesAction(
   choferId: string,
   month: string,
-  data: {
-    horasExtras?: number;
-    valorHora?: number | null;
-    plus?: number;
-    observaciones?: string | null;
-  },
+  data: Partial<VariablesMes> & { observaciones?: string | null },
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireSeccion("sueldos_admin", "write");
   const supabase = createAdminClient();
   const { mes } = getMesInfo(month);
 
-  // Merge con lo ya guardado: la action acepta campos parciales sin pisar el resto.
   const { data: prev } = await (supabase as any)
     .from("sueldos_admin_mes")
-    .select("horas_extras, valor_hora, plus, observaciones")
+    .select("comision_logistica, combustible, plus_ypf, sabados, observaciones")
     .eq("chofer_id", choferId)
     .eq("mes", mes)
     .maybeSingle();
@@ -199,17 +186,18 @@ export async function upsertSueldoAdminMesAction(
   const fila = {
     chofer_id: choferId,
     mes,
-    horas_extras: data.horasExtras ?? Number(prev?.horas_extras ?? 0),
-    valor_hora: data.valorHora !== undefined ? data.valorHora : (prev?.valor_hora ?? null),
-    plus: data.plus ?? Number(prev?.plus ?? 0),
+    comision_logistica: data.comisionLogistica ?? Number(prev?.comision_logistica ?? 0),
+    combustible: data.combustible ?? Number(prev?.combustible ?? 0),
+    plus_ypf: data.plusYpf ?? Number(prev?.plus_ypf ?? 0),
+    sabados: data.sabados ?? Number(prev?.sabados ?? 0),
     observaciones:
       data.observaciones !== undefined
         ? data.observaciones?.trim() || null
         : (prev?.observaciones ?? null),
     created_by: user.id,
   };
-  if (fila.horas_extras < 0 || (fila.valor_hora != null && fila.valor_hora < 0)) {
-    return { error: "Las horas y el valor hora no pueden ser negativos." };
+  if ([fila.comision_logistica, fila.combustible, fila.plus_ypf, fila.sabados].some((n) => n < 0)) {
+    return { error: "Los montos no pueden ser negativos." };
   }
 
   const { error } = await (supabase as any)
@@ -249,7 +237,6 @@ export async function registrarAumentoAction(
   }
   const vigenteDesde = `${vigenteDesdeMonth}-01`;
 
-  // Upsert: si ya había un aumento para ese mes, se corrige (Bárbara ajusta valores).
   const { error } = await (supabase as any).from("sueldos_admin_aumentos").upsert(
     {
       chofer_id: choferId,
@@ -321,7 +308,6 @@ export async function setFacturacionManualAction(
     return { error: "La facturación no puede ser negativa." };
   }
 
-  // null limpia el override y el % vuelve a calcularse con la facturación del sistema.
   const { error } = await (supabase as any)
     .from("sueldos_admin_meses")
     .upsert({ mes, facturacion_manual: valor, updated_by: user.id }, { onConflict: "mes" });
@@ -338,46 +324,6 @@ export async function setFacturacionManualAction(
     entidadId: mes,
     valoresNuevos: { facturacion_manual: valor },
     metadata: { origen: "sueldos_admin" },
-  });
-
-  revalidatePath("/sueldos-admin");
-  return { ok: true };
-}
-
-export async function setValorHoraDefaultAction(
-  valor: number,
-): Promise<{ ok: true } | { error: string }> {
-  const user = await requireSeccion("sueldos_admin", "write");
-  const supabase = createAdminClient();
-
-  if (!Number.isFinite(valor) || valor < 0) {
-    return { error: "El valor de la hora no puede ser negativo." };
-  }
-
-  const { data: prev } = await supabase
-    .from("parametros_sistema")
-    .select("valor")
-    .eq("clave", VALOR_HORA_CLAVE)
-    .maybeSingle();
-
-  const { error } = await supabase
-    .from("parametros_sistema")
-    .update({ valor: String(valor), updated_by: user.id, updated_at: new Date().toISOString() })
-    .eq("clave", VALOR_HORA_CLAVE);
-  if (error) {
-    console.error("Error al actualizar valor hora default:", error);
-    return { error: "No se pudo guardar el valor de la hora." };
-  }
-
-  await logAudit({
-    client: supabase,
-    usuarioId: user.id,
-    accion: "actualizar",
-    entidadTipo: "parametro_sistema",
-    entidadId: null,
-    valoresAnteriores: { valor: prev?.valor ?? null },
-    valoresNuevos: { valor: String(valor) },
-    metadata: { origen: "sueldos_admin", clave: VALOR_HORA_CLAVE },
   });
 
   revalidatePath("/sueldos-admin");
