@@ -4,9 +4,20 @@ import { useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
 import { Check, Pencil, X, AlertTriangle } from "lucide-react";
+
+// Áreas / roles posibles del legajo. Solo "chofer" usa camión de la flota.
+const ROLES: { value: string; label: string }[] = [
+  { value: "chofer", label: "Chofer" },
+  { value: "administrativo", label: "Administración" },
+  { value: "mantenimiento", label: "Mantenimiento" },
+  { value: "fletero", label: "Fletero (tercerizado)" },
+];
+const rolLabel = (r: string | null | undefined) =>
+  ROLES.find((o) => o.value === (r || "chofer"))?.label ?? "Chofer";
 import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
 import CamionAsignacion from "./CamionAsignacion";
 import EmergencyContactsEditor, { EmergencyContactsView, parseContactos } from "./EmergencyContactsEditor";
@@ -45,6 +56,10 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const [cbu, setCbu] = useState(chofer.cbu ?? "");
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
   const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
+  const [rol, setRol] = useState<string>((chofer as { rol?: string | null }).rol ?? "chofer");
+
+  // Solo los choferes usan camión de la flota; admin/mantenimiento/fleteros no.
+  const esChofer = (rol || "chofer") === "chofer";
 
   // Helpers de display
   const fmtFecha = (s: string | null | undefined) => {
@@ -81,6 +96,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     setCbu(chofer.cbu ?? "");
     setAliasCbu(chofer.alias_cbu ?? "");
     setAltaAfip(chofer.alta_afip ?? "");
+    setRol((chofer as { rol?: string | null }).rol ?? "chofer");
     setError(null);
     setFieldErrors({});
     setEditing(false);
@@ -122,6 +138,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
         cbu: cbu.trim() || undefined,
         alias_cbu: aliasCbu.trim() || undefined,
         alta_afip: altaAfip || undefined,
+        rol: rol || "chofer",
       });
       if (res.error) {
         setError(res.error);
@@ -220,14 +237,32 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 : <Value v={chofer.provincia} />}
             </Field>
             <div className="col-span-2">
-              <Field label="Camión actual">
-                <CamionAsignacion
-                  choferId={chofer.id}
-                  camionActual={chofer.camion_actual}
-                  historial={chofer.camiones_historial}
-                />
+              <Field label="Área / Rol">
+                {editing ? (
+                  <Combobox
+                    value={rol}
+                    onValueChange={(v) => setRol(v || "chofer")}
+                    options={ROLES.map((r) => ({ id: r.value, label: r.label }))}
+                    searchable={false}
+                    triggerClassName="h-8 text-sm"
+                  />
+                ) : (
+                  <Value v={rolLabel((chofer as { rol?: string | null }).rol)} />
+                )}
               </Field>
             </div>
+            {/* El camión de la flota es solo para choferes. */}
+            {esChofer && (
+              <div className="col-span-2">
+                <Field label="Camión actual">
+                  <CamionAsignacion
+                    choferId={chofer.id}
+                    camionActual={chofer.camion_actual}
+                    historial={chofer.camiones_historial}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
         </section>
 

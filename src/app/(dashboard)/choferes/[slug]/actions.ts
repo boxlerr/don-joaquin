@@ -1797,6 +1797,7 @@ export async function updateChoferInfoAction(
     provincia: string;
     alta_afip: string;
     periodo_prueba_fin: string;
+    rol: string;
   }>
 ) {
 

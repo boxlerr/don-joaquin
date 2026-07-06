@@ -119,6 +119,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
   const estadoLabel = chofer.estado === "baja" ? "egresado" : chofer.estado;
 
   const esBaja = chofer.estado === "baja";
+  // Solo los choferes usan camión de la flota; admin/mantenimiento/fleteros no.
+  const rolChofer = (chofer as { rol?: string | null }).rol;
+  const esChofer = !rolChofer || rolChofer === "chofer";
   const antiguedad = formatAntiguedad(chofer.fecha_ingreso, esBaja ? chofer.fecha_egreso : null);
   const edad = calcularEdad(chofer.fecha_nacimiento);
   const periodoPrueba = !esBaja ? diasRestantesPeriodoPrueba(chofer.fecha_ingreso) : null;
@@ -250,7 +253,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {!esBaja && (
+              {!esBaja && esChofer && (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 border ${
                     camionLabel
@@ -326,10 +329,12 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
         <InfoItem icon={<Phone size={13} />} label={chofer.telefono ?? "—"} />
         <InfoItem icon={<Mail size={13} />} label={chofer.email ?? "—"} />
         <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
-        <InfoItem
-          icon={<Truck size={13} />}
-          label={chofer.camion_actual ? `Camión: ${chofer.camion_actual.patente}` : "Sin camión"}
-        />
+        {esChofer && (
+          <InfoItem
+            icon={<Truck size={13} />}
+            label={chofer.camion_actual ? `Camión: ${chofer.camion_actual.patente}` : "Sin camión"}
+          />
+        )}
         <InfoItem
           icon={<Calendar size={13} />}
           label={`Ingreso: ${formatFecha(chofer.fecha_ingreso)}`}
