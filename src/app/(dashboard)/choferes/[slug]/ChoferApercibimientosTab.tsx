@@ -9,10 +9,12 @@ import {
   eliminarApercibimientoAction,
   getApercibimientoArchivosAction,
   deleteApercibimientoArchivoAction,
+  crearUrlSubidaApercibimientoAction,
+  agregarApercibimientoArchivosAction,
 } from "./actions";
 import type { Apercibimiento, CategoriaApercibimiento } from "./types";
 import { formatFecha } from "@/lib/utils";
-import AdjuntosInline from "@/components/ui/AdjuntosInline";
+import AdjuntosEditable from "@/components/ui/AdjuntosEditable";
 
 // Badge por tipo — indica a qué concepto del score suma (Seguridad vs Conducta).
 const TIPO_META: Record<string, { label: string; cls: string }> = {
@@ -115,11 +117,15 @@ export default function ChoferApercibimientosTab({
                   {a.observaciones}
                 </p>
               )}
-              <AdjuntosInline
+              <AdjuntosEditable
                 entidadId={a.id}
                 getArchivos={getApercibimientoArchivosAction}
+                crearUrlSubida={crearUrlSubidaApercibimientoAction}
+                vincularArchivos={agregarApercibimientoArchivosAction}
                 deleteArchivo={deleteApercibimientoArchivoAction}
-                canDelete={is_admin}
+                canEdit={is_admin}
+                addLabel="Sumar archivo (acta, video…)"
+                emptyHint="Sin archivos adjuntos."
               />
             </div>
           ))}

@@ -957,6 +957,18 @@ export async function deleteApercibimientoArchivoAction(
   return res;
 }
 
+// Sumar archivos a un apercibimiento YA creado (ej: cargar el video después del acta).
+export async function agregarApercibimientoArchivosAction(
+  apercibimientoId: string,
+  adjuntos: AdjuntoArchivoMeta[],
+): Promise<{ ok: boolean; vinculados?: number; fallidos?: number; error?: string }> {
+  const user = await requireAdmin();
+  if (!apercibimientoId || !adjuntos?.length) return { ok: false, error: "No hay archivos para agregar." };
+  const r = await vincularAdjuntos(APERCIBIMIENTO_CFG, apercibimientoId, adjuntos, user.id);
+  revalidatePath("/choferes/[slug]", "page");
+  return { ok: true, vinculados: r.vinculados, fallidos: r.fallidos };
+}
+
 export async function crearApercibimientoAction(
   chofer_id: string,
   data: {
