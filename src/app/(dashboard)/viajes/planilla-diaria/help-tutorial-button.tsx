@@ -3,7 +3,7 @@
 import {
   CalendarDays,
   Truck,
-  CopyCheck,
+  History,
   RotateCcw,
   Zap,
   ListChecks,
@@ -23,18 +23,18 @@ const TABS: TutorialTab[] = [
     icon: <ListChecks size={14} />,
     steps: [
       {
-        title: "Una foto del día: quién maneja qué camión",
+        title: "Quién maneja qué camión — y queda fijo",
         description:
-          "La planilla muestra todos los choferes activos con su camión habitual ya cargado. Cambiá la fecha arriba para ver o armar la planilla de otro día.",
+          "La planilla muestra todos los choferes activos con su camión asignado. Lo que ponés acá es la asignación fija: queda guardada hasta que la vuelvas a cambiar (no hace falta rearmarla cada día) y es la misma que aparece en el legajo del chofer.",
         mockup: <MockGrid />,
-        hint: 'El texto "habitual" indica que ese chofer está en su camión de siempre. Si lo cambiás, el cartelito desaparece.',
+        hint: 'El texto "habitual" indica que el chofer está en su camión de siempre. Cambiá algo y desaparece hasta que guardes.',
       },
       {
-        title: "Asigná o liberá una unidad",
+        title: "Asigná, cambiá o liberá una unidad",
         description:
-          "Elegí el camión del día en cada fila. Si un chofer no maneja hoy (faltó, franco), dejá su camión en “Sin asignar”. Un mismo camión no puede ir a dos choferes el mismo día: te lo marca en rojo.",
+          "Elegí el camión de cada chofer. Si le asignás uno que tiene otro, se lo quita a ese (queda sin camión). Si un chofer se queda sin unidad, dejalo en “Sin asignar”. Un mismo camión no puede ir a dos choferes: te lo marca en rojo.",
         mockup: <MockReemplazo />,
-        hint: "Usá Observaciones para anotar el motivo, ej: “reemplaza a Pérez”.",
+        hint: "Como es la asignación fija, un cambio se mantiene todos los días hasta que lo cambies de nuevo. Usá Observaciones para anotar el motivo del día.",
       },
     ],
   },
@@ -44,9 +44,9 @@ const TABS: TutorialTab[] = [
     icon: <Zap size={14} />,
     steps: [
       {
-        title: "Cargá rápido con los atajos",
+        title: "Se mantiene solo · historial de otros días",
         description:
-          "“Copiar día anterior” trae la asignación de ayer para ajustar solo lo que cambió. “Restaurar habituales” vuelve cada chofer a su camión de siempre.",
+          "No hace falta “copiar día anterior”: la asignación queda fija hasta que la cambies. Cambiá la fecha (hasta hoy) para ver quién manejó cada camión otro día — esas fechas son solo lectura. “Restaurar habituales” descarta los cambios sin guardar.",
         mockup: <MockAtajos />,
       },
       {
@@ -126,7 +126,7 @@ function MockAtajos() {
   return (
     <div className="flex flex-col gap-2">
       <div className="h-9 px-3 rounded-md border-2 border-[#0088D1] bg-[#E1F5FE] text-primary text-xs font-semibold inline-flex items-center gap-1.5 shadow-[0_0_0_4px_rgba(0,136,209,0.15)]">
-        <CopyCheck size={13} /> Copiar día anterior
+        <History size={13} /> Cambiá la fecha → historial de ese día
       </div>
       <div className="h-9 px-3 rounded-md border border-border bg-card text-muted-foreground text-xs inline-flex items-center gap-1.5">
         <RotateCcw size={13} /> Restaurar habituales

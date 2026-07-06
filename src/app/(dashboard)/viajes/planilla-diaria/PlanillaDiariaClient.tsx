@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -10,10 +10,10 @@ import {
   Loader2,
   AlertTriangle,
   RotateCcw,
-  CopyCheck,
+  History,
+  CalendarClock,
 } from "lucide-react";
 import {
-  getPlanillaDiariaData,
   guardarPlanillaDiariaAction,
   type PlanillaDiariaData,
 } from "./actions";
@@ -28,10 +28,9 @@ type Fila = {
   observaciones: string;
 };
 
-function fechaAnterior(iso: string): string {
-  const d = new Date(iso + "T12:00:00");
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+function fmtFecha(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return d ? `${d}/${m}/${y}` : iso;
 }
 
 function buildFilas(data: PlanillaDiariaData): Fila[] {
@@ -40,7 +39,7 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     nombre: c.nombre,
     apellido: c.apellido,
     camion_habitual_id: c.camion_habitual_id,
-    // Si hay asignación del día la usamos; si no, sugerimos el habitual.
+    // El server ya resuelve el valor por defecto (asignación fija hoy · snapshot en historial).
     camion_id: c.camion_asignado_id ?? c.camion_habitual_id ?? "",
     observaciones: c.observaciones ?? "",
   }));
@@ -48,9 +47,9 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
 
 export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaData }) {
   const router = useRouter();
+  const editable = data.editable;
   const [filas, setFilas] = useState<Fila[]>(() => buildFilas(data));
   const [guardando, setGuardando] = useState(false);
-  const [copiando, startCopiar] = useTransition();
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
 
   // Qué chofer(es) tienen cada camión hoy — para marcar ocupado/libre en el selector.
@@ -115,24 +114,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     }
   };
 
-  const copiarDiaAnterior = () => {
-    setResultado(null);
-    startCopiar(async () => {
-      const prev = await getPlanillaDiariaData(fechaAnterior(data.fecha));
-      if ("error" in prev) {
-        setResultado({ ok: false, mensaje: prev.error });
-        return;
-      }
-      const mapa = new Map(prev.choferes.map((c) => [c.chofer_id, c.camion_asignado_id]));
-      setFilas((cur) =>
-        cur.map((f) => {
-          const camionAyer = mapa.get(f.chofer_id);
-          return camionAyer ? { ...f, camion_id: camionAyer } : f;
-        }),
-      );
-      setResultado({ ok: true, mensaje: "Se copió la asignación del día anterior. Revisá y guardá." });
-    });
-  };
+  const irAHoy = () => router.push("/viajes/planilla-diaria");
 
   const handleGuardar = async () => {
     if (hayDuplicados) {
@@ -154,7 +136,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     setGuardando(false);
 
     if (res.ok) {
-      setResultado({ ok: true, mensaje: `Planilla guardada: ${res.guardadas} chofer(es) con camión asignado.` });
+      setResultado({ ok: true, mensaje: `Planilla guardada: ${res.guardadas} chofer(es) con camión. Queda fijo hasta que lo cambies.` });
       router.refresh();
     } else {
       setResultado({ ok: false, mensaje: res.error });
@@ -170,33 +152,25 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <input
             type="date"
             value={data.fecha}
+            max={data.hoy}
             onChange={(e) => cambiarFecha(e.target.value)}
             className="h-9 px-3 text-sm rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={copiarDiaAnterior}
-            disabled={copiando}
-            className="gap-1.5 h-9 text-xs"
-          >
-            {copiando ? <Loader2 size={13} className="animate-spin" /> : <CopyCheck size={13} />}
-            Copiar día anterior
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={restaurarHabituales}
-            className="gap-1.5 h-9 text-xs"
-          >
-            <RotateCcw size={13} />
-            Restaurar habituales
-          </Button>
+          {editable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={restaurarHabituales}
+              className="gap-1.5 h-9 text-xs"
+            >
+              <RotateCcw size={13} />
+              Restaurar habituales
+            </Button>
+          )}
           <ImprimirPlanillaButton fecha={data.fecha} />
         </div>
 
@@ -211,6 +185,25 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <span>{asignados} de {filas.length} choferes con camión</span>
         </div>
       </div>
+
+      {/* Aviso: fecha pasada = solo lectura (historial) */}
+      {!editable && (
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
+          <History size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
+          <div className="flex-1">
+            <p className="font-medium text-foreground">
+              Estás viendo el historial del {fmtFecha(data.fecha)}.
+            </p>
+            <p className="text-xs mt-0.5">
+              Las asignaciones de días anteriores son solo lectura. Para cambiar qué camión maneja
+              cada chofer, volvé a la planilla de hoy.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-8 text-xs shrink-0">
+            <CalendarClock size={13} /> Ir a hoy
+          </Button>
+        </div>
+      )}
 
       {/* Grilla */}
       <div className="bg-card border border-border rounded-[8px] overflow-hidden">
@@ -254,6 +247,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                           placeholder="— Sin asignar —"
                           searchPlaceholder="Buscar patente..."
                           clearable
+                          disabled={!editable}
                           invalid={duplicado}
                           triggerClassName="h-8 w-48 text-xs"
                         />
@@ -278,7 +272,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                         onChange={(e) => setObs(f.chofer_id, e.target.value)}
                         placeholder="Opcional (ej: reemplaza a Pérez)"
                         maxLength={500}
-                        className="h-8 w-full min-w-[220px] px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        disabled={!editable}
+                        className="h-8 w-full min-w-[220px] px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </td>
                   </tr>
@@ -315,20 +310,22 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
       )}
 
       {/* Guardar */}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          onClick={handleGuardar}
-          disabled={guardando || hayDuplicados}
-          className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-8 h-10 gap-2"
-        >
-          {guardando ? (
-            <><Loader2 size={15} className="animate-spin" /> Guardando...</>
-          ) : (
-            <><CheckCircle2 size={15} /> Guardar planilla</>
-          )}
-        </Button>
-      </div>
+      {editable && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            onClick={handleGuardar}
+            disabled={guardando || hayDuplicados}
+            className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-8 h-10 gap-2"
+          >
+            {guardando ? (
+              <><Loader2 size={15} className="animate-spin" /> Guardando...</>
+            ) : (
+              <><CheckCircle2 size={15} /> Guardar planilla</>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

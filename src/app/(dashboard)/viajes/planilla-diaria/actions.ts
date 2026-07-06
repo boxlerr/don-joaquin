@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireArea, hasArea } from "@/lib/auth";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -20,20 +20,31 @@ export type PlanillaChofer = {
 
 export type PlanillaDiariaData = {
   fecha: string;
+  /** Fecha de hoy (ISO). */
+  hoy: string;
+  /** Solo la planilla de HOY se edita: cambiarla reescribe la asignación fija.
+   *  Las otras fechas son historial de solo lectura. */
+  editable: boolean;
   choferes: PlanillaChofer[];
   camiones: { id: string; label: string }[];
 };
 
 /**
- * Devuelve la foto de la planilla para una fecha: todos los choferes activos con
- * su camión habitual + lo que ya esté asignado ese día. Si un chofer no tiene fila
- * para la fecha, `camion_asignado_id` es null (la UI sugiere el habitual).
+ * Devuelve la foto de la planilla para una fecha.
+ *
+ * La asignación fija de cada chofer vive en `camiones.chofer_actual_id` (misma
+ * fuente que el legajo). Para HOY mostramos esa asignación fija: así el legajo y
+ * la planilla están siempre sincronizados y lo que se cambia queda guardado hasta
+ * el próximo cambio. Para fechas pasadas mostramos el snapshot guardado ese día
+ * (`asignacion_diaria`) como historial.
  */
 export async function getPlanillaDiariaData(
   fecha: string,
 ): Promise<PlanillaDiariaData | { error: string }> {
   await requireArea("viajes", "read");
   if (!ISO.test(fecha)) return { error: "Fecha inválida." };
+  const hoy = new Date().toISOString().slice(0, 10);
+  const editable = fecha === hoy;
 
   const supabase = createAdminClient();
   const [choferesRes, camionesRes, asignacionesRes] = await Promise.all([
@@ -75,18 +86,23 @@ export async function getPlanillaDiariaData(
 
   const choferes: PlanillaChofer[] = (choferesRes.data ?? []).map((c) => {
     const asig = asigPorChofer.get(c.id);
+    const habitual = habitualPorChofer.get(c.id) ?? null;
     return {
       chofer_id: c.id,
       nombre: c.nombre,
       apellido: c.apellido,
-      camion_habitual_id: habitualPorChofer.get(c.id) ?? null,
-      camion_asignado_id: asig?.camion_id ?? null,
+      camion_habitual_id: habitual,
+      // HOY: la asignación fija manda (sincronizada con el legajo). Otras fechas:
+      // el snapshot de ese día (historial), con el habitual como último recurso.
+      camion_asignado_id: editable ? habitual : asig?.camion_id ?? habitual,
       observaciones: asig?.observaciones ?? null,
     };
   });
 
   return {
     fecha,
+    hoy,
+    editable,
     choferes,
     camiones: (camionesRes.data ?? []).map((c) => ({ id: c.id, label: c.patente })),
   };
@@ -186,28 +202,49 @@ export type GuardarPlanillaResult =
   | { ok: false; error: string };
 
 /**
- * Reemplaza la planilla completa de la fecha: borra las filas del día y reinserta
- * solo las que tienen camión. Guardar la planilla entera de una vez mantiene la
- * lógica simple y predecible (la fecha es la unidad de edición).
+ * Guarda la planilla de HOY. El modelo es "asignación fija": el camión de cada
+ * chofer vive en `camiones.chofer_actual_id` (misma fuente que el legajo), así que
+ * guardar reescribe esa asignación fija (queda hasta el próximo cambio) y sincroniza
+ * el legajo. Además deja un snapshot del día en `asignacion_diaria` (historial +
+ * default de la carga de viajes). Las fechas pasadas son solo lectura.
  */
 export async function guardarPlanillaDiariaAction(
   input: GuardarPlanillaInput,
 ): Promise<GuardarPlanillaResult> {
   const user = await requireArea("viajes", "write");
+  // Guardar la planilla reescribe la asignación FIJA de camiones (mismo dato que
+  // el legajo), así que además de viajes:write exigimos logistica:write —igual que
+  // asignar/desasignar desde el legajo— para que el permiso no dependa del camino.
+  if (!hasArea(user, "logistica", "write")) {
+    return {
+      ok: false,
+      error: "Necesitás permiso de Logística (escritura) para cambiar la asignación de camiones.",
+    };
+  }
+
   const parsed = guardarSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
 
   const { fecha, items } = parsed.data;
 
-  // Validar que un mismo camión no quede en dos choferes el mismo día
-  // (también lo garantiza el unique de la tabla, pero damos un error claro).
+  // Solo se edita la planilla de HOY: cambiarla reescribe la asignación fija.
+  const hoy = new Date().toISOString().slice(0, 10);
+  if (fecha !== hoy) {
+    return {
+      ok: false,
+      error: "Solo se puede editar la planilla de hoy. Las fechas anteriores son historial.",
+    };
+  }
+
+  // Validar que un mismo camión no quede en dos choferes (lo garantiza también el
+  // unique de la tabla, pero damos un error claro y temprano).
   const camionVisto = new Set<string>();
   for (const it of items) {
     if (!it.camion_id) continue;
     if (camionVisto.has(it.camion_id)) {
       return {
         ok: false,
-        error: "Hay un camión asignado a dos choferes el mismo día. Revisá la planilla.",
+        error: "Hay un camión asignado a dos choferes. Revisá la planilla.",
       };
     }
     camionVisto.add(it.camion_id);
@@ -215,37 +252,30 @@ export async function guardarPlanillaDiariaAction(
 
   const supabase = createAdminClient();
 
+  // Toda la reconciliación (reescribir la asignación fija de camiones + snapshot
+  // del día) va en UNA transacción dentro de la función: si algo falla, se revierte
+  // entero y no quedan choferes liberados sin reasignar.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: delErr } = await (supabase as any)
-    .from("asignacion_diaria")
-    .delete()
-    .eq("fecha", fecha);
-  if (delErr) {
-    console.error("Error limpiando planilla diaria:", delErr);
-    return { ok: false, error: "No se pudo actualizar la planilla." };
-  }
-
-  const rows = items
-    .filter((i) => i.camion_id)
-    .map((i) => ({
-      fecha,
+  const { error } = await (supabase as any).rpc("aplicar_planilla_estandar", {
+    p_items: items.map((i) => ({
       chofer_id: i.chofer_id,
-      camion_id: i.camion_id,
+      camion_id: i.camion_id ?? null,
       observaciones: i.observaciones?.trim() || null,
-      created_by: user.id,
-      updated_by: user.id,
-    }));
-
-  if (rows.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("asignacion_diaria").insert(rows);
-    if (error) {
-      console.error("Error guardando planilla diaria:", error);
-      return { ok: false, error: "No se pudo guardar. Revisá que no haya camiones repetidos." };
-    }
+    })),
+    p_fecha: fecha,
+    p_user: user.id,
+  });
+  if (error) {
+    console.error("Error guardando planilla (rpc aplicar_planilla_estandar):", error);
+    return { ok: false, error: "No se pudo guardar. Revisá que no haya camiones repetidos." };
   }
+
+  const guardadas = items.filter((i) => i.camion_id).length;
 
   revalidatePath("/viajes/planilla-diaria");
   revalidatePath("/viajes/carga-rapida");
-  return { ok: true, guardadas: rows.length };
+  revalidatePath("/choferes");
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/camiones");
+  return { ok: true, guardadas };
 }

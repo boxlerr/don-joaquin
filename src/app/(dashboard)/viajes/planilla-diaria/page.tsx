@@ -26,7 +26,7 @@ export default async function PlanillaDiariaPage({
     <div className="p-8">
       <PageHeader
         title="Planilla diaria"
-        description="Asigná qué chofer maneja cada camión hoy. La carga de viajes toma esta unidad por defecto (siempre editable)."
+        description="Asigná qué camión maneja cada chofer. Queda guardado hasta que lo cambies y se sincroniza con el legajo. La carga de viajes toma esta unidad por defecto."
         action={
           <div className="flex items-center gap-2">
             <HelpTutorialButton />

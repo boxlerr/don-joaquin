@@ -40,6 +40,7 @@ export default async function ChoferesPage({
     docs,
     { data: vencidosDocs },
     { data: porVencerDocs },
+    { data: camionesAsignados },
   ] = await Promise.all([
     supabase
       .from("choferes")
@@ -64,12 +65,26 @@ export default async function ChoferesPage({
       .select("id, chofer, chofer_id, tipo_documento, fecha_vencimiento, dias_restantes, estado_vigencia")
       .eq("estado_vigencia", "por_vencer")
       .order("fecha_vencimiento", { ascending: true }),
+    // Camión fijo de cada chofer (para el aviso "sin camión asignado" en la tarjeta).
+    // Sin filtrar por estado del camión: así la tarjeta muestra lo mismo que el
+    // legajo (que lee camion_actual sin filtro), aunque el camión esté fuera de servicio.
+    supabase
+      .from("camiones")
+      .select("patente, chofer_actual_id")
+      .not("chofer_actual_id", "is", null),
   ]);
+
+  // chofer_id -> patente del camión que tiene asignado (si tiene).
+  const camionPorChofer = new Map<string, string>();
+  for (const c of camionesAsignados ?? []) {
+    if (c.chofer_actual_id) camionPorChofer.set(c.chofer_actual_id, c.patente);
+  }
 
   const choferesMapeados = choferes?.map((c) => ({
     ...c,
     dni: c.dni ?? "",
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
+    camion_patente: camionPorChofer.get(c.id) ?? null,
   }));
 
   // Desglose por rol — solo personal vigente (los egresados/baja salen del conteo:

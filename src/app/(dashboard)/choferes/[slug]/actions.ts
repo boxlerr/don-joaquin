@@ -227,6 +227,10 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .from("camiones")
       .select("id, patente, marca, modelo, ano")
       .eq("chofer_actual_id", chofer_id)
+      // limit(1) evita que maybeSingle tire error (y devuelva null) si por una
+      // inconsistencia el chofer quedara con más de un camión: mostramos uno igual.
+      .order("patente", { ascending: true })
+      .limit(1)
       .maybeSingle(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
@@ -1823,39 +1827,78 @@ export async function updateChoferInfoAction(
 // tocamos ese campo.
 // ---------------------------------------------------------------------------
 
-export type CamionAsignable = { id: string; patente: string; chofer_nombre: string | null };
+export type CamionAsignable = {
+  id: string;
+  patente: string;
+  /** Nombre del chofer que hoy tiene el camión (o null si está libre). */
+  chofer_nombre: string | null;
+  /** El actual dueño está dado de baja (egresado): sirve para avisar mejor. */
+  chofer_egresado: boolean;
+};
 
 export async function listCamionesAsignablesAction(): Promise<CamionAsignable[]> {
   await requireArea("logistica", "read");
   const supabase = createAdminClient();
   const [{ data: camiones }, { data: choferes }] = await Promise.all([
-    supabase.from("camiones").select("id, patente, chofer_actual_id").order("patente"),
-    supabase.from("choferes").select("id, nombre, apellido"),
+    // Solo camiones activos: no tiene sentido asignar una unidad de baja.
+    supabase.from("camiones").select("id, patente, chofer_actual_id").eq("estado", "activo").order("patente"),
+    supabase.from("choferes").select("id, nombre, apellido, estado"),
   ]);
-  const nombrePorId = new Map<string, string>();
-  for (const c of choferes ?? []) nombrePorId.set(c.id, `${c.apellido}, ${c.nombre}`);
-  return (camiones ?? []).map((c) => ({
-    id: c.id,
-    patente: c.patente,
-    chofer_nombre: c.chofer_actual_id ? nombrePorId.get(c.chofer_actual_id) ?? null : null,
-  }));
+  const infoPorId = new Map<string, { nombre: string; egresado: boolean }>();
+  for (const c of choferes ?? [])
+    infoPorId.set(c.id, { nombre: `${c.apellido}, ${c.nombre}`, egresado: c.estado === "baja" });
+  return (camiones ?? []).map((c) => {
+    const info = c.chofer_actual_id ? infoPorId.get(c.chofer_actual_id) : null;
+    return {
+      id: c.id,
+      patente: c.patente,
+      chofer_nombre: info?.nombre ?? null,
+      chofer_egresado: info?.egresado ?? false,
+    };
+  });
 }
 
+export type CamionAsignadoResult = {
+  id: string;
+  patente: string;
+  marca: string | null;
+  modelo: string | null;
+  ano: number | null;
+};
+
+/**
+ * Asigna un camión a un chofer. Si el camión lo tenía OTRO chofer, se lo quita
+ * (ese chofer queda sin camión): `camiones.chofer_actual_id` es la única fuente
+ * de verdad de la asignación fija, y el trigger de historial cierra el tramo del
+ * dueño anterior y abre el nuevo. Devuelve el camión asignado y a quién se le
+ * quitó, para que la UI lo muestre sin depender del refetch.
+ */
 export async function asignarCamionAction(
   chofer_id: string,
   camion_id: string,
-): Promise<{ ok?: boolean; error?: string }> {
+): Promise<{ ok?: boolean; error?: string; camion?: CamionAsignadoResult; quitadoA?: string | null }> {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  // Dueño anterior del camión (para avisar "se lo quitaste a X").
+  const { data: prev } = await supabase
+    .from("camiones")
+    .select("id, chofer_actual_id")
+    .eq("id", camion_id)
+    .maybeSingle();
+  if (!prev) return { error: "No se encontró el camión seleccionado." };
+  const prevOwnerId = (prev as { chofer_actual_id: string | null }).chofer_actual_id;
+
   // El chofer no puede quedar en dos camiones: liberar cualquier otro que tenga.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supabase as any)
+  const { error: freeErr } = await (supabase as any)
     .from("camiones")
     .update({ chofer_actual_id: null })
     .eq("chofer_actual_id", chofer_id)
     .neq("id", camion_id);
+  if (freeErr) return { error: "No se pudo liberar el camión anterior del chofer." };
 
+  // Asignar (si lo tenía otro, se lo quita automáticamente al pisar la columna).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("camiones")
@@ -1863,9 +1906,35 @@ export async function asignarCamionAction(
     .eq("id", camion_id);
   if (error) return { error: error.message };
 
-  await logChoferAudit(chofer_id, "camion_asignado", null, { camion_id }, user.id);
+  let quitadoA: string | null = null;
+  if (prevOwnerId && prevOwnerId !== chofer_id) {
+    const { data: ex } = await supabase
+      .from("choferes")
+      .select("nombre, apellido")
+      .eq("id", prevOwnerId)
+      .maybeSingle();
+    if (ex) quitadoA = `${ex.apellido}, ${ex.nombre}`;
+  }
+
+  const { data: cam } = await supabase
+    .from("camiones")
+    .select("id, patente, marca, modelo, ano")
+    .eq("id", camion_id)
+    .maybeSingle();
+
+  await logChoferAudit(
+    chofer_id,
+    "camion_asignado",
+    prevOwnerId ? { quitado_a: prevOwnerId } : null,
+    { camion_id },
+    user.id,
+  );
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes");
+  revalidatePath("/viajes/planilla-diaria");
+  revalidatePath("/viajes/carga-rapida");
   revalidatePath("/camiones");
-  return { ok: true };
+  return { ok: true, camion: (cam as CamionAsignadoResult) ?? undefined, quitadoA };
 }
 
 export async function desasignarCamionAction(
@@ -1880,6 +1949,10 @@ export async function desasignarCamionAction(
     .eq("chofer_actual_id", chofer_id);
   if (error) return { error: error.message };
   await logChoferAudit(chofer_id, "camion_desasignado", null, null, user.id);
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes");
+  revalidatePath("/viajes/planilla-diaria");
+  revalidatePath("/viajes/carga-rapida");
   revalidatePath("/camiones");
   return { ok: true };
 }

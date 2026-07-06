@@ -18,6 +18,7 @@ import {
   LogOut,
   RotateCcw,
   AlertTriangle,
+  Truck,
 } from "lucide-react";
 import {
   updateChoferEstadoAction,
@@ -61,6 +62,13 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   const estadoTone: "success" | "warning" | "neutral" =
     chofer.estado === "activo" ? "success" : esBaja ? "warning" : "neutral";
   const estadoLabel = esBaja ? "egresado" : chofer.estado;
+
+  // El camión solo aplica a choferes (no administración/mantenimiento/fletero).
+  const esChofer = !chofer.rol || chofer.rol === "chofer";
+  const camionPatente: string | null = chofer.camion_patente ?? null;
+  // Avisamos "sin camión" solo para choferes activos: un egresado/inactivo sin
+  // camión es lo esperado y sería ruido.
+  const sinCamion = esChofer && !esBaja && chofer.estado === "activo" && !camionPatente;
 
   const handleToggleEstado = async () => {
     if (esBaja) return;
@@ -276,6 +284,24 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   : "Fecha de ingreso: pendiente"}
               </span>
             </div>
+            {/* Camión asignado — solo para choferes. Patente si tiene; aviso si no. */}
+            {esChofer && !esBaja && (
+              <div className="flex items-center gap-2">
+                <Truck
+                  size={13}
+                  className={`flex-shrink-0 ${sinCamion ? "text-amber-500" : "text-muted-foreground/70"}`}
+                />
+                {camionPatente ? (
+                  <span className="font-mono text-foreground/80">{camionPatente}</span>
+                ) : sinCamion ? (
+                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    Sin camión asignado
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/60">Sin camión</span>
+                )}
+              </div>
+            )}
           </div>
 
           {!legajoEstado.completo && !esBaja && (
