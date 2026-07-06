@@ -8,7 +8,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import ChoferCard from "./ChoferCard";
 
 type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
-type RolFilter = "chofer" | "administrativo" | "mantenimiento" | "fletero";
+type RolReal = "chofer" | "administrativo" | "mantenimiento" | "fletero";
+type RolFilter = "todos" | RolReal;
 type OrdenFilter = "apellido_az" | "apellido_za" | "antiguedad_asc" | "antiguedad_desc";
 
 const ORDEN_OPTIONS: { id: OrdenFilter; label: string }[] = [
@@ -26,13 +27,14 @@ function tsIngreso(c: { fecha_ingreso?: string | null }): number | null {
 }
 
 const ROL_LABELS: Record<RolFilter, string> = {
+  todos: "Todos",
   chofer: "Choferes",
   administrativo: "Administración",
   mantenimiento: "Mantenimiento",
   fletero: "Fleteros",
 };
 
-const rolDe = (c: { rol?: unknown }): RolFilter => {
+const rolDe = (c: { rol?: unknown }): RolReal => {
   const r = typeof c.rol === "string" ? c.rol : "chofer";
   return r === "administrativo" || r === "mantenimiento" || r === "fletero" ? r : "chofer";
 };
@@ -102,7 +104,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const filtered = useMemo(() => {
     const q = normalize(query);
     return choferes.filter((c) => {
-      if (rolDe(c) !== rolFilter) return false;
+      if (rolFilter !== "todos" && rolDe(c) !== rolFilter) return false;
       if (estadoFilter === "periodo_prueba") {
         if (c.estado === "baja" || !enPeriodoPrueba(c.fecha_ingreso)) return false;
       } else if (estadoFilter !== "todos" && c.estado !== estadoFilter) {
@@ -115,7 +117,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   }, [choferes, estadoFilter, rolFilter, query]);
 
   const conteoPorRol = useMemo(() => {
-    const acc: Record<RolFilter, number> = { chofer: 0, administrativo: 0, mantenimiento: 0, fletero: 0 };
+    const acc: Record<RolFilter, number> = { todos: choferes.length, chofer: 0, administrativo: 0, mantenimiento: 0, fletero: 0 };
     for (const c of choferes) acc[rolDe(c)]++;
     return acc;
   }, [choferes]);
@@ -150,7 +152,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-            {(["chofer", "administrativo", "mantenimiento", "fletero"] as RolFilter[]).map((r) => (
+            {(["todos", "chofer", "administrativo", "mantenimiento", "fletero"] as RolFilter[]).map((r) => (
               <button
                 key={r}
                 type="button"
