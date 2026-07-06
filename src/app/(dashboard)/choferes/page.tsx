@@ -123,8 +123,8 @@ export default async function ChoferesPage({
   return (
     <div className="p-8">
       <PageHeader
-        title="Choferes"
-        description="Legajo digital — sin acceso al sistema (gestión administrativa)"
+        title="Personal"
+        description="Legajo digital de todo el personal (choferes, administración, mantenimiento y fleteros)"
         action={
           <div className="flex items-center gap-2.5">
             <HelpTutorialButton />
@@ -137,7 +137,7 @@ export default async function ChoferesPage({
               <AddChoferDialog>
                 <Button variant="brand" size="sm">
                   <Plus size={14} />
-                  Nuevo chofer
+                  Nuevo legajo
                 </Button>
               </AddChoferDialog>
             )}

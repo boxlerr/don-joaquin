@@ -80,19 +80,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "DM y liquidaciones", href: "/viajes/liquidaciones", seccion: "viajes_liquidaciones" },
         ],
       },
-      {
-        label: "Choferes",
-        href: "/choferes",
-        icon: Users,
-        area: "logistica",
-        children: [
-          { label: "Legajos", href: "/choferes", seccion: "choferes" },
-          { label: "Ranking", href: "/choferes/ranking", seccion: "choferes_ranking" },
-          { label: "Rotación", href: "/choferes/rotacion", seccion: "choferes_rotacion" },
-          { label: "Vacaciones", href: "/choferes/vacaciones", seccion: "choferes_vacaciones" },
-          { label: "Sueldos", href: "/choferes/sueldos", seccion: "sueldos" },
-        ],
-      },
       { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
     ],
   },
@@ -122,6 +109,19 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "RRHH",
     items: [
+      {
+        label: "Personal",
+        href: "/choferes",
+        icon: Users,
+        area: "logistica",
+        children: [
+          { label: "Legajos", href: "/choferes", seccion: "choferes" },
+          { label: "Ranking", href: "/choferes/ranking", seccion: "choferes_ranking" },
+          { label: "Rotación", href: "/choferes/rotacion", seccion: "choferes_rotacion" },
+          { label: "Vacaciones", href: "/choferes/vacaciones", seccion: "choferes_vacaciones" },
+          { label: "Sueldos", href: "/choferes/sueldos", seccion: "sueldos" },
+        ],
+      },
       { label: "Entrevistas", href: "/entrevistas", icon: UserSearch, area: "rrhh" },
       // Planilla confidencial de sueldos sobre facturación (admin + taller).
       { label: "Sueldos admin y taller", href: "/sueldos-admin", icon: DollarSign, seccion: "sueldos_admin" },

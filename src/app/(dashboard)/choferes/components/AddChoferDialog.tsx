@@ -217,10 +217,10 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             </div>
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">
-                Agregar nuevo chofer
+                Agregar nuevo legajo
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Ingresá los datos personales y de contacto del chofer.
+                Elegí el área / rol y cargá los datos del personal. Podés guardar aunque falten datos.
               </DialogDescription>
             </div>
           </div>
@@ -242,6 +242,26 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               </p>
             </div>
           )}
+
+          {/* Área / Rol — define en qué área entra este legajo (lo primero que se elige) */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-muted-foreground">Área / Rol *</Label>
+            <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
+              <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
+                <Briefcase size={15} />
+              </div>
+              <div className="relative flex-1 h-full">
+                <Combobox
+                  name="rol"
+                  value={rol}
+                  onValueChange={(v) => setRol(v as "chofer" | "administrativo" | "mantenimiento" | "fletero")}
+                  options={ROLES.map((r) => ({ id: r.value, label: r.label }))}
+                  searchable={false}
+                  triggerClassName={`${FIELD_COMBO_TRIGGER} font-medium`}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Nombre + Apellido */}
           <div className="grid grid-cols-2 gap-4">
@@ -336,7 +356,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             error={fieldErrors.localidad}
           />
 
-          {/* Fecha de ingreso + Rol */}
+          {/* Fecha de ingreso + Alta AFIP */}
           <div className="grid grid-cols-2 gap-4">
             <InputFieldWithIcon
               label="Fecha de ingreso *"
@@ -347,35 +367,15 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               icon={Calendar}
               error={fieldErrors.fecha_ingreso}
             />
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-muted-foreground">Rol</Label>
-              <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-                <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-                  <Briefcase size={15} />
-                </div>
-                <div className="relative flex-1 h-full">
-                  <Combobox
-                    name="rol"
-                    value={rol}
-                    onValueChange={(v) => setRol(v as "chofer" | "administrativo" | "mantenimiento" | "fletero")}
-                    options={ROLES.map((r) => ({ id: r.value, label: r.label }))}
-                    searchable={false}
-                    triggerClassName={`${FIELD_COMBO_TRIGGER} font-medium`}
-                  />
-                </div>
-              </div>
-            </div>
+            <InputFieldWithIcon
+              label="Alta AFIP"
+              name="alta_afip"
+              type="date"
+              value={altaAfip}
+              onChange={(e) => setAltaAfip(e.target.value)}
+              icon={Calendar}
+            />
           </div>
-
-          {/* Alta AFIP */}
-          <InputFieldWithIcon
-            label="Alta AFIP"
-            name="alta_afip"
-            type="date"
-            value={altaAfip}
-            onChange={(e) => setAltaAfip(e.target.value)}
-            icon={Calendar}
-          />
 
           {/* Período de prueba */}
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2">
@@ -418,7 +418,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               {loading
                 ? "Guardando..."
                 : legajoEstado.completo
-                  ? (<><Check size={16} strokeWidth={2.5} /> Guardar chofer</>)
+                  ? (<><Check size={16} strokeWidth={2.5} /> Guardar legajo</>)
                   : (<><Check size={16} strokeWidth={2.5} /> Guardar incompleto</>)}
             </Button>
           </div>
