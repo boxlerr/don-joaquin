@@ -135,12 +135,6 @@ export function AntiguedadTramosChart({ m }: { m: MetricasAnio }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          {m.antiguedad_promedio_meses != null && (
-            <div className="mt-3 rounded-md bg-[#F0F9FF] border border-[#BAE6FD] px-3 py-2 text-xs text-[#075985]">
-              <span className="font-semibold">{m.pct_menos_3_anios}%</span> de las bajas tienen menos de 3 años de antigüedad
-              {m.pct_menos_3_anios >= 60 && " → el desafío es fidelizar a los nuevos, no a los históricos."}
-            </div>
-          )}
         </>
       )}
     </div>

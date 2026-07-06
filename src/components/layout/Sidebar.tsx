@@ -18,6 +18,20 @@ import { logoutAction } from "@/app/login/actions";
 import type { PermisosArea, AreaCodigo, AreaNivel } from "@/lib/auth";
 import type { SeccionCodigo } from "@/lib/secciones";
 
+// Color distintivo por sección del sidebar (dot + rótulo), para diferenciarlas
+// de un vistazo (idea de Bárbara). Fallback gris si aparece un grupo nuevo.
+const GROUP_ACCENT: Record<string, string> = {
+  PRINCIPAL: "#475569",
+  "LOGÍSTICA": "#0088D1",
+  FLOTA: "#6366F1",
+  SEGURIDAD: "#EF4444",
+  RRHH: "#10B981",
+  COMERCIAL: "#A855F7",
+  FINANZAS: "#F59E0B",
+  COMPLIANCE: "#06B6D4",
+  SISTEMA: "#64748B",
+};
+
 export type SidebarUser = {
   nombre: string;
   apellido: string | null;
@@ -102,7 +116,11 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
 
           return (
             <div key={group.group} className="mb-4">
-              <p className="px-3 mb-1 text-[10px] font-bold tracking-[0.16em] text-muted-foreground/80 uppercase">
+              <p
+                className="px-3 mb-1 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] uppercase"
+                style={{ color: GROUP_ACCENT[group.group] ?? "#64748B" }}
+              >
+                <span className="size-1.5 rounded-full" style={{ background: GROUP_ACCENT[group.group] ?? "#64748B" }} />
                 {group.group}
               </p>
               <ul className="space-y-px">
