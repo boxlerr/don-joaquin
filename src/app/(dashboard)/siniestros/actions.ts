@@ -5,6 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
 import { requireArea } from "@/lib/auth";
+import {
+  crearUrlSubidaAdjunto,
+  vincularAdjuntos,
+  type AdjuntoCfg,
+  type ArchivoMeta as AdjuntoArchivoMeta,
+  type CrearUrlResult,
+} from "@/lib/adjuntos-server";
 
 export async function createSiniestroAction(data: {
   camion_id: string;
@@ -124,6 +131,42 @@ export async function registrarPagoSiniestroAction(data: {
 
 const BUCKET = "documentos-siniestros";
 
+// Adjuntos del siniestro (fotos, parte policial, informe, VIDEO, etc.) — varios.
+// Vía URL firmada: sin el límite de ~4,5 MB del body de Server Action (permite videos).
+const SINIESTRO_CFG: AdjuntoCfg = {
+  bucket: BUCKET,
+  junctionTable: "siniestro_archivos",
+  entityColumn: "siniestro_id",
+  folder: "siniestros",
+};
+
+export async function crearUrlSubidaSiniestroAction(input: {
+  siniestro_id: string;
+  filename: string;
+}): Promise<CrearUrlResult> {
+  await requireArea("logistica", "write");
+  return crearUrlSubidaAdjunto(SINIESTRO_CFG, input.filename, input.siniestro_id);
+}
+
+export async function vincularArchivosSiniestroAction(
+  siniestro_id: string,
+  descripcion: string | null,
+  archivos: AdjuntoArchivoMeta[],
+): Promise<{ ok: boolean; vinculados?: number; fallidos?: number; error?: string }> {
+  const user = await requireArea("logistica", "write");
+  if (!siniestro_id || !archivos?.length) return { ok: false, error: "Datos incompletos." };
+  const desc = descripcion?.trim() || null;
+  const { vinculados, fallidos } = await vincularAdjuntos(
+    SINIESTRO_CFG,
+    siniestro_id,
+    archivos,
+    user.id,
+    desc ? { descripcion: desc } : undefined,
+  );
+  revalidatePath("/siniestros");
+  return { ok: true, vinculados, fallidos };
+}
+
 export type SiniestroArchivo = {
   id: string;
   descripcion: string | null;
@@ -135,6 +178,7 @@ export type SiniestroArchivo = {
 };
 
 export async function getArchivosSiniestroAction(siniestro_id: string): Promise<SiniestroArchivo[]> {
+  await requireArea("logistica", "read");
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -225,6 +269,7 @@ export async function uploadArchivoSiniestroAction(formData: FormData): Promise<
 }
 
 export async function deleteArchivoSiniestroAction(adjunto_id: string): Promise<{ error?: string; success?: true }> {
+  await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: adjunto, error: getErr } = await supabase

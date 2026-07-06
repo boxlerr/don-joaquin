@@ -8,6 +8,16 @@ import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
+import {
+  crearUrlSubidaAdjunto,
+  vincularAdjuntos,
+  getAdjuntos,
+  deleteAdjunto,
+  type AdjuntoCfg,
+  type AdjuntoExistente,
+  type ArchivoMeta as AdjuntoArchivoMeta,
+  type CrearUrlResult,
+} from "@/lib/adjuntos-server";
 import type {
   ChoferDetail,
   PrestamoEstado,
@@ -916,6 +926,37 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
 
 const APERCIBIMIENTO_TIPOS = ["apercibimiento", "multa", "llamado_atencion", "adelanto"];
 
+// Adjuntos del apercibimiento (acta, video, foto, etc.) — pueden ser VARIOS.
+const APERCIBIMIENTO_CFG: AdjuntoCfg = {
+  bucket: "documentos-personal",
+  junctionTable: "apercibimiento_archivos",
+  entityColumn: "apercibimiento_id",
+  folder: "apercibimientos",
+};
+
+export async function crearUrlSubidaApercibimientoAction(input: {
+  filename: string;
+}): Promise<CrearUrlResult> {
+  // Los apercibimientos los crea el admin (igual que crearApercibimientoAction).
+  await requireAdmin();
+  return crearUrlSubidaAdjunto(APERCIBIMIENTO_CFG, input.filename);
+}
+
+export async function getApercibimientoArchivosAction(id: string): Promise<AdjuntoExistente[]> {
+  // Mismo gate que el legajo donde vive el apercibimiento (getChoferDetailAction).
+  await requireSeccion("choferes", "read");
+  return getAdjuntos(APERCIBIMIENTO_CFG, id);
+}
+
+export async function deleteApercibimientoArchivoAction(
+  adjuntoId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const res = await deleteAdjunto(APERCIBIMIENTO_CFG, adjuntoId);
+  revalidatePath("/choferes/[slug]", "page");
+  return res;
+}
+
 export async function crearApercibimientoAction(
   chofer_id: string,
   data: {
@@ -924,7 +965,7 @@ export async function crearApercibimientoAction(
     categoria_id: string | null;
     motivo: string;
     observaciones?: string | null;
-    archivo?: ArchivoMeta | null;
+    adjuntos?: AdjuntoArchivoMeta[] | null;
   },
 ) {
   const user = await requireAdmin();
@@ -932,29 +973,6 @@ export async function crearApercibimientoAction(
 
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
   const tipo = APERCIBIMIENTO_TIPOS.includes(data.tipo ?? "") ? data.tipo! : "apercibimiento";
-
-  // Archivo opcional (ej: el apercibimiento escaneado y firmado). Ya viene
-  // subido al Storage vía URL firmada; acá solo lo registramos.
-  let archivo_id: string | null = null;
-  if (data.archivo?.path) {
-    const { data: archivoData, error: archivoError } = await supabase
-      .from("documentos_archivos")
-      .insert({
-        bucket: data.archivo.bucket,
-        nombre_original: data.archivo.nombre_original,
-        path: data.archivo.path,
-        tamano_bytes: data.archivo.tamano_bytes,
-        mime_type: data.archivo.mime_type,
-        subido_por: user.id,
-      })
-      .select("id")
-      .single();
-    if (archivoError || !archivoData) {
-      await supabase.storage.from(data.archivo.bucket).remove([data.archivo.path]).then(undefined, () => {});
-      return { error: "No se pudo registrar el archivo adjunto" };
-    }
-    archivo_id = archivoData.id;
-  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: nuevo, error } = await (supabase as any)
@@ -966,18 +984,24 @@ export async function crearApercibimientoAction(
       categoria_id: data.categoria_id,
       motivo: data.motivo.trim(),
       observaciones: data.observaciones?.trim() || null,
-      archivo_id,
       created_by: user.id,
     })
     .select("id")
     .single();
 
   if (error || !nuevo) {
-    if (archivo_id) {
-      await supabase.from("documentos_archivos").delete().eq("id", archivo_id);
-      if (data.archivo?.path) await supabase.storage.from(data.archivo.bucket).remove([data.archivo.path]).then(undefined, () => {});
+    // Si falla el alta, limpiamos del Storage los archivos ya subidos (quedarían huérfanos).
+    for (const a of data.adjuntos ?? []) {
+      if (a?.path) await supabase.storage.from(a.bucket).remove([a.path]).then(undefined, () => {});
     }
     return { error: "No se pudo registrar el apercibimiento" };
+  }
+
+  // Vincular los archivos adjuntos (acta, video, etc.) — pueden ser varios.
+  let adjuntosFallidos = 0;
+  if (data.adjuntos?.length) {
+    const r = await vincularAdjuntos(APERCIBIMIENTO_CFG, nuevo.id, data.adjuntos, user.id);
+    adjuntosFallidos = r.fallidos;
   }
 
   await logChoferAudit(
@@ -992,7 +1016,7 @@ export async function crearApercibimientoAction(
   );
 
   revalidatePath("/choferes/[slug]", "page");
-  return { success: true };
+  return adjuntosFallidos > 0 ? { success: true, adjuntosFallidos } : { success: true };
 }
 
 export async function eliminarApercibimientoAction(id: string, chofer_id: string) {

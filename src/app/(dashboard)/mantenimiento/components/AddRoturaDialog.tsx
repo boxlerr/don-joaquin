@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import UnidadPicker, { type UnidadValue } from "./UnidadPicker";
-import AdjuntosDocumentos, { useAdjuntos } from "./AdjuntosDocumentos";
+import AdjuntosDocumentos, { useAdjuntos } from "@/components/ui/AdjuntosDocumentos";
 import {
   addRoturaAction,
   updateRoturaAction,

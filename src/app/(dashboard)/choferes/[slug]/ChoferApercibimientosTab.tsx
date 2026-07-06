@@ -3,11 +3,16 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { AlertOctagon, Plus, Trash2, ExternalLink } from "lucide-react";
+import { AlertOctagon, Plus, Trash2 } from "lucide-react";
 import CargarApercibimientoDialog from "./CargarApercibimientoDialog";
-import { eliminarApercibimientoAction } from "./actions";
+import {
+  eliminarApercibimientoAction,
+  getApercibimientoArchivosAction,
+  deleteApercibimientoArchivoAction,
+} from "./actions";
 import type { Apercibimiento, CategoriaApercibimiento } from "./types";
 import { formatFecha } from "@/lib/utils";
+import AdjuntosInline from "@/components/ui/AdjuntosInline";
 
 // Badge por tipo — indica a qué concepto del score suma (Seguridad vs Conducta).
 const TIPO_META: Record<string, { label: string; cls: string }> = {
@@ -110,17 +115,12 @@ export default function ChoferApercibimientosTab({
                   {a.observaciones}
                 </p>
               )}
-              {a.archivo_url && (
-                <a
-                  href={a.archivo_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-[#0088D1] hover:underline flex items-center gap-1 font-semibold w-fit"
-                >
-                  <ExternalLink size={11} />
-                  {a.archivo_nombre ? `Ver ${a.archivo_nombre}` : "Ver archivo"}
-                </a>
-              )}
+              <AdjuntosInline
+                entidadId={a.id}
+                getArchivos={getApercibimientoArchivosAction}
+                deleteArchivo={deleteApercibimientoArchivoAction}
+                canDelete={is_admin}
+              />
             </div>
           ))}
         </div>
