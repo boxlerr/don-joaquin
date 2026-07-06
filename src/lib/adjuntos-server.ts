@@ -38,7 +38,10 @@ export type ArchivoMeta = {
 export type AdjuntoExistente = {
   id: string;
   nombre_original: string;
+  /** URL para VER inline (imágenes, PDF, video se previsualizan en el navegador). */
   url: string;
+  /** URL para DESCARGAR con el nombre real (no el UUID del Storage). */
+  downloadUrl: string;
   tamano_bytes: number;
   mime_type: string | null;
   created_at: string;
@@ -179,14 +182,23 @@ export async function getAdjuntos(cfg: AdjuntoCfg, entidadId: string): Promise<A
     for (const s of signed ?? []) if (s.signedUrl && s.path) urlPorPath.set(`${bucket}:${s.path}`, s.signedUrl);
   }
 
-  return rows.map((r): AdjuntoExistente => ({
-    id: r.id,
-    nombre_original: r.archivo.nombre_original,
-    url: urlPorPath.get(`${r.archivo.bucket}:${r.archivo.path}`) ?? "",
-    tamano_bytes: r.archivo.tamano_bytes ?? 0,
-    mime_type: r.archivo.mime_type,
-    created_at: r.created_at,
-  }));
+  return rows.map((r): AdjuntoExistente => {
+    const url = urlPorPath.get(`${r.archivo.bucket}:${r.archivo.path}`) ?? "";
+    // `&download=<nombre>` fuerza Content-Disposition: attachment con el nombre real
+    // (verificado contra el Storage), en vez de descargar con el UUID del path.
+    const downloadUrl = url
+      ? `${url}&download=${encodeURIComponent(r.archivo.nombre_original)}`
+      : "";
+    return {
+      id: r.id,
+      nombre_original: r.archivo.nombre_original,
+      url,
+      downloadUrl,
+      tamano_bytes: r.archivo.tamano_bytes ?? 0,
+      mime_type: r.archivo.mime_type,
+      created_at: r.created_at,
+    };
+  });
 }
 
 /** Elimina un adjunto puntual: fila puente + metadato + objeto del Storage. */

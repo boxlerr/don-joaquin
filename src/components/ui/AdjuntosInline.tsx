@@ -105,12 +105,11 @@ export default function AdjuntosInline({
               <Eye size={13} />
             </a>
             <a
-              href={a.url}
-              download={a.nombre_original}
+              href={a.downloadUrl || a.url}
               target="_blank"
               rel="noopener noreferrer"
               className="p-1 rounded text-muted-foreground hover:text-[#0088D1] hover:bg-[#0088D1]/10 transition-colors"
-              title="Descargar"
+              title={`Descargar ${a.nombre_original}`}
             >
               <Download size={13} />
             </a>

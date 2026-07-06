@@ -19,6 +19,8 @@ export type AdjuntoExistente = {
   id: string;
   nombre_original: string;
   url: string;
+  /** URL para descargar con el nombre real (opcional; si falta se usa `url`). */
+  downloadUrl?: string;
   tamano_bytes: number;
   mime_type: string | null;
   created_at: string;
@@ -226,12 +228,11 @@ export default function AdjuntosDocumentos({
                   <Eye size={14} />
                 </a>
                 <a
-                  href={a.url}
-                  download={a.nombre_original}
+                  href={a.downloadUrl || a.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-1 rounded text-muted-foreground hover:text-[#0088D1] hover:bg-[#0088D1]/10 transition-colors"
-                  title="Descargar"
+                  title={`Descargar ${a.nombre_original}`}
                 >
                   <Download size={14} />
                 </a>
