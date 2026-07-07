@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,9 @@ function mesActual(): string {
 function parseNum(s: string): number | null {
   let t = s.trim();
   if (t === "") return null;
+  // Formato AR: la coma es decimal; los puntos son separador de miles (montos enteros en $).
   if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else t = t.replace(/\./g, "");
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
@@ -57,6 +60,25 @@ const ROL_BADGE: Record<SueldoAdminEmpleado["rol"], { label: string; cls: string
   administrativo: { label: "Administración", cls: "bg-blue-50 text-blue-700 border-blue-200/50" },
   mantenimiento: { label: "Taller", cls: "bg-orange-50 text-orange-700 border-orange-200/50" },
 };
+
+// Avatar con iniciales + color determinístico por nombre, para distinguir empleados.
+const AVATAR_COLORS = [
+  "bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "bg-violet-100 text-violet-700",
+  "bg-amber-100 text-amber-700", "bg-rose-100 text-rose-700", "bg-cyan-100 text-cyan-700",
+  "bg-indigo-100 text-indigo-700", "bg-teal-100 text-teal-700", "bg-fuchsia-100 text-fuchsia-700",
+];
+function iniciales(nombre: string): string {
+  const partes = nombre.split(",").map((s) => s.trim()).filter(Boolean);
+  const ape = partes[0] ?? "";
+  const nom = partes[1] ?? "";
+  const dos = nom ? `${ape[0] ?? ""}${nom[0] ?? ""}` : ape.slice(0, 2);
+  return dos.toUpperCase() || "?";
+}
+function colorAvatar(nombre: string): string {
+  let h = 0;
+  for (let i = 0; i < nombre.length; i++) h = (h * 31 + nombre.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
 
 type RowDraft = { comisionLogistica: string; combustible: string; plusYpf: string; sabados: string };
 const thCls = "text-[11px] font-bold text-muted-foreground uppercase tracking-wider";
@@ -496,43 +518,112 @@ function AumentosDialog({
     onChanged();
   };
 
+  const rol = ROL_BADGE[empleado.rol];
+  const baseActual = empleado.sueldoBase; // base vigente al mes de la página (para el header)
+  const montoNuevo = parseNum(sueldo);
+  // Referencia del preview = base vigente ANTES del mes elegido en el diálogo (no el de la página),
+  // así el "% vs anterior" es correcto también para aumentos retroactivos.
+  const baseRef = (() => {
+    const mesIso = `${mes}-01`;
+    const ant = aumentos.find((a) => a.vigente_desde.slice(0, 10) < mesIso); // aumentos viene DESC
+    return ant ? ant.sueldo_base : 0;
+  })();
+  const deltaPreview =
+    montoNuevo != null && montoNuevo >= 0 && baseRef > 0
+      ? ((montoNuevo - baseRef) / baseRef) * 100
+      : null;
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Aumentos — {empleado.nombre}</DialogTitle></DialogHeader>
-        {aumentos.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Sin aumentos cargados. El sueldo base queda en $ 0 hasta registrar el primero.</p>
-        ) : (
-          <div className="space-y-1 max-h-52 overflow-y-auto">
-            {aumentos.map((a, i) => (
-              <div key={a.id} className="flex items-center gap-3 text-xs py-1.5 border-b border-border/40 last:border-0">
-                <span className="text-muted-foreground w-28 shrink-0 capitalize">desde {mesLabel(a.vigente_desde)}</span>
-                <span className="font-mono font-semibold text-foreground">{pesos(a.sueldo_base)}</span>
-                {i === 0 && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-200/60">vigente</span>}
-                {a.observaciones && <span className="text-muted-foreground truncate flex-1" title={a.observaciones}>{a.observaciones}</span>}
-                {canWrite && (
-                  <Button variant="ghost" size="icon-xs" className="ml-auto text-destructive" aria-label="Eliminar" disabled={deletingId === a.id} onClick={() => eliminar(a.id)}>
-                    {deletingId === a.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                  </Button>
+      <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+        <DialogHeader className="sr-only"><DialogTitle>Aumentos de {empleado.nombre}</DialogTitle></DialogHeader>
+
+        {/* Encabezado con identidad del empleado — deja claro de quién es la planilla. */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent">
+          <div className={`h-11 w-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${colorAvatar(empleado.nombre)}`}>
+            {iniciales(empleado.nombre)}
+          </div>
+          <div className="min-w-0">
+            <p className="font-heading text-base font-semibold text-foreground truncate">{empleado.nombre}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${rol.cls}`}>{rol.label}</span>
+              <span className="text-xs text-muted-foreground">base actual <strong className="font-mono text-foreground">{pesos(baseActual)}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Historial de aumentos</p>
+            {aumentos.length === 0 ? (
+              <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">Sin aumentos cargados. El sueldo base queda en $ 0 hasta registrar el primero.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                <AnimatePresence initial={false}>
+                  {aumentos.map((a, i) => {
+                    const older = aumentos[i + 1];
+                    const delta = older && older.sueldo_base > 0 ? ((a.sueldo_base - older.sueldo_base) / older.sueldo_base) * 100 : null;
+                    return (
+                      <motion.div key={a.id}
+                        layout
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                        transition={{ duration: 0.18, delay: Math.min(i, 6) * 0.03 }}
+                        className={`flex items-center gap-3 rounded-lg border p-2.5 ${i === 0 ? "border-emerald-200/70 bg-emerald-50/40" : "border-border bg-card"}`}>
+                        <div className="flex flex-col items-center justify-center w-16 shrink-0 leading-tight">
+                          <span className="text-[9px] uppercase text-muted-foreground">desde</span>
+                          <span className="text-xs font-semibold capitalize text-foreground text-center">{mesLabel(a.vigente_desde)}</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-foreground">{pesos(a.sueldo_base)}</span>
+                            {delta != null && delta > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600"><TrendingUp size={11} /> +{delta.toFixed(1)}%</span>
+                            )}
+                            {delta != null && delta < 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-destructive"><TrendingUp size={11} className="rotate-180" /> {delta.toFixed(1)}%</span>
+                            )}
+                            {delta === 0 && (
+                              <span className="text-[10px] font-semibold text-muted-foreground">sin cambio</span>
+                            )}
+                            {i === 0 && <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">vigente</span>}
+                          </div>
+                          {a.observaciones && <p className="text-[11px] text-muted-foreground truncate" title={a.observaciones}>{a.observaciones}</p>}
+                        </div>
+                        {canWrite && (
+                          <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive shrink-0" aria-label="Eliminar" disabled={deletingId === a.id} onClick={() => eliminar(a.id)}>
+                            {deletingId === a.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+                          </Button>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+
+          {canWrite && (
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Registrar aumento</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <MonthPicker value={mes} onChange={setMes} />
+                <Input type="text" inputMode="decimal" placeholder="Sueldo base $" value={sueldo} onChange={(e) => setSueldo(e.target.value)} className="w-36 text-right font-mono" />
+                {deltaPreview != null && (
+                  <span className={`text-xs font-semibold ${deltaPreview >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                    {deltaPreview >= 0 ? "+" : ""}{deltaPreview.toFixed(1)}% vs anterior
+                  </span>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-        {canWrite && (
-          <div className="space-y-2 border-t border-border pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Registrar aumento</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <MonthPicker value={mes} onChange={setMes} />
-              <Input type="text" inputMode="decimal" placeholder="Sueldo base $" value={sueldo} onChange={(e) => setSueldo(e.target.value)} className="w-32 text-right font-mono" />
+              <Input type="text" placeholder="Observaciones (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
+              {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
-            <Input type="text" placeholder="Observaciones (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-          </div>
-        )}
-        <DialogFooter showCloseButton>
-          {canWrite && <Button variant="brand" disabled={saving} onClick={registrar}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Registrar</Button>}
-        </DialogFooter>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
+          <DialogClose render={<Button variant="outline" size="sm" />}>Cerrar</DialogClose>
+          {canWrite && <Button variant="brand" size="sm" disabled={saving} onClick={registrar}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Registrar</Button>}
+        </div>
       </DialogContent>
     </Dialog>
   );
