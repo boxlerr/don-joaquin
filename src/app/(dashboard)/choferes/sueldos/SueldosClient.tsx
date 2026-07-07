@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table";
-import ExportButton from "@/components/ExportButton";
-import { descargarExport } from "@/lib/download-export";
 import { Wallet, ChevronRight, ChevronDown, Loader2, MapPin } from "lucide-react";
 import {
   getViajesChoferMesAction,
@@ -63,20 +61,11 @@ export default function SueldosClient({
     router.refresh(); // recalcular los totales del resumen
   };
 
-  const handleExport = () =>
-    descargarExport(
-      `/choferes/sueldos/export?month=${month ?? ""}`,
-      `sueldos_${month || "mes-actual"}.xlsx`,
-    );
-
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Wallet size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Totales por chofer</h2>
-        </div>
-        <ExportButton onClick={handleExport} label="Exportar" />
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <Wallet size={16} className="text-primary" />
+        <h2 className="text-foreground text-sm font-semibold">Totales por chofer</h2>
       </div>
 
       <Table>

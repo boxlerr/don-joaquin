@@ -126,10 +126,26 @@ export async function buildSingleSheetWorkbook(
   sheetName: string,
   opts: Parameters<typeof writeProfessionalTable>[1],
 ): Promise<Buffer> {
+  return buildMultiSheetWorkbook([{ name: sheetName, opts }]);
+}
+
+/** Crea un workbook con varias hojas profesionales (una tabla por hoja). */
+export async function buildMultiSheetWorkbook(
+  sheets: { name: string; opts: Parameters<typeof writeProfessionalTable>[1] }[],
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Don Joaquín — Sistema de Gestión";
-  const ws = wb.addWorksheet(sheetName.slice(0, 31));
-  writeProfessionalTable(ws, opts);
+  if (sheets.length === 0) {
+    wb.addWorksheet("Sin datos").getCell("A1").value = "No hay datos para exportar.";
+  }
+  const usados = new Set<string>();
+  for (const s of sheets) {
+    let name = (s.name || "Hoja").slice(0, 31);
+    let i = 2;
+    while (usados.has(name)) name = `${(s.name || "Hoja").slice(0, 28)} ${i++}`;
+    usados.add(name);
+    writeProfessionalTable(wb.addWorksheet(name), s.opts);
+  }
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
 }

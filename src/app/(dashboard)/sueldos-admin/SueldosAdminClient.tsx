@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
 import {
-  Wallet, Percent, Receipt, History, Loader2, Trash2, Pencil, Save, TrendingUp, HelpCircle, X,
+  Wallet, Percent, Receipt, History, Loader2, Trash2, Pencil, Save, TrendingUp, HelpCircle, X, Plus,
 } from "lucide-react";
 import {
   upsertSueldoAdminMesAction,
@@ -34,9 +34,12 @@ function mesLabel(iso: string): string {
   const [y, m] = iso.slice(0, 10).split("-");
   return `${MESES_FULL[parseInt(m, 10) - 1]} ${y}`;
 }
-function mesCorto(iso: string): string {
-  const [y, m] = iso.slice(0, 10).split("-");
-  return `${MESES_CORTO[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+/** Solo el mes abreviado ("jun"), sin año — para la matriz con banda de año arriba. */
+function mesAbrev(iso: string): string {
+  return MESES_CORTO[parseInt(iso.slice(5, 7), 10) - 1];
+}
+function anioDe(iso: string): string {
+  return iso.slice(0, 4);
 }
 function mesActual(): string {
   const d = new Date();
@@ -75,7 +78,7 @@ export default function SueldosAdminClient({
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, RowDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [aumentosDe, setAumentosDe] = useState<string | null>(null);
+  const [aumentosDe, setAumentosDe] = useState<{ id: string; mes: string } | null>(null);
   const [factOpen, setFactOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -131,7 +134,7 @@ export default function SueldosAdminClient({
     router.refresh();
   };
 
-  const empleadoAumentos = aumentosDe ? resumen.empleados.find((e) => e.chofer_id === aumentosDe) ?? null : null;
+  const empleadoAumentos = aumentosDe ? resumen.empleados.find((e) => e.chofer_id === aumentosDe.id) ?? null : null;
 
   return (
     <div className="space-y-6">
@@ -236,7 +239,7 @@ export default function SueldosAdminClient({
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <span className="font-mono text-foreground">{e.sueldoBase > 0 ? pesos(e.sueldoBase) : <span className="text-muted-foreground/60">sin cargar</span>}</span>
-                              {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe(e.chofer_id)}><History /></Button>}
+                              {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe({ id: e.chofer_id, mes: month || mesActual() })}><History /></Button>}
                             </div>
                           </TableCell>
                           {CAMPOS.map((campo) => (
@@ -279,12 +282,13 @@ export default function SueldosAdminClient({
         </>
       ) : (
         <AumentosMatriz empleados={resumen.empleados} aumentosPorEmpleado={resumen.aumentosPorEmpleado}
-          canWrite={canWrite} onAbrir={(id) => setAumentosDe(id)} />
+          mesActualIso={month || mesActual()} canWrite={canWrite}
+          onAbrir={(id, mes) => setAumentosDe({ id, mes })} />
       )}
 
       {empleadoAumentos && (
         <AumentosDialog empleado={empleadoAumentos} aumentos={resumen.aumentosPorEmpleado[empleadoAumentos.chofer_id] ?? []}
-          defaultMes={month || mesActual()} canWrite={canWrite} onClose={() => setAumentosDe(null)} onChanged={() => router.refresh()} />
+          defaultMes={aumentosDe?.mes ?? (month || mesActual())} canWrite={canWrite} onClose={() => setAumentosDe(null)} onChanged={() => router.refresh()} />
       )}
       {factOpen && (
         <FacturacionDialog month={month} facturacionCalculada={resumen.facturacionCalculada} facturacionManual={resumen.facturacionManual}
@@ -297,19 +301,48 @@ export default function SueldosAdminClient({
 
 // ── Matriz de aumentos (empleado × mes), como el Excel ─────────────────────
 function AumentosMatriz({
-  empleados, aumentosPorEmpleado, canWrite, onAbrir,
+  empleados, aumentosPorEmpleado, mesActualIso, canWrite, onAbrir,
 }: {
   empleados: SueldoAdminEmpleado[];
   aumentosPorEmpleado: Record<string, AumentoRow[]>;
+  /** Mes seleccionado arriba ("YYYY-MM"), usado como default al agregar/editar. */
+  mesActualIso: string;
   canWrite: boolean;
-  onAbrir: (choferId: string) => void;
+  onAbrir: (choferId: string, mes: string) => void;
 }) {
-  // Meses = todas las fechas vigente_desde de todos los empleados, ascendente.
-  const meses = useMemo(() => {
+  // Meses "extra" que el usuario agregó a mano (aún sin datos) para poder cargarlos.
+  const [mesesExtra, setMesesExtra] = useState<string[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [nuevoMes, setNuevoMes] = useState(mesActualIso);
+
+  // Meses que realmente tienen datos (alguna fecha vigente_desde). Clave estable para deps.
+  const dataMesesKey = useMemo(() => {
     const set = new Set<string>();
     for (const arr of Object.values(aumentosPorEmpleado)) for (const a of arr) set.add(a.vigente_desde.slice(0, 10));
-    return [...set].sort();
+    return [...set].sort().join(",");
   }, [aumentosPorEmpleado]);
+  const dataMeses = useMemo(() => new Set(dataMesesKey ? dataMesesKey.split(",") : []), [dataMesesKey]);
+
+  // Meses visibles = los que tienen datos + los agregados a mano que aún NO tienen dato.
+  // Al filtrar los "extra" que ya recibieron dato, la columna fantasma desaparece sola
+  // tras registrar un aumento (sin effects ni setState en cascada).
+  const meses = useMemo(() => {
+    const extra = mesesExtra.filter((m) => !dataMeses.has(m));
+    return [...new Set([...dataMeses, ...extra])].sort();
+  }, [dataMeses, mesesExtra]);
+  const esExtra = (m: string) => !dataMeses.has(m); // columna agregada, aún sin aumentos
+
+  // Agrupa los meses por año consecutivo para la banda superior del encabezado.
+  const grupos = useMemo(() => {
+    const g: { anio: string; meses: string[] }[] = [];
+    for (const m of meses) {
+      const anio = anioDe(m);
+      const last = g[g.length - 1];
+      if (last && last.anio === anio) last.meses.push(m);
+      else g.push({ anio, meses: [m] });
+    }
+    return g;
+  }, [meses]);
 
   // Sueldo base vigente de un empleado en un mes dado (mayor vigente_desde <= mes).
   const baseEn = (choferId: string, mesIso: string): number | null => {
@@ -318,50 +351,112 @@ function AumentosMatriz({
     return a ? a.sueldo_base : null;
   };
 
-  if (meses.length === 0) {
-    return <div className="bg-card rounded-[8px] border border-border p-8 text-center text-sm text-muted-foreground">Sin aumentos cargados todavía.</div>;
-  }
+  const agregarMes = () => {
+    if (/^\d{4}-\d{2}$/.test(nuevoMes)) setMesesExtra((prev) => [...new Set([...prev, `${nuevoMes}-01`])]);
+    setAddOpen(false);
+  };
+  const quitarMes = (m: string) => setMesesExtra((prev) => prev.filter((x) => x !== m));
+
+  // Encabezado fijo (sticky) para no perder las etiquetas al scrollear una matriz grande.
+  const headBase = `${thCls} bg-muted border-b border-border`;
+  const cornerTh = `${headBase} pl-6 sticky top-0 left-0 z-30`;
+  const yearTh = `${headBase} text-center border-l border-border/60 sticky top-0 z-20`;
+  const mesTh = `${headBase} px-2 text-right whitespace-nowrap sticky top-10 z-20`;
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      {/* z-40 + card sin overflow-hidden: el popup de "Agregar mes" flota sin recortarse. */}
+      <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border relative z-40">
         <TrendingUp size={16} className="text-primary" />
         <h2 className="text-foreground text-sm font-semibold">Aumentos por mes</h2>
-        <span className="text-xs text-muted-foreground ml-1">— sueldo base vigente cada mes (como el Excel)</span>
+        <span className="text-xs text-muted-foreground ml-1 hidden sm:inline">— sueldo base vigente cada mes (como el Excel)</span>
+        {canWrite && (
+          <div className="ml-auto flex items-center gap-2">
+            {addOpen ? (
+              <>
+                <MonthPicker value={nuevoMes} onChange={setNuevoMes} />
+                <Button size="sm" variant="brand" onClick={agregarMes}>Agregar</Button>
+                <Button size="sm" variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
+              </>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => { setNuevoMes(mesActualIso); setAddOpen(true); }}>
+                <Plus size={14} /> Agregar mes
+              </Button>
+            )}
+          </div>
+        )}
       </div>
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className={`${thCls} pl-6 sticky left-0 bg-muted/40`}>Empleado</TableHead>
-              {meses.map((m) => <TableHead key={m} className={`${thCls} text-right whitespace-nowrap capitalize`}>{mesCorto(m)}</TableHead>)}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {empleados.map((e) => (
-              <TableRow key={e.chofer_id} className="hover:bg-muted/10">
-                <TableCell className="pl-6 whitespace-nowrap sticky left-0 bg-card">
-                  <button type="button" disabled={!canWrite} onClick={() => onAbrir(e.chofer_id)}
-                    className={`font-semibold text-foreground ${canWrite ? "hover:text-primary hover:underline" : ""}`}>
-                    {e.nombre}
-                  </button>
-                </TableCell>
-                {meses.map((m, i) => {
-                  const val = baseEn(e.chofer_id, m);
-                  const prev = i > 0 ? baseEn(e.chofer_id, meses[i - 1]) : null;
-                  const subio = val != null && prev != null && val > prev;
-                  return (
-                    <TableCell key={m} className={`text-right font-mono text-xs whitespace-nowrap ${subio ? "text-emerald-600 font-semibold" : "text-foreground"}`}>
-                      {val != null ? pesos(val) : <span className="text-muted-foreground/40">—</span>}
-                    </TableCell>
-                  );
-                })}
+
+      {meses.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          Sin aumentos cargados todavía.{canWrite && " Agregá un mes o tocá un nombre para empezar."}
+        </div>
+      ) : (
+        <div className="max-h-[65vh] overflow-auto rounded-b-[8px]">
+          <table className="w-full caption-bottom text-sm">
+            <TableHeader>
+              {/* Banda de año arriba + mes abajo: deja claro que "2025/2026" es el AÑO, no un día. */}
+              <TableRow className="border-0 hover:bg-transparent">
+                <TableHead rowSpan={2} className={cornerTh}>Empleado</TableHead>
+                {grupos.map((g) => (
+                  <TableHead key={g.anio} colSpan={g.meses.length} className={yearTh}>{g.anio}</TableHead>
+                ))}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-      {canWrite && <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">Tocá un nombre para cargar o editar sus aumentos.</p>}
+              <TableRow className="hover:bg-transparent">
+                {meses.map((m) => (
+                  <TableHead key={m} className={mesTh}>
+                    {esExtra(m) ? (
+                      <span className="inline-flex items-center gap-1 justify-end">
+                        <span className="capitalize italic text-muted-foreground/80" title="Columna agregada, sin aumentos cargados todavía">{mesAbrev(m)}</span>
+                        {canWrite && (
+                          <button type="button" onClick={() => quitarMes(m)} title="Quitar esta columna vacía"
+                            className="text-muted-foreground/50 hover:text-destructive"><X size={11} /></button>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="capitalize">{mesAbrev(m)}</span>
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {empleados.map((e) => (
+                <TableRow key={e.chofer_id} className="group">
+                  <TableCell className="pl-6 whitespace-nowrap sticky left-0 z-10 bg-card group-hover:bg-muted/50">
+                    <button type="button" disabled={!canWrite} onClick={() => onAbrir(e.chofer_id, mesActualIso)}
+                      className={`font-semibold text-foreground ${canWrite ? "hover:text-primary hover:underline" : ""}`}>
+                      {e.nombre}
+                    </button>
+                  </TableCell>
+                  {meses.map((m, i) => {
+                    const val = baseEn(e.chofer_id, m);
+                    const prev = i > 0 ? baseEn(e.chofer_id, meses[i - 1]) : null;
+                    const subio = val != null && prev != null && val > prev;
+                    const contenido = val != null ? pesos(val) : <span className="text-muted-foreground/40">—</span>;
+                    return (
+                      <TableCell key={m} className={`text-right font-mono text-xs whitespace-nowrap ${subio ? "text-emerald-600 font-semibold" : "text-foreground"}`}>
+                        {canWrite ? (
+                          <button type="button" onClick={() => onAbrir(e.chofer_id, m.slice(0, 7))}
+                            className="w-full text-right hover:text-primary hover:underline decoration-dotted underline-offset-2"
+                            title={`Cargar o editar el aumento de ${e.nombre} desde ${mesLabel(m)}`}>
+                            {contenido}
+                          </button>
+                        ) : contenido}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </table>
+        </div>
+      )}
+      {canWrite && meses.length > 0 && (
+        <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
+          Tocá una celda (o un nombre) para cargar o editar un aumento. Con <strong>Agregar mes</strong> sumás una columna nueva; la <span className="italic">itálica</span> marca las que todavía no tienen datos.
+        </p>
+      )}
     </div>
   );
 }
@@ -487,7 +582,7 @@ function AyudaDialog({ onClose }: { onClose: () => void }) {
           <p><strong className="text-foreground">Qué es:</strong> la planilla de sueldos del personal de <strong>administración y taller</strong> (no los choferes — esos se liquidan por viajes). El total del mes se compara contra la <strong>facturación</strong> para ver qué % se lleva.</p>
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5 text-xs">
             <p><strong>Pestaña «Planilla del mes»</strong> — por cada empleado: sueldo base + <strong>comisión logística</strong>, <strong>combustible</strong>, <strong>plus YPF</strong> y <strong>sábados</strong> (las mismas columnas del Excel). El total se calcula solo.</p>
-            <p><strong>Pestaña «Aumentos»</strong> — la matriz de sueldo base vigente mes a mes (como la hoja de aumentos del Excel). Tocá un nombre para cargar/editar sus aumentos.</p>
+            <p><strong>Pestaña «Aumentos»</strong> — la matriz de sueldo base vigente mes a mes (como la hoja de aumentos del Excel). Los encabezados muestran el <strong>año</strong> arriba (2025, 2026…) y el mes abajo. Tocá cualquier <strong>celda</strong> (o un nombre) para cargar/editar un aumento, y con <strong>«Agregar mes»</strong> sumás una columna nueva a medida que pasa el tiempo.</p>
             <p><strong>Sueldo base</strong> — sale del último aumento cargado. El ícono del reloj ⟳ en cada fila abre su historial.</p>
             <p><strong>Facturación</strong> — sale de los viajes del mes; el lápiz permite pisarla a mano.</p>
             <p><strong>Mes</strong> — se cambia con el selector arriba a la derecha.</p>

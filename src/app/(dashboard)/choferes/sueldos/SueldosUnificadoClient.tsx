@@ -6,6 +6,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Truck, Wallet, TrendingUp, HelpCircle, X } from "lucide-react";
+import ExportButton from "@/components/ExportButton";
+import { descargarExport } from "@/lib/download-export";
 import SueldosClient from "./SueldosClient";
 import SueldosAdminClient from "../../sueldos-admin/SueldosAdminClient";
 import type { SueldoChoferRow } from "./actions";
@@ -33,6 +35,12 @@ export default function SueldosUnificadoClient({
   const [tab, setTab] = useState<TabId>(tabs[0]?.id ?? "choferes");
   const [helpOpen, setHelpOpen] = useState(false);
 
+  const handleExport = () =>
+    descargarExport(
+      `/choferes/sueldos/export?month=${month ?? ""}`,
+      `sueldos_${month || "mes-actual"}.xlsx`,
+    );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -47,9 +55,12 @@ export default function SueldosUnificadoClient({
             );
           })}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
-          <HelpCircle size={14} /> ¿Cómo funciona?
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportButton onClick={handleExport} label="Exportar" />
+          <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
+            <HelpCircle size={14} /> ¿Cómo funciona?
+          </Button>
+        </div>
       </div>
 
       {tab === "choferes" && choferes && <SueldosClient resumen={choferes} month={month} />}
@@ -77,7 +88,7 @@ function AyudaDialog({ onClose, canChoferes, canAdmin }: { onClose: () => void; 
             {canAdmin && (
               <>
                 <p><strong className="text-foreground">Admin y taller</strong> — la planilla del personal de administración y taller: sueldo base + comisión logística, combustible, plus YPF y sábados (las columnas del Excel). El total del mes se compara contra la facturación para ver qué % se lleva.</p>
-                <p><strong className="text-foreground">Aumentos</strong> — la matriz de sueldo base vigente mes a mes (como la hoja de aumentos del Excel). Tocá un nombre para cargar o editar sus aumentos.</p>
+                <p><strong className="text-foreground">Aumentos</strong> — la matriz de sueldo base vigente mes a mes (como la hoja de aumentos del Excel). El <strong>año</strong> va arriba (2025, 2026…) y el mes abajo. Tocá cualquier <strong>celda</strong> (o un nombre) para cargar o editar un aumento, y con <strong>«Agregar mes»</strong> sumás una columna nueva con el paso del tiempo.</p>
               </>
             )}
           </div>
