@@ -379,11 +379,13 @@ function AumentosMatriz({
   };
   const quitarMes = (m: string) => setMesesExtra((prev) => prev.filter((x) => x !== m));
 
-  // Encabezado fijo (sticky) para no perder las etiquetas al scrollear una matriz grande.
+  // La columna "Empleado" queda fija en HORIZONTAL (opaca, con borde derecho) para
+  // leer los nombres mientras se scrollean los meses. El scroll vertical es el de la
+  // página entera (sin caja de scroll interna). Los meses se separan con borde izq.
   const headBase = `${thCls} bg-muted border-b border-border`;
-  const cornerTh = `${headBase} pl-6 sticky top-0 left-0 z-30`;
-  const yearTh = `${headBase} text-center border-l border-border/60 sticky top-0 z-20`;
-  const mesTh = `${headBase} px-2 text-right whitespace-nowrap sticky top-10 z-20`;
+  const cornerTh = `${headBase} pl-6 pr-3 sticky left-0 z-20 border-r border-border`;
+  const yearTh = `${headBase} text-center border-l border-border/60`;
+  const mesTh = `${headBase} px-3 text-right whitespace-nowrap border-l border-border/50`;
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
@@ -414,7 +416,7 @@ function AumentosMatriz({
           Sin aumentos cargados todavía.{canWrite && " Agregá un mes o tocá un nombre para empezar."}
         </div>
       ) : (
-        <div className="max-h-[65vh] overflow-auto rounded-b-[8px]">
+        <div className="overflow-x-auto rounded-b-[8px]">
           <table className="w-full caption-bottom text-sm">
             <TableHeader>
               {/* Banda de año arriba + mes abajo: deja claro que "2025/2026" es el AÑO, no un día. */}
@@ -444,8 +446,8 @@ function AumentosMatriz({
             </TableHeader>
             <TableBody>
               {empleados.map((e) => (
-                <TableRow key={e.chofer_id} className="group">
-                  <TableCell className="pl-6 whitespace-nowrap sticky left-0 z-10 bg-card group-hover:bg-muted/50">
+                <TableRow key={e.chofer_id}>
+                  <TableCell className="pl-6 pr-3 whitespace-nowrap sticky left-0 z-10 bg-card border-r border-border">
                     <button type="button" disabled={!canWrite} onClick={() => onAbrir(e.chofer_id, mesActualIso)}
                       className={`font-semibold text-foreground ${canWrite ? "hover:text-primary hover:underline" : ""}`}>
                       {e.nombre}
@@ -457,7 +459,7 @@ function AumentosMatriz({
                     const subio = val != null && prev != null && val > prev;
                     const contenido = val != null ? pesos(val) : <span className="text-muted-foreground/40">—</span>;
                     return (
-                      <TableCell key={m} className={`text-right font-mono text-xs whitespace-nowrap ${subio ? "text-emerald-600 font-semibold" : "text-foreground"}`}>
+                      <TableCell key={m} className={`text-right font-mono text-xs whitespace-nowrap border-l border-border/40 ${subio ? "text-emerald-600 font-semibold" : "text-foreground"}`}>
                         {canWrite ? (
                           <button type="button" onClick={() => onAbrir(e.chofer_id, m.slice(0, 7))}
                             className="w-full text-right hover:text-primary hover:underline decoration-dotted underline-offset-2"
