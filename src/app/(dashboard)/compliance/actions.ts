@@ -3,6 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
+import {
+  crearUrlSubidaAdjunto,
+  vincularAdjuntos,
+  type AdjuntoCfg,
+  type ArchivoMeta,
+  type CrearUrlResult,
+} from "@/lib/adjuntos-server";
 import type {
   ComplianceCliente,
   ComplianceClienteAplica,
@@ -15,17 +22,18 @@ function clienteToEnum(c: ComplianceCliente): "YPF" | "LOMA_NEGRA" {
   return c;
 }
 
-/** Convierte un nombre en un segmento de path/carpeta legible (sin acentos ni símbolos). */
-function slugify(s: string): string {
-  return (
-    (s || "")
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "sin-nombre"
-  );
+// Config de adjuntos multi-archivo por tabla destino (bucket + carpeta + tabla puente).
+type ComplianceAdjCfg = AdjuntoCfg & { docTable: string };
+const COMPLIANCE_ADJ: Record<"chofer" | "camion" | "compliance", ComplianceAdjCfg> = {
+  chofer: { bucket: "documentos-personal", folder: "compliance", junctionTable: "chofer_documento_archivos", entityColumn: "chofer_documento_id", docTable: "chofer_documentos" },
+  camion: { bucket: "documentos-personal", folder: "compliance", junctionTable: "camion_documento_archivos", entityColumn: "camion_documento_id", docTable: "camion_documentos" },
+  compliance: { bucket: "documentos-personal", folder: "compliance", junctionTable: "compliance_documento_archivos", entityColumn: "compliance_documento_id", docTable: "compliance_documentos" },
+};
+
+/** URL firmada para subir un archivo de compliance directo del navegador (multi-archivo). */
+export async function crearUrlSubidaComplianceDocAction(input: { filename: string }): Promise<CrearUrlResult> {
+  await requireArea("compliance", "write");
+  return crearUrlSubidaAdjunto(COMPLIANCE_ADJ.compliance, input.filename);
 }
 
 /**
@@ -231,27 +239,35 @@ export async function getComplianceHistorialAction(input: {
   }));
 }
 
-export async function uploadComplianceDocAction(formData: FormData) {
+export async function uploadComplianceDocAction(input: {
+  requisito_id: string;
+  chofer_id?: string | null;
+  camion_id?: string | null;
+  periodo?: string | null;
+  fecha_emision?: string | null;
+  fecha_vencimiento: string;
+  observaciones?: string | null;
+  numero?: string | null;
+  /** Archivos YA subidos al Storage (URL firmada). Opcional: se puede registrar solo el vencimiento. */
+  archivos?: ArchivoMeta[];
+}) {
   const user = await requireArea("compliance", "write");
   const supabase = createAdminClient();
 
-  const requisito_id = formData.get("requisito_id") as string;
-  const chofer_id = (formData.get("chofer_id") as string) || null;
-  const camion_id = (formData.get("camion_id") as string) || null;
-  const periodo = (formData.get("periodo") as string) || null;
-  const fecha_emision = (formData.get("fecha_emision") as string) || null;
-  const fecha_vencimiento = formData.get("fecha_vencimiento") as string;
-  const observaciones = (formData.get("observaciones") as string) || null;
-  const numero = (formData.get("numero") as string) || null;
-  // El archivo es OPCIONAL: Noelia puede registrar/actualizar solo el vencimiento
-  // (lo que mantiene en su Excel) sin volver a subir el PDF. archivo_id es nullable
-  // en las 3 tablas, así que el documento se guarda igual.
-  const fileRaw = formData.get("file");
-  const file = fileRaw instanceof File && fileRaw.size > 0 ? fileRaw : null;
+  const requisito_id = input.requisito_id;
+  const chofer_id = input.chofer_id || null;
+  const camion_id = input.camion_id || null;
+  const periodo = input.periodo || null;
+  const fecha_emision = input.fecha_emision || null;
+  const fecha_vencimiento = input.fecha_vencimiento;
+  const observaciones = input.observaciones || null;
+  const numero = input.numero || null;
+  // Los archivos son OPCIONALES: Noelia puede registrar/actualizar solo el vencimiento
+  // sin subir PDF. archivo_id es nullable en las 3 tablas.
+  const archivos = (input.archivos ?? []).filter((a) => a && a.path);
 
   if (!requisito_id) return { error: "Requisito requerido" };
   if (!fecha_vencimiento) return { error: "Fecha de vencimiento requerida" };
-  if (file && file.size > 10 * 1024 * 1024) return { error: "Máximo 10MB" };
 
   const { data: req } = await supabase
     .from("compliance_requisitos")
@@ -266,135 +282,66 @@ export async function uploadComplianceDocAction(formData: FormData) {
     return { error: "Los requisitos de empresa no llevan chofer ni camión" };
   }
 
-  // Cuando el requisito está mapeado a un tipo_documento existente, el doc
-  // se guarda en chofer_documentos / camion_documentos (no en compliance_documentos).
-  // Esto evita duplicar el archivo: aparece tanto en el legajo como en compliance,
-  // porque v_compliance_estado cruza ambas fuentes.
+  // Cuando el requisito está mapeado a un tipo_documento existente, el doc se
+  // guarda en chofer_documentos / camion_documentos (no en compliance_documentos),
+  // así aparece tanto en el legajo como en compliance (v_compliance_estado cruza ambos).
   const usaLegajo = !!req.tipo_documento_id;
 
-  // Subir el PDF solo si vino uno; si no, el documento queda sin archivo.
-  let archivoId: string | null = null;
-  if (file) {
-    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
-
-    // Nombre legible de la entidad, para ordenar el storage en carpetas y para
-    // que el archivo se descargue con un nombre prolijo (no el UUID interno).
-    let scope: "choferes" | "camiones" | "empresa" = "empresa";
-    let entidadNombre = "Empresa";
-    if (chofer_id) {
-      scope = "choferes";
-      const { data: ch } = await supabase
-        .from("choferes")
-        .select("nombre, apellido")
-        .eq("id", chofer_id)
-        .single();
-      entidadNombre = [ch?.nombre, ch?.apellido].filter(Boolean).join(" ").trim() || "Chofer";
-    } else if (camion_id) {
-      scope = "camiones";
-      const { data: cm } = await supabase
-        .from("camiones")
-        .select("patente")
-        .eq("id", camion_id)
-        .single();
-      entidadNombre = cm?.patente || "Unidad";
-    }
-
-    const reqNombre = req.nombre ?? req.codigo;
-    const fechaHoy = new Date().toISOString().slice(0, 10);
-    // Carpeta legible: compliance/<scope>/<entidad>/<documento>-<fecha>-<rand>.<ext>
-    const storagePath = `compliance/${scope}/${slugify(entidadNombre)}/${slugify(reqNombre)}-${fechaHoy}-${Date.now().toString(36).slice(-4)}.${ext}`;
-    // Nombre con el que se descarga desde la web: "<Entidad> - <Documento>.<ext>"
-    const nombreDescarga = `${entidadNombre} - ${reqNombre}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("documentos-personal")
-      .upload(storagePath, file);
-    if (uploadError) return { error: "Error al subir el archivo" };
-
-    const { data: archivo, error: archivoError } = await supabase
-      .from("documentos_archivos")
-      .insert({
-        bucket: "documentos-personal",
-        nombre_original: nombreDescarga,
-        path: storagePath,
-        tamano_bytes: file.size,
-        mime_type: file.type,
-        subido_por: user.id,
-      })
-      .select("id")
-      .single();
-    if (archivoError || !archivo) return { error: "Error al registrar el archivo" };
-    archivoId = archivo.id;
-  }
-
-  // Guardamos el doc en la tabla que corresponda y capturamos su id + su tabla
-  // puente de adjuntos, para vincular el archivo. Los legajos y compliance leen
-  // los archivos desde la tabla puente (multi-archivo), NO desde archivo_id.
-  let nuevoDocId: string | null = null;
-  let junctionTable: string | null = null;
-  let junctionCol: string | null = null;
+  // Crear el doc en la tabla que corresponda (archivo_id se completa luego con el
+  // primero de los adjuntos, que es el que abre el checklist).
+  let cfg: ComplianceAdjCfg;
+  let nuevoDocId: string;
 
   if (usaLegajo && req.nivel === "chofer") {
+    cfg = COMPLIANCE_ADJ.chofer;
     const { data, error: dbError } = await supabase.from("chofer_documentos").insert({
-      chofer_id: chofer_id!,
-      tipo_documento_id: req.tipo_documento_id!,
-      numero,
-      fecha_emision,
-      fecha_vencimiento,
-      archivo_id: archivoId,
-      observaciones,
-      created_by: user.id,
+      chofer_id: chofer_id!, tipo_documento_id: req.tipo_documento_id!, numero, fecha_emision,
+      fecha_vencimiento, archivo_id: null, observaciones, created_by: user.id,
     }).select("id").single();
     if (dbError || !data) return { error: "Error al guardar el documento" };
     nuevoDocId = data.id;
-    junctionTable = "chofer_documento_archivos";
-    junctionCol = "chofer_documento_id";
     revalidatePath("/choferes/[slug]", "page");
   } else if (usaLegajo && req.nivel === "unidad") {
+    cfg = COMPLIANCE_ADJ.camion;
     const { data, error: dbError } = await supabase.from("camion_documentos").insert({
-      camion_id: camion_id!,
-      tipo_documento_id: req.tipo_documento_id!,
-      numero,
-      fecha_emision,
-      fecha_vencimiento,
-      archivo_id: archivoId,
-      observaciones,
-      created_by: user.id,
+      camion_id: camion_id!, tipo_documento_id: req.tipo_documento_id!, numero, fecha_emision,
+      fecha_vencimiento, archivo_id: null, observaciones, created_by: user.id,
     }).select("id").single();
     if (dbError || !data) return { error: "Error al guardar el documento" };
     nuevoDocId = data.id;
-    junctionTable = "camion_documento_archivos";
-    junctionCol = "camion_documento_id";
     revalidatePath(`/camiones/${camion_id}`);
   } else {
+    cfg = COMPLIANCE_ADJ.compliance;
     const { data, error: dbError } = await supabase.from("compliance_documentos").insert({
-      requisito_id,
-      chofer_id,
-      camion_id,
-      periodo,
-      fecha_emision,
-      fecha_vencimiento,
-      archivo_id: archivoId,
-      observaciones,
-      created_by: user.id,
+      requisito_id, chofer_id, camion_id, periodo, fecha_emision, fecha_vencimiento,
+      archivo_id: null, observaciones, created_by: user.id,
     }).select("id").single();
     if (dbError || !data) return { error: "Error al guardar el documento" };
     nuevoDocId = data.id;
-    junctionTable = "compliance_documento_archivos";
-    junctionCol = "compliance_documento_id";
   }
 
-  // Vincular el archivo a la tabla puente (lo que muestran los paneles multi-archivo).
-  if (archivoId && nuevoDocId && junctionTable && junctionCol) {
+  // Vincular TODOS los archivos (multi) a la tabla puente + apuntar archivo_id al primero.
+  let fallidos = 0;
+  if (archivos.length) {
+    const r = await vincularAdjuntos(cfg, nuevoDocId, archivos, user.id);
+    fallidos = r.fallidos;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from(junctionTable)
-      .insert({ [junctionCol]: nuevoDocId, archivo_id: archivoId, created_by: user.id });
+    const { data: primero } = await (supabase as any)
+      .from(cfg.junctionTable)
+      .select("archivo_id")
+      .eq(cfg.entityColumn, nuevoDocId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (primero?.archivo_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from(cfg.docTable).update({ archivo_id: primero.archivo_id }).eq("id", nuevoDocId);
+    }
   }
 
   revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
-  return { success: true };
+  return fallidos > 0 ? { success: true, fallidos } : { success: true };
 }
 
 /**

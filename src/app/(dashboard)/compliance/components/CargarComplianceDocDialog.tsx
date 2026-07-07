@@ -12,13 +12,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Send } from "lucide-react";
+import { Upload, Send, Loader2, X, FileText } from "lucide-react";
 import {
   uploadComplianceDocAction,
+  crearUrlSubidaComplianceDocAction,
   setComplianceVencimientoAction,
   setComplianceEnviarAAction,
 } from "../actions";
+import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
+import type { ArchivoMeta } from "@/lib/adjuntos-server";
 import type { ComplianceRequisito } from "../types";
+
+const MAX_MB = 100;
 
 // Cuando se pasa `edit`, el diálogo edita el vencimiento/observaciones de un
 // documento YA cargado (sin re-subir el archivo). Si no, carga uno nuevo (con el
@@ -60,7 +65,8 @@ export default function CargarComplianceDocDialog({
   // A dónde se manda el doc (portal/mail). Vive en el REQUISITO, no en el
   // documento: se edita acá por comodidad y aplica a todas las presentaciones.
   const [enviarA, setEnviarA] = useState(requisito.enviar_a ?? "");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [subiendo, setSubiendo] = useState<{ idx: number; total: number; pct: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -70,10 +76,27 @@ export default function CargarComplianceDocDialog({
     setObservaciones(edit?.observaciones ?? "");
     setNumero("");
     setEnviarA(requisito.enviar_a ?? "");
-    setFileName(null);
+    setFiles([]);
+    setSubiendo(null);
     setError(null);
     if (fileRef.current) fileRef.current.value = "";
   };
+
+  const agregarFiles = (lista: FileList | null) => {
+    if (!lista || lista.length === 0) return;
+    const nuevos = Array.from(lista);
+    const grande = nuevos.find((f) => f.size > MAX_MB * 1024 * 1024);
+    if (grande) return setError(`"${grande.name}" supera los ${MAX_MB} MB permitidos.`);
+    setError(null);
+    // Evita duplicados por nombre+tamaño; permite ir sumando en varias tandas.
+    setFiles((prev) => {
+      const clave = (f: File) => `${f.name}:${f.size}`;
+      const yaHay = new Set(prev.map(clave));
+      return [...prev, ...nuevos.filter((f) => !yaHay.has(clave(f)))];
+    });
+    if (fileRef.current) fileRef.current.value = "";
+  };
+  const quitarFile = (i: number) => setFiles((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,40 +105,65 @@ export default function CargarComplianceDocDialog({
     setLoading(true);
     setError(null);
 
-    const res = esEdicion
-      ? await setComplianceVencimientoAction({
-          documento_id: edit!.documento_id,
-          fuente: edit!.fuente,
-          fecha_vencimiento: fechaVencimiento,
-          observaciones: observaciones || null,
-        })
-      : await (async () => {
-          const formData = new FormData();
-          formData.set("requisito_id", requisito.id);
-          if (chofer_id) formData.set("chofer_id", chofer_id);
-          if (camion_id) formData.set("camion_id", camion_id);
-          if (periodo) formData.set("periodo", periodo);
-          if (fechaEmision) formData.set("fecha_emision", fechaEmision);
-          formData.set("fecha_vencimiento", fechaVencimiento);
-          if (observaciones) formData.set("observaciones", observaciones);
-          if (numero) formData.set("numero", numero);
-          const f = fileRef.current?.files?.[0];
-          if (f) formData.set("file", f);
-          return uploadComplianceDocAction(formData);
-        })();
+    try {
+      const res = esEdicion
+        ? await setComplianceVencimientoAction({
+            documento_id: edit!.documento_id,
+            fuente: edit!.fuente,
+            fecha_vencimiento: fechaVencimiento,
+            observaciones: observaciones || null,
+          })
+        : await (async () => {
+            // Subir cada archivo directo al Storage (URL firmada) y juntar sus metadatos.
+            const archivos: ArchivoMeta[] = [];
+            for (let i = 0; i < files.length; i++) {
+              const f = files[i];
+              setSubiendo({ idx: i + 1, total: files.length, pct: 0 });
+              const url = await crearUrlSubidaComplianceDocAction({ filename: f.name });
+              if ("error" in url) throw new Error(url.error);
+              await subirArchivoConUrlFirmada({
+                signedUrl: url.signedUrl,
+                file: f,
+                onProgress: (pct) => setSubiendo({ idx: i + 1, total: files.length, pct }),
+              });
+              archivos.push({
+                bucket: url.bucket,
+                path: url.path,
+                nombre_original: f.name,
+                mime_type: f.type || "application/octet-stream",
+                tamano_bytes: f.size,
+              });
+            }
+            setSubiendo(null);
+            return uploadComplianceDocAction({
+              requisito_id: requisito.id,
+              chofer_id: chofer_id ?? null,
+              camion_id: camion_id ?? null,
+              periodo: periodo || null,
+              fecha_emision: fechaEmision || null,
+              fecha_vencimiento: fechaVencimiento,
+              observaciones: observaciones || null,
+              numero: numero || null,
+              archivos,
+            });
+          })();
 
-    // El destino de envío es del requisito: se guarda aparte, solo si cambió.
-    if (!("error" in res && res.error) && (enviarA.trim() || null) !== (requisito.enviar_a ?? null)) {
-      await setComplianceEnviarAAction({ requisito_id: requisito.id, enviar_a: enviarA });
-    }
+      // El destino de envío es del requisito: se guarda aparte, solo si cambió.
+      if (!("error" in res && res.error) && (enviarA.trim() || null) !== (requisito.enviar_a ?? null)) {
+        await setComplianceEnviarAAction({ requisito_id: requisito.id, enviar_a: enviarA });
+      }
 
-    setLoading(false);
-
-    if ("error" in res && res.error) {
-      setError(res.error);
-    } else {
-      reset();
-      onSuccess();
+      if ("error" in res && res.error) {
+        setError(res.error);
+      } else {
+        reset();
+        onSuccess();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir el archivo.");
+    } finally {
+      setSubiendo(null);
+      setLoading(false);
     }
   };
 
@@ -139,8 +187,8 @@ export default function CargarComplianceDocDialog({
             {esEdicion
               ? "Actualizá la fecha de vencimiento y observaciones sin volver a subir el archivo."
               : vaAlLegajo
-                ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá. El archivo es opcional.`
-                : "El archivo es opcional — podés registrar solo el vencimiento. Cualquier formato, máximo 10 MB."}
+                ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá. Podés adjuntar varios archivos (opcional).`
+                : "Los archivos son opcionales — podés registrar solo el vencimiento. Podés subir varios, hasta 100 MB c/u."}
           </DialogDescription>
         </DialogHeader>
 
@@ -224,17 +272,45 @@ export default function CargarComplianceDocDialog({
 
           {!esEdicion && (
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Archivo (opcional)</Label>
+              <Label className="text-sm font-medium text-foreground">Archivos (opcional)</Label>
               <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
                 <Upload size={16} className="text-muted-foreground/70" />
-                <span className="text-sm text-muted-foreground">{fileName ?? "Elegir archivo..."}</span>
+                <span className="text-sm text-muted-foreground">
+                  {files.length ? "Agregar más archivos…" : "Elegir archivos…"}
+                </span>
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple
                   className="hidden"
-                  onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                  onChange={(e) => agregarFiles(e.target.files)}
                 />
               </label>
+
+              {files.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {files.map((f, i) => (
+                    <li key={`${f.name}:${f.size}:${i}`} className="flex items-center gap-2 text-xs bg-muted/40 rounded-md px-2 py-1.5">
+                      <FileText size={13} className="text-muted-foreground shrink-0" />
+                      <span className="truncate flex-1 text-foreground">{f.name}</span>
+                      <span className="text-muted-foreground font-mono shrink-0">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                      <button type="button" onClick={() => quitarFile(i)} disabled={loading} className="text-muted-foreground/60 hover:text-destructive shrink-0" aria-label="Quitar archivo"><X size={13} /></button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {subiendo && (
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Subiendo {subiendo.idx} de {subiendo.total}…</span>
+                    <span className="font-mono">{subiendo.pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-[#0088D1] rounded-full transition-all duration-200" style={{ width: `${subiendo.pct}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -252,7 +328,7 @@ export default function CargarComplianceDocDialog({
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading}>
-              {loading ? "Guardando..." : esEdicion ? "Guardar vencimiento" : "Cargar"}
+              {subiendo ? "Subiendo…" : loading ? "Guardando..." : esEdicion ? "Guardar vencimiento" : "Cargar"}
             </Button>
           </DialogFooter>
         </form>
