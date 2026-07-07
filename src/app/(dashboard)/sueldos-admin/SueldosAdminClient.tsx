@@ -19,6 +19,7 @@ import {
   upsertSueldoAdminMesAction,
   registrarAumentoAction,
   eliminarAumentoAction,
+  eliminarMesAumentosAction,
   setFacturacionManualAction,
   type SueldosAdminResumen,
   type SueldoAdminEmpleado,
@@ -305,7 +306,7 @@ export default function SueldosAdminClient({
       ) : (
         <AumentosMatriz empleados={resumen.empleados} aumentosPorEmpleado={resumen.aumentosPorEmpleado}
           mesActualIso={month || mesActual()} canWrite={canWrite}
-          onAbrir={(id, mes) => setAumentosDe({ id, mes })} />
+          onAbrir={(id, mes) => setAumentosDe({ id, mes })} onChanged={() => router.refresh()} />
       )}
 
       {empleadoAumentos && (
@@ -323,7 +324,7 @@ export default function SueldosAdminClient({
 
 // ── Matriz de aumentos (empleado × mes), como el Excel ─────────────────────
 function AumentosMatriz({
-  empleados, aumentosPorEmpleado, mesActualIso, canWrite, onAbrir,
+  empleados, aumentosPorEmpleado, mesActualIso, canWrite, onAbrir, onChanged,
 }: {
   empleados: SueldoAdminEmpleado[];
   aumentosPorEmpleado: Record<string, AumentoRow[]>;
@@ -331,11 +332,14 @@ function AumentosMatriz({
   mesActualIso: string;
   canWrite: boolean;
   onAbrir: (choferId: string, mes: string) => void;
+  onChanged: () => void;
 }) {
   // Meses "extra" que el usuario agregó a mano (aún sin datos) para poder cargarlos.
   const [mesesExtra, setMesesExtra] = useState<string[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [nuevoMes, setNuevoMes] = useState(mesActualIso);
+  const [mesAEliminar, setMesAEliminar] = useState<string | null>(null); // mes con datos a borrar
+  const [eliminandoMes, setEliminandoMes] = useState(false);
 
   // Meses que realmente tienen datos (alguna fecha vigente_desde). Clave estable para deps.
   const dataMesesKey = useMemo(() => {
@@ -378,6 +382,16 @@ function AumentosMatriz({
     setAddOpen(false);
   };
   const quitarMes = (m: string) => setMesesExtra((prev) => prev.filter((x) => x !== m));
+  const countMes = (m: string) =>
+    Object.values(aumentosPorEmpleado).reduce((n, arr) => n + arr.filter((a) => a.vigente_desde.slice(0, 10) === m).length, 0);
+  const confirmarEliminarMes = async () => {
+    if (!mesAEliminar) return;
+    setEliminandoMes(true);
+    const res = await eliminarMesAumentosAction(mesAEliminar.slice(0, 7));
+    setEliminandoMes(false);
+    setMesAEliminar(null);
+    if (!("error" in res)) onChanged();
+  };
 
   // La columna "Empleado" queda fija en HORIZONTAL (opaca, con borde derecho) para
   // leer los nombres mientras se scrollean los meses. El scroll vertical es el de la
@@ -438,7 +452,13 @@ function AumentosMatriz({
                         )}
                       </span>
                     ) : (
-                      <span className="capitalize">{mesAbrev(m)}</span>
+                      <span className="group/mes inline-flex items-center gap-1 justify-end">
+                        <span className="capitalize">{mesAbrev(m)}</span>
+                        {canWrite && (
+                          <button type="button" onClick={() => setMesAEliminar(m)} title={`Eliminar todos los aumentos de ${mesLabel(m)}`}
+                            className="text-muted-foreground/30 hover:text-destructive opacity-0 group-hover/mes:opacity-100 transition-opacity"><Trash2 size={11} /></button>
+                        )}
+                      </span>
                     )}
                   </TableHead>
                 ))}
@@ -478,8 +498,26 @@ function AumentosMatriz({
       )}
       {canWrite && meses.length > 0 && (
         <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
-          Tocá una celda (o un nombre) para cargar o editar un aumento. Con <strong>Agregar mes</strong> sumás una columna nueva; la <span className="italic">itálica</span> marca las que todavía no tienen datos.
+          Tocá una celda (o un nombre) para cargar o editar un aumento. Con <strong>Agregar mes</strong> sumás una columna nueva; la <span className="italic">itálica</span> marca las que todavía no tienen datos. Pasá el mouse sobre un mes para <strong>eliminarlo</strong>.
         </p>
+      )}
+
+      {mesAEliminar && (
+        <Dialog open onOpenChange={(o) => { if (!o && !eliminandoMes) setMesAEliminar(null); }}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Trash2 size={16} className="text-destructive" /> Eliminar el mes</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Se van a borrar <strong className="text-foreground">{countMes(mesAEliminar)}</strong> aumento{countMes(mesAEliminar) === 1 ? "" : "s"} cargado{countMes(mesAEliminar) === 1 ? "" : "s"} en <strong className="text-foreground capitalize">{mesLabel(mesAEliminar)}</strong>. Esta acción no se puede deshacer.
+            </p>
+            <DialogFooter showCloseButton>
+              <Button variant="destructive" disabled={eliminandoMes} onClick={confirmarEliminarMes}>
+                {eliminandoMes ? <Loader2 className="animate-spin" /> : <Trash2 />} Eliminar mes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
@@ -537,16 +575,16 @@ function AumentosDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+      <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 gap-0">
         <DialogHeader className="sr-only"><DialogTitle>Aumentos de {empleado.nombre}</DialogTitle></DialogHeader>
 
         {/* Encabezado con identidad del empleado — deja claro de quién es la planilla. */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent">
-          <div className={`h-11 w-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${colorAvatar(empleado.nombre)}`}>
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent rounded-t-xl">
+          <div className={`h-12 w-12 rounded-full flex items-center justify-center font-bold shrink-0 ${colorAvatar(empleado.nombre)}`}>
             {iniciales(empleado.nombre)}
           </div>
           <div className="min-w-0">
-            <p className="font-heading text-base font-semibold text-foreground truncate">{empleado.nombre}</p>
+            <p className="font-heading text-lg font-semibold text-foreground truncate">{empleado.nombre}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${rol.cls}`}>{rol.label}</span>
               <span className="text-xs text-muted-foreground">base actual <strong className="font-mono text-foreground">{pesos(baseActual)}</strong></span>
@@ -554,13 +592,13 @@ function AumentosDialog({
           </div>
         </div>
 
-        <div className="px-5 py-4 space-y-4">
-          <div>
+        <div className={`px-6 py-5 gap-6 ${canWrite ? "grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:items-start" : ""}`}>
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Historial de aumentos</p>
             {aumentos.length === 0 ? (
               <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">Sin aumentos cargados. El sueldo base queda en $ 0 hasta registrar el primero.</p>
             ) : (
-              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[22rem] overflow-y-auto pr-1">
                 <AnimatePresence initial={false}>
                   {aumentos.map((a, i) => {
                     const older = aumentos[i + 1];
@@ -605,24 +643,24 @@ function AumentosDialog({
           </div>
 
           {canWrite && (
-            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Registrar aumento</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <MonthPicker value={mes} onChange={setMes} />
-                <Input type="text" inputMode="decimal" placeholder="Sueldo base $" value={sueldo} onChange={(e) => setSueldo(e.target.value)} className="w-36 text-right font-mono" />
+              <MonthPicker value={mes} onChange={setMes} />
+              <div>
+                <Input type="text" inputMode="decimal" placeholder="Sueldo base $" value={sueldo} onChange={(e) => setSueldo(e.target.value)} className="w-full text-right font-mono" />
                 {deltaPreview != null && (
-                  <span className={`text-xs font-semibold ${deltaPreview >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  <span className={`mt-1.5 block text-xs font-semibold ${deltaPreview >= 0 ? "text-emerald-600" : "text-destructive"}`}>
                     {deltaPreview >= 0 ? "+" : ""}{deltaPreview.toFixed(1)}% vs anterior
                   </span>
                 )}
               </div>
-              <Input type="text" placeholder="Observaciones (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
+              <Input type="text" placeholder="Observaciones (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} className="w-full" />
               {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/40 px-6 py-3 rounded-b-xl">
           <DialogClose render={<Button variant="outline" size="sm" />}>Cerrar</DialogClose>
           {canWrite && <Button variant="brand" size="sm" disabled={saving} onClick={registrar}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Registrar</Button>}
         </div>

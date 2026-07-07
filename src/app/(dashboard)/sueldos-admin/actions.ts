@@ -296,6 +296,44 @@ export async function eliminarAumentoAction(id: string): Promise<{ ok: true } | 
   return { ok: true };
 }
 
+/** Borra TODOS los aumentos vigentes desde un mes (elimina esa columna de la matriz). */
+export async function eliminarMesAumentosAction(
+  month: string,
+): Promise<{ ok: true; borrados: number } | { error: string }> {
+  const user = await requireSeccion("sueldos_admin", "write");
+  const supabase = createAdminClient();
+
+  if (!/^\d{4}-\d{2}$/.test(month)) return { error: "Mes inválido." };
+  const vigente = `${month}-01`;
+
+  const { data: prev } = await (supabase as any)
+    .from("sueldos_admin_aumentos")
+    .select("id, chofer_id, sueldo_base")
+    .eq("vigente_desde", vigente);
+
+  const { error } = await (supabase as any)
+    .from("sueldos_admin_aumentos")
+    .delete()
+    .eq("vigente_desde", vigente);
+  if (error) {
+    console.error("Error al eliminar el mes de aumentos:", error);
+    return { error: "No se pudo eliminar el mes." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "sueldo_admin_aumento_mes",
+    entidadId: vigente,
+    valoresAnteriores: { vigente_desde: vigente, registros: prev ?? [] },
+    metadata: { origen: "sueldos_admin", cantidad: prev?.length ?? 0 },
+  });
+
+  revalidatePath("/choferes/sueldos");
+  return { ok: true, borrados: prev?.length ?? 0 };
+}
+
 export async function setFacturacionManualAction(
   month: string,
   valor: number | null,
