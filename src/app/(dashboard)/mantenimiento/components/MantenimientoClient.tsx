@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatFecha } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ResponsiveContainer,
   BarChart,
@@ -33,16 +34,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
-import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Clock } from "lucide-react";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Pencil, CheckCircle2, X, PowerOff } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
 import AddInsumoDialog from "./AddInsumoDialog";
+import InsumosPanel from "./InsumosPanel";
+import ExportMenu from "./ExportMenu";
 import HelpTutorialButton from "../help-tutorial-button";
 import type { AcopladoOption, CamionOption, ChoferOption, TipoServicioOption } from "../types";
 import {
   deleteServicioAction,
   deleteRoturaAction,
   deleteInsumoAction,
+  setInsumoEstadoAction,
   type ServicioRow,
   type RoturaRow,
   type RoturaPorChofer,
@@ -51,6 +55,8 @@ import {
   type InsumoRow,
   type CostoRepuestosPorChofer,
 } from "../actions";
+
+type Toast = { id: number; msg: string; tone: "success" | "info" | "error" };
 
 type Tab = "servicios" | "roturas" | "insumos" | "alertas" | "reportes";
 

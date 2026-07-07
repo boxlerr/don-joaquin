@@ -23,6 +23,7 @@ import {
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EntrevistaFormDialog from "./EntrevistaFormDialog";
+import CvButton from "./CvButton";
 import { deleteEntrevistaAction } from "../actions";
 
 export interface Entrevista {
@@ -35,6 +36,8 @@ export interface Entrevista {
   observaciones: string | null;
   preocupacional: string; // 'no_aplica' | 'pendiente' | 'apto' | 'no_apto'
   resultado: string; // 'pendiente' | 'ingresa' | 'no_ingresa'
+  etapa?: string; // pipeline: 'nuevo' | 'entrevista' | 'preocupacional' | 'ingresado' | 'descartado'
+  cv_count?: number; // cantidad de CVs adjuntos
   created_at: string;
 }
 
@@ -153,7 +156,10 @@ export default function EntrevistasTable({
               return (
                 <TableRow key={e.id}>
                   <TableCell className="font-medium text-foreground">
-                    <div>{e.nombre}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>{e.nombre}</span>
+                      <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+                    </div>
                     {e.telefono && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                         <Phone className="size-3" />

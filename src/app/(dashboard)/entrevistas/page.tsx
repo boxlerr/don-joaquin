@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { UserSearch, UserPlus, ClipboardCheck, UserCheck, Clock } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
-import EntrevistasTable, { type Entrevista } from "./components/EntrevistasTable";
+import { type Entrevista } from "./components/EntrevistasTable";
+import EntrevistasView from "./components/EntrevistasView";
 import EntrevistaFormDialog from "./components/EntrevistaFormDialog";
 import EntrevistasHelpButton from "./components/EntrevistasHelpButton";
 
@@ -14,15 +15,25 @@ export default async function EntrevistasPage() {
   const canDelete = hasArea(user, "rrhh", "admin");
 
   const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("entrevistas")
-    .select(
-      "id, nombre, fecha_entrevista, edad, localidad, telefono, observaciones, preocupacional, resultado, created_at",
-    )
-    .order("fecha_entrevista", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  // `as any`: `etapa` y la tabla `entrevista_archivos` son nuevas, aún no están en database.ts.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const [{ data }, { data: cvs }] = await Promise.all([
+    sb
+      .from("entrevistas")
+      .select(
+        "id, nombre, fecha_entrevista, edad, localidad, telefono, observaciones, preocupacional, resultado, etapa, created_at",
+      )
+      .order("fecha_entrevista", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    sb.from("entrevista_archivos").select("entrevista_id"),
+  ]);
 
-  const entrevistas = (data || []) as Entrevista[];
+  const cvCount = new Map<string, number>();
+  for (const c of (cvs ?? []) as { entrevista_id: string }[]) {
+    cvCount.set(c.entrevista_id, (cvCount.get(c.entrevista_id) ?? 0) + 1);
+  }
+  const entrevistas = ((data || []) as Entrevista[]).map((e) => ({ ...e, cv_count: cvCount.get(e.id) ?? 0 }));
 
   const total = entrevistas.length;
   const pendientes = entrevistas.filter((e) => e.resultado === "pendiente").length;
@@ -80,7 +91,7 @@ export default async function EntrevistasPage() {
         />
       </div>
 
-      <EntrevistasTable entrevistas={entrevistas} canWrite={canWrite} canDelete={canDelete} />
+      <EntrevistasView entrevistas={entrevistas} canWrite={canWrite} canDelete={canDelete} />
     </div>
   );
 }

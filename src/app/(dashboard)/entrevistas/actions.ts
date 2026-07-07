@@ -5,11 +5,40 @@ import { revalidatePath } from "next/cache";
 import { requireArea } from "@/lib/auth";
 import { Database } from "@/types/database";
 import { logEntrevistaAudit } from "./audit";
+import {
+  crearUrlSubidaAdjunto,
+  vincularAdjuntos,
+  getAdjuntos,
+  deleteAdjunto,
+  type AdjuntoCfg,
+  type ArchivoMeta,
+  type AdjuntoExistente,
+  type CrearUrlResult,
+} from "@/lib/adjuntos-server";
 
 type EntrevistaInsert = Database["public"]["Tables"]["entrevistas"]["Insert"];
 
 const PREOCUPACIONAL_VALUES = ["no_aplica", "pendiente", "apto", "no_apto"] as const;
 const RESULTADO_VALUES = ["pendiente", "ingresa", "no_ingresa"] as const;
+const ETAPAS = ["nuevo", "entrevista", "preocupacional", "ingresado", "descartado"] as const;
+type Etapa = (typeof ETAPAS)[number];
+
+// Etapa inicial del pipeline según los campos cargados (misma lógica que el backfill).
+function etapaDesde(preocupacional: string, resultado: string, fecha: string | null): Etapa {
+  if (resultado === "ingresa") return "ingresado";
+  if (resultado === "no_ingresa") return "descartado";
+  if (["pendiente", "apto", "no_apto"].includes(preocupacional)) return "preocupacional";
+  if (fecha) return "entrevista";
+  return "nuevo";
+}
+
+// Adjuntos de CV: mismo modelo multi-archivo que el resto (tabla puente entrevista_archivos).
+const CV_CFG: AdjuntoCfg = {
+  bucket: "documentos-personal",
+  junctionTable: "entrevista_archivos",
+  entityColumn: "entrevista_id",
+  folder: "cv-entrevistas",
+};
 
 export type EntrevistaFormData = {
   nombre: string;
@@ -60,9 +89,12 @@ export async function addEntrevistaAction(data: EntrevistaFormData) {
   if ("error" in payload) return payload;
 
   const supabase = createAdminClient();
+  const etapa = etapaDesde(payload.preocupacional as string, payload.resultado as string, payload.fecha_entrevista ?? null);
   const { data: inserted, error } = await supabase
     .from("entrevistas")
-    .insert(payload)
+    // etapa: columna nueva del pipeline, aún no está en database.ts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert({ ...payload, etapa } as any)
     .select("id")
     .single();
 
@@ -129,4 +161,53 @@ export async function deleteEntrevistaAction(id: string) {
 
   revalidatePath("/entrevistas");
   return { success: true };
+}
+
+// ── Pipeline: mover de etapa ────────────────────────────────────────────────
+export async function setEtapaEntrevistaAction(id: string, etapa: string) {
+  const user = await requireArea("rrhh", "write");
+  if (!ETAPAS.includes(etapa as Etapa)) return { error: "Etapa inválida." };
+
+  const supabase = createAdminClient();
+  // En las etapas terminales sincronizamos el resultado (así la tabla y las stats coinciden).
+  const patch: Record<string, unknown> = { etapa };
+  if (etapa === "ingresado") patch.resultado = "ingresa";
+  else if (etapa === "descartado") patch.resultado = "no_ingresa";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: anterior } = await sb.from("entrevistas").select("etapa, resultado").eq("id", id).single();
+  const { error } = await sb.from("entrevistas").update(patch).eq("id", id);
+  if (error) {
+    console.error("Error al mover etapa:", error);
+    return { error: "No se pudo mover la etapa." };
+  }
+  await logEntrevistaAudit(id, "editar", anterior ?? null, patch, user.id);
+  revalidatePath("/entrevistas");
+  return { success: true };
+}
+
+// ── CVs adjuntos (multi-archivo) ────────────────────────────────────────────
+export async function crearUrlSubidaCvAction(input: { filename: string }): Promise<CrearUrlResult> {
+  await requireArea("rrhh", "write");
+  return crearUrlSubidaAdjunto(CV_CFG, input.filename);
+}
+
+export async function vincularCvAction(entrevistaId: string, archivos: ArchivoMeta[]) {
+  const user = await requireArea("rrhh", "write");
+  const r = await vincularAdjuntos(CV_CFG, entrevistaId, archivos, user.id);
+  revalidatePath("/entrevistas");
+  return r.fallidos > 0 ? { ok: true, fallidos: r.fallidos } : { ok: true };
+}
+
+export async function getCvsAction(entrevistaId: string): Promise<AdjuntoExistente[]> {
+  await requireArea("rrhh", "read");
+  return getAdjuntos(CV_CFG, entrevistaId);
+}
+
+export async function deleteCvAction(adjuntoId: string) {
+  await requireArea("rrhh", "write");
+  const r = await deleteAdjunto(CV_CFG, adjuntoId);
+  revalidatePath("/entrevistas");
+  return r;
 }

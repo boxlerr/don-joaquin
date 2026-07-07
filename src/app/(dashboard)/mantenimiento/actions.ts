@@ -367,6 +367,8 @@ export type InsumoRow = {
   precio_actualizado_en: string;
   observaciones: string | null;
   precio_desactualizado: boolean;
+  /** Cuántas roturas usan este insumo (para avisar antes de borrar). */
+  usos: number;
 };
 
 /** Meses configurados antes de considerar un precio "desactualizado" (default 3). */
@@ -401,6 +403,18 @@ export async function getInsumosAction(): Promise<InsumoRow[]> {
     return [];
   }
 
+  // Cuántas roturas referencian cada insumo (para avisar antes de borrar).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: usosData } = await (supabase as any)
+    .from("roturas_gomas")
+    .select("insumo_id")
+    .not("insumo_id", "is", null);
+  const usosMap = new Map<string, number>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (usosData ?? []) as any[]) {
+    usosMap.set(r.insumo_id, (usosMap.get(r.insumo_id) ?? 0) + 1);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((data ?? []) as any[]).map((r) => ({
     id: r.id,
@@ -415,6 +429,7 @@ export async function getInsumosAction(): Promise<InsumoRow[]> {
     observaciones: r.observaciones ?? null,
     precio_desactualizado:
       r.estado === "activo" && !!r.precio_actualizado_en && String(r.precio_actualizado_en) < limiteStr,
+    usos: usosMap.get(r.id) ?? 0,
   }));
 }
 
@@ -576,6 +591,80 @@ export async function deleteInsumoAction(id: string) {
   return { success: true };
 }
 
+/**
+ * Actualiza SOLO el precio de un insumo (para el "editar precio rápido" en la
+ * tabla, sin abrir el modal completo). Refresca `precio_actualizado_en` para
+ * apagar el recordatorio de precio desactualizado.
+ */
+export async function updateInsumoPrecioAction(id: string, precio: number) {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const p = Number.isFinite(precio) && precio > 0 ? precio : 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("insumos_catalogo")
+    .update({
+      precio: p,
+      precio_actualizado_en: new Date().toISOString().split("T")[0],
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) {
+    console.error("Error al actualizar precio de insumo:", error);
+    return { error: "No se pudo actualizar el precio." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "insumo_catalogo",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: { precio: p },
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
+/**
+ * Activa o desactiva un insumo sin borrarlo. Es la alternativa segura al borrado
+ * (sobre todo para insumos ya usados en roturas): el catálogo lo conserva pero no
+ * lo ofrece al cargar una rotura ni dispara la alerta de precio.
+ */
+export async function setInsumoEstadoAction(id: string, estado: "activo" | "inactivo") {
+  await requireArea("mantenimiento", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const nuevo = estado === "inactivo" ? "inactivo" : "activo";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("insumos_catalogo")
+    .update({ estado: nuevo, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    console.error("Error al cambiar el estado del insumo:", error);
+    return { error: "No se pudo cambiar el estado del insumo." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "insumo_catalogo",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: { estado: nuevo },
+  });
+
+  revalidatePath("/mantenimiento");
+  return { success: true };
+}
+
 export async function addRoturaAction(data: {
   camion_id?: string | null;
   acoplado_id?: string | null;
@@ -717,6 +806,38 @@ export async function updateServicioAction(
     );
   }
 
+  // Reconciliar el egreso de Caja: al editar pudo cambiar el costo, la fecha o el
+  // taller. Borramos el/los movimientos vinculados y reinsertamos si sigue con
+  // costo (mismo criterio que el alta), para que Caja no quede descuadrada.
+  await supabase.from("caja_movimientos").delete().eq("mantenimiento_id", id);
+  if (data.costo && data.costo > 0) {
+    const { data: mant } = await supabase
+      .from("mantenimientos")
+      .select("camion_id, acoplado_id")
+      .eq("id", id)
+      .single();
+    let unidadPatente: string | null = null;
+    if (mant?.camion_id) {
+      const { data: c } = await supabase.from("camiones").select("patente").eq("id", mant.camion_id).single();
+      unidadPatente = c?.patente ?? null;
+    } else if (mant?.acoplado_id) {
+      const { data: a } = await supabase.from("acoplados").select("patente").eq("id", mant.acoplado_id).single();
+      unidadPatente = a?.patente ?? null;
+    }
+    const patenteLabel = unidadPatente ? ` - ${unidadPatente}` : "";
+    await supabase.from("caja_movimientos").insert({
+      tipo: "egreso",
+      categoria: "gasto_operativo",
+      concepto: `${ts.nombre}${patenteLabel}${data.taller ? ` (${data.taller})` : ""}`,
+      monto: data.costo,
+      medio: "otro",
+      fecha: data.fecha,
+      moneda: "ARS",
+      mantenimiento_id: id,
+      created_by: user?.id ?? null,
+    } as never);
+  }
+
   await logAudit({
     client: supabase,
     accion: "actualizar",
@@ -727,6 +848,7 @@ export async function updateServicioAction(
   });
 
   revalidatePath("/mantenimiento");
+  revalidatePath("/caja");
   revalidatePath("/camiones");
   return { success: true };
 }
