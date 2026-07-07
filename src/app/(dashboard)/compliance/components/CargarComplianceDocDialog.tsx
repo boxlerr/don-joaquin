@@ -65,6 +65,7 @@ export default function CargarComplianceDocDialog({
   // A dónde se manda el doc (portal/mail). Vive en el REQUISITO, no en el
   // documento: se edita acá por comodidad y aplica a todas las presentaciones.
   const [enviarA, setEnviarA] = useState(requisito.enviar_a ?? "");
+  const [aseguradora, setAseguradora] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [subiendo, setSubiendo] = useState<{ idx: number; total: number; pct: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -76,6 +77,7 @@ export default function CargarComplianceDocDialog({
     setObservaciones(edit?.observaciones ?? "");
     setNumero("");
     setEnviarA(requisito.enviar_a ?? "");
+    setAseguradora("");
     setFiles([]);
     setSubiendo(null);
     setError(null);
@@ -144,6 +146,7 @@ export default function CargarComplianceDocDialog({
               fecha_vencimiento: fechaVencimiento,
               observaciones: observaciones || null,
               numero: numero || null,
+              aseguradora: aseguradora || null,
               archivos,
             });
           })();
@@ -218,6 +221,20 @@ export default function CargarComplianceDocDialog({
                 value={numero}
                 onChange={(e) => setNumero(e.target.value)}
               />
+            </div>
+          )}
+
+          {!esEdicion && requisito.codigo === "SEGURO_UNIDAD" && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">Aseguradora</Label>
+              <div className="flex items-center gap-2">
+                <Input placeholder="Nación / Segurcoop" value={aseguradora} onChange={(e) => setAseguradora(e.target.value)} className="flex-1" />
+                {["Nación", "Segurcoop"].map((a) => (
+                  <button type="button" key={a} onClick={() => setAseguradora(a)}
+                    className={`text-xs px-2.5 py-1.5 rounded-md border transition-colors ${aseguradora === a ? "bg-[#0088D1]/10 border-[#0088D1]/40 text-[#0088D1] font-semibold" : "border-border text-muted-foreground hover:bg-muted"}`}>{a}</button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">La mayoría de la flota es Nación; solo algunas unidades van con Segurcoop.</p>
             </div>
           )}
 

@@ -45,6 +45,76 @@ async function getUmbralesAlertas() {
   };
 }
 
+/** Suma `n` días a una fecha ISO (YYYY-MM-DD) y devuelve la nueva en el mismo formato. */
+function sumarDiasISO(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y!, m! - 1, d!);
+  dt.setDate(dt.getDate() + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Rollover automático de los vencimientos PERIÓDICOS a nivel EMPRESA (certificado de
+ * cobertura c/30, libre deuda sindical c/120, pólizas anuales…). Si el último documento
+ * de un requisito con `dias_periodicidad` ya venció, crea el/los siguiente(s) sumando el
+ * período hasta que la próxima fecha caiga en el futuro, así las alertas nunca se cortan.
+ * Idempotente y best-effort (nunca lanza). El F931 tiene su propio rollover (día 20).
+ */
+async function ensureProximosPeriodicos(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  hoyIso: string,
+): Promise<void> {
+  try {
+    const { data: reqs } = await supabase
+      .from("compliance_requisitos")
+      .select("id, dias_periodicidad")
+      .eq("nivel", "empresa")
+      .not("dias_periodicidad", "is", null);
+
+    for (const req of (reqs ?? []) as { id: string; dias_periodicidad: number }[]) {
+      if (!req.dias_periodicidad || req.dias_periodicidad <= 0) continue;
+
+      const { data: ultimo } = await supabase
+        .from("compliance_documentos")
+        .select("fecha_vencimiento")
+        .eq("requisito_id", req.id)
+        .is("chofer_id", null)
+        .is("camion_id", null)
+        .not("fecha_vencimiento", "is", null)
+        .order("fecha_vencimiento", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const venc = ultimo?.fecha_vencimiento as string | undefined;
+      if (!venc || venc >= hoyIso) continue; // sin doc o el más reciente aún no venció
+
+      let next = venc;
+      // <= hoyIso: el próximo doc queda SIEMPRE en el futuro (nunca vence "hoy"),
+      // así entra en la ventana de disparos 30/15/5 en las próximas corridas.
+      for (let i = 0; i < 120 && next <= hoyIso; i++) next = sumarDiasISO(next, req.dias_periodicidad);
+      if (next <= hoyIso) continue; // tope de seguridad: no convergió
+
+      const { data: yaHay } = await supabase
+        .from("compliance_documentos")
+        .select("id")
+        .eq("requisito_id", req.id)
+        .is("chofer_id", null)
+        .is("camion_id", null)
+        .eq("fecha_vencimiento", next)
+        .maybeSingle();
+      if (yaHay?.id) continue;
+
+      await supabase.from("compliance_documentos").insert({
+        requisito_id: req.id,
+        fecha_vencimiento: next,
+        observaciones: "Renovación automática — ajustá la fecha real si difiere.",
+      });
+    }
+  } catch (e) {
+    console.error("ensureProximosPeriodicos:", e);
+  }
+}
+
 export async function generarAlertas() {
   const supabase = createAdminClient();
   const hoy = new Date();
@@ -479,6 +549,11 @@ export async function generarAlertas() {
     }
   }
 
+  // Rollover de vencimientos periódicos de empresa (certificado c/30, libre deuda
+  // c/120…): asegura que exista la próxima fecha antes de alertar, para que el aviso
+  // no se corte cuando el período vence. Best-effort (no frena la generación).
+  await ensureProximosPeriodicos(supabase, hoyStr);
+
   // Compliance — 3 disparos discretos (30 / 15 / 5 días) + vencido.
   // Cada disparo es una alerta distinta con su propia severidad. Se diferencian
   // por entidad_tipo ('compliance:T30' | 'T15' | 'T5' | 'vencido') para que el
@@ -512,7 +587,9 @@ export async function generarAlertas() {
     // Definimos qué disparos aplican para este row
     type Disparo = { umbral: "vencido" | "T5" | "T15" | "T30"; severidad: "info" | "advertencia" | "critica" };
     const disparos: Disparo[] = [];
-    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
+    // dias <= 0 cubre también el DÍA del vencimiento (dias === 0), que antes quedaba
+    // sin aviso entre T5 y "vencido". El dedup por fecha_vencimiento evita repetir.
+    if (dias <= 0) disparos.push({ umbral: "vencido", severidad: "critica" });
     if (dias === 5) disparos.push({ umbral: "T5", severidad: "critica" });
     if (dias === 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
     if (dias === 30) disparos.push({ umbral: "T30", severidad: "info" });
@@ -537,7 +614,9 @@ export async function generarAlertas() {
       const envioSufijo = envioReq ? ` Se manda a: ${envioReq}.` : "";
       const mensaje =
         (d.umbral === "vencido"
-          ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
+          ? (dias === 0
+              ? `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence HOY.`
+              : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} está vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`)
           : `El documento "${row.requisito_nombre}" (${target}) que se presenta a ${clienteLabel} vence en ${dias} día${dias !== 1 ? "s" : ""}.`) + envioSufijo;
 
       nuevasAlertas.push({

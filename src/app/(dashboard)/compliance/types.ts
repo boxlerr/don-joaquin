@@ -43,6 +43,8 @@ export type ComplianceEstadoRow = {
   archivo_id: string | null;
   estado: ComplianceEstado;
   dias_restantes: number | null;
+  // Aseguradora del seguro por unidad (Nación / Segurcoop). Null salvo en esa rama.
+  aseguradora?: string | null;
   // Observaciones del documento vigente (se adjuntan aparte: la vista no las trae).
   observaciones?: string | null;
 };

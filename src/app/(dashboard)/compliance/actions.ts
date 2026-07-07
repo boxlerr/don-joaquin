@@ -248,6 +248,8 @@ export async function uploadComplianceDocAction(input: {
   fecha_vencimiento: string;
   observaciones?: string | null;
   numero?: string | null;
+  /** Aseguradora (Nación / Segurcoop / …) — solo aplica al seguro por unidad. */
+  aseguradora?: string | null;
   /** Archivos YA subidos al Storage (URL firmada). Opcional: se puede registrar solo el vencimiento. */
   archivos?: ArchivoMeta[];
 }) {
@@ -303,9 +305,11 @@ export async function uploadComplianceDocAction(input: {
     revalidatePath("/choferes/[slug]", "page");
   } else if (usaLegajo && req.nivel === "unidad") {
     cfg = COMPLIANCE_ADJ.camion;
-    const { data, error: dbError } = await supabase.from("camion_documentos").insert({
+    // `as any`: la columna `aseguradora` es nueva y aún no está en database.ts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error: dbError } = await (supabase as any).from("camion_documentos").insert({
       camion_id: camion_id!, tipo_documento_id: req.tipo_documento_id!, numero, fecha_emision,
-      fecha_vencimiento, archivo_id: null, observaciones, created_by: user.id,
+      fecha_vencimiento, archivo_id: null, observaciones, aseguradora: input.aseguradora || null, created_by: user.id,
     }).select("id").single();
     if (dbError || !data) return { error: "Error al guardar el documento" };
     nuevoDocId = data.id;

@@ -439,6 +439,11 @@ function ChecklistRow({
         </p>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {entidad && <span className="truncate">{entidad}</span>}
+          {row.aseguradora && (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+              {row.aseguradora}
+            </span>
+          )}
           {enviarA && (
             <span
               className="inline-flex items-center gap-1 truncate text-[#075985]"
