@@ -26,7 +26,9 @@ function InfoTip({ children }: { children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="text-muted-foreground/40 hover:text-muted-foreground cursor-help inline-flex"><Info size={13} /></span>} />
-      <TooltipContent side="top" className="max-w-[250px] text-xs leading-relaxed">{children}</TooltipContent>
+      <TooltipContent side="top" className="block max-w-[250px] text-left text-xs font-normal leading-relaxed">
+        <span className="block">{children}</span>
+      </TooltipContent>
     </Tooltip>
   );
 }
