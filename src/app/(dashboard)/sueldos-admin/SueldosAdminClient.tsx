@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
 import {
   Wallet, Percent, Receipt, History, Loader2, Trash2, Pencil, Save, TrendingUp, HelpCircle, X, Plus,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import {
   upsertSueldoAdminMesAction,
@@ -84,6 +85,21 @@ function colorAvatar(nombre: string): string {
 type RowDraft = { comisionLogistica: string; combustible: string; plusYpf: string; sabados: string };
 const thCls = "text-[11px] font-bold text-muted-foreground uppercase tracking-wider";
 
+// Orden de la planilla + separación por sector.
+type SortCol = "nombre" | "sueldoBase" | "comisionLogistica" | "combustible" | "plusYpf" | "sabados" | "total";
+const SORT_COLS: { col: SortCol; label: string }[] = [
+  { col: "sueldoBase", label: "Sueldo base" },
+  { col: "comisionLogistica", label: "Comisión logística" },
+  { col: "combustible", label: "Combustible" },
+  { col: "plusYpf", label: "Plus YPF" },
+  { col: "sabados", label: "Sábados" },
+  { col: "total", label: "Total" },
+];
+const GRUPOS_SECTOR: { rol: SueldoAdminEmpleado["rol"]; label: string }[] = [
+  { rol: "administrativo", label: "Administración" },
+  { rol: "mantenimiento", label: "Taller" },
+];
+
 export default function SueldosAdminClient({
   resumen, month, canWrite, mostrar = "ambos",
 }: {
@@ -143,6 +159,22 @@ export default function SueldosAdminClient({
     return { sueldoBase, total, porcentaje };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumen, edits]);
+
+  // Orden por columna (default: total, mayor a menor). Se ordena por los valores
+  // guardados (estables), no por lo que se está tipeando, para no saltar al editar.
+  const [sort, setSort] = useState<{ col: SortCol; dir: "asc" | "desc" }>({ col: "total", dir: "desc" });
+  const toggleSort = (col: SortCol) =>
+    setSort((s) => (s.col === col ? { col, dir: s.dir === "desc" ? "asc" : "desc" } : { col, dir: col === "nombre" ? "asc" : "desc" }));
+  const flecha = (col: SortCol) =>
+    sort.col === col
+      ? (sort.dir === "desc" ? <ArrowDown size={12} /> : <ArrowUp size={12} />)
+      : <ArrowUpDown size={12} className="opacity-40" />;
+  const ordenar = (arr: SueldoAdminEmpleado[]) => {
+    const f = sort.dir === "asc" ? 1 : -1;
+    return [...arr].sort((a, b) =>
+      sort.col === "nombre" ? f * a.nombre.localeCompare(b.nombre) : f * ((a[sort.col] as number) - (b[sort.col] as number)),
+    );
+  };
 
   const guardarFila = async (e: SueldoAdminEmpleado) => {
     const v = valoresDe(e);
@@ -232,13 +264,18 @@ export default function SueldosAdminClient({
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className={`${thCls} pl-6`}>Empleado</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Sueldo base</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Comisión logística</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Combustible</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Plus YPF</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Sábados</TableHead>
-                    <TableHead className={`${thCls} text-right`}>Total</TableHead>
+                    <TableHead className={`${thCls} pl-6`}>
+                      <button type="button" onClick={() => toggleSort("nombre")} className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sort.col === "nombre" ? "text-foreground" : ""}`}>
+                        Empleado {flecha("nombre")}
+                      </button>
+                    </TableHead>
+                    {SORT_COLS.map(({ col, label }) => (
+                      <TableHead key={col} className={`${thCls} text-right`}>
+                        <button type="button" onClick={() => toggleSort(col)} className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === col ? "text-foreground" : ""}`}>
+                          {label} {flecha(col)}
+                        </button>
+                      </TableHead>
+                    ))}
                     {canWrite && <TableHead className="w-24 pr-6" />}
                   </TableRow>
                 </TableHeader>
@@ -249,40 +286,53 @@ export default function SueldosAdminClient({
                       <span className="block mt-1 text-xs">Se cargan desde Personal → Legajos, con rol Administración o Mantenimiento.</span>
                     </TableCell></TableRow>
                   ) : (
-                    resumen.empleados.map((e) => {
-                      const d = draftDe(e), v = valoresDe(e), dirty = isDirty(e), saving = savingId === e.chofer_id, badge = ROL_BADGE[e.rol];
+                    GRUPOS_SECTOR.map((g) => {
+                      const filas = ordenar(resumen.empleados.filter((e) => e.rol === g.rol));
+                      if (filas.length === 0) return null;
+                      const subtotal = filas.reduce((s, e) => s + valoresDe(e).total, 0);
+                      const gb = ROL_BADGE[g.rol];
                       return (
-                        <TableRow key={e.chofer_id} className="hover:bg-muted/10 transition-colors">
-                          <TableCell className="pl-6">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold text-foreground">{e.nombre}</span>
-                              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${badge.cls}`}>{badge.label}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="font-mono text-foreground">{e.sueldoBase > 0 ? pesos(e.sueldoBase) : <span className="text-muted-foreground/60">sin cargar</span>}</span>
-                              {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe({ id: e.chofer_id, mes: month || mesActual() })}><History /></Button>}
-                            </div>
-                          </TableCell>
-                          {CAMPOS.map((campo) => (
-                            <TableCell key={campo} className="text-right">
-                              {canWrite ? (
-                                <Input type="text" inputMode="decimal" placeholder="0" value={d[campo]}
-                                  onChange={(ev) => setDraft(e, { [campo]: ev.target.value })}
-                                  className={`w-24 ml-auto text-right font-mono ${campoNegativo(e, campo) ? "border-red-400 focus-visible:ring-red-100" : ""}`} />
-                              ) : (
-                                <span className="font-mono text-muted-foreground">{pesos(e[campo])}</span>
-                              )}
+                        <Fragment key={g.rol}>
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={canWrite ? 8 : 7} className="px-6 py-2">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border ${gb.cls}`}>{g.label}</span>
+                              <span className="text-xs text-muted-foreground ml-2">{filas.length} {filas.length === 1 ? "persona" : "personas"} · subtotal <strong className="font-mono text-foreground">{pesos(subtotal)}</strong></span>
                             </TableCell>
-                          ))}
-                          <TableCell className="text-right font-mono font-semibold text-foreground">{pesos(v.total)}</TableCell>
-                          {canWrite && (
-                            <TableCell className="text-right pr-6">
-                              {dirty && <Button size="sm" variant="brand" disabled={saving || filaConNegativo(e)} onClick={() => guardarFila(e)}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>}
-                            </TableCell>
-                          )}
-                        </TableRow>
+                          </TableRow>
+                          {filas.map((e) => {
+                            const d = draftDe(e), v = valoresDe(e), dirty = isDirty(e), saving = savingId === e.chofer_id;
+                            return (
+                              <TableRow key={e.chofer_id} className="hover:bg-muted/10 transition-colors">
+                                <TableCell className="pl-6">
+                                  <span className="font-semibold text-foreground">{e.nombre}</span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <span className="font-mono text-foreground">{e.sueldoBase > 0 ? pesos(e.sueldoBase) : <span className="text-muted-foreground/60">sin cargar</span>}</span>
+                                    {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe({ id: e.chofer_id, mes: month || mesActual() })}><History /></Button>}
+                                  </div>
+                                </TableCell>
+                                {CAMPOS.map((campo) => (
+                                  <TableCell key={campo} className="text-right">
+                                    {canWrite ? (
+                                      <Input type="text" inputMode="decimal" placeholder="0" value={d[campo]}
+                                        onChange={(ev) => setDraft(e, { [campo]: ev.target.value })}
+                                        className={`w-24 ml-auto text-right font-mono ${campoNegativo(e, campo) ? "border-red-400 focus-visible:ring-red-100" : ""}`} />
+                                    ) : (
+                                      <span className="font-mono text-muted-foreground">{pesos(e[campo])}</span>
+                                    )}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="text-right font-mono font-semibold text-foreground">{pesos(v.total)}</TableCell>
+                                {canWrite && (
+                                  <TableCell className="text-right pr-6">
+                                    {dirty && <Button size="sm" variant="brand" disabled={saving || filaConNegativo(e)} onClick={() => guardarFila(e)}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>}
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
                       );
                     })
                   )}
