@@ -218,7 +218,7 @@ export async function upsertSueldoAdminMesAction(
     metadata: { origen: "sueldos_admin" },
   });
 
-  revalidatePath("/sueldos-admin");
+  revalidatePath("/choferes/sueldos");
   return { ok: true };
 }
 
@@ -262,7 +262,7 @@ export async function registrarAumentoAction(
     metadata: { origen: "sueldos_admin" },
   });
 
-  revalidatePath("/sueldos-admin");
+  revalidatePath("/choferes/sueldos");
   return { ok: true };
 }
 
@@ -292,7 +292,7 @@ export async function eliminarAumentoAction(id: string): Promise<{ ok: true } | 
     metadata: { origen: "sueldos_admin" },
   });
 
-  revalidatePath("/sueldos-admin");
+  revalidatePath("/choferes/sueldos");
   return { ok: true };
 }
 
@@ -326,6 +326,6 @@ export async function setFacturacionManualAction(
     metadata: { origen: "sueldos_admin" },
   });
 
-  revalidatePath("/sueldos-admin");
+  revalidatePath("/choferes/sueldos");
   return { ok: true };
 }

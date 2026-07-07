@@ -1,42 +1,12 @@
-import PageHeader from "@/components/layout/PageHeader";
-import { requireSeccion, hasSeccion } from "@/lib/auth";
-import MesSelector from "../combustible/components/MesSelector";
-import { getSueldosAdminResumenAction } from "./actions";
-import SueldosAdminClient from "./SueldosAdminClient";
+import { redirect } from "next/navigation";
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-
+// La sección se unificó en "Sueldos" (/choferes/sueldos, pestaña "Admin y taller").
+// Se conserva esta ruta como redirect para links/marcadores viejos.
 export default async function SueldosAdminPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  // Sección sensible: sueldos del personal de administración y taller.
-  // Confidencial como la liquidación de choferes — solo dirección.
-  const user = await requireSeccion("sueldos_admin", "read");
-  const canWrite = hasSeccion(user, "sueldos_admin", "write");
-
-  const { month = "" } = await searchParams;
-  const resumen = await getSueldosAdminResumenAction(month);
-
-  let periodLabel = "del mes en curso";
-  if (/^\d{4}-\d{2}$/.test(month)) {
-    const [y, m] = month.split("-");
-    periodLabel = `de ${MESES[parseInt(m, 10) - 1]} ${y}`;
-  }
-
-  return (
-    <div className="p-8 space-y-6">
-      <PageHeader
-        title="Sueldos admin y taller"
-        description={`Planilla ${periodLabel} — sueldos de administración y taller como % de la facturación`}
-        action={<MesSelector currentMonth={month} />}
-      />
-
-      <SueldosAdminClient resumen={resumen} month={month} canWrite={canWrite} />
-    </div>
-  );
+  const { month } = await searchParams;
+  redirect(`/choferes/sueldos${month ? `?month=${encodeURIComponent(month)}` : ""}`);
 }

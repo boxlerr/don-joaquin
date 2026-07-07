@@ -59,14 +59,19 @@ type RowDraft = { comisionLogistica: string; combustible: string; plusYpf: strin
 const thCls = "text-[11px] font-bold text-muted-foreground uppercase tracking-wider";
 
 export default function SueldosAdminClient({
-  resumen, month, canWrite,
+  resumen, month, canWrite, mostrar = "ambos",
 }: {
   resumen: SueldosAdminResumen;
   month: string;
   canWrite: boolean;
+  /** "ambos" = con pestañas internas (uso standalone). "planilla"/"aumentos" =
+   *  embebido en una sección con pestañas propias (unificado): solo esa parte. */
+  mostrar?: "ambos" | "planilla" | "aumentos";
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"planilla" | "aumentos">("planilla");
+  const embedded = mostrar !== "ambos";
+  const activeTab = embedded ? mostrar : tab;
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, RowDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -124,26 +129,28 @@ export default function SueldosAdminClient({
 
   return (
     <div className="space-y-6">
-      {/* Tabs + ayuda */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-          {([["planilla", "Planilla del mes"], ["aumentos", "Aumentos"]] as const).map(([t, label]) => (
-            <button key={t} type="button" onClick={() => setTab(t)}
-              className={`px-3 h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-              {t === "aumentos" && <TrendingUp size={13} />} {label}
-            </button>
-          ))}
+      {/* Tabs + ayuda (solo en modo standalone; embebido usa las pestañas del unificado) */}
+      {!embedded && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+            {([["planilla", "Planilla del mes"], ["aumentos", "Aumentos"]] as const).map(([t, label]) => (
+              <button key={t} type="button" onClick={() => setTab(t)}
+                className={`px-3 h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {t === "aumentos" && <TrendingUp size={13} />} {label}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
+            <HelpCircle size={14} /> ¿Cómo funciona?
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
-          <HelpCircle size={14} /> ¿Cómo funciona?
-        </Button>
-      </div>
+      )}
 
       {error && (
         <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-[8px] px-4 py-2">{error}</p>
       )}
 
-      {tab === "planilla" ? (
+      {activeTab === "planilla" ? (
         <>
           {/* Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

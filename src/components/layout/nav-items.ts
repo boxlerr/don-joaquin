@@ -123,8 +123,6 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: "Entrevistas", href: "/entrevistas", icon: UserSearch, area: "rrhh" },
-      // Planilla confidencial de sueldos sobre facturación (admin + taller).
-      { label: "Sueldos admin y taller", href: "/sueldos-admin", icon: DollarSign, seccion: "sueldos_admin" },
     ],
   },
   {
