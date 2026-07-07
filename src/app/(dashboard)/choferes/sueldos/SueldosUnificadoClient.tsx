@@ -10,14 +10,16 @@ import SueldosAdminClient from "../../sueldos-admin/SueldosAdminClient";
 import SueldosTutorial from "./SueldosTutorial";
 import type { SueldoChoferRow } from "./actions";
 import type { SueldosAdminResumen } from "../../sueldos-admin/actions";
+import type { InflacionData } from "@/lib/inflacion";
 
 type TabId = "choferes" | "admin" | "aumentos";
 
 export default function SueldosUnificadoClient({
-  choferes, admin, month, canChoferes, canAdmin, canAdminWrite,
+  choferes, admin, inflacion, month, canChoferes, canAdmin, canAdminWrite,
 }: {
   choferes: SueldoChoferRow[] | null;
   admin: SueldosAdminResumen | null;
+  inflacion: InflacionData | null;
   month: string;
   canChoferes: boolean;
   canAdmin: boolean;
@@ -63,7 +65,7 @@ export default function SueldosUnificadoClient({
 
       {tab === "choferes" && choferes && <SueldosClient resumen={choferes} month={month} />}
       {tab === "admin" && admin && <SueldosAdminClient resumen={admin} month={month} canWrite={canAdminWrite} mostrar="planilla" />}
-      {tab === "aumentos" && admin && <SueldosAdminClient resumen={admin} month={month} canWrite={canAdminWrite} mostrar="aumentos" />}
+      {tab === "aumentos" && admin && <SueldosAdminClient resumen={admin} month={month} canWrite={canAdminWrite} mostrar="aumentos" inflacion={inflacion} />}
 
       {helpOpen && <SueldosTutorial canChoferes={canChoferes} canAdmin={canAdmin} onClose={() => setHelpOpen(false)} />}
     </div>

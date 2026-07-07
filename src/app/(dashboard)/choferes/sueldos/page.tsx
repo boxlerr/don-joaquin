@@ -4,6 +4,7 @@ import { getCurrentUser, hasSeccion } from "@/lib/auth";
 import MesSelector from "../../combustible/components/MesSelector";
 import { getSueldosResumenAction } from "./actions";
 import { getSueldosAdminResumenAction } from "../../sueldos-admin/actions";
+import { getInflacion } from "@/lib/inflacion";
 import SueldosUnificadoClient from "./SueldosUnificadoClient";
 
 // Sección "Sueldos" unificada: liquidación de choferes (por viajes) + sueldos de
@@ -24,9 +25,10 @@ export default async function SueldosPage({
   const canAdminWrite = hasSeccion(user, "sueldos_admin", "write");
 
   const { month = "" } = await searchParams;
-  const [choferes, admin] = await Promise.all([
+  const [choferes, admin, inflacion] = await Promise.all([
     canChoferes ? getSueldosResumenAction(month) : Promise.resolve(null),
     canAdmin ? getSueldosAdminResumenAction(month) : Promise.resolve(null),
+    canAdmin ? getInflacion() : Promise.resolve(null),
   ]);
 
   return (
@@ -39,6 +41,7 @@ export default async function SueldosPage({
       <SueldosUnificadoClient
         choferes={choferes}
         admin={admin}
+        inflacion={inflacion}
         month={month}
         canChoferes={canChoferes}
         canAdmin={canAdmin}

@@ -26,6 +26,8 @@ import {
   type SueldoAdminEmpleado,
   type AumentoRow,
 } from "./actions";
+import AumentosMetricas from "./AumentosMetricas";
+import type { InflacionData } from "@/lib/inflacion";
 
 const pesos = (n: number) => `$ ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 const pct1 = (n: number) =>
@@ -56,6 +58,15 @@ function parseNum(s: string): number | null {
   else t = t.replace(/\./g, "");
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Formatea un monto (entero) con separador de miles AR para mostrarlo mientras se tipea. */
+function formatMiles(s: string): string {
+  if (!s) return "";
+  const neg = s.trim().startsWith("-");
+  const digits = s.replace(/[^\d]/g, "");
+  if (!digits) return neg ? "-" : "";
+  return (neg ? "-" : "") + Number(digits).toLocaleString("es-AR");
 }
 
 const ROL_BADGE: Record<SueldoAdminEmpleado["rol"], { label: string; cls: string }> = {
@@ -101,7 +112,7 @@ const GRUPOS_SECTOR: { rol: SueldoAdminEmpleado["rol"]; label: string }[] = [
 ];
 
 export default function SueldosAdminClient({
-  resumen, month, canWrite, mostrar = "ambos",
+  resumen, month, canWrite, mostrar = "ambos", inflacion = null,
 }: {
   resumen: SueldosAdminResumen;
   month: string;
@@ -109,6 +120,8 @@ export default function SueldosAdminClient({
   /** "ambos" = con pestañas internas (uso standalone). "planilla"/"aumentos" =
    *  embebido en una sección con pestañas propias (unificado): solo esa parte. */
   mostrar?: "ambos" | "planilla" | "aumentos";
+  /** Inflación (INDEC) para las métricas del tab Aumentos. */
+  inflacion?: InflacionData | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"planilla" | "aumentos">("planilla");
@@ -315,8 +328,8 @@ export default function SueldosAdminClient({
                                 {CAMPOS.map((campo) => (
                                   <TableCell key={campo} className="text-right">
                                     {canWrite ? (
-                                      <Input type="text" inputMode="decimal" placeholder="0" value={d[campo]}
-                                        onChange={(ev) => setDraft(e, { [campo]: ev.target.value })}
+                                      <Input type="text" inputMode="numeric" placeholder="0" value={formatMiles(d[campo])}
+                                        onChange={(ev) => setDraft(e, { [campo]: ev.target.value.replace(/\./g, "") })}
                                         className={`w-24 ml-auto text-right font-mono ${campoNegativo(e, campo) ? "border-red-400 focus-visible:ring-red-100" : ""}`} />
                                     ) : (
                                       <span className="font-mono text-muted-foreground">{pesos(e[campo])}</span>
@@ -354,9 +367,15 @@ export default function SueldosAdminClient({
           <p className="text-xs text-muted-foreground">La facturación sale de los viajes del mes; se puede pisar a mano desde la tarjeta &quot;Facturación del mes&quot;.</p>
         </>
       ) : (
-        <AumentosMatriz empleados={resumen.empleados} aumentosPorEmpleado={resumen.aumentosPorEmpleado}
-          mesActualIso={month || mesActual()} canWrite={canWrite}
-          onAbrir={(id, mes) => setAumentosDe({ id, mes })} onChanged={() => router.refresh()} />
+        <div className="space-y-4">
+          {inflacion && (
+            <AumentosMetricas empleados={resumen.empleados} aumentosPorEmpleado={resumen.aumentosPorEmpleado}
+              mesActualIso={month || mesActual()} inflacion={inflacion} />
+          )}
+          <AumentosMatriz empleados={resumen.empleados} aumentosPorEmpleado={resumen.aumentosPorEmpleado}
+            mesActualIso={month || mesActual()} canWrite={canWrite}
+            onAbrir={(id, mes) => setAumentosDe({ id, mes })} onChanged={() => router.refresh()} />
+        </div>
       )}
 
       {empleadoAumentos && (
@@ -523,13 +542,11 @@ function AumentosMatriz({
                       {e.nombre}
                     </button>
                   </TableCell>
-                  {meses.map((m, i) => {
+                  {meses.map((m) => {
                     const val = baseEn(e.chofer_id, m);
-                    const prev = i > 0 ? baseEn(e.chofer_id, meses[i - 1]) : null;
-                    const subio = val != null && prev != null && val > prev;
                     const contenido = val != null ? pesos(val) : <span className="text-muted-foreground/40">—</span>;
                     return (
-                      <TableCell key={m} className={`text-right font-mono text-xs whitespace-nowrap border-l border-border/40 ${subio ? "text-emerald-600 font-semibold" : "text-foreground"}`}>
+                      <TableCell key={m} className="text-right font-mono text-xs whitespace-nowrap border-l border-border/40 text-foreground">
                         {canWrite ? (
                           <button type="button" onClick={() => onAbrir(e.chofer_id, m.slice(0, 7))}
                             className="w-full text-right hover:text-primary hover:underline decoration-dotted underline-offset-2"
@@ -697,7 +714,7 @@ function AumentosDialog({
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Registrar aumento</p>
               <MonthPicker value={mes} onChange={setMes} />
               <div>
-                <Input type="text" inputMode="decimal" placeholder="Sueldo base $" value={sueldo} onChange={(e) => setSueldo(e.target.value)} className="w-full text-right font-mono" />
+                <Input type="text" inputMode="numeric" placeholder="Sueldo base $" value={formatMiles(sueldo)} onChange={(e) => setSueldo(e.target.value.replace(/\./g, ""))} className="w-full text-right font-mono" />
                 {deltaPreview != null && (
                   <span className={`mt-1.5 block text-xs font-semibold ${deltaPreview >= 0 ? "text-emerald-600" : "text-destructive"}`}>
                     {deltaPreview >= 0 ? "+" : ""}{deltaPreview.toFixed(1)}% vs anterior
@@ -739,7 +756,7 @@ function FacturacionDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Facturación del mes</DialogTitle></DialogHeader>
         <p className="text-xs text-muted-foreground">El sistema calcula {pesos(facturacionCalculada)} con los viajes del mes. Si el número real es otro, cargalo acá y el % se calcula contra ese valor.</p>
-        <Input type="text" inputMode="decimal" placeholder="Facturación $" value={valor} onChange={(e) => setValor(e.target.value)} className="text-right font-mono" />
+        <Input type="text" inputMode="numeric" placeholder="Facturación $" value={formatMiles(valor)} onChange={(e) => setValor(e.target.value.replace(/\./g, ""))} className="text-right font-mono" />
         {error && <p className="text-xs text-destructive">{error}</p>}
         <DialogFooter showCloseButton>
           {facturacionManual != null && <Button variant="outline" disabled={saving} onClick={() => guardar(null)}>Usar la del sistema</Button>}
