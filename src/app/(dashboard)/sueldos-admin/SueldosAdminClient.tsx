@@ -89,14 +89,20 @@ export default function SueldosAdminClient({
   const setDraft = (e: SueldoAdminEmpleado, patch: Partial<RowDraft>) =>
     setEdits((prev) => ({ ...prev, [e.chofer_id]: { ...draftDe(e), ...patch } }));
 
+  const CAMPOS = ["comisionLogistica", "combustible", "plusYpf", "sabados"] as const;
+  // Los montos no pueden ser negativos (misma regla que el server). Para el total
+  // los tratamos como 0 así nunca se muestra un "descuento" engañoso.
   const valoresDe = (e: SueldoAdminEmpleado) => {
     const d = draftDe(e);
-    const comisionLogistica = parseNum(d.comisionLogistica) ?? 0;
-    const combustible = parseNum(d.combustible) ?? 0;
-    const plusYpf = parseNum(d.plusYpf) ?? 0;
-    const sabados = parseNum(d.sabados) ?? 0;
+    const comisionLogistica = Math.max(0, parseNum(d.comisionLogistica) ?? 0);
+    const combustible = Math.max(0, parseNum(d.combustible) ?? 0);
+    const plusYpf = Math.max(0, parseNum(d.plusYpf) ?? 0);
+    const sabados = Math.max(0, parseNum(d.sabados) ?? 0);
     return { comisionLogistica, combustible, plusYpf, sabados, total: e.sueldoBase + comisionLogistica + combustible + plusYpf + sabados };
   };
+  const campoNegativo = (e: SueldoAdminEmpleado, campo: (typeof CAMPOS)[number]) =>
+    (parseNum(draftDe(e)[campo]) ?? 0) < 0;
+  const filaConNegativo = (e: SueldoAdminEmpleado) => CAMPOS.some((c) => campoNegativo(e, c));
 
   const isDirty = (e: SueldoAdminEmpleado) => {
     if (!edits[e.chofer_id]) return false;
@@ -233,12 +239,12 @@ export default function SueldosAdminClient({
                               {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe(e.chofer_id)}><History /></Button>}
                             </div>
                           </TableCell>
-                          {(["comisionLogistica", "combustible", "plusYpf", "sabados"] as const).map((campo) => (
+                          {CAMPOS.map((campo) => (
                             <TableCell key={campo} className="text-right">
                               {canWrite ? (
                                 <Input type="text" inputMode="decimal" placeholder="0" value={d[campo]}
                                   onChange={(ev) => setDraft(e, { [campo]: ev.target.value })}
-                                  className="w-24 ml-auto text-right font-mono" />
+                                  className={`w-24 ml-auto text-right font-mono ${campoNegativo(e, campo) ? "border-red-400 focus-visible:ring-red-100" : ""}`} />
                               ) : (
                                 <span className="font-mono text-muted-foreground">{pesos(e[campo])}</span>
                               )}
@@ -247,7 +253,7 @@ export default function SueldosAdminClient({
                           <TableCell className="text-right font-mono font-semibold text-foreground">{pesos(v.total)}</TableCell>
                           {canWrite && (
                             <TableCell className="text-right pr-6">
-                              {dirty && <Button size="sm" variant="brand" disabled={saving} onClick={() => guardarFila(e)}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>}
+                              {dirty && <Button size="sm" variant="brand" disabled={saving || filaConNegativo(e)} onClick={() => guardarFila(e)}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>}
                             </TableCell>
                           )}
                         </TableRow>
