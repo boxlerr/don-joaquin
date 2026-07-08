@@ -24,6 +24,7 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EntrevistaFormDialog from "./EntrevistaFormDialog";
 import CvButton from "./CvButton";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { deleteEntrevistaAction } from "../actions";
 
 export interface Entrevista {
@@ -80,6 +81,7 @@ export default function EntrevistasTable({
   const [busqueda, setBusqueda] = useState("");
   const [resultado, setResultado] = useState<ResultadoFilter>("todos");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [eliminarDe, setEliminarDe] = useState<Entrevista | null>(null);
 
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -94,13 +96,11 @@ export default function EntrevistasTable({
     });
   }, [entrevistas, busqueda, resultado]);
 
-  const handleDelete = async (e: Entrevista) => {
-    if (!window.confirm(`¿Eliminar la entrevista de "${e.nombre}"? Esta acción no se puede deshacer.`)) {
-      return;
-    }
-    setDeletingId(e.id);
+  const confirmarEliminar = async () => {
+    if (!eliminarDe) return;
+    setDeletingId(eliminarDe.id);
     try {
-      const res = await deleteEntrevistaAction(e.id);
+      const res = await deleteEntrevistaAction(eliminarDe.id);
       if ("error" in res && res.error) {
         window.alert(res.error);
       } else {
@@ -108,6 +108,7 @@ export default function EntrevistasTable({
       }
     } finally {
       setDeletingId(null);
+      setEliminarDe(null);
     }
   };
 
@@ -156,7 +157,7 @@ export default function EntrevistasTable({
                 <Button variant="ghost" size="icon" className="size-8" title="Editar"><Pencil className="size-4" /></Button>
               </EntrevistaFormDialog>
               {canDelete && (
-                <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" title="Eliminar" disabled={deletingId === e.id} onClick={() => handleDelete(e)}>
+                <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" title="Eliminar" disabled={deletingId === e.id} onClick={() => setEliminarDe(e)}>
                   <Trash2 className="size-4" />
                 </Button>
               )}
@@ -227,6 +228,15 @@ export default function EntrevistasTable({
           )}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={!!eliminarDe}
+        onOpenChange={(o) => { if (!o) setEliminarDe(null); }}
+        title="Eliminar candidato"
+        description={eliminarDe ? <>Se va a eliminar a <strong className="text-foreground">{eliminarDe.nombre}</strong> y sus datos. Esta acción no se puede deshacer.</> : null}
+        onConfirm={confirmarEliminar}
+        loading={deletingId != null}
+      />
     </div>
   );
 }

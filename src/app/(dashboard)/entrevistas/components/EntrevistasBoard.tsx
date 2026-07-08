@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Pencil, MapPin, Calendar, Loader2, Trash2, UserX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EntrevistaFormDialog from "./EntrevistaFormDialog";
 import CvButton from "./CvButton";
 import { setEtapaEntrevistaAction, deleteEntrevistaAction } from "../actions";
@@ -40,6 +41,7 @@ export default function EntrevistasBoard({
   const [motivo, setMotivo] = useState("");
   const [descartando, setDescartando] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [eliminarDe, setEliminarDe] = useState<Entrevista | null>(null);
 
   const mover = async (e: Entrevista, dir: number) => {
     const idx = ETAPAS.findIndex((x) => x.id === (e.etapa ?? "nuevo"));
@@ -63,11 +65,12 @@ export default function EntrevistasBoard({
     else window.alert(res.error);
   };
 
-  const eliminar = async (e: Entrevista) => {
-    if (!window.confirm(`¿Eliminar a "${e.nombre}"? Esta acción no se puede deshacer.`)) return;
-    setDeletingId(e.id);
-    const res = await deleteEntrevistaAction(e.id);
+  const confirmarEliminar = async () => {
+    if (!eliminarDe) return;
+    setDeletingId(eliminarDe.id);
+    const res = await deleteEntrevistaAction(eliminarDe.id);
     setDeletingId(null);
+    setEliminarDe(null);
     if (!("error" in res && res.error)) router.refresh();
     else window.alert(res.error);
   };
@@ -98,7 +101,7 @@ export default function EntrevistasBoard({
                             </EntrevistaFormDialog>
                           )}
                           {canDelete && (
-                            <button type="button" title="Eliminar" disabled={deletingId === e.id} onClick={() => eliminar(e)}
+                            <button type="button" title="Eliminar" disabled={deletingId === e.id} onClick={() => setEliminarDe(e)}
                               className="text-muted-foreground/60 hover:text-destructive p-0.5 disabled:opacity-40">
                               {deletingId === e.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                             </button>
@@ -170,6 +173,15 @@ export default function EntrevistasBoard({
           </DialogContent>
         </Dialog>
       )}
+
+      <ConfirmDialog
+        open={!!eliminarDe}
+        onOpenChange={(o) => { if (!o) setEliminarDe(null); }}
+        title="Eliminar candidato"
+        description={eliminarDe ? <>Se va a eliminar a <strong className="text-foreground">{eliminarDe.nombre}</strong> y sus datos. Esta acción no se puede deshacer.</> : null}
+        onConfirm={confirmarEliminar}
+        loading={deletingId != null}
+      />
     </>
   );
 }
