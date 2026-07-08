@@ -169,10 +169,13 @@ export async function setEtapaEntrevistaAction(id: string, etapa: string) {
   if (!ETAPAS.includes(etapa as Etapa)) return { error: "Etapa inválida." };
 
   const supabase = createAdminClient();
-  // En las etapas terminales sincronizamos el resultado (así la tabla y las stats coinciden).
+  // Sincronizamos el resultado con la etapa (así la tabla y las stats coinciden):
+  // terminales → ingresa/no_ingresa; no terminales → vuelve a 'pendiente' (evita que
+  // al mover una card HACIA ATRÁS quede un resultado viejo desincronizado).
   const patch: Record<string, unknown> = { etapa };
   if (etapa === "ingresado") patch.resultado = "ingresa";
   else if (etapa === "descartado") patch.resultado = "no_ingresa";
+  else patch.resultado = "pendiente";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;

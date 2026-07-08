@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import { Package, Loader2 } from "lucide-react";
 import { TIPOS_ROTURA } from "./AddRoturaDialog";
 import { addInsumoAction, updateInsumoAction, type InsumoRow } from "../actions";
 
@@ -105,10 +106,17 @@ export default function AddInsumoDialog({
       {children && <DialogTrigger render={children as React.ReactElement} />}
       <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">{editing ? "Editar insumo" : "Agregar insumo"}</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Insumo del catálogo (goma, lámpara, óptica, etc.) con su precio aproximado. Al cargar una rotura se elige de acá y el costo se trae solo.
-          </DialogDescription>
+          <div className="flex items-center gap-3">
+            <span className="size-10 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
+              <Package size={18} />
+            </span>
+            <div>
+              <DialogTitle className="text-foreground text-lg">{editing ? "Editar insumo" : "Agregar insumo"}</DialogTitle>
+              <DialogDescription className="text-muted-foreground text-xs">
+                Catálogo con precio de referencia (goma, lámpara, óptica…). Al cargar una rotura se elige de acá y el costo se trae solo.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">

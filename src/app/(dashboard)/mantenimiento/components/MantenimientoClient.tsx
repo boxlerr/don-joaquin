@@ -115,14 +115,34 @@ export default function MantenimientoClient({
   initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>(initialTab ?? "servicios");
+  const [tab, setTabState] = useState<Tab>(initialTab ?? "servicios");
+
+  // El tab vive en estado local (cambio instantáneo, sin refetch del server) pero
+  // reflejamos ?tab= en la URL para que recargar o compartir el link lo conserve.
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("tab", t);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    }
+  };
+
+  // Toast liviano de confirmación (crear/editar/borrar/exportar).
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string, tone: "success" | "info" | "error" = "success") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ id: Date.now(), msg, tone });
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
 
   // Edición
   const [editServicio, setEditServicio] = useState<ServicioRow | null>(null);
   const [editRotura, setEditRotura] = useState<RoturaRow | null>(null);
   const [editInsumo, setEditInsumo] = useState<InsumoRow | null>(null);
   // Borrado (confirmación)
-  const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura" | "insumo"; id: string; label: string } | null>(null);
+  const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura" | "insumo"; id: string; label: string; usos?: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [delError, setDelError] = useState<string | null>(null);
 
@@ -140,8 +160,32 @@ export default function MantenimientoClient({
       if (res.error) {
         setDelError(res.error);
       } else {
+        const t = confirmDel.tipo;
         setConfirmDel(null);
         router.refresh();
+        showToast(t === "servicio" ? "Servicio borrado" : t === "insumo" ? "Insumo borrado" : "Rotura borrada");
+      }
+    } catch {
+      setDelError("Ocurrió un error inesperado.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Alternativa segura al borrado de un insumo en uso: desactivarlo (lo conserva).
+  const handleDesactivarInsumo = async () => {
+    if (!confirmDel || confirmDel.tipo !== "insumo") return;
+    setDeleting(true);
+    setDelError(null);
+    try {
+      const res = await setInsumoEstadoAction(confirmDel.id, "inactivo");
+      if (res.error) {
+        setDelError(res.error);
+      } else {
+        const nombre = confirmDel.label.replace(/^Insumo\s+/, "");
+        setConfirmDel(null);
+        router.refresh();
+        showToast(`${nombre} desactivado`);
       }
     } catch {
       setDelError("Ocurrió un error inesperado.");
@@ -152,7 +196,6 @@ export default function MantenimientoClient({
 
   const totalGomasRotas = roturas.reduce((acc, r) => acc + (r.cantidad ?? 0), 0);
   const alertasVencidas = alertas.filter((a) => a.estado === "vencido").length;
-  const insumosDesactualizados = insumos.filter((i) => i.precio_desactualizado).length;
 
   const chartData = roturasPorChofer.slice(0, 10);
   const tallerChartData = reportePorUnidad
@@ -178,8 +221,9 @@ export default function MantenimientoClient({
         title="Mantenimiento"
         description="Servicios, gomería y roturas de la flota — simple y al día"
         action={
-          <div className="flex items-center gap-2">
-            <HelpTutorialButton />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <HelpTutorialButton canWrite={canWrite} />
+            <ExportMenu onToast={showToast} />
             {canWrite && (
               <>
               <AddServicioDialog camiones={camiones} acoplados={acoplados} tiposServicio={tiposServicio}>
@@ -213,15 +257,17 @@ export default function MantenimientoClient({
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-border">
+      <div role="tablist" aria-label="Vistas de mantenimiento" className="flex items-center gap-1 border-b border-border overflow-x-auto">
         {tabs.map((t) => {
           const active = tab === t.key;
           const Icon = t.icon;
           return (
             <button
               key={t.key}
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              className={`shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
                 active
                   ? "border-[#0088D1] text-[#0088D1]"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -244,7 +290,7 @@ export default function MantenimientoClient({
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Taller</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
+                {canWrite && <TableHead className="text-right pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -255,7 +301,7 @@ export default function MantenimientoClient({
                   <TableRow
                     key={s.id}
                     onClick={canWrite ? () => setEditServicio(s) : undefined}
-                    className={canWrite ? "cursor-pointer" : undefined}
+                    className={canWrite ? "group cursor-pointer" : undefined}
                     title={canWrite ? "Editar servicio" : undefined}
                   >
                     <TableCell className="pl-6 text-muted-foreground">{fmtFecha(s.fecha)}</TableCell>
@@ -273,15 +319,21 @@ export default function MantenimientoClient({
                     <TableCell className="text-right text-muted-foreground">{s.unidad_tipo === "acoplado" ? "—" : fmtNum(s.km_odometro)}</TableCell>
                     <TableCell className="text-right font-medium">{fmtMoneda(s.costo)}</TableCell>
                     {canWrite && (
-                      <TableCell className="text-right pr-6">
-                        <div className="flex items-center justify-end">
+                      <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-0.5">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setConfirmDel({ tipo: "servicio", id: s.id, label: `${servicioLabel(s)} — ${s.unidad_patente}` });
-                            }}
+                            onClick={() => setEditServicio(s)}
+                            className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            title="Editar servicio"
+                            aria-label="Editar servicio"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDel({ tipo: "servicio", id: s.id, label: `${servicioLabel(s)} — ${s.unidad_patente}` })}
                             className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
-                            title="Borrar"
+                            title="Borrar servicio"
+                            aria-label="Borrar servicio"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -332,7 +384,7 @@ export default function MantenimientoClient({
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Detalle</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cantidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                  {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
+                  {canWrite && <TableHead className="text-right pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -343,7 +395,7 @@ export default function MantenimientoClient({
                     <TableRow
                       key={r.id}
                       onClick={canWrite ? () => setEditRotura(r) : undefined}
-                      className={canWrite ? "cursor-pointer" : undefined}
+                      className={canWrite ? "group cursor-pointer" : undefined}
                       title={canWrite ? "Editar rotura" : undefined}
                     >
                       <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
@@ -380,15 +432,21 @@ export default function MantenimientoClient({
                       <TableCell className="text-right font-medium text-[#F59E0B]">{r.cantidad}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
                       {canWrite && (
-                        <TableCell className="text-right pr-6">
-                          <div className="flex items-center justify-end">
+                        <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-0.5">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` });
-                              }}
+                              onClick={() => setEditRotura(r)}
+                              className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                              title="Editar rotura"
+                              aria-label="Editar rotura"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` })}
                               className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
-                              title="Borrar"
+                              title="Borrar rotura"
+                              aria-label="Borrar rotura"
                             >
                               <Trash2 size={14} />
                             </button>
@@ -405,97 +463,13 @@ export default function MantenimientoClient({
       )}
 
       {tab === "insumos" && (
-        <div className="space-y-4">
-          {insumosDesactualizados > 0 && (
-            <div className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
-              <Clock size={16} className="mt-0.5 text-[#B45309] shrink-0" />
-              <p className="text-sm text-[#92400E]">
-                Hay <strong>{insumosDesactualizados}</strong> insumo{insumosDesactualizados !== 1 ? "s" : ""} con el
-                precio sin actualizar hace tiempo. Revisá los precios para que el costo por chofer sea confiable.
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Catálogo de insumos con precio aproximado. Al cargar una rotura se elige de acá y el costo se trae solo.
-            </p>
-            {canWrite && (
-              <AddInsumoDialog>
-                <Button variant="brand" className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-2 shadow-sm">
-                  <Package size={15} strokeWidth={2.5} /> Agregar insumo
-                </Button>
-              </AddInsumoDialog>
-            )}
-          </div>
-
-          <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Insumo</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Categoría</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Marca</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Precio</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Actualizado</TableHead>
-                  {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {insumos.length === 0 ? (
-                  <EmptyTableRow message="Sin insumos cargados. Agregá los más comunes con el botón de arriba." />
-                ) : (
-                  insumos.map((i) => (
-                    <TableRow
-                      key={i.id}
-                      onClick={canWrite ? () => setEditInsumo(i) : undefined}
-                      className={canWrite ? "cursor-pointer" : undefined}
-                      title={canWrite ? "Editar insumo" : undefined}
-                    >
-                      <TableCell className="pl-6 font-medium">
-                        {i.nombre}
-                        {i.estado === "inactivo" && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                            Inactivo
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{tipoRoturaLabel(i.tipo)}</TableCell>
-                      <TableCell className="text-muted-foreground">{i.marca ?? "—"}</TableCell>
-                      <TableCell className="text-right font-medium">{fmtMoneda(i.precio)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <span className="inline-flex items-center gap-1.5">
-                          {fmtFecha(i.precio_actualizado_en)}
-                          {i.precio_desactualizado && (
-                            <span className="inline-flex items-center rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                              Desactualizado
-                            </span>
-                          )}
-                        </span>
-                      </TableCell>
-                      {canWrite && (
-                        <TableCell className="text-right pr-6">
-                          <div className="flex items-center justify-end">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConfirmDel({ tipo: "insumo", id: i.id, label: `Insumo ${i.nombre}` });
-                              }}
-                              className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444]"
-                              title="Borrar"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
+        <InsumosPanel
+          insumos={insumos}
+          canWrite={canWrite}
+          onEdit={setEditInsumo}
+          onDelete={(i) => setConfirmDel({ tipo: "insumo", id: i.id, label: `Insumo ${i.nombre}`, usos: i.usos })}
+          onToast={showToast}
+        />
       )}
 
       {tab === "alertas" && (
@@ -722,25 +696,81 @@ export default function MantenimientoClient({
 
       {/* Confirmación de borrado */}
       <Dialog open={!!confirmDel} onOpenChange={(v) => { if (!v) { setConfirmDel(null); setDelError(null); } }}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-lg">¿Borrar registro?</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              {confirmDel?.label}. Esta acción no se puede deshacer.
-              {confirmDel?.tipo === "servicio" && " Si tenía un gasto asociado en Caja, también se elimina."}
-            </DialogDescription>
+            <div className="flex items-center gap-3">
+              <span className="size-10 rounded-full bg-[#FEF2F2] text-[#EF4444] inline-flex items-center justify-center shrink-0">
+                <Trash2 size={18} />
+              </span>
+              <div>
+                <DialogTitle className="text-foreground text-lg">¿Borrar registro?</DialogTitle>
+                <DialogDescription className="text-muted-foreground">{confirmDel?.label}</DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
+          <div className="text-sm text-muted-foreground space-y-2 py-1">
+            <p>
+              Esta acción no se puede deshacer.
+              {confirmDel?.tipo === "servicio" && " Si tenía un gasto asociado en Caja, también se elimina."}
+            </p>
+            {confirmDel?.tipo === "insumo" && (confirmDel.usos ?? 0) > 0 && (
+              <div className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-[#92400E]">
+                <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[#B45309]" />
+                <span>
+                  Este insumo está usado en <strong>{confirmDel.usos}</strong> rotura{confirmDel.usos !== 1 ? "s" : ""}. Si lo borrás, esas
+                  roturas quedan sin insumo (conservan su costo). Podés <strong>desactivarlo</strong> en su lugar para conservarlo en el historial.
+                </span>
+              </div>
+            )}
+          </div>
+
           {delError && <InlineFeedback variant="error" message={delError} onDismiss={() => setDelError(null)} autoHideMs={0} />}
           <DialogFooter className="pt-2 sm:justify-end gap-2">
-            <Button variant="outline" onClick={() => setConfirmDel(null)} disabled={deleting} className="text-muted-foreground border-border hover:bg-muted/40">
+            <Button variant="outline" autoFocus onClick={() => setConfirmDel(null)} disabled={deleting} className="text-muted-foreground border-border hover:bg-muted/40">
               Cancelar
             </Button>
-            <Button onClick={handleDelete} disabled={deleting} className="bg-[#EF4444] hover:bg-[#DC2626] text-white">
-              {deleting ? "Borrando..." : "Borrar"}
+            {confirmDel?.tipo === "insumo" && (confirmDel.usos ?? 0) > 0 && (
+              <Button variant="outline" onClick={handleDesactivarInsumo} disabled={deleting} className="border-primary/40 text-primary hover:bg-primary/5 gap-1.5">
+                <PowerOff size={14} /> Desactivar
+              </Button>
+            )}
+            <Button onClick={handleDelete} disabled={deleting} className="bg-[#EF4444] hover:bg-[#DC2626] text-white gap-1.5">
+              {deleting ? "Borrando…" : <><Trash2 size={14} /> Borrar</>}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Toast de confirmación */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed bottom-6 right-6 z-[100]"
+          >
+            <div className={`flex items-center gap-2.5 rounded-[10px] border px-4 py-3 shadow-lg text-sm font-medium ${
+              toast.tone === "error"
+                ? "bg-[#FEF2F2] border-[#FECACA] text-[#7F1D1D]"
+                : toast.tone === "info"
+                ? "bg-card border-border text-foreground"
+                : "bg-[#ECFDF5] border-[#6EE7B7] text-[#064E3B]"
+            }`}>
+              {toast.tone === "error"
+                ? <AlertTriangle size={16} className="text-[#EF4444]" />
+                : <CheckCircle2 size={16} className="text-[#10B981]" />}
+              <span>{toast.msg}</span>
+              <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100" aria-label="Cerrar aviso">
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
