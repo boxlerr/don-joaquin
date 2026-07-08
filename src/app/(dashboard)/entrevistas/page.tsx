@@ -22,7 +22,7 @@ export default async function EntrevistasPage() {
     sb
       .from("entrevistas")
       .select(
-        "id, nombre, fecha_entrevista, edad, localidad, telefono, observaciones, preocupacional, resultado, etapa, created_at",
+        "id, nombre, fecha_entrevista, edad, localidad, telefono, dni, email, puesto, experiencia, observaciones, preocupacional, resultado, etapa, created_at",
       )
       .order("fecha_entrevista", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),

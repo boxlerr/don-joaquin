@@ -37,7 +37,6 @@ import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Pencil, CheckCircle2, X, PowerOff } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
-import AddInsumoDialog from "./AddInsumoDialog";
 import InsumosPanel from "./InsumosPanel";
 import ExportMenu from "./ExportMenu";
 import HelpTutorialButton from "../help-tutorial-button";
@@ -137,10 +136,9 @@ export default function MantenimientoClient({
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   };
 
-  // Edición
+  // Edición (servicios y roturas siguen con modal; los insumos se editan inline en la tabla)
   const [editServicio, setEditServicio] = useState<ServicioRow | null>(null);
   const [editRotura, setEditRotura] = useState<RoturaRow | null>(null);
-  const [editInsumo, setEditInsumo] = useState<InsumoRow | null>(null);
   // Borrado (confirmación)
   const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura" | "insumo"; id: string; label: string; usos?: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -466,7 +464,6 @@ export default function MantenimientoClient({
         <InsumosPanel
           insumos={insumos}
           canWrite={canWrite}
-          onEdit={setEditInsumo}
           onDelete={(i) => setConfirmDel({ tipo: "insumo", id: i.id, label: `Insumo ${i.nombre}`, usos: i.usos })}
           onToast={showToast}
         />
@@ -684,13 +681,6 @@ export default function MantenimientoClient({
           editing={editRotura}
           open={!!editRotura}
           onOpenChange={(v) => { if (!v) setEditRotura(null); }}
-        />
-      )}
-      {editInsumo && (
-        <AddInsumoDialog
-          editing={editInsumo}
-          open={!!editInsumo}
-          onOpenChange={(v) => { if (!v) setEditInsumo(null); }}
         />
       )}
 

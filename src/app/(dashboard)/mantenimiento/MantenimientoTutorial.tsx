@@ -6,7 +6,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Wrench, CircleDot, Package, BellRing, BarChart3,
-  Truck, Calendar, DollarSign, Clock, Search, MousePointer2,
+  Truck, Calendar, DollarSign, Search, MousePointer2,
   FileSpreadsheet, Download, ArrowRight, ArrowLeft, Check, Sparkles,
 } from "lucide-react";
 
@@ -52,7 +52,7 @@ export default function MantenimientoTutorial({
       id: "insumos",
       titulo: "Insumos — el catálogo de precios",
       desc: (
-        <>El listado de insumos comunes con <strong>marca</strong> y <strong>precio de referencia</strong>. {canWrite ? <>Tocá cualquier <strong>fila</strong> para editarla, usá <strong>«Actualizar precio»</strong> para el cambio rápido, y</> : <>Podés</>} <strong>buscar, filtrar y ordenar</strong>. Si un precio quedó viejo, aparece el aviso <strong>«Desactualizado»</strong>.</>
+        <>El listado de insumos comunes con <strong>marca</strong> y <strong>precio de referencia</strong>. {canWrite ? <>Tocá cualquier <strong>celda</strong> (nombre, categoría, marca o precio) y la editás al toque, sin ventanas. Podés</> : <>Podés</>} <strong>buscar, filtrar y ordenar</strong>. Si un precio quedó viejo, aparece el aviso <strong>«Desactualizado»</strong>.</>
       ),
       ilustracion: <IlustracionInsumos />,
     },

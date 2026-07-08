@@ -33,6 +33,10 @@ export interface Entrevista {
   edad: number | null;
   localidad: string | null;
   telefono: string | null;
+  dni?: string | null;
+  email?: string | null;
+  puesto?: string | null;
+  experiencia?: string | null;
   observaciones: string | null;
   preocupacional: string; // 'no_aplica' | 'pendiente' | 'apto' | 'no_apto'
   resultado: string; // 'pendiente' | 'ingresa' | 'no_ingresa'

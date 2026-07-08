@@ -6,20 +6,26 @@ import {
   User,
   Calendar,
   MapPin,
-  Phone,
   ClipboardCheck,
   UserCheck,
-  Clock,
   Search,
   Edit,
+  LayoutGrid,
+  Paperclip,
+  ChevronRight,
+  ChevronLeft,
+  Briefcase,
+  Mail,
+  CreditCard,
+  Eye,
 } from "lucide-react";
 import HelpTutorialDialog, {
   MockField,
   type TutorialTab,
 } from "@/components/help/HelpTutorialDialog";
 
-/** Botón de ayuda de Entrevistas. Explica cómo registrar a una persona
- * entrevistada y cómo seguir su estado (preocupacional e ingreso). */
+/** Botón de ayuda de Entrevistas: registrar candidatos, adjuntar el CV, y seguir
+ *  su avance por el pipeline (tablero por etapas). */
 export default function EntrevistasHelpButton() {
   return <HelpTutorialDialog title="Guía de Entrevistas" tabs={TABS} />;
 }
@@ -27,48 +33,79 @@ export default function EntrevistasHelpButton() {
 const TABS: TutorialTab[] = [
   {
     id: "registrar",
-    label: "Registrar entrevista",
+    label: "Registrar candidato",
     icon: <UserPlus size={14} />,
     steps: [
       {
         title: 'Abrí "Nueva entrevista"',
         description:
-          'Arriba a la derecha, hacé clic en "+ Nueva entrevista". Se abre un formulario centrado para cargar a la persona que entrevistaste.',
+          'Arriba a la derecha, "+ Nueva entrevista". Se abre un formulario para cargar a la persona que entrevistaste o que se postuló.',
         mockup: <MockToolbar />,
       },
       {
-        title: "Cargá quién es",
+        title: "Cargá sus datos",
         description:
-          "Lo único obligatorio es el nombre y apellido. Después podés sumar la fecha de entrevista, edad, de dónde es y un teléfono para recontactar.",
+          "Lo único obligatorio es el nombre. Podés sumar fecha, edad, de dónde es, teléfono, DNI, email, el puesto al que aplica y su experiencia.",
         mockup: <MockDatos />,
-        hint: "Cargá el teléfono aunque la persona no ingrese ahora: te sirve para llamarla más adelante si necesitás cubrir un puesto.",
+        hint: "Cargá el teléfono/email aunque no ingrese ahora: te sirve para recontactarla si después necesitás cubrir un puesto.",
       },
       {
-        title: "Anotá tu impresión y definí el estado",
+        title: "Impresión y estado",
         description:
-          "En Observaciones escribí tu nota libre (cómo la viste, si la recomendarías). Después definís el Preocupacional y si Entra al transporte.",
+          "En Observaciones va tu nota libre (cómo la viste, si la recomendarías). Definís el preocupacional y si entra al transporte — los desplegables muestran opciones claras.",
         mockup: <MockObsEstados />,
-        hint: "El resultado arranca en Pendiente: lo vas actualizando a medida que decidís si ingresa o no.",
+      },
+      {
+        title: "Adjuntá el CV",
+        description:
+          "Al editar un candidato podés subir su CV (o varios documentos). Quedan guardados y se pueden previsualizar y descargar cuando quieras.",
+        mockup: <MockCv />,
+        hint: "Se sube directo, hasta 100 MB por archivo. También hay un botón de CV en cada tarjeta del tablero y en la tabla.",
+      },
+    ],
+  },
+  {
+    id: "pipeline",
+    label: "Pipeline (Tablero)",
+    icon: <LayoutGrid size={14} />,
+    steps: [
+      {
+        title: "El tablero por etapas",
+        description:
+          "La vista Tablero muestra a cada candidato como una tarjeta, en columnas según en qué parte del proceso está. Con el toggle cambiás entre Tablero y Tabla.",
+        mockup: <MockTablero />,
+      },
+      {
+        title: "Qué significa cada columna",
+        description:
+          "Nuevo (recién cargado) → Entrevista (ya lo entrevistaste) → Preocupacional (haciéndose el apto) → Ingresó (entró al transporte) o Descartado (no sigue).",
+        mockup: <MockEtapas />,
+        hint: "Al mover a «Ingresó» o «Descartado», el resultado se actualiza solo. Si lo movés hacia atrás, vuelve a pendiente.",
+      },
+      {
+        title: "Mover de etapa",
+        description:
+          "Con las flechas ◀ ▶ de cada tarjeta lo movés de una columna a la otra a medida que avanza en el proceso de selección.",
+        mockup: <MockCard />,
       },
     ],
   },
   {
     id: "seguir",
-    label: "Seguir y gestionar",
+    label: "Seguir y buscar",
     icon: <ListChecks size={14} />,
     steps: [
       {
         title: "Las tarjetas de arriba",
         description:
-          "El encabezado resume el total de entrevistados, cuántos siguen pendientes, cuántos ingresaron y cuántos tienen el preocupacional por hacer.",
+          "El encabezado resume el total de candidatos, cuántos siguen pendientes, cuántos ingresaron y cuántos tienen el preocupacional por hacer.",
         mockup: <MockStats />,
       },
       {
-        title: "Buscá y editá",
+        title: "Buscá en el histórico",
         description:
-          "Usá el buscador para encontrar a una persona por nombre o localidad. Con el botón de editar actualizás su estado —por ejemplo cuando el preocupacional da apto o cuando finalmente ingresa.",
+          "La vista Tabla tiene un buscador por nombre, localidad u observaciones — sirve para saber si alguien ya fue entrevistado antes. Con el lápiz editás sus datos y su CV.",
         mockup: <MockBuscarEditar />,
-        hint: "Las etiquetas de color te muestran de un vistazo el resultado y el estado del examen preocupacional de cada persona.",
       },
     ],
   },
@@ -81,7 +118,7 @@ function MockToolbar() {
     <div className="flex items-center justify-between gap-2">
       <div className="opacity-50">
         <div className="text-foreground text-sm font-bold">Entrevistas</div>
-        <div className="text-[10px] text-muted-foreground">Personas entrevistadas y su seguimiento</div>
+        <div className="text-[10px] text-muted-foreground">Candidatos y su seguimiento</div>
       </div>
       <div className="h-9 px-3 rounded-md text-xs font-bold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white scale-105">
         <UserPlus size={14} /> Nueva entrevista
@@ -103,8 +140,12 @@ function MockDatos() {
           <MockField label="Edad" value="38" />
         </div>
         <div className="grid grid-cols-2 gap-3">
+          <MockField label="DNI" value="30.123.456" icon={<CreditCard size={11} />} />
+          <MockField label="Email" value="carlos@..." icon={<Mail size={11} />} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <MockField label="De dónde es" value="Olavarría" icon={<MapPin size={11} />} />
-          <MockField label="Teléfono" value="2284-55..." icon={<Phone size={11} />} />
+          <MockField label="Puesto" value="Chofer" icon={<Briefcase size={11} />} />
         </div>
       </div>
     </div>
@@ -138,6 +179,87 @@ function MockObsEstados() {
   );
 }
 
+function MockCv() {
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] font-semibold text-muted-foreground">CV / documentos</div>
+      <div className="rounded-md border border-border bg-card p-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[11px] text-foreground">
+          <span className="size-7 rounded bg-red-50 text-red-600 inline-flex items-center justify-center text-[9px] font-bold">PDF</span>
+          CV - Carlos Pérez.pdf
+        </div>
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Eye size={13} className="text-primary" />
+          <span className="text-[10px]">Previsualizar</span>
+        </div>
+      </div>
+      <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#0088D1]">
+        <Paperclip size={12} /> Subir CV / documento
+      </div>
+    </div>
+  );
+}
+
+function MockTablero() {
+  const cols = [
+    { l: "Nuevo", n: 3, c: "bg-slate-100 text-slate-700" },
+    { l: "Entrevista", n: 2, c: "bg-blue-50 text-blue-700" },
+    { l: "Ingresó", n: 5, c: "bg-emerald-50 text-emerald-700" },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {cols.map((col, i) => (
+        <div key={col.l} className="bg-muted/40 rounded-lg border border-border p-1.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${col.c}`}>{col.l}</span>
+            <span className="text-[9px] text-muted-foreground">{col.n}</span>
+          </div>
+          <div className="bg-card border border-border rounded p-1.5">
+            <div className="text-[10px] font-semibold text-foreground">C. Pérez</div>
+            <div className="text-[8px] text-primary">{i === 0 ? "Chofer" : i === 1 ? "Adm." : "Chofer"}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MockEtapas() {
+  const etapas = [
+    { l: "Nuevo", c: "bg-slate-100 text-slate-700" },
+    { l: "Entrevista", c: "bg-blue-50 text-blue-700" },
+    { l: "Preocupacional", c: "bg-amber-50 text-amber-700" },
+    { l: "Ingresó", c: "bg-emerald-50 text-emerald-700" },
+  ];
+  return (
+    <div className="flex items-center gap-1 flex-wrap justify-center">
+      {etapas.map((e, i) => (
+        <span key={e.l} className="inline-flex items-center gap-1">
+          <span className={`text-[10px] font-bold px-2 py-1 rounded ${e.c}`}>{e.l}</span>
+          {i < etapas.length - 1 && <ChevronRight size={12} className="text-muted-foreground" />}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MockCard() {
+  return (
+    <div className="max-w-[200px] mx-auto bg-card border border-border rounded-lg p-2.5 shadow-md">
+      <div className="text-sm font-semibold text-foreground">Carlos Pérez</div>
+      <div className="text-[11px] text-primary font-medium">Chofer larga distancia</div>
+      <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1"><MapPin size={10} /> Olavarría · 38 años</div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="inline-flex items-center gap-1 text-[10px] text-primary border border-primary/30 bg-primary/5 rounded px-1.5 py-0.5"><Paperclip size={10} /> 1 CV</span>
+        <div className="flex items-center gap-0.5">
+          <span className="p-1 rounded bg-muted text-muted-foreground"><ChevronLeft size={13} /></span>
+          <span className="p-1 rounded bg-[#0088D1]/10 text-primary ring-2 ring-[#0088D1]/30"><ChevronRight size={13} /></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MockStats() {
   const cards = [
     { l: "Total", v: "24", c: "text-primary" },
@@ -165,13 +287,13 @@ function MockBuscarEditar() {
       </div>
       <div className="rounded-md border border-border bg-card p-3 flex items-center justify-between">
         <div>
-          <div className="text-[11px] font-semibold text-foreground">Carlos Pérez</div>
+          <div className="text-[11px] font-semibold text-foreground inline-flex items-center gap-1.5">
+            Carlos Pérez
+            <span className="inline-flex items-center gap-0.5 text-[9px] text-primary border border-primary/30 bg-primary/5 rounded px-1 py-0.5"><Paperclip size={8} /> 1 CV</span>
+          </div>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#DCFCE7] text-[#166534] border border-[#86EFAC] inline-flex items-center gap-1">
               <UserCheck size={9} /> Ingresa
-            </span>
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] inline-flex items-center gap-1">
-              <Clock size={9} /> Preocup. pend.
             </span>
           </div>
         </div>

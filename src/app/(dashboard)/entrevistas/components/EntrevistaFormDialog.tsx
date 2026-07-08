@@ -24,8 +24,13 @@ import {
 import {
   addEntrevistaAction,
   updateEntrevistaAction,
+  getCvsAction,
+  crearUrlSubidaCvAction,
+  vincularCvAction,
+  deleteCvAction,
   type EntrevistaFormData,
 } from "../actions";
+import AdjuntosEditable from "@/components/ui/AdjuntosEditable";
 import type { Entrevista } from "./EntrevistasTable";
 
 const PREOCUPACIONAL_OPCIONES = [
@@ -63,6 +68,10 @@ export default function EntrevistaFormDialog({
   const [edad, setEdad] = useState(entrevista?.edad != null ? String(entrevista.edad) : "");
   const [localidad, setLocalidad] = useState(entrevista?.localidad ?? "");
   const [telefono, setTelefono] = useState(entrevista?.telefono ?? "");
+  const [dni, setDni] = useState(entrevista?.dni ?? "");
+  const [email, setEmail] = useState(entrevista?.email ?? "");
+  const [puesto, setPuesto] = useState(entrevista?.puesto ?? "");
+  const [experiencia, setExperiencia] = useState(entrevista?.experiencia ?? "");
   const [observaciones, setObservaciones] = useState(entrevista?.observaciones ?? "");
   const [preocupacional, setPreocupacional] = useState(
     entrevista?.preocupacional ?? "no_aplica",
@@ -84,6 +93,10 @@ export default function EntrevistaFormDialog({
       edad: edad || undefined,
       localidad: localidad || undefined,
       telefono: telefono || undefined,
+      dni: dni || undefined,
+      email: email || undefined,
+      puesto: puesto || undefined,
+      experiencia: experiencia || undefined,
       observaciones: observaciones || undefined,
       preocupacional,
       resultado,
@@ -105,6 +118,10 @@ export default function EntrevistaFormDialog({
           setEdad("");
           setLocalidad("");
           setTelefono("");
+          setDni("");
+          setEmail("");
+          setPuesto("");
+          setExperiencia("");
           setObservaciones("");
           setPreocupacional("no_aplica");
           setResultado("pendiente");
@@ -206,6 +223,28 @@ export default function EntrevistaFormDialog({
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ent-dni" className="text-sm font-medium text-foreground">DNI</Label>
+              <Input id="ent-dni" placeholder="Ej: 30.123.456" value={dni} onChange={(e) => setDni(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ent-email" className="text-sm font-medium text-foreground">Email (opcional)</Label>
+              <Input id="ent-email" type="email" placeholder="correo@ejemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ent-puesto" className="text-sm font-medium text-foreground">Puesto al que aplica</Label>
+              <Input id="ent-puesto" placeholder="Ej: Chofer larga distancia" value={puesto} onChange={(e) => setPuesto(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ent-exp" className="text-sm font-medium text-foreground">Experiencia (opcional)</Label>
+              <Input id="ent-exp" placeholder="Ej: 5 años en carga" value={experiencia} onChange={(e) => setExperiencia(e.target.value)} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="ent-obs" className="text-sm font-medium text-foreground">
               Observaciones
@@ -225,7 +264,7 @@ export default function EntrevistaFormDialog({
               <Label className="text-sm font-medium text-foreground">Preocupacional</Label>
               <Select value={preocupacional} onValueChange={(v) => setPreocupacional(v ?? "no_aplica")}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>{(v) => PREOCUPACIONAL_OPCIONES.find((o) => o.value === v)?.label ?? ""}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {PREOCUPACIONAL_OPCIONES.map((o) => (
@@ -240,7 +279,7 @@ export default function EntrevistaFormDialog({
               <Label className="text-sm font-medium text-foreground">¿Entra al transporte?</Label>
               <Select value={resultado} onValueChange={(v) => setResultado(v ?? "pendiente")}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>{(v) => RESULTADO_OPCIONES.find((o) => o.value === v)?.label ?? ""}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {RESULTADO_OPCIONES.map((o) => (
@@ -251,6 +290,24 @@ export default function EntrevistaFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2 border-t border-border pt-3">
+            <Label className="text-sm font-medium text-foreground">CV / documentos</Label>
+            {isEdit ? (
+              <AdjuntosEditable
+                entidadId={entrevista!.id}
+                getArchivos={getCvsAction}
+                crearUrlSubida={crearUrlSubidaCvAction}
+                vincularArchivos={vincularCvAction}
+                deleteArchivo={deleteCvAction}
+                canEdit
+                addLabel="Subir CV / documento"
+                emptyHint="Sin CV cargado. Subilo para tenerlo guardado y poder previsualizarlo."
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">Registrá primero al candidato y después vas a poder adjuntar el CV (se guarda y se puede previsualizar).</p>
+            )}
           </div>
 
           <DialogFooter>

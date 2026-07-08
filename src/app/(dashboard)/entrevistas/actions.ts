@@ -46,6 +46,10 @@ export type EntrevistaFormData = {
   edad?: string;
   localidad?: string;
   telefono?: string;
+  dni?: string;
+  email?: string;
+  puesto?: string;
+  experiencia?: string;
   observaciones?: string;
   preocupacional: string;
   resultado: string;
@@ -77,10 +81,15 @@ function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: str
     edad,
     localidad: data.localidad?.trim() || null,
     telefono: data.telefono?.trim() || null,
+    dni: data.dni?.trim() || null,
+    email: data.email?.trim() || null,
+    puesto: data.puesto?.trim() || null,
+    experiencia: data.experiencia?.trim() || null,
     observaciones: data.observaciones?.trim() || null,
     preocupacional,
     resultado,
-  };
+    // dni/email/puesto/experiencia son columnas nuevas, aún no en database.ts.
+  } as unknown as EntrevistaInsert;
 }
 
 export async function addEntrevistaAction(data: EntrevistaFormData) {

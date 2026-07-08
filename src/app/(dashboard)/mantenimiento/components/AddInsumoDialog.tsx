@@ -188,8 +188,8 @@ export default function AddInsumoDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading} className="text-muted-foreground border-border hover:bg-muted/40">
               Cancelar
             </Button>
-            <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white">
-              {loading ? "Guardando..." : editing ? "Guardar cambios" : "Agregar insumo"}
+            <Button type="submit" variant="brand" disabled={loading} className="bg-[#0088D1] hover:bg-[#0277BD] text-white gap-1.5">
+              {loading ? <><Loader2 size={14} className="animate-spin" /> Guardando…</> : editing ? "Guardar cambios" : "Agregar insumo"}
             </Button>
           </DialogFooter>
         </form>

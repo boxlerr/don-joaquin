@@ -9,7 +9,7 @@ import { setEtapaEntrevistaAction } from "../actions";
 import type { Entrevista } from "./EntrevistasTable";
 
 const ETAPAS: { id: string; label: string; badge: string }[] = [
-  { id: "nuevo", label: "CV recibido", badge: "bg-slate-100 text-slate-700 border-slate-200" },
+  { id: "nuevo", label: "Nuevo", badge: "bg-slate-100 text-slate-700 border-slate-200" },
   { id: "entrevista", label: "Entrevista", badge: "bg-blue-50 text-blue-700 border-blue-200/60" },
   { id: "preocupacional", label: "Preocupacional", badge: "bg-amber-50 text-amber-700 border-amber-200/60" },
   { id: "ingresado", label: "Ingresó", badge: "bg-emerald-50 text-emerald-700 border-emerald-200/60" },
@@ -66,6 +66,7 @@ export default function EntrevistasBoard({
                         </EntrevistaFormDialog>
                       )}
                     </div>
+                    {e.puesto && <p className="text-[11px] text-primary font-medium mt-0.5">{e.puesto}</p>}
                     <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
                       {(e.localidad || e.edad != null) && (
                         <div className="flex items-center gap-1"><MapPin size={10} className="shrink-0" />{e.localidad || "—"}{e.edad != null ? ` · ${e.edad} años` : ""}</div>
