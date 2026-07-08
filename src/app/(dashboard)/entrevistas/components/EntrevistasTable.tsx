@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Pencil, Trash2, MapPin, Phone, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ export interface Entrevista {
   email?: string | null;
   puesto?: string | null;
   experiencia?: string | null;
+  motivo_descarte?: string | null;
   observaciones: string | null;
   preocupacional: string; // 'no_aplica' | 'pendiente' | 'apto' | 'no_apto'
   resultado: string; // 'pendiente' | 'ingresa' | 'no_ingresa'
@@ -110,6 +111,62 @@ export default function EntrevistasTable({
     }
   };
 
+  const noIngreso = (e: Entrevista) => e.resultado === "no_ingresa" || e.etapa === "descartado";
+  const activos = filtradas.filter((e) => !noIngreso(e));
+  const descartados = filtradas.filter(noIngreso);
+
+  const fila = (e: Entrevista) => {
+    const preo = PREOCUPACIONAL_META[e.preocupacional] ?? PREOCUPACIONAL_META.no_aplica;
+    const res = RESULTADO_META[e.resultado] ?? RESULTADO_META.pendiente;
+    return (
+      <TableRow key={e.id}>
+        <TableCell className="font-medium text-foreground">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>{e.nombre}</span>
+            <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+          </div>
+          {e.telefono && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+              <Phone className="size-3" />
+              {e.telefono}
+            </div>
+          )}
+        </TableCell>
+        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><Calendar className="size-3" />{fmtFecha(e.fecha_entrevista)}</span>
+        </TableCell>
+        <TableCell className="text-sm text-muted-foreground">{e.edad ?? "—"}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">
+          {e.localidad ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{e.localidad}</span> : "—"}
+        </TableCell>
+        <TableCell className="max-w-xs">
+          <span className="text-sm text-muted-foreground line-clamp-2" title={e.observaciones ?? ""}>{e.observaciones || "—"}</span>
+          {noIngreso(e) && e.motivo_descarte && (
+            <span className="block text-xs text-rose-600 italic mt-0.5" title={e.motivo_descarte}>Motivo: {e.motivo_descarte}</span>
+          )}
+        </TableCell>
+        <TableCell>
+          {e.preocupacional === "no_aplica" ? <span className="text-sm text-muted-foreground">—</span> : <StatusBadge label={preo.label} tone={preo.tone} />}
+        </TableCell>
+        <TableCell><StatusBadge label={res.label} tone={res.tone} /></TableCell>
+        {canWrite && (
+          <TableCell className="text-right whitespace-nowrap">
+            <div className="inline-flex items-center gap-1">
+              <EntrevistaFormDialog entrevista={e}>
+                <Button variant="ghost" size="icon" className="size-8" title="Editar"><Pencil className="size-4" /></Button>
+              </EntrevistaFormDialog>
+              {canDelete && (
+                <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" title="Eliminar" disabled={deletingId === e.id} onClick={() => handleDelete(e)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        )}
+      </TableRow>
+    );
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl">
       {/* Filtros */}
@@ -125,7 +182,7 @@ export default function EntrevistasTable({
         </div>
         <Select value={resultado} onValueChange={(v) => setResultado((v as ResultadoFilter) ?? "todos")}>
           <SelectTrigger className="w-full sm:w-56">
-            <SelectValue />
+            <SelectValue>{(v) => (({ todos: "Todos los resultados", pendiente: "Pendientes", ingresa: "Ingresaron", no_ingresa: "No ingresaron" } as Record<string, string>)[v as string] ?? "")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los resultados</SelectItem>
@@ -154,81 +211,19 @@ export default function EntrevistasTable({
           {filtradas.length === 0 ? (
             <EmptyTableRow message="No hay entrevistas que coincidan con la búsqueda." />
           ) : (
-            filtradas.map((e) => {
-              const preo = PREOCUPACIONAL_META[e.preocupacional] ?? PREOCUPACIONAL_META.no_aplica;
-              const res = RESULTADO_META[e.resultado] ?? RESULTADO_META.pendiente;
-              return (
-                <TableRow key={e.id}>
-                  <TableCell className="font-medium text-foreground">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span>{e.nombre}</span>
-                      <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
-                    </div>
-                    {e.telefono && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                        <Phone className="size-3" />
-                        {e.telefono}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="size-3" />
-                      {fmtFecha(e.fecha_entrevista)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{e.edad ?? "—"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {e.localidad ? (
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="size-3" />
-                        {e.localidad}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-xs">
-                    <span className="text-sm text-muted-foreground line-clamp-2" title={e.observaciones ?? ""}>
-                      {e.observaciones || "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {e.preocupacional === "no_aplica" ? (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    ) : (
-                      <StatusBadge label={preo.label} tone={preo.tone} />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge label={res.label} tone={res.tone} />
-                  </TableCell>
-                  {canWrite && (
-                    <TableCell className="text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1">
-                        <EntrevistaFormDialog entrevista={e}>
-                          <Button variant="ghost" size="icon" className="size-8" title="Editar">
-                            <Pencil className="size-4" />
-                          </Button>
-                        </EntrevistaFormDialog>
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive hover:text-destructive"
-                            title="Eliminar"
-                            disabled={deletingId === e.id}
-                            onClick={() => handleDelete(e)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        )}
-                      </div>
+            <>
+              {activos.map(fila)}
+              {descartados.length > 0 && (
+                <Fragment>
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell colSpan={canWrite ? 8 : 7} className="py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      No ingresaron / descartados ({descartados.length})
                     </TableCell>
-                  )}
-                </TableRow>
-              );
-            })
+                  </TableRow>
+                  {descartados.map(fila)}
+                </Fragment>
+              )}
+            </>
           )}
         </TableBody>
       </Table>

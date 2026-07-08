@@ -173,18 +173,18 @@ export async function deleteEntrevistaAction(id: string) {
 }
 
 // ── Pipeline: mover de etapa ────────────────────────────────────────────────
-export async function setEtapaEntrevistaAction(id: string, etapa: string) {
+export async function setEtapaEntrevistaAction(id: string, etapa: string, motivo?: string) {
   const user = await requireArea("rrhh", "write");
   if (!ETAPAS.includes(etapa as Etapa)) return { error: "Etapa inválida." };
 
   const supabase = createAdminClient();
-  // Sincronizamos el resultado con la etapa (así la tabla y las stats coinciden):
-  // terminales → ingresa/no_ingresa; no terminales → vuelve a 'pendiente' (evita que
-  // al mover una card HACIA ATRÁS quede un resultado viejo desincronizado).
+  // Sincronizamos resultado + motivo con la etapa: terminales → ingresa/no_ingresa;
+  // no terminales → vuelven a 'pendiente' y limpian el motivo (evita que al mover
+  // una card HACIA ATRÁS quede un resultado/motivo viejo desincronizado).
   const patch: Record<string, unknown> = { etapa };
-  if (etapa === "ingresado") patch.resultado = "ingresa";
-  else if (etapa === "descartado") patch.resultado = "no_ingresa";
-  else patch.resultado = "pendiente";
+  if (etapa === "ingresado") { patch.resultado = "ingresa"; patch.motivo_descarte = null; }
+  else if (etapa === "descartado") { patch.resultado = "no_ingresa"; patch.motivo_descarte = motivo?.trim() || null; }
+  else { patch.resultado = "pendiente"; patch.motivo_descarte = null; }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;

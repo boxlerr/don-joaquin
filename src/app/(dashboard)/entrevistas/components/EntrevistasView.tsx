@@ -33,7 +33,7 @@ export default function EntrevistasView({
       </div>
 
       {vista === "tablero" ? (
-        <EntrevistasBoard entrevistas={entrevistas} canWrite={canWrite} />
+        <EntrevistasBoard entrevistas={entrevistas} canWrite={canWrite} canDelete={canDelete} />
       ) : (
         <EntrevistasTable entrevistas={entrevistas} canWrite={canWrite} canDelete={canDelete} />
       )}

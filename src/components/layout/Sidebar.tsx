@@ -296,9 +296,10 @@ function CollapsibleItem({
         />
         <span className={`flex-1 text-left truncate ${sectionActive ? "font-semibold" : ""}`}>{item.label}</span>
         <ChevronDown
-          size={14}
+          size={15}
+          strokeWidth={2.5}
           className={`transition-transform duration-200 ${open ? "rotate-180" : ""} ${
-            sectionActive ? "text-primary/70" : "text-muted-foreground/70"
+            sectionActive ? "text-primary" : "text-primary/70"
           }`}
         />
       </button>

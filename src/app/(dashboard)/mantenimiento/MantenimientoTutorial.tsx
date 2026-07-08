@@ -52,7 +52,7 @@ export default function MantenimientoTutorial({
       id: "insumos",
       titulo: "Insumos — el catálogo de precios",
       desc: (
-        <>El listado de insumos comunes con <strong>marca</strong> y <strong>precio de referencia</strong>. {canWrite ? <>Tocá cualquier <strong>celda</strong> (nombre, categoría, marca o precio) y la editás al toque, sin ventanas. Podés</> : <>Podés</>} <strong>buscar, filtrar y ordenar</strong>. Si un precio quedó viejo, aparece el aviso <strong>«Desactualizado»</strong>.</>
+        <>El listado de insumos comunes con <strong>marca</strong> y <strong>precio de referencia</strong>. {canWrite ? <>Tocá cualquier <strong>celda</strong> (nombre, marca o precio) y la editás al toque, sin ventanas; el <strong>switch</strong> activa o desactiva. Podés</> : <>Podés</>} <strong>buscar y ordenar</strong>. Si un precio quedó viejo, aparece el aviso <strong>«Desactualizado»</strong>.</>
       ),
       ilustracion: <IlustracionInsumos />,
     },

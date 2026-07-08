@@ -9,19 +9,12 @@ import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
-import {
-  Package, Search, Trash2, MoreHorizontal, DollarSign, Power, PowerOff,
-  ChevronDown, ChevronUp, ChevronsUpDown, ListFilter, Loader2, X, Clock,
+  Package, Search, Trash2, DollarSign, ChevronDown, ChevronUp, ChevronsUpDown, Loader2, X, Clock,
 } from "lucide-react";
 import AddInsumoDialog from "./AddInsumoDialog";
-import { tipoRoturaLabel, TIPOS_ROTURA } from "./AddRoturaDialog";
 import { updateInsumoAction, setInsumoEstadoAction, type InsumoRow } from "../actions";
 
-const CATS = TIPOS_ROTURA.filter((t) => t.value !== "otro");
 // Input de edición inline (celda de la tabla).
 const cellInput = "w-full bg-card border border-primary/50 rounded-md px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/25";
 
@@ -38,7 +31,7 @@ function norm(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-type SortKey = "nombre" | "categoria" | "marca" | "precio" | "fecha";
+type SortKey = "nombre" | "marca" | "precio" | "fecha";
 type SortDir = "asc" | "desc";
 type Field = "nombre" | "marca" | "precio";
 
@@ -55,8 +48,6 @@ export default function InsumosPanel({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [categoria, setCategoria] = useState<string>("all");
-  const [hideInactivos, setHideInactivos] = useState(true);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
 
   // Edición inline (celda por celda).
@@ -64,33 +55,31 @@ export default function InsumosPanel({
   const [val, setVal] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const categoriasPresentes = useMemo(() => {
-    const set = new Set(insumos.map((i) => i.tipo));
-    return CATS.filter((t) => set.has(t.value));
-  }, [insumos]);
-
   const filtrados = useMemo(() => {
     let arr = insumos;
-    if (hideInactivos) arr = arr.filter((i) => i.estado !== "inactivo");
-    if (categoria !== "all") arr = arr.filter((i) => i.tipo === categoria);
     if (q.trim()) {
       const nq = norm(q.trim());
       arr = arr.filter((i) => norm(i.nombre).includes(nq) || (i.marca ? norm(i.marca).includes(nq) : false));
     }
-    if (sort) {
-      const factor = sort.dir === "asc" ? 1 : -1;
-      arr = [...arr].sort((a, b) => {
+    // Los inactivos SIEMPRE van al fondo; dentro de cada grupo, el orden elegido
+    // (o el del servidor si no hay orden).
+    arr = [...arr].sort((a, b) => {
+      const ia = a.estado === "inactivo" ? 1 : 0;
+      const ib = b.estado === "inactivo" ? 1 : 0;
+      if (ia !== ib) return ia - ib;
+      if (sort) {
+        const factor = sort.dir === "asc" ? 1 : -1;
         switch (sort.key) {
           case "precio": return (a.precio - b.precio) * factor;
           case "fecha": return String(a.precio_actualizado_en).localeCompare(String(b.precio_actualizado_en)) * factor;
-          case "categoria": return tipoRoturaLabel(a.tipo).localeCompare(tipoRoturaLabel(b.tipo), "es") * factor;
           case "marca": return (a.marca ?? "").localeCompare(b.marca ?? "", "es") * factor;
           default: return a.nombre.localeCompare(b.nombre, "es") * factor;
         }
-      });
-    }
+      }
+      return 0;
+    });
     return arr;
-  }, [insumos, hideInactivos, categoria, q, sort]);
+  }, [insumos, q, sort]);
 
   const kpis = useMemo(() => {
     const activos = insumos.filter((i) => i.estado === "activo");
@@ -111,23 +100,21 @@ export default function InsumosPanel({
 
   // Guarda un cambio parcial del insumo (una celda). Reusa updateInsumoAction, que
   // refresca precio_actualizado_en cuando cambia el precio.
-  const save = async (i: InsumoRow, patch: Partial<{ tipo: string; nombre: string; marca: string | null; precio: number; estado: string }>) => {
+  const save = async (i: InsumoRow, patch: Partial<{ nombre: string; marca: string | null; precio: number }>) => {
     setSavingId(i.id);
     try {
       const res = await updateInsumoAction(i.id, {
-        tipo: patch.tipo ?? i.tipo,
+        tipo: i.tipo,
         nombre: patch.nombre ?? i.nombre,
         marca: patch.marca !== undefined ? patch.marca : i.marca,
         precio: patch.precio !== undefined ? patch.precio : i.precio,
-        estado: patch.estado ?? i.estado,
+        estado: i.estado,
         observaciones: i.observaciones,
       });
-      if (res.error) { onToast(res.error, "error"); return false; }
+      if (res.error) { onToast(res.error, "error"); return; }
       router.refresh();
-      return true;
     } catch {
       onToast("Ocurrió un error inesperado.", "error");
-      return false;
     } finally {
       setSavingId(null);
     }
@@ -221,9 +208,6 @@ export default function InsumosPanel({
     );
   };
 
-  const catLabel = categoria === "all" ? "Todas las categorías" : tipoRoturaLabel(categoria);
-  const hayFiltro = q.trim() !== "" || categoria !== "all" || hideInactivos;
-
   return (
     <div className="space-y-4">
       {kpis.desactualizados > 0 && (
@@ -256,39 +240,6 @@ export default function InsumosPanel({
           )}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <ListFilter size={14} /> {catLabel}
-                <ChevronDown size={13} className="text-muted-foreground" />
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="start" className="min-w-[200px]">
-            <DropdownMenuLabel>Categoría</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => setCategoria("all")}>Todas las categorías</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {categoriasPresentes.map((t) => (
-              <DropdownMenuItem key={t.value} onClick={() => setCategoria(t.value)}>{t.label}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <button
-          type="button"
-          onClick={() => setHideInactivos((v) => !v)}
-          className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-md border text-sm font-medium transition-colors ${
-            hideInactivos
-              ? "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
-              : "border-primary/40 bg-primary/5 text-primary"
-          }`}
-          aria-pressed={!hideInactivos}
-        >
-          {hideInactivos ? <PowerOff size={14} /> : <Power size={14} />}
-          {hideInactivos ? "Ocultando inactivos" : "Mostrando inactivos"}
-        </button>
-
         <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
           <strong className="text-foreground">{filtrados.length}</strong> {filtrados.length === 1 ? "insumo" : "insumos"}
           {filtrados.length !== insumos.length && <span> de {insumos.length}</span>}
@@ -313,12 +264,8 @@ export default function InsumosPanel({
             />
           ) : (
             <div className="py-12 flex flex-col items-center gap-3">
-              <EmptyState icon={Search} message="Ningún insumo coincide con la búsqueda o los filtros." />
-              {hayFiltro && (
-                <Button variant="outline" size="sm" onClick={() => { setQ(""); setCategoria("all"); setHideInactivos(false); }}>
-                  Limpiar filtros
-                </Button>
-              )}
+              <EmptyState icon={Search} message="Ningún insumo coincide con la búsqueda." />
+              <Button variant="outline" size="sm" onClick={() => setQ("")}>Limpiar búsqueda</Button>
             </div>
           )
         ) : (
@@ -326,7 +273,6 @@ export default function InsumosPanel({
             <TableHeader className="bg-muted/40">
               <TableRow>
                 {sortHead("Insumo", "nombre", "pl-6")}
-                {sortHead("Categoría", "categoria")}
                 {sortHead("Marca", "marca")}
                 {sortHead("Precio", "precio", "text-right")}
                 {sortHead("Actualizado", "fecha")}
@@ -348,18 +294,6 @@ export default function InsumosPanel({
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {canWrite ? (
-                      <Select value={i.tipo} onValueChange={(v) => { if (v && v !== i.tipo) save(i, { tipo: v }); }}>
-                        <SelectTrigger className="h-8 w-full max-w-[190px] border-transparent bg-transparent shadow-none hover:bg-primary/5 hover:border-border px-2 -mx-2">
-                          <span>{tipoRoturaLabel(i.tipo)}</span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CATS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    ) : tipoRoturaLabel(i.tipo)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
                     {textCell(i, "marca", i.marca ?? <span className="text-muted-foreground/50">—</span>)}
                   </TableCell>
                   <TableCell className="text-right font-medium font-mono">
@@ -376,47 +310,41 @@ export default function InsumosPanel({
                     </span>
                   </TableCell>
                   <TableCell>
-                    {canWrite ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleEstado(i)}
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold border transition-colors ${
-                          i.estado === "inactivo"
-                            ? "bg-muted text-muted-foreground border-border hover:bg-muted/70"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200/60 hover:bg-emerald-100"
-                        }`}
-                        title={i.estado === "inactivo" ? "Reactivar insumo" : "Desactivar insumo"}
-                      >
-                        {i.estado === "inactivo" ? "Inactivo" : "Activo"}
-                      </button>
-                    ) : (
-                      <span className={`text-[11px] font-semibold ${i.estado === "inactivo" ? "text-muted-foreground" : "text-emerald-700"}`}>
+                    <div className="inline-flex items-center gap-2">
+                      {canWrite ? (
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={i.estado === "activo"}
+                          onClick={() => toggleEstado(i)}
+                          disabled={savingId === i.id}
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${i.estado === "activo" ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
+                          title={i.estado === "activo" ? "Activo — tocá para desactivar" : "Inactivo — tocá para reactivar"}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${i.estado === "activo" ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </button>
+                      ) : (
+                        <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full ${i.estado === "activo" ? "bg-emerald-500" : "bg-muted-foreground/30"}`}>
+                          <span className={`inline-block h-4 w-4 rounded-full bg-white ${i.estado === "activo" ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+                        </span>
+                      )}
+                      <span className={`text-[11px] font-medium ${i.estado === "inactivo" ? "text-muted-foreground" : "text-emerald-700"}`}>
                         {i.estado === "inactivo" ? "Inactivo" : "Activo"}
                       </span>
-                    )}
+                    </div>
                   </TableCell>
                   {canWrite && (
                     <TableCell className="text-right pr-6">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1.5">
                         {savingId === i.id && <Loader2 size={13} className="animate-spin text-muted-foreground" />}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <button className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Más acciones" aria-label={`Más acciones para ${i.nombre}`}>
-                                <MoreHorizontal size={14} />
-                              </button>
-                            }
-                          />
-                          <DropdownMenuContent align="end" className="min-w-[180px]">
-                            <DropdownMenuItem onClick={() => toggleEstado(i)}>
-                              {i.estado === "inactivo" ? <><Power size={14} /> Reactivar</> : <><PowerOff size={14} /> Desactivar</>}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem variant="destructive" onClick={() => onDelete(i)}>
-                              <Trash2 size={14} /> Borrar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <button
+                          onClick={() => onDelete(i)}
+                          className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444] transition-colors"
+                          title="Borrar insumo"
+                          aria-label={`Borrar ${i.nombre}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </TableCell>
                   )}
@@ -429,7 +357,7 @@ export default function InsumosPanel({
 
       {canWrite && filtrados.length > 0 && (
         <p className="text-[11px] text-muted-foreground px-1">
-          Tocá cualquier celda (nombre, categoría, marca o precio) para editarla al toque. Enter guarda, Esc cancela.
+          Tocá cualquier celda (nombre, marca o precio) para editarla al toque. Enter guarda, Esc cancela. El switch de Estado activa o desactiva el insumo.
         </p>
       )}
     </div>
