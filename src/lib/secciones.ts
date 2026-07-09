@@ -42,6 +42,7 @@ export type SeccionCodigo =
   | "impuestos"
   | "prestamos"
   | "dashboard_completo"
+  | "metricas"
   // Caja
   | "caja_saldo"
   | "caja_grande"
@@ -109,6 +110,9 @@ export const SECCIONES: Seccion[] = [
   // facturación acumulada vive en /dashboard/completo, solo Bárbara + Nicolás
   // (audios 30/06, tema 6 — opción B "dos dashboards").
   { codigo: "dashboard_completo", area: "finanzas", nombre: "Dashboard completo", orden: 13, confidencial: true },
+  // Métricas históricas (las 6 planillas del padre + comparativa interanual):
+  // confidencial, por defecto solo administradores (8vo feedback, 08/07).
+  { codigo: "metricas", area: "finanzas", nombre: "Métricas históricas", orden: 14, confidencial: true },
   // --- Caja ------------------------------------------------------------------
   // "Operar ≠ ver": con área caja en write se pueden CARGAR movimientos, pero
   // saldo/historial/retiros (caja_saldo) y la caja grande (caja_grande) son
