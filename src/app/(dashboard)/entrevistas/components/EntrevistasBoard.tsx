@@ -119,6 +119,9 @@ export default function EntrevistasBoard({
                         {col.id === "descartado" && e.motivo_descarte && (
                           <div className="text-rose-600/90 italic pt-0.5">Motivo: {e.motivo_descarte}</div>
                         )}
+                        {e.se_mantuvo && (
+                          <div className="text-orange-600/90 italic pt-0.5">Se mantuvo: {e.se_mantuvo}</div>
+                        )}
                       </div>
                       <div className="flex items-center justify-between gap-1 mt-2">
                         <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />

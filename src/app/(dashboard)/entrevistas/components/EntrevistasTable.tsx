@@ -43,6 +43,11 @@ export interface Entrevista {
   preocupacional: string; // 'no_aplica' | 'pendiente' | 'apto' | 'no_apto'
   resultado: string; // 'pendiente' | 'ingresa' | 'no_ingresa'
   etapa?: string; // pipeline: 'nuevo' | 'entrevista' | 'preocupacional' | 'ingresado' | 'descartado'
+  // Seguimiento post-entrevista (texto libre del Excel):
+  preocupacional_nota?: string | null;
+  aprobado?: string | null;
+  entro?: string | null;
+  se_mantuvo?: string | null;
   cv_count?: number; // cantidad de CVs adjuntos
   created_at: string;
 }
@@ -142,8 +147,14 @@ export default function EntrevistasTable({
         </TableCell>
         <TableCell className="max-w-xs">
           <span className="text-sm text-muted-foreground line-clamp-2" title={e.observaciones ?? ""}>{e.observaciones || "—"}</span>
+          {e.preocupacional_nota && (
+            <span className="block text-xs text-amber-600 mt-0.5" title={e.preocupacional_nota}>Preocupacional: {e.preocupacional_nota}</span>
+          )}
           {noIngreso(e) && e.motivo_descarte && (
             <span className="block text-xs text-rose-600 italic mt-0.5" title={e.motivo_descarte}>Motivo: {e.motivo_descarte}</span>
+          )}
+          {e.se_mantuvo && (
+            <span className="block text-xs text-orange-600 italic mt-0.5" title={e.se_mantuvo}>Se mantuvo: {e.se_mantuvo}</span>
           )}
         </TableCell>
         <TableCell>

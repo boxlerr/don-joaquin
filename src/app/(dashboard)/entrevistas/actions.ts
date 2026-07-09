@@ -53,6 +53,11 @@ export type EntrevistaFormData = {
   observaciones?: string;
   preocupacional: string;
   resultado: string;
+  // Seguimiento post-entrevista (columnas del Excel, texto libre):
+  preocupacional_nota?: string;
+  aprobado?: string;
+  entro?: string;
+  se_mantuvo?: string;
 };
 
 function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: string } {
@@ -88,7 +93,11 @@ function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: str
     observaciones: data.observaciones?.trim() || null,
     preocupacional,
     resultado,
-    // dni/email/puesto/experiencia son columnas nuevas, aún no en database.ts.
+    preocupacional_nota: data.preocupacional_nota?.trim() || null,
+    aprobado: data.aprobado?.trim() || null,
+    entro: data.entro?.trim() || null,
+    se_mantuvo: data.se_mantuvo?.trim() || null,
+    // dni/email/puesto/experiencia y las de seguimiento son columnas nuevas, aún no en database.ts.
   } as unknown as EntrevistaInsert;
 }
 

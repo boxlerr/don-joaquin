@@ -77,6 +77,10 @@ export default function EntrevistaFormDialog({
     entrevista?.preocupacional ?? "no_aplica",
   );
   const [resultado, setResultado] = useState(entrevista?.resultado ?? "pendiente");
+  const [preocupacionalNota, setPreocupacionalNota] = useState(entrevista?.preocupacional_nota ?? "");
+  const [aprobado, setAprobado] = useState(entrevista?.aprobado ?? "");
+  const [entro, setEntro] = useState(entrevista?.entro ?? "");
+  const [seMantuvo, setSeMantuvo] = useState(entrevista?.se_mantuvo ?? "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +104,10 @@ export default function EntrevistaFormDialog({
       observaciones: observaciones || undefined,
       preocupacional,
       resultado,
+      preocupacional_nota: preocupacionalNota || undefined,
+      aprobado: aprobado || undefined,
+      entro: entro || undefined,
+      se_mantuvo: seMantuvo || undefined,
     };
 
     try {
@@ -125,6 +133,10 @@ export default function EntrevistaFormDialog({
           setObservaciones("");
           setPreocupacional("no_aplica");
           setResultado("pendiente");
+          setPreocupacionalNota("");
+          setAprobado("");
+          setEntro("");
+          setSeMantuvo("");
         }
         router.refresh();
       }
@@ -289,6 +301,43 @@ export default function EntrevistaFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-3">
+            <p className="text-sm font-medium text-foreground">Seguimiento</p>
+            <p className="text-xs text-muted-foreground -mt-1.5">Qué pasó después: cómo dio el preocupacional, si lo aprobaste, si entró y si se mantuvo.</p>
+            <div className="space-y-2">
+              <Label htmlFor="ent-preoc-nota" className="text-sm font-medium text-foreground">Detalle del preocupacional</Label>
+              <textarea
+                id="ent-preoc-nota"
+                rows={2}
+                placeholder="Ej: le dio al límite el azúcar; no se presentó; toxicológico positivo…"
+                value={preocupacionalNota}
+                onChange={(e) => setPreocupacionalNota(e.target.value)}
+                className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="ent-aprobado" className="text-sm font-medium text-foreground">¿Aprobado?</Label>
+                <Input id="ent-aprobado" placeholder="Sí / No / nota" value={aprobado} onChange={(e) => setAprobado(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ent-entro" className="text-sm font-medium text-foreground">¿Entró?</Label>
+                <Input id="ent-entro" placeholder="Sí / No / a otra empresa" value={entro} onChange={(e) => setEntro(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ent-mantuvo" className="text-sm font-medium text-foreground">¿Se mantuvo?</Label>
+              <textarea
+                id="ent-mantuvo"
+                rows={2}
+                placeholder="Si ingresó: sigue trabajando, renunció, por qué se fue…"
+                value={seMantuvo}
+                onChange={(e) => setSeMantuvo(e.target.value)}
+                className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y"
+              />
             </div>
           </div>
 
