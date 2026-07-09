@@ -2095,3 +2095,119 @@ export async function deleteDocumentoAction(doc_id: string, chofer_id: string) {
   revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// Historial de sueldos del legajo (8vo feedback Bárbara, 08/07):
+// "en el legajo empiezo a tener un registro de cuánto viene ganando...
+//  estos últimos seis meses ganó esto y hasta que me arroje un promedio".
+// Fuente: sueldos_admin_aumentos (base por mes) + sueldos_admin_mes (variables
+// + aguinaldo). Confidencial: sueldos o sueldos_admin en lectura.
+// ---------------------------------------------------------------------------
+
+export type SueldoHistorialMes = {
+  mes: string; // primer día del mes (ISO)
+  sueldoBase: number;
+  comision: number;
+  combustible: number;
+  plusYpf: number;
+  sabados: number;
+  aguinaldo: number;
+  total: number;
+};
+
+export type SueldosHistorial = {
+  meses: SueldoHistorialMes[]; // más reciente primero
+  ultimo: SueldoHistorialMes | null;
+  promedio6: number | null; // promedio de los últimos 6 meses con datos
+  /** Variación % del último mes vs el mismo mes del año anterior (si existe). */
+  interanualPct: number | null;
+};
+
+export async function getChoferSueldosHistorialAction(
+  choferId: string,
+): Promise<SueldosHistorial | { error: string }> {
+  const user = await requireSeccion("choferes", "read");
+  if (!hasSeccion(user, "sueldos", "read") && !hasSeccion(user, "sueldos_admin", "read")) {
+    return { error: "Sin permiso para ver sueldos." };
+  }
+  const supabase = createAdminClient();
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const [aumentosRes, variablesRes] = await Promise.all([
+    (supabase as any)
+      .from("sueldos_admin_aumentos")
+      .select("vigente_desde, sueldo_base")
+      .eq("chofer_id", choferId)
+      .order("vigente_desde", { ascending: true }),
+    (supabase as any)
+      .from("sueldos_admin_mes")
+      .select("mes, comision_logistica, combustible, plus_ypf, sabados, aguinaldo")
+      .eq("chofer_id", choferId),
+  ]);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  const aumentos = (aumentosRes.data ?? []) as { vigente_desde: string; sueldo_base: number }[];
+  const variables = new Map(
+    ((variablesRes.data ?? []) as {
+      mes: string;
+      comision_logistica: number;
+      combustible: number;
+      plus_ypf: number;
+      sabados: number;
+      aguinaldo: number;
+    }[]).map((v) => [v.mes, v]),
+  );
+
+  if (!aumentos.length && !variables.size) {
+    return { meses: [], ultimo: null, promedio6: null, interanualPct: null };
+  }
+
+  // Solo meses con datos REALES (aumento cargado ese mes o variables de ese
+  // mes). La base vigente NO se arrastra a meses sin ningún dato: eso
+  // inventaría sueldos de meses nunca importados y falsearía el "último
+  // sueldo", el promedio y el interanual.
+  const mesesConDatos = Array.from(
+    new Set([...aumentos.map((a) => a.vigente_desde), ...variables.keys()]),
+  ).sort();
+
+  const meses: SueldoHistorialMes[] = [];
+  for (const mesDato of mesesConDatos) {
+    // Base vigente: el último aumento con vigente_desde <= mes.
+    let base = 0;
+    for (const a of aumentos) {
+      if (a.vigente_desde <= mesDato) base = Number(a.sueldo_base ?? 0);
+      else break;
+    }
+    const v = variables.get(mesDato);
+    const fila: SueldoHistorialMes = {
+      mes: mesDato,
+      sueldoBase: base,
+      comision: Number(v?.comision_logistica ?? 0),
+      combustible: Number(v?.combustible ?? 0),
+      plusYpf: Number(v?.plus_ypf ?? 0),
+      sabados: Number(v?.sabados ?? 0),
+      aguinaldo: Number(v?.aguinaldo ?? 0),
+      total: 0,
+    };
+    fila.total =
+      fila.sueldoBase + fila.comision + fila.combustible + fila.plusYpf + fila.sabados + fila.aguinaldo;
+    if (fila.total > 0) meses.push(fila);
+  }
+
+  meses.reverse(); // más reciente primero
+  const ultimo = meses[0] ?? null;
+  const ult6 = meses.slice(0, 6);
+  const promedio6 = ult6.length ? ult6.reduce((s, m) => s + m.total, 0) / ult6.length : null;
+
+  let interanualPct: number | null = null;
+  if (ultimo) {
+    const [y, m] = ultimo.mes.split("-");
+    const unAnioAtras = `${parseInt(y, 10) - 1}-${m}-01`;
+    const previo = meses.find((x) => x.mes === unAnioAtras);
+    if (previo && previo.total > 0) {
+      interanualPct = (ultimo.total / previo.total - 1) * 100;
+    }
+  }
+
+  return { meses, ultimo, promedio6, interanualPct };
+}

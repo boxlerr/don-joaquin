@@ -15,6 +15,7 @@ import ChoferLicenciasTab from "./ChoferLicenciasTab";
 import ChoferAusenciasTab from "./ChoferAusenciasTab";
 import ChoferVacacionesTab from "./ChoferVacacionesTab";
 import ChoferPrestamosTab from "./ChoferPrestamosTab";
+import ChoferSueldosTab from "./ChoferSueldosTab";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
 import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
@@ -24,6 +25,7 @@ type TabId =
   | "documentos"
   | "viajes"
   | "cuenta"
+  | "sueldos"
   | "productividad"
   | "apercibimientos"
   | "licencias"
@@ -36,6 +38,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "documentos", label: "Documentación" },
   { id: "viajes", label: "Historial Viajes" },
   { id: "cuenta", label: "Cuenta Corriente" },
+  { id: "sueldos", label: "Sueldos" }, // confidencial: solo con can_ver_sueldos
   { id: "productividad", label: "Productividad" },
   { id: "apercibimientos", label: "Apercibimientos" },
   { id: "licencias", label: "Licencias Médicas" },
@@ -81,6 +84,11 @@ export default function ChoferDetailPage() {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
     else router.push("/choferes");
   }, [router]);
+
+  // La pestaña Sueldos es confidencial: si llegó por ?tab=sueldos sin permiso
+  // (deep-link), caemos a Información para no dejar el panel en blanco.
+  const effectiveTab: TabId =
+    activeTab === "sueldos" && chofer && !chofer.can_ver_sueldos ? "info" : activeTab;
 
   if (loading) {
     return (
@@ -129,12 +137,12 @@ export default function ChoferDetailPage() {
         <div className="border-b border-border bg-muted/40">
           <HorizontalScrollHint className="px-6" fadeBg="from-muted/40">
             <div className="flex items-center">
-              {TABS.map((tab) => (
+              {TABS.filter((tab) => tab.id !== "sueldos" || chofer.can_ver_sueldos).map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
-                    activeTab === tab.id
+                    effectiveTab === tab.id
                       ? "text-primary border-[#0088D1]"
                       : "text-muted-foreground border-transparent hover:text-foreground"
                   }`}
@@ -147,7 +155,7 @@ export default function ChoferDetailPage() {
         </div>
 
         <div className="p-6 bg-card min-h-[50vh]">
-          {activeTab === "info" && (
+          {effectiveTab === "info" && (
             <ChoferInfoTab
               key={chofer.updated_at}
               chofer={chofer}
@@ -156,12 +164,15 @@ export default function ChoferDetailPage() {
               onEditingChange={setEditingInfo}
             />
           )}
-          {activeTab === "documentos" && (
+          {effectiveTab === "documentos" && (
             <ChoferDocumentosTab chofer={chofer} onRefresh={loadData} />
           )}
-          {activeTab === "viajes" && <ChoferViajesTab viajes={chofer.viajes_recientes} />}
-          {activeTab === "cuenta" && <ChoferCuentaTab movimientos={chofer.movimientos_mes} />}
-          {activeTab === "productividad" && (
+          {effectiveTab === "viajes" && <ChoferViajesTab viajes={chofer.viajes_recientes} />}
+          {effectiveTab === "cuenta" && <ChoferCuentaTab movimientos={chofer.movimientos_mes} />}
+          {effectiveTab === "sueldos" && chofer.can_ver_sueldos && (
+            <ChoferSueldosTab chofer_id={chofer.id} />
+          )}
+          {effectiveTab === "productividad" && (
             <ChoferProductividadTab
               kpis={chofer.productividad_kpis}
               historial={chofer.camiones_historial}
@@ -174,7 +185,7 @@ export default function ChoferDetailPage() {
               onRefresh={loadData}
             />
           )}
-          {activeTab === "apercibimientos" && (
+          {effectiveTab === "apercibimientos" && (
             <ChoferApercibimientosTab
               chofer_id={chofer.id}
               apercibimientos={chofer.apercibimientos}
@@ -183,7 +194,7 @@ export default function ChoferDetailPage() {
               onRefresh={loadData}
             />
           )}
-          {activeTab === "licencias" && (
+          {effectiveTab === "licencias" && (
             <ChoferLicenciasTab
               chofer_id={chofer.id}
               licencias={chofer.licencias_medicas}
@@ -191,7 +202,7 @@ export default function ChoferDetailPage() {
               onRefresh={loadData}
             />
           )}
-          {activeTab === "ausencias" && (
+          {effectiveTab === "ausencias" && (
             <ChoferAusenciasTab
               chofer_id={chofer.id}
               ausencias={chofer.ausencias}
@@ -199,7 +210,7 @@ export default function ChoferDetailPage() {
               onRefresh={loadData}
             />
           )}
-          {activeTab === "vacaciones" && (
+          {effectiveTab === "vacaciones" && (
             <ChoferVacacionesTab
               chofer_id={chofer.id}
               saldo={chofer.vacaciones}
@@ -209,7 +220,7 @@ export default function ChoferDetailPage() {
               onRefresh={loadData}
             />
           )}
-          {activeTab === "prestamos" && (
+          {effectiveTab === "prestamos" && (
             <ChoferPrestamosTab
               chofer_id={chofer.id}
               prestamos={chofer.prestamos}
