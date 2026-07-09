@@ -1,12 +1,17 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Truck } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
+import EstadoSwitch from "./EstadoSwitch";
 import {
   categoriaCapacidad,
   labelCategoriaCapacidad,
 } from "@/lib/capacidad-camion";
 import type { Camion } from "../types";
-import type { TipoServicio } from "../actions";
+import { setCamionEstadoAction, type TipoServicio } from "../actions";
 
 // Centinela que usa el seed de carga inicial (scripts/seed-camiones-acoplados.ts)
 // para los tractores que en el Excel vinieron solo con patente. Las unidades con
@@ -38,6 +43,19 @@ export default function CamionRow({
 }) {
   const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
   const datosCompletos = !!camion.marca && camion.marca !== SIN_DATOS;
+  const router = useRouter();
+  const [pendingEstado, setPendingEstado] = useState(false);
+  const activo = camion.estado === "activo";
+
+  const toggleEstado = async () => {
+    setPendingEstado(true);
+    try {
+      await setCamionEstadoAction(camion.id, activo ? "inactivo" : "activo");
+      router.refresh();
+    } finally {
+      setPendingEstado(false);
+    }
+  };
 
   return (
     <TableRow
@@ -143,16 +161,19 @@ export default function CamionRow({
           )}
         </TableCell>
         <TableCell>
-          <StatusBadge
-            label={camion.estado}
-            tone={
-              camion.estado === "activo"
-                ? "success"
-                : camion.estado === "en_mantenimiento"
-                  ? "warning"
-                  : "neutral"
-            }
-          />
+          <div className="flex items-center gap-2">
+            <EstadoSwitch activo={activo} pending={pendingEstado} onToggle={toggleEstado} />
+            <StatusBadge
+              label={camion.estado}
+              tone={
+                camion.estado === "activo"
+                  ? "success"
+                  : camion.estado === "en_mantenimiento"
+                    ? "warning"
+                    : "neutral"
+              }
+            />
+          </div>
         </TableCell>
       </TableRow>
   );

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Camera, Star, Trash2, Upload, Loader2, StickyNote, X as XIcon } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import type { FotoCamion } from "../types";
 import {
   uploadFotoCamionAction,
@@ -31,30 +32,46 @@ export default function CamionFotosTab({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [progreso, setProgreso] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [lightbox, setLightbox] = useState<FotoCamion | null>(null);
   const [editing, setEditing] = useState<FotoCamion | null>(null);
   const [draftNota, setDraftNota] = useState("");
   const [savingNota, setSavingNota] = useState(false);
+  const [confirmarBorrado, setConfirmarBorrado] = useState<FotoCamion | null>(null);
+  const [borrando, setBorrando] = useState(false);
 
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Subida multi-archivo: se pueden elegir varias fotos de una (frente, lateral,
+  // interior…) y se suben en secuencia, informando el progreso.
+  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
     setUploading(true);
     setFeedback(null);
+    let subidas = 0;
+    const errores: string[] = [];
     try {
-      const fd = new FormData();
-      fd.set("camion_id", camion_id);
-      fd.set("file", file);
-      const res = await uploadFotoCamionAction(fd);
-      if (res.error) {
-        setFeedback({ type: "error", msg: res.error });
-      } else {
-        setFeedback({ type: "success", msg: "Foto subida" });
-        onRefresh();
+      for (let i = 0; i < files.length; i++) {
+        setProgreso(files.length > 1 ? `${i + 1}/${files.length}` : null);
+        const fd = new FormData();
+        fd.set("camion_id", camion_id);
+        fd.set("file", files[i]);
+        const res = await uploadFotoCamionAction(fd);
+        if (res.error) errores.push(`${files[i].name}: ${res.error}`);
+        else subidas++;
       }
+      if (errores.length > 0) {
+        setFeedback({
+          type: "error",
+          msg: `${subidas} de ${files.length} subida${files.length === 1 ? "" : "s"} — falló: ${errores.join(" · ")}`,
+        });
+      } else {
+        setFeedback({ type: "success", msg: subidas === 1 ? "Foto subida" : `${subidas} fotos subidas` });
+      }
+      if (subidas > 0) onRefresh();
     } finally {
       setUploading(false);
+      setProgreso(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
@@ -68,14 +85,20 @@ export default function CamionFotosTab({
     }
   };
 
-  const handleDelete = async (foto_id: string) => {
-    if (!confirm("¿Eliminar esta foto?")) return;
-    const res = await deleteFotoCamionAction(foto_id);
-    if (res.error) {
-      setFeedback({ type: "error", msg: res.error });
-    } else {
-      setFeedback({ type: "success", msg: "Foto eliminada" });
-      onRefresh();
+  const handleDelete = async () => {
+    if (!confirmarBorrado) return;
+    setBorrando(true);
+    try {
+      const res = await deleteFotoCamionAction(confirmarBorrado.id);
+      if (res.error) {
+        setFeedback({ type: "error", msg: res.error });
+      } else {
+        setFeedback({ type: "success", msg: "Foto eliminada" });
+        onRefresh();
+      }
+    } finally {
+      setBorrando(false);
+      setConfirmarBorrado(null);
     }
   };
 
@@ -112,7 +135,8 @@ export default function CamionFotosTab({
             ref={fileRef}
             type="file"
             accept="image/*"
-            onChange={handleFileSelected}
+            multiple
+            onChange={handleFilesSelected}
             className="hidden"
           />
           <Button
@@ -122,7 +146,7 @@ export default function CamionFotosTab({
             disabled={uploading}
           >
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? "Subiendo..." : "Subir foto"}
+            {uploading ? `Subiendo${progreso ? ` ${progreso}` : "..."}` : "Subir fotos"}
           </Button>
         </div>
       </div>
@@ -192,7 +216,7 @@ export default function CamionFotosTab({
                   )}
                   <button
                     type="button"
-                    onClick={() => handleDelete(f.id)}
+                    onClick={() => setConfirmarBorrado(f)}
                     className="p-1.5 bg-card/90 hover:bg-card rounded-md text-red-600 shadow-sm"
                     title="Eliminar foto"
                   >
@@ -223,6 +247,17 @@ export default function CamionFotosTab({
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmarBorrado}
+        onOpenChange={(o) => {
+          if (!o) setConfirmarBorrado(null);
+        }}
+        title="¿Eliminar esta foto?"
+        description="La foto se borra del legajo del camión. Esta acción no se puede deshacer."
+        onConfirm={handleDelete}
+        loading={borrando}
+      />
 
       {lightbox && (
         <div

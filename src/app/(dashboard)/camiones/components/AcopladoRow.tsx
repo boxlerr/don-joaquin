@@ -1,10 +1,29 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Container } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
+import EstadoSwitch from "./EstadoSwitch";
+import { updateAcopladoAction } from "../actions";
 import type { Acoplado } from "../types";
 
 export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado; onSelect?: (a: Acoplado) => void }) {
   const datosCompletos = !!acoplado.marca;
+  const router = useRouter();
+  const [pendingEstado, setPendingEstado] = useState(false);
+  const activo = acoplado.estado === "activo";
+
+  const toggleEstado = async () => {
+    setPendingEstado(true);
+    try {
+      await updateAcopladoAction(acoplado.id, { estado: activo ? "inactivo" : "activo" });
+      router.refresh();
+    } finally {
+      setPendingEstado(false);
+    }
+  };
 
   return (
     <TableRow
@@ -60,10 +79,13 @@ export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado
         </div>
       </TableCell>
       <TableCell>
-        <StatusBadge
-          label={acoplado.estado}
-          tone={acoplado.estado === "activo" ? "success" : "neutral"}
-        />
+        <div className="flex items-center gap-2">
+          <EstadoSwitch activo={activo} pending={pendingEstado} onToggle={toggleEstado} />
+          <StatusBadge
+            label={acoplado.estado}
+            tone={activo ? "success" : "neutral"}
+          />
+        </div>
       </TableCell>
     </TableRow>
   );

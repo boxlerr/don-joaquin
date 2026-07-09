@@ -25,6 +25,11 @@ import {
   normalizeBool,
   normKey as normKeyExcel,
 } from "@/lib/excel-utils";
+import {
+  buildSingleSheetWorkbook,
+  type ProColumn,
+  type CellValue,
+} from "@/lib/excel/professional-sheet";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
@@ -214,6 +219,101 @@ export async function deleteCamionAction(id: string) {
     entidadId: id,
     usuarioId: user?.id ?? null,
     valoresAnteriores: previo,
+  });
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+// Cambio rápido de estado (switch en la fila / detalle), sin tocar el resto de
+// los datos de la unidad. Audita como cambio_estado igual que el update completo.
+export async function setCamionEstadoAction(
+  id: string,
+  estado: Database["public"]["Enums"]["camion_estado"],
+) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("camiones")
+    .select("patente, estado")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase
+    .from("camiones")
+    .update({ estado, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al cambiar estado del camion:", error);
+    return { error: "No se pudo cambiar el estado del camión." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "cambio_estado",
+    entidadTipo: "camion",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: previo,
+    valoresNuevos: { estado },
+  });
+
+  revalidatePath("/camiones");
+  return { success: true };
+}
+
+// Edición del acoplado: patch parcial (solo pisa los campos que vienen), así el
+// switch de estado puede mandar { estado } sin arrastrar el resto del form.
+export async function updateAcopladoAction(
+  id: string,
+  data: Partial<{
+    patente: string;
+    marca: string | null;
+    modelo: string | null;
+    ano: number | null;
+    capacidad_tn: number | null;
+    tipo: Database["public"]["Enums"]["acoplado_tipo"] | null;
+    es_tolva: boolean;
+    estado: Database["public"]["Enums"]["acoplado_estado"];
+  }>,
+) {
+  await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  const { data: previo } = await supabase
+    .from("acoplados")
+    .select("patente, marca, modelo, ano, capacidad_tn, tipo, es_tolva, estado")
+    .eq("id", id)
+    .single();
+
+  const { error } = await supabase
+    .from("acoplados")
+    .update({ ...data, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al actualizar acoplado:", error);
+    const msg = error.message.includes("acoplados_patente_key")
+      ? "Ya existe un acoplado con esa patente."
+      : `No se pudo actualizar el acoplado: ${error.message}`;
+    return { error: msg };
+  }
+
+  const cambioEstado = previo && data.estado !== undefined && previo.estado !== data.estado;
+  await logAudit({
+    client: supabase,
+    accion: cambioEstado ? "cambio_estado" : "actualizar",
+    entidadTipo: "acoplado",
+    entidadId: id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: previo,
+    valoresNuevos: data,
   });
 
   revalidatePath("/camiones");
@@ -1593,24 +1693,40 @@ export async function exportCamionesAction(): Promise<{
     tercerizado: "Tercerizado",
   };
 
-  const rows = (data ?? []).map((c) => ({
-    Patente: c.patente,
-    Marca: c.marca,
-    Modelo: c.modelo,
-    "Año": c.ano,
-    "Capacidad TN": c.capacidad_tn,
-    Tipo: c.tipo_camion,
-    Estado: c.estado,
-    Tercerización: TERCERIZACION_LABELS[c.tercerizacion_estado] ?? c.tercerizacion_estado,
-    "Es Tolva": c.es_tolva ? "Sí" : "No",
-    "Km Actual": c.km_actual ?? "",
-    Alta: c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : "",
-  }));
+  const columns: ProColumn[] = [
+    { header: "Patente", width: 12, align: "c" },
+    { header: "Marca", width: 16, align: "l" },
+    { header: "Modelo", width: 20, align: "l" },
+    { header: "Año", width: 8, align: "c" },
+    { header: "Capacidad TN", width: 13, align: "c", numFmt: "#,##0.00" },
+    { header: "Tipo", width: 14, align: "c" },
+    { header: "Estado", width: 14, align: "c" },
+    { header: "Tercerización", width: 14, align: "c" },
+    { header: "Es Tolva", width: 10, align: "c" },
+    { header: "Km Actual", width: 12, align: "c", numFmt: "#,##0" },
+    { header: "Alta", width: 12, align: "c", numFmt: "dd/mm/yyyy" },
+  ];
+  const rows: CellValue[][] = (data ?? []).map((c) => [
+    c.patente,
+    c.marca,
+    c.modelo,
+    c.ano,
+    c.capacidad_tn,
+    c.tipo_camion,
+    c.estado,
+    TERCERIZACION_LABELS[c.tercerizacion_estado] ?? c.tercerizacion_estado,
+    c.es_tolva ? "Sí" : "No",
+    c.km_actual,
+    c.created_at ? new Date(c.created_at) : null,
+  ]);
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Camiones");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   const date = new Date().toISOString().slice(0, 10);
+  const buf = await buildSingleSheetWorkbook("Camiones", {
+    title: "Flota de camiones",
+    subtitle: `${rows.length} unidades · exportado el ${date.split("-").reverse().join("/")}`,
+    columns,
+    rows,
+  });
   return {
     filename: `camiones-${date}.xlsx`,
     base64: buf.toString("base64"),
@@ -1688,7 +1804,8 @@ export type CamionMetricasMes = {
 
 export type CamionMetricas = {
   periodo_label: string; // "junio de 2026"
-  mes_actual: string; // "YYYY-MM"
+  mes_actual: string; // "YYYY-MM" — el mes que se está mostrando
+  es_mes_en_curso: boolean; // true si el mes mostrado es el mes calendario actual
   viajes_count: number;
   km_total: number;
   km_vacios: number;
@@ -1702,19 +1819,26 @@ export type CamionMetricas = {
   evolucion: CamionMetricasMes[];
 };
 
-export async function getCamionMetricasAction(camionId: string): Promise<CamionMetricas> {
+export async function getCamionMetricasAction(camionId: string, mes?: string): Promise<CamionMetricas> {
   await requireArea("flota", "read");
   const supabase = createAdminClient();
 
   const now = new Date();
   const toISO = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
-  const finMes = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const inicio6 = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  // Mes elegido ("YYYY-MM") o el mes en curso. La evolución de 6 meses se ancla
+  // al mes elegido, así al navegar hacia atrás el gráfico acompaña.
+  const mesValido = mes && /^\d{4}-(0[1-9]|1[0-2])$/.test(mes) ? mes : null;
+  const base = mesValido
+    ? new Date(Number(mesValido.slice(0, 4)), Number(mesValido.slice(5, 7)) - 1, 1)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
+  const inicioMes = base;
+  const finMes = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  const inicio6 = new Date(base.getFullYear(), base.getMonth() - 5, 1);
   const desde = toISO(inicioMes);
   const hasta = toISO(finMes);
   const mesActual = desde.slice(0, 7);
+  const mesEnCurso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const [{ data: viajes }, { data: mants }, { data: cargas }] = await Promise.all([
     // Viajes de los últimos 6 meses (cubre mes actual + evolución).
@@ -1744,7 +1868,7 @@ export async function getCamionMetricasAction(camionId: string): Promise<CamionM
   // --- Evolución por mes (últimos 6) + agregados del mes actual --------------
   const evolMap = new Map<string, CamionMetricasMes>();
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     evolMap.set(key, { mes: key, label: MESES_CORTO[d.getMonth()], viajes: 0, km: 0 });
   }
@@ -1796,6 +1920,7 @@ export async function getCamionMetricasAction(camionId: string): Promise<CamionM
   return {
     periodo_label: inicioMes.toLocaleDateString("es-AR", { month: "long", year: "numeric" }),
     mes_actual: mesActual,
+    es_mes_en_curso: mesActual === mesEnCurso,
     viajes_count,
     km_total,
     km_vacios,

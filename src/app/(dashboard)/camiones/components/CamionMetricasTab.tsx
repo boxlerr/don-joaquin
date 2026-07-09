@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Loader2, Briefcase, Route, Package, DollarSign, Wrench, Fuel } from "lucide-react";
+import { Activity, Loader2, Briefcase, Route, Package, DollarSign, Wrench, Fuel, ChevronLeft, ChevronRight } from "lucide-react";
 import { getCamionMetricasAction, type CamionMetricas } from "../actions";
 
 interface Props {
   camionId: string;
+}
+
+// Suma/resta meses a una clave "YYYY-MM".
+function shiftMes(mes: string, delta: number): string {
+  const [y, m] = mes.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function fmtNum(n: number): string {
@@ -26,12 +33,14 @@ function fmtMoney(n: number): string {
 export default function CamionMetricasTab({ camionId }: Props) {
   const [data, setData] = useState<CamionMetricas | null>(null);
   const [loading, setLoading] = useState(true);
+  // null = mes en curso; "YYYY-MM" = mes elegido con las flechas.
+  const [mes, setMes] = useState<string | null>(null);
 
   useEffect(() => {
     let cancel = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
     setLoading(true);
-    getCamionMetricasAction(camionId).then((res) => {
+    getCamionMetricasAction(camionId, mes ?? undefined).then((res) => {
       if (!cancel) {
         setData(res);
         setLoading(false);
@@ -40,9 +49,9 @@ export default function CamionMetricasTab({ camionId }: Props) {
     return () => {
       cancel = true;
     };
-  }, [camionId]);
+  }, [camionId, mes]);
 
-  if (loading || !data) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground">
         <Loader2 size={18} className="animate-spin mr-2" />
@@ -50,17 +59,49 @@ export default function CamionMetricasTab({ camionId }: Props) {
       </div>
     );
   }
+  if (!data) return null;
 
   const sinActividad = data.viajes_count === 0;
   const maxKm = Math.max(1, ...data.evolucion.map((m) => m.km));
 
+  const irA = (delta: number) => setMes(shiftMes(data.mes_actual, delta));
+
   return (
-    <div className="space-y-6 py-1">
+    <div className={`space-y-6 py-1 ${loading ? "opacity-60 pointer-events-none" : ""}`}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">
-          Métricas — {data.periodo_label}
-        </h3>
-        <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wide">Mes en curso</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => irA(-1)}
+            className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            title="Mes anterior"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <h3 className="text-sm font-semibold text-foreground min-w-[180px] text-center capitalize">
+            Métricas — {data.periodo_label}
+          </h3>
+          <button
+            type="button"
+            onClick={() => irA(1)}
+            disabled={data.es_mes_en_curso}
+            className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            title="Mes siguiente"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+        {data.es_mes_en_curso ? (
+          <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wide">Mes en curso</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMes(null)}
+            className="text-[11px] text-primary hover:underline uppercase tracking-wide"
+          >
+            Volver al mes actual
+          </button>
+        )}
       </div>
 
       {sinActividad && (
