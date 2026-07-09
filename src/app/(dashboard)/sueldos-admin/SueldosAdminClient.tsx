@@ -153,7 +153,8 @@ export default function SueldosAdminClient({
     const combustible = Math.max(0, parseNum(d.combustible) ?? 0);
     const plusYpf = Math.max(0, parseNum(d.plusYpf) ?? 0);
     const sabados = Math.max(0, parseNum(d.sabados) ?? 0);
-    return { comisionLogistica, combustible, plusYpf, sabados, total: e.sueldoBase + comisionLogistica + combustible + plusYpf + sabados };
+    // El aguinaldo no se edita acá (viene del import), pero suma al total.
+    return { comisionLogistica, combustible, plusYpf, sabados, total: e.sueldoBase + comisionLogistica + combustible + plusYpf + sabados + (e.aguinaldo ?? 0) };
   };
   const campoNegativo = (e: SueldoAdminEmpleado, campo: (typeof CAMPOS)[number]) =>
     (parseNum(draftDe(e)[campo]) ?? 0) < 0;

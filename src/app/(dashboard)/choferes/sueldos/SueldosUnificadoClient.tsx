@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Truck, Wallet, TrendingUp, HelpCircle } from "lucide-react";
+import { Truck, Wallet, TrendingUp, HelpCircle, Upload } from "lucide-react";
 import ExportButton from "@/components/ExportButton";
 import { descargarExport } from "@/lib/download-export";
 import SueldosClient from "./SueldosClient";
 import SueldosAdminClient from "../../sueldos-admin/SueldosAdminClient";
+import ImportSueldosDialog from "../../sueldos-admin/ImportSueldosDialog";
 import SueldosTutorial from "./SueldosTutorial";
 import type { SueldoChoferRow } from "./actions";
 import type { SueldosAdminResumen } from "../../sueldos-admin/actions";
@@ -34,6 +36,8 @@ export default function SueldosUnificadoClient({
   ];
   const [tab, setTab] = useState<TabId>(tabs[0]?.id ?? "choferes");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const router = useRouter();
 
   const handleExport = () =>
     descargarExport(
@@ -56,6 +60,11 @@ export default function SueldosUnificadoClient({
           })}
         </div>
         <div className="flex items-center gap-2">
+          {canAdminWrite && (
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} className="gap-1.5">
+              <Upload size={14} /> Importar Excel
+            </Button>
+          )}
           <ExportButton onClick={handleExport} label="Exportar" />
           <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
             <HelpCircle size={14} /> ¿Cómo funciona?
@@ -68,6 +77,9 @@ export default function SueldosUnificadoClient({
       {tab === "aumentos" && admin && <SueldosAdminClient resumen={admin} month={month} canWrite={canAdminWrite} mostrar="aumentos" inflacion={inflacion} />}
 
       {helpOpen && <SueldosTutorial canChoferes={canChoferes} canAdmin={canAdmin} onClose={() => setHelpOpen(false)} />}
+      {canAdminWrite && (
+        <ImportSueldosDialog open={importOpen} onOpenChange={setImportOpen} onDone={() => router.refresh()} />
+      )}
     </div>
   );
 }

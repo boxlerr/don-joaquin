@@ -91,18 +91,19 @@ export async function GET(req: NextRequest) {
       { header: "Combustible", width: 14, align: "r", numFmt: MONEY },
       { header: "Plus YPF", width: 12, align: "r", numFmt: MONEY },
       { header: "Sábados", width: 12, align: "r", numFmt: MONEY },
+      { header: "Aguinaldo", width: 13, align: "r", numFmt: MONEY },
       { header: "Total", width: 15, align: "r", numFmt: MONEY },
     ];
     const rows: CellValue[][] = admin.empleados.map((e) => [
       e.nombre,
       e.rol === "administrativo" ? "Administración" : "Taller",
-      e.sueldoBase, e.comisionLogistica, e.combustible, e.plusYpf, e.sabados, e.total,
+      e.sueldoBase, e.comisionLogistica, e.combustible, e.plusYpf, e.sabados, e.aguinaldo, e.total,
     ]);
     const sumBy = (f: (e: SueldoAdminEmpleado) => number) => admin.empleados.reduce((s, e) => s + f(e), 0);
     const totals: CellValue[] = [
       "TOTALES", "",
       sumBy((e) => e.sueldoBase), sumBy((e) => e.comisionLogistica), sumBy((e) => e.combustible),
-      sumBy((e) => e.plusYpf), sumBy((e) => e.sabados), admin.totalGeneral,
+      sumBy((e) => e.plusYpf), sumBy((e) => e.sabados), sumBy((e) => e.aguinaldo), admin.totalGeneral,
     ];
     const pctTxt = admin.porcentaje != null ? ` · ${admin.porcentaje.toFixed(1)}% de la facturación` : "";
     sheets.push({

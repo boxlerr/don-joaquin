@@ -48,8 +48,9 @@ export type SueldoAdminEmpleado = {
   combustible: number;
   plusYpf: number;
   sabados: number;
+  aguinaldo: number; // SAC pagado en el mes (0 si no corresponde)
   observaciones: string | null;
-  total: number; // sueldoBase + comisión + combustible + plus YPF + sábados
+  total: number; // sueldoBase + comisión + combustible + plus YPF + sábados + aguinaldo
 };
 
 export type AumentoRow = {
@@ -95,7 +96,7 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
       : Promise.resolve({ data: [] }),
     (supabase as any)
       .from("sueldos_admin_mes")
-      .select("chofer_id, comision_logistica, combustible, plus_ypf, sabados, observaciones")
+      .select("chofer_id, comision_logistica, combustible, plus_ypf, sabados, aguinaldo, observaciones")
       .eq("mes", mes),
     (supabase as any)
       .from("sueldos_admin_meses")
@@ -115,13 +116,17 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
     });
   }
 
-  const mesPorChofer = new Map<string, VariablesMes & { observaciones: string | null }>();
+  const mesPorChofer = new Map<
+    string,
+    VariablesMes & { aguinaldo: number; observaciones: string | null }
+  >();
   for (const r of (mesRes.data ?? []) as any[]) {
     mesPorChofer.set(r.chofer_id, {
       comisionLogistica: Number(r.comision_logistica ?? 0),
       combustible: Number(r.combustible ?? 0),
       plusYpf: Number(r.plus_ypf ?? 0),
       sabados: Number(r.sabados ?? 0),
+      aguinaldo: Number(r.aguinaldo ?? 0),
       observaciones: r.observaciones ?? null,
     });
   }
@@ -134,7 +139,8 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
     const combustible = m?.combustible ?? 0;
     const plusYpf = m?.plusYpf ?? 0;
     const sabados = m?.sabados ?? 0;
-    const total = sueldoBase + comisionLogistica + combustible + plusYpf + sabados;
+    const aguinaldo = m?.aguinaldo ?? 0;
+    const total = sueldoBase + comisionLogistica + combustible + plusYpf + sabados + aguinaldo;
     return {
       chofer_id: c.id,
       nombre: `${c.apellido}, ${c.nombre}`,
@@ -144,6 +150,7 @@ export async function getSueldosAdminResumenAction(month?: string): Promise<Suel
       combustible,
       plusYpf,
       sabados,
+      aguinaldo,
       observaciones: m?.observaciones ?? null,
       total,
     };
