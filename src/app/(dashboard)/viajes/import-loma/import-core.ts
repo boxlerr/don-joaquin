@@ -295,30 +295,15 @@ export function matchChofer(nombreLoma: string, choferes: ChoferRow[]): ChoferMa
 // Carga de viajes candidatos para el match
 // ============================================================================
 
-/** Suma/resta días a una fecha ISO (YYYY-MM-DD). Puro. */
-function shiftIsoDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 /**
- * Trae los viajes candidatos a matchear, acotando por el período de la liquidación
- * (ensanchado ±31 días: un viaje cargado a mano puede tener una fecha algo distinta
- * a la del transporte de Loma). Devuelve los índices ya construidos.
+ * Trae los viajes candidatos a matchear: TODOS los que tengan algún identificador
+ * (nº transporte, remito o "Nº de viaje"), sin acotar por fecha. El match es por
+ * identificador único, y acotar por fecha era un bug latente: un viaje cargado a
+ * mano con la fecha muy corrida (más de un mes) quedaba fuera de la ventana, no
+ * matcheaba, y con "crear los no cargados" activo se insertaba DUPLICADO.
+ * Un viaje sin ningún identificador no puede matchear nunca, así que no se trae.
  */
-async function loadViajesIndices(supabase: AdminDb, rows: LomaRow[]): Promise<ViajesIndices> {
-  const fechas = rows.map((r) => r.fecha).filter((f): f is string => !!f);
-  if (fechas.length === 0) return buildViajesIndices([]);
-  let min = "9999-12-31";
-  let max = "0000-01-01";
-  for (const f of fechas) {
-    if (f < min) min = f;
-    if (f > max) max = f;
-  }
-  const desde = shiftIsoDays(min, -31);
-  const hasta = shiftIsoDays(max, 31);
-
+export async function loadViajesIndices(supabase: AdminDb): Promise<ViajesIndices> {
   const all: ViajeRow[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await supabase
@@ -326,8 +311,8 @@ async function loadViajesIndices(supabase: AdminDb, rows: LomaRow[]): Promise<Vi
       .select(
         "id, codigo, nro_remito, nro_transporte, nro_viaje_ypf, monto_flete, tonelaje_real, es_vacio, km_con_carga, material",
       )
-      .gte("fecha_viaje", desde)
-      .lte("fecha_viaje", hasta)
+      .or("nro_transporte.not.is.null,nro_remito.not.is.null,nro_viaje_ypf.not.is.null")
+      .order("id") // orden estable: sin esto la paginación por range() puede repetir/saltear filas
       .range(from, from + 999);
     const batch = (data ?? []) as ViajeRow[];
     all.push(...batch);
@@ -362,7 +347,7 @@ export async function buildLomaPreview(
   const choferes = (choferesRaw ?? []) as ChoferRow[];
 
   const clienteLoma = await findLomaCliente(supabase);
-  const indices = await loadViajesIndices(supabase, parsed.rows);
+  const indices = await loadViajesIndices(supabase);
 
   // Cache de match de chofer por nombre (muchas filas comparten chofer).
   const matchCache = new Map<string, ChoferMatch>();
@@ -496,7 +481,7 @@ export async function runLomaImport(
     input.asignaciones.map((a) => [normName(a.nombreLoma), a.chofer_id] as const),
   );
 
-  const indices = await loadViajesIndices(supabase, parsed.rows);
+  const indices = await loadViajesIndices(supabase);
 
   // Solo procesamos fletes de Loma; los de terceros no se tocan.
   const incluidas = parsed.rows.filter((r) =>

@@ -3,6 +3,7 @@ import {
   buildViajesIndices,
   matchFleteLoma,
   clasificarFleteLoma,
+  loadViajesIndices,
   normId,
   normRem,
   type ViajeRow,
@@ -93,5 +94,73 @@ describe("clasificarFleteLoma", () => {
 
   it("ya_con_valor (no se toca) si el viaje matcheado es un tramo vacío", () => {
     expect(clasificarFleteLoma({ monto_flete: null, es_vacio: true })).toBe("ya_con_valor");
+  });
+});
+
+describe("loadViajesIndices", () => {
+  // Fake mínimo de supabase: solo expone la cadena que usa loadViajesIndices.
+  // Si el código volviera a filtrar por fecha (.gte/.lte, el bug de la ventana
+  // de ±31 días que duplicaba viajes cargados a mano), el fake explota porque
+  // esos métodos no existen.
+  function fakeSupabase(pages: ViajeRow[][]) {
+    const calls: { or: string[]; order: string[]; ranges: [number, number][] } = {
+      or: [],
+      order: [],
+      ranges: [],
+    };
+    let page = 0;
+    const supabase = {
+      from: (table: string) => {
+        expect(table).toBe("viajes");
+        return {
+          select: () => ({
+            or: (f: string) => {
+              calls.or.push(f);
+              return {
+                order: (col: string) => {
+                  calls.order.push(col);
+                  return {
+                    range: (from: number, to: number) => {
+                      calls.ranges.push([from, to]);
+                      return Promise.resolve({ data: pages[page++] ?? [] });
+                    },
+                  };
+                },
+              };
+            },
+          }),
+        };
+      },
+    };
+    return { supabase, calls };
+  }
+
+  it("trae TODOS los viajes con identificador, sin ventana de fechas, y matchea uno con fecha lejana", async () => {
+    // Página llena (1000) para forzar una segunda página: el viaje "viejo"
+    // (cargado a mano meses antes que la liquidación) viene en la página 2.
+    const pagina1 = Array.from({ length: 1000 }, (_, i) =>
+      viaje({ id: `v${i}`, nro_transporte: `T${i}` }),
+    );
+    const viejo = viaje({ id: "manual-viejo", nro_transporte: "4623337" });
+    const { supabase, calls } = fakeSupabase([pagina1, [viejo]]);
+
+    const idx = await loadViajesIndices(supabase);
+
+    // Paginación estable y completa (2 páginas).
+    expect(calls.ranges).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ]);
+    expect(calls.order).toEqual(["id", "id"]);
+    // Solo viajes con algún identificador (los demás no pueden matchear nunca).
+    for (const f of calls.or) {
+      expect(f).toContain("nro_transporte.not.is.null");
+      expect(f).toContain("nro_remito.not.is.null");
+      expect(f).toContain("nro_viaje_ypf.not.is.null");
+    }
+    // El viaje con fecha corrida ahora matchea: antes la ventana lo dejaba
+    // afuera y "crear los no cargados" lo insertaba duplicado.
+    const m = matchFleteLoma({ nroTransporte: "4623337", remito: null }, idx);
+    expect(m?.id).toBe("manual-viejo");
   });
 });
