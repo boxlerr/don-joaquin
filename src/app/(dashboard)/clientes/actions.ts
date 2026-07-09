@@ -2,12 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx"; // solo LECTURA (importador de clientes); para escribir usamos professional-sheet
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logClienteAudit } from "./audit";
 import { movimientosCuentaCorriente, type ViajeParaCuenta } from "../viajes/flujo-logic";
 import { requireArea } from "@/lib/auth";
+import {
+  buildMultiSheetWorkbook,
+  type ProColumn,
+  type CellValue,
+} from "@/lib/excel/professional-sheet";
 
 const CONDICION_IVA_VALUES = [
   "responsable_inscripto",
@@ -736,9 +741,21 @@ export async function getViajesClienteAction(cliente_id: string): Promise<ViajeR
 }
 
 // ============================================================================
-// Exportación de cuenta corriente
+// Exportación: facturación por cliente
 // ============================================================================
 
+const MONEY_FMT = '"$" #,##0.00';
+
+function fechaExcel(iso: string | null): Date | null {
+  return iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`) : null;
+}
+
+// En este negocio NO hay crédito: cuando entra el remito con su valor
+// (liquidación Loma / DM YPF) el viaje queda facturado y cobrado A LA VEZ, así
+// que la vieja cuenta corriente debe/haber daba saldo ~0 siempre y confundía.
+// Ahora el export muestra la facturación por cliente: cuánto se facturó y qué
+// viajes siguen pendientes de remito. Mantiene el nombre de la función porque
+// la UI (export-cc-button) la llama así.
 export async function exportCuentaCorrienteAction(): Promise<{
   filename: string;
   base64: string;
@@ -748,77 +765,147 @@ export async function exportCuentaCorrienteAction(): Promise<{
 
   const { data: clientes } = await supabase
     .from("clientes")
-    .select("id, razon_social, cuit, estado")
+    .select("id, razon_social, cuit")
     .order("razon_social");
 
-  // Movimientos derivados de los viajes (mismo criterio que getCuentaClienteAction).
-  const { data: viajes } = await supabase
-    .from("viajes")
-    .select("cliente_id, codigo, fecha_viaje, fecha_cobro, monto_flete, moneda, facturado, cobrado, es_vacio, estado")
-    .eq("facturado", true)
-    .neq("estado", "cancelado");
-
   type VRow = {
-    cliente_id: string | null; codigo: string | null; fecha_viaje: string | null; fecha_cobro: string | null;
-    monto_flete: number | null; moneda: string | null; cobrado: boolean; es_vacio: boolean;
+    cliente_id: string | null;
+    codigo: string | null;
+    fecha_viaje: string | null;
+    monto_flete: number | null;
+    tonelaje_real: number | null;
+    nro_remito: string | null;
+    material: string | null;
+    es_vacio: boolean;
   };
-  type Mov = { fecha: string; tipo: string; concepto: string; categoria: string; monto: number; moneda: string };
 
-  const movsByCliente = new Map<string, Mov[]>();
-  for (const v of (viajes ?? []) as VRow[]) {
-    const monto = Number(v.monto_flete ?? 0);
-    if (!v.cliente_id || !(monto > 0) || v.es_vacio) continue;
-    const moneda = v.moneda ?? "ARS";
-    const arr = movsByCliente.get(v.cliente_id) ?? [];
-    arr.push({ fecha: v.fecha_viaje ?? "", tipo: "debe", concepto: `Flete ${v.codigo ?? ""}`.trim(), categoria: "flete", monto, moneda });
-    if (v.cobrado) {
-      arr.push({ fecha: v.fecha_cobro ?? v.fecha_viaje ?? "", tipo: "haber", concepto: `Cobro ${v.codigo ?? ""}`.trim(), categoria: "cobro", monto, moneda });
-    }
-    movsByCliente.set(v.cliente_id, arr);
+  // TODOS los viajes con cliente y no cancelados, paginando de a 1000 (PostgREST
+  // corta la respuesta en 1000 filas; acá entran también los pendientes de remito).
+  const PAGE = 1000;
+  const viajes: VRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("viajes")
+      .select("cliente_id, codigo, fecha_viaje, monto_flete, tonelaje_real, nro_remito, material, es_vacio")
+      .neq("estado", "cancelado")
+      .not("cliente_id", "is", null)
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    // Cast vía unknown: los tipos generados (database.ts) están atrasados y no
+    // conocen viajes.material (la escribe el importador de Loma).
+    viajes.push(...(data as unknown as VRow[]));
+    if (data.length < PAGE) break;
   }
 
-  const resumenRows = (clientes ?? []).map((c) => {
-    const ms = movsByCliente.get(c.id) ?? [];
-    let debe = 0;
-    let haber = 0;
-    for (const m of ms) {
-      if (m.tipo === "debe") debe += m.monto;
-      else haber += m.monto;
+  // Facturado = ya entró el remito con su valor (monto > 0); pendiente = viaje
+  // con carga que todavía no tiene valor cargado. Los vacíos no se facturan.
+  const estaFacturado = (v: VRow) => Number(v.monto_flete ?? 0) > 0;
+  const porCliente = new Map<string, VRow[]>();
+  for (const v of viajes) {
+    if (!v.cliente_id || v.es_vacio) continue;
+    const arr = porCliente.get(v.cliente_id) ?? [];
+    arr.push(v);
+    porCliente.set(v.cliente_id, arr);
+  }
+
+  const hoy = new Date();
+  const subtitle = `Al ${hoy.toLocaleDateString("es-AR")} · Facturado = viaje con remito valorizado · Pendiente = viaje aún sin valor`;
+
+  // ── Hoja Resumen: una fila por cliente ─────────────────────────────────────
+  const resumenColumns: ProColumn[] = [
+    { header: "Cliente", width: 34, align: "l" },
+    { header: "CUIT", width: 14, align: "c" },
+    { header: "Viajes facturados", width: 16, align: "c", numFmt: "#,##0" },
+    { header: "Total facturado", width: 18, align: "r", numFmt: MONEY_FMT },
+    { header: "Pendientes de facturar", width: 20, align: "c", numFmt: "#,##0" },
+    { header: "Toneladas facturadas", width: 18, align: "c", numFmt: "#,##0.00" },
+  ];
+  const resumenRows: CellValue[][] = (clientes ?? []).map((c) => {
+    const vs = porCliente.get(c.id) ?? [];
+    let cantFact = 0;
+    let totalFact = 0;
+    let pendientes = 0;
+    let toneladas = 0;
+    for (const v of vs) {
+      if (estaFacturado(v)) {
+        cantFact++;
+        totalFact += Number(v.monto_flete ?? 0);
+        toneladas += Number(v.tonelaje_real ?? 0);
+      } else {
+        pendientes++;
+      }
     }
-    return {
-      Cliente: c.razon_social,
-      CUIT: c.cuit ?? "",
-      Estado: c.estado,
-      Movimientos: ms.length,
-      "Total debe": debe,
-      "Total haber": haber,
-      Saldo: debe - haber,
-    };
+    return [
+      c.razon_social,
+      c.cuit ?? "",
+      cantFact,
+      Number(totalFact.toFixed(2)),
+      pendientes,
+      Number(toneladas.toFixed(2)),
+    ];
+  });
+  const sumCol = (i: number) => resumenRows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
+  const resumenTotals: CellValue[] = [
+    "TOTALES", null,
+    sumCol(2),
+    Number(sumCol(3).toFixed(2)),
+    sumCol(4),
+    Number(sumCol(5).toFixed(2)),
+  ];
+
+  // ── Hoja Detalle: una fila por viaje ───────────────────────────────────────
+  const detalleColumns: ProColumn[] = [
+    { header: "Cliente", width: 30, align: "l" },
+    { header: "Fecha", width: 12, align: "c", numFmt: "dd/mm/yyyy" },
+    { header: "Código", width: 14, align: "c" },
+    { header: "Nº remito", width: 14, align: "c" },
+    { header: "Material", width: 18, align: "l" },
+    { header: "Toneladas", width: 12, align: "c", numFmt: "#,##0.00" },
+    { header: "Monto", width: 16, align: "r", numFmt: MONEY_FMT },
+    { header: "Estado", width: 18, align: "c" },
+  ];
+  const detalleRows: CellValue[][] = (clientes ?? []).flatMap((c) => {
+    const vs = (porCliente.get(c.id) ?? [])
+      .slice()
+      .sort((a, b) => (b.fecha_viaje ?? "").localeCompare(a.fecha_viaje ?? ""));
+    return vs.map((v): CellValue[] => [
+      c.razon_social,
+      fechaExcel(v.fecha_viaje),
+      v.codigo ?? "",
+      v.nro_remito ?? "",
+      v.material ?? "",
+      v.tonelaje_real != null ? Number(Number(v.tonelaje_real).toFixed(2)) : null,
+      estaFacturado(v) ? Number(v.monto_flete) : null,
+      estaFacturado(v) ? "Facturado" : "Pendiente de remito",
+    ]);
   });
 
-  const movRows = (clientes ?? []).flatMap((c) => {
-    const ms = movsByCliente.get(c.id) ?? [];
-    return ms.map((m) => ({
-      Cliente: c.razon_social,
-      CUIT: c.cuit ?? "",
-      Fecha: m.fecha,
-      Tipo: m.tipo,
-      Concepto: m.concepto,
-      Categoria: m.categoria,
-      Monto: m.monto,
-      Moneda: m.moneda,
-      Observaciones: "",
-    }));
-  });
+  const buf = await buildMultiSheetWorkbook([
+    {
+      name: "Resumen",
+      opts: {
+        title: "Facturación por cliente",
+        subtitle,
+        columns: resumenColumns,
+        rows: resumenRows,
+        totals: resumenTotals,
+      },
+    },
+    {
+      name: "Detalle",
+      opts: {
+        title: "Detalle de viajes por cliente",
+        subtitle,
+        columns: detalleColumns,
+        rows: detalleRows,
+      },
+    },
+  ]);
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), "Resumen");
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movRows), "Movimientos");
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-  const date = new Date().toISOString().slice(0, 10);
+  const date = hoy.toISOString().slice(0, 10);
   return {
-    filename: `cuenta-corriente-${date}.xlsx`,
+    filename: `facturacion-clientes-${date}.xlsx`,
     base64: buf.toString("base64"),
   };
 }

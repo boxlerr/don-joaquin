@@ -1,8 +1,9 @@
 "use client";
 
 import ExportButton from "@/components/ExportButton";
-import { ViajesExcelService } from "@/domain/viajes/viajes-excel";
+import { descargarXlsxBase64 } from "@/lib/excel/download-client";
 import { getAllViajesForExportAction } from "../actions";
+import { exportarViajesXlsxAction } from "../export-action";
 
 interface ExportViajesButtonProps {
   choferId?: string;
@@ -50,7 +51,8 @@ export default function ExportViajesButton({
       filename += `_${partes}`;
     }
 
-    ViajesExcelService.exportViajesToExcel(data, filename);
+    const { filename: nombre, base64 } = await exportarViajesXlsxAction(data, filename);
+    descargarXlsxBase64(nombre, base64);
   };
 
   return (

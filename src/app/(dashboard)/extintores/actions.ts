@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
 import { requireArea } from "@/lib/auth";
+import { buildSingleSheetWorkbook, type ProColumn, type CellValue } from "@/lib/excel/professional-sheet";
 import {
   normalizeDate,
   formatIsoDate,
@@ -379,20 +380,33 @@ export async function exportExtintoresAction(): Promise<{
     .select("dominio, n_extintor, n_interno, capacidad, fecha_vencimiento, categoria, observaciones")
     .order("dominio");
 
-  const rows = (data || []).map((e) => ({
-    "Ubicación / Dominio": e.dominio,
-    "Nº Extintor": e.n_extintor,
-    "Nº Interno": e.n_interno || "",
-    Capacidad: e.capacidad || "",
-    Vencimiento: e.fecha_vencimiento || "",
-    "Categoría": e.categoria === "chasis" ? "Chasis" : e.categoria === "acoplado" ? "Acoplado" : "Otros",
-    Observaciones: e.observaciones || "",
-  }));
+  const columns: ProColumn[] = [
+    { header: "Ubicación / Dominio", width: 20, align: "l" },
+    { header: "Nº Extintor", width: 14, align: "c" },
+    { header: "Nº Interno", width: 12, align: "c" },
+    { header: "Capacidad", width: 12, align: "c" },
+    { header: "Vencimiento", width: 13, align: "c", numFmt: "dd/mm/yyyy" },
+    { header: "Categoría", width: 12, align: "c" },
+    { header: "Observaciones", width: 36, align: "l" },
+  ];
+  const rows: CellValue[][] = (data || []).map((e) => [
+    e.dominio,
+    e.n_extintor,
+    e.n_interno || null,
+    e.capacidad || null,
+    // Mediodía para esquivar corrimientos de zona horaria al formatear la fecha
+    e.fecha_vencimiento ? new Date(`${String(e.fecha_vencimiento).slice(0, 10)}T12:00:00`) : null,
+    e.categoria === "chasis" ? "Chasis" : e.categoria === "acoplado" ? "Acoplado" : "Otros",
+    e.observaciones || null,
+  ]);
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Extintores");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
   const date = new Date().toISOString().slice(0, 10);
+  const buf = await buildSingleSheetWorkbook("Extintores", {
+    title: "Extintores — vencimientos",
+    subtitle: `${rows.length} extintores · exportado el ${date.split("-").reverse().join("/")}`,
+    columns,
+    rows,
+  });
   return {
     filename: `extintores-${date}.xlsx`,
     base64: buf.toString("base64"),

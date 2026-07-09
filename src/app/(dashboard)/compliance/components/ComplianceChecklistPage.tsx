@@ -34,7 +34,7 @@ import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
-import { exportToExcel } from "@/shared/services/excel-export.service";
+import { exportarComplianceChecklistXlsx } from "../export";
 
 interface Props {
   titulo: string;
@@ -224,27 +224,9 @@ export default function ComplianceChecklistPage({
     });
 
   const handleExport = () => {
-    const data = NIVELES.flatMap((n) =>
-      rowsPorNivel[n].map((r) => ({
-        alcance: NIVEL_LABEL[r.nivel],
-        entidad: r.chofer_nombre ?? r.camion_patente ?? "Empresa",
-        documento: r.requisito_nombre + (tagCliente(r.cliente_aplica) ? ` (${tagCliente(r.cliente_aplica)})` : ""),
-        estado: ESTADO_LABEL[r.estado],
-        vencimiento: r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : "—",
-      })),
-    );
-    exportToExcel({
-      filename: `compliance_${slugFilename(titulo)}`,
-      sheetName: "Checklist",
-      data,
-      columns: [
-        { header: "Alcance", key: "alcance" },
-        { header: "Entidad", key: "entidad" },
-        { header: "Documento", key: "documento" },
-        { header: "Estado", key: "estado" },
-        { header: "Vencimiento", key: "vencimiento" },
-      ],
-    });
+    // El armado del .xlsx corre en el server (export-action.ts); se mandan las
+    // filas visibles en el mismo orden del tablero (por nivel).
+    void exportarComplianceChecklistXlsx(titulo, NIVELES.flatMap((n) => rowsPorNivel[n]));
   };
 
   const hayResultados = NIVELES.some((n) => rowsPorNivel[n].length > 0);
@@ -518,13 +500,4 @@ function Chip({ n, label, tone }: { n: number; label: string; tone: "error" | "w
       {n} {label}
     </span>
   );
-}
-
-function slugFilename(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 40);
 }

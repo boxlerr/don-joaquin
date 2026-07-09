@@ -1,8 +1,9 @@
 "use client";
 
 import ExportButton from "@/components/ExportButton";
-import { ChequesExcelService } from "@/domain/cheques/cheques-excel";
+import { descargarXlsxBase64 } from "@/lib/excel/download-client";
 import { getAllChequesForExportAction } from "../actions";
+import { exportarChequesXlsxAction } from "../export-action";
 
 export default function ExportChequesButton() {
   const handleExport = async () => {
@@ -12,7 +13,8 @@ export default function ExportChequesButton() {
       throw new Error("No hay cheques registrados para exportar.");
     }
 
-    ChequesExcelService.exportChequesToExcel(data, "cheques");
+    const { filename, base64 } = await exportarChequesXlsxAction(data, "cheques");
+    descargarXlsxBase64(filename, base64);
   };
 
   return <ExportButton onClick={handleExport} label="Exportar" />;

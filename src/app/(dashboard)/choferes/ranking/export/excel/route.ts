@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 import { requireSeccion } from "@/lib/auth";
 import { computeRanking, resolverRango } from "../../lib";
+import {
+  buildSingleSheetWorkbook,
+  type ProColumn,
+  type CellValue,
+} from "@/lib/excel/professional-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -23,74 +27,75 @@ export async function GET(req: NextRequest) {
   const conScore = ranking.filter((r) => r.score !== null);
   const sinActividad = ranking.filter((r) => r.score === null);
 
-  const rows = [
-    ...conScore.map((r, idx) => ({
-      "#": idx + 1,
-      Apellido: r.apellido,
-      Nombre: r.nombre,
-      Localidad: r.localidad ?? "",
-      Score: r.score,
-      Viajes: r.viajes_count,
-      "KM con carga": r.km_con_carga,
-      "KM vacíos": r.km_vacios,
-      "KM totales": r.km_total,
-      "Toneladas": Math.round(r.toneladas_total),
-      "Facturación (ARS)": Math.round(r.facturacion_total),
-      "$ / km": r.pesos_por_km != null ? Math.round(r.pesos_por_km) : "",
-      "% Vacíos": Number(r.pct_vacios.toFixed(1)),
-      "Consumo (L/100km)": r.combustible_lp100 != null ? Number(r.combustible_lp100.toFixed(1)) : "",
-      Gomas: r.gomas_count,
-      "Roturas varias": r.roturas_varias_count,
-      Apercibimientos: r.apercibimientos_count,
-      Siniestros: r.siniestros_count,
-      Conducta: r.conducta_count,
-      Taller: r.taller_count,
-      "Licencias activas": r.licencias_activas,
-    })),
-    ...sinActividad.map((r) => ({
-      "#": "",
-      Apellido: r.apellido,
-      Nombre: r.nombre,
-      Localidad: r.localidad ?? "",
-      Score: "Sin actividad",
-      Viajes: 0,
-      "KM con carga": 0,
-      "KM vacíos": 0,
-      "KM totales": 0,
-      "Toneladas": 0,
-      "Facturación (ARS)": 0,
-      "$ / km": "",
-      "% Vacíos": 0,
-      "Consumo (L/100km)": "",
-      Gomas: 0,
-      "Roturas varias": 0,
-      Apercibimientos: 0,
-      Siniestros: 0,
-      Conducta: 0,
-      Taller: 0,
-      "Licencias activas": 0,
-    })),
+  const columns: ProColumn[] = [
+    { header: "#", width: 5, align: "c" },
+    { header: "Apellido", width: 18, align: "l" },
+    { header: "Nombre", width: 18, align: "l" },
+    { header: "Localidad", width: 16, align: "l" },
+    { header: "Score", width: 9, align: "c" },
+    { header: "Viajes", width: 8, align: "c", numFmt: "#,##0" },
+    { header: "KM con carga", width: 12, align: "c", numFmt: "#,##0" },
+    { header: "KM vacíos", width: 11, align: "c", numFmt: "#,##0" },
+    { header: "KM totales", width: 11, align: "c", numFmt: "#,##0" },
+    { header: "Toneladas", width: 11, align: "c", numFmt: "#,##0" },
+    { header: "Facturación (ARS)", width: 16, align: "r", numFmt: '"$" #,##0' },
+    { header: "$ / km", width: 10, align: "r", numFmt: '"$" #,##0' },
+    { header: "% Vacíos", width: 9, align: "c", numFmt: "0.0" },
+    { header: "Consumo (L/100km)", width: 14, align: "c", numFmt: "0.0" },
+    { header: "Gomas", width: 8, align: "c", numFmt: "#,##0" },
+    { header: "Roturas varias", width: 12, align: "c", numFmt: "#,##0" },
+    { header: "Apercibimientos", width: 14, align: "c", numFmt: "#,##0" },
+    { header: "Siniestros", width: 11, align: "c", numFmt: "#,##0" },
+    { header: "Conducta", width: 10, align: "c", numFmt: "#,##0" },
+    { header: "Taller", width: 8, align: "c", numFmt: "#,##0" },
+    { header: "Licencias activas", width: 13, align: "c", numFmt: "#,##0" },
   ];
 
-  const header = [
-    [`Ranking de Choferes — ${periodo.label}`],
-    [`Período: ${periodo.desde} a ${periodo.hasta}`],
-    [`Generado: ${new Date().toLocaleString("es-AR")}`],
-    [],
+  // Primero los rankeados (ordenados por score) y abajo los sin actividad.
+  const rows: CellValue[][] = [
+    ...conScore.map((r, idx): CellValue[] => [
+      idx + 1,
+      r.apellido,
+      r.nombre,
+      r.localidad ?? "",
+      r.score,
+      r.viajes_count,
+      r.km_con_carga,
+      r.km_vacios,
+      r.km_total,
+      Math.round(r.toneladas_total),
+      Math.round(r.facturacion_total),
+      r.pesos_por_km != null ? Math.round(r.pesos_por_km) : null,
+      Number(r.pct_vacios.toFixed(1)),
+      r.combustible_lp100 != null ? Number(r.combustible_lp100.toFixed(1)) : null,
+      r.gomas_count,
+      r.roturas_varias_count,
+      r.apercibimientos_count,
+      r.siniestros_count,
+      r.conducta_count,
+      r.taller_count,
+      r.licencias_activas,
+    ]),
+    ...sinActividad.map((r): CellValue[] => [
+      null,
+      r.apellido,
+      r.nombre,
+      r.localidad ?? "",
+      "Sin actividad",
+      0, 0, 0, 0, 0, 0,
+      null,
+      0,
+      null,
+      0, 0, 0, 0, 0, 0, 0,
+    ]),
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet(header);
-  XLSX.utils.sheet_add_json(ws, rows, { origin: "A5" });
-
-  const widths = [
-    4, 18, 18, 16, 6, 8, 12, 12, 12, 10, 16, 8, 9, 16, 7, 13, 13, 10, 9, 8, 14,
-  ];
-  ws["!cols"] = widths.map((wch) => ({ wch }));
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Ranking");
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const buf = await buildSingleSheetWorkbook("Ranking", {
+    title: `Ranking de Choferes — ${periodo.label}`,
+    subtitle: `Período: ${periodo.desde} a ${periodo.hasta} · Generado: ${new Date().toLocaleString("es-AR")}`,
+    columns,
+    rows,
+  });
 
   const filename = `ranking-choferes_${periodo.desde}_${periodo.hasta}.xlsx`;
 
