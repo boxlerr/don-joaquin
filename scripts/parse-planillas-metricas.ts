@@ -106,6 +106,19 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     if (!filas.has(key)) filas.set(key, { flota, nombre, ingresoParcial: parciales.has(nombre.toUpperCase()) });
     return filas.get(key)!;
   };
+  /**
+   * Flota para valores que vienen SIN flota (bloques sin título): la conocida
+   * de fact-km; si el chofer cambió de flota a mitad de mes (está en ambas),
+   * la dominante por km. `fallback` cuando no se lo conoce de ningún lado.
+   */
+  const flotaResuelta = (nombre: string, fallback: FilaChofer["flota"]): FilaChofer["flota"] => {
+    const esc = filas.get(`escalables|${nombre}`);
+    const tol = filas.get(`tolvas|${nombre}`);
+    if (esc && !tol) return "escalables";
+    if (tol && !esc) return "tolvas";
+    if (esc && tol) return (esc.km ?? 0) >= (tol.km ?? 0) ? "escalables" : "tolvas";
+    return fallback;
+  };
   const checkTotal = (tag: string, esperado: number | null, real: number) => {
     if (esperado == null) return;
     const ok = Math.abs(esperado - real) <= 1.5;
@@ -161,10 +174,20 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     else {
       const headers = marcas(lines, /KM VACIO\S*\s+(ESCALABLES|TOLVAS)/i);
       headers.forEach((h, i) => {
-        const flota = /TOLVAS/i.test(lines[h]) ? "tolvas" : "escalables";
+        const flotaSeccion = /TOLVAS/i.test(lines[h]) ? "tolvas" : "escalables";
         const fin = headers[i + 1] ?? lines.length;
-        let sum = 0, n = 0;
+        let sum = 0, n = 0, bloque = 1;
         for (let j = h + 1; j < fin; j++) {
+          if (/^\s*TOTAL\s/.test(lines[j])) {
+            const tot = (lines[j].match(/\$?\s?[\d.]+(?:,\d+)?/g) ?? []).map(num);
+            checkTotal(
+              `km-vacios ${flotaSeccion}${bloque > 1 ? ` bloque ${bloque}` : ""} (${n} filas)`,
+              tot[1] ?? null,
+              sum,
+            );
+            sum = 0; n = 0; bloque++;
+            continue;
+          }
           const r = splitRow(lines[j]);
           if (!r) continue;
           // La columna % va siempre última: si el último token es < 100 es el
@@ -173,6 +196,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           let pct: number | null = null;
           if (vals.length && vals[vals.length - 1] < 100) pct = vals.pop()!;
           if (!vals.length) continue;
+          const flota = bloque === 1 ? flotaSeccion : flotaResuelta(r.nombre, flotaSeccion);
           const f = filaDe(flota, r.nombre);
           let kmVacios: number;
           if (vals.length >= 2) {
@@ -185,8 +209,6 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           f.kmVacios = kmVacios;
           sum += kmVacios; n++;
         }
-        const tot = totalDe(lines, h, fin);
-        checkTotal(`km-vacios ${flota} (${n} filas)`, tot?.[1] ?? null, sum);
       });
     }
   }
@@ -199,15 +221,27 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     const lines = leer(/^km-100/i);
     if (!lines) warnings.push("Falta km-100*.txt");
     else {
-      const headers = marcas(lines, /(ESCALABLES|TOLVAS)\s+(KM TOTALES|100)/i);
+      const headers = marcas(lines, /(ESCALABLES|TOLVAS)\s+(KM TOTALES|KM AL|100)/i);
       headers.forEach((h, i) => {
-        const flota = /TOLVAS/i.test(lines[h]) ? "tolvas" : "escalables";
+        const flotaSeccion = /TOLVAS/i.test(lines[h]) ? "tolvas" : "escalables";
         const fin = headers[i + 1] ?? lines.length;
         const idx100 = lines[h].search(/100/);
         const idxTot = lines[h].search(/KM TOTALES/);
         const km100Primero = idx100 >= 0 && (idxTot < 0 || idx100 < idxTot);
-        let sum = 0, n = 0;
+        // Sub-bloques delimitados por filas TOTAL: puede haber un bloque extra
+        // sin título (choferes que cambiaron de flota, con valores combinados).
+        let sum = 0, n = 0, bloque = 1;
         for (let j = h + 1; j < fin; j++) {
+          if (/^\s*TOTAL\s/.test(lines[j])) {
+            const tot = (lines[j].match(/\$?\s?[\d.]+(?:,\d+)?/g) ?? []).map(num);
+            checkTotal(
+              `km-100 ${flotaSeccion}${bloque > 1 ? ` bloque ${bloque}` : ""} (${n} filas)`,
+              tot[km100Primero ? 0 : 1] ?? null,
+              sum,
+            );
+            sum = 0; n = 0; bloque++;
+            continue;
+          }
           const r = splitRow(lines[j]);
           if (!r) continue;
           // El % va último: si el último token es < 100 es el porcentaje.
@@ -215,6 +249,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           let pct: number | null = null;
           if (vals.length && vals[vals.length - 1] < 100) pct = vals.pop()!;
           if (!vals.length) continue;
+          const flota = bloque === 1 ? flotaSeccion : flotaResuelta(r.nombre, flotaSeccion);
           const f = filaDe(flota, r.nombre);
           let km100: number;
           let km: number | undefined;
@@ -231,8 +266,6 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           f.km = f.km ?? km;
           sum += km100; n++;
         }
-        const tot = totalDe(lines, h, fin);
-        checkTotal(`km-100 ${flota} (${n} filas)`, tot?.[km100Primero ? 0 : 1] ?? null, sum);
       });
     }
   }
@@ -314,10 +347,11 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
         let sumFact = 0, sumTotal = 0;
         const flotas = { escalables: 0, tolvas: 0 };
         for (const { nombre, vals, pos } of b.rows) {
-          // Flota: la que ya conocemos de fact-km; si no está, la mayoría del bloque decide al final.
+          // Flota: la que ya conocemos de fact-km (dominante si cambió de
+          // flota a mitad de mes); si no está, la mayoría del bloque decide.
           const enEsc = filas.has(`escalables|${nombre}`);
           const enTol = filas.has(`tolvas|${nombre}`);
-          const flota = enEsc && !enTol ? "escalables" : enTol && !enEsc ? "tolvas" : null;
+          const flota = enEsc || enTol ? flotaResuelta(nombre, "escalables") : null;
           if (flota) flotas[flota]++;
           const anclaFact = flota ? filas.get(`${flota}|${nombre}`)!.facturacion : undefined;
           let fact: number | null = null, total: number | null = null, neto: number | null = null;
@@ -350,11 +384,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
         // Flota del bloque = mayoría (para los choferes que fact-km no trae).
         const flotaBloque = flotas.tolvas > flotas.escalables ? "tolvas" : "escalables";
         for (const { nombre, vals } of b.rows) {
-          const flota = filas.has(`escalables|${nombre}`) && !filas.has(`tolvas|${nombre}`)
-            ? "escalables"
-            : filas.has(`tolvas|${nombre}`) && !filas.has(`escalables|${nombre}`)
-              ? "tolvas"
-              : flotaBloque;
+          const flota = flotaResuelta(nombre, flotaBloque);
           const f = filaDe(flota, nombre);
           if (!Number.isNaN(vals[0])) f.facturacion = f.facturacion ?? vals[0];
           if (!Number.isNaN(vals[1])) f.sueldoTotal = vals[1];
@@ -426,6 +456,27 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     const faltan = (["km", "kmVacios", "km100", "facturacion", "sueldoTotal", "toneladas"] as const)
       .filter((k) => f[k] == null);
     if (faltan.length) warnings.push(`${f.flota}/${f.nombre}: falta ${faltan.join(", ")}`);
+  }
+
+  // Guard anti-skip silencioso: si una planilla por chofer existe pero NINGUNA
+  // fila aportó su métrica, casi seguro cambió el formato del header → se
+  // bloquea el mes (mismatch) en vez de cargarlo incompleto sin aviso.
+  if (filas.size) {
+    const todas = Array.from(filas.values());
+    const chequeos: [RegExp, keyof FilaChofer, string][] = [
+      [/^fact-km(?!.*anual)/i, "km", "fact-km"],
+      [/^km-vacios/i, "kmVacios", "km-vacios"],
+      [/^km-100/i, "km100", "km-100"],
+      [/^toneladas/i, "toneladas", "toneladas"],
+      [/^sueldo-fact/i, "sueldoTotal", "sueldo-fact"],
+    ];
+    for (const [patron, campo, nombre] of chequeos) {
+      const existe = readdirSync(dir).some((x) => patron.test(x) && x.endsWith(".txt"));
+      if (existe && todas.every((f) => f[campo] == null)) {
+        mismatch = true;
+        warnings.push(`${nombre}: el archivo existe pero no se parseó NINGUNA fila (¿header nuevo?) — mes bloqueado`);
+      }
+    }
   }
 
   return { mes: mesISO, filas: Array.from(filas.values()), mesesRows, checks, warnings, mismatch };

@@ -16,7 +16,7 @@
  * aplican (quedan listados para revisar a mano).
  */
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, readdirSync, statSync } from "fs";
+import { existsSync, mkdirSync, statSync, unlinkSync } from "fs";
 import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { parsePlanillasDir, type ParseResult } from "./parse-planillas-metricas";
@@ -28,6 +28,10 @@ const dirIdx = args.indexOf("--dir");
 const BASE = dirIdx >= 0 ? args[dirIdx + 1] : join(process.cwd(), ".metricas-drive");
 const soloIdx = args.indexOf("--solo");
 const SOLO = soloIdx >= 0 ? args[soloIdx + 1] : null;
+// Meses con mismatch REVISADO A MANO que igual se aplican (ej. el TOTAL del
+// propio Excel está mal calculado): --forzar 2024-06,2025-03
+const forzarIdx = args.indexOf("--forzar");
+const FORZAR = new Set(forzarIdx >= 0 ? (args[forzarIdx + 1] ?? "").split(",") : []);
 // Choferes que entraron/salieron a mitad de mes (cursiva en la planilla) — por mes.
 const PARCIALES: Record<string, string[]> = { "2026-05": ["GOMEZ", "CLEMENTE"] };
 
@@ -139,6 +143,17 @@ async function main() {
           noClasificados.push(`${anio.nombre}/${carpeta.nombre}/${a.nombre}`);
           continue;
         }
+        // En las carpetas ANUALES solo se soportan la serie de costo y el
+        // fact-km anual; las demás planillas anuales quedan registradas como
+        // no cargadas (formato distinto, sin parser todavía).
+        if (esAnuales && clase !== "costo-km" && !clase.startsWith("fact-km-anual")) {
+          noClasificados.push(`${anio.nombre}/${carpeta.nombre}/${a.nombre} (planilla anual no soportada)`);
+          for (const ext of [".pdf", ".txt"]) {
+            const stale = join(dir, `${clase}${ext}`);
+            if (existsSync(stale)) unlinkSync(stale);
+          }
+          continue;
+        }
         const pdf = join(dir, `${clase}.pdf`);
         try {
           await descargar(a.id, pdf);
@@ -195,9 +210,15 @@ async function main() {
   const sb = createClient(URL, KEY, { auth: { persistSession: false } });
 
   for (const r of resultados) {
-    if (r.mismatch) {
-      console.log(`⏭️  ${r.mes}: SALTEADO por mismatch de totales — revisar a mano.`);
+    if (r.mismatch && !FORZAR.has(r.mes.slice(0, 7))) {
+      console.log(`⏭️  ${r.mes}: SALTEADO por mismatch de totales — revisar a mano (o --forzar ${r.mes.slice(0, 7)}).`);
       continue;
+    }
+    if (r.mismatch) console.log(`⚠️  ${r.mes}: aplicado con --forzar (mismatch revisado a mano).`);
+    // Recarga atómica del mes: se borra lo previo para no dejar filas huérfanas
+    // si un chofer cambió de flota o de nombre entre corridas.
+    if (r.filas.length) {
+      await sb.from("metricas_chofer_mes").delete().eq("mes", r.mes);
     }
     if (r.filas.length) {
       const rows = r.filas.map((f) => ({
