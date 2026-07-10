@@ -16,7 +16,7 @@
  * aplican (quedan listados para revisar a mano).
  */
 import { execSync } from "child_process";
-import { existsSync, mkdirSync, statSync, unlinkSync } from "fs";
+import { existsSync, mkdirSync, statSync } from "fs";
 import { join } from "path";
 import { createClient } from "@supabase/supabase-js";
 import { parsePlanillasDir, type ParseResult } from "./parse-planillas-metricas";
@@ -80,15 +80,17 @@ const norm = (s: string) =>
 /** Clasifica un PDF por nombre → base del .txt esperado por el parser (o null). */
 function clasificar(nombre: string): string | null {
   const n = norm(nombre);
-  const anio = n.match(/(?:ANO|AÑO|ANUAL)\D*(\d{4})/) ?? n.match(/(\d{4})/);
-  if (/SUELDO/.test(n)) return "sueldo-fact";
+  const anio = (n.match(/(?:ANO|AÑO|ANUAL)\D*(\d{4})/) ?? n.match(/(\d{4})/))?.[1] ?? "";
+  // Las planillas anuales (AÑO/ANUAL en el nombre) llevan sufijo -anual<YYYY>
+  // y tienen sus propios parsers. La de COSTO anual usa el mismo formato
+  // mensual (filas ene-XX), así que va a la clase mensual.
+  const esAnual = /ANO|AÑO|ANUAL/.test(n);
   if (/COSTO/.test(n)) return "costo-km";
-  if (/VACIO/.test(n)) return "km-vacios";
-  if (/100/.test(n)) return "km-100";
-  if (/TONELA/.test(n)) return "toneladas";
-  if (/FACTURACION POR KM/.test(n)) {
-    return /ANO|AÑO|ANUAL/.test(n) ? `fact-km-anual${anio?.[1] ?? ""}` : "fact-km";
-  }
+  if (/SUELDO/.test(n)) return esAnual ? `sueldo-fact-anual${anio}` : "sueldo-fact";
+  if (/VACIO/.test(n)) return esAnual ? `km-vacios-anual${anio}` : "km-vacios";
+  if (/100/.test(n)) return esAnual ? `km-100-anual${anio}` : "km-100";
+  if (/TONELA/.test(n)) return esAnual ? `toneladas-anual${anio}` : "toneladas";
+  if (/FACTURACION POR KM/.test(n)) return esAnual ? `fact-km-anual${anio}` : "fact-km";
   return null;
 }
 
@@ -141,17 +143,6 @@ async function main() {
         const clase = clasificar(a.nombre);
         if (!clase) {
           noClasificados.push(`${anio.nombre}/${carpeta.nombre}/${a.nombre}`);
-          continue;
-        }
-        // En las carpetas ANUALES solo se soportan la serie de costo y el
-        // fact-km anual; las demás planillas anuales quedan registradas como
-        // no cargadas (formato distinto, sin parser todavía).
-        if (esAnuales && clase !== "costo-km" && !clase.startsWith("fact-km-anual")) {
-          noClasificados.push(`${anio.nombre}/${carpeta.nombre}/${a.nombre} (planilla anual no soportada)`);
-          for (const ext of [".pdf", ".txt"]) {
-            const stale = join(dir, `${clase}${ext}`);
-            if (existsSync(stale)) unlinkSync(stale);
-          }
           continue;
         }
         const pdf = join(dir, `${clase}.pdf`);
@@ -233,6 +224,11 @@ async function main() {
         sueldo_total: f.sueldoTotal ?? null,
         sueldo_neto: f.sueldoNeto ?? null,
         toneladas_prom: f.toneladas ?? null,
+        retenciones: f.retenciones ?? null,
+        adelantos: f.adelantos ?? null,
+        devol_prestamo: f.devolPrestamo ?? null,
+        embargo_judicial: f.embargoJudicial ?? null,
+        aguinaldo: f.aguinaldo ?? null,
         ingreso_parcial: f.ingresoParcial,
       }));
       const { error } = await sb.from("metricas_chofer_mes").upsert(rows, { onConflict: "mes,flota,chofer_nombre" });
@@ -255,6 +251,13 @@ async function main() {
         fact_km: m.factKm ?? null,
         costo_km_estudio: m.costoKm ?? null,
         prom_km: m.promKm ?? null,
+        km_vacios: m.kmVacios ?? null,
+        km_100: m.km100 ?? null,
+        sueldo_total: m.sueldoTotal ?? null,
+        sueldo_neto: m.sueldoNeto ?? null,
+        toneladas_prom: m.toneladas ?? null,
+        ton_escal35: m.tonEscal35 ?? null,
+        ton_escal37: m.tonEscal37 ?? null,
         fuente: m.fuente,
       });
       if (error) console.error(`✗ ${r.mes} mes ${m.mes}/${m.flota ?? "-"}:`, error.message);

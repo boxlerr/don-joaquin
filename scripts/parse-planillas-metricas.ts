@@ -27,6 +27,13 @@ export type FilaChofer = {
   sueldoTotal?: number;
   sueldoNeto?: number;
   toneladas?: number;
+  // Desglose del sueldo (páginas RETENCIONES): retenciones + adelantos +
+  // devol. préstamo + embargo judicial + aguinaldo + neto = total.
+  retenciones?: number;
+  adelantos?: number;
+  devolPrestamo?: number;
+  embargoJudicial?: number;
+  aguinaldo?: number;
   ingresoParcial: boolean;
 };
 
@@ -38,6 +45,14 @@ export type FilaMes = {
   factKm?: number;
   costoKm?: number;
   promKm?: number;
+  // Planillas anuales (agregados mensuales por flota, sin choferes).
+  kmVacios?: number;
+  km100?: number;
+  sueldoTotal?: number;
+  sueldoNeto?: number;
+  toneladas?: number;
+  tonEscal35?: number;
+  tonEscal37?: number;
   fuente: string;
 };
 
@@ -99,7 +114,14 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
   const warnings: string[] = [];
   const checks: string[] = [];
   let mismatch = false;
-  const mesesRows: FilaMes[] = [];
+  // Filas a nivel mes, mergeadas por (mes, flota): varias planillas anuales
+  // aportan columnas distintas de la misma fila.
+  const mesRowMap = new Map<string, FilaMes>();
+  const mesRow = (mes: string, flota: string | null, fuente: string): FilaMes => {
+    const key = `${mes}|${flota ?? "-"}`;
+    if (!mesRowMap.has(key)) mesRowMap.set(key, { mes, flota, fuente });
+    return mesRowMap.get(key)!;
+  };
 
   const filaDe = (flota: FilaChofer["flota"], nombre: string): FilaChofer => {
     const key = `${flota}|${nombre}`;
@@ -169,7 +191,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
   // 2) KM VACIOS — columnas: KM · KM VACIO · % (a veces falta el % o el vacío).
   //    fact-km ya corrió, así que f.km sirve de ancla para filas incompletas.
   {
-    const lines = leer(/^km-vacios/i);
+    const lines = leer(/^km-vacios(?!-anual)/i);
     if (!lines) warnings.push("Falta km-vacios*.txt");
     else {
       const headers = marcas(lines, /KM VACIO\S*\s+(ESCALABLES|TOLVAS)/i);
@@ -206,6 +228,9 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
             // valor es el km); si no, el valor ES el vacío.
             kmVacios = pct === 0 || casiIgual(vals[0], f.km) ? 0 : vals[0];
           }
+          if (vals.length >= 2 && f.km != null && Math.abs(vals[0] - f.km) > 1.5) {
+            warnings.push(`≠ planillas ${flota}/${r.nombre}: km en km-vacios=${vals[0]} vs fact-km=${f.km}`);
+          }
           f.kmVacios = kmVacios;
           sum += kmVacios; n++;
         }
@@ -218,7 +243,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
   //    2025+: ESCALABLES · KM TOTALES · KM AL 100 · %
   //    Filas incompletas: se resuelve con f.km (de fact-km) como ancla.
   {
-    const lines = leer(/^km-100/i);
+    const lines = leer(/^km-100(?!-anual)/i);
     if (!lines) warnings.push("Falta km-100*.txt");
     else {
       const headers = marcas(lines, /(ESCALABLES|TOLVAS)\s+(KM TOTALES|KM AL|100)/i);
@@ -262,6 +287,9 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           } else {
             km100 = vals[0];
           }
+          if (km != null && f.km != null && Math.abs(km - f.km) > 1.5) {
+            warnings.push(`≠ planillas ${flota}/${r.nombre}: km en km-100=${km} vs fact-km=${f.km}`);
+          }
           f.km100 = km100;
           f.km = f.km ?? km;
           sum += km100; n++;
@@ -272,7 +300,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
 
   // 4) TONELADAS (escal 35 / escal 37 / tolvas)
   {
-    const lines = leer(/^toneladas/i);
+    const lines = leer(/^toneladas(?!-anual)/i);
     if (!lines) warnings.push("Falta toneladas*.txt");
     else {
       const headers = marcas(lines, /TONELADAS TOTALES/i);
@@ -305,7 +333,7 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
   //    detectan por los TOTAL y la flota de cada chofer se deduce de fact-km
   //    (que ya corrió). Celdas vacías → asignación por valor ancla.
   {
-    const lines = leer(/^sueldo-fact/i);
+    const lines = leer(/^sueldo-fact(?!-anual)/i);
     if (!lines) warnings.push("Falta sueldo-fact*.txt");
     else {
       const corte = lines.findIndex((l) => /RETENCIONES/i.test(l));
@@ -386,6 +414,9 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
         for (const { nombre, vals } of b.rows) {
           const flota = flotaResuelta(nombre, flotaBloque);
           const f = filaDe(flota, nombre);
+          if (!Number.isNaN(vals[0]) && f.facturacion != null && Math.abs(vals[0] - f.facturacion) > 1.5) {
+            warnings.push(`≠ planillas ${flota}/${nombre}: facturación en sueldo=${Math.round(vals[0])} vs fact-km=${Math.round(f.facturacion)}`);
+          }
           if (!Number.isNaN(vals[0])) f.facturacion = f.facturacion ?? vals[0];
           if (!Number.isNaN(vals[1])) f.sueldoTotal = vals[1];
           if (!Number.isNaN(vals[2])) f.sueldoNeto = vals[2];
@@ -400,6 +431,116 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     }
   }
 
+  // 5b) Desglose del sueldo (páginas RETENCIONES del mismo PDF): columnas
+  // RETENCIONES · ADELANTOS · DEVOL PREST · EMBAR JUD · AGUINALDO · NETO ·
+  // TOTAL · KM AL 100%. Cada valor se asigna a la columna cuyo rótulo del
+  // header le quede más cerca (las celdas vacías son la norma acá).
+  // Validación fila por fila: conceptos + neto = total.
+  {
+    const lines = leer(/^sueldo-fact(?!-anual)/i);
+    const desde = lines?.findIndex((l) => /RETENCIONES/i.test(l)) ?? -1;
+    if (lines && desde >= 0) {
+      type Ancla = { centro: number; campo: keyof FilaChofer | "neto" | "total" | "km100" | null };
+      let anclas: Ancla[] = [];
+      const armarAnclas = (header: string) => {
+        const defs: [RegExp, Ancla["campo"]][] = [
+          [/RETENCIONES/i, "retenciones"],
+          [/ADELANTOS/i, "adelantos"],
+          [/DEVOL\s*\.?\s*PREST/i, "devolPrestamo"],
+          [/EMBAR\S*\s*JUD\S*/i, "embargoJudicial"],
+          [/AGUINALDO/i, "aguinaldo"],
+          [/NETO/i, "neto"],
+          [/TOTAL/i, "total"],
+          [/KM AL/i, "km100"],
+        ];
+        anclas = [];
+        for (const [re, campo] of defs) {
+          const m = header.match(re);
+          if (m && m.index != null) anclas.push({ centro: m.index + m[0].length / 2, campo });
+        }
+      };
+      let n = 0, rotas = 0;
+      for (let j = desde; j < lines.length; j++) {
+        if (/RETENCIONES/i.test(lines[j])) {
+          armarAnclas(lines[j]);
+          continue;
+        }
+        if (!anclas.length) continue;
+        const nm = lines[j].match(/^([A-ZÑÁÉÍÓÚ][A-ZÑÁÉÍÓÚ.\s]*?)\s{2,}(?=\S)/);
+        if (!nm) continue;
+        const nombre = nm[1].trim().replace(/\s+/g, " ");
+        if (/TOTAL|PROMEDIO|CHOFER/.test(nombre)) continue;
+        // Tokens con su texto crudo: la plata lleva coma decimal (o $); el
+        // entero pelado del final es la columna KM AL 100% y se descarta.
+        const moneys: { v: number; centro: number }[] = [];
+        const reTok = /\$?\s?-?[\d.]+(?:,\d+)?/g;
+        let t: RegExpExecArray | null;
+        while ((t = reTok.exec(lines[j].slice(nm[0].length)))) {
+          if (t[0].includes(",") || t[0].includes("$")) {
+            moneys.push({ v: num(t[0]), centro: nm[0].length + t.index + t[0].length / 2 });
+          }
+        }
+        if (moneys.length < 2) continue; // sin neto+total no hay fila válida
+        const total = moneys.pop()!;
+        const netoTok = moneys.pop()!;
+        // Corrimiento de la fila vs el header (hay páginas con columnas corridas):
+        // se calcula con el NETO, que siempre está.
+        const anclaNeto = anclas.find((a) => a.campo === "neto");
+        const offset = anclaNeto ? netoTok.centro - anclaNeto.centro : 0;
+        const celdas: Partial<Record<NonNullable<Ancla["campo"]>, number>> = {
+          neto: netoTok.v,
+          total: total.v,
+        };
+        const conceptos = anclas.filter((a) =>
+          ["retenciones", "adelantos", "devolPrestamo", "embargoJudicial", "aguinaldo"].includes(String(a.campo)),
+        );
+        for (const m of moneys) {
+          let mejor: Ancla | null = null;
+          for (const a of conceptos) {
+            if (!mejor || Math.abs(m.centro - offset - a.centro) < Math.abs(m.centro - offset - mejor.centro)) mejor = a;
+          }
+          if (mejor?.campo) celdas[mejor.campo] = m.v;
+        }
+        const flota = flotaResuelta(nombre, "escalables");
+        const f = filaDe(flota, nombre);
+        for (const campo of ["retenciones", "adelantos", "devolPrestamo", "embargoJudicial", "aguinaldo"] as const) {
+          if (celdas[campo] != null) f[campo] = celdas[campo];
+        }
+        n++;
+        // Validación: conceptos + neto = total (con el neto/total de ESTA página).
+        const neto = celdas.neto;
+        if (neto != null) {
+          const suma =
+            (f.retenciones ?? 0) + (f.adelantos ?? 0) + (f.devolPrestamo ?? 0) +
+            (f.embargoJudicial ?? 0) + (f.aguinaldo ?? 0) + neto;
+          if (Math.abs(suma - total.v) > 1.5) {
+            rotas++;
+            warnings.push(`desglose ${nombre}: conceptos+neto=${Math.round(suma)} ≠ total=${Math.round(total.v)}`);
+          }
+          // Cross-check contra la tabla principal del mismo PDF. Si el total de
+          // esta página no es el del chofer (pasa: filas corridas en la fuente,
+          // ej. tolvas may-26), el desglose es de OTRA persona → se descarta.
+          if (f.sueldoTotal != null && Math.abs(f.sueldoTotal - total.v) > 1.5) {
+            const esTypoChico = Math.abs(f.sueldoTotal - total.v) <= Math.max(1000, f.sueldoTotal * 0.005);
+            if (!esTypoChico) {
+              for (const campo of ["retenciones", "adelantos", "devolPrestamo", "embargoJudicial", "aguinaldo"] as const) {
+                delete f[campo];
+              }
+              warnings.push(
+                `desglose ${nombre}: DESCARTADO — el total de la página de retenciones (${Math.round(total.v)}) no es el del chofer (${Math.round(f.sueldoTotal)}); fila corrida en la planilla fuente`,
+              );
+            } else {
+              warnings.push(`desglose ${nombre}: typo chico en la fuente (${Math.round(total.v)} vs ${Math.round(f.sueldoTotal)})`);
+            }
+          }
+        }
+      }
+      checks.push(`✓ desglose retenciones: ${n} filas${rotas ? ` · ${rotas} que no cierran` : ""}`);
+    } else if (lines) {
+      checks.push("· desglose retenciones: el PDF no trae esas páginas");
+    }
+  }
+
   // 6) COSTO VS KM (tabla mensual del año)
   {
     const lines = leer(/^costo-km/i);
@@ -411,44 +552,108 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
         if (!m) continue;
         const vals = (m[3].match(/\$?\s?[\d.]+(?:,\d+)?/g) ?? []).map(num);
         if (vals.length < 2) continue;
-        mesesRows.push({
-          mes: `20${m[2]}-${MESES_ABREV[m[1].toLowerCase()]}-01`,
-          flota: null,
-          factKm: vals[0],
-          costoKm: vals[1],
-          promKm: vals[2],
-          fuente: "planillas",
-        });
+        const row = mesRow(`20${m[2]}-${MESES_ABREV[m[1].toLowerCase()]}-01`, null, "planillas");
+        row.factKm = vals[0];
+        row.costoKm = vals[1];
+        row.promKm = vals[2];
         n++;
       }
       checks.push(`✓ costo-km: ${n} meses con datos`);
     }
   }
 
-  // 7) Anuales históricos (*anual<AÑO>*: km + facturación por mes y flota)
-  for (const f of readdirSync(dir).filter((x) => /anual(\d{4})/i.test(x) && x.endsWith(".txt"))) {
-    const anio = f.match(/anual(\d{4})/i)![1];
-    const lines = readFileSync(join(dir, f), "utf8").split("\n");
+  // 7) Planillas ANUALES (agregados mensuales por flota, sin choferes).
+  // Helper: recorre un archivo anual, detectando la flota por el header de
+  // sección y entregando cada fila MES → valores.
+  const recorrerAnual = (
+    archivo: string,
+    esHeader: (l: string) => string | null, // devuelve la flota o null
+    porFila: (mes: string, flota: string, vals: number[]) => void,
+  ): number => {
+    const lines = readFileSync(join(dir, archivo), "utf8").split("\n");
+    const anio = archivo.match(/anual(\d{4})/i)![1];
     let flota: string | null = null;
     let n = 0;
     for (const l of lines) {
-      const fm = l.match(/^\s*(ESCALABLES|TOLVAS)\s+KM/i);
-      if (fm) { flota = fm[1].toLowerCase(); continue; }
+      const f = esHeader(l);
+      if (f) { flota = f; continue; }
       const m = l.trim().match(/^([A-Z]+)\s{2,}(.+)$/);
       if (!m || !MES_NOMBRE[m[1]] || !flota) continue;
-      const vals = (m[2].match(/\$?\s?[\d.]+(?:,\d+)?/g) ?? []).map(num);
+      const vals = (m[2].match(/\$?\s?-?[\d.]+(?:,\d+)?/g) ?? []).map(num);
       if (vals.length < 2) continue;
-      mesesRows.push({
-        mes: `${anio}-${MES_NOMBRE[m[1]]}-01`,
-        flota,
-        km: vals[0],
-        facturacion: vals[1],
-        factKm: vals[2],
-        fuente: "anual_historico",
-      });
+      porFila(`${anio}-${MES_NOMBRE[m[1]]}-01`, flota, vals);
       n++;
     }
-    checks.push(`✓ anual ${anio}: ${n} filas mes×flota`);
+    return n;
+  };
+  const anuales = readdirSync(dir).filter((x) => /anual(\d{4})/i.test(x) && x.endsWith(".txt"));
+  for (const f of anuales) {
+    const anio = f.match(/anual(\d{4})/i)![1];
+    // 7a) FACTURACION POR KM anual: [km, facturación, $/km].
+    if (/^fact-km-anual/i.test(f)) {
+      const n = recorrerAnual(f,
+        (l) => l.match(/^\s*(ESCALABLES|TOLVAS)\s+KM/i)?.[1]?.toLowerCase() ?? null,
+        (mes, flota, vals) => {
+          const row = mesRow(mes, flota, "anual_historico");
+          row.km = vals[0];
+          row.facturacion = vals[1];
+          row.factKm = vals[2];
+        });
+      checks.push(`✓ fact-km anual ${anio}: ${n} filas mes×flota`);
+    }
+    // 7b) KM VACIO anual: [km, km vacío, %].
+    if (/^km-vacios-anual/i.test(f)) {
+      const n = recorrerAnual(f,
+        (l) => l.match(/KM VACIO\S*\s+(ESCALABLES|TOLVAS)/i)?.[1]?.toLowerCase() ?? null,
+        (mes, flota, vals) => {
+          const row = mesRow(mes, flota, "anual_historico");
+          row.kmVacios = vals[1];
+          row.km = row.km ?? vals[0];
+        });
+      checks.push(`✓ km-vacios anual ${anio}: ${n} filas mes×flota`);
+    }
+    // 7c) KM AL 100 anual: [km al 100, km totales, %] (el 100 va primero).
+    if (/^km-100-anual/i.test(f)) {
+      const n = recorrerAnual(f,
+        (l) => l.match(/(ESCALABLES|TOLVAS)\s+(100|KM AL|KM TOTALES)/i)?.[1]?.toLowerCase() ?? null,
+        (mes, flota, vals) => {
+          const row = mesRow(mes, flota, "anual_historico");
+          row.km100 = vals[0];
+          row.km = row.km ?? vals[1];
+        });
+      checks.push(`✓ km-100 anual ${anio}: ${n} filas mes×flota`);
+    }
+    // 7d) SUELDO SOBRE FACTURACION anual: [facturación, sueldo total, neto, %].
+    // La facturación de fact-km anual es la canónica: acá solo van los sueldos.
+    if (/^sueldo-fact-anual/i.test(f)) {
+      const n = recorrerAnual(f,
+        (l) => l.match(/^\s*(ESCALABLES|TOLVAS)\s*(TOTAL|NETO|$)/i)?.[1]?.toLowerCase() ?? null,
+        (mes, flota, vals) => {
+          const row = mesRow(mes, flota, "anual_historico");
+          row.sueldoTotal = vals[1];
+          row.sueldoNeto = vals[2];
+          row.facturacion = row.facturacion ?? vals[0];
+        });
+      checks.push(`✓ sueldo anual ${anio}: ${n} filas mes×flota`);
+    }
+    // 7e) TONELADAS anual: [km, toneladas] por grupo ESCAL 35 / ESCAL 37 / tolvas.
+    if (/^toneladas-anual/i.test(f)) {
+      let grupo: "35" | "37" | "tolvas" = "35";
+      const n = recorrerAnual(f,
+        (l) => {
+          const em = l.match(/ESCAL\s*(35|37)/i);
+          if (em) { grupo = em[1] as "35" | "37"; return "escalables"; }
+          if (/TONELADAS.*TOLVAS|TOLVAS/i.test(l)) { grupo = "tolvas"; return "tolvas"; }
+          return null;
+        },
+        (mes, flota, vals) => {
+          const row = mesRow(mes, flota, "anual_historico");
+          if (grupo === "35") row.tonEscal35 = vals[1];
+          else if (grupo === "37") row.tonEscal37 = vals[1];
+          else row.toneladas = vals[1];
+        });
+      checks.push(`✓ toneladas anual ${anio}: ${n} filas mes×flota`);
+    }
   }
 
   // Consistencia entre planillas.
@@ -465,10 +670,10 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     const todas = Array.from(filas.values());
     const chequeos: [RegExp, keyof FilaChofer, string][] = [
       [/^fact-km(?!.*anual)/i, "km", "fact-km"],
-      [/^km-vacios/i, "kmVacios", "km-vacios"],
-      [/^km-100/i, "km100", "km-100"],
-      [/^toneladas/i, "toneladas", "toneladas"],
-      [/^sueldo-fact/i, "sueldoTotal", "sueldo-fact"],
+      [/^km-vacios(?!-anual)/i, "kmVacios", "km-vacios"],
+      [/^km-100(?!-anual)/i, "km100", "km-100"],
+      [/^toneladas(?!-anual)/i, "toneladas", "toneladas"],
+      [/^sueldo-fact(?!-anual)/i, "sueldoTotal", "sueldo-fact"],
     ];
     for (const [patron, campo, nombre] of chequeos) {
       const existe = readdirSync(dir).some((x) => patron.test(x) && x.endsWith(".txt"));
@@ -479,7 +684,14 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
     }
   }
 
-  return { mes: mesISO, filas: Array.from(filas.values()), mesesRows, checks, warnings, mismatch };
+  return {
+    mes: mesISO,
+    filas: Array.from(filas.values()),
+    mesesRows: Array.from(mesRowMap.values()),
+    checks,
+    warnings,
+    mismatch,
+  };
 }
 
 /** SQL idempotente de un ParseResult (para el CLI / aplicar por MCP). */
@@ -487,14 +699,14 @@ export function generarSQL(r: ParseResult): string {
   const esc = (v: number | null | undefined) => (v == null ? "null" : String(v));
   const escTxt = (s: string) => s.replace(/'/g, "''");
   const choferValues = r.filas.map((f) =>
-    `('${r.mes}', '${f.flota}', '${escTxt(f.nombre)}', ${f.escalTipo ?? "null"}, ${esc(f.km)}, ${esc(f.kmVacios)}, ${esc(f.km100)}, ${esc(f.facturacion)}, ${esc(f.sueldoTotal)}, ${esc(f.sueldoNeto)}, ${esc(f.toneladas)}, ${f.ingresoParcial})`,
+    `('${r.mes}', '${f.flota}', '${escTxt(f.nombre)}', ${f.escalTipo ?? "null"}, ${esc(f.km)}, ${esc(f.kmVacios)}, ${esc(f.km100)}, ${esc(f.facturacion)}, ${esc(f.sueldoTotal)}, ${esc(f.sueldoNeto)}, ${esc(f.toneladas)}, ${esc(f.retenciones)}, ${esc(f.adelantos)}, ${esc(f.devolPrestamo)}, ${esc(f.embargoJudicial)}, ${esc(f.aguinaldo)}, ${f.ingresoParcial})`,
   );
   const mesValues = r.mesesRows.map((m) =>
-    `('${m.mes}', ${m.flota ? `'${m.flota}'` : "null"}, ${esc(m.km)}, ${esc(m.facturacion)}, ${esc(m.factKm)}, ${esc(m.costoKm)}, ${esc(m.promKm)}, '${m.fuente}')`,
+    `('${m.mes}', ${m.flota ? `'${m.flota}'` : "null"}, ${esc(m.km)}, ${esc(m.facturacion)}, ${esc(m.factKm)}, ${esc(m.costoKm)}, ${esc(m.promKm)}, ${esc(m.kmVacios)}, ${esc(m.km100)}, ${esc(m.sueldoTotal)}, ${esc(m.sueldoNeto)}, ${esc(m.toneladas)}, ${esc(m.tonEscal35)}, ${esc(m.tonEscal37)}, '${m.fuente}')`,
   );
   return `-- Carga de métricas ${r.mes} generada por parse-planillas-metricas.ts. Idempotente.
 ${choferValues.length ? `insert into public.metricas_chofer_mes
-  (mes, flota, chofer_nombre, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial)
+  (mes, flota, chofer_nombre, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo, ingreso_parcial)
 values
 ${choferValues.join(",\n")}
 on conflict (mes, flota, chofer_nombre) do update set
@@ -502,14 +714,20 @@ on conflict (mes, flota, chofer_nombre) do update set
   km_vacios = excluded.km_vacios, km_100 = excluded.km_100,
   facturacion = excluded.facturacion, sueldo_total = excluded.sueldo_total,
   sueldo_neto = excluded.sueldo_neto, toneladas_prom = excluded.toneladas_prom,
-  ingreso_parcial = excluded.ingreso_parcial;` : ""}
+  retenciones = excluded.retenciones, adelantos = excluded.adelantos,
+  devol_prestamo = excluded.devol_prestamo, embargo_judicial = excluded.embargo_judicial,
+  aguinaldo = excluded.aguinaldo, ingreso_parcial = excluded.ingreso_parcial;` : ""}
 
-${mesValues.length ? `insert into public.metricas_mes (mes, flota, km, facturacion, fact_km, costo_km_estudio, prom_km, fuente)
+${mesValues.length ? `insert into public.metricas_mes (mes, flota, km, facturacion, fact_km, costo_km_estudio, prom_km, km_vacios, km_100, sueldo_total, sueldo_neto, toneladas_prom, ton_escal35, ton_escal37, fuente)
 values
 ${mesValues.join(",\n")}
 on conflict (mes, coalesce(flota, '-')) do update set
   km = excluded.km, facturacion = excluded.facturacion, fact_km = excluded.fact_km,
-  costo_km_estudio = excluded.costo_km_estudio, prom_km = excluded.prom_km, fuente = excluded.fuente;` : ""}
+  costo_km_estudio = excluded.costo_km_estudio, prom_km = excluded.prom_km,
+  km_vacios = excluded.km_vacios, km_100 = excluded.km_100,
+  sueldo_total = excluded.sueldo_total, sueldo_neto = excluded.sueldo_neto,
+  toneladas_prom = excluded.toneladas_prom, ton_escal35 = excluded.ton_escal35,
+  ton_escal37 = excluded.ton_escal37, fuente = excluded.fuente;` : ""}
 `;
 }
 
