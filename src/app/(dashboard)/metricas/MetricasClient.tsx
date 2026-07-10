@@ -15,9 +15,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   BarChart3, TrendingUp, TrendingDown, Minus, Truck, Route, Gauge, Weight,
-  Wallet, Trash2, Plus, ArrowUpRight,
+  Wallet, Trash2, Plus, ArrowUpRight, Download,
 } from "lucide-react";
 import CargarAumentoDialog from "./CargarAumentoDialog";
+import ExportarMetricasDialog from "./ExportarMetricasDialog";
 import { eliminarAumentoClienteAction, type MetricasData, type Flota } from "./actions";
 import { useRouter } from "next/navigation";
 
@@ -91,6 +92,7 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
   const [tab, setTab] = useState<TabId>("resumen");
   const [flota, setFlota] = useState<Flota>("escalables");
   const [aumentoOpen, setAumentoOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const router = useRouter();
 
   const t = data.totales.general;
@@ -231,13 +233,18 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-          {(["escalables", "tolvas"] as const).map((f) => (
-            <button key={f} type="button" onClick={() => setFlota(f)}
-              className={`px-3 h-8 text-xs font-medium rounded-md capitalize transition-all ${flota === f ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-              {f} ({data.choferes.filter((c) => c.flota === f).length})
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+            {(["escalables", "tolvas"] as const).map((f) => (
+              <button key={f} type="button" onClick={() => setFlota(f)}
+                className={`px-3 h-8 text-xs font-medium rounded-md capitalize transition-all ${flota === f ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                {f} ({data.choferes.filter((c) => c.flota === f).length})
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setExportOpen(true)}>
+            <Download size={14} /> Exportar
+          </Button>
         </div>
       </div>
 
@@ -385,6 +392,7 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
       {data.canWrite && (
         <CargarAumentoDialog open={aumentoOpen} onOpenChange={setAumentoOpen} onDone={() => router.refresh()} />
       )}
+      <ExportarMetricasDialog open={exportOpen} onOpenChange={setExportOpen} mes={data.mes} />
     </div>
   );
 }

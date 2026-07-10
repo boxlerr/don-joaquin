@@ -30,6 +30,12 @@ export type MetricaChofer = {
   sueldoNeto: number;
   toneladas: number;
   ingresoParcial: boolean;
+  // Desglose del sueldo (puede faltar en meses viejos).
+  retenciones: number | null;
+  adelantos: number | null;
+  devolPrestamo: number | null;
+  embargoJudicial: number | null;
+  aguinaldo: number | null;
 };
 
 export type TotalesMes = {
@@ -128,7 +134,7 @@ async function choferesDelMes(supabase: any, mes: string): Promise<MetricaChofer
   const { data } = await supabase
     .from("metricas_chofer_mes")
     .select(
-      "chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial",
+      "chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
     )
     .eq("mes", mes);
   return ((data ?? []) as any[]).map((r) => ({
@@ -144,6 +150,11 @@ async function choferesDelMes(supabase: any, mes: string): Promise<MetricaChofer
     sueldoNeto: Number(r.sueldo_neto ?? 0),
     toneladas: Number(r.toneladas_prom ?? 0),
     ingresoParcial: Boolean(r.ingreso_parcial),
+    retenciones: r.retenciones == null ? null : Number(r.retenciones),
+    adelantos: r.adelantos == null ? null : Number(r.adelantos),
+    devolPrestamo: r.devol_prestamo == null ? null : Number(r.devol_prestamo),
+    embargoJudicial: r.embargo_judicial == null ? null : Number(r.embargo_judicial),
+    aguinaldo: r.aguinaldo == null ? null : Number(r.aguinaldo),
   }));
 }
 
