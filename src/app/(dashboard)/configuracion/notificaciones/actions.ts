@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
+import { enviarResumenPrueba } from "@/lib/notificaciones";
 import {
   ALERTAS,
   ALERTA_COLUMNAS,
@@ -290,4 +291,26 @@ export async function setUsuarioAlertaPrefAction(input: unknown): Promise<Result
   if ("error" in res) return { error: res.error };
   revalidatePath("/configuracion/notificaciones");
   return { success: true };
+}
+
+/**
+ * Envío de PRUEBA: manda el resumen de alertas SOLO al correo del admin que aprieta
+ * el botón (se deriva de la sesión, nunca del cliente). No toca la base ni la lista
+ * de destinatarios, así probar es inofensivo.
+ */
+export async function enviarPruebaNotificacionAction(): Promise<
+  Result & { email?: string; total?: number }
+> {
+  const user = await requireAdmin();
+
+  const res = await enviarResumenPrueba(user.email);
+  if (res.enviado) {
+    return { success: true, email: user.email, total: res.total };
+  }
+
+  const mensajePorMotivo: Record<string, string> = {
+    smtp_no_configurado: "El correo (SMTP) no está configurado.",
+    error_envio: res.error ? `No se pudo enviar: ${res.error}` : "No se pudo enviar el correo.",
+  };
+  return { error: mensajePorMotivo[res.motivo] ?? "No se pudo enviar el correo." };
 }

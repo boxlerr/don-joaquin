@@ -340,6 +340,70 @@ export type ResultadoResumen =
   | { enviado: false; motivo: string; error?: string };
 
 /**
+ * Arma la lista de alertas del resumen: las pendientes de la tabla (sin documentos
+ * ni cheques, que se recalculan en vivo para reflejar el estado real y escalar a
+ * "vencido"), filtradas por los toggles y ordenadas para presentación.
+ */
+async function construirResumenFiltrado(
+  supabase: Supabase,
+  params: Map<string, string>,
+): Promise<AlertaEmail[]> {
+  const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
+    supabase
+      .from("alertas")
+      .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo")
+      .eq("estado", "pendiente")
+      .not("tipo", "in", "(vencimiento_doc_camion,vencimiento_doc_chofer,vencimiento_cheque)")
+      .order("severidad", { ascending: false })
+      .order("fecha_disparo", { ascending: false })
+      .limit(200),
+    getDocAlertasLive(supabase),
+    getChequeAlertasLive(supabase),
+  ]);
+
+  // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
+  return [...(pendientes ?? []), ...docLive, ...chequeLive]
+    .filter((a) => tipoHabilitado(a.tipo, params))
+    .sort(compararAlertasEmail);
+}
+
+/**
+ * Envío de PRUEBA: manda el resumen (mismo formato y contenido que el diario) a un
+ * único correo. No exige el canal Email activo ni la lista de destinatarios y no
+ * toca ningún estado en la base, así probar es inofensivo. Si no hay alertas, igual
+ * envía el correo (para verificar el SMTP y el formato).
+ */
+export async function enviarResumenPrueba(email: string): Promise<ResultadoResumen> {
+  if (!emailConfigurado()) return { enviado: false, motivo: "smtp_no_configurado" };
+
+  const supabase = createAdminClient();
+  const params = await leerParametros(supabase);
+  const filtradas = await construirResumenFiltrado(supabase, params);
+
+  const html = renderEmail({
+    titulo: "Prueba — Resumen de alertas",
+    intro:
+      filtradas.length > 0
+        ? `Envío de prueba. Hay ${filtradas.length} alerta${filtradas.length !== 1 ? "s" : ""} pendiente${filtradas.length !== 1 ? "s" : ""} en el sistema.`
+        : "Envío de prueba. No hay alertas pendientes en este momento.",
+    alertas: filtradas,
+  });
+
+  const res = await enviarEmail({
+    para: [email],
+    asunto: "🧪 Prueba de notificaciones — Don Joaquín",
+    html,
+  });
+
+  if (!res.ok) {
+    console.error("[notificaciones] envío de prueba falló:", res.error);
+    return { enviado: false, motivo: res.skipped ? "smtp_no_configurado" : "error_envio", error: res.error };
+  }
+
+  return { enviado: true, total: filtradas.length };
+}
+
+/**
  * Envía un resumen con TODAS las alertas pendientes (no toca `notificacion_procesada`).
  * Lo dispara el cron diario.
  */
@@ -356,25 +420,7 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   const destinatarios = await getDestinatarios(supabase, params);
   if (destinatarios.length === 0) return { enviado: false, motivo: "sin_destinatarios" };
 
-  // Documentos y cheques se recalculan en vivo (abajo) para reflejar el estado
-  // real y que escalen a "vencido"; excluimos sus versiones congeladas de la tabla.
-  const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
-    supabase
-      .from("alertas")
-      .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo")
-      .eq("estado", "pendiente")
-      .not("tipo", "in", "(vencimiento_doc_camion,vencimiento_doc_chofer,vencimiento_cheque)")
-      .order("severidad", { ascending: false })
-      .order("fecha_disparo", { ascending: false })
-      .limit(200),
-    getDocAlertasLive(supabase),
-    getChequeAlertasLive(supabase),
-  ]);
-
-  // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
-  const filtradas = [...(pendientes ?? []), ...docLive, ...chequeLive]
-    .filter((a) => tipoHabilitado(a.tipo, params))
-    .sort(compararAlertasEmail);
+  const filtradas = await construirResumenFiltrado(supabase, params);
   if (filtradas.length === 0) return { enviado: false, motivo: "sin_alertas" };
 
   const html = renderEmail({

@@ -6,6 +6,7 @@ import { Bell, Users, AlertTriangle, CheckCircle2 } from "lucide-react";
 import CanalCard from "./CanalCard";
 import AlertaToggle from "./AlertaToggle";
 import DestinatarioMatriz from "./DestinatarioMatriz";
+import TestNotificacionButton from "./TestNotificacionButton";
 import {
   ALERTAS,
   ALERTA_COLUMNAS,
@@ -70,6 +71,7 @@ export default async function ConfiguracionNotificacionesPage() {
       <PageHeader
         title="Configuración de Notificaciones"
         description="Canales, alertas y preferencias de comunicación"
+        action={<TestNotificacionButton />}
       />
 
       <div>
