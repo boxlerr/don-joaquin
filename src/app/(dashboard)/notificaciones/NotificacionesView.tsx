@@ -14,9 +14,13 @@ import {
   Settings,
   ShieldAlert,
   CheckCircle2,
-  CalendarClock,
   History,
   Trash2,
+  Search,
+  SlidersHorizontal,
+  Flame,
+  ArrowDownNarrowWide,
+  ArrowUpNarrowWide,
 } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { marcarAlertaVista, borrarAlerta, borrarTodasLeidas } from "./actions";
@@ -36,14 +40,64 @@ import {
 
 const SEVERIDAD_ORDER: Severidad[] = ["critica", "advertencia", "info"];
 
-// Dentro de cada grupo de severidad: adm/mant primero, luego choferes
-const ENTIDAD_TIPO_PRIORITY: Record<string, number> = {
+// Máximo de alertas visibles por bloque antes de plegar el resto tras "Ver más".
+const LIMITE_BLOQUE = 5;
+
+// Dentro de cada grupo de severidad agrupamos los eventos de RRHH por TIPO de
+// evento (todos los cumpleaños juntos, todos los aniversarios juntos), sin
+// separar por entidad — así la lista no queda con los cumpleaños desperdigados.
+// Dentro de cada bloque el desempate es por fecha (ver `grouped`).
+const EVENTO_TIPO_PRIORITY: Record<string, number> = {
   personal_cumple: 0,
+  choferes_cumple: 0,
   personal_aniversario: 1,
-  choferes_cumple: 2,
-  choferes_aniversario: 3,
-  choferes_periodo_prueba: 4,
+  choferes_aniversario: 1,
+  choferes_periodo_prueba: 2,
 };
+
+// Bloques con subencabezado dentro de una severidad. El orden coincide con
+// EVENTO_TIPO_PRIORITY, así los items ya vienen ordenados por bloque.
+type BloqueId = "cumple" | "aniversario" | "prueba" | "otras";
+
+const BLOQUE_META: Record<BloqueId, { label: string; emoji: string }> = {
+  cumple: { label: "Cumpleaños", emoji: "🎂" },
+  aniversario: { label: "Aniversarios", emoji: "🎉" },
+  prueba: { label: "Períodos de prueba", emoji: "⏳" },
+  otras: { label: "Otras alertas", emoji: "🔔" },
+};
+
+function bloqueDeAlerta(a: AlertaItem): BloqueId {
+  switch (a.entidad_tipo) {
+    case "personal_cumple":
+    case "choferes_cumple":
+      return "cumple";
+    case "personal_aniversario":
+    case "choferes_aniversario":
+      return "aniversario";
+    case "choferes_periodo_prueba":
+      return "prueba";
+    default:
+      return "otras";
+  }
+}
+
+// Parte los items (ya ordenados) en segmentos consecutivos por bloque.
+function segmentarPorBloque(items: AlertaItem[]): { bloque: BloqueId; items: AlertaItem[] }[] {
+  const segments: { bloque: BloqueId; items: AlertaItem[] }[] = [];
+  for (const a of items) {
+    const b = bloqueDeAlerta(a);
+    const last = segments[segments.length - 1];
+    if (last && last.bloque === b) last.items.push(a);
+    else segments.push({ bloque: b, items: [a] });
+  }
+  return segments;
+}
+
+// "Urgente" = tiene fecha y ya venció o vence hoy (días restantes <= 0).
+function esUrgente(a: AlertaItem): boolean {
+  const d = diasRestantes(a.fecha_vencimiento);
+  return d !== null && d <= 0;
+}
 
 const SEV_ACCENT: Record<Severidad, { border: string; headerBg: string; count: string }> = {
   critica: {
@@ -107,12 +161,23 @@ export default function NotificacionesView({
   const [alertas, setAlertas] = useState(initialAlertas);
   const [sevFilter, setSevFilter] = useState<SevFilter>(initialSev);
   const [catFilter, setCatFilter] = useState<CatFilter>(initialCat);
+  const [urgentesOnly, setUrgentesOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() => ({
-    critica: initialSev !== "critica",
-    advertencia: initialSev !== "advertencia",
-    info: initialSev !== "info",
-  }));
+  // Dirección del orden por fecha dentro de cada bloque: "asc" = fecha más
+  // próxima primero (las que vencen antes), "desc" = fecha más lejana primero.
+  const [orden, setOrden] = useState<"asc" | "desc">("asc");
+  // Colapso inteligente: por defecto solo las críticas quedan abiertas; el resto
+  // arranca plegado para descargar la vista. Un deep-link ?severidad=X abre solo
+  // esa sección.
+  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() =>
+    initialSev === "todas"
+      ? { critica: false, advertencia: true, info: true }
+      : {
+          critica: initialSev !== "critica",
+          advertencia: initialSev !== "advertencia",
+          info: initialSev !== "info",
+        }
+  );
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -137,12 +202,13 @@ export default function NotificacionesView({
     return alertas.filter((a) => {
       if (sevFilter !== "todas" && a.severidad !== sevFilter) return false;
       if (catFilter !== "todas" && categoriaDeAlerta(a.tipo, a.entidad_tipo) !== catFilter) return false;
+      if (urgentesOnly && !esUrgente(a)) return false;
       if (q && !a.titulo.toLowerCase().includes(q) && !a.mensaje.toLowerCase().includes(q)) {
         return false;
       }
       return true;
     });
-  }, [alertas, sevFilter, catFilter, query]);
+  }, [alertas, sevFilter, catFilter, urgentesOnly, query]);
 
   const grouped = useMemo(() => {
     const map: Record<Severidad, AlertaItem[]> = {
@@ -151,16 +217,30 @@ export default function NotificacionesView({
       info: [],
     };
     for (const a of filtered) map[a.severidad].push(a);
-    // Adm/mant antes que choferes dentro de la misma severidad
+    // Orden dentro de cada severidad:
+    //  1) Agrupa los eventos de RRHH por tipo (cumpleaños, aniversarios, prueba);
+    //     el resto de las alertas queda en un bloque posterior común.
+    //  2) Dentro de cada bloque, por fecha de vencimiento más próxima primero.
+    //     Las fechas vienen en ISO (YYYY-MM-DD), así que el orden lexicográfico
+    //     coincide con el cronológico. Las alertas sin fecha van al final.
+    const dir = orden === "asc" ? 1 : -1;
     for (const sev of SEVERIDAD_ORDER) {
       map[sev].sort((a, b) => {
-        const pa = ENTIDAD_TIPO_PRIORITY[a.entidad_tipo ?? ""] ?? 99;
-        const pb = ENTIDAD_TIPO_PRIORITY[b.entidad_tipo ?? ""] ?? 99;
-        return pa - pb;
+        const pa = EVENTO_TIPO_PRIORITY[a.entidad_tipo ?? ""] ?? 99;
+        const pb = EVENTO_TIPO_PRIORITY[b.entidad_tipo ?? ""] ?? 99;
+        if (pa !== pb) return pa - pb;
+        // La dirección solo invierte el orden por fecha; las alertas sin fecha
+        // quedan siempre al final del bloque en ambos sentidos.
+        const fa = a.fecha_vencimiento;
+        const fb = b.fecha_vencimiento;
+        if (fa && fb) return fa < fb ? -dir : fa > fb ? dir : 0;
+        if (fa) return -1;
+        if (fb) return 1;
+        return 0;
       });
     }
     return map;
-  }, [filtered]);
+  }, [filtered, orden]);
 
   function handleMarcarVista(id: string) {
     setPendingId(id);
@@ -177,6 +257,7 @@ export default function NotificacionesView({
     advertencia: alertas.filter((a) => a.severidad === "advertencia").length,
     info: alertas.filter((a) => a.severidad === "info").length,
   };
+  const urgentesCount = alertas.filter(esUrgente).length;
 
   const catCounts: Record<AlertaCategoria, number> = {
     documentacion: 0,
@@ -189,71 +270,124 @@ export default function NotificacionesView({
 
   const totalFiltered = filtered.length;
   const hasAnyAlertas = alertas.length > 0;
+  const hayFiltroActivo = sevFilter !== "todas" || catFilter !== "todas" || urgentesOnly || query.trim() !== "";
+
+  function limpiarFiltros() {
+    setSevFilter("todas");
+    setCatFilter("todas");
+    setUrgentesOnly(false);
+    setQuery("");
+  }
+
+  // Al filtrar por una severidad desde el panel, esa sección se muestra sí o sí.
+  function toggleSevFilter(sev: Severidad) {
+    setUrgentesOnly(false);
+    setSevFilter((curr) => (curr === sev ? "todas" : sev));
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Filtros rápidos */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
-            Severidad
-          </span>
-          <FilterChip
-            label={`Todas (${alertas.length})`}
-            active={sevFilter === "todas"}
-            onClick={() => setSevFilter("todas")}
+    <div className="space-y-5">
+      {/* Panel de resumen: pantallazo + filtro rápido por severidad */}
+      {hasAnyAlertas && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+          <ResumenCard
+            label="Total activas"
+            value={alertas.length}
+            tone="total"
+            active={sevFilter === "todas" && !urgentesOnly}
+            onClick={() => {
+              setSevFilter("todas");
+              setUrgentesOnly(false);
+            }}
+          />
+          <ResumenCard
+            label="Vencen hoy / vencidas"
+            value={urgentesCount}
+            tone="urgente"
+            active={urgentesOnly}
+            onClick={() => {
+              setUrgentesOnly((v) => !v);
+              setSevFilter("todas");
+            }}
           />
           {SEVERIDAD_ORDER.map((s) => (
-            <FilterChip
+            <ResumenCard
               key={s}
-              label={`${SEVERIDAD_LABEL[s]} (${sevCounts[s]})`}
-              tone={SEVERIDAD_TONE[s]}
+              label={SEVERIDAD_LABEL[s]}
+              value={sevCounts[s]}
+              tone={s}
               active={sevFilter === s}
-              onClick={() => setSevFilter(s)}
+              onClick={() => toggleSevFilter(s)}
             />
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
-            Categoría
-          </span>
-          <FilterChip
-            label={`Todas (${alertas.length})`}
-            active={catFilter === "todas"}
-            onClick={() => setCatFilter("todas")}
-          />
-          {(Object.keys(CATEGORIA_LABEL) as AlertaCategoria[]).map((c) => (
-            <FilterChip
-              key={c}
-              label={`${CATEGORIA_LABEL[c]} (${catCounts[c]})`}
-              active={catFilter === c}
-              onClick={() => setCatFilter(c)}
-            />
-          ))}
-        </div>
-        <div className="flex items-center gap-2 pt-1">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar en título o mensaje..."
-            className="flex-1 px-3 py-1.5 text-sm rounded-md border border-border bg-muted/40 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-          />
-          {(sevFilter !== "todas" || catFilter !== "todas" || query) && (
+      )}
+
+      {/* Barra de filtros secundaria: búsqueda + categorías (siempre visibles) */}
+      {hasAnyAlertas && (
+        <div className="bg-card rounded-[8px] border border-border shadow-sm">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="relative flex-1">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar en título o mensaje..."
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-muted/40 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+              />
+            </div>
             <button
               type="button"
-              onClick={() => {
-                setSevFilter("todas");
-                setCatFilter("todas");
-                setQuery("");
-              }}
-              className="text-xs text-primary hover:underline whitespace-nowrap"
+              onClick={() => setOrden((o) => (o === "asc" ? "desc" : "asc"))}
+              title={
+                orden === "asc"
+                  ? "Ordenado por fecha: más próximas primero (clic para invertir)"
+                  : "Ordenado por fecha: más lejanas primero (clic para invertir)"
+              }
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] transition-colors shrink-0 whitespace-nowrap"
             >
-              Limpiar filtros
+              {orden === "asc" ? (
+                <ArrowUpNarrowWide size={14} />
+              ) : (
+                <ArrowDownNarrowWide size={14} />
+              )}
+              {orden === "asc" ? "Más próximas" : "Más lejanas"}
             </button>
-          )}
+            {hayFiltroActivo && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="text-xs text-primary hover:underline whitespace-nowrap px-1"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-1 border-t border-border/60">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mr-0.5">
+              <SlidersHorizontal size={12} />
+              Categoría
+            </span>
+            <FilterChip
+              label={`Todas (${alertas.length})`}
+              active={catFilter === "todas"}
+              onClick={() => setCatFilter("todas")}
+            />
+            {(Object.keys(CATEGORIA_LABEL) as AlertaCategoria[]).map((c) => (
+              <FilterChip
+                key={c}
+                label={`${CATEGORIA_LABEL[c]} (${catCounts[c]})`}
+                active={catFilter === c}
+                onClick={() => setCatFilter(c)}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Lista agrupada */}
       <div className="space-y-4">
@@ -271,15 +405,27 @@ export default function NotificacionesView({
           <div className="bg-card rounded-[8px] border border-border shadow-sm">
             <div className="flex flex-col items-center justify-center py-12">
               <p className="text-muted-foreground text-sm font-medium mb-1">Sin coincidencias</p>
-              <p className="text-muted-foreground/70 text-sm">Probá ajustar los filtros</p>
+              <p className="text-muted-foreground/70 text-sm mb-3">Probá ajustar los filtros</p>
+              {hayFiltroActivo && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltros}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           </div>
         ) : (
           SEVERIDAD_ORDER.map((sev) => {
             const items = grouped[sev];
             if (items.length === 0) return null;
-            const isCollapsed = collapsed[sev];
+            // Si el filtro apunta a esta severidad, se muestra expandida sí o sí.
+            const isCollapsed = collapsed[sev] && sevFilter !== sev;
             const accent = SEV_ACCENT[sev];
+            const segments = segmentarPorBloque(items);
+            const showHeaders = segments.length > 1;
             return (
               <div
                 key={sev}
@@ -311,11 +457,13 @@ export default function NotificacionesView({
                 </button>
                 {!isCollapsed && (
                   <div className="divide-y divide-[#F1F5F9]">
-                    {items.map((alerta) => (
-                      <AlertaRow
-                        key={alerta.id}
-                        alerta={alerta}
-                        pending={pendingId === alerta.id}
+                    {segments.map((seg) => (
+                      <BloqueSeccion
+                        key={seg.bloque}
+                        bloque={seg.bloque}
+                        items={seg.items}
+                        showHeader={showHeaders}
+                        pendingId={pendingId}
                         onMarcarVista={handleMarcarVista}
                       />
                     ))}
@@ -328,7 +476,7 @@ export default function NotificacionesView({
       </div>
 
       {/* Empty states por categoría (cuando no hay alertas en alguna) */}
-      {hasAnyAlertas && catFilter === "todas" && sevFilter === "todas" && !query && (
+      {hasAnyAlertas && catFilter === "todas" && sevFilter === "todas" && !urgentesOnly && !query && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {(Object.keys(CATEGORIA_LABEL) as AlertaCategoria[])
             .filter((c) => catCounts[c] === 0)
@@ -358,6 +506,151 @@ export default function NotificacionesView({
 
       {/* Historial de notificaciones leídas (se guardan; el usuario las borra cuando quiere) */}
       <HistorialLeidas leidas={leidas} />
+    </div>
+  );
+}
+
+const RESUMEN_TONE: Record<
+  "total" | "urgente" | Severidad,
+  { bg: string; ring: string; value: string; dot: string }
+> = {
+  total: {
+    bg: "bg-card",
+    ring: "ring-[#0088D1]/60 border-[#B3E5FC]",
+    value: "text-foreground",
+    dot: "bg-[#64748B]",
+  },
+  urgente: {
+    bg: "bg-[#FEF2F2]",
+    ring: "ring-[#EF4444]/60 border-[#FECACA]",
+    value: "text-[#DC2626]",
+    dot: "bg-[#EF4444]",
+  },
+  critica: {
+    bg: "bg-[#FEF2F2]",
+    ring: "ring-[#EF4444]/60 border-[#FECACA]",
+    value: "text-[#DC2626]",
+    dot: "bg-[#EF4444]",
+  },
+  advertencia: {
+    bg: "bg-[#FFFBEB]",
+    ring: "ring-[#F59E0B]/60 border-[#FDE68A]",
+    value: "text-[#D97706]",
+    dot: "bg-[#F59E0B]",
+  },
+  info: {
+    bg: "bg-[#F0F9FF]",
+    ring: "ring-[#0088D1]/60 border-[#B3E5FC]",
+    value: "text-[#0369A1]",
+    dot: "bg-[#0088D1]",
+  },
+};
+
+function ResumenCard({
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: "total" | "urgente" | Severidad;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const styles = RESUMEN_TONE[tone];
+  const dimmed = value === 0 && tone !== "total";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`relative overflow-hidden rounded-[10px] border ${styles.bg} px-3.5 py-3 text-left transition-all hover:shadow-sm hover:-translate-y-0.5 ${
+        active
+          ? `ring-2 ring-offset-1 ring-offset-background ${styles.ring}`
+          : "border-border"
+      } ${dimmed ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-center gap-1.5">
+        {tone === "urgente" ? (
+          <Flame size={12} className="text-[#EF4444]" />
+        ) : (
+          <span className={`size-2 rounded-full ${styles.dot}`} />
+        )}
+        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/80 leading-tight">
+          {label}
+        </span>
+      </div>
+      <p className={`mt-1 text-2xl font-black tracking-tight leading-none ${styles.value}`}>
+        {value}
+      </p>
+    </button>
+  );
+}
+
+function BloqueSeccion({
+  bloque,
+  items,
+  showHeader,
+  pendingId,
+  onMarcarVista,
+}: {
+  bloque: BloqueId;
+  items: AlertaItem[];
+  showHeader: boolean;
+  pendingId: string | null;
+  onMarcarVista: (id: string) => void;
+}) {
+  const [expandido, setExpandido] = useState(false);
+  const visibles = expandido ? items : items.slice(0, LIMITE_BLOQUE);
+  const restantes = items.length - visibles.length;
+
+  return (
+    <div>
+      {showHeader && <BloqueHeader bloque={bloque} count={items.length} />}
+      <div className="divide-y divide-[#F1F5F9]">
+        {visibles.map((alerta) => (
+          <AlertaRow
+            key={alerta.id}
+            alerta={alerta}
+            pending={pendingId === alerta.id}
+            onMarcarVista={onMarcarVista}
+          />
+        ))}
+      </div>
+      {(restantes > 0 || expandido) && items.length > LIMITE_BLOQUE && (
+        <button
+          type="button"
+          onClick={() => setExpandido((v) => !v)}
+          className="w-full flex items-center justify-center gap-1 px-5 py-2 text-xs font-semibold text-primary hover:bg-[#F0F9FF]/60 transition-colors border-t border-[#F1F5F9]"
+        >
+          {expandido ? (
+            <>
+              <ChevronDown size={13} className="rotate-180" />
+              Ver menos
+            </>
+          ) : (
+            <>
+              <ChevronDown size={13} />
+              Ver {restantes} más
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BloqueHeader({ bloque, count }: { bloque: BloqueId; count: number }) {
+  const meta = BLOQUE_META[bloque];
+  return (
+    <div className="flex items-center gap-2 px-5 py-2 bg-muted/20">
+      <span className="text-[13px] leading-none">{meta.emoji}</span>
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+        {meta.label}
+      </span>
+      <span className="text-[11px] font-bold text-muted-foreground/50">{count}</span>
     </div>
   );
 }
@@ -514,32 +807,34 @@ function AlertaRow({
       })()
     : null;
 
+  // La fecha exacta se muestra como tooltip del chip para no gastar una línea.
+  const fechaTitle = fechaVencFmt
+    ? `${esCumple ? "Cumpleaños" : esPrueba ? "Fin de prueba" : esAniversario ? "Aniversario" : "Vence"} el ${fechaVencFmt}`
+    : undefined;
+
   return (
-    <div className="group flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors">
+    <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
           {dias !== null && (
-            <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} esAniversario={esAniversario} />
+            <span title={fechaTitle} className="shrink-0">
+              <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} esAniversario={esAniversario} />
+            </span>
           )}
           {href ? (
             <Link
               href={href}
-              className="text-foreground text-sm font-semibold hover:text-primary transition-colors inline-flex items-center gap-1"
+              title={alerta.titulo}
+              className="text-foreground text-sm font-semibold hover:text-primary transition-colors inline-flex items-center gap-1 min-w-0"
             >
-              {alerta.titulo}
-              <ExternalLink size={11} className="opacity-40" />
+              <span className="truncate">{alerta.titulo}</span>
+              <ExternalLink size={11} className="opacity-40 shrink-0" />
             </Link>
           ) : (
-            <span className="text-foreground text-sm font-semibold">{alerta.titulo}</span>
+            <span className="text-foreground text-sm font-semibold truncate">{alerta.titulo}</span>
           )}
         </div>
-        <p className="text-muted-foreground text-xs mt-1">{alerta.mensaje}</p>
-        {fechaVencFmt && (
-          <p className="text-muted-foreground/60 text-[11px] mt-1 inline-flex items-center gap-1">
-            <CalendarClock size={11} className="opacity-70" />
-            {esCumple ? "Cumpleaños" : esPrueba ? "Fin de prueba" : esAniversario ? "Aniversario" : "Vence"} el {fechaVencFmt}
-          </p>
-        )}
+        <p className="text-muted-foreground/70 text-xs mt-0.5 truncate">{alerta.mensaje}</p>
       </div>
       {alerta.marcable === false ? (
         href ? (
@@ -560,7 +855,7 @@ function AlertaRow({
           aria-label="Marcar como leída"
         >
           <Check size={13} />
-          Marcar leída
+          Leída
         </button>
       )}
     </div>
@@ -589,4 +884,3 @@ function DiasChip({ dias, esCumple, esPrueba, esAniversario }: { dias: number; e
     </span>
   );
 }
-
