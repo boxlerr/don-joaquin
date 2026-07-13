@@ -24,6 +24,7 @@ import { EmptyTableRow } from "@/components/ui/EmptyState";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EntrevistaFormDialog from "./EntrevistaFormDialog";
 import CvButton from "./CvButton";
+import Semaforo from "./Semaforo";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { deleteEntrevistaAction } from "../actions";
 
@@ -48,6 +49,9 @@ export interface Entrevista {
   aprobado?: string | null;
   entro?: string | null;
   se_mantuvo?: string | null;
+  /** Semáforo de Bárbara: 'me_gusto' | 'medio' | 'no_gusto' | null. */
+  valoracion?: string | null;
+  contacto_emergencia?: string | null;
   cv_count?: number; // cantidad de CVs adjuntos
   created_at: string;
 }
@@ -77,10 +81,13 @@ export default function EntrevistasTable({
   entrevistas,
   canWrite,
   canDelete,
+  onVerMas,
 }: {
   entrevistas: Entrevista[];
   canWrite: boolean;
   canDelete: boolean;
+  /** Abre la ficha completa del candidato (drawer). */
+  onVerMas: (e: Entrevista) => void;
 }) {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState("");
@@ -125,11 +132,24 @@ export default function EntrevistasTable({
     const preo = PREOCUPACIONAL_META[e.preocupacional] ?? PREOCUPACIONAL_META.no_aplica;
     const res = RESULTADO_META[e.resultado] ?? RESULTADO_META.pendiente;
     return (
-      <TableRow key={e.id}>
+      <TableRow
+        key={e.id}
+        onClick={() => onVerMas(e)}
+        className="cursor-pointer transition-colors hover:bg-primary/5"
+        title={`Ver la ficha de ${e.nombre}`}
+      >
         <TableCell className="font-medium text-foreground">
           <div className="flex items-center gap-2 flex-wrap">
-            <span>{e.nombre}</span>
-            <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+            <button
+              type="button"
+              onClick={(ev) => { ev.stopPropagation(); onVerMas(e); }}
+              className="rounded font-medium text-foreground hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              {e.nombre}
+            </button>
+            <span onClick={(ev) => ev.stopPropagation()}>
+              <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+            </span>
           </div>
           {e.telefono && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
@@ -137,6 +157,9 @@ export default function EntrevistasTable({
               {e.telefono}
             </div>
           )}
+        </TableCell>
+        <TableCell>
+          <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={canWrite} size={12} />
         </TableCell>
         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1"><Calendar className="size-3" />{fmtFecha(e.fecha_entrevista)}</span>
@@ -146,23 +169,30 @@ export default function EntrevistasTable({
           {e.localidad ? <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{e.localidad}</span> : "—"}
         </TableCell>
         <TableCell className="max-w-xs">
-          <span className="text-sm text-muted-foreground line-clamp-2" title={e.observaciones ?? ""}>{e.observaciones || "—"}</span>
+          <span className="text-sm text-muted-foreground line-clamp-2" title="Click para leer completo">{e.observaciones || "—"}</span>
           {e.preocupacional_nota && (
-            <span className="block text-xs text-amber-600 mt-0.5" title={e.preocupacional_nota}>Preocupacional: {e.preocupacional_nota}</span>
+            <span className="block text-xs text-amber-600 mt-0.5 line-clamp-1">Preocupacional: {e.preocupacional_nota}</span>
           )}
           {noIngreso(e) && e.motivo_descarte && (
-            <span className="block text-xs text-rose-600 italic mt-0.5" title={e.motivo_descarte}>Motivo: {e.motivo_descarte}</span>
+            <span className="block text-xs text-rose-600 italic mt-0.5 line-clamp-1">Motivo: {e.motivo_descarte}</span>
           )}
           {e.se_mantuvo && (
-            <span className="block text-xs text-orange-600 italic mt-0.5" title={e.se_mantuvo}>Se mantuvo: {e.se_mantuvo}</span>
+            <span className="block text-xs text-orange-600 italic mt-0.5 line-clamp-1">Se mantuvo: {e.se_mantuvo}</span>
           )}
+          <button
+            type="button"
+            onClick={(ev) => { ev.stopPropagation(); onVerMas(e); }}
+            className="mt-0.5 text-xs font-medium text-primary hover:underline"
+          >
+            Ver más
+          </button>
         </TableCell>
         <TableCell>
           {e.preocupacional === "no_aplica" ? <span className="text-sm text-muted-foreground">—</span> : <StatusBadge label={preo.label} tone={preo.tone} />}
         </TableCell>
         <TableCell><StatusBadge label={res.label} tone={res.tone} /></TableCell>
         {canWrite && (
-          <TableCell className="text-right whitespace-nowrap">
+          <TableCell className="text-right whitespace-nowrap" onClick={(ev) => ev.stopPropagation()}>
             <div className="inline-flex items-center gap-1">
               <EntrevistaFormDialog entrevista={e}>
                 <Button variant="ghost" size="icon" className="size-8" title="Editar"><Pencil className="size-4" /></Button>
@@ -210,6 +240,7 @@ export default function EntrevistasTable({
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>
+            <TableHead title="Semáforo: me gustó / más o menos / no me gustó">Valoración</TableHead>
             <TableHead>Fecha</TableHead>
             <TableHead>Edad</TableHead>
             <TableHead>De dónde es</TableHead>
@@ -228,7 +259,7 @@ export default function EntrevistasTable({
               {descartados.length > 0 && (
                 <Fragment>
                   <TableRow className="bg-muted/40 hover:bg-muted/40">
-                    <TableCell colSpan={canWrite ? 8 : 7} className="py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <TableCell colSpan={canWrite ? 9 : 8} className="py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                       No ingresaron / descartados ({descartados.length})
                     </TableCell>
                   </TableRow>

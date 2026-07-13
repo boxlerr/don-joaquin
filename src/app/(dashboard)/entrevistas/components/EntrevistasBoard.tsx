@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EntrevistaFormDialog from "./EntrevistaFormDialog";
 import CvButton from "./CvButton";
+import Semaforo from "./Semaforo";
 import { setEtapaEntrevistaAction, deleteEntrevistaAction } from "../actions";
 import type { Entrevista } from "./EntrevistasTable";
 
@@ -29,11 +30,13 @@ const flechaBtn =
   "size-7 rounded-md border border-border bg-card text-foreground inline-flex items-center justify-center hover:bg-muted hover:border-muted-foreground/30 disabled:opacity-30 disabled:pointer-events-none transition-colors";
 
 export default function EntrevistasBoard({
-  entrevistas, canWrite, canDelete,
+  entrevistas, canWrite, canDelete, onVerMas,
 }: {
   entrevistas: Entrevista[];
   canWrite: boolean;
   canDelete: boolean;
+  /** Abre la ficha completa del candidato (drawer). */
+  onVerMas: (e: Entrevista) => void;
 }) {
   const router = useRouter();
   const [moving, setMoving] = useState<string | null>(null);
@@ -91,10 +94,21 @@ export default function EntrevistasBoard({
                   <p className="text-[11px] text-muted-foreground/50 text-center py-4">—</p>
                 ) : (
                   items.map((e) => (
-                    <div key={e.id} className="bg-card border border-border rounded-lg p-2.5 shadow-sm">
+                    <div
+                      key={e.id}
+                      onClick={() => onVerMas(e)}
+                      className="bg-card border border-border rounded-lg p-2.5 shadow-sm cursor-pointer transition-colors hover:border-primary/40"
+                      title={`Ver la ficha de ${e.nombre}`}
+                    >
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-sm text-foreground leading-tight">{e.nombre}</span>
-                        <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(ev) => { ev.stopPropagation(); onVerMas(e); }}
+                          className="rounded text-left font-semibold text-sm text-foreground leading-tight hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          {e.nombre}
+                        </button>
+                        <div className="flex items-center gap-0.5 shrink-0" onClick={(ev) => ev.stopPropagation()}>
                           {canWrite && (
                             <EntrevistaFormDialog entrevista={e}>
                               <button type="button" title="Editar" className="text-muted-foreground/60 hover:text-foreground p-0.5"><Pencil size={13} /></button>
@@ -117,14 +131,17 @@ export default function EntrevistasBoard({
                           <div className="flex items-center gap-1"><Calendar size={10} className="shrink-0" />{fmtFecha(e.fecha_entrevista)}</div>
                         )}
                         {col.id === "descartado" && e.motivo_descarte && (
-                          <div className="text-rose-600/90 italic pt-0.5">Motivo: {e.motivo_descarte}</div>
+                          <div className="text-rose-600/90 italic pt-0.5 line-clamp-2">Motivo: {e.motivo_descarte}</div>
                         )}
                         {e.se_mantuvo && (
-                          <div className="text-orange-600/90 italic pt-0.5">Se mantuvo: {e.se_mantuvo}</div>
+                          <div className="text-orange-600/90 italic pt-0.5 line-clamp-2">Se mantuvo: {e.se_mantuvo}</div>
                         )}
                       </div>
-                      <div className="flex items-center justify-between gap-1 mt-2">
-                        <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+                      <div className="flex items-center justify-between gap-1 mt-2" onClick={(ev) => ev.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={canWrite} size={11} />
+                          <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+                        </div>
                         {canWrite && (
                           <div className="flex items-center gap-1">
                             {col.id !== "descartado" && (

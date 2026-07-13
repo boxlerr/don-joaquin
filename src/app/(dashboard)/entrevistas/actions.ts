@@ -40,6 +40,8 @@ const CV_CFG: AdjuntoCfg = {
   folder: "cv-entrevistas",
 };
 
+const VALORACION_VALUES = ["me_gusto", "medio", "no_gusto"] as const;
+
 export type EntrevistaFormData = {
   nombre: string;
   fecha_entrevista?: string;
@@ -50,6 +52,7 @@ export type EntrevistaFormData = {
   email?: string;
   puesto?: string;
   experiencia?: string;
+  contacto_emergencia?: string;
   observaciones?: string;
   preocupacional: string;
   resultado: string;
@@ -91,6 +94,7 @@ function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: str
     puesto: data.puesto?.trim() || null,
     experiencia: data.experiencia?.trim() || null,
     observaciones: data.observaciones?.trim() || null,
+    contacto_emergencia: data.contacto_emergencia?.trim() || null,
     preocupacional,
     resultado,
     preocupacional_nota: data.preocupacional_nota?.trim() || null,
@@ -99,6 +103,86 @@ function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: str
     se_mantuvo: data.se_mantuvo?.trim() || null,
     // dni/email/puesto/experiencia y las de seguimiento son columnas nuevas, aún no en database.ts.
   } as unknown as EntrevistaInsert;
+}
+
+// ── Semáforo de valoración (verde / amarillo / rojo, un click) ──────────────
+export async function setValoracionAction(id: string, valoracion: string | null) {
+  const user = await requireArea("rrhh", "write");
+  if (valoracion != null && !VALORACION_VALUES.includes(valoracion as never)) {
+    return { error: "Valoración inválida." };
+  }
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: anterior } = await sb.from("entrevistas").select("valoracion").eq("id", id).single();
+  const { error } = await sb.from("entrevistas").update({ valoracion }).eq("id", id);
+  if (error) {
+    console.error("Error al valorar entrevista:", error);
+    return { error: "No se pudo guardar la valoración." };
+  }
+  await logEntrevistaAudit(id, "editar", anterior ?? null, { valoracion }, user.id);
+  revalidatePath("/entrevistas");
+  return { success: true };
+}
+
+// ── Guardado parcial desde la ficha (drawer): solo los campos editados ──────
+const PATCH_TEXTO = [
+  "observaciones", "preocupacional_nota", "aprobado", "entro", "se_mantuvo",
+  "motivo_descarte", "contacto_emergencia", "telefono", "dni", "email",
+  "puesto", "experiencia", "localidad",
+] as const;
+type PatchCampoTexto = (typeof PATCH_TEXTO)[number];
+
+export type EntrevistaPatch = Partial<Record<PatchCampoTexto, string>> & {
+  preocupacional?: string;
+  resultado?: string;
+  fecha_entrevista?: string;
+  edad?: string;
+};
+
+export async function patchEntrevistaAction(id: string, patch: EntrevistaPatch) {
+  const user = await requireArea("rrhh", "write");
+
+  const cambios: Record<string, unknown> = {};
+  for (const campo of PATCH_TEXTO) {
+    if (campo in patch) cambios[campo] = patch[campo]?.trim() || null;
+  }
+  if ("preocupacional" in patch) {
+    if (!PREOCUPACIONAL_VALUES.includes(patch.preocupacional as never)) return { error: "Preocupacional inválido." };
+    cambios.preocupacional = patch.preocupacional;
+  }
+  if ("resultado" in patch) {
+    if (!RESULTADO_VALUES.includes(patch.resultado as never)) return { error: "Resultado inválido." };
+    cambios.resultado = patch.resultado;
+  }
+  if ("fecha_entrevista" in patch) {
+    const f = patch.fecha_entrevista?.trim();
+    if (f && !/^\d{4}-\d{2}-\d{2}$/.test(f)) return { error: "Fecha inválida." };
+    cambios.fecha_entrevista = f || null;
+  }
+  if ("edad" in patch) {
+    const raw = patch.edad?.trim();
+    if (!raw) cambios.edad = null;
+    else {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 14 || n > 99) return { error: "La edad debe ser un número entre 14 y 99." };
+      cambios.edad = n;
+    }
+  }
+  if (!Object.keys(cambios).length) return { success: true };
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: anterior } = await sb.from("entrevistas").select(Object.keys(cambios).join(", ")).eq("id", id).single();
+  const { error } = await sb.from("entrevistas").update(cambios).eq("id", id);
+  if (error) {
+    console.error("Error al guardar la ficha:", error);
+    return { error: "No se pudieron guardar los cambios." };
+  }
+  await logEntrevistaAudit(id, "editar", anterior ?? null, cambios, user.id);
+  revalidatePath("/entrevistas");
+  return { success: true };
 }
 
 export async function addEntrevistaAction(data: EntrevistaFormData) {

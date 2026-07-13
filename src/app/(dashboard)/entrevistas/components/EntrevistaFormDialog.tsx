@@ -72,6 +72,7 @@ export default function EntrevistaFormDialog({
   const [email, setEmail] = useState(entrevista?.email ?? "");
   const [puesto, setPuesto] = useState(entrevista?.puesto ?? "");
   const [experiencia, setExperiencia] = useState(entrevista?.experiencia ?? "");
+  const [contactoEmergencia, setContactoEmergencia] = useState(entrevista?.contacto_emergencia ?? "");
   const [observaciones, setObservaciones] = useState(entrevista?.observaciones ?? "");
   const [preocupacional, setPreocupacional] = useState(
     entrevista?.preocupacional ?? "no_aplica",
@@ -101,6 +102,7 @@ export default function EntrevistaFormDialog({
       email: email || undefined,
       puesto: puesto || undefined,
       experiencia: experiencia || undefined,
+      contacto_emergencia: contactoEmergencia || undefined,
       observaciones: observaciones || undefined,
       preocupacional,
       resultado,
@@ -130,6 +132,7 @@ export default function EntrevistaFormDialog({
           setEmail("");
           setPuesto("");
           setExperiencia("");
+          setContactoEmergencia("");
           setObservaciones("");
           setPreocupacional("no_aplica");
           setResultado("pendiente");
@@ -255,6 +258,16 @@ export default function EntrevistaFormDialog({
               <Label htmlFor="ent-exp" className="text-sm font-medium text-foreground">Experiencia (opcional)</Label>
               <Input id="ent-exp" placeholder="Ej: 5 años en carga" value={experiencia} onChange={(e) => setExperiencia(e.target.value)} />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="ent-emergencia" className="text-sm font-medium text-foreground">Contacto de emergencia (opcional)</Label>
+            <Input
+              id="ent-emergencia"
+              placeholder="Nombre y teléfono (ej: María Pérez, esposa — 2281 555555)"
+              value={contactoEmergencia}
+              onChange={(e) => setContactoEmergencia(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">

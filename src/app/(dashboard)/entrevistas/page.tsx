@@ -8,6 +8,7 @@ import { type Entrevista } from "./components/EntrevistasTable";
 import EntrevistasView from "./components/EntrevistasView";
 import EntrevistaFormDialog from "./components/EntrevistaFormDialog";
 import EntrevistasHelpButton from "./components/EntrevistasHelpButton";
+import ImportarButton from "./components/ImportarButton";
 
 export default async function EntrevistasPage() {
   const user = await requireArea("rrhh", "read");
@@ -22,7 +23,7 @@ export default async function EntrevistasPage() {
     sb
       .from("entrevistas")
       .select(
-        "id, nombre, fecha_entrevista, edad, localidad, telefono, dni, email, puesto, experiencia, motivo_descarte, observaciones, preocupacional, resultado, etapa, preocupacional_nota, aprobado, entro, se_mantuvo, created_at",
+        "id, nombre, fecha_entrevista, edad, localidad, telefono, dni, email, puesto, experiencia, motivo_descarte, observaciones, preocupacional, resultado, etapa, preocupacional_nota, aprobado, entro, se_mantuvo, valoracion, contacto_emergencia, created_at",
       )
       .order("fecha_entrevista", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
@@ -48,6 +49,7 @@ export default async function EntrevistasPage() {
         action={
           <div className="flex items-center gap-2">
             <EntrevistasHelpButton />
+            {canWrite && <ImportarButton />}
             {canWrite && (
               <EntrevistaFormDialog>
                 <Button>
