@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, Lock } from "lucide-react";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { updateUsuarioRolAction, setUsuarioAcceso24Action } from "./actions";
 import { rolLabel } from "./area-meta";
+import { esAdminPermanente } from "./admins-permanentes";
 
 export type UsuarioRow = {
   id: string;
@@ -149,6 +150,9 @@ export default function UsuariosListaClient({
           ) : (
             filtrados.map((u) => {
               const esMismo = u.id === currentUserId;
+              const esProtegido = esAdminPermanente(u.id);
+              // Los dueños (admin permanentes) y uno mismo no se editan acá.
+              const rolEditable = canEdit && !esMismo && !esProtegido;
               return (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">
@@ -156,13 +160,15 @@ export default function UsuariosListaClient({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
-                    {canEdit && !esMismo ? (
+                    {rolEditable ? (
                       <div className="flex items-center gap-2">
                         <Combobox
                           value={u.rol_id ?? ""}
                           disabled={savingId === u.id}
                           onValueChange={(v) => handleRolChange(u.id, v)}
-                          options={roles.map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
+                          options={roles
+                            .filter((r) => r.codigo !== "admin")
+                            .map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
                           searchable={false}
                           triggerClassName="h-8 w-40"
                         />
@@ -171,10 +177,22 @@ export default function UsuariosListaClient({
                         )}
                       </div>
                     ) : (
-                      <StatusBadge
-                        label={u.rol_nombre ? rolLabel(u.rol_nombre) : "—"}
-                        tone={u.rol_codigo === "admin" ? "warning" : "info"}
-                      />
+                      <span
+                        className="inline-flex items-center gap-1.5"
+                        title={
+                          esProtegido
+                            ? "Administrador permanente: su rol no se puede cambiar."
+                            : undefined
+                        }
+                      >
+                        <StatusBadge
+                          label={u.rol_nombre ? rolLabel(u.rol_nombre) : "—"}
+                          tone={u.rol_codigo === "admin" ? "warning" : "info"}
+                        />
+                        {esProtegido && (
+                          <Lock size={12} className="text-muted-foreground/60" />
+                        )}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">

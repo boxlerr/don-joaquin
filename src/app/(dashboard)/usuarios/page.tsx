@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OpenAuditButton } from "@/components/open-audit-button";
-import { getCurrentUser, requireSeccion } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { esAdminPermanente } from "./admins-permanentes";
 import RolesPermisosMatrix from "./RolesPermisosMatrix";
 import RolSeccionesEditor from "./RolSeccionesEditor";
 import SeccionesConfidencialEditor from "./SeccionesConfidencialEditor";
@@ -14,10 +16,14 @@ import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { SECCIONES, type SeccionCodigo } from "@/lib/secciones";
 
 export default async function UsuariosPage() {
-  await requireSeccion("usuarios", "read");
-  const supabase = createAdminClient();
   const currentUser = await getCurrentUser();
-  const showMatriz = currentUser?.rol.codigo === "admin";
+  if (!currentUser) redirect("/login");
+  // La gestión de usuarios y permisos es exclusiva de los administradores
+  // dueños (Bárbara, Nicolás, Julián). Ni siquiera otro admin la maneja.
+  if (!esAdminPermanente(currentUser.id)) redirect("/dashboard");
+
+  const supabase = createAdminClient();
+  const showMatriz = true; // solo los dueños llegan hasta acá
 
   const [
     { data: usuarios },

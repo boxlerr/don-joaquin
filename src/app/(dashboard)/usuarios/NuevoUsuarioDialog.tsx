@@ -22,6 +22,8 @@ type Rol = { id: string; codigo: string; nombre: string };
 
 export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
   const router = useRouter();
+  // El rol Administrador no se asigna desde la UI: solo a mano en la base de datos.
+  const rolesDisponibles = roles.filter((r) => r.codigo !== "admin");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,14 +32,14 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
   const [apellido, setApellido] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rolId, setRolId] = useState(roles[0]?.id ?? "");
+  const [rolId, setRolId] = useState(rolesDisponibles[0]?.id ?? "");
 
   const reset = () => {
     setNombre("");
     setApellido("");
     setEmail("");
     setPassword("");
-    setRolId(roles[0]?.id ?? "");
+    setRolId(rolesDisponibles[0]?.id ?? "");
     setError(null);
   };
 
@@ -138,7 +140,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
               <Combobox
                 value={rolId}
                 onValueChange={setRolId}
-                options={roles.map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
+                options={rolesDisponibles.map((r) => ({ id: r.id, label: rolLabel(r.nombre) }))}
                 searchable={false}
                 triggerClassName="h-10 w-full"
               />

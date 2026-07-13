@@ -1,11 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
+import { esAdminPermanente } from "./admins-permanentes";
+
+// La gestión de usuarios y permisos es exclusiva de los administradores dueños
+// (Bárbara, Nicolás, Julián). requireAdmin ya frena a los no-admin; esto además
+// frena a cualquier admin común que se creara a futuro.
+async function requireDueño() {
+  const user = await requireAdmin();
+  if (!esAdminPermanente(user.id)) {
+    redirect("/dashboard?error=admin_required");
+  }
+  return user;
+}
 
 const NIVELES_VALIDOS: AreaNivel[] = ["none", "read", "write", "admin"];
 const NIVEL_RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
@@ -14,10 +27,15 @@ export async function updateUsuarioRolAction(
   usuario_id: string,
   rol_id: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   if (usuario_id === admin.id) {
     return { error: "No podés cambiar tu propio rol." };
+  }
+
+  // Los dueños son administradores permanentes: su rol no se cambia por nadie.
+  if (esAdminPermanente(usuario_id)) {
+    return { error: "Es administrador permanente: su rol no se puede cambiar." };
   }
 
   const supabase = createAdminClient();
@@ -28,6 +46,12 @@ export async function updateUsuarioRolAction(
     .eq("id", rol_id)
     .single();
   if (!rol) return { error: "Rol inválido" };
+
+  // El rol Administrador NO se asigna desde la UI (ni el dueño): solo a mano en
+  // la base de datos.
+  if (rol.codigo === "admin") {
+    return { error: "El rol Administrador solo se asigna manualmente en la base de datos." };
+  }
 
   const { data: previo } = await supabase
     .from("usuarios")
@@ -66,7 +90,7 @@ export async function setUsuarioAcceso24Action(
   usuario_id: string,
   valor: boolean,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columna nueva, database.ts sin regenerar
@@ -101,7 +125,7 @@ export async function setUsuarioAcceso24Action(
 export async function crearUsuarioAction(
   formData: FormData,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
@@ -123,10 +147,16 @@ export async function crearUsuarioAction(
 
   const { data: rol } = await supabase
     .from("roles")
-    .select("id")
+    .select("id, codigo")
     .eq("id", rol_id)
     .single();
   if (!rol) return { error: "Rol inválido" };
+
+  // El rol Administrador NO se crea desde la UI (ni el dueño): solo a mano en la
+  // base de datos.
+  if (rol.codigo === "admin") {
+    return { error: "El rol Administrador solo se asigna manualmente en la base de datos." };
+  }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
@@ -171,7 +201,7 @@ export async function updateRolAreaAction(
   area_codigo: AreaCodigo,
   nivel: AreaNivel,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   if (!NIVELES_VALIDOS.includes(nivel)) {
     return { error: "Nivel inválido" };
@@ -233,7 +263,7 @@ export async function updateRolSeccionAction(
   seccion_codigo: SeccionCodigo,
   nivel: AreaNivel | "hereda",
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `rol_secciones` aún no está en los tipos generados
@@ -345,7 +375,7 @@ export async function setSeccionConfidencialAction(
   seccion_codigo: SeccionCodigo,
   confidencial: boolean,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   const sec = SECCION_BY_CODIGO[seccion_codigo];
   if (!sec) return { error: "Subsección inexistente" };
@@ -392,7 +422,7 @@ export async function setUsuarioAreaAction(
   vence_en: string | null, // ISO string o null (permanente)
   motivo?: string,
 ): Promise<{ ok: true } | { error: string }> {
-  const admin = await requireAdmin();
+  const admin = await requireDueño();
 
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
