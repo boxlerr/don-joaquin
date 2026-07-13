@@ -41,14 +41,16 @@ function plural(n: number): string {
 }
 
 /**
- * Alertas de documentos de camión/chofer próximos a vencer o vencidos, calculadas
- * en vivo. Réplica exacta del cálculo de la vista (page.tsx `procesar`).
+ * Alertas de documentos de camión/chofer para el mail, calculadas en vivo.
+ * A diferencia de la pantalla (que muestra todo el estado), el mail solo recuerda
+ * en hitos: 14 y 7 días antes y el día del vencimiento, y después todos los días
+ * mientras siga vencido. El texto se arma igual que en la vista.
  */
 export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[]> {
   const [{ data: tiposDoc }, { data: camionDocs }, { data: choferDocs }] = await Promise.all([
     supabase
       .from("tipos_documento")
-      .select("id, nombre, dias_alerta_vencimiento")
+      .select("id, nombre")
       .eq("estado", "activo"),
     supabase
       .from("camion_documentos")
@@ -59,9 +61,7 @@ export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[
   ]);
 
   const tipoById = new Map(
-    ((tiposDoc ?? []) as { id: string; nombre: string; dias_alerta_vencimiento: number }[]).map(
-      (t) => [t.id, t],
-    ),
+    ((tiposDoc ?? []) as { id: string; nombre: string }[]).map((t) => [t.id, t]),
   );
 
   const out: AlertaLive[] = [];
@@ -86,8 +86,11 @@ export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[
       if (dias === null) continue;
 
       const vencido = dias < 0;
-      const proximo = !vencido && dias <= tipo.dias_alerta_vencimiento;
-      if (!vencido && !proximo) continue;
+      // El mail recuerda documentos en hitos: 14 y 7 días antes y el día del
+      // vencimiento; una vez vencido, sigue avisando todos los días. Los días
+      // intermedios no generan correo (la pantalla in-app muestra el estado igual).
+      const esHito = dias === 14 || dias === 7 || dias === 0;
+      if (!vencido && !esHito) continue;
 
       const entidad =
         ambito === "camion"

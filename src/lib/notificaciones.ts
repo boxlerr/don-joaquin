@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
 import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
+import { categoriaDeAlerta } from "@/app/(dashboard)/notificaciones/utils";
 import type { Database } from "@/types/database";
 
 /**
@@ -180,6 +181,10 @@ function escapeHtml(s: string): string {
 
 function renderAlerta(a: AlertaEmail): string {
   const sev = SEV_STYLE[a.severidad];
+  // Cada alerta linkea a la vista in-app, filtrada por su categoría y severidad,
+  // para aterrizar directo en esa sección de /notificaciones.
+  const cat = categoriaDeAlerta(a.tipo, a.entidad_tipo);
+  const url = `${appUrl()}/notificaciones?categoria=${cat}&amp;severidad=${a.severidad}`;
   const venc = a.fecha_vencimiento
     ? `<div style="font-size:12px;color:#64748b;margin-top:6px;">Vence: ${formatFecha(a.fecha_vencimiento)}</div>`
     : "";
@@ -189,10 +194,13 @@ function renderAlerta(a: AlertaEmail): string {
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid ${sev.border};border-radius:8px;">
           <tr>
             <td style="padding:14px 16px;">
-              <span style="display:inline-block;font-size:11px;font-weight:600;color:${sev.text};background:${sev.bg};border-radius:9999px;padding:2px 10px;margin-bottom:8px;">${sev.label}</span>
-              <div style="font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(a.titulo)}</div>
-              <div style="font-size:13px;color:#475569;margin-top:4px;line-height:1.5;">${escapeHtml(a.mensaje)}</div>
-              ${venc}
+              <a href="${url}" style="display:block;text-decoration:none;color:inherit;">
+                <span style="display:inline-block;font-size:11px;font-weight:600;color:${sev.text};background:${sev.bg};border-radius:9999px;padding:2px 10px;margin-bottom:8px;">${sev.label}</span>
+                <div style="font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(a.titulo)}</div>
+                <div style="font-size:13px;color:#475569;margin-top:4px;line-height:1.5;">${escapeHtml(a.mensaje)}</div>
+                ${venc}
+                <div style="font-size:12px;color:#0088D1;font-weight:600;margin-top:8px;">Ver en notificaciones &rarr;</div>
+              </a>
             </td>
           </tr>
         </table>
