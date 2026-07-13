@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
+import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
 import type { Database } from "@/types/database";
 
 /**
@@ -25,7 +26,40 @@ type AlertaEmail = {
   mensaje: string;
   severidad: Severidad;
   fecha_vencimiento: string | null;
+  entidad_tipo: string | null;
 };
+
+// Orden de presentación del email: replica el de la vista /notificaciones
+// (ver NotificacionesView.tsx). Mantener ambos en sync si se cambia el criterio.
+//  1) Severidad (crítica → advertencia → info).
+//  2) Bloque de evento de RRHH: cumpleaños juntos, aniversarios juntos, prueba;
+//     el resto de las alertas queda en un bloque posterior común.
+//  3) Fecha de vencimiento más próxima primero (ISO, orden lexicográfico =
+//     cronológico); las alertas sin fecha van al final.
+const SEV_ORDEN: Record<Severidad, number> = { critica: 0, advertencia: 1, info: 2 };
+
+const EVENTO_TIPO_PRIORITY: Record<string, number> = {
+  personal_cumple: 0,
+  choferes_cumple: 0,
+  personal_aniversario: 1,
+  choferes_aniversario: 1,
+  choferes_periodo_prueba: 2,
+};
+
+function compararAlertasEmail(a: AlertaEmail, b: AlertaEmail): number {
+  const sa = SEV_ORDEN[a.severidad];
+  const sb = SEV_ORDEN[b.severidad];
+  if (sa !== sb) return sa - sb;
+  const pa = EVENTO_TIPO_PRIORITY[a.entidad_tipo ?? ""] ?? 99;
+  const pb = EVENTO_TIPO_PRIORITY[b.entidad_tipo ?? ""] ?? 99;
+  if (pa !== pb) return pa - pb;
+  const fa = a.fecha_vencimiento;
+  const fb = b.fecha_vencimiento;
+  if (fa && fb) return fa < fb ? -1 : fa > fb ? 1 : 0;
+  if (fa) return -1;
+  if (fb) return 1;
+  return 0;
+}
 
 // Claves de `parametros_sistema` (mismas que usa la UI de configuración).
 const CANAL_EMAIL_CLAVE = "notificaciones_email_activas";
@@ -222,14 +256,18 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
 
   const { data: criticas } = await supabase
     .from("alertas")
-    .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento")
+    .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo")
     .eq("estado", "pendiente")
     .eq("severidad", "critica")
     .eq("notificacion_procesada", false)
     .order("fecha_disparo", { ascending: false })
     .limit(100);
 
-  const aEnviar = (criticas ?? []).filter((a) => tipoHabilitado(a.tipo, params));
+  // Orden de presentación por fecha de vencimiento (el filtro de reparto por
+  // usuario preserva este orden).
+  const aEnviar = (criticas ?? [])
+    .filter((a) => tipoHabilitado(a.tipo, params))
+    .sort(compararAlertasEmail);
   if (aEnviar.length === 0) return { enviadas: 0, motivo: "nada_pendiente" };
 
   // Reparto granular: cada usuario recibe solo los tipos que tiene habilitados en
@@ -310,15 +348,25 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   const destinatarios = await getDestinatarios(supabase, params);
   if (destinatarios.length === 0) return { enviado: false, motivo: "sin_destinatarios" };
 
-  const { data: pendientes } = await supabase
-    .from("alertas")
-    .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento")
-    .eq("estado", "pendiente")
-    .order("severidad", { ascending: false })
-    .order("fecha_disparo", { ascending: false })
-    .limit(200);
+  // Documentos y cheques se recalculan en vivo (abajo) para reflejar el estado
+  // real y que escalen a "vencido"; excluimos sus versiones congeladas de la tabla.
+  const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
+    supabase
+      .from("alertas")
+      .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo")
+      .eq("estado", "pendiente")
+      .not("tipo", "in", "(vencimiento_doc_camion,vencimiento_doc_chofer,vencimiento_cheque)")
+      .order("severidad", { ascending: false })
+      .order("fecha_disparo", { ascending: false })
+      .limit(200),
+    getDocAlertasLive(supabase),
+    getChequeAlertasLive(supabase),
+  ]);
 
-  const filtradas = (pendientes ?? []).filter((a) => tipoHabilitado(a.tipo, params));
+  // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
+  const filtradas = [...(pendientes ?? []), ...docLive, ...chequeLive]
+    .filter((a) => tipoHabilitado(a.tipo, params))
+    .sort(compararAlertasEmail);
   if (filtradas.length === 0) return { enviado: false, motivo: "sin_alertas" };
 
   const html = renderEmail({

@@ -119,7 +119,9 @@ export default async function NotificacionesPage() {
         titulo: `${tipo.nombre} — ${entidad}`,
         mensaje: vencido
           ? `${tipo.nombre} venció hace ${Math.abs(diasRest)} día${Math.abs(diasRest) !== 1 ? "s" : ""}.`
-          : `${tipo.nombre} vence en ${diasRest} día${diasRest !== 1 ? "s" : ""}.`,
+          : diasRest === 0
+            ? `${tipo.nombre} vence hoy.`
+            : `${tipo.nombre} vence en ${diasRest} día${diasRest !== 1 ? "s" : ""}.`,
         fecha_disparo: nowIso,
         fecha_vencimiento: d.fecha_vencimiento,
         entidad_tipo: ambito === "camion" ? "camion_documentos" : "chofer_documentos",
