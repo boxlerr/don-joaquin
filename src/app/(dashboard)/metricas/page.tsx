@@ -1,32 +1,43 @@
 import { redirect } from "next/navigation";
 import PageHeader from "@/components/layout/PageHeader";
 import { getCurrentUser, hasSeccion } from "@/lib/auth";
-import MesSelector from "../combustible/components/MesSelector";
 import { getMetricasAction } from "./actions";
 import MetricasClient from "./MetricasClient";
+import MesSelectorMetricas from "./components/MesSelectorMetricas";
+import ExportarButton from "./components/ExportarButton";
 
 // Métricas históricas — las 6 planillas de gestión (sueldo s/facturación,
 // facturación por km, costo vs km, km vacíos, km al 100%, toneladas) en un
 // dashboard con comparación contra el mes anterior y el mismo mes del año
-// anterior. Confidencial: sección `metricas` (por defecto, solo admins).
+// anterior, más modo EN VIVO para el mes en curso.
+// Confidencial: sección `metricas` (por defecto, solo admins).
 export default async function MetricasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; tab?: string; compare?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!hasSeccion(user, "metricas", "read")) redirect("/dashboard");
 
-  const { month = "" } = await searchParams;
-  const data = await getMetricasAction(month);
+  const { month = "", compare = "" } = await searchParams;
+  const data = await getMetricasAction(month, compare);
 
   return (
     <div className="p-8 space-y-6">
       <PageHeader
         title="Métricas históricas"
         description="Las planillas de gestión mensuales, comparadas contra el mes anterior y el año anterior"
-        action={<MesSelector currentMonth={month || data.mes.slice(0, 7)} />}
+        action={
+          <div className="flex items-center gap-2">
+            <MesSelectorMetricas
+              value={data.mes.slice(0, 7)}
+              mesesDisponibles={data.mesesDisponibles}
+              hoyMes={data.hoyMes}
+            />
+            <ExportarButton mes={data.mes} />
+          </div>
+        }
       />
       <MetricasClient data={data} />
     </div>

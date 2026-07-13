@@ -1,405 +1,327 @@
 "use client";
 
-// Dashboard de métricas históricas — réplica viva del dashboard HTML que usan
-// hoy (video de Bárbara 08/07): KPIs grandes, pestañas por métrica y barras
-// por chofer, más lo que pidió por audio: comparación contra el MES ANTERIOR
-// y contra el MISMO MES DEL AÑO ANTERIOR, y los aumentos de tarifa de
-// clientes como contexto de la facturación.
+// Dashboard de métricas históricas — rediseño 11/07. Las 6 planillas de
+// gestión con: KPIs clickeables con tendencia, cobertura de datos explícita,
+// cada métrica en formato tabla (estilo Excel, con totales) / gráfico /
+// evolución, drawer de detalle por chofer, planilla anual (Evolución),
+// export de todo junto en un click y modo EN VIVO para meses sin planillas.
 
 import { useMemo, useState } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  LineChart, Line, CartesianGrid, Legend,
-} from "recharts";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/input";
 import {
-  BarChart3, TrendingUp, TrendingDown, Minus, Truck, Route, Gauge, Weight,
-  Wallet, Trash2, Plus, ArrowUpRight, Download,
+  BarChart3, Search, Table2, ChartBarBig, ChartLine, ExternalLink,
 } from "lucide-react";
-import CargarAumentoDialog from "./CargarAumentoDialog";
-import ExportarMetricasDialog from "./ExportarMetricasDialog";
-import { eliminarAumentoClienteAction, type MetricasData, type Flota } from "./actions";
-import { useRouter } from "next/navigation";
+import type { MetricasData, MetricaChofer, Flota, TotalesMes } from "./actions";
+import { METRICAS, KPIS, type MetricaId, metricaPorId } from "./components/metricas-def";
+import { compactMoney, money, numAr, mesLabel, mesCorto, delta, deltaPP } from "./components/format";
+import KpiCard from "./components/KpiCard";
+import CoberturaBanner from "./components/CoberturaBanner";
+import MetricaTable from "./components/MetricaTable";
+import MetricaChart from "./components/MetricaChart";
+import EvolucionChart from "./components/EvolucionChart";
+import EvolucionTab from "./components/EvolucionTab";
+import ResumenTab from "./components/ResumenTab";
+import ChoferDrawer from "./components/ChoferDrawer";
+import LiveBanner from "./components/LiveBanner";
+import CompararSelector from "./components/CompararSelector";
 
-const money = (n: number | null | undefined, dec = 0) =>
-  n == null ? "—" : "$" + n.toLocaleString("es-AR", { maximumFractionDigits: dec });
-const numAr = (n: number | null | undefined, dec = 0) =>
-  n == null ? "—" : n.toLocaleString("es-AR", { maximumFractionDigits: dec });
-const pct = (n: number | null | undefined, dec = 1) =>
-  n == null ? "—" : `${n.toLocaleString("es-AR", { maximumFractionDigits: dec })}%`;
-const compactMoney = (n: number) =>
-  n >= 1e9 ? `$${(n / 1e9).toLocaleString("es-AR", { maximumFractionDigits: 2 })} MM` :
-  n >= 1e6 ? `$${(n / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 0 })} M` : money(n);
+type TabId = "resumen" | MetricaId | "evolucion";
+type FlotaSel = "todas" | Flota;
+type Vista = "tabla" | "grafico" | "evolucion";
 
-const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const mesLabel = (iso: string) => {
-  const [y, m] = iso.split("-");
-  return `${MESES[parseInt(m, 10) - 1]} ${y}`;
-};
-const mesCorto = (iso: string) => {
-  const [y, m] = iso.split("-");
-  return `${MESES[parseInt(m, 10) - 1].slice(0, 3)} ${y.slice(2)}`;
-};
-
-// Delta % entre dos valores (null-safe).
-const delta = (actual: number | null | undefined, previo: number | null | undefined): number | null =>
-  actual == null || previo == null || previo === 0 ? null : (actual / previo - 1) * 100;
-
-/** Badge de variación: verde si mejora, rojo si empeora (según si subir es bueno). */
-function DeltaBadge({ valor, subirEsBueno, etiqueta, puntos }: {
-  valor: number | null;
-  subirEsBueno: boolean;
-  etiqueta: string;
-  /** true → la variación se muestra en puntos porcentuales (pp), no en %. */
-  puntos?: boolean;
-}) {
-  if (valor == null) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60" title={`Sin datos de ${etiqueta}`}>
-        <Minus size={10} /> {etiqueta}: s/d
-      </span>
-    );
-  }
-  const mejora = subirEsBueno ? valor >= 0 : valor <= 0;
-  const Icon = valor >= 0 ? TrendingUp : TrendingDown;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-        mejora ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
-      }`}
-      title={`vs ${etiqueta}`}
-    >
-      <Icon size={10} />
-      {valor >= 0 ? "+" : ""}
-      {valor.toLocaleString("es-AR", { maximumFractionDigits: 1 })}
-      {puntos ? " pp" : "%"} {etiqueta}
-    </span>
-  );
-}
-
-type TabId = "resumen" | "factkm" | "vacios" | "km100" | "toneladas" | "sueldo";
 const TABS: { id: TabId; label: string }[] = [
   { id: "resumen", label: "Resumen" },
-  { id: "factkm", label: "Facturación por km" },
-  { id: "vacios", label: "KM vacíos" },
-  { id: "km100", label: "KM al 100%" },
-  { id: "toneladas", label: "Toneladas" },
-  { id: "sueldo", label: "Sueldo s/ facturación" },
+  ...METRICAS.map((m) => ({ id: m.id as TabId, label: m.tab })),
+  { id: "evolucion", label: "Evolución" },
 ];
 
+const normalizar = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 export default function MetricasClient({ data }: { data: MetricasData }) {
-  const [tab, setTab] = useState<TabId>("resumen");
-  const [flota, setFlota] = useState<Flota>("escalables");
-  const [aumentoOpen, setAumentoOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTabRaw] = useState<TabId>(() => {
+    const t = searchParams.get("tab");
+    return t && TABS.some((x) => x.id === t) ? (t as TabId) : "resumen";
+  });
+  const [flota, setFlota] = useState<FlotaSel>("todas");
+  const [vista, setVista] = useState<Vista>("tabla");
+  const [busqueda, setBusqueda] = useState("");
+  const [choferSel, setChoferSel] = useState<MetricaChofer | null>(null);
+
+  // La pestaña queda en la URL (compartible / sobrevive un refresh).
+  const setTab = (t: TabId) => {
+    setTabRaw(t);
+    const params = new URLSearchParams(window.location.search);
+    if (t === "resumen") params.delete("tab");
+    else params.set("tab", t);
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  };
 
   const t = data.totales.general;
   const tPrev = data.mesAnterior?.general ?? null;
   const tYoY = data.anioAnterior?.general ?? null;
+  const esMesActual = data.mes === data.hoyMes;
 
-  const choferesFlota = useMemo(
-    () => data.choferes.filter((c) => c.flota === flota),
-    [data.choferes, flota],
-  );
+  const nEscalables = useMemo(() => data.choferes.filter((c) => c.flota === "escalables").length, [data.choferes]);
+  const nTolvas = useMemo(() => data.choferes.filter((c) => c.flota === "tolvas").length, [data.choferes]);
 
-  // Datos de la pestaña activa (barras por chofer).
-  const serieChofer = useMemo(() => {
-    const base = choferesFlota.map((c) => ({
-      nombre: c.nombre,
-      parcial: c.ingresoParcial,
-      factkm: c.km > 0 ? c.facturacion / c.km : 0,
-      vacios: c.km > 0 ? (c.kmVacios / c.km) * 100 : 0,
-      km100: c.km > 0 ? (c.km100 / c.km) * 100 : 0,
-      toneladas: c.toneladas,
-      sueldo: c.facturacion > 0 ? (c.sueldoTotal / c.facturacion) * 100 : 0,
-    }));
-    const key = tab === "resumen" ? "factkm" : tab;
-    // En % de vacíos y sueldo, menos es mejor → orden ascendente = mejores arriba.
-    const asc = tab === "vacios" || tab === "sueldo";
-    return base
-      .map((b) => ({ ...b, valor: b[key as keyof typeof b] as number }))
-      .sort((a, b2) => (asc ? a.valor - b2.valor : b2.valor - a.valor));
-  }, [choferesFlota, tab]);
+  const choferesFiltrados = useMemo(() => {
+    let rows = data.choferes;
+    if (flota !== "todas") rows = rows.filter((c) => c.flota === flota);
+    const q = normalizar(busqueda.trim());
+    if (q) rows = rows.filter((c) => normalizar(c.nombre).includes(q));
+    return rows;
+  }, [data.choferes, flota, busqueda]);
 
-  if (!t) {
+  // Serie del sparkline por KPI (13 meses, general).
+  const sparkPorKpi = useMemo(() => {
+    const out: Record<string, (number | null)[]> = {};
+    for (const k of KPIS) {
+      out[k.id] = data.serieHistorica.map((s) => k.valor(s.general));
+    }
+    return out;
+  }, [data.serieHistorica]);
+
+  const tCmp = data.comparacion?.totales.general ?? null;
+  const kpiDeltas = (k: (typeof KPIS)[number]) => {
+    const actual = k.valor(t);
+    const prev = k.valor(tPrev);
+    const yoy = k.valor(tYoY);
+    const cmp = k.valor(tCmp);
+    return k.enPuntos
+      ? { dPrev: deltaPP(actual, prev), dYoY: deltaPP(actual, yoy), dCmp: deltaPP(actual, cmp) }
+      : { dPrev: delta(actual, prev), dYoY: delta(actual, yoy), dCmp: delta(actual, cmp) };
+  };
+
+  const kpiSub = (id: string): string | undefined => {
+    if (!t) return undefined;
+    if (id === "facturacion") return `${t.camiones} camiones`;
+    if (id === "km" && t.camiones > 0) return `prom. ${numAr(t.km / t.camiones)} por camión`;
+    if (id === "factkm") {
+      const costo = data.serieCosto.find((r) => r.mes === data.mes)?.costoKm;
+      return costo != null ? `costo estudio ${money(costo, 2)}` : undefined;
+    }
+    return undefined;
+  };
+
+  // ── Mes sin planillas ni viajes ────────────────────────────────────────
+  if (!data.choferes.length) {
     return (
       <EmptyState
         icon={BarChart3}
-        message="Todavía no hay planillas cargadas. Se importan con scripts/parse-planillas-metricas.ts desde los PDFs del Drive de Bárbara."
+        message={`${mesLabel(data.mes)} no tiene planillas cargadas ni viajes en el sistema. Elegí otro mes con el selector (los meses con datos tienen punto azul) o importá las planillas del Drive con scripts/cargar-metricas-drive.ts.`}
       />
     );
   }
 
-  const kpis: {
-    label: string; icon: React.ElementType; valor: string; sub?: string;
-    dPrev: number | null; dYoY: number | null; subirEsBueno: boolean; puntos?: boolean;
-  }[] = [
-    {
-      label: "Facturación total", icon: TrendingUp, valor: compactMoney(t.facturacion),
-      sub: `${t.camiones} camiones`, subirEsBueno: true,
-      dPrev: delta(t.facturacion, tPrev?.facturacion), dYoY: delta(t.facturacion, tYoY?.facturacion),
-    },
-    {
-      label: "KM totales", icon: Route, valor: `${numAr(t.km)} km`,
-      sub: `prom. ${numAr(t.km / t.camiones)} por camión`, subirEsBueno: true,
-      dPrev: delta(t.km, tPrev?.km), dYoY: delta(t.km, tYoY?.km),
-    },
-    {
-      label: "Facturación por km", icon: Gauge, valor: money(t.factPorKm, 2),
-      sub: data.serieCosto.at(-1)?.costoKm ? `costo estudio ${money(data.serieCosto.at(-1)!.costoKm, 2)}` : undefined,
-      subirEsBueno: true,
-      dPrev: delta(t.factPorKm, tPrev?.factPorKm ?? data.serieCosto.at(-2)?.factKm),
-      dYoY: delta(t.factPorKm, tYoY?.factPorKm),
-    },
-    {
-      label: "% KM vacíos", icon: Truck, valor: pct(t.pctVacios), subirEsBueno: false, puntos: true,
-      dPrev: t.pctVacios != null && tPrev?.pctVacios != null ? t.pctVacios - tPrev.pctVacios : null,
-      dYoY: t.pctVacios != null && tYoY?.pctVacios != null ? t.pctVacios - tYoY.pctVacios : null,
-    },
-    {
-      label: "% KM al 100%", icon: Gauge, valor: pct(t.pctKm100), subirEsBueno: true, puntos: true,
-      dPrev: t.pctKm100 != null && tPrev?.pctKm100 != null ? t.pctKm100 - tPrev.pctKm100 : null,
-      dYoY: t.pctKm100 != null && tYoY?.pctKm100 != null ? t.pctKm100 - tYoY.pctKm100 : null,
-    },
-    {
-      label: "% Sueldo / facturación", icon: Wallet, valor: pct(t.pctSueldoFact), subirEsBueno: false, puntos: true,
-      dPrev: t.pctSueldoFact != null && tPrev?.pctSueldoFact != null ? t.pctSueldoFact - tPrev.pctSueldoFact : null,
-      dYoY: t.pctSueldoFact != null && tYoY?.pctSueldoFact != null ? t.pctSueldoFact - tYoY.pctSueldoFact : null,
-    },
-    {
-      label: "Toneladas promedio", icon: Weight, valor: numAr(t.toneladasProm, 2), subirEsBueno: true,
-      dPrev: delta(t.toneladasProm, tPrev?.toneladasProm), dYoY: delta(t.toneladasProm, tYoY?.toneladasProm),
-    },
-  ];
-
-  const unidadTab: Record<Exclude<TabId, "resumen">, { fmt: (n: number) => string; title: string }> = {
-    factkm: { fmt: (n) => money(n, 0), title: "$ / km por chofer" },
-    vacios: { fmt: (n) => pct(n), title: "% de km vacíos por chofer (mejor arriba)" },
-    km100: { fmt: (n) => pct(n), title: "% de km al 100% por chofer" },
-    toneladas: { fmt: (n) => numAr(n, 2), title: "Toneladas promedio por chofer" },
-    sueldo: { fmt: (n) => pct(n), title: "% sueldo / facturación por chofer (mejor arriba)" },
-  };
-
-  const handleEliminarAumento = async (id: string, nombre: string) => {
-    if (!confirm(`¿Eliminar el aumento de ${nombre}?`)) return;
-    const res = await eliminarAumentoClienteAction(id);
-    if ("error" in res) alert(res.error);
-    else router.refresh();
-  };
-
-  const barKey = tab === "resumen" ? null : tab;
+  const defActiva = tab !== "resumen" && tab !== "evolucion" ? metricaPorId(tab) : null;
+  const totalesFlotaDrawer: TotalesMes | null = choferSel ? data.totales[choferSel.flota] : null;
+  // Métricas que el modo en vivo no puede calcular (no salen de los viajes).
+  const noDisponibleLive = data.esLive && defActiva && (defActiva.id === "sueldo" || defActiva.id === "km100");
+  const comparacionTabla = data.comparacion && defActiva
+    ? { etiqueta: mesCorto(data.comparacion.mes), choferes: data.comparacion.choferes }
+    : null;
 
   return (
     <div className="space-y-5">
-      {/* Aviso de cobertura de datos */}
-      {(!data.mesAnterior || !data.anioAnterior) && (
-        <p className="text-xs text-muted-foreground">
-          {`Comparaciones disponibles cuando se carguen las planillas de ${[
-            !data.mesAnterior ? mesLabel(addM(data.mes, -1)) : null,
-            !data.anioAnterior ? mesLabel(addM(data.mes, -12)) : null,
-          ].filter(Boolean).join(" y ")} (Drive de Bárbara → script de importación).`}
-        </p>
-      )}
+      {data.esLive && <LiveBanner mes={data.mes} esMesActual={esMesActual} info={data.liveInfo} />}
+      <CoberturaBanner data={data} />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-        {kpis.map((k) => {
-          const Icon = k.icon;
+      {/* KPIs con tendencia */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        {KPIS.map((k) => {
+          const { dPrev, dYoY, dCmp } = kpiDeltas(k);
           return (
-            <div key={k.label} className="rounded-lg border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Icon size={13} /> {k.label}
-              </div>
-              <p className="mt-1 text-2xl font-bold font-mono text-foreground leading-tight">{k.valor}</p>
-              {k.sub && <p className="text-[11px] text-muted-foreground/70">{k.sub}</p>}
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <DeltaBadge valor={k.dPrev} subirEsBueno={k.subirEsBueno} etiqueta="mes ant." puntos={k.puntos} />
-                <DeltaBadge valor={k.dYoY} subirEsBueno={k.subirEsBueno} etiqueta="interanual" puntos={k.puntos} />
-              </div>
-            </div>
+            <KpiCard
+              key={k.id}
+              def={k}
+              valor={k.id === "facturacion" ? compactMoney(k.valor(t)) : k.fmt(k.valor(t))}
+              sub={kpiSub(k.id)}
+              dPrev={dPrev}
+              dYoY={dYoY}
+              dCmp={dCmp}
+              etiquetaCmp={data.comparacion ? mesCorto(data.comparacion.mes) : undefined}
+              serie={sparkPorKpi[k.id]}
+              onClick={k.metrica ? () => setTab(k.metrica!) : undefined}
+              activa={k.metrica === tab && k.id !== "km"}
+            />
           );
         })}
       </div>
 
-      {/* Tabs + selector de flota */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg flex-wrap">
+      {/* Pestañas */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
           {TABS.map((tb) => (
-            <button key={tb.id} type="button" onClick={() => setTab(tb.id)}
-              className={`px-3 h-8 text-xs font-medium rounded-md transition-all ${tab === tb.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            <button
+              key={tb.id}
+              type="button"
+              onClick={() => setTab(tb.id)}
+              className={`h-8 rounded-md px-3 text-xs font-medium transition-all ${
+                tab === tb.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
               {tb.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-            {(["escalables", "tolvas"] as const).map((f) => (
-              <button key={f} type="button" onClick={() => setFlota(f)}
-                className={`px-3 h-8 text-xs font-medium rounded-md capitalize transition-all ${flota === f ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                {f} ({data.choferes.filter((c) => c.flota === f).length})
+        <CompararSelector
+          compare={data.comparacion ? data.comparacion.mes.slice(0, 7) : null}
+          mesActual={data.mes}
+          mesesDisponibles={data.mesesDisponibles}
+          hoyMes={data.hoyMes}
+        />
+      </div>
+
+      {/* Toolbar de filtros (métricas y evolución) */}
+      {tab !== "resumen" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+            {([
+              { id: "todas", label: `Todas (${data.choferes.length})` },
+              { id: "escalables", label: `Escalables (${nEscalables})` },
+              { id: "tolvas", label: `Tolvas (${nTolvas})` },
+            ] as { id: FlotaSel; label: string }[]).map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFlota(f.id)}
+                className={`h-7 rounded-md px-2.5 text-xs font-medium transition-all ${
+                  flota === f.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {f.label}
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setExportOpen(true)}>
-            <Download size={14} /> Exportar
-          </Button>
-        </div>
-      </div>
 
-      {tab === "resumen" ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* Facturación vs costo por km (planilla COSTO VS KM) */}
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Facturación vs costo por km (estudio)</h3>
-            {data.serieCosto.length ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={data.serieCosto.map((r) => ({ ...r, label: mesCorto(r.mes) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${numAr(v)}`} width={70} />
-                  <Tooltip formatter={(v) => money(Number(v), 2)} />
-                  <Legend />
-                  <Line type="monotone" dataKey="factKm" name="Facturación $/km" stroke="#0088D1" strokeWidth={2} dot />
-                  <Line type="monotone" dataKey="costoKm" name="Costo estudio $/km" stroke="#EF4444" strokeWidth={2} dot />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin serie de costo cargada.</p>
-            )}
-            {data.serieCosto.length > 0 && data.serieCosto.at(-1)!.costoKm != null && t.factPorKm != null && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t.factPorKm >= (data.serieCosto.at(-1)!.costoKm ?? 0)
-                  ? "La facturación por km cubre el costo del estudio."
-                  : `⚠️ El costo por km del estudio (${money(data.serieCosto.at(-1)!.costoKm, 2)}) está por encima de la facturación por km (${money(t.factPorKm, 2)}).`}
-              </p>
-            )}
-          </div>
-
-          {/* Aumentos de tarifa de clientes */}
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-foreground">Aumentos de tarifa de clientes</h3>
-              {data.canWrite && (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAumentoOpen(true)}>
-                  <Plus size={13} /> Cargar aumento
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Para leer bien una suba de facturación: ¿fue producción propia o aumento de tarifa?
-              Se muestran los aumentos de los últimos 12 meses.
-            </p>
-            {data.aumentos.length ? (
-              <div className="divide-y divide-border rounded-md border border-border">
-                {data.aumentos.map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 px-3 py-2">
-                    <ArrowUpRight size={14} className="shrink-0 text-amber-500" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">
-                        <span className="font-medium">{a.clienteNombre}</span>{" "}
-                        <span className="font-mono text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        desde el {a.vigenteDesde.split("-").reverse().join("/")}
-                        {a.observaciones ? ` · ${a.observaciones}` : ""}
-                      </p>
-                    </div>
-                    {data.canWrite && (
-                      <button type="button" onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
-                        className="text-muted-foreground/60 hover:text-red-500 transition-colors" title="Eliminar">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
+          {defActiva && (
+            <>
+              <div className="relative">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar chofer…"
+                  className="h-8 w-44 pl-8 text-xs"
+                />
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground/70">Sin aumentos registrados en el período.</p>
-            )}
-          </div>
-
-          {/* Comparativa por flota */}
-          <div className="rounded-lg border border-border bg-card p-4 shadow-sm xl:col-span-2 overflow-x-auto">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Por flota — {mesLabel(data.mes)}</h3>
-            <table className="w-full text-sm min-w-[640px]">
-              <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">Flota</th>
-                  <th className="py-2 pr-4 font-medium text-right">Camiones</th>
-                  <th className="py-2 pr-4 font-medium text-right">KM</th>
-                  <th className="py-2 pr-4 font-medium text-right">Facturación</th>
-                  <th className="py-2 pr-4 font-medium text-right">$/km</th>
-                  <th className="py-2 pr-4 font-medium text-right">% vacíos</th>
-                  <th className="py-2 pr-4 font-medium text-right">% al 100%</th>
-                  <th className="py-2 font-medium text-right">% sueldo/fact</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(["escalables", "tolvas"] as const).map((f) => {
-                  const tf = data.totales[f];
-                  if (!tf) return null;
+              <div className="ml-auto flex items-center gap-1 rounded-lg bg-muted p-1">
+                {([
+                  { id: "tabla", label: "Tabla", icon: Table2 },
+                  { id: "grafico", label: "Gráfico", icon: ChartBarBig },
+                  { id: "evolucion", label: "Evolución", icon: ChartLine },
+                ] as { id: Vista; label: string; icon: React.ElementType }[]).map((v) => {
+                  const Icon = v.icon;
                   return (
-                    <tr key={f}>
-                      <td className="py-2 pr-4 capitalize text-foreground">{f}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{tf.camiones}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{numAr(tf.km)}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{compactMoney(tf.facturacion)}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{money(tf.factPorKm, 2)}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{pct(tf.pctVacios)}</td>
-                      <td className="py-2 pr-4 text-right font-mono">{pct(tf.pctKm100)}</td>
-                      <td className="py-2 text-right font-mono">{pct(tf.pctSueldoFact)}</td>
-                    </tr>
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setVista(v.id)}
+                      className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-all ${
+                        vista === v.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Icon size={13} /> {v.label}
+                    </button>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        // Barras por chofer de la métrica activa
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="text-sm font-semibold text-foreground mb-1">
-            {unidadTab[barKey as Exclude<TabId, "resumen">].title}
-          </h3>
-          <p className="text-[11px] text-muted-foreground mb-3 capitalize">
-            {flota} · {mesLabel(data.mes)} · las filas con ◐ entraron/salieron a mitad de mes
-          </p>
-          <ResponsiveContainer width="100%" height={Math.max(240, serieChofer.length * 22)}>
-            <BarChart data={serieChofer} layout="vertical" margin={{ left: 40, right: 50 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="nombre" width={140}
-                tick={{ fontSize: 10 }}
-                tickFormatter={(v: string) => {
-                  const c = serieChofer.find((s) => s.nombre === v);
-                  return c?.parcial ? `◐ ${v}` : v;
-                }} />
-              <Tooltip formatter={(v) => unidadTab[barKey as Exclude<TabId, "resumen">].fmt(Number(v))} />
-              <Bar dataKey="valor" radius={[0, 4, 4, 0]}
-                label={{ position: "right", fontSize: 9, formatter: (v: unknown) => unidadTab[barKey as Exclude<TabId, "resumen">].fmt(Number(v)) }}>
-                {serieChofer.map((c, i) => (
-                  <Cell key={c.nombre}
-                    fill={`hsl(${Math.round(120 - (i / Math.max(serieChofer.length - 1, 1)) * 120)}, 70%, 45%)`}
-                    opacity={c.parcial ? 0.45 : 1} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {data.canWrite && (
-        <CargarAumentoDialog open={aumentoOpen} onOpenChange={setAumentoOpen} onDone={() => router.refresh()} />
+      {/* Contenido */}
+      {tab === "resumen" && <ResumenTab data={data} onChofer={setChoferSel} esLive={data.esLive} />}
+
+      {tab === "evolucion" && (
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-foreground">
+            Planilla anual — {flota === "todas" ? "general" : flota}
+          </h3>
+          <p className="mb-3 text-[11px] text-muted-foreground">
+            Los últimos 13 meses como en el Excel anual: una fila por mes, todas las métricas juntas.
+          </p>
+          <EvolucionTab
+            serie={data.serieHistorica}
+            mesActivo={data.mes}
+            flota={flota === "todas" ? "general" : flota}
+            hoyMes={data.hoyMes}
+          />
+        </div>
       )}
-      <ExportarMetricasDialog open={exportOpen} onOpenChange={setExportOpen} mes={data.mes} />
+
+      {defActiva && (
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">{defActiva.titulo}</h3>
+              <p className="mt-0.5 max-w-2xl text-[11px] text-muted-foreground">{defActiva.descripcion}</p>
+            </div>
+            <Link
+              href={defActiva.fuente.href}
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              title="Ir a la sección viva de la que sale este dato"
+            >
+              <ExternalLink size={11} /> {defActiva.fuente.label}
+            </Link>
+          </div>
+
+          {noDisponibleLive && vista !== "evolucion" ? (
+            <div className="py-10 text-center">
+              <p className="text-sm font-medium text-foreground">
+                {defActiva.id === "sueldo" ? "Los sueldos no salen de los viajes." : "El km al 100% no se registra en la hoja de ruta."}
+              </p>
+              <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+                {defActiva.id === "sueldo"
+                  ? <>Se completa con la planilla del Drive, o cargando los sueldos del mes en <Link href="/sueldos-admin" className="text-primary hover:underline">Sueldos admin</Link>.</>
+                  : "Se completa cuando se importa la planilla KM AL 100% del Drive."}
+                {" "}Mientras tanto podés ver la <button type="button" onClick={() => setVista("evolucion")} className="text-primary hover:underline">evolución histórica</button>.
+              </p>
+            </div>
+          ) : (
+            <>
+              {vista === "tabla" && (
+                <MetricaTable
+                  key={defActiva.id}
+                  def={defActiva}
+                  choferes={choferesFiltrados}
+                  mostrarFlota={flota === "todas"}
+                  onChofer={setChoferSel}
+                  comparacion={comparacionTabla}
+                />
+              )}
+              {vista === "grafico" && (
+                <MetricaChart def={defActiva} choferes={choferesFiltrados} onChofer={setChoferSel} />
+              )}
+              {vista === "evolucion" && (
+                <EvolucionChart def={defActiva} serie={data.serieHistorica} mesActivo={data.mes} />
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      <ChoferDrawer
+        chofer={choferSel}
+        onClose={() => setChoferSel(null)}
+        totalesFlota={totalesFlotaDrawer}
+        hist={
+          choferSel
+            ? data.choferHist[choferSel.nombre]
+              ?? (choferSel.choferId ? data.choferHist[choferSel.choferId] : undefined)
+              ?? []
+            : []
+        }
+        mes={data.mes}
+        esLive={data.esLive}
+      />
     </div>
   );
-}
-
-// Suma meses a un ISO YYYY-MM-01 (helper local del client).
-function addM(mesISO: string, d: number): string {
-  const [y, m] = mesISO.split("-").map((n) => parseInt(n, 10));
-  const total = y * 12 + (m - 1) + d;
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`;
 }

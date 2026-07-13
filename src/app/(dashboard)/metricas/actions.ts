@@ -5,12 +5,17 @@
 // y contra el mismo mes del año anterior, más los aumentos de tarifa de
 // clientes como contexto de la facturación.
 //
+// Rediseño 11/07: una sola query de ventana (13 meses) alimenta KPIs,
+// comparativas, serie histórica (planilla anual), historial por chofer para
+// el drawer, y un modo "en vivo" desde viajes para meses sin planillas.
+//
 // Confidencial: sección `metricas` (por defecto solo administradores).
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { choferSlug } from "@/lib/chofer-slug";
 
 // Tablas nuevas, aún no tipadas en database.ts.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -20,6 +25,8 @@ export type Flota = "escalables" | "tolvas";
 export type MetricaChofer = {
   nombre: string;
   choferId: string | null;
+  /** Slug del legajo (/choferes/[slug]) si la fila quedó linkeada. */
+  slug: string | null;
   flota: Flota;
   escalTipo: number | null;
   km: number;
@@ -60,6 +67,30 @@ export type CostoMesRow = {
   promKm: number | null;
 };
 
+/** Un mes de la serie histórica: totales por flota + general. */
+export type SerieMes = {
+  mes: string;
+  general: TotalesMes | null;
+  escalables: TotalesMes | null;
+  tolvas: TotalesMes | null;
+  costoKm: number | null;
+  /** true si el mes viene de agregados (metricas_mes) sin detalle por chofer. */
+  esAgregado: boolean;
+};
+
+/** Punto del historial de un chofer (para el drawer de detalle). */
+export type ChoferHistPunto = {
+  mes: string;
+  flota: Flota;
+  km: number;
+  kmVacios: number;
+  km100: number;
+  facturacion: number;
+  sueldoTotal: number;
+  sueldoNeto: number;
+  toneladas: number;
+};
+
 export type AumentoCliente = {
   id: string;
   clienteId: string | null;
@@ -69,23 +100,56 @@ export type AumentoCliente = {
   observaciones: string | null;
 };
 
+/** Diagnóstico de completitud del mes en vivo: qué falta cargar en el sistema. */
+export type LiveInfo = {
+  viajes: number;
+  /** Viajes sin chofer asignado (cuentan en totales, no en la tabla). */
+  sinChofer: number;
+  /** Viajes con 0 km cargados. */
+  sinKm: number;
+  /** Viajes sin monto de flete. */
+  sinFlete: number;
+  /** Viajes sin tonelaje real. */
+  sinTonelaje: number;
+};
+
+/** Mes de comparación elegido por el usuario (además de mes ant. e interanual). */
+export type Comparacion = {
+  mes: string;
+  choferes: MetricaChofer[];
+  totales: Record<Flota | "general", TotalesMes | null>;
+  esLive: boolean;
+};
+
 export type MetricasData = {
   mes: string; // mes mostrado (ISO día 1)
+  /** Mes calendario actual (ISO día 1) — para marcar "hoy" en el selector. */
+  hoyMes: string;
   choferes: MetricaChofer[];
   totales: Record<Flota | "general", TotalesMes | null>;
   mesAnterior: Record<Flota | "general", TotalesMes | null> | null;
   anioAnterior: Record<Flota | "general", TotalesMes | null> | null;
   /** Serie de la planilla COSTO VS KM (últimos 14 meses con datos). */
   serieCosto: CostoMesRow[];
+  /** Serie histórica de 13 meses (mes visto + 12 hacia atrás), ascendente. */
+  serieHistorica: SerieMes[];
+  /** Historial por chofer dentro de la ventana de 13 meses (clave: nombre). */
+  choferHist: Record<string, ChoferHistPunto[]>;
   /** Meses que tienen planillas por chofer cargadas (para el selector). */
   mesesDisponibles: string[];
   /** Aumentos de tarifa en los últimos 13 meses hasta el mes visto. */
   aumentos: AumentoCliente[];
+  /** true si `choferes` viene de los viajes del sistema (mes sin planillas). */
+  esLive: boolean;
+  /** Diagnóstico de completitud cuando esLive. */
+  liveInfo: LiveInfo | null;
+  /** Mes de comparación pedido con ?compare=YYYY-MM. */
+  comparacion: Comparacion | null;
   canWrite: boolean;
 };
 
 function mesInfo(monthStr?: string): string {
-  if (monthStr && /^\d{4}-\d{2}$/.test(monthStr)) return `${monthStr}-01`;
+  if (monthStr && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr)) return `${monthStr}-01`;
   const hoy = new Date();
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
 }
@@ -130,16 +194,12 @@ function totalesDe(mes: string, rows: MetricaChofer[]): Record<Flota | "general"
   };
 }
 
-async function choferesDelMes(supabase: any, mes: string): Promise<MetricaChofer[]> {
-  const { data } = await supabase
-    .from("metricas_chofer_mes")
-    .select(
-      "chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
-    )
-    .eq("mes", mes);
-  return ((data ?? []) as any[]).map((r) => ({
+function mapChoferRow(r: any): MetricaChofer & { mes: string } {
+  return {
+    mes: String(r.mes),
     nombre: r.chofer_nombre,
     choferId: r.chofer_id ?? null,
+    slug: null, // se completa después con el mapa de choferes
     flota: r.flota as Flota,
     escalTipo: r.escal_tipo ?? null,
     km: Number(r.km_totales ?? 0),
@@ -155,12 +215,128 @@ async function choferesDelMes(supabase: any, mes: string): Promise<MetricaChofer
     devolPrestamo: r.devol_prestamo == null ? null : Number(r.devol_prestamo),
     embargoJudicial: r.embargo_judicial == null ? null : Number(r.embargo_judicial),
     aguinaldo: r.aguinaldo == null ? null : Number(r.aguinaldo),
-  }));
+  };
 }
 
-export async function getMetricasAction(month?: string): Promise<MetricasData> {
+/** TotalesMes desde una fila agregada de metricas_mes (meses sin choferes). */
+function totalesDeAgregado(mes: string, r: any): TotalesMes | null {
+  if (!r) return null;
+  const km = r.km == null ? 0 : Number(r.km);
+  const facturacion = r.facturacion == null ? 0 : Number(r.facturacion);
+  const kmVacios = r.km_vacios == null ? 0 : Number(r.km_vacios);
+  const km100 = r.km_100 == null ? 0 : Number(r.km_100);
+  const sueldoTotal = r.sueldo_total == null ? 0 : Number(r.sueldo_total);
+  if (!km && !facturacion) return null;
+  return {
+    mes,
+    camiones: 0, // sin detalle por chofer
+    km,
+    kmVacios,
+    km100,
+    facturacion,
+    sueldoTotal,
+    factPorKm: r.fact_km != null ? Number(r.fact_km) : km > 0 ? facturacion / km : null,
+    pctVacios: km > 0 && r.km_vacios != null ? (kmVacios / km) * 100 : null,
+    pctKm100: km > 0 && r.km_100 != null ? (km100 / km) * 100 : null,
+    pctSueldoFact: facturacion > 0 && r.sueldo_total != null ? (sueldoTotal / facturacion) * 100 : null,
+    toneladasProm: r.toneladas_prom == null ? null : Number(r.toneladas_prom),
+  };
+}
+
+/** Estimación del mes desde viajes, en la MISMA forma que las planillas
+ *  (MetricaChofer[]) para que el dashboard se vea igual que un mes cargado.
+ *  Sueldos y km al 100% no existen en vivo → quedan en 0 y el cliente los
+ *  muestra como "sin datos". flotaDe: flota conocida por planillas previas. */
+async function liveDesdeViajes(
+  supabase: any,
+  mes: string,
+  flotaDe: (choferId: string) => Flota | null,
+): Promise<{ choferes: MetricaChofer[]; info: LiveInfo } | null> {
+  const hasta = addMonths(mes, 1);
+  const { data, error } = await supabase
+    .from("viajes")
+    .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio, tonelaje_real, es_vacio, chofer:choferes(id, nombre, apellido)")
+    .gte("fecha_viaje", mes)
+    .lt("fecha_viaje", hasta);
+  if (error || !data?.length) return null;
+
+  type Acc = { nombre: string; slug: string; km: number; kmVacios: number; facturacion: number; tonSum: number; tonCount: number };
+  const porChofer = new Map<string, Acc>();
+  const info: LiveInfo = { viajes: 0, sinChofer: 0, sinKm: 0, sinFlete: 0, sinTonelaje: 0 };
+
+  for (const v of data as any[]) {
+    const kmCarga = Number(v.km_con_carga ?? 0);
+    const kmVac = Number(v.km_vacios ?? 0);
+    // Facturación en ARS; USD se convierte con el tipo de cambio del viaje si está.
+    const monto = v.monto_flete == null ? 0 :
+      v.moneda === "USD" ? Number(v.monto_flete) * Number(v.tipo_cambio ?? 0) : Number(v.monto_flete);
+    const ton = v.tonelaje_real == null ? 0 : Number(v.tonelaje_real);
+
+    info.viajes += 1;
+    if (!v.chofer?.id) info.sinChofer += 1;
+    if (kmCarga + kmVac <= 0) info.sinKm += 1;
+    if (monto <= 0 && !v.es_vacio) info.sinFlete += 1;
+    if (ton <= 0 && !v.es_vacio) info.sinTonelaje += 1;
+
+    const ch = v.chofer;
+    if (!ch?.id) continue;
+    const acc = porChofer.get(ch.id) ?? {
+      nombre: `${ch.apellido ?? ""} ${ch.nombre ?? ""}`.trim().toUpperCase(),
+      slug: choferSlug({ apellido: ch.apellido ?? "", nombre: ch.nombre ?? "" }),
+      km: 0, kmVacios: 0, facturacion: 0, tonSum: 0, tonCount: 0,
+    };
+    acc.km += kmCarga + kmVac;
+    acc.kmVacios += kmVac;
+    acc.facturacion += monto;
+    if (ton > 0) { acc.tonSum += ton; acc.tonCount += 1; }
+    porChofer.set(ch.id, acc);
+  }
+
+  const choferes: MetricaChofer[] = Array.from(porChofer.entries()).map(([choferId, a]) => ({
+    nombre: a.nombre,
+    choferId,
+    slug: a.slug,
+    flota: flotaDe(choferId) ?? "escalables",
+    escalTipo: null,
+    km: a.km,
+    kmVacios: a.kmVacios,
+    km100: 0, // no existe en vivo
+    facturacion: a.facturacion,
+    sueldoTotal: 0, // no existe en vivo
+    sueldoNeto: 0,
+    toneladas: a.tonCount ? a.tonSum / a.tonCount : 0,
+    ingresoParcial: false,
+    retenciones: null,
+    adelantos: null,
+    devolPrestamo: null,
+    embargoJudicial: null,
+    aguinaldo: null,
+  }));
+
+  return { choferes, info };
+}
+
+/** En vivo no hay sueldos ni km-100: anular esos ratios en los totales para
+ *  que el dashboard muestre "—" en vez de un 0% engañoso. */
+function anularMetricasSinDatoLive(
+  tot: Record<Flota | "general", TotalesMes | null>,
+): Record<Flota | "general", TotalesMes | null> {
+  for (const key of ["general", "escalables", "tolvas"] as const) {
+    const t = tot[key];
+    if (t) {
+      t.pctKm100 = null;
+      t.pctSueldoFact = null;
+    }
+  }
+  return tot;
+}
+
+export async function getMetricasAction(month?: string, compareMonth?: string): Promise<MetricasData> {
   const user = await requireSeccion("metricas", "read");
   const supabase = createAdminClient();
+
+  const hoy = new Date();
+  const hoyMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
 
   // Meses con planillas cargadas; si no se pidió un mes puntual, mostrar el último.
   const { data: mesesRaw } = await (supabase as any)
@@ -175,11 +351,21 @@ export async function getMetricasAction(month?: string): Promise<MetricasData> {
   }
   const mesPrevio = addMonths(mes, -1);
   const mesInteranual = addMonths(mes, -12);
+  const desdeVentana = mesInteranual; // 13 meses: mes visto + 12 hacia atrás
 
-  const [choferes, choferesPrev, choferesYoY, costoRes, aumentosRes] = await Promise.all([
-    choferesDelMes(supabase, mes),
-    choferesDelMes(supabase, mesPrevio),
-    choferesDelMes(supabase, mesInteranual),
+  const [ventanaRes, agregadosRes, costoRes, aumentosRes] = await Promise.all([
+    (supabase as any)
+      .from("metricas_chofer_mes")
+      .select(
+        "mes, chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
+      )
+      .gte("mes", desdeVentana)
+      .lte("mes", mes),
+    (supabase as any)
+      .from("metricas_mes")
+      .select("mes, flota, km, facturacion, fact_km, km_vacios, km_100, sueldo_total, toneladas_prom")
+      .gte("mes", desdeVentana)
+      .lte("mes", mes),
     (supabase as any)
       .from("metricas_mes")
       .select("mes, flota, fact_km, costo_km_estudio, prom_km")
@@ -195,18 +381,193 @@ export async function getMetricasAction(month?: string): Promise<MetricasData> {
       .order("vigente_desde", { ascending: false }),
   ]);
 
+  const ventana = (((ventanaRes.data ?? []) as any[]).map(mapChoferRow));
+  const choferes = ventana.filter((r) => r.mes === mes);
+  const choferesPrev = ventana.filter((r) => r.mes === mesPrevio);
+  const choferesYoY = ventana.filter((r) => r.mes === mesInteranual);
+
+  // Linkeo al legajo por nombre: la planilla trae "APELLIDO INICIAL" (ej.
+  // "CEJAS N", "PITTANA MIGUEL"). Se matchea contra Choferes en lectura y solo
+  // si el match es inequívoco (el importador dejó chofer_id casi siempre null).
+  const { data: todosChoferes } = await supabase.from("choferes").select("id, nombre, apellido");
+  const normalizar = (s: string) =>
+    s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-ZÑ ]/g, " ").replace(/\s+/g, " ").trim();
+  const candidatos = ((todosChoferes ?? []) as any[]).map((c) => ({
+    id: c.id as string,
+    ap: normalizar(c.apellido ?? ""),
+    no: normalizar(c.nombre ?? ""),
+    slug: choferSlug({ apellido: c.apellido ?? "", nombre: c.nombre ?? "" }),
+  }));
+  const matchCache = new Map<string, { id: string; slug: string } | null>();
+  const matchear = (nombrePlanilla: string) => {
+    const n = normalizar(nombrePlanilla);
+    if (matchCache.has(n)) return matchCache.get(n)!;
+    const hits = candidatos.filter((c) => {
+      if (!c.ap) return false;
+      if (n === c.ap) return true;
+      if (n.startsWith(c.ap + " ")) {
+        const hint = n.slice(c.ap.length + 1);
+        return c.no.startsWith(hint) || c.no.split(" ").some((p) => p.startsWith(hint));
+      }
+      return false;
+    });
+    const res = hits.length === 1 ? { id: hits[0].id, slug: hits[0].slug } : null;
+    matchCache.set(n, res);
+    return res;
+  };
+  for (const r of ventana) {
+    if (!r.choferId) {
+      const m = matchear(r.nombre);
+      if (m) { r.choferId = m.id; r.slug = m.slug; }
+    } else {
+      const c = candidatos.find((x) => x.id === r.choferId);
+      r.slug = c?.slug ?? null;
+    }
+  }
+
+  // Serie de costo (planilla COSTO VS KM), ascendente.
+  const serieCosto = (((costoRes.data ?? []) as any[]).map((r) => ({
+    mes: String(r.mes),
+    factKm: r.fact_km == null ? null : Number(r.fact_km),
+    costoKm: r.costo_km_estudio == null ? null : Number(r.costo_km_estudio),
+    promKm: r.prom_km == null ? null : Number(r.prom_km),
+  })) as CostoMesRow[]).reverse();
+  const costoPorMes = new Map(serieCosto.map((r) => [r.mes, r.costoKm]));
+
+  // Agregados mensuales (meses históricos sin detalle por chofer).
+  const agregados = ((agregadosRes.data ?? []) as any[]);
+  const agregadoDe = (m: string, flota: string | null) =>
+    agregados.find((r) => String(r.mes) === m && (r.flota ?? null) === flota);
+
+  // Serie histórica: 13 meses ascendentes terminando en el mes visto.
+  const serieHistorica: SerieMes[] = [];
+  for (let i = -12; i <= 0; i++) {
+    const m = addMonths(mes, i);
+    const rowsMes = ventana.filter((r) => r.mes === m);
+    if (rowsMes.length) {
+      const tot = totalesDe(m, rowsMes);
+      serieHistorica.push({
+        mes: m,
+        general: tot.general,
+        escalables: tot.escalables,
+        tolvas: tot.tolvas,
+        costoKm: costoPorMes.get(m) ?? null,
+        esAgregado: false,
+      });
+    } else {
+      const general = totalesDeAgregado(m, agregadoDe(m, null));
+      const escalables = totalesDeAgregado(m, agregadoDe(m, "escalables"));
+      const tolvas = totalesDeAgregado(m, agregadoDe(m, "tolvas"));
+      serieHistorica.push({
+        mes: m,
+        general,
+        escalables,
+        tolvas,
+        costoKm: costoPorMes.get(m) ?? null,
+        esAgregado: general != null || escalables != null || tolvas != null,
+      });
+    }
+  }
+
+  // Historial por chofer (para la evolución del drawer).
+  const choferHist: Record<string, ChoferHistPunto[]> = {};
+  for (const r of ventana) {
+    (choferHist[r.nombre] ??= []).push({
+      mes: r.mes,
+      flota: r.flota,
+      km: r.km,
+      kmVacios: r.kmVacios,
+      km100: r.km100,
+      facturacion: r.facturacion,
+      sueldoTotal: r.sueldoTotal,
+      sueldoNeto: r.sueldoNeto,
+      toneladas: r.toneladas,
+    });
+  }
+  for (const serie of Object.values(choferHist)) serie.sort((a, b) => a.mes.localeCompare(b.mes));
+  // Alias por choferId (el modo en vivo nombra distinto que la planilla).
+  for (const r of ventana) {
+    if (r.choferId && !choferHist[r.choferId] && choferHist[r.nombre]) {
+      choferHist[r.choferId] = choferHist[r.nombre];
+    }
+  }
+
+  // Flota conocida de cada chofer (por su planilla más reciente) — para el modo en vivo.
+  const flotaPorChoferId = new Map<string, Flota>();
+  for (const r of [...ventana].sort((a, b) => a.mes.localeCompare(b.mes))) {
+    if (r.choferId) flotaPorChoferId.set(r.choferId, r.flota);
+  }
+  const flotaDe = (id: string) => flotaPorChoferId.get(id) ?? null;
+
+  // Modo en vivo: el mes visto no tiene planillas y no es futuro → mismos
+  // componentes que un mes cargado, alimentados desde los viajes del sistema.
+  let esLive = false;
+  let liveInfo: LiveInfo | null = null;
+  let choferesMes: MetricaChofer[];
+  let totalesMes: Record<Flota | "general", TotalesMes | null>;
+
+  const stripMes = (r: MetricaChofer & { mes: string }): MetricaChofer => {
+    const { ...rest } = r;
+    delete (rest as Partial<typeof rest>).mes;
+    return rest;
+  };
+
+  if (choferes.length) {
+    choferesMes = choferes.map(stripMes);
+    totalesMes = totalesDe(mes, choferes);
+  } else {
+    const live = mes <= hoyMes ? await liveDesdeViajes(supabase, mes, flotaDe) : null;
+    if (live) {
+      esLive = true;
+      liveInfo = live.info;
+      choferesMes = live.choferes;
+      totalesMes = anularMetricasSinDatoLive(totalesDe(mes, live.choferes));
+    } else {
+      choferesMes = [];
+      totalesMes = totalesDe(mes, []);
+    }
+  }
+
+  // Mes de comparación elegido (?compare=YYYY-MM): planillas del mes pedido,
+  // o los viajes en vivo si ese mes tampoco tiene planillas.
+  let comparacion: Comparacion | null = null;
+  const compareISO = compareMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(compareMonth) ? `${compareMonth}-01` : null;
+  if (compareISO && compareISO !== mes) {
+    let rows = ventana.filter((r) => r.mes === compareISO).map(stripMes);
+    if (!rows.length) {
+      const { data: cmpRaw } = await (supabase as any)
+        .from("metricas_chofer_mes")
+        .select(
+          "mes, chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
+        )
+        .eq("mes", compareISO);
+      rows = (((cmpRaw ?? []) as any[]).map(mapChoferRow)).map(stripMes);
+    }
+    if (rows.length) {
+      comparacion = { mes: compareISO, choferes: rows, totales: totalesDe(compareISO, rows), esLive: false };
+    } else if (compareISO <= hoyMes) {
+      const liveCmp = await liveDesdeViajes(supabase, compareISO, flotaDe);
+      if (liveCmp) {
+        comparacion = {
+          mes: compareISO,
+          choferes: liveCmp.choferes,
+          totales: anularMetricasSinDatoLive(totalesDe(compareISO, liveCmp.choferes)),
+          esLive: true,
+        };
+      }
+    }
+  }
+
   return {
     mes,
-    choferes,
-    totales: totalesDe(mes, choferes),
+    hoyMes,
+    choferes: choferesMes,
+    totales: totalesMes,
     mesAnterior: choferesPrev.length ? totalesDe(mesPrevio, choferesPrev) : null,
     anioAnterior: choferesYoY.length ? totalesDe(mesInteranual, choferesYoY) : null,
-    serieCosto: (((costoRes.data ?? []) as any[]).map((r) => ({
-      mes: String(r.mes),
-      factKm: r.fact_km == null ? null : Number(r.fact_km),
-      costoKm: r.costo_km_estudio == null ? null : Number(r.costo_km_estudio),
-      promKm: r.prom_km == null ? null : Number(r.prom_km),
-    })) as CostoMesRow[]).reverse(),
+    serieCosto,
+    serieHistorica,
+    choferHist,
     mesesDisponibles,
     aumentos: ((aumentosRes.data ?? []) as any[]).map((r) => ({
       id: r.id,
@@ -216,6 +577,9 @@ export async function getMetricasAction(month?: string): Promise<MetricasData> {
       porcentaje: Number(r.porcentaje),
       observaciones: r.observaciones ?? null,
     })),
+    esLive,
+    liveInfo,
+    comparacion,
     canWrite: hasSeccion(user, "metricas", "write"),
   };
 }
