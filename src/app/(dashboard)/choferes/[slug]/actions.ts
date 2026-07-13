@@ -938,7 +938,7 @@ export async function crearUrlSubidaApercibimientoAction(input: {
   filename: string;
 }): Promise<CrearUrlResult> {
   // Los apercibimientos los crea el admin (igual que crearApercibimientoAction).
-  await requireAdmin();
+  await requireArea("logistica", "write");
   return crearUrlSubidaAdjunto(APERCIBIMIENTO_CFG, input.filename);
 }
 
@@ -951,7 +951,7 @@ export async function getApercibimientoArchivosAction(id: string): Promise<Adjun
 export async function deleteApercibimientoArchivoAction(
   adjuntoId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  await requireAdmin();
+  await requireArea("logistica", "write");
   const res = await deleteAdjunto(APERCIBIMIENTO_CFG, adjuntoId);
   revalidatePath("/choferes/[slug]", "page");
   return res;
@@ -962,7 +962,7 @@ export async function agregarApercibimientoArchivosAction(
   apercibimientoId: string,
   adjuntos: AdjuntoArchivoMeta[],
 ): Promise<{ ok: boolean; vinculados?: number; fallidos?: number; error?: string }> {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   if (!apercibimientoId || !adjuntos?.length) return { ok: false, error: "No hay archivos para agregar." };
   const r = await vincularAdjuntos(APERCIBIMIENTO_CFG, apercibimientoId, adjuntos, user.id);
   revalidatePath("/choferes/[slug]", "page");
@@ -980,7 +980,7 @@ export async function crearApercibimientoAction(
     adjuntos?: AdjuntoArchivoMeta[] | null;
   },
 ) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
@@ -1032,7 +1032,7 @@ export async function crearApercibimientoAction(
 }
 
 export async function eliminarApercibimientoAction(id: string, chofer_id: string) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -1062,7 +1062,7 @@ export async function crearLicenciaAction(
     observaciones?: string | null;
   },
 ) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   if (data.fecha_hasta && data.fecha_hasta < data.fecha_desde)
@@ -1096,7 +1096,7 @@ export async function crearLicenciaAction(
 }
 
 export async function cerrarLicenciaAction(id: string, chofer_id: string, fecha_hasta: string) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -1128,7 +1128,7 @@ export async function cerrarLicenciaAction(id: string, chofer_id: string, fecha_
 }
 
 export async function eliminarLicenciaAction(id: string, chofer_id: string) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase
@@ -1436,7 +1436,7 @@ export async function crearPrestamoAction(
     observaciones?: string | null;
   },
 ) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   if (!Number.isFinite(data.monto) || data.monto <= 0)
@@ -1478,7 +1478,7 @@ export async function actualizarSaldoPrestamoAction(
   chofer_id: string,
   nuevo_saldo: number,
 ) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   if (!Number.isFinite(nuevo_saldo) || nuevo_saldo < 0)
@@ -1521,7 +1521,7 @@ export async function actualizarSaldoPrestamoAction(
 }
 
 export async function eliminarPrestamoAction(id: string, chofer_id: string) {
-  const user = await requireAdmin();
+  const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
   const { data: previo } = await supabase

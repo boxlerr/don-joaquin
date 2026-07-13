@@ -13,7 +13,7 @@ import { formatFecha } from "@/lib/utils";
 interface Props {
   chofer_id: string;
   prestamos: Prestamo[];
-  is_admin: boolean;
+  can_write: boolean;
   onRefresh: () => void;
 }
 
@@ -43,7 +43,7 @@ function estadoLabel(e: PrestamoEstado): string {
 export default function ChoferPrestamosTab({
   chofer_id,
   prestamos,
-  is_admin,
+  can_write,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -100,7 +100,7 @@ export default function ChoferPrestamosTab({
               <span className="font-medium text-foreground">{fmtMonto(totalPendiente, "ARS")}</span>
             </span>
           )}
-          {is_admin && (
+          {can_write && (
             <Button
               variant="outline"
               size="sm"
@@ -133,7 +133,7 @@ export default function ChoferPrestamosTab({
                     {p.cuotas} cuota{p.cuotas !== 1 ? "s" : ""}
                   </span>
                 </div>
-                {is_admin && (
+                {can_write && (
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <button
                       onClick={() => handleActualizar(p)}

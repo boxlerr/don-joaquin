@@ -13,14 +13,14 @@ import { formatFecha } from "@/lib/utils";
 interface Props {
   chofer_id: string;
   licencias: LicenciaMedica[];
-  is_admin: boolean;
+  can_write: boolean;
   onRefresh: () => void;
 }
 
 export default function ChoferLicenciasTab({
   chofer_id,
   licencias,
-  is_admin,
+  can_write,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -58,7 +58,7 @@ export default function ChoferLicenciasTab({
             {licencias.length} registro{licencias.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        {is_admin && (
+        {can_write && (
           <Button
             variant="outline"
             size="sm"
@@ -97,7 +97,7 @@ export default function ChoferLicenciasTab({
                     <StatusBadge label={`${l.dias ?? 0} día${(l.dias ?? 0) !== 1 ? "s" : ""}`} tone="info" />
                   )}
                 </div>
-                {is_admin && (
+                {can_write && (
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {l.en_curso && (
                       <button

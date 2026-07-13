@@ -28,7 +28,7 @@ interface Props {
   chofer_id: string;
   apercibimientos: Apercibimiento[];
   categorias: CategoriaApercibimiento[];
-  is_admin: boolean;
+  can_write: boolean;
   onRefresh: () => void;
 }
 
@@ -36,7 +36,7 @@ export default function ChoferApercibimientosTab({
   chofer_id,
   apercibimientos,
   categorias,
-  is_admin,
+  can_write,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -60,7 +60,7 @@ export default function ChoferApercibimientosTab({
             {apercibimientos.length} registro{apercibimientos.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        {is_admin && (
+        {can_write && (
           <Button
             variant="outline"
             size="sm"
@@ -100,7 +100,7 @@ export default function ChoferApercibimientosTab({
                     </span>
                   )}
                 </div>
-                {is_admin && (
+                {can_write && (
                   <button
                     onClick={() => handleDelete(a)}
                     disabled={deleting === a.id}
@@ -123,7 +123,7 @@ export default function ChoferApercibimientosTab({
                 crearUrlSubida={crearUrlSubidaApercibimientoAction}
                 vincularArchivos={agregarApercibimientoArchivosAction}
                 deleteArchivo={deleteApercibimientoArchivoAction}
-                canEdit={is_admin}
+                canEdit={can_write}
                 addLabel="Sumar archivo (acta, video…)"
                 emptyHint="Sin archivos adjuntos."
               />

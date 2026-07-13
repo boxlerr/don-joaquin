@@ -190,7 +190,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               apercibimientos={chofer.apercibimientos}
               categorias={chofer.categorias_apercibimiento}
-              is_admin={chofer.is_admin}
+              can_write={chofer.can_logistica_write}
               onRefresh={loadData}
             />
           )}
@@ -198,7 +198,7 @@ export default function ChoferDetailPage() {
             <ChoferLicenciasTab
               chofer_id={chofer.id}
               licencias={chofer.licencias_medicas}
-              is_admin={chofer.is_admin}
+              can_write={chofer.can_logistica_write}
               onRefresh={loadData}
             />
           )}
@@ -224,7 +224,7 @@ export default function ChoferDetailPage() {
             <ChoferPrestamosTab
               chofer_id={chofer.id}
               prestamos={chofer.prestamos}
-              is_admin={chofer.is_admin}
+              can_write={chofer.can_logistica_write}
               onRefresh={loadData}
             />
           )}
