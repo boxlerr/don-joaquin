@@ -60,32 +60,32 @@ const TABS: TutorialTab[] = [
         description:
           "Al editar un candidato podés subir su CV (o varios documentos). Quedan guardados y se pueden previsualizar y descargar cuando quieras.",
         mockup: <MockCv />,
-        hint: "Se sube directo, hasta 100 MB por archivo. También hay un botón de CV en cada tarjeta del tablero y en la tabla.",
+        hint: "Se sube directo, hasta 100 MB por archivo. También hay un botón de CV en cada tarjeta del pipeline y en el historial.",
       },
     ],
   },
   {
     id: "pipeline",
-    label: "Pipeline (Tablero)",
+    label: "El proceso",
     icon: <LayoutGrid size={14} />,
     steps: [
       {
-        title: "El tablero por etapas",
+        title: "En proceso, arriba",
         description:
-          "La vista Tablero muestra a cada candidato como una tarjeta, en columnas según en qué parte del proceso está. Con el toggle cambiás entre Tablero y Tabla.",
+          "El Tablero está dividido: arriba SOLO los candidatos activos (En entrevista y En preocupacional) y abajo los cerrados (Ingresaron / No ingresaron), compactos. Con el toggle cambiás entre Tabla y Tablero.",
         mockup: <MockTablero />,
       },
       {
-        title: "Qué significa cada columna",
+        title: "El flujo",
         description:
-          "Nuevo (recién cargado) → Entrevista (ya lo entrevistaste) → Preocupacional (haciéndose el apto) → Ingresó (entró al transporte) o Descartado (no sigue).",
+          "Entrevista → se descarta (con motivo) o pasa al preocupacional → si da bien, Ingresó. Al mandarlo al preocupacional, el examen queda marcado «a realizar» solo.",
         mockup: <MockEtapas />,
         hint: "Al mover a «Ingresó» o «Descartado», el resultado se actualiza solo. Si lo movés hacia atrás, vuelve a pendiente.",
       },
       {
-        title: "Mover de etapa",
+        title: "Botones de acción",
         description:
-          "Con las flechas ◀ ▶ de cada tarjeta lo movés de una columna a la otra a medida que avanza en el proceso de selección.",
+          "Cada tarjeta tiene botones que dicen lo que hacen: «Preocupacional →», «Ingresó» y «Descartar». Nada de flechitas: apretás lo que pasó y listo.",
         mockup: <MockCard />,
       },
     ],
@@ -104,7 +104,7 @@ const TABS: TutorialTab[] = [
       {
         title: "Buscá en el histórico",
         description:
-          "La vista Tabla tiene un buscador por nombre, localidad u observaciones — sirve para saber si alguien ya fue entrevistado antes. Con el lápiz editás sus datos y su CV.",
+          "La vista Tabla tiene un buscador por nombre, localidad u observaciones y el filtro por resultado — sirve para saber si alguien ya fue entrevistado antes. Con el lápiz editás sus datos y su CV.",
         mockup: <MockBuscarEditar />,
       },
     ],

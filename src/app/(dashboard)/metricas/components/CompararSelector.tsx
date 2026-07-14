@@ -67,7 +67,9 @@ export default function CompararSelector({
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        // Anclado a la DERECHA: el botón vive en el borde derecho de la
+        // toolbar y anclado a la izquierda el popup se salía de la pantalla.
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
             <button type="button" onClick={() => setYearView(yearView - 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border hover:bg-muted/50">
               <ChevronLeft size={13} />

@@ -68,7 +68,14 @@ function getInitials(user: SidebarUser): string {
   return initials || user.email[0]?.toUpperCase() || "?";
 }
 
-export default function Sidebar({ user }: { user: SidebarUser | null }) {
+export default function Sidebar({
+  user,
+  collapsed = false,
+}: {
+  user: SidebarUser | null;
+  /** true → riel de íconos (56px): se navega igual, con tooltips. */
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
@@ -80,22 +87,34 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
     !!item.children?.some((c) => isChildActive(c));
 
   return (
-    <aside className="flex flex-col w-60 h-screen bg-card text-card-foreground shrink-0 border-r border-border">
+    <aside className={`flex flex-col h-screen bg-card text-card-foreground shrink-0 border-r border-border ${collapsed ? "w-14" : "w-60"}`}>
       {/* Logo */}
-      <div className="flex items-center justify-center px-4 h-[84px] border-b border-border overflow-hidden">
-        <Image
-          src="/logo-horizontal.png"
-          alt="Don Joaquín Transporte"
-          width={480}
-          height={173}
-          priority
-          className="h-auto object-contain"
-          style={{ maxWidth: '90%' }}
-        />
+      <div className={`flex items-center justify-center border-b border-border overflow-hidden ${collapsed ? "h-14 px-1.5" : "px-4 h-[84px]"}`}>
+        {collapsed ? (
+          <Image
+            src="/logo.png"
+            alt="Don Joaquín Transporte"
+            width={408}
+            height={275}
+            priority
+            className="h-9 w-auto object-contain"
+            title="Don Joaquín Transporte"
+          />
+        ) : (
+          <Image
+            src="/logo-horizontal.png"
+            alt="Don Joaquín Transporte"
+            width={480}
+            height={173}
+            priority
+            className="h-auto object-contain"
+            style={{ maxWidth: '90%' }}
+          />
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto sidebar-scroll">
+      <nav className={`flex-1 py-4 overflow-y-auto sidebar-scroll ${collapsed ? "px-1.5" : "px-3"}`}>
         {NAV_GROUPS.map((group) => {
           const visibleItems: NavItem[] = user
             ? group.items
@@ -116,16 +135,23 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
 
           return (
             <div key={group.group} className="mb-4">
-              <p
-                className="px-3 mb-1 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] uppercase"
-                style={{ color: GROUP_ACCENT[group.group] ?? "#64748B" }}
-              >
-                <span className="size-1.5 rounded-full" style={{ background: GROUP_ACCENT[group.group] ?? "#64748B" }} />
-                {group.group}
-              </p>
+              {collapsed ? (
+                // Riel: el rótulo del grupo se reduce a su punto de color.
+                <p className="mb-1 flex justify-center" title={group.group}>
+                  <span className="size-1.5 rounded-full" style={{ background: GROUP_ACCENT[group.group] ?? "#64748B" }} />
+                </p>
+              ) : (
+                <p
+                  className="px-3 mb-1 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] uppercase"
+                  style={{ color: GROUP_ACCENT[group.group] ?? "#64748B" }}
+                >
+                  <span className="size-1.5 rounded-full" style={{ background: GROUP_ACCENT[group.group] ?? "#64748B" }} />
+                  {group.group}
+                </p>
+              )}
               <ul className="space-y-px">
                 {visibleItems.map((item) =>
-                  item.children && item.children.length > 0 ? (
+                  item.children && item.children.length > 0 && !collapsed ? (
                     <CollapsibleItem
                       key={item.href}
                       item={item}
@@ -139,7 +165,8 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
                         href={item.href}
                         icon={item.icon}
                         label={item.label}
-                        active={isActive(item.href)}
+                        active={isActive(item.href) || (collapsed && hasActiveChild(item))}
+                        collapsed={collapsed}
                       />
                     </li>
                   ),
@@ -151,37 +178,44 @@ export default function Sidebar({ user }: { user: SidebarUser | null }) {
       </nav>
 
       {/* User */}
-      <div className="px-3 py-3 border-t border-border">
-        <div className="flex items-center gap-3 px-2 py-1.5">
+      <div className={`${collapsed ? "px-1.5" : "px-3"} py-3 border-t border-border`}>
+        <div className={collapsed ? "flex flex-col items-center gap-2 py-1" : "flex items-center gap-3 px-2 py-1.5"}>
           {user?.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatarUrl}
               alt={`${user.nombre} ${user.apellido ?? ""}`.trim()}
+              title={collapsed && user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : undefined}
               className="w-8 h-8 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
               loading="lazy"
               decoding="async"
             />
           ) : (
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary to-brand-900 text-primary-foreground text-xs font-bold shrink-0 ring-2 ring-primary/20">
+            <div
+              title={collapsed && user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : undefined}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary to-brand-900 text-primary-foreground text-xs font-bold shrink-0 ring-2 ring-primary/20"
+            >
               {user ? getInitials(user) : "?"}
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <p className="text-foreground text-sm font-semibold truncate leading-tight">
-              {user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : "Invitado"}
-            </p>
-            {user?.rol && (
-              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent-500 uppercase tracking-wider">
-                {user.rol}
-              </span>
-            )}
-          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-foreground text-sm font-semibold truncate leading-tight">
+                {user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : "Invitado"}
+              </p>
+              {user?.rol && (
+                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent-500 uppercase tracking-wider">
+                  {user.rol}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-0.5">
             <form action={logoutAction}>
               <button
                 type="submit"
                 aria-label="Cerrar sesión"
+                title="Cerrar sesión"
                 className="flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
               >
                 <LogOut size={14} />
@@ -215,17 +249,24 @@ function NavLink({
   icon: Icon,
   label,
   active,
+  collapsed = false,
 }: {
   href: string;
   icon: LucideIcon;
   label: string;
   active: boolean;
+  /** true → solo el ícono, centrado, con el nombre como tooltip. */
+  collapsed?: boolean;
 }) {
   return (
     <Link
       href={href}
       prefetch
-      className={`group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150 ${
+      title={collapsed ? label : undefined}
+      aria-label={label}
+      className={`group relative flex items-center rounded-lg text-[13px] font-medium transition-colors duration-150 ${
+        collapsed ? "justify-center px-0 py-2" : "gap-3 px-3 py-2"
+      } ${
         active
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -243,7 +284,7 @@ function NavLink({
           active ? "text-primary" : "text-muted-foreground group-hover:text-primary"
         }`}
       />
-      <span className={`truncate ${active ? "font-semibold" : ""}`}>{label}</span>
+      {!collapsed && <span className={`truncate ${active ? "font-semibold" : ""}`}>{label}</span>}
     </Link>
   );
 }

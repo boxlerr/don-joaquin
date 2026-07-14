@@ -114,7 +114,7 @@ export async function confirmImportEntrevistasAction(fd: FormData): Promise<Entr
       se_mantuvo: fila.se_mantuvo,
       preocupacional,
       resultado: "pendiente",
-      etapa: fila.fecha ? "entrevista" : "nuevo",
+      etapa: "entrevista",
     });
   }
 

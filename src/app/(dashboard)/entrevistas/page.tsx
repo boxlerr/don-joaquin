@@ -37,7 +37,9 @@ export default async function EntrevistasPage() {
   const entrevistas = ((data || []) as Entrevista[]).map((e) => ({ ...e, cv_count: cvCount.get(e.id) ?? 0 }));
 
   const total = entrevistas.length;
-  const pendientes = entrevistas.filter((e) => e.resultado === "pendiente").length;
+  const enProceso = entrevistas.filter((e) =>
+    ["entrevista", "preocupacional"].includes(e.etapa ?? "entrevista"),
+  ).length;
   const ingresaron = entrevistas.filter((e) => e.resultado === "ingresa").length;
   const preocupacionalPendiente = entrevistas.filter((e) => e.preocupacional === "pendiente").length;
 
@@ -71,9 +73,9 @@ export default async function EntrevistasPage() {
           icon={UserSearch}
         />
         <StatCard
-          label="Pendientes"
-          value={String(pendientes)}
-          sub="En evaluación / sin definir"
+          label="En proceso"
+          value={String(enProceso)}
+          sub="Entrevista o preocupacional"
           color="warning"
           icon={Clock}
         />

@@ -128,10 +128,10 @@ export default function ResumenTab({
         )}
       </div>
 
-      {/* Aumentos de tarifa de clientes */}
+      {/* Aumentos: clientes vs sueldos (paridad interanual — pedido Bárbara 14/07) */}
       <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Aumentos de tarifa de clientes</h3>
+          <h3 className="text-sm font-semibold text-foreground">Aumentos: clientes vs sueldos (interanual)</h3>
           {data.canWrite && (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAumentoOpen(true)}>
               <Plus size={13} /> Cargar aumento
@@ -139,8 +139,92 @@ export default function ResumenTab({
           )}
         </div>
         <p className="mb-3 text-[11px] text-muted-foreground">
-          Para leer bien una suba de facturación: ¿fue producción propia o aumento de tarifa? Últimos 12 meses.
-          Los clientes se administran en <Link href="/clientes" className="text-primary hover:underline">Clientes</Link>.
+          La referencia: que el promedio de aumentos a los clientes vaya <span className="font-semibold">a la par</span> de
+          lo que se le aumenta a la gente. Últimos 12 meses hasta {mesLabel(data.mes)}.
+        </p>
+
+        {(() => {
+          const p = data.paridad;
+          const sueldosDisp = [p.sueldoChoferes.pct, p.sueldoAdmin.pct].filter((n): n is number => n != null);
+          const sueldosProm = sueldosDisp.length ? sueldosDisp.reduce((s, n) => s + n, 0) / sueldosDisp.length : null;
+          const brecha = p.clientes.promedio != null && sueldosProm != null ? p.clientes.promedio - sueldosProm : null;
+          const fmtPct = (n: number | null) =>
+            n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+          return (
+            <div className="mb-4 space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-md border border-border p-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Clientes (prom.)</p>
+                  <p className={`font-mono text-lg font-bold ${p.clientes.promedio == null ? "text-muted-foreground/50" : "text-foreground"}`}>
+                    {fmtPct(p.clientes.promedio)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {p.clientes.porCliente.length
+                      ? `${p.clientes.porCliente.length} cliente${p.clientes.porCliente.length > 1 ? "s" : ""} con aumentos`
+                      : "sin aumentos cargados"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Sueldos choferes</p>
+                  <p className={`font-mono text-lg font-bold ${p.sueldoChoferes.pct == null ? "text-muted-foreground/50" : "text-foreground"}`}>
+                    {fmtPct(p.sueldoChoferes.pct)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {p.sueldoChoferes.mesBase ? `prom. por chofer vs ${mesLabel(p.sueldoChoferes.mesBase)}` : "falta el mismo mes del año pasado"}
+                  </p>
+                </div>
+                <div className="rounded-md border border-border p-2.5">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Admin y taller</p>
+                  <p className={`font-mono text-lg font-bold ${p.sueldoAdmin.pct == null ? "text-muted-foreground/50" : "text-foreground"}`}>
+                    {fmtPct(p.sueldoAdmin.pct)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {p.sueldoAdmin.mesBase
+                      ? `sueldo base vs ${mesLabel(p.sueldoAdmin.mesBase)}${p.sueldoAdmin.parcial ? " (serie incompleta)" : ""}`
+                      : "sin matriz de sueldos base"}
+                  </p>
+                </div>
+              </div>
+
+              {brecha != null ? (
+                <div className={`rounded-md px-3 py-2 text-xs font-medium ${
+                  Math.abs(brecha) <= 3
+                    ? "bg-emerald-500/10 text-emerald-700"
+                    : brecha < 0
+                      ? "bg-red-500/10 text-red-600"
+                      : "bg-sky-500/10 text-sky-700"
+                }`}>
+                  {Math.abs(brecha) <= 3
+                    ? `Van a la par: ${Math.abs(brecha).toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp de diferencia.`
+                    : brecha < 0
+                      ? `⚠️ Los sueldos suben ${Math.abs(brecha).toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp por encima de los aumentos a clientes.`
+                      : `Los aumentos a clientes van ${brecha.toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp por encima de los sueldos.`}
+                </div>
+              ) : (
+                <div className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+                  {p.clientes.promedio == null
+                    ? "Falta cargar los aumentos de los clientes (YPF, Loma…). Cuando Bárbara pase la planilla, cargalos con el botón de arriba y la comparación se arma sola."
+                    : "Faltan datos de sueldos para comparar."}
+                </div>
+              )}
+
+              {p.clientes.porCliente.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {p.clientes.porCliente.map((c) => (
+                    <span key={c.nombre} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+                      {c.nombre} <span className="font-mono text-amber-600">{fmtPct(c.acumulado)}</span>
+                      {c.cantidad > 1 ? ` (${c.cantidad} aumentos)` : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          Aumentos cargados en el período — los clientes se administran en{" "}
+          <Link href="/clientes" className="text-primary hover:underline">Clientes</Link>.
         </p>
         {data.aumentos.length ? (
           <div className="divide-y divide-border rounded-md border border-border">

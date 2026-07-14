@@ -113,6 +113,21 @@ export type LiveInfo = {
   sinTonelaje: number;
 };
 
+/** Paridad de aumentos (pedido Bárbara 14/07): que el promedio interanual de
+ *  los aumentos a clientes vaya a la par de lo que se le aumenta a la gente. */
+export type Paridad = {
+  /** Aumentos de clientes en los 12 meses hasta el mes visto (compuestos por cliente). */
+  clientes: {
+    /** Promedio simple entre los clientes con aumentos cargados; null si no hay. */
+    promedio: number | null;
+    porCliente: { nombre: string; acumulado: number; cantidad: number }[];
+  };
+  /** % interanual del sueldo promedio por chofer (planillas del Drive). */
+  sueldoChoferes: { pct: number | null; mesBase: string | null };
+  /** % de aumento del sueldo base de administración y taller (matriz de aumentos). */
+  sueldoAdmin: { pct: number | null; mesBase: string | null; parcial: boolean };
+};
+
 /** Mes de comparación elegido por el usuario (además de mes ant. e interanual). */
 export type Comparacion = {
   mes: string;
@@ -145,6 +160,8 @@ export type MetricasData = {
   liveInfo: LiveInfo | null;
   /** Mes de comparación pedido con ?compare=YYYY-MM. */
   comparacion: Comparacion | null;
+  /** Aumentos clientes vs sueldos, interanual (pedido Bárbara 14/07). */
+  paridad: Paridad;
   canWrite: boolean;
 };
 
@@ -558,6 +575,84 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
     }
   }
 
+  // ── Paridad de aumentos: clientes vs sueldos, interanual ────────────────
+  // 1) Clientes: % compuestos por cliente en los 12 meses hasta el mes visto.
+  const aumentosRows = ((aumentosRes.data ?? []) as any[]);
+  const porCliente = new Map<string, { acumulado: number; cantidad: number }>();
+  for (const a of aumentosRows) {
+    const desde = String(a.vigente_desde);
+    if (desde < mesInteranual || desde >= addMonths(mes, 1)) continue;
+    const prev = porCliente.get(a.cliente_nombre) ?? { acumulado: 1, cantidad: 0 };
+    prev.acumulado *= 1 + Number(a.porcentaje) / 100;
+    prev.cantidad += 1;
+    porCliente.set(a.cliente_nombre, prev);
+  }
+  const clientesDetalle = Array.from(porCliente.entries())
+    .map(([nombre, v]) => ({ nombre, acumulado: (v.acumulado - 1) * 100, cantidad: v.cantidad }))
+    .sort((a, b) => b.acumulado - a.acumulado);
+  const clientesPromedio = clientesDetalle.length
+    ? clientesDetalle.reduce((s, c) => s + c.acumulado, 0) / clientesDetalle.length
+    : null;
+
+  // 2) Sueldos de choferes: sueldo promedio por chofer del mes visto vs mismo
+  //    mes del año anterior (mismo mes ⇒ el aguinaldo no distorsiona).
+  const promSueldo = (rows: { sueldoTotal: number }[]) => {
+    const con = rows.filter((r) => r.sueldoTotal > 0);
+    return con.length ? con.reduce((s, r) => s + r.sueldoTotal, 0) / con.length : null;
+  };
+  const sueldoNow = promSueldo(choferes);
+  const sueldoPrev = promSueldo(choferesYoY);
+  const sueldoChoferesPct = sueldoNow != null && sueldoPrev != null && sueldoPrev > 0
+    ? (sueldoNow / sueldoPrev - 1) * 100
+    : null;
+
+  // 3) Sueldo base de administración y taller (matriz sueldos_admin_aumentos:
+  //    una fila por persona×mes con el sueldo base vigente).
+  let sueldoAdmin: Paridad["sueldoAdmin"] = { pct: null, mesBase: null, parcial: false };
+  {
+    const { data: baseRows } = await (supabase as any)
+      .from("sueldos_admin_aumentos")
+      .select("chofer_id, vigente_desde, sueldo_base")
+      .lte("vigente_desde", mes)
+      .order("vigente_desde", { ascending: true });
+    const rows = ((baseRows ?? []) as any[]).map((r) => ({
+      persona: String(r.chofer_id),
+      mes: String(r.vigente_desde),
+      base: Number(r.sueldo_base ?? 0),
+    })).filter((r) => r.base > 0);
+    if (rows.length) {
+      const mesMin = rows[0].mes;
+      const objetivoBase = mesInteranual >= mesMin ? mesInteranual : mesMin;
+      // Último sueldo base vigente ≤ fecha, por persona.
+      const vigenteA = (fecha: string) => {
+        const porPersona = new Map<string, number>();
+        for (const r of rows) if (r.mes <= fecha) porPersona.set(r.persona, r.base);
+        return porPersona;
+      };
+      const ahora = vigenteA(mes);
+      const antes = vigenteA(objetivoBase);
+      // Solo personas presentes en ambos puntos (comparación justa).
+      let sumaAhora = 0, sumaAntes = 0, n = 0;
+      for (const [persona, base] of ahora) {
+        const b0 = antes.get(persona);
+        if (b0 && b0 > 0) { sumaAhora += base; sumaAntes += b0; n += 1; }
+      }
+      if (n > 0 && sumaAntes > 0) {
+        sueldoAdmin = {
+          pct: (sumaAhora / sumaAntes - 1) * 100,
+          mesBase: objetivoBase,
+          parcial: objetivoBase > mesInteranual, // la serie no llega a 12 meses atrás
+        };
+      }
+    }
+  }
+
+  const paridad: Paridad = {
+    clientes: { promedio: clientesPromedio, porCliente: clientesDetalle },
+    sueldoChoferes: { pct: sueldoChoferesPct, mesBase: sueldoChoferesPct != null ? mesInteranual : null },
+    sueldoAdmin,
+  };
+
   return {
     mes,
     hoyMes,
@@ -580,6 +675,7 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
     esLive,
     liveInfo,
     comparacion,
+    paridad,
     canWrite: hasSeccion(user, "metricas", "write"),
   };
 }

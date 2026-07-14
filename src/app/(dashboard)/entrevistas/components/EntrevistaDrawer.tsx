@@ -31,7 +31,6 @@ import {
 import type { Entrevista } from "./EntrevistasTable";
 
 const ETAPAS = [
-  { id: "nuevo", label: "Nuevo" },
   { id: "entrevista", label: "Entrevista" },
   { id: "preocupacional", label: "Preocupacional" },
   { id: "ingresado", label: "Ingresó" },
@@ -157,7 +156,7 @@ export default function EntrevistaDrawer({
   };
 
   const moverEtapa = async (etapa: string) => {
-    if (!entrevista || moviendo || etapa === (entrevista.etapa ?? "nuevo")) return;
+    if (!entrevista || moviendo || etapa === (entrevista.etapa ?? "entrevista")) return;
     setMoviendo(true);
     setError(null);
     const res = await setEtapaEntrevistaAction(
@@ -191,7 +190,7 @@ export default function EntrevistaDrawer({
               {/* Etapa del pipeline: click para mover */}
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {ETAPAS.map((et) => {
-                  const activa = (e.etapa ?? "nuevo") === et.id;
+                  const activa = (e.etapa ?? "entrevista") === et.id;
                   return (
                     <button
                       key={et.id}

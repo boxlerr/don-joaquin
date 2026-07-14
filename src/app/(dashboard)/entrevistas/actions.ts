@@ -20,16 +20,16 @@ type EntrevistaInsert = Database["public"]["Tables"]["entrevistas"]["Insert"];
 
 const PREOCUPACIONAL_VALUES = ["no_aplica", "pendiente", "apto", "no_apto"] as const;
 const RESULTADO_VALUES = ["pendiente", "ingresa", "no_ingresa"] as const;
-const ETAPAS = ["nuevo", "entrevista", "preocupacional", "ingresado", "descartado"] as const;
+// "nuevo" se eliminó del flujo (14/07): la entrevista es el punto de entrada.
+const ETAPAS = ["entrevista", "preocupacional", "ingresado", "descartado"] as const;
 type Etapa = (typeof ETAPAS)[number];
 
 // Etapa inicial del pipeline según los campos cargados (misma lógica que el backfill).
-function etapaDesde(preocupacional: string, resultado: string, fecha: string | null): Etapa {
+function etapaDesde(preocupacional: string, resultado: string): Etapa {
   if (resultado === "ingresa") return "ingresado";
   if (resultado === "no_ingresa") return "descartado";
   if (["pendiente", "apto", "no_apto"].includes(preocupacional)) return "preocupacional";
-  if (fecha) return "entrevista";
-  return "nuevo";
+  return "entrevista";
 }
 
 // Adjuntos de CV: mismo modelo multi-archivo que el resto (tabla puente entrevista_archivos).
@@ -191,7 +191,7 @@ export async function addEntrevistaAction(data: EntrevistaFormData) {
   if ("error" in payload) return payload;
 
   const supabase = createAdminClient();
-  const etapa = etapaDesde(payload.preocupacional as string, payload.resultado as string, payload.fecha_entrevista ?? null);
+  const etapa = etapaDesde(payload.preocupacional as string, payload.resultado as string);
   const { data: inserted, error } = await supabase
     .from("entrevistas")
     // etapa: columna nueva del pipeline, aún no está en database.ts.
@@ -281,7 +281,11 @@ export async function setEtapaEntrevistaAction(id: string, etapa: string, motivo
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const { data: anterior } = await sb.from("entrevistas").select("etapa, resultado").eq("id", id).single();
+  const { data: anterior } = await sb.from("entrevistas").select("etapa, resultado, preocupacional").eq("id", id).single();
+  // Al mandarlo al preocupacional, el examen queda "a realizar" si no estaba definido.
+  if (etapa === "preocupacional" && (anterior?.preocupacional ?? "no_aplica") === "no_aplica") {
+    patch.preocupacional = "pendiente";
+  }
   const { error } = await sb.from("entrevistas").update(patch).eq("id", id);
   if (error) {
     console.error("Error al mover etapa:", error);

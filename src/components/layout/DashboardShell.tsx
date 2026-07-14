@@ -36,12 +36,14 @@ export default function DashboardShell({
 
   const shell = (
     <div className="flex h-full bg-background">
+      {/* Colapsado = riel de íconos (no desaparece): se sigue navegando con
+          los íconos y cada uno muestra su nombre al pasar el mouse. */}
       <div
         className={`transition-[width] duration-300 ease-in-out overflow-hidden shrink-0 ${
-          collapsed ? "w-0" : "w-60"
+          collapsed ? "w-14" : "w-60"
         }`}
       >
-        <Sidebar user={user} />
+        <Sidebar user={user} collapsed={collapsed} />
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col">

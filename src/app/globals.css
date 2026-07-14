@@ -189,3 +189,43 @@ body {
   from { width: 100%; }
   to { width: 0%; }
 }
+/* ---------------------------------------------------------------------------
+   Scroll horizontal SIEMPRE visible (pedido 13/07): en las tablas anchas la
+   barra tiene que verse sin empezar a scrollear, para que sea obvio que hay
+   más columnas hacia el costado. Estilar ::-webkit-scrollbar desactiva las
+   barras "overlay" de macOS (que se esconden solas) y las deja fijas.
+   Aplica a todo contenedor con overflow-x-auto / overflow-auto del sistema.
+--------------------------------------------------------------------------- */
+/* Firefox (solo ahí: en Chrome, scrollbar-width/color anulan ::-webkit-scrollbar) */
+@supports (-moz-appearance: none) {
+  .overflow-x-auto,
+  .overflow-auto {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 136, 209, 0.45) #EEF2F7;
+  }
+}
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  height: 10px;                                   /* barra horizontal */
+  width: 10px;                                    /* barra vertical */
+}
+.overflow-x-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  background: #EEF2F7;
+  border-radius: 999px;
+  margin: 2px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  background: rgba(0, 136, 209, 0.45);
+  border-radius: 999px;
+  border: 2px solid #EEF2F7;                      /* aire alrededor del thumb */
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 136, 209, 0.7);
+}
+.overflow-x-auto::-webkit-scrollbar-corner,
+.overflow-auto::-webkit-scrollbar-corner {
+  background: transparent;
+}
