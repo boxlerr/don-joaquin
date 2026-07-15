@@ -174,6 +174,18 @@ export async function patchEntrevistaAction(id: string, patch: EntrevistaPatch) 
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
+
+  // Si cambió el preocupacional o el resultado desde la ficha, recalcular la
+  // etapa del pipeline: si no, el tablero y los KPIs ("En proceso"/"Ingresaron")
+  // quedan desincronizados con lo que se editó acá.
+  if ("preocupacional" in patch || "resultado" in patch) {
+    const { data: est } = await sb.from("entrevistas").select("preocupacional, resultado").eq("id", id).single();
+    cambios.etapa = etapaDesde(
+      (cambios.preocupacional ?? est?.preocupacional ?? "no_aplica") as string,
+      (cambios.resultado ?? est?.resultado ?? "pendiente") as string,
+    );
+  }
+
   const { data: anterior } = await sb.from("entrevistas").select(Object.keys(cambios).join(", ")).eq("id", id).single();
   const { error } = await sb.from("entrevistas").update(cambios).eq("id", id);
   if (error) {
@@ -226,9 +238,14 @@ export async function updateEntrevistaAction(id: string, data: EntrevistaFormDat
     .eq("id", id)
     .single();
 
+  // Recalcular la etapa del pipeline con lo cargado (igual que al crear), para
+  // que "Editar todo" no deje el tablero desincronizado.
+  const etapa = etapaDesde(payload.preocupacional as string, payload.resultado as string);
   const { error } = await supabase
     .from("entrevistas")
-    .update(payload)
+    // etapa: columna del pipeline, aún no tipada en database.ts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ ...payload, etapa } as any)
     .eq("id", id);
 
   if (error) {

@@ -203,7 +203,7 @@ export default function ResumenTab({
               ) : (
                 <div className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
                   {p.clientes.promedio == null
-                    ? "Falta cargar los aumentos de los clientes (YPF, Loma…). Cuando Bárbara pase la planilla, cargalos con el botón de arriba y la comparación se arma sola."
+                    ? "Falta cargar los aumentos de los clientes (YPF, Loma…). Cuando llegue la planilla con los aumentos, cargalos con el botón de arriba y la comparación se arma sola."
                     : "Faltan datos de sueldos para comparar."}
                 </div>
               )}

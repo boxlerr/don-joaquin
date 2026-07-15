@@ -11,6 +11,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { choferSlug } from "@/lib/chofer-slug";
 import type { RotacionDataset } from "./lib";
 import {
@@ -410,6 +411,7 @@ function RotacionTabla({
 }) {
   const [tab, setTab] = useState<"bajas" | "ingresos">("bajas");
   const [borrando, setBorrando] = useState<string | null>(null);
+  const [bajaAEliminar, setBajaAEliminar] = useState<BajaRotacion | null>(null);
 
   const fmt = (s: string | null) => {
     if (!s) return "—";
@@ -417,11 +419,12 @@ function RotacionTabla({
     return d ? `${d}/${m}/${y}` : s;
   };
 
-  const eliminar = async (b: BajaRotacion) => {
-    if (!confirm(`¿Eliminar la baja de ${b.nombre}?`)) return;
-    setBorrando(b.id);
-    await eliminarBajaAction(b.id);
+  const eliminar = async () => {
+    if (!bajaAEliminar) return;
+    setBorrando(bajaAEliminar.id);
+    await eliminarBajaAction(bajaAEliminar.id);
     setBorrando(null);
+    setBajaAEliminar(null);
     onEliminada();
   };
 
@@ -475,7 +478,7 @@ function RotacionTabla({
                           <div className="flex items-center justify-end gap-1">
                             <button type="button" onClick={() => onEditar(b)} className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10" title="Editar"><Pencil size={14} /></button>
                             {borrando === b.id ? <Loader2 size={14} className="animate-spin text-red-400" /> : (
-                              <button type="button" onClick={() => eliminar(b)} className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 size={14} /></button>
+                              <button type="button" onClick={() => setBajaAEliminar(b)} className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 size={14} /></button>
                             )}
                           </div>
                         </td>
@@ -518,6 +521,15 @@ function RotacionTabla({
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!bajaAEliminar}
+        onOpenChange={(o) => { if (!o) setBajaAEliminar(null); }}
+        title="Eliminar baja"
+        description={bajaAEliminar ? <>Se va a eliminar la baja de <strong className="text-foreground">{bajaAEliminar.nombre}</strong>. Esta acción no se puede deshacer.</> : null}
+        onConfirm={eliminar}
+        loading={borrando != null}
+      />
     </div>
   );
 }

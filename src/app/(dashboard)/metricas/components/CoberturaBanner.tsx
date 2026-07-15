@@ -155,7 +155,7 @@ export default function CoberturaBanner({ data }: { data: MetricasData }) {
           <li className="pt-1 text-[11px] text-muted-foreground">
             {data.esLive
               ? "Las métricas se completan al 100% cargando los viajes del mes en el sistema y con las planillas del Drive."
-              : "Las planillas se importan desde el Drive de Bárbara con scripts/cargar-metricas-drive.ts."}
+              : "Las planillas históricas se importan desde el Drive de la empresa."}
           </li>
         </ul>
       )}

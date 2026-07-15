@@ -211,7 +211,7 @@ export default function CargarVacacionesDialog({
             <textarea
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Ej: autorizó Bárbara por audio del 19/06"
+              placeholder="Ej: autorizado por administración"
               rows={2}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground resize-none"
             />

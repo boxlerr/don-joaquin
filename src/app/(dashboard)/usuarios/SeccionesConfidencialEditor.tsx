@@ -67,7 +67,7 @@ export default function SeccionesConfidencialEditor({ areas, initial }: Props) {
           Una sección marcada <b className="text-foreground">confidencial</b> arranca{" "}
           <b className="text-foreground">cerrada</b> para todos los roles no-admin (aunque tengan el
           área): hay que otorgarla a mano en <b className="text-foreground">Permisos finos por
-          subsección</b>. Los admin (Nicolás y Bárbara) siempre la ven. Ideal para lo sensible
+          subsección</b>. Los administradores siempre la ven. Ideal para lo sensible
           (sueldos, caja, facturación) — se ajusta acá sin tocar código.
         </p>
       </div>

@@ -90,8 +90,8 @@ function FueraDeHorario({ bloqueo }: { bloqueo: BloqueoHorario }) {
           <h1 className="text-lg font-semibold text-foreground">Acceso fuera de horario</h1>
           <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
             El sistema está disponible de <strong>{bloqueo.desde}</strong> a{" "}
-            <strong>{bloqueo.hasta}</strong> hs. Si necesitás entrar ahora, pedile a Bárbara o a
-            Nicolás que te habiliten el <strong>acceso 24 hs</strong> desde Usuarios.
+            <strong>{bloqueo.hasta}</strong> hs. Si necesitás entrar ahora, pedile a un
+            administrador que te habilite el <strong>acceso 24 hs</strong> desde Usuarios.
           </p>
         </div>
         <p className="text-xs text-muted-foreground/70">

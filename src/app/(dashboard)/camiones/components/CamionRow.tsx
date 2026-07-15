@@ -84,7 +84,7 @@ export default function CamionRow({
                 {datosCompletos ? (
                   <span
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#0369A1] text-[10px] font-bold uppercase tracking-wide w-fit"
-                    title="Unidad con datos completos — primera tanda (las 11 resaltadas en amarillo por Bárbara)"
+                    title="Unidad con datos completos — primera tanda (11 unidades)"
                   >
                     Datos completos
                   </span>
@@ -99,7 +99,7 @@ export default function CamionRow({
                 {camion.es_tolva && (
                   <span
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
-                    title="Acoplado tolva (marcado en el Excel de Bárbara)"
+                    title="Acoplado tolva"
                   >
                     Tolva
                   </span>

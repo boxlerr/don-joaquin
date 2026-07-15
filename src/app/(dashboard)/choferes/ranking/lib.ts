@@ -304,7 +304,9 @@ export async function computeRanking({
 
     supabase
       .from("roturas_gomas")
-      .select("chofer_id, tipo")
+      // gravedad: la usa el cómputo de "roturas graves" del score (sin esta
+      // columna, varias_graves quedaba siempre en 0).
+      .select("chofer_id, tipo, gravedad")
       .gte("fecha", desde)
       .lte("fecha", hasta)
       .not("chofer_id", "is", null),
