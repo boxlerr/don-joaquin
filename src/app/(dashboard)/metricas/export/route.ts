@@ -6,6 +6,7 @@ import {
   buildMultiSheetWorkbook,
   type ProColumn,
   type CellValue,
+  type ProSection,
 } from "@/lib/excel/professional-sheet";
 
 export const dynamic = "force-dynamic";
@@ -34,14 +35,16 @@ export async function GET(req: NextRequest) {
     opts: {
       title: p.titulo,
       subtitle: `${periodo} · ${data.choferes.length} choferes`,
+      fuente: p.fuente,
       columns: p.columnas.map((c): ProColumn => ({
         header: c.header,
         width: c.width,
         align: c.align,
         numFmt: c.money ? (c.dec ? MONEY2 : MONEY) : c.dec ? `#,##0.${"0".repeat(c.dec)}` : undefined,
       })),
-      rows: p.filas as CellValue[][],
-      totals: p.totales.length ? (p.totales as CellValue[]) : undefined,
+      rows: p.filas as CellValue[][] | undefined,
+      totals: p.totales && p.totales.length ? (p.totales as CellValue[]) : undefined,
+      sections: p.secciones as ProSection[] | undefined,
     },
   }));
 

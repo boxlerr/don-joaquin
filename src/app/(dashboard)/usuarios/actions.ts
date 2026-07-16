@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
@@ -508,6 +510,192 @@ export async function setUsuarioAreaAction(
       : null,
     valoresNuevos: { area_codigo, nivel, vence_en: vence_en ?? null },
     metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Gestión del usuario en sí: editar datos, resetear contraseña, activar/
+// desactivar y eliminar. Todo exclusivo de los dueños y con los admin
+// permanentes protegidos (se gestionan a mano en la base).
+// ---------------------------------------------------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function editarUsuarioAction(
+  usuario_id: string,
+  datos: { nombre: string; apellido: string; email: string },
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+  if (esAdminPermanente(usuario_id)) {
+    return { error: "Es administrador permanente: se gestiona a mano en la base de datos." };
+  }
+
+  const nombre = datos.nombre.trim();
+  const apellido = datos.apellido.trim();
+  const email = datos.email.trim().toLowerCase();
+  if (!nombre) return { error: "El nombre es obligatorio." };
+  if (!EMAIL_RE.test(email)) return { error: "Email inválido." };
+
+  const supabase = createAdminClient();
+  const { data: previo } = await supabase
+    .from("usuarios")
+    .select("nombre, apellido, email")
+    .eq("id", usuario_id)
+    .single();
+  if (!previo) return { error: "Usuario inexistente" };
+
+  // Si cambió el email, hay que actualizar también el acceso (Supabase auth),
+  // que es la identidad de login. Si no, quedaría desincronizado.
+  if (email !== previo.email) {
+    const { error: authErr } = await supabase.auth.admin.updateUserById(usuario_id, {
+      email,
+      email_confirm: true,
+    });
+    if (authErr) return { error: `No se pudo actualizar el email de acceso: ${authErr.message}` };
+  }
+
+  const { error } = await supabase
+    .from("usuarios")
+    .update({ nombre, apellido: apellido || null, email, updated_at: new Date().toISOString() })
+    .eq("id", usuario_id);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    valoresAnteriores: { nombre: previo.nombre, apellido: previo.apellido, email: previo.email },
+    valoresNuevos: { nombre, apellido: apellido || null, email },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+/**
+ * Genera un link de recuperación de contraseña para el usuario. Devuelve el link
+ * para que el dueño se lo pase por el canal que use (así funciona aunque el
+ * email de Supabase no esté configurado). También dispara el mail si lo está.
+ */
+export async function enviarResetPasswordAction(
+  usuario_id: string,
+): Promise<{ ok: true; link: string | null } | { error: string }> {
+  const admin = await requireDueño();
+  const supabase = createAdminClient();
+
+  const { data: u } = await supabase
+    .from("usuarios")
+    .select("email")
+    .eq("id", usuario_id)
+    .single();
+  if (!u) return { error: "Usuario inexistente" };
+
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const origin = `${host.includes("localhost") ? "http" : "https"}://${host}`;
+  const redirectTo = `${origin}/auth/callback?next=/auth/reset-password`;
+
+  // generateLink: da el link sin depender del SMTP de Supabase.
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: "recovery",
+    email: u.email,
+    options: { redirectTo },
+  });
+  if (error || !data) {
+    return { error: "No se pudo generar el link de recuperación." };
+  }
+
+  // Además intentamos mandarlo por mail (si el email está configurado en Supabase).
+  const server = await createClient();
+  await server.auth.resetPasswordForEmail(u.email, { redirectTo });
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    metadata: { accion_detalle: "reset_password", email: u.email },
+  });
+
+  return { ok: true, link: data.properties?.action_link ?? null };
+}
+
+export async function setUsuarioEstadoAction(
+  usuario_id: string,
+  activar: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+  if (usuario_id === admin.id) return { error: "No podés desactivar tu propio usuario." };
+  if (esAdminPermanente(usuario_id)) {
+    return { error: "Es administrador permanente: no se puede desactivar." };
+  }
+
+  const supabase = createAdminClient();
+  const nuevo = activar ? "activo" : "inactivo";
+  const { data: previo } = await supabase
+    .from("usuarios")
+    .select("estado")
+    .eq("id", usuario_id)
+    .single();
+  if (!previo) return { error: "Usuario inexistente" };
+  if (previo.estado === nuevo) return { ok: true };
+
+  const { error } = await supabase
+    .from("usuarios")
+    .update({ estado: nuevo, updated_at: new Date().toISOString() })
+    .eq("id", usuario_id);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    valoresAnteriores: { estado: previo.estado },
+    valoresNuevos: { estado: nuevo },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+export async function eliminarUsuarioAction(
+  usuario_id: string,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+  if (usuario_id === admin.id) return { error: "No podés eliminar tu propio usuario." };
+  if (esAdminPermanente(usuario_id)) {
+    return { error: "Es administrador permanente: no se puede eliminar." };
+  }
+
+  const supabase = createAdminClient();
+  const { data: previo } = await supabase
+    .from("usuarios")
+    .select("email, nombre, apellido")
+    .eq("id", usuario_id)
+    .single();
+  if (!previo) return { error: "Usuario inexistente" };
+
+  // Perfil primero, después el acceso de auth.
+  const { error: dbErr } = await supabase.from("usuarios").delete().eq("id", usuario_id);
+  if (dbErr) return { error: dbErr.message };
+  const { error: authErr } = await supabase.auth.admin.deleteUser(usuario_id);
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "eliminar",
+    entidadTipo: "usuarios",
+    entidadId: usuario_id,
+    valoresAnteriores: { email: previo.email, nombre: previo.nombre, apellido: previo.apellido },
+    metadata: authErr ? { auth_delete_error: authErr.message } : undefined,
   });
 
   revalidatePath("/usuarios");

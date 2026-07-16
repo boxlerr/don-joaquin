@@ -21,6 +21,11 @@ export type ProColumn = {
 };
 export type CellValue = string | number | Date | null;
 
+// Un "bloque" de la planilla (ej. Escalables 35 / Tolvas): su rótulo, las filas
+// de choferes y sus filas de resumen (TOTAL, PROMEDIO POR CAMIÓN) — igual que
+// las planillas originales del cliente, que separan por flota con su subtotal.
+export type ProSection = { label: string; rows: CellValue[][]; subtotals?: CellValue[][] };
+
 function borde(color = BORDE_NEGRO) {
   const s = { style: "thin" as const, color: { argb: color } };
   return { top: s, left: s, bottom: s, right: s };
@@ -40,34 +45,33 @@ export function writeProfessionalTable(
   ws: ExcelJS.Worksheet,
   opts: {
     columns: ProColumn[];
-    rows: CellValue[][];
+    rows?: CellValue[][];
     title?: string;
     subtitle?: string;
+    fuente?: string; // línea "de dónde salen los datos" bajo el subtítulo
     totals?: CellValue[]; // misma cantidad de columnas (usar null donde no aplica)
+    sections?: ProSection[]; // si viene, se ignora rows/totals y se arma por bloques
   },
 ): void {
-  const { columns, rows, title, subtitle, totals } = opts;
+  const { columns, rows, title, subtitle, fuente, totals, sections } = opts;
   const n = columns.length;
 
   ws.columns = columns.map((c) => ({ width: c.width ?? 14 }));
 
   let cursor = 1;
-  if (title) {
+  const merged = (text: string, font: Partial<ExcelJS.Font>, height?: number) => {
     ws.mergeCells(cursor, 1, cursor, n);
-    const t = ws.getCell(cursor, 1);
-    t.value = title;
-    t.font = { bold: true, size: 13, color: { argb: GRIS_TITULO } };
-    t.alignment = { horizontal: "left", vertical: "middle" };
-    ws.getRow(cursor).height = 22;
+    const cell = ws.getCell(cursor, 1);
+    cell.value = text;
+    cell.font = font;
+    cell.alignment = { horizontal: "left", vertical: "middle" };
+    if (height) ws.getRow(cursor).height = height;
     cursor++;
-    if (subtitle) {
-      ws.mergeCells(cursor, 1, cursor, n);
-      const s = ws.getCell(cursor, 1);
-      s.value = subtitle;
-      s.font = { size: 10, color: { argb: "FF808080" } };
-      s.alignment = { horizontal: "left", vertical: "middle" };
-      cursor++;
-    }
+  };
+  if (title) {
+    merged(title, { bold: true, size: 13, color: { argb: GRIS_TITULO } }, 22);
+    if (subtitle) merged(subtitle, { size: 10, color: { argb: "FF808080" } });
+    if (fuente) merged(fuente, { size: 9, italic: true, color: { argb: "FF909090" } });
     cursor++; // fila en blanco
   }
 
@@ -85,36 +89,47 @@ export function writeProfessionalTable(
   });
   cursor++;
 
-  // Datos (zebra).
-  rows.forEach((row, ri) => {
+  // Escribe una fila de datos/resumen con estilo opcional.
+  const writeRow = (
+    values: CellValue[],
+    style: { zebra?: boolean; totalRow?: boolean; height?: number } = {},
+  ) => {
     const r = ws.getRow(cursor);
-    r.height = 16;
-    const zebra = ri % 2 === 1;
+    r.height = style.height ?? 16;
     columns.forEach((c, ci) => {
       const cell = r.getCell(ci + 1);
-      cell.value = row[ci] ?? null;
-      if (c.numFmt) cell.numFmt = c.numFmt;
+      cell.value = values[ci] ?? null;
+      if (c.numFmt && typeof values[ci] === "number") cell.numFmt = c.numFmt;
       cell.alignment = align(c.align);
       cell.border = borde();
-      if (zebra) cell.fill = fill(GRIS_ZEBRA);
+      if (style.totalRow) {
+        cell.font = { bold: true, color: { argb: GRIS_TITULO } };
+        cell.fill = fill(GRIS_TOTAL);
+      } else if (style.zebra) {
+        cell.fill = fill(GRIS_ZEBRA);
+      }
     });
     cursor++;
-  });
+  };
 
-  // Totales.
-  if (totals) {
-    const tr = ws.getRow(cursor);
-    tr.height = 18;
-    columns.forEach((c, ci) => {
-      const cell = tr.getCell(ci + 1);
-      cell.value = totals[ci] ?? null;
-      if (c.numFmt) cell.numFmt = c.numFmt;
-      cell.font = { bold: true, color: { argb: GRIS_TITULO } };
-      cell.fill = fill(GRIS_TOTAL);
-      cell.alignment = align(c.align);
-      cell.border = borde();
-    });
-    cursor++;
+  if (sections && sections.length) {
+    // Por bloques (Escalables 35 / 37 / Tolvas), cada uno con su TOTAL y PROMEDIO.
+    for (const sec of sections) {
+      ws.mergeCells(cursor, 1, cursor, n);
+      const lc = ws.getCell(cursor, 1);
+      lc.value = sec.label;
+      lc.fill = fill(GRIS_TITULO);
+      lc.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      lc.alignment = { horizontal: "left", vertical: "middle" };
+      for (let ci = 1; ci <= n; ci++) ws.getCell(cursor, ci).border = borde();
+      ws.getRow(cursor).height = 18;
+      cursor++;
+      sec.rows.forEach((row, ri) => writeRow(row, { zebra: ri % 2 === 1 }));
+      (sec.subtotals ?? []).forEach((st) => writeRow(st, { totalRow: true, height: 18 }));
+    }
+  } else {
+    (rows ?? []).forEach((row, ri) => writeRow(row, { zebra: ri % 2 === 1 }));
+    if (totals) writeRow(totals, { totalRow: true, height: 18 });
   }
 
   // Fijar el encabezado.

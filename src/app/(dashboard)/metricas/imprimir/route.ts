@@ -35,19 +35,32 @@ export async function GET(req: NextRequest) {
   };
 
   const secciones = planillas
-    .map(
-      (p) => `
+    .map((p) => {
+      const fila = (f: (string | number | null)[], cls = "") =>
+        `<tr${cls ? ` class="${cls}"` : ""}>${f.map((v, i) => celda(v, p.columnas[i] ?? { align: "r" })).join("")}</tr>`;
+      const cuerpo = p.secciones?.length
+        ? p.secciones
+            .map(
+              (sec) =>
+                `<tr class="blk"><td colspan="${p.columnas.length}">${esc(sec.label)}</td></tr>\n` +
+                sec.rows.map((f) => fila(f)).join("\n") +
+                (sec.subtotals ?? []).map((st) => fila(st, "tot")).join("\n"),
+            )
+            .join("\n")
+        : (p.filas ?? []).map((f) => fila(f)).join("\n") +
+          (p.totales && p.totales.length ? fila(p.totales, "tot") : "");
+      return `
   <section>
     <h2>${esc(p.titulo)} <span>· ${periodo} · Don Joaquín Hnos SRL</span></h2>
+    ${p.fuente ? `<div class="fuente">${esc(p.fuente)}</div>` : ""}
     <table>
       <thead><tr>${p.columnas.map((c) => `<th class="${c.align}">${esc(c.header)}</th>`).join("")}</tr></thead>
       <tbody>
-        ${p.filas.map((f) => `<tr>${f.map((v, i) => celda(v, p.columnas[i])).join("")}</tr>`).join("\n")}
-        ${p.totales.length ? `<tr class="tot">${p.totales.map((v, i) => celda(v, p.columnas[i] ?? { align: "r" })).join("")}</tr>` : ""}
+        ${cuerpo}
       </tbody>
     </table>
-  </section>`,
-    )
+  </section>`;
+    })
     .join("\n");
 
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
@@ -64,7 +77,8 @@ export async function GET(req: NextRequest) {
   .r { text-align: right; font-variant-numeric: tabular-nums; }
   .l { text-align: left; }
   tr.tot td { font-weight: 700; background: #f5f5f5; }
-  tr:nth-child(even) td { background: #fafcfe; }
+  tr.blk td { background: #404040; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .3px; }
+  .fuente { font-size: 9px; color: #888; font-style: italic; margin: -4px 0 8px; }
   @media print { body { margin: 8mm; } .no-print { display: none; } }
   .no-print { position: fixed; top: 12px; right: 12px; background: #0088D1; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
 </style></head><body>

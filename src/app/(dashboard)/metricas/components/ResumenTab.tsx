@@ -10,7 +10,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ArrowUpRight, Trophy, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Trophy, AlertTriangle } from "lucide-react";
 import type { MetricasData, MetricaChofer } from "../actions";
 import { eliminarAumentoClienteAction } from "../actions";
 import { METRICAS } from "./metricas-def";
@@ -55,6 +55,28 @@ export default function ResumenTab({
   };
 
   const costoActual = data.serieCosto.find((r) => r.mes === data.mes);
+
+  // Aumentos mes a mes (matriz meses × clientes). Los meses sin dato se muestran
+  // igual, para ir completándolos con el tiempo. Las entradas marcadas
+  // "Interanual" (ej. YPF, que hoy solo trae el interanual, no el mes a mes) van
+  // a la fila de abajo y NO a una celda mensual, así el año queda visible y
+  // vacío para cargar cuando llegue el detalle.
+  const aumentosMes = useMemo(() => {
+    const esInteranual = (a: (typeof data.aumentos)[number]) =>
+      !!a.observaciones && a.observaciones.trim().toLowerCase().startsWith("interanual");
+    const orden = data.paridad.clientes.porCliente.map((c) => c.nombre);
+    const set = new Set(orden);
+    for (const a of data.aumentos) if (!set.has(a.clienteNombre)) { set.add(a.clienteNombre); orden.push(a.clienteNombre); }
+    const meses = data.serieHistorica.map((s) => s.mes);
+    const idx = new Map<string, (typeof data.aumentos)[number]>();
+    const interanualOnly = new Map<string, (typeof data.aumentos)[number]>();
+    for (const a of data.aumentos) {
+      if (esInteranual(a)) interanualOnly.set(a.clienteNombre, a);
+      else idx.set(`${a.clienteNombre}|${a.vigenteDesde.slice(0, 7)}`, a);
+    }
+    const interanual = new Map(data.paridad.clientes.porCliente.map((c) => [c.nombre, c.acumulado]));
+    return { clientes: orden, meses, idx, interanual, interanualOnly };
+  }, [data.aumentos, data.paridad, data.serieHistorica]);
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -222,38 +244,89 @@ export default function ResumenTab({
           );
         })()}
 
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          Aumentos cargados en el período — los clientes se administran en{" "}
-          <Link href="/clientes" className="text-primary hover:underline">Clientes</Link>.
-        </p>
-        {data.aumentos.length ? (
-          <div className="divide-y divide-border rounded-md border border-border">
-            {data.aumentos.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 px-3 py-2">
-                <ArrowUpRight size={14} className="shrink-0 text-amber-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-foreground">
-                    <span className="font-medium">{a.clienteNombre}</span>{" "}
-                    <span className="font-mono text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    desde el {a.vigenteDesde.split("-").reverse().join("/")}
-                    {a.observaciones ? ` · ${a.observaciones}` : ""}
-                  </p>
-                </div>
-                {data.canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
-                    className="text-muted-foreground/60 transition-colors hover:text-red-500"
-                    title="Eliminar"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-muted-foreground">
+            Aumentos de tarifa mes a mes — la fila <span className="font-medium">Interanual</span> se compone y alimenta el card de arriba.
+          </p>
+          <Link href="/clientes" className="shrink-0 text-[11px] text-primary hover:underline">Clientes</Link>
+        </div>
+        {aumentosMes.clientes.length ? (
+          <>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[280px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Mes</th>
+                    {aumentosMes.clientes.map((c) => (
+                      <th key={c} className="px-2 py-1.5 text-right font-medium text-foreground">{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {aumentosMes.meses.map((m) => (
+                    <tr key={m} className="border-b border-border/50 last:border-0">
+                      <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{mesCorto(m)}</td>
+                      {aumentosMes.clientes.map((c) => {
+                        const a = aumentosMes.idx.get(`${c}|${m.slice(0, 7)}`);
+                        return (
+                          <td key={c} className="px-2 py-1 text-right font-mono">
+                            {a ? (
+                              <span className="group inline-flex items-center justify-end gap-1">
+                                <span className="text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
+                                {data.canWrite && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
+                                    className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/25">·</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-muted/30 font-semibold">
+                    <td className="px-2 py-1.5 text-left text-muted-foreground">Interanual</td>
+                    {aumentosMes.clientes.map((c) => {
+                      const v = aumentosMes.interanual.get(c);
+                      const io = aumentosMes.interanualOnly.get(c);
+                      return (
+                        <td key={c} className="px-2 py-1.5 text-right font-mono text-amber-700 dark:text-amber-300">
+                          <span className="group inline-flex items-center justify-end gap-1">
+                            {v == null ? "—" : `+${numAr(v, 1)}%`}
+                            {io && data.canWrite && (
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarAumento(io.id, io.clienteNombre)}
+                                className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                title="Eliminar interanual"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            )}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            {aumentosMes.interanualOnly.size > 0 && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground/80">
+                {Array.from(aumentosMes.interanualOnly.keys()).join(", ")}: por ahora solo el interanual (última fila). Cuando llegue el detalle mes a mes se completan las celdas de arriba.
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-sm text-muted-foreground/70">Sin aumentos registrados en el período.</p>
         )}
