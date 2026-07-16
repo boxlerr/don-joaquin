@@ -6,14 +6,14 @@ export type AreaMeta = { titulo: string; paginas: string[] };
 
 export const AREA_META: Record<string, AreaMeta> = {
   viajes: { titulo: "Viajes", paginas: ["Viajes", "Carga rápida", "Importar hoja de ruta", "Importar PDF de YPF"] },
-  logistica: { titulo: "Choferes y Siniestros", paginas: ["Choferes (legajos)", "Ranking de choferes", "Siniestros"] },
+  logistica: { titulo: "Personal, Siniestros y Reportes", paginas: ["Legajos", "Ranking de choferes", "Rotación", "Vacaciones", "Sueldos choferes (confidencial)", "Siniestros", "Reportes"] },
   flota: { titulo: "Camiones y Extintores", paginas: ["Camiones", "Extintores"] },
   mantenimiento: { titulo: "Mantenimiento", paginas: ["Mantenimiento (taller, services, roturas)"] },
   combustible: { titulo: "Combustible", paginas: ["Combustible (cargas de gasoil)"] },
   comercial: { titulo: "Comercial", paginas: ["Clientes", "Tarifas"] },
   finanzas: { titulo: "Finanzas", paginas: ["Gastos", "Cheques"] },
   caja: { titulo: "Caja", paginas: ["Caja (movimientos de dinero)"] },
-  rrhh: { titulo: "RR.HH.", paginas: ["Entrevistas"] },
+  rrhh: { titulo: "RR.HH.", paginas: ["Entrevistas", "Sueldos admin y taller (confidencial)"] },
   compliance: { titulo: "Compliance", paginas: ["Loma Negra", "YPF", "SICOP", "Secondi", "Próximas presentaciones"] },
   sistema: { titulo: "Sistema", paginas: ["Usuarios y permisos", "Auditoría", "Configuración"] },
 };
