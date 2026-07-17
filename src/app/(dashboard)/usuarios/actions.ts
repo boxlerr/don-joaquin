@@ -663,6 +663,110 @@ export async function setUsuarioAreaAction(
   return { ok: true };
 }
 
+// Override de SUBSECCIÓN por usuario individual (aditivo). Permite otorgar una
+// sección puntual —incluida una confidencial como Préstamos o Cheques— a un solo
+// usuario, sin abrírsela a todo su rol. Solo suma sobre el permiso resuelto.
+export async function setUsuarioSeccionAction(
+  usuario_id: string,
+  seccion_codigo: SeccionCodigo,
+  nivel: AreaNivel | "quitar",
+  vence_en: string | null, // ISO string o null (permanente)
+  motivo?: string,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+
+  const sec = SECCION_BY_CODIGO[seccion_codigo];
+  if (!sec) return { error: "Sección inexistente" };
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any; // `usuario_secciones` es nueva; se actualiza al regenerar database.ts
+  type US = { nivel: string; vence_en: string | null };
+
+  // Limpiar overrides vencidos como higiene oportunística
+  await sb
+    .from("usuario_secciones")
+    .delete()
+    .lt("vence_en", new Date().toISOString())
+    .not("vence_en", "is", null);
+
+  if (nivel === "quitar") {
+    const { data: previo } = (await sb
+      .from("usuario_secciones")
+      .select("nivel, vence_en")
+      .eq("usuario_id", usuario_id)
+      .eq("seccion_codigo", seccion_codigo)
+      .maybeSingle()) as { data: US | null };
+
+    const { error } = await sb
+      .from("usuario_secciones")
+      .delete()
+      .eq("usuario_id", usuario_id)
+      .eq("seccion_codigo", seccion_codigo);
+
+    if (error) return { error: (error as { message: string }).message };
+
+    if (previo) {
+      await logAudit({
+        client: supabase,
+        usuarioId: admin.id,
+        accion: "eliminar",
+        entidadTipo: "usuario_secciones",
+        entidadId: usuario_id,
+        valoresAnteriores: { seccion_codigo, nivel: previo.nivel, vence_en: previo.vence_en },
+        valoresNuevos: null,
+        metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
+      });
+    }
+
+    revalidatePath("/usuarios");
+    return { ok: true };
+  }
+
+  // Un override que otorga tiene que sumar algo: "none" no es un otorgamiento.
+  if (nivel === "none" || !NIVELES_VALIDOS.includes(nivel)) {
+    return { error: "Nivel inválido" };
+  }
+
+  const { data: previo } = (await sb
+    .from("usuario_secciones")
+    .select("nivel, vence_en")
+    .eq("usuario_id", usuario_id)
+    .eq("seccion_codigo", seccion_codigo)
+    .maybeSingle()) as { data: US | null };
+
+  const { error } = await sb.from("usuario_secciones").upsert(
+    {
+      usuario_id,
+      seccion_codigo,
+      nivel,
+      vence_en: vence_en ?? null,
+      otorgado_por: admin.id,
+      motivo: motivo ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "usuario_id,seccion_codigo" },
+  ) as { error: { message: string } | null };
+
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: previo ? "actualizar" : "crear",
+    entidadTipo: "usuario_secciones",
+    entidadId: usuario_id,
+    valoresAnteriores: previo
+      ? { seccion_codigo, nivel: previo.nivel, vence_en: previo.vence_en }
+      : null,
+    valoresNuevos: { seccion_codigo, nivel, vence_en: vence_en ?? null },
+    metadata: { otorgado_por: admin.id, motivo: motivo ?? null },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Gestión del usuario en sí: editar datos, resetear contraseña, activar/
 // desactivar y eliminar. Todo exclusivo de los dueños y con los admin

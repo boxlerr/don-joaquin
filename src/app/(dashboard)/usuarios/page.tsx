@@ -33,6 +33,7 @@ export default async function UsuariosPage() {
     areasRes,
     rolAreasRes,
     usuarioAreasRes,
+    usuarioSeccionesRes,
     seccionesConfRes,
   ] = await Promise.all([
     supabase
@@ -65,6 +66,12 @@ export default async function UsuariosPage() {
           .select("usuario_id, area_codigo, nivel, vence_en, motivo")
       : Promise.resolve({ data: null }),
     showMatriz
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- usuario_secciones aún no está en los tipos generados de Supabase
+      ? (supabase as any)
+          .from("usuario_secciones")
+          .select("usuario_id, seccion_codigo, nivel, vence_en, motivo")
+      : Promise.resolve({ data: null }),
+    showMatriz
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- secciones aún no está en los tipos generados de Supabase
       ? (supabase as any)
           .from("secciones")
@@ -79,6 +86,13 @@ export default async function UsuariosPage() {
   const usuarioAreas = (usuarioAreasRes.data ?? []) as {
     usuario_id: string;
     area_codigo: AreaCodigo;
+    nivel: AreaNivel;
+    vence_en: string | null;
+    motivo: string | null;
+  }[];
+  const usuarioSecciones = (usuarioSeccionesRes.data ?? []) as {
+    usuario_id: string;
+    seccion_codigo: SeccionCodigo;
     nivel: AreaNivel;
     vence_en: string | null;
     motivo: string | null;
@@ -171,6 +185,8 @@ export default async function UsuariosPage() {
           usuarios={usuariosFila}
           areas={areas}
           overrides={usuarioAreas}
+          seccionOverrides={usuarioSecciones}
+          confidencial={confidencialMap}
         />
       )}
     </div>

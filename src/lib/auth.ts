@@ -162,6 +162,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const confidencialDb = new Map<string, boolean>();
   for (const row of seccionesDb ?? []) confidencialDb.set(row.codigo, !!row.confidencial);
 
+  // Overrides de subsección por USUARIO individual: como `usuario_areas`, solo
+  // SUMAN (nunca restan) y respetan `vence_en`. Permiten otorgar una sección
+  // confidencial (ej. Préstamos) a un usuario puntual sin abrírsela a todo el rol.
+  // `as any`: `usuario_secciones` es tabla nueva; se actualiza al regenerar database.ts
+  type UsuarioSeccionOverride = { seccion_codigo: string; nivel: string; vence_en: string | null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: userSecciones } = (await (supabase as any)
+    .from("usuario_secciones")
+    .select("seccion_codigo, nivel, vence_en")
+    .eq("usuario_id", profile.id)) as { data: UsuarioSeccionOverride[] | null };
+
   const esAdmin = rol.codigo === "admin";
   const secciones = {} as Record<SeccionCodigo, AreaNivel>;
   for (const s of SECCIONES) {
@@ -181,6 +192,18 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     // protegidas a nivel área.
     const areaLvl = permisos[s.area];
     secciones[s.codigo] = ov && NIVEL_RANK[ov] < NIVEL_RANK[areaLvl] ? ov : areaLvl;
+  }
+
+  // Overrides de sección por usuario individual (aditivos, ya calculado el resto).
+  // Suben el nivel de una sección puntual: abren una confidencial cerrada o dan
+  // una no-confidencial por encima del nivel de su área. Nunca bajan (max).
+  for (const row of userSecciones ?? []) {
+    if (row.vence_en && new Date(row.vence_en).getTime() <= nowMs) continue;
+    const cod = row.seccion_codigo as SeccionCodigo;
+    if (!(cod in secciones)) continue;
+    if (NIVEL_RANK[row.nivel as AreaNivel] > NIVEL_RANK[secciones[cod]]) {
+      secciones[cod] = row.nivel as AreaNivel;
+    }
   }
 
   return {
