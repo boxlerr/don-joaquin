@@ -17,6 +17,7 @@ import {
   Fingerprint,
   Percent,
   MapPin,
+  Home,
   Check,
   FileDown,
   FileText,
@@ -105,12 +106,10 @@ function MockNewClienteForm() {
           />
           <MockField label="Localidad" value="Arrecifes" icon={<MapPin size={10} />} />
         </div>
-        <label className="flex items-center gap-2 text-[11px] text-foreground">
-          <span className="size-3.5 rounded border border-[#0088D1] bg-[#0088D1]/10 inline-flex items-center justify-center">
-            <Check size={9} className="text-primary" />
-          </span>
-          Es multinacional
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <MockField label="Domicilio fiscal" value="Av. Colón 123" icon={<Home size={10} />} />
+          <MockField label="Email" value="contacto@empresa.com" icon={<Mail size={10} />} />
+        </div>
         <div className="flex justify-end pt-1.5 border-t border-border">
           <span className="h-7 px-3 text-[10px] rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 font-bold">
             <Check size={11} /> Guardar cliente
@@ -687,7 +686,7 @@ const TABS: TutorialTab[] = [
         description:
           "El abecedario filtra por la inicial de la razón social (# = todos). El buscador matchea razón social, nombre comercial, CUIT y localidad. El selector muestra Activos, Inactivos o Todos.",
         mockup: <MockBuscar />,
-        hint: 'Arriba a la derecha, "Exportar CC" te baja un Excel con la cuenta corriente de toda la cartera.',
+        hint: 'Arriba a la derecha, "Exportar clientes" te baja un Excel con la ficha de toda la cartera (datos, contactos, direcciones y requisitos) más lo facturado y lo pendiente de cada cliente.',
       },
       {
         title: "Abrí la ficha del cliente",

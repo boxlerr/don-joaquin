@@ -39,7 +39,6 @@ type Cliente = {
   localidad: string | null;
   provincia: string | null;
   condicion_iva: string;
-  es_multinacional: boolean;
   estado: string;
   observaciones: string | null;
   email?: string | null;

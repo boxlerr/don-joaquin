@@ -4,7 +4,6 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
-import { Combobox } from "@/components/ui/combobox";
 import {
   Plus,
   X,
@@ -19,21 +18,15 @@ import {
   Phone,
   MessageSquare,
   Check,
-  type LucideIcon,
 } from "lucide-react";
 import { createClienteAction, type CreateClienteState } from "./actions";
-
-const FIELD_COMBO_TRIGGER =
-  "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import { formatCuit } from "@/lib/utils/cuit";
-
-const CONDICIONES_IVA: { value: string; label: string }[] = [
-  { value: "responsable_inscripto", label: "Responsable inscripto" },
-  { value: "monotributo", label: "Monotributo" },
-  { value: "exento", label: "Exento" },
-  { value: "consumidor_final", label: "Consumidor final" },
-  { value: "no_categorizado", label: "No categorizado" },
-];
+import {
+  CONDICIONES_IVA,
+  InputFieldWithIcon,
+  SelectFieldWithIcon,
+  TextareaFieldWithIcon,
+} from "./cliente-form-fields";
 
 export default function NewClienteSheet() {
   const [open, setOpen] = useState(false);
@@ -174,29 +167,17 @@ export default function NewClienteSheet() {
               />
             </div>
 
-            {/* Fila 4: Distribución de Email & Checkbox (Izquierda) + Observaciones (Derecha) */}
+            {/* Fila 4: Email (izquierda) + Observaciones (derecha) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-              <div className="space-y-4">
-                <InputFieldWithIcon
-                  label="Email"
-                  name="email"
-                  type="email"
-                  placeholder="Ej: contacto@empresa.com"
-                  icon={Mail}
-                  error={state?.fieldErrors?.email}
-                />
-                <div className="flex items-center pt-1.5">
-                  <label className="flex items-center gap-2.5 text-sm font-semibold text-foreground/90 cursor-pointer selection:bg-transparent">
-                    <input
-                      type="checkbox"
-                      name="es_multinacional"
-                      className="size-4.5 rounded border-border accent-[#0088D1] cursor-pointer"
-                    />
-                    Es multinacional
-                  </label>
-                </div>
-              </div>
-              
+              <InputFieldWithIcon
+                label="Email"
+                name="email"
+                type="email"
+                placeholder="Ej: contacto@empresa.com"
+                icon={Mail}
+                error={state?.fieldErrors?.email}
+              />
+
               <TextareaFieldWithIcon
                 label="Observaciones"
                 name="observaciones"
@@ -226,134 +207,6 @@ export default function NewClienteSheet() {
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
-  );
-}
-
-// Subcomponente Input con Icono incorporado
-function InputFieldWithIcon({
-  label,
-  name,
-  type = "text",
-  placeholder,
-  required,
-  error,
-  icon: Icon,
-  inputMode,
-  maxLength,
-  onInput,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-  error?: string;
-  icon: LucideIcon;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  maxLength?: number;
-  onInput?: React.FormEventHandler<HTMLInputElement>;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
-      }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-          <Icon size={15} />
-        </div>
-        <input
-          name={name}
-          type={type}
-          placeholder={placeholder}
-          required={required}
-          inputMode={inputMode}
-          maxLength={maxLength}
-          onInput={onInput}
-          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
-        />
-      </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
-  );
-}
-
-// Subcomponente Select con Icono y Chevron
-function SelectFieldWithIcon({
-  label,
-  name,
-  defaultValue = "",
-  options,
-  required,
-  error,
-  icon: Icon,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  options: { value: string; label: string }[];
-  required?: boolean;
-  error?: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
-      }`}>
-        <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-          <Icon size={15} />
-        </div>
-        <Combobox
-          name={name}
-          required={required}
-          defaultValue={defaultValue}
-          options={options.map((o) => ({ id: o.value, label: o.label }))}
-          placeholder="Seleccionar..."
-          searchable={false}
-          triggerClassName={FIELD_COMBO_TRIGGER}
-        />
-      </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
-  );
-}
-
-// Subcomponente Textarea con Icono
-function TextareaFieldWithIcon({
-  label,
-  name,
-  placeholder,
-  required,
-  error,
-  icon: Icon,
-}: {
-  label: string;
-  name: string;
-  placeholder?: string;
-  required?: boolean;
-  error?: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="space-y-1 h-full flex flex-col justify-between">
-      <label className="text-xs font-semibold text-muted-foreground">{label}</label>
-      <div className={`relative flex items-start flex-1 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
-      }`}>
-        <div className="flex items-center justify-center w-10 h-10 border-r border-border bg-muted/50 text-primary shrink-0">
-          <Icon size={15} />
-        </div>
-        <textarea
-          name={name}
-          placeholder={placeholder}
-          required={required}
-          className="flex-1 w-full h-[85px] p-2.5 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground resize-none"
-        />
-      </div>
-      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-    </div>
   );
 }
 

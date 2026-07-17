@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { exportCuentaCorrienteAction } from "./actions";
+import { exportClientesAction } from "./actions";
 
-export default function ExportCCButton() {
+export default function ExportClientesButton() {
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
     setLoading(true);
     try {
-      const { filename, base64 } = await exportCuentaCorrienteAction();
+      const { filename, base64 } = await exportClientesAction();
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -37,7 +37,7 @@ export default function ExportCCButton() {
   return (
     <Button variant="outline" size="sm" onClick={handleExport} disabled={loading}>
       {loading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-      Exportar CC
+      Exportar clientes
     </Button>
   );
 }

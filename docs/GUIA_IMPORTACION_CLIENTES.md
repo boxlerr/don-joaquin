@@ -24,7 +24,6 @@ Puedes encontrar la plantilla en: `docs/plantilla_carga_clientes.csv`
 | **Provincia** | NO | Provincia o estado. |
 | **Email** | NO | Debe tener un formato de correo válido (ej: info@empresa.com). |
 | **Telefono** | NO | Número de contacto. |
-| **Es Multinacional** | NO | Coloca `SI`, `X` o `1` si es multinacional. De lo contrario, dejar vacío o `No`. |
 | **Observaciones** | NO | Comentarios adicionales sobre el cliente. |
 
 > [!TIP]

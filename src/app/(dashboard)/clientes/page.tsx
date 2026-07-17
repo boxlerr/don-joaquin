@@ -2,7 +2,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import ClientesList from "./clientes-list";
-import ExportCCButton from "./export-cc-button";
+import ExportClientesButton from "./export-clientes-button";
 
 export default async function ClientesPage() {
   const user = await requireSeccion("clientes", "read");
@@ -13,7 +13,7 @@ export default async function ClientesPage() {
     supabase
       .from("clientes")
       .select(
-        "id, razon_social, nombre_comercial, cuit, domicilio_fiscal, localidad, provincia, condicion_iva, es_multinacional, estado, observaciones, email, telefono"
+        "id, razon_social, nombre_comercial, cuit, domicilio_fiscal, localidad, provincia, condicion_iva, estado, observaciones, email, telefono"
       )
       .order("razon_social"),
     supabase.from("cliente_sucursales").select("cliente_id"),
@@ -29,7 +29,7 @@ export default async function ClientesPage() {
       <PageHeader
         title="Clientes"
         description="Gestión estratégica de cartera"
-        action={<ExportCCButton />}
+        action={<ExportClientesButton />}
       />
 
       <ClientesList clientes={clientes ?? []} sucursalesCount={sucursalesCount} canWrite={canWrite} />

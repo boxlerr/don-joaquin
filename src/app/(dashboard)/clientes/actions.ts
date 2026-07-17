@@ -34,7 +34,6 @@ const clienteSchema = z.object({
   provincia: z.string().trim().optional().nullable(),
   email: z.string().trim().email("Email inválido.").optional().or(z.literal("")),
   telefono: z.string().trim().optional().nullable(),
-  es_multinacional: z.boolean().optional(),
   observaciones: z.string().trim().optional().nullable(),
 });
 
@@ -65,7 +64,6 @@ export async function createClienteAction(
     provincia: emptyToNull(formData.get("provincia")),
     email: emptyToNull(formData.get("email")) ?? "",
     telefono: emptyToNull(formData.get("telefono")),
-    es_multinacional: formData.get("es_multinacional") === "on",
     observaciones: emptyToNull(formData.get("observaciones")),
   });
 
@@ -100,7 +98,6 @@ export async function createClienteAction(
     provincia: parsed.data.provincia ?? null,
     email: parsed.data.email ? parsed.data.email : null,
     telefono: parsed.data.telefono ?? null,
-    es_multinacional: parsed.data.es_multinacional ?? false,
     observaciones: parsed.data.observaciones ?? null,
     estado: "activo" as const,
     created_by: user.id,
@@ -236,9 +233,6 @@ const HEADER_MAP: Record<string, keyof RawRow> = {
   provincia: "provincia",
   email: "email",
   telefono: "telefono",
-  "es multinacional": "es_multinacional",
-  es_multinacional: "es_multinacional",
-  multinacional: "es_multinacional",
   observaciones: "observaciones",
   // Contacto principal (mapea a cliente_contactos con es_principal=true)
   "contrato principal": "contacto_principal",
@@ -258,7 +252,6 @@ type RawRow = {
   provincia?: string;
   email?: string;
   telefono?: string;
-  es_multinacional?: string;
   observaciones?: string;
   contacto_principal?: string;
 };
@@ -602,7 +595,6 @@ export async function updateClienteAction(
     provincia: emptyToNull(formData.get("provincia")),
     email: emptyToNull(formData.get("email")) ?? "",
     telefono: emptyToNull(formData.get("telefono")),
-    es_multinacional: formData.get("es_multinacional") === "on",
     observaciones: emptyToNull(formData.get("observaciones")),
   });
 
@@ -626,7 +618,7 @@ export async function updateClienteAction(
   const { data: previo } = await supabase
     .from("clientes")
     .select(
-      "razon_social, nombre_comercial, cuit, condicion_iva, domicilio_fiscal, localidad, provincia, email, telefono, es_multinacional, observaciones",
+      "razon_social, nombre_comercial, cuit, condicion_iva, domicilio_fiscal, localidad, provincia, email, telefono, observaciones",
     )
     .eq("id", id)
     .single();
@@ -641,7 +633,6 @@ export async function updateClienteAction(
     provincia: parsed.data.provincia ?? null,
     email: parsed.data.email ? parsed.data.email : null,
     telefono: parsed.data.telefono ?? null,
-    es_multinacional: parsed.data.es_multinacional ?? false,
     observaciones: parsed.data.observaciones ?? null,
   };
 
@@ -741,7 +732,7 @@ export async function getViajesClienteAction(cliente_id: string): Promise<ViajeR
 }
 
 // ============================================================================
-// Exportación: facturación por cliente
+// Exportación: ficha + facturación por cliente
 // ============================================================================
 
 const MONEY_FMT = '"$" #,##0.00';
@@ -750,32 +741,58 @@ function fechaExcel(iso: string | null): Date | null {
   return iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`) : null;
 }
 
+// Etiquetas legibles para el Excel: en la base guardamos los enums en snake_case
+// y en la planilla el cliente quiere leerlos como en la pantalla.
+function titulizar(v: string | null | undefined): string {
+  if (!v) return "";
+  const s = v.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // En este negocio NO hay crédito: cuando entra el remito con su valor
 // (liquidación Loma / DM YPF) el viaje queda facturado y cobrado A LA VEZ, así
 // que la vieja cuenta corriente debe/haber daba saldo ~0 siempre y confundía.
-// Ahora el export muestra la facturación por cliente: cuánto se facturó y qué
-// viajes siguen pendientes de remito. Mantiene el nombre de la función porque
-// la UI (export-cc-button) la llama así.
-export async function exportCuentaCorrienteAction(): Promise<{
+// Ahora el export es la ficha de la cartera: una fila por cliente con sus datos
+// + su facturación, más las hojas de contactos, direcciones y requisitos. El
+// detalle viaje por viaje NO va acá: sale del export de Viajes / hoja de ruta.
+export async function exportClientesAction(): Promise<{
   filename: string;
   base64: string;
 }> {
-
   const supabase = createAdminClient();
 
-  const { data: clientes } = await supabase
-    .from("clientes")
-    .select("id, razon_social, cuit")
-    .order("razon_social");
+  const [{ data: clientes }, { data: contactos }, { data: sucursales }, { data: requisitos }] =
+    await Promise.all([
+      supabase
+        .from("clientes")
+        .select(
+          "id, razon_social, nombre_comercial, cuit, condicion_iva, domicilio_fiscal, localidad, provincia, email, telefono, estado, observaciones",
+        )
+        .order("razon_social"),
+      supabase
+        .from("cliente_contactos")
+        .select("cliente_id, nombre, cargo, telefono, email, es_principal, observaciones")
+        .order("es_principal", { ascending: false })
+        .order("nombre"),
+      supabase
+        .from("cliente_sucursales")
+        .select(
+          "cliente_id, nombre, domicilio, localidad, provincia, pais, telefono, es_principal, estado, observaciones",
+        )
+        .order("es_principal", { ascending: false })
+        .order("nombre"),
+      supabase
+        .from("cliente_requisitos")
+        .select(
+          "cliente_id, tipo, descripcion, frecuencia, proxima_fecha, formato_requerido, responsable_interno, estado, observaciones",
+        )
+        .order("proxima_fecha", { ascending: true, nullsFirst: false }),
+    ]);
 
   type VRow = {
     cliente_id: string | null;
-    codigo: string | null;
-    fecha_viaje: string | null;
     monto_flete: number | null;
     tonelaje_real: number | null;
-    nro_remito: string | null;
-    material: string | null;
     es_vacio: boolean;
   };
 
@@ -786,126 +803,237 @@ export async function exportCuentaCorrienteAction(): Promise<{
   for (let from = 0; ; from += PAGE) {
     const { data } = await supabase
       .from("viajes")
-      .select("cliente_id, codigo, fecha_viaje, monto_flete, tonelaje_real, nro_remito, material, es_vacio")
+      .select("cliente_id, monto_flete, tonelaje_real, es_vacio")
       .neq("estado", "cancelado")
       .not("cliente_id", "is", null)
       .order("id")
       .range(from, from + PAGE - 1);
     if (!data || data.length === 0) break;
-    // Cast vía unknown: los tipos generados (database.ts) están atrasados y no
-    // conocen viajes.material (la escribe el importador de Loma).
-    viajes.push(...(data as unknown as VRow[]));
+    viajes.push(...(data as VRow[]));
     if (data.length < PAGE) break;
   }
 
   // Facturado = ya entró el remito con su valor (monto > 0); pendiente = viaje
   // con carga que todavía no tiene valor cargado. Los vacíos no se facturan.
-  const estaFacturado = (v: VRow) => Number(v.monto_flete ?? 0) > 0;
-  const porCliente = new Map<string, VRow[]>();
+  type Facturacion = { cantFact: number; totalFact: number; pendientes: number; toneladas: number };
+  const facturacion = new Map<string, Facturacion>();
   for (const v of viajes) {
     if (!v.cliente_id || v.es_vacio) continue;
-    const arr = porCliente.get(v.cliente_id) ?? [];
-    arr.push(v);
-    porCliente.set(v.cliente_id, arr);
+    const f = facturacion.get(v.cliente_id) ?? {
+      cantFact: 0,
+      totalFact: 0,
+      pendientes: 0,
+      toneladas: 0,
+    };
+    if (Number(v.monto_flete ?? 0) > 0) {
+      f.cantFact++;
+      f.totalFact += Number(v.monto_flete ?? 0);
+      f.toneladas += Number(v.tonelaje_real ?? 0);
+    } else {
+      f.pendientes++;
+    }
+    facturacion.set(v.cliente_id, f);
+  }
+
+  const nombrePorCliente = new Map((clientes ?? []).map((c) => [c.id, c.razon_social]));
+  const principalPorCliente = new Map<string, { nombre: string; telefono: string | null }>();
+  for (const c of contactos ?? []) {
+    if (!c.es_principal || principalPorCliente.has(c.cliente_id)) continue;
+    principalPorCliente.set(c.cliente_id, { nombre: c.nombre, telefono: c.telefono });
   }
 
   const hoy = new Date();
   const subtitle = `Al ${hoy.toLocaleDateString("es-AR")} · Facturado = viaje con remito valorizado · Pendiente = viaje aún sin valor`;
 
-  // ── Hoja Resumen: una fila por cliente ─────────────────────────────────────
-  const resumenColumns: ProColumn[] = [
-    { header: "Cliente", width: 34, align: "l" },
+  // ── Hoja Clientes: ficha + facturación, una fila por cliente ───────────────
+  const clientesColumns: ProColumn[] = [
+    { header: "Cliente", width: 32, align: "l" },
+    { header: "Nombre comercial", width: 24, align: "l" },
     { header: "CUIT", width: 14, align: "c" },
+    { header: "Condición IVA", width: 20, align: "l" },
+    { header: "Domicilio fiscal", width: 30, align: "l" },
+    { header: "Localidad", width: 18, align: "l" },
+    { header: "Provincia", width: 16, align: "l" },
+    { header: "Email", width: 26, align: "l" },
+    { header: "Teléfono", width: 16, align: "c" },
+    { header: "Contacto principal", width: 24, align: "l" },
+    { header: "Tel. contacto", width: 16, align: "c" },
+    { header: "Estado", width: 10, align: "c" },
     { header: "Viajes facturados", width: 16, align: "c", numFmt: "#,##0" },
     { header: "Total facturado", width: 18, align: "r", numFmt: MONEY_FMT },
     { header: "Pendientes de facturar", width: 20, align: "c", numFmt: "#,##0" },
     { header: "Toneladas facturadas", width: 18, align: "c", numFmt: "#,##0.00" },
+    { header: "Observaciones", width: 34, align: "l" },
   ];
-  const resumenRows: CellValue[][] = (clientes ?? []).map((c) => {
-    const vs = porCliente.get(c.id) ?? [];
-    let cantFact = 0;
-    let totalFact = 0;
-    let pendientes = 0;
-    let toneladas = 0;
-    for (const v of vs) {
-      if (estaFacturado(v)) {
-        cantFact++;
-        totalFact += Number(v.monto_flete ?? 0);
-        toneladas += Number(v.tonelaje_real ?? 0);
-      } else {
-        pendientes++;
-      }
-    }
+  const clientesRows: CellValue[][] = (clientes ?? []).map((c) => {
+    const f = facturacion.get(c.id);
+    const principal = principalPorCliente.get(c.id);
     return [
       c.razon_social,
+      c.nombre_comercial ?? "",
       c.cuit ?? "",
-      cantFact,
-      Number(totalFact.toFixed(2)),
-      pendientes,
-      Number(toneladas.toFixed(2)),
+      titulizar(c.condicion_iva),
+      c.domicilio_fiscal ?? "",
+      c.localidad ?? "",
+      c.provincia ?? "",
+      c.email ?? "",
+      c.telefono ?? "",
+      principal?.nombre ?? "",
+      principal?.telefono ?? "",
+      titulizar(c.estado),
+      f?.cantFact ?? 0,
+      Number((f?.totalFact ?? 0).toFixed(2)),
+      f?.pendientes ?? 0,
+      Number((f?.toneladas ?? 0).toFixed(2)),
+      c.observaciones ?? "",
     ];
   });
-  const sumCol = (i: number) => resumenRows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
-  const resumenTotals: CellValue[] = [
-    "TOTALES", null,
-    sumCol(2),
-    Number(sumCol(3).toFixed(2)),
-    sumCol(4),
-    Number(sumCol(5).toFixed(2)),
+  const sumCol = (i: number) => clientesRows.reduce((s, r) => s + (Number(r[i]) || 0), 0);
+  const clientesTotals: CellValue[] = [
+    "TOTALES",
+    ...Array<CellValue>(11).fill(null),
+    sumCol(12),
+    Number(sumCol(13).toFixed(2)),
+    sumCol(14),
+    Number(sumCol(15).toFixed(2)),
+    null,
   ];
 
-  // ── Hoja Detalle: una fila por viaje ───────────────────────────────────────
-  const detalleColumns: ProColumn[] = [
-    { header: "Cliente", width: 30, align: "l" },
-    { header: "Fecha", width: 12, align: "c", numFmt: "dd/mm/yyyy" },
-    { header: "Código", width: 14, align: "c" },
-    { header: "Nº remito", width: 14, align: "c" },
-    { header: "Material", width: 18, align: "l" },
-    { header: "Toneladas", width: 12, align: "c", numFmt: "#,##0.00" },
-    { header: "Monto", width: 16, align: "r", numFmt: MONEY_FMT },
-    { header: "Estado", width: 18, align: "c" },
+  // ── Hoja Contactos ─────────────────────────────────────────────────────────
+  const contactosColumns: ProColumn[] = [
+    { header: "Cliente", width: 32, align: "l" },
+    { header: "Contacto", width: 26, align: "l" },
+    { header: "Cargo", width: 18, align: "l" },
+    { header: "Teléfono", width: 18, align: "c" },
+    { header: "Email", width: 28, align: "l" },
+    { header: "Principal", width: 10, align: "c" },
+    { header: "Observaciones", width: 34, align: "l" },
   ];
-  const detalleRows: CellValue[][] = (clientes ?? []).flatMap((c) => {
-    const vs = (porCliente.get(c.id) ?? [])
-      .slice()
-      .sort((a, b) => (b.fecha_viaje ?? "").localeCompare(a.fecha_viaje ?? ""));
-    return vs.map((v): CellValue[] => [
-      c.razon_social,
-      fechaExcel(v.fecha_viaje),
-      v.codigo ?? "",
-      v.nro_remito ?? "",
-      v.material ?? "",
-      v.tonelaje_real != null ? Number(Number(v.tonelaje_real).toFixed(2)) : null,
-      estaFacturado(v) ? Number(v.monto_flete) : null,
-      estaFacturado(v) ? "Facturado" : "Pendiente de remito",
-    ]);
-  });
-
-  const buf = await buildMultiSheetWorkbook([
-    {
-      name: "Resumen",
-      opts: {
-        title: "Facturación por cliente",
-        subtitle,
-        columns: resumenColumns,
-        rows: resumenRows,
-        totals: resumenTotals,
-      },
-    },
-    {
-      name: "Detalle",
-      opts: {
-        title: "Detalle de viajes por cliente",
-        subtitle,
-        columns: detalleColumns,
-        rows: detalleRows,
-      },
-    },
+  const contactosRows: CellValue[][] = (contactos ?? []).map((c) => [
+    nombrePorCliente.get(c.cliente_id) ?? "",
+    c.nombre,
+    titulizar(c.cargo),
+    c.telefono ?? "",
+    c.email ?? "",
+    c.es_principal ? "Sí" : "",
+    c.observaciones ?? "",
   ]);
+
+  // ── Hoja Direcciones (sucursales operativas) ───────────────────────────────
+  const direccionesColumns: ProColumn[] = [
+    { header: "Cliente", width: 32, align: "l" },
+    { header: "Sucursal", width: 26, align: "l" },
+    { header: "Domicilio", width: 32, align: "l" },
+    { header: "Localidad", width: 18, align: "l" },
+    { header: "Provincia", width: 16, align: "l" },
+    { header: "País", width: 14, align: "l" },
+    { header: "Teléfono", width: 18, align: "c" },
+    { header: "Principal", width: 10, align: "c" },
+    { header: "Estado", width: 10, align: "c" },
+    { header: "Observaciones", width: 34, align: "l" },
+  ];
+  const direccionesRows: CellValue[][] = (sucursales ?? []).map((s) => [
+    nombrePorCliente.get(s.cliente_id) ?? "",
+    s.nombre,
+    s.domicilio ?? "",
+    s.localidad ?? "",
+    s.provincia ?? "",
+    s.pais ?? "",
+    s.telefono ?? "",
+    s.es_principal ? "Sí" : "",
+    titulizar(s.estado),
+    s.observaciones ?? "",
+  ]);
+
+  // ── Hoja Requisitos ────────────────────────────────────────────────────────
+  const requisitosColumns: ProColumn[] = [
+    { header: "Cliente", width: 32, align: "l" },
+    { header: "Tipo", width: 24, align: "l" },
+    { header: "Descripción", width: 38, align: "l" },
+    { header: "Frecuencia", width: 14, align: "c" },
+    { header: "Próxima fecha", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
+    { header: "Formato", width: 16, align: "l" },
+    { header: "Responsable", width: 20, align: "l" },
+    { header: "Estado", width: 12, align: "c" },
+    { header: "Observaciones", width: 34, align: "l" },
+  ];
+  const requisitosRows: CellValue[][] = (requisitos ?? []).map((r) => [
+    nombrePorCliente.get(r.cliente_id) ?? "",
+    titulizar(r.tipo),
+    r.descripcion,
+    titulizar(r.frecuencia),
+    fechaExcel(r.proxima_fecha),
+    r.formato_requerido ?? "",
+    r.responsable_interno ?? "",
+    titulizar(r.estado),
+    r.observaciones ?? "",
+  ]);
+
+  // Las hojas de sub-recursos solo se agregan si hay algo que mostrar, para no
+  // llenar el archivo de solapas vacías.
+  type Hoja = {
+    name: string;
+    opts: {
+      title: string;
+      subtitle: string;
+      fuente?: string;
+      columns: ProColumn[];
+      rows: CellValue[][];
+      totals?: CellValue[];
+    };
+  };
+  const hojas: Hoja[] = [
+    {
+      name: "Clientes",
+      opts: {
+        title: "Clientes: ficha y facturación",
+        subtitle,
+        fuente: "Datos de la cartera del sistema. El detalle viaje por viaje se exporta desde Viajes.",
+        columns: clientesColumns,
+        rows: clientesRows,
+        totals: clientesTotals,
+      },
+    },
+  ];
+  if (contactosRows.length > 0) {
+    hojas.push({
+      name: "Contactos",
+      opts: {
+        title: "Contactos por cliente",
+        subtitle: `Al ${hoy.toLocaleDateString("es-AR")}`,
+        columns: contactosColumns,
+        rows: contactosRows,
+      },
+    });
+  }
+  if (direccionesRows.length > 0) {
+    hojas.push({
+      name: "Direcciones",
+      opts: {
+        title: "Direcciones y sucursales por cliente",
+        subtitle: `Al ${hoy.toLocaleDateString("es-AR")}`,
+        columns: direccionesColumns,
+        rows: direccionesRows,
+      },
+    });
+  }
+  if (requisitosRows.length > 0) {
+    hojas.push({
+      name: "Requisitos",
+      opts: {
+        title: "Requisitos por cliente",
+        subtitle: `Al ${hoy.toLocaleDateString("es-AR")}`,
+        columns: requisitosColumns,
+        rows: requisitosRows,
+      },
+    });
+  }
+
+  const buf = await buildMultiSheetWorkbook(hojas);
 
   const date = hoy.toISOString().slice(0, 10);
   return {
-    filename: `facturacion-clientes-${date}.xlsx`,
+    filename: `clientes-${date}.xlsx`,
     base64: buf.toString("base64"),
   };
 }
