@@ -80,11 +80,6 @@ function estaVencido(vence_en: string | null): boolean {
   return new Date(vence_en) <= new Date();
 }
 
-/** Fondo + borde tenue en el color del área (funciona en claro y oscuro). */
-function tint(hex: string) {
-  return { background: `${hex}14`, borderColor: `${hex}55` };
-}
-
 export default function UsuarioPermisosOverrides({
   usuarios,
   areas,
@@ -246,7 +241,11 @@ export default function UsuarioPermisosOverrides({
               }}
               options={[
                 { id: "", label: "Seleccionar…" },
-                ...areasOrdered.map((a) => ({ id: a.codigo, label: areaTitulo(a.codigo, a.nombre) })),
+                ...areasOrdered.map((a) => ({
+                  id: a.codigo,
+                  label: areaTitulo(a.codigo, a.nombre),
+                  dot: areaColor(a.codigo),
+                })),
               ]}
               searchPlaceholder="Buscar área..."
               triggerClassName="h-9 w-full text-xs"
@@ -309,7 +308,6 @@ export default function UsuarioPermisosOverrides({
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               <SecChip
                 active={selectedSecs.length === 0}
-                color={areaColor(newArea)}
                 onClick={() => setSelectedSecs([])}
               >
                 Toda el área
@@ -318,7 +316,6 @@ export default function UsuarioPermisosOverrides({
                 <SecChip
                   key={s.codigo}
                   active={selectedSecs.includes(s.codigo)}
-                  color={areaColor(newArea)}
                   lock={confidencial[s.codigo]}
                   onClick={() => toggleSec(s.codigo)}
                 >
@@ -370,7 +367,6 @@ export default function UsuarioPermisosOverrides({
                   {areaRows.map((row) => (
                     <OverrideChip
                       key={`area-${row.area_codigo}`}
-                      color={areaColor(row.area_codigo)}
                       label={areaTitulo(row.area_codigo)}
                       nivel={row.nivel}
                       vence_en={row.vence_en}
@@ -384,7 +380,6 @@ export default function UsuarioPermisosOverrides({
                     return (
                       <OverrideChip
                         key={`sec-${row.seccion_codigo}`}
-                        color={sec ? areaColor(sec.area) : "#64748B"}
                         label={sec ? `${areaTitulo(sec.area)} · ${sec.nombre}` : row.seccion_codigo}
                         lock={confidencial[row.seccion_codigo]}
                         nivel={row.nivel}
@@ -407,10 +402,9 @@ export default function UsuarioPermisosOverrides({
 
 /** Chip togglable del selector de secciones. */
 function SecChip({
-  active, color, lock, onClick, children,
+  active, lock, onClick, children,
 }: {
   active: boolean;
-  color: string;
   lock?: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -419,25 +413,22 @@ function SecChip({
     <button
       type="button"
       onClick={onClick}
-      style={active ? tint(color) : undefined}
       className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
         active
-          ? "text-foreground"
+          ? "border-[#7DD3FC] bg-[#E0F2FE] text-[#075985]"
           : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
-      {active && <span className="size-1.5 rounded-full shrink-0" style={{ background: color }} />}
       {lock && <Lock size={10} className="shrink-0" />}
       {children}
     </button>
   );
 }
 
-/** Chip de un permiso otorgado (en el color de su área), con botón de quitar. */
+/** Chip de un permiso otorgado, con botón de quitar. */
 function OverrideChip({
-  color, label, lock, nivel, vence_en, motivo, onDelete, disabled,
+  label, lock, nivel, vence_en, motivo, onDelete, disabled,
 }: {
-  color: string;
   label: string;
   lock?: boolean;
   nivel: AreaNivel;
@@ -449,15 +440,15 @@ function OverrideChip({
   const vencido = estaVencido(vence_en);
   return (
     <div
-      style={vencido ? undefined : tint(color)}
       className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
-        vencido ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50" : "text-foreground"
+        vencido
+          ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50"
+          : "bg-[#F0F9FF] border-[#BAE6FD] text-[#075985]"
       }`}
     >
       <span className={NIVEL_CLASS[nivel] + " px-1.5 py-0.5 rounded text-[10px]"}>
         {NIVEL_LABEL[nivel]}
       </span>
-      {!vencido && <span className="size-2 rounded-full shrink-0" style={{ background: color }} />}
       <span className="font-semibold inline-flex items-center gap-1">
         {lock && <Lock size={10} className="shrink-0" />}
         {label}

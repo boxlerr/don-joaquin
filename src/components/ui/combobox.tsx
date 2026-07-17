@@ -29,6 +29,8 @@ export type ComboboxOption = {
   motivo?: string;
   /** Puntito de estado a la izquierda: verde (free) / ámbar (busy). */
   tone?: "free" | "busy";
+  /** Puntito de color arbitrario a la izquierda (hex; ej. color del área). */
+  dot?: string;
   /** Nota corta a la derecha de la opción (ej. quién la ocupa). */
   note?: string;
 };
@@ -39,6 +41,7 @@ type Item = {
   disabled?: boolean;
   hint?: string;
   tone?: "free" | "busy";
+  dot?: string;
   note?: string;
 };
 
@@ -94,6 +97,7 @@ export function Combobox({
         disabled: o.disabled,
         hint: o.hint ?? o.motivo,
         tone: o.tone,
+        dot: o.dot,
         note: o.note,
       })),
     [options],
@@ -217,6 +221,13 @@ export function Combobox({
                         "size-2 shrink-0 rounded-full",
                         item.tone === "busy" ? "bg-amber-500" : "bg-emerald-500",
                       )}
+                    />
+                  )}
+                  {item.dot && (
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: item.dot }}
                     />
                   )}
                   <span className="flex-1 truncate">{item.label}</span>
