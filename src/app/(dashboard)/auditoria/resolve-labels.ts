@@ -53,7 +53,13 @@ export async function resolverEntidadLabels(
     resolverEntrevistas(supabase, idsPorTipo.entrevista, labels),
     resolverUsuarios(supabase, idsPorTipo.usuarios, labels, "usuarios"),
     resolverUsuarios(supabase, idsPorTipo.usuario_areas, labels, "usuario_areas"),
+    resolverUsuarios(supabase, idsPorTipo.usuario_secciones, labels, "usuario_secciones"),
     resolverParametros(supabase, idsPorTipo.parametro_sistema, labels),
+    resolverImpuestos(supabase, idsPorTipo.impuesto, labels),
+    resolverInsumos(supabase, idsPorTipo.insumo_catalogo, labels),
+    resolverPrestamos(supabase, idsPorTipo.prestamo, labels),
+    resolverPrestamoCuotas(supabase, idsPorTipo.prestamo_cuota, labels),
+    resolverConfigNotif(supabase, idsPorTipo.configuracion_notificaciones, labels),
   ]);
   return labels;
 }
@@ -219,7 +225,7 @@ async function resolverUsuarios(
   supabase: SupabaseAdmin,
   ids: Ids,
   labels: Labels,
-  tipoKey: "usuarios" | "usuario_areas",
+  tipoKey: "usuarios" | "usuario_areas" | "usuario_secciones",
 ) {
   if (!ids?.size) return;
   const { data } = await supabase
@@ -230,6 +236,82 @@ async function resolverUsuarios(
     labels[`${tipoKey}:${r.id}`] = {
       label: r.apellido ? `${r.apellido}, ${r.nombre}` : r.nombre,
       detalle: r.email ?? null,
+    };
+  }
+}
+
+async function resolverImpuestos(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .select("id, nombre, organismo, periodo")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as { id: string; nombre: string; organismo: string | null; periodo: string | null }[]) {
+    labels[`impuesto:${r.id}`] = {
+      label: r.nombre ?? "Impuesto",
+      detalle: [r.organismo, r.periodo].filter(Boolean).join(" · ") || null,
+    };
+  }
+}
+
+async function resolverInsumos(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("insumos_catalogo")
+    .select("id, nombre, tipo, marca")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as { id: string; nombre: string; tipo: string | null; marca: string | null }[]) {
+    labels[`insumo_catalogo:${r.id}`] = {
+      label: r.nombre ?? "Insumo",
+      detalle: [r.tipo, r.marca].filter(Boolean).join(" · ") || null,
+    };
+  }
+}
+
+async function resolverPrestamos(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("prestamos")
+    .select("id, banco, detalle")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as { id: string; banco: string; detalle: string | null }[]) {
+    labels[`prestamo:${r.id}`] = {
+      label: r.banco ?? "Préstamo",
+      detalle: r.detalle ?? null,
+    };
+  }
+}
+
+async function resolverPrestamoCuotas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, nro, prestamo:prestamos(banco, detalle)")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as { id: string; nro: number; prestamo: { banco: string; detalle: string | null } | { banco: string; detalle: string | null }[] | null }[]) {
+    const p = uno(r.prestamo);
+    labels[`prestamo_cuota:${r.id}`] = {
+      label: `Cuota ${r.nro}`,
+      detalle: p ? [p.banco, p.detalle].filter(Boolean).join(" · ") || null : null,
+    };
+  }
+}
+
+async function resolverConfigNotif(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("configuracion_notificaciones")
+    .select("id, usuario:usuarios(nombre, apellido)")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    const u = uno(r.usuario);
+    labels[`configuracion_notificaciones:${r.id}`] = {
+      label: u ? (u.apellido ? `${u.apellido}, ${u.nombre}` : u.nombre) : "Notificaciones",
+      detalle: null,
     };
   }
 }

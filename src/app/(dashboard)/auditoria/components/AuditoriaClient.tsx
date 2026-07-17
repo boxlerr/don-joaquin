@@ -11,13 +11,9 @@ import {
   ListChecks,
   MapPin,
   Banknote,
-  Wallet,
   Users,
   IdCard,
   Truck,
-  Wrench,
-  Receipt,
-  ClipboardList,
   ShieldCheck,
   LogIn,
   Settings,
@@ -44,25 +40,35 @@ type Filters = {
   accion: string;
 };
 
+// Tabs por ÁREA (grupos del sidebar): cada uno junta los tipos de entidad que
+// pertenecen a esa área, para filtrar la auditoría como se navega el sistema.
 const ENTIDAD_TABS = [
   { key: "todas", label: "Todas", icon: ListChecks, tipos: [] as string[] },
-  { key: "viaje", label: "Viajes", icon: MapPin, tipos: ["viaje"] },
-  { key: "cheque", label: "Cheques", icon: Banknote, tipos: ["cheque"] },
-  { key: "caja", label: "Caja", icon: Wallet, tipos: ["caja"] },
-  { key: "cliente", label: "Clientes", icon: Users, tipos: ["cliente"] },
-  { key: "chofer", label: "Choferes", icon: IdCard, tipos: ["chofer"] },
-  { key: "camion", label: "Camiones", icon: Truck, tipos: ["camion"] },
-  { key: "mantenimiento", label: "Mantenimiento", icon: Wrench, tipos: ["mantenimiento", "rotura_goma"] },
-  { key: "tarifa", label: "Tarifas", icon: Receipt, tipos: ["tarifa", "ruta"] },
-  { key: "entrevista", label: "Entrevistas", icon: ClipboardList, tipos: ["entrevista"] },
-  { key: "usuarios", label: "Usuarios y permisos", icon: ShieldCheck, tipos: ["usuarios", "rol_areas", "usuario_areas"] },
+  { key: "logistica", label: "Logística", icon: MapPin, tipos: ["viaje", "hoja_ruta", "ruta", "carga_combustible"] },
+  { key: "flota", label: "Flota", icon: Truck, tipos: ["camion", "mantenimiento", "rotura_goma", "insumo_catalogo"] },
+  { key: "rrhh", label: "RR.HH.", icon: IdCard, tipos: ["chofer", "entrevista", "pesos_score_chofer"] },
+  { key: "comercial", label: "Comercial", icon: Users, tipos: ["cliente", "tarifa"] },
+  { key: "finanzas", label: "Finanzas", icon: Banknote, tipos: ["cheque", "caja", "impuesto", "form931", "prestamo", "prestamo_cuota"] },
+  { key: "compliance", label: "Compliance", icon: ShieldCheck, tipos: ["compliance_liq_loma", "compliance_dm_ypf", "compliance_documentos"] },
+  { key: "sistema", label: "Sistema", icon: Settings, tipos: ["usuarios", "roles", "rol_areas", "rol_secciones", "usuario_areas", "usuario_secciones", "parametro_sistema", "configuracion_notificaciones"] },
   { key: "accesos", label: "Accesos", icon: LogIn, tipos: ["usuario"] },
-  { key: "config", label: "Configuración", icon: Settings, tipos: ["parametro_sistema"] },
 ] as const;
 
 const ACCION_OPTIONS = Object.entries(ACCION_LABELS).map(([id, label]) => ({ id, label }));
 
 // Etiquetas y colores de acciones/entidades: ver @/lib/audit-catalog.
+
+/** Recurso legible desde metadata cuando la entidad no tiene id resuelto
+ *  (ej. permisos de rol → rol; accesos → email). Evita filas con recurso "—". */
+function recursoDesdeMetadata(entry: AuditLogEntry): string | null {
+  const m = entry.metadata as Record<string, unknown> | null | undefined;
+  if (!m) return null;
+  if (typeof m.rol_nombre === "string" && m.rol_nombre) return m.rol_nombre;
+  if (typeof m.rol_codigo === "string" && m.rol_codigo)
+    return m.rol_codigo.charAt(0).toUpperCase() + m.rol_codigo.slice(1);
+  if (typeof m.email === "string" && m.email) return m.email;
+  return null;
+}
 
 export default function AuditoriaClient({
   initialData,
@@ -378,8 +384,8 @@ export default function AuditoriaClient({
                           </div>
                         )}
                       </div>
-                    ) : typeof entry.metadata?.email === "string" ? (
-                      <div className="text-foreground text-sm">{entry.metadata.email}</div>
+                    ) : recursoDesdeMetadata(entry) ? (
+                      <div className="text-foreground text-sm">{recursoDesdeMetadata(entry)}</div>
                     ) : (
                       <span className="text-muted-foreground/60 text-xs">—</span>
                     )}
@@ -648,6 +654,54 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     formato_requerido: "Formato requerido",
     responsable_interno: "Responsable interno",
   },
+  usuario_secciones: {
+    seccion_codigo: "Sección",
+    area_codigo: "Área",
+    nivel: "Nivel",
+    vence_en: "Vence",
+    motivo: "Motivo",
+  },
+  usuario_areas: {
+    area_codigo: "Área",
+    nivel: "Nivel",
+    vence_en: "Vence",
+    motivo: "Motivo",
+  },
+  rol_areas: { rol_id: "Rol", area_codigo: "Área", nivel: "Nivel" },
+  rol_secciones: { rol_id: "Rol", seccion_codigo: "Sección", nivel: "Nivel" },
+  prestamo: {
+    banco: "Banco",
+    detalle: "Detalle",
+    tasa: "Tasa (%)",
+    importe_cuota: "Importe de cuota",
+    cuotas_total: "Cantidad de cuotas",
+    primer_vencimiento: "Primer vencimiento",
+    estado: "Estado",
+    observaciones: "Observaciones",
+  },
+  prestamo_cuota: {
+    nro: "Cuota N°",
+    fecha_vencimiento: "Vencimiento",
+    importe: "Importe",
+    pagada: "Pagada",
+    pagada_en: "Pagada el",
+  },
+  impuesto: {
+    nombre: "Nombre",
+    organismo: "Organismo",
+    periodo: "Período",
+    fecha_vencimiento: "Vencimiento",
+    presentado: "Presentado",
+    observaciones: "Observaciones",
+  },
+  insumo_catalogo: {
+    nombre: "Nombre",
+    tipo: "Tipo",
+    marca: "Marca",
+    precio: "Precio",
+    moneda: "Moneda",
+    estado: "Estado",
+  },
 };
 
 const VALUE_TRANSLATIONS: Record<string, string> = {
@@ -721,6 +775,11 @@ const VALUE_TRANSLATIONS: Record<string, string> = {
   pendiente: "Pendiente",
   cumplido: "Cumplido",
   vencido: "Vencido",
+  // Niveles de permiso (permisos de usuario/rol)
+  read: "Lectura",
+  write: "Edición",
+  admin: "Admin",
+  none: "Sin acceso",
 };
 
 function humanizeKey(key: string): string {
