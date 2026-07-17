@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction, setUsuarioSeccionAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
-import { ShieldPlus, Trash2, Clock, AlertCircle, Lock } from "lucide-react";
-import { areaTitulo, rolLabel } from "./area-meta";
-import { SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
-import { SIDEBAR_ARBOL } from "./sidebar-tree";
+import { ShieldPlus, Trash2, Clock, AlertCircle, Lock, ChevronsUpDown, X } from "lucide-react";
+import { areaTitulo, rolLabel, GRUPOS_SIDEBAR, GRUPO_COLOR } from "./area-meta";
+import { seccionesDeArea, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
 
 interface AreaOverrideRow {
   usuario_id: string;
@@ -38,6 +37,8 @@ interface Props {
   seccionOverrides: SeccionOverrideRow[];
   confidencial: Record<SeccionCodigo, boolean>;
 }
+
+type Grupo = (typeof GRUPOS_SIDEBAR)[number];
 
 const NIVEL_LABEL: Record<AreaNivel, string> = {
   none: "—",
@@ -84,12 +85,15 @@ export default function UsuarioPermisosOverrides({
   const [seccionOverrides, setSeccionOverrides] = useState<SeccionOverrideRow[]>(initialSeccionOverrides);
 
   const [selectedUsuario, setSelectedUsuario] = useState<string | "">("");
-  const [secs, setSecs] = useState<SeccionCodigo[]>([]); // secciones tildadas
+  const [grupoSel, setGrupoSel] = useState<string | "">("");
+  const [secs, setSecs] = useState<SeccionCodigo[]>([]);
   const [newNivel, setNewNivel] = useState<AreaNivel>("read");
   const [newVence, setNewVence] = useState<string>("");
   const [newMotivo, setNewMotivo] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const grupoActual = GRUPOS_SIDEBAR.find((g) => g.group === grupoSel) ?? null;
 
   function toggleSec(codigo: SeccionCodigo) {
     setSecs((prev) => (prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo]));
@@ -149,26 +153,6 @@ export default function UsuarioPermisosOverrides({
       seccionOverrides.some((o) => o.usuario_id === u.id),
   );
 
-  // Fila de sección con casillero (misma forma que el editor de confidenciales).
-  const filaSeccion = (seccion: SeccionCodigo, label: string, indent: boolean) => {
-    const on = secs.includes(seccion);
-    return (
-      <label
-        key={seccion}
-        className={`flex items-center gap-2 py-1.5 pr-3 cursor-pointer hover:bg-muted/40 ${indent ? "pl-7" : "pl-3"}`}
-      >
-        <input
-          type="checkbox"
-          checked={on}
-          onChange={() => toggleSec(seccion)}
-          className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
-        />
-        {confidencial[seccion] && <Lock size={12} className="shrink-0 text-amber-600" />}
-        <span className="min-w-0 truncate text-xs text-foreground">{label}</span>
-      </label>
-    );
-  };
-
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
@@ -183,14 +167,14 @@ export default function UsuarioPermisosOverrides({
         </div>
       )}
 
-      {/* Formulario de nuevo override */}
+      {/* Formulario de nuevo override — compacto, en una fila */}
       <div className="px-5 py-4 border-b border-border bg-muted/20">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Agregar permiso puntual
         </p>
 
-        {/* Usuario / Nivel / Vencimiento / botón */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.85fr)_minmax(0,1.3fr)_auto] gap-2 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_auto] gap-2 items-end">
+          {/* Usuario */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Usuario</label>
             <Combobox
@@ -208,6 +192,28 @@ export default function UsuarioPermisosOverrides({
             />
           </div>
 
+          {/* Área (grupos del sidebar, con color) */}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Área</label>
+            <Combobox
+              value={grupoSel}
+              onValueChange={(v) => { setGrupoSel(v); setSecs([]); }}
+              options={[
+                { id: "", label: "Seleccionar…" },
+                ...GRUPOS_SIDEBAR.map((g) => ({ id: g.group, label: g.label, dot: GRUPO_COLOR[g.group] })),
+              ]}
+              searchPlaceholder="Buscar área..."
+              triggerClassName="h-9 w-full text-xs"
+            />
+          </div>
+
+          {/* Secciones (multi-check en un desplegable) */}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Secciones</label>
+            <SeccionesPicker grupo={grupoActual} secs={secs} onToggle={toggleSec} confidencial={confidencial} />
+          </div>
+
+          {/* Nivel */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Nivel</label>
             <Combobox
@@ -219,6 +225,7 @@ export default function UsuarioPermisosOverrides({
             />
           </div>
 
+          {/* Vencimiento */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock size={11} />
@@ -242,6 +249,7 @@ export default function UsuarioPermisosOverrides({
             </div>
           </div>
 
+          {/* Botón agregar */}
           <button
             type="button"
             disabled={!selectedUsuario || secs.length === 0 || isPending}
@@ -252,38 +260,29 @@ export default function UsuarioPermisosOverrides({
           </button>
         </div>
 
-        {/* Grilla con forma de sidebar (igual que Secciones confidenciales), con casilleros */}
-        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {SIDEBAR_ARBOL.map((grupo) => (
-            <div key={grupo.label} className="rounded-lg border border-border overflow-hidden self-start">
-              <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full" style={{ background: grupo.color }} />
-                <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: grupo.color }}>
-                  {grupo.label}
+        {/* Secciones elegidas (aparecen a medida que se tildan) */}
+        {secs.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {secs.map((s) => {
+              const sec = SECCION_BY_CODIGO[s];
+              return (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-full border border-[#BAE6FD] bg-[#F0F9FF] px-2 py-0.5 text-[11px] font-medium text-[#075985]"
+                >
+                  {confidencial[s] && <Lock size={10} className="shrink-0" />}
+                  {sec?.nombre ?? s}
+                  <button type="button" onClick={() => toggleSec(s)} className="text-[#075985]/60 hover:text-red-500" title="Sacar">
+                    <X size={11} />
+                  </button>
                 </span>
-              </div>
-              <div className="divide-y divide-border">
-                {grupo.paginas.map((pagina) =>
-                  pagina.subs ? (
-                    <div key={pagina.label}>
-                      <div className="px-3 py-1.5 text-[11px] font-semibold text-foreground bg-muted/20 border-b border-border/60">
-                        {pagina.label}
-                      </div>
-                      <div className="divide-y divide-border/60">
-                        {pagina.subs.map((sub) => filaSeccion(sub.seccion, sub.label, true))}
-                      </div>
-                    </div>
-                  ) : (
-                    filaSeccion(pagina.seccion!, pagina.label, false)
-                  ),
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Motivo opcional */}
-        <div className="mt-3">
+        <div className="mt-2">
           <input
             type="text"
             value={newMotivo}
@@ -292,12 +291,6 @@ export default function UsuarioPermisosOverrides({
             className="w-full text-xs rounded-md px-2 py-1.5 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
           />
         </div>
-
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Tildá <span className="font-medium">una o varias secciones</span> — incluidas las{" "}
-          <span className="inline-flex items-center gap-0.5"><Lock size={10} /> confidenciales</span>{" "}
-          (Préstamos, Cheques, Sueldos…) — y tocá Agregar. Solo suma sobre el permiso del rol, sin abrírselas al resto.
-        </p>
       </div>
 
       {/* Lista de overrides vigentes */}
@@ -346,6 +339,84 @@ export default function UsuarioPermisosOverrides({
                     );
                   })}
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Desplegable de secciones con checkboxes (multi-selección) del área elegida. */
+function SeccionesPicker({
+  grupo, secs, onToggle, confidencial,
+}: {
+  grupo: Grupo | null;
+  secs: SeccionCodigo[];
+  onToggle: (s: SeccionCodigo) => void;
+  confidencial: Record<SeccionCodigo, boolean>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const disabled = !grupo;
+  const multiArea = (grupo?.areas.length ?? 0) > 1;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={secs.length ? "text-foreground" : "text-muted-foreground"}>
+          {secs.length
+            ? `${secs.length} sección${secs.length > 1 ? "es" : ""}`
+            : disabled
+              ? "Elegí un área"
+              : "Elegí secciones…"}
+        </span>
+        <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground/70" />
+      </button>
+
+      {open && grupo && (
+        <div className="absolute z-50 mt-1 max-h-64 w-full min-w-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg">
+          {grupo.areas.map((area) => {
+            const list = seccionesDeArea(area);
+            if (!list.length) return null;
+            return (
+              <div key={area}>
+                {multiArea && (
+                  <div className="px-2 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {areaTitulo(area)}
+                  </div>
+                )}
+                {list.map((s) => (
+                  <label
+                    key={s.codigo}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/60"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={secs.includes(s.codigo)}
+                      onChange={() => onToggle(s.codigo)}
+                      className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
+                    />
+                    {confidencial[s.codigo] && <Lock size={11} className="shrink-0 text-amber-600" />}
+                    <span className="min-w-0 truncate text-foreground">{s.nombre}</span>
+                  </label>
+                ))}
               </div>
             );
           })}
