@@ -60,8 +60,59 @@ export async function resolverEntidadLabels(
     resolverPrestamos(supabase, idsPorTipo.prestamo, labels),
     resolverPrestamoCuotas(supabase, idsPorTipo.prestamo_cuota, labels),
     resolverConfigNotif(supabase, idsPorTipo.configuracion_notificaciones, labels),
+    resolverSiniestros(supabase, idsPorTipo.siniestro, labels),
+    resolverGastos(supabase, idsPorTipo.gasto, labels),
+    resolverRotacionBajas(supabase, idsPorTipo.rotacion_baja, labels),
   ]);
   return labels;
+}
+
+async function resolverSiniestros(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("siniestros")
+    .select("id, tipo_siniestro, compania_seguro, numero_siniestro_seguro, camion:camiones(patente)")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as {
+    id: string; tipo_siniestro: string | null; compania_seguro: string | null; numero_siniestro_seguro: string | null;
+    camion: { patente: string } | { patente: string }[] | null;
+  }[]) {
+    const patente = uno(r.camion)?.patente ?? null;
+    labels[`siniestro:${r.id}`] = {
+      label: r.compania_seguro || r.tipo_siniestro || "Siniestro",
+      detalle: [patente, r.numero_siniestro_seguro].filter(Boolean).join(" · ") || null,
+    };
+  }
+}
+
+async function resolverGastos(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const { data } = await supabase
+    .from("gastos")
+    .select("id, proveedor, descripcion, monto, moneda")
+    .in("id", Array.from(ids));
+  for (const r of data ?? []) {
+    labels[`gasto:${r.id}`] = {
+      label: r.proveedor || r.descripcion || "Gasto",
+      detalle: fmtMonto(r.monto, r.moneda),
+    };
+  }
+}
+
+async function resolverRotacionBajas(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("rotacion_bajas")
+    .select("id, nombre, tipo_baja, anio")
+    .in("id", Array.from(ids));
+  for (const r of (data ?? []) as { id: string; nombre: string; tipo_baja: string | null; anio: number | null }[]) {
+    labels[`rotacion_baja:${r.id}`] = {
+      label: r.nombre ?? "Baja",
+      detalle: [r.tipo_baja, r.anio].filter(Boolean).join(" · ") || null,
+    };
+  }
 }
 
 async function resolverChoferes(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {

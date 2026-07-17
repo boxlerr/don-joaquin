@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getLegajoEstado } from "@/lib/chofer-validation";
+import { logAudit } from "@/lib/audit";
 
 const GASTOS_PAGE_SIZE = 25;
 
@@ -235,6 +236,26 @@ export async function addGastoAction(data: {
     return { error: "No se pudo registrar el gasto." };
   }
 
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "crear",
+    entidadTipo: "gasto",
+    entidadId: gasto.id,
+    valoresNuevos: {
+      tipo_gasto_id: data.tipo_gasto_id,
+      fecha: data.fecha,
+      monto: data.monto,
+      medio_pago: data.medio_pago,
+      descripcion: data.descripcion?.trim() || null,
+      proveedor: data.proveedor?.trim() || null,
+      numero_comprobante: data.numero_comprobante?.trim() || null,
+      viaje_id: data.viaje_id || null,
+      camion_id: data.camion_id || null,
+      chofer_id: data.chofer_id || null,
+    },
+  });
+
   // Solo reflejamos en caja los medios que efectivamente afectan a la caja general.
   const reflejaCaja: GastoMedioPago[] = ["efectivo_caja", "transferencia", "tarjeta_empresa"];
   if (reflejaCaja.includes(data.medio_pago)) {
@@ -245,22 +266,43 @@ export async function addGastoAction(data: {
         ? "efectivo"
         : "otro";
 
-    const { error: cajaError } = await supabase.from("caja_movimientos").insert({
-      tipo: "egreso",
-      concepto: data.descripcion?.trim() || "Gasto operativo",
-      monto: data.monto,
-      medio: medioCaja,
-      categoria: "gasto_operativo",
-      gasto_id: gasto.id,
-      viaje_id: data.viaje_id || null,
-      chofer_id: data.chofer_id || null,
-      fecha: data.fecha,
-      moneda: "ARS",
-      created_by: user.id,
-    });
+    const { data: mov, error: cajaError } = await supabase
+      .from("caja_movimientos")
+      .insert({
+        tipo: "egreso",
+        concepto: data.descripcion?.trim() || "Gasto operativo",
+        monto: data.monto,
+        medio: medioCaja,
+        categoria: "gasto_operativo",
+        gasto_id: gasto.id,
+        viaje_id: data.viaje_id || null,
+        chofer_id: data.chofer_id || null,
+        fecha: data.fecha,
+        moneda: "ARS",
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
 
     if (cajaError) {
       console.error("Error al reflejar gasto en caja:", cajaError);
+    } else if (mov) {
+      await logAudit({
+        client: supabase,
+        usuarioId: user.id,
+        accion: "crear",
+        entidadTipo: "caja",
+        entidadId: mov.id,
+        valoresNuevos: {
+          tipo: "egreso",
+          concepto: data.descripcion?.trim() || "Gasto operativo",
+          monto: data.monto,
+          medio: medioCaja,
+          categoria: "gasto_operativo",
+          fecha: data.fecha,
+        },
+        metadata: { origen: "gasto", gasto_id: gasto.id },
+      });
     }
   }
 

@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 import type { TipoBaja } from "./compute";
 
 const TIPOS: TipoBaja[] = ["renuncia_voluntaria", "despido", "jubilacion", "abandono", "otro"];
@@ -59,8 +60,20 @@ export async function crearBajaAction(input: BajaInput): Promise<{ ok?: boolean;
   if (!Number.isFinite(row.anio) || row.anio < 1990 || row.anio > 2100) return { error: "Año inválido." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("rotacion_bajas").insert({ ...row, created_by: user.id, updated_by: user.id });
+  const { data: inserted, error } = await (supabase as any)
+    .from("rotacion_bajas")
+    .insert({ ...row, created_by: user.id, updated_by: user.id })
+    .select("id")
+    .single();
   if (error) return { error: "No se pudo registrar la baja." };
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "crear",
+    entidadTipo: "rotacion_baja",
+    entidadId: inserted?.id ?? null,
+    valoresNuevos: row,
+  });
   revalidatePath("/choferes/rotacion");
   return { ok: true };
 }
@@ -74,18 +87,44 @@ export async function editarBajaAction(id: string, input: BajaInput): Promise<{ 
   if (!Number.isFinite(row.anio) || row.anio < 1990 || row.anio > 2100) return { error: "Año inválido." };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("rotacion_bajas").select("*").eq("id", id).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("rotacion_bajas").update({ ...row, updated_by: user.id }).eq("id", id);
   if (error) return { error: "No se pudo actualizar la baja." };
+  const antes = previo
+    ? Object.fromEntries(Object.keys(row).map((k) => [k, (previo as Record<string, unknown>)[k]]))
+    : null;
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "rotacion_baja",
+    entidadId: id,
+    valoresAnteriores: antes,
+    valoresNuevos: row,
+  });
   revalidatePath("/choferes/rotacion");
   return { ok: true };
 }
 
 export async function eliminarBajaAction(id: string): Promise<{ ok?: boolean; error?: string }> {
-  await requireSeccion("choferes_rotacion", "write");
+  const user = await requireSeccion("choferes_rotacion", "write");
   const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("rotacion_bajas").select("*").eq("id", id).maybeSingle();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("rotacion_bajas").delete().eq("id", id);
   if (error) return { error: "No se pudo eliminar la baja." };
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "rotacion_baja",
+    entidadId: id,
+    valoresAnteriores: previo ?? null,
+  });
   revalidatePath("/choferes/rotacion");
   return { ok: true };
 }

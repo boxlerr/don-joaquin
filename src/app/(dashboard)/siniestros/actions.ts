@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
 import { requireSeccion } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -33,15 +34,25 @@ export async function createSiniestroAction(data: {
   const { data: { user } } = await authClient.auth.getUser();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("siniestros").insert({
-    ...data,
-    created_by: user?.id ?? null,
-  });
+  const { data: inserted, error } = await (supabase as any)
+    .from("siniestros")
+    .insert({ ...data, created_by: user?.id ?? null })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al crear siniestro:", error);
     return { error: error.message };
   }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user?.id ?? null,
+    accion: "crear",
+    entidadTipo: "siniestro",
+    entidadId: inserted?.id ?? null,
+    valoresNuevos: data,
+  });
 
   revalidatePath("/siniestros");
   return { success: true };
@@ -63,6 +74,15 @@ export async function updateSiniestroAction(id: string, data: {
   await requireSeccion("siniestros", "write");
 
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("siniestros")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("siniestros").update(data).eq("id", id);
@@ -72,6 +92,19 @@ export async function updateSiniestroAction(id: string, data: {
     return { error: error.message };
   }
 
+  const antes = previo
+    ? Object.fromEntries(Object.keys(data).map((k) => [k, (previo as Record<string, unknown>)[k]]))
+    : null;
+  await logAudit({
+    client: supabase,
+    usuarioId: user?.id ?? null,
+    accion: "actualizar",
+    entidadTipo: "siniestro",
+    entidadId: id,
+    valoresAnteriores: antes,
+    valoresNuevos: data,
+  });
+
   revalidatePath("/siniestros");
   return { success: true };
 }
@@ -79,6 +112,15 @@ export async function updateSiniestroAction(id: string, data: {
 export async function deleteSiniestroAction(id: string): Promise<{ error?: string; success?: true }> {
   await requireSeccion("siniestros", "write");
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("siniestros")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
 
   const { error } = await supabase.from("siniestros").delete().eq("id", id);
 
@@ -86,6 +128,15 @@ export async function deleteSiniestroAction(id: string): Promise<{ error?: strin
     console.error("Error al eliminar siniestro:", error);
     return { error: error.message };
   }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user?.id ?? null,
+    accion: "eliminar",
+    entidadTipo: "siniestro",
+    entidadId: id,
+    valoresAnteriores: previo ?? null,
+  });
 
   revalidatePath("/siniestros");
   return { success: true };
@@ -106,7 +157,7 @@ export async function registrarPagoSiniestroAction(data: {
   const { data: { user } } = await authClient.auth.getUser();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("caja_movimientos").insert({
+  const { data: mov, error } = await (supabase as any).from("caja_movimientos").insert({
     tipo: "egreso",
     categoria: "gasto_operativo",
     concepto: data.concepto,
@@ -117,12 +168,31 @@ export async function registrarPagoSiniestroAction(data: {
     siniestro_id: data.siniestro_id,
     observaciones: data.observaciones,
     created_by: user?.id ?? null,
-  });
+  })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Error al registrar pago de siniestro:", error);
     return { error: "No se pudo registrar el pago en caja." };
   }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user?.id ?? null,
+    accion: "crear",
+    entidadTipo: "caja",
+    entidadId: mov?.id ?? null,
+    valoresNuevos: {
+      tipo: "egreso",
+      categoria: "gasto_operativo",
+      concepto: data.concepto,
+      monto: data.monto,
+      medio: data.medio,
+      fecha: data.fecha,
+    },
+    metadata: { origen: "siniestro", siniestro_id: data.siniestro_id },
+  });
 
   revalidatePath("/siniestros");
   revalidatePath("/caja");

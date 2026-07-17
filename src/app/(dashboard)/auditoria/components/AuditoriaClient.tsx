@@ -46,9 +46,10 @@ const ENTIDAD_TABS = [
   { key: "todas", label: "Todas", icon: ListChecks, tipos: [] as string[] },
   { key: "logistica", label: "Logística", icon: MapPin, tipos: ["viaje", "hoja_ruta", "ruta", "carga_combustible"] },
   { key: "flota", label: "Flota", icon: Truck, tipos: ["camion", "mantenimiento", "rotura_goma", "insumo_catalogo"] },
-  { key: "rrhh", label: "RR.HH.", icon: IdCard, tipos: ["chofer", "entrevista", "pesos_score_chofer"] },
+  { key: "seguridad", label: "Seguridad", icon: ShieldAlert, tipos: ["siniestro", "extintor"] },
+  { key: "rrhh", label: "RR.HH.", icon: IdCard, tipos: ["chofer", "entrevista", "rotacion_baja", "pesos_score_chofer"] },
   { key: "comercial", label: "Comercial", icon: Users, tipos: ["cliente", "tarifa"] },
-  { key: "finanzas", label: "Finanzas", icon: Banknote, tipos: ["cheque", "caja", "impuesto", "form931", "prestamo", "prestamo_cuota"] },
+  { key: "finanzas", label: "Finanzas", icon: Banknote, tipos: ["cheque", "caja", "gasto", "impuesto", "form931", "prestamo", "prestamo_cuota"] },
   { key: "compliance", label: "Compliance", icon: ShieldCheck, tipos: ["compliance_liq_loma", "compliance_dm_ypf", "compliance_documentos"] },
   { key: "sistema", label: "Sistema", icon: Settings, tipos: ["usuarios", "roles", "rol_areas", "rol_secciones", "usuario_areas", "usuario_secciones", "parametro_sistema", "configuracion_notificaciones"] },
   { key: "accesos", label: "Accesos", icon: LogIn, tipos: ["usuario"] },
@@ -702,6 +703,43 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     moneda: "Moneda",
     estado: "Estado",
   },
+  siniestro: {
+    camion_id: "Camión",
+    chofer_id: "Chofer",
+    fecha: "Fecha",
+    tipo_siniestro: "Tipo",
+    tipo_siniestro_detalle: "Detalle del tipo",
+    estado: "Estado",
+    descripcion: "Descripción",
+    monto_danos: "Monto de daños",
+    compania_seguro: "Compañía de seguro",
+    numero_siniestro_seguro: "N° de siniestro",
+    terceros_involucrados: "Terceros involucrados",
+  },
+  gasto: {
+    tipo_gasto_id: "Tipo de gasto",
+    fecha: "Fecha",
+    monto: "Monto",
+    medio_pago: "Medio de pago",
+    descripcion: "Descripción",
+    proveedor: "Proveedor",
+    numero_comprobante: "N° de comprobante",
+    viaje_id: "Viaje",
+    camion_id: "Camión",
+    chofer_id: "Chofer",
+  },
+  rotacion_baja: {
+    nombre: "Nombre",
+    chofer_id: "Chofer",
+    fecha_ingreso: "Fecha de ingreso",
+    fecha_egreso: "Fecha de egreso",
+    anio: "Año",
+    antiguedad_meses: "Antigüedad (meses)",
+    tipo_baja: "Tipo de baja",
+    motivo: "Motivo",
+    base_zona: "Base / zona",
+    observaciones: "Observaciones",
+  },
 };
 
 const VALUE_TRANSLATIONS: Record<string, string> = {
@@ -780,6 +818,15 @@ const VALUE_TRANSLATIONS: Record<string, string> = {
   write: "Edición",
   admin: "Admin",
   none: "Sin acceso",
+  // Rotación — tipo de baja
+  renuncia_voluntaria: "Renuncia voluntaria",
+  despido: "Despido",
+  jubilacion: "Jubilación",
+  abandono: "Abandono",
+  // Gastos — medio de pago
+  efectivo_caja: "Efectivo (caja)",
+  tarjeta_empresa: "Tarjeta empresa",
+  cuenta_corriente: "Cuenta corriente",
 };
 
 function humanizeKey(key: string): string {
