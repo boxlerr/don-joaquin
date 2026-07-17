@@ -4,9 +4,10 @@ import { useState, useTransition } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction, setUsuarioSeccionAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
-import { ShieldPlus, Trash2, Clock, AlertCircle, Lock, Check } from "lucide-react";
-import { areaTitulo, rolLabel, GRUPOS_SIDEBAR, GRUPO_COLOR } from "./area-meta";
-import { seccionesDeArea, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
+import { ShieldPlus, Trash2, Clock, AlertCircle, Lock } from "lucide-react";
+import { areaTitulo, rolLabel } from "./area-meta";
+import { SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
+import { SIDEBAR_ARBOL } from "./sidebar-tree";
 
 interface AreaOverrideRow {
   usuario_id: string;
@@ -83,70 +84,43 @@ export default function UsuarioPermisosOverrides({
   const [seccionOverrides, setSeccionOverrides] = useState<SeccionOverrideRow[]>(initialSeccionOverrides);
 
   const [selectedUsuario, setSelectedUsuario] = useState<string | "">("");
-  const [grupoSel, setGrupoSel] = useState<string | null>(null); // grupo del sidebar elegido
-  const [areasFull, setAreasFull] = useState<AreaCodigo[]>([]); // áreas marcadas "Toda el área"
-  const [secs, setSecs] = useState<SeccionCodigo[]>([]); // secciones marcadas
+  const [secs, setSecs] = useState<SeccionCodigo[]>([]); // secciones tildadas
   const [newNivel, setNewNivel] = useState<AreaNivel>("read");
   const [newVence, setNewVence] = useState<string>("");
   const [newMotivo, setNewMotivo] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const grupoActual = GRUPOS_SIDEBAR.find((g) => g.group === grupoSel) ?? null;
-  const nSeleccion = areasFull.length + secs.length;
-
-  function elegirGrupo(group: string) {
-    setGrupoSel(group);
-    setAreasFull([]);
-    setSecs([]);
-  }
-  function toggleArea(area: AreaCodigo) {
-    setAreasFull((prev) => (prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]));
-  }
   function toggleSec(codigo: SeccionCodigo) {
     setSecs((prev) => (prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo]));
   }
-  function limpiarSeleccion() {
-    setGrupoSel(null);
-    setAreasFull([]);
-    setSecs([]);
-    setNewVence("");
-    setNewMotivo("");
-  }
 
   function handleAgregar() {
-    if (!selectedUsuario || nSeleccion === 0) return;
+    if (!selectedUsuario || secs.length === 0) return;
     const vence_en = newVence ? new Date(newVence).toISOString() : null;
     setError(null);
 
-    const nuevosAreas: AreaOverrideRow[] = areasFull.map((area) => ({
-      usuario_id: selectedUsuario, area_codigo: area, nivel: newNivel, vence_en, motivo: newMotivo || null,
-    }));
-    const nuevosSecs: SeccionOverrideRow[] = secs.map((seccion) => ({
+    const elegidas = secs;
+    const nuevos: SeccionOverrideRow[] = elegidas.map((seccion) => ({
       usuario_id: selectedUsuario, seccion_codigo: seccion, nivel: newNivel, vence_en, motivo: newMotivo || null,
     }));
-
-    setAreaOverrides((prev) => [
-      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && areasFull.includes(o.area_codigo))),
-      ...nuevosAreas,
-    ]);
     setSeccionOverrides((prev) => [
-      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && secs.includes(o.seccion_codigo))),
-      ...nuevosSecs,
+      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && elegidas.includes(o.seccion_codigo))),
+      ...nuevos,
     ]);
 
     startTransition(async () => {
-      const results = await Promise.all([
-        ...areasFull.map((a) => setUsuarioAreaAction(selectedUsuario, a, newNivel, vence_en, newMotivo || undefined)),
-        ...secs.map((s) => setUsuarioSeccionAction(selectedUsuario, s, newNivel, vence_en, newMotivo || undefined)),
-      ]);
+      const results = await Promise.all(
+        elegidas.map((s) => setUsuarioSeccionAction(selectedUsuario, s, newNivel, vence_en, newMotivo || undefined)),
+      );
       const fallo = results.find((r): r is { error: string } => "error" in r);
       if (fallo) {
         setError(fallo.error);
-        setAreaOverrides(initialAreaOverrides);
         setSeccionOverrides(initialSeccionOverrides);
       } else {
-        limpiarSeleccion();
+        setSecs([]);
+        setNewVence("");
+        setNewMotivo("");
       }
     });
   }
@@ -174,6 +148,26 @@ export default function UsuarioPermisosOverrides({
       areaOverrides.some((o) => o.usuario_id === u.id) ||
       seccionOverrides.some((o) => o.usuario_id === u.id),
   );
+
+  // Fila de sección con casillero (misma forma que el editor de confidenciales).
+  const filaSeccion = (seccion: SeccionCodigo, label: string, indent: boolean) => {
+    const on = secs.includes(seccion);
+    return (
+      <label
+        key={seccion}
+        className={`flex items-center gap-2 py-1.5 pr-3 cursor-pointer hover:bg-muted/40 ${indent ? "pl-7" : "pl-3"}`}
+      >
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={() => toggleSec(seccion)}
+          className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
+        />
+        {confidencial[seccion] && <Lock size={12} className="shrink-0 text-amber-600" />}
+        <span className="min-w-0 truncate text-xs text-foreground">{label}</span>
+      </label>
+    );
+  };
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
@@ -250,85 +244,42 @@ export default function UsuarioPermisosOverrides({
 
           <button
             type="button"
-            disabled={!selectedUsuario || nSeleccion === 0 || isPending}
+            disabled={!selectedUsuario || secs.length === 0 || isPending}
             onClick={handleAgregar}
             className="h-9 px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors whitespace-nowrap"
           >
-            {nSeleccion > 0 ? `Agregar ${nSeleccion}` : "Agregar"}
+            {secs.length > 0 ? `Agregar ${secs.length}` : "Agregar"}
           </button>
         </div>
 
-        {/* Dos listas: áreas (grupos) a la izquierda, secciones con checkboxes a la derecha */}
-        <div className="mt-3 grid grid-cols-1 md:grid-cols-[minmax(150px,220px)_1fr] gap-3">
-          {/* Izquierda: grupos del sidebar */}
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40 border-b border-border">
-              Área
-            </div>
-            <div className="max-h-72 overflow-y-auto p-1">
-              {GRUPOS_SIDEBAR.map((g) => {
-                const activo = grupoSel === g.group;
-                return (
-                  <button
-                    key={g.group}
-                    type="button"
-                    onClick={() => elegirGrupo(g.group)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${
-                      activo ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <span className="size-2.5 rounded-full shrink-0" style={{ background: GRUPO_COLOR[g.group] }} />
-                    <span className="flex-1 truncate">{g.label}</span>
-                    {activo && <Check size={13} className="shrink-0 text-primary" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Derecha: secciones del grupo elegido, con casilleros */}
-          <div className="rounded-lg border border-border overflow-hidden">
-            <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40 border-b border-border">
-              Secciones
-            </div>
-            <div className="max-h-72 overflow-y-auto p-2">
-              {!grupoActual ? (
-                <p className="px-1 py-8 text-center text-xs text-muted-foreground/70">
-                  Elegí un área a la izquierda.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {grupoActual.areas.map((area) => {
-                    const seccionesArea = seccionesDeArea(area);
-                    const multi = grupoActual.areas.length > 1;
-                    return (
-                      <div key={area}>
-                        {multi && (
-                          <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
-                            {areaTitulo(area)}
-                          </p>
-                        )}
-                        <CheckRow checked={areasFull.includes(area)} onToggle={() => toggleArea(area)} bold>
-                          {multi ? `Toda el área (${areaTitulo(area)})` : "Toda el área"}
-                        </CheckRow>
-                        {seccionesArea.map((s) => (
-                          <CheckRow
-                            key={s.codigo}
-                            checked={secs.includes(s.codigo)}
-                            onToggle={() => toggleSec(s.codigo)}
-                            lock={confidencial[s.codigo]}
-                            indent
-                          >
-                            {s.nombre}
-                          </CheckRow>
-                        ))}
+        {/* Grilla con forma de sidebar (igual que Secciones confidenciales), con casilleros */}
+        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {SIDEBAR_ARBOL.map((grupo) => (
+            <div key={grupo.label} className="rounded-lg border border-border overflow-hidden self-start">
+              <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full" style={{ background: grupo.color }} />
+                <span className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: grupo.color }}>
+                  {grupo.label}
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {grupo.paginas.map((pagina) =>
+                  pagina.subs ? (
+                    <div key={pagina.label}>
+                      <div className="px-3 py-1.5 text-[11px] font-semibold text-foreground bg-muted/20 border-b border-border/60">
+                        {pagina.label}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <div className="divide-y divide-border/60">
+                        {pagina.subs.map((sub) => filaSeccion(sub.seccion, sub.label, true))}
+                      </div>
+                    </div>
+                  ) : (
+                    filaSeccion(pagina.seccion!, pagina.label, false)
+                  ),
+                )}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* Motivo opcional */}
@@ -343,10 +294,9 @@ export default function UsuarioPermisosOverrides({
         </div>
 
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Tildá <span className="font-medium">Toda el área</span> para todas sus páginas, o{" "}
-          <span className="font-medium">una o varias secciones</span> — incluidas las{" "}
+          Tildá <span className="font-medium">una o varias secciones</span> — incluidas las{" "}
           <span className="inline-flex items-center gap-0.5"><Lock size={10} /> confidenciales</span>{" "}
-          (Préstamos, Cheques, Sueldos…), sin abrírselas al resto del rol. Después tocá Agregar.
+          (Préstamos, Cheques, Sueldos…) — y tocá Agregar. Solo suma sobre el permiso del rol, sin abrírselas al resto.
         </p>
       </div>
 
@@ -402,33 +352,6 @@ export default function UsuarioPermisosOverrides({
         </div>
       )}
     </div>
-  );
-}
-
-/** Fila con casillero del panel de secciones. */
-function CheckRow({
-  checked, onToggle, lock, bold, indent, children,
-}: {
-  checked: boolean;
-  onToggle: () => void;
-  lock?: boolean;
-  bold?: boolean;
-  indent?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      className={`flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/60 ${indent ? "pl-5" : ""}`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onToggle}
-        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
-      />
-      {lock && <Lock size={11} className="shrink-0 text-muted-foreground" />}
-      <span className={`text-xs ${bold ? "font-medium text-foreground" : "text-foreground"}`}>{children}</span>
-    </label>
   );
 }
 
