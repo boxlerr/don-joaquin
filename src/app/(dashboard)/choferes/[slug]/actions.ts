@@ -66,6 +66,18 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     .toISOString()
     .split("T")[0];
 
+  // Score del trimestre: se lanza YA (solo depende de chofer_id y fechas puras)
+  // para que sus ~6 consultas se solapen con el resto de la carga del legajo,
+  // en vez de correr en serie al final. Se espera más abajo.
+  const scoreHasta = new Date().toISOString().split("T")[0]!;
+  const scoreDesde = (() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 2);
+    d.setDate(1);
+    return d.toISOString().split("T")[0]!;
+  })();
+  const scorePromise = computeScoreChofer(chofer_id, scoreDesde, scoreHasta);
+
   const [
     { data: docs },
     { data: viajes },
@@ -751,14 +763,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   });
 
   // Score de conducta del último trimestre (mismo cálculo que el Ranking).
-  const scoreHasta = new Date().toISOString().split("T")[0]!;
-  const scoreDesde = (() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 2);
-    d.setDate(1);
-    return d.toISOString().split("T")[0]!;
-  })();
-  const scoreRes = await computeScoreChofer(chofer_id, scoreDesde, scoreHasta);
+  const scoreRes = await scorePromise;
 
   return ({
     ...chofer,
