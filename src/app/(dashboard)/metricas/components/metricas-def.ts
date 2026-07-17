@@ -162,6 +162,16 @@ export const KPIS: KpiDef[] = [
     fmt: (n) => pct(n),
   },
   {
+    // Costo de sueldos en pesos (no %): serie mes a mes con comparación interanual,
+    // para ver la evolución del costo laboral junto a la facturación (audio Bárbara
+    // 17/07). Sube = peor (es un costo). En vivo no sale de viajes → "—".
+    id: "sueldos_pesos", label: "Sueldos $", icon: Wallet,
+    subirEsBueno: false, enPuntos: false, metrica: "sueldo",
+    fuente: { label: "Sueldos admin", href: "/sueldos-admin" },
+    valor: (t) => t?.sueldoTotal || null,
+    fmt: (n) => compactMoney(n),
+  },
+  {
     id: "toneladas", label: "Toneladas promedio", icon: Weight,
     subirEsBueno: true, enPuntos: false, metrica: "toneladas",
     fuente: { label: "Viajes", href: "/viajes" },
