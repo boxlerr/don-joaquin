@@ -46,17 +46,39 @@ const CLIENTE_PLACEHOLDER = "sin asignar (import)";
 
 async function getReporteClientes(desde: string, hasta: string): Promise<ReporteClientesResult> {
   const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("viajes")
-    .select("cliente_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio, es_vacio, clientes(razon_social)")
-    .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta)
-    .neq("estado", "cancelado"); // los borrados (soft delete) no suman al reporte
+  // PostgREST corta en 1000 filas: paginamos en bloques hasta traer TODO el
+  // período (si no, un rango con >1000 viajes daba números truncados/mal).
+  type ViajeRep = {
+    cliente_id: string | null;
+    km_con_carga: number | null;
+    km_vacios: number | null;
+    tonelaje_real: number | null;
+    monto_flete: number | null;
+    moneda: string | null;
+    tipo_cambio: number | null;
+    es_vacio: boolean | null;
+    clientes: { razon_social?: string } | { razon_social?: string }[] | null;
+  };
+  const CHUNK = 1000;
+  const filas: ViajeRep[] = [];
+  for (let from = 0; ; from += CHUNK) {
+    const { data } = await supabase
+      .from("viajes")
+      .select("cliente_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, moneda, tipo_cambio, es_vacio, clientes(razon_social)")
+      .gte("fecha_viaje", desde)
+      .lte("fecha_viaje", hasta)
+      .neq("estado", "cancelado") // los borrados (soft delete) no suman al reporte
+      .order("fecha_viaje", { ascending: false })
+      .range(from, from + CHUNK - 1);
+    const page = (data ?? []) as ViajeRep[];
+    filas.push(...page);
+    if (page.length < CHUNK) break;
+  }
 
   const map = new Map<string, ClienteReporte>();
   let conCliente = 0;
   let sinAsignar = 0;
-  for (const v of data ?? []) {
+  for (const v of filas) {
     const cli = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
     const nombre = (cli as { razon_social?: string } | null)?.razon_social ?? null;
     const esPlaceholder = !!nombre && nombre.trim().toLowerCase() === CLIENTE_PLACEHOLDER;

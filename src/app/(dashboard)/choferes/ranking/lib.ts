@@ -400,15 +400,36 @@ export async function computeRanking({
     }
   }
 
+  // Pre-agrupar por chofer UNA sola vez (O(n+m)) en vez de filtrar cada colección
+  // entera por cada chofer (O(n·m)) — esto corre en cada carga del dashboard/ranking.
+  const groupByChofer = <T extends { chofer_id: string | null }>(arr: T[] | null | undefined) => {
+    const m = new Map<string, T[]>();
+    for (const x of arr ?? []) {
+      if (!x.chofer_id) continue;
+      const list = m.get(x.chofer_id);
+      if (list) list.push(x);
+      else m.set(x.chofer_id, [x]);
+    }
+    return m;
+  };
+  const viajesPorChofer = groupByChofer(viajes);
+  const apercPorChofer = groupByChofer(apercibimientos);
+  const roturasPorChofer = groupByChofer(
+    (roturas ?? []) as { chofer_id: string; tipo: string | null; gravedad: string | null }[],
+  );
+  const licenciasPorChofer = groupByChofer(licencias);
+  const siniestrosPorChofer = groupByChofer(siniestros);
+  const ausenciasPorChofer = groupByChofer((ausenciasInjust ?? []) as { chofer_id: string }[]);
+
   const ranking: RankingChofer[] = (choferes ?? []).map((c) => {
-    const cv = (viajes ?? []).filter((v) => v.chofer_id === c.id);
-    const ca = apercibimientos.filter((a) => a.chofer_id === c.id);
+    const cv = viajesPorChofer.get(c.id) ?? [];
+    const ca = apercPorChofer.get(c.id) ?? [];
     const seguridad_eventos = ca.filter((a) => eventoCuentaSeguridad(a.tipo)).length;
     const conducta_eventos = ca.filter((a) => eventoCuentaConducta(a.tipo)).length;
-    const cr = ((roturas ?? []) as { chofer_id: string; tipo: string | null; gravedad: string | null }[]).filter((r) => r.chofer_id === c.id);
-    const cl = (licencias ?? []).filter((l) => l.chofer_id === c.id);
-    const cs = (siniestros ?? []).filter((s) => s.chofer_id === c.id);
-    const cai = ((ausenciasInjust ?? []) as { chofer_id: string }[]).filter((a) => a.chofer_id === c.id);
+    const cr = roturasPorChofer.get(c.id) ?? [];
+    const cl = licenciasPorChofer.get(c.id) ?? [];
+    const cs = siniestrosPorChofer.get(c.id) ?? [];
+    const cai = ausenciasPorChofer.get(c.id) ?? [];
 
     const km_con_carga = cv.reduce((s, v) => s + (v.km_con_carga ?? 0), 0);
     const km_vacios = cv.reduce((s, v) => s + (v.km_vacios ?? 0), 0);

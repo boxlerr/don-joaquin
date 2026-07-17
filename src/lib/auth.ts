@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SECCIONES, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
@@ -70,7 +71,11 @@ export type CurrentUser = {
   secciones: Record<SeccionCodigo, AreaNivel>;
 };
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// Memoizada por request (React cache): un mismo render que llame varias veces a
+// requireArea/hasSeccion/getCurrentUser resuelve el usuario UNA sola vez, en vez
+// de repetir ~7 consultas de auth por cada llamada. Cada Server Action es un
+// request nuevo, así que tras una mutación se recomputa (semántica intacta).
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const supabase = await createClient();
 
   const {
@@ -222,7 +227,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     permisos,
     secciones,
   };
-}
+});
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
