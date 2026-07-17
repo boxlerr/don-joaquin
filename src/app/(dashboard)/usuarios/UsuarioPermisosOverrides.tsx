@@ -197,7 +197,6 @@ export default function UsuarioPermisosOverrides({
           <ShieldPlus size={16} className="text-primary" />
           <h2 className="text-foreground text-sm font-semibold">Permisos individuales por usuario</h2>
         </div>
-        <p className="text-xs text-muted-foreground">Solo suman sobre el permiso del rol — nunca restan.</p>
       </div>
 
       {error && (
@@ -471,10 +470,10 @@ function OverrideChip({
         type="button"
         disabled={disabled}
         onClick={onDelete}
-        className="ml-1 text-muted-foreground/50 hover:text-red-500 transition-colors disabled:opacity-30"
+        className="ml-1 text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded p-0.5 transition-colors disabled:opacity-30"
         title="Quitar permiso"
       >
-        <Trash2 size={11} />
+        <Trash2 size={13} />
       </button>
     </div>
   );
