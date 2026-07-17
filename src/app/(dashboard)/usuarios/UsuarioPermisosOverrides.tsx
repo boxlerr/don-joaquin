@@ -4,15 +4,9 @@ import { useState, useTransition } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction, setUsuarioSeccionAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
-import { ShieldPlus, Trash2, Clock, AlertCircle, Lock } from "lucide-react";
-import { areaTitulo, areaColor, rolLabel } from "./area-meta";
+import { ShieldPlus, Trash2, Clock, AlertCircle, Lock, Check } from "lucide-react";
+import { areaTitulo, rolLabel, GRUPOS_SIDEBAR, GRUPO_COLOR } from "./area-meta";
 import { seccionesDeArea, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
-
-interface Area {
-  codigo: AreaCodigo;
-  nombre: string;
-  orden: number;
-}
 
 interface AreaOverrideRow {
   usuario_id: string;
@@ -39,7 +33,6 @@ interface UsuarioFila {
 
 interface Props {
   usuarios: UsuarioFila[];
-  areas: Area[];
   overrides: AreaOverrideRow[];
   seccionOverrides: SeccionOverrideRow[];
   confidencial: Record<SeccionCodigo, boolean>;
@@ -82,7 +75,6 @@ function estaVencido(vence_en: string | null): boolean {
 
 export default function UsuarioPermisosOverrides({
   usuarios,
-  areas,
   overrides: initialAreaOverrides,
   seccionOverrides: initialSeccionOverrides,
   confidencial,
@@ -91,71 +83,71 @@ export default function UsuarioPermisosOverrides({
   const [seccionOverrides, setSeccionOverrides] = useState<SeccionOverrideRow[]>(initialSeccionOverrides);
 
   const [selectedUsuario, setSelectedUsuario] = useState<string | "">("");
-  const [newArea, setNewArea] = useState<AreaCodigo | "">("");
-  const [selectedSecs, setSelectedSecs] = useState<SeccionCodigo[]>([]); // vacío = toda el área
+  const [grupoSel, setGrupoSel] = useState<string | null>(null); // grupo del sidebar elegido
+  const [areasFull, setAreasFull] = useState<AreaCodigo[]>([]); // áreas marcadas "Toda el área"
+  const [secs, setSecs] = useState<SeccionCodigo[]>([]); // secciones marcadas
   const [newNivel, setNewNivel] = useState<AreaNivel>("read");
   const [newVence, setNewVence] = useState<string>("");
   const [newMotivo, setNewMotivo] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const areasOrdered = [...areas].sort((a, b) => a.orden - b.orden);
-  const seccionesDelArea = newArea ? seccionesDeArea(newArea) : [];
+  const grupoActual = GRUPOS_SIDEBAR.find((g) => g.group === grupoSel) ?? null;
+  const nSeleccion = areasFull.length + secs.length;
 
-  function resetForm() {
-    setNewArea("");
-    setSelectedSecs([]);
+  function elegirGrupo(group: string) {
+    setGrupoSel(group);
+    setAreasFull([]);
+    setSecs([]);
+  }
+  function toggleArea(area: AreaCodigo) {
+    setAreasFull((prev) => (prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]));
+  }
+  function toggleSec(codigo: SeccionCodigo) {
+    setSecs((prev) => (prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo]));
+  }
+  function limpiarSeleccion() {
+    setGrupoSel(null);
+    setAreasFull([]);
+    setSecs([]);
     setNewVence("");
     setNewMotivo("");
   }
 
-  function toggleSec(codigo: SeccionCodigo) {
-    setSelectedSecs((prev) =>
-      prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo],
-    );
-  }
-
   function handleAgregar() {
-    if (!selectedUsuario || !newArea) return;
+    if (!selectedUsuario || nSeleccion === 0) return;
     const vence_en = newVence ? new Date(newVence).toISOString() : null;
     setError(null);
 
-    // Sin secciones elegidas → override de toda el área (comportamiento original).
-    if (selectedSecs.length === 0) {
-      const area = newArea as AreaCodigo;
-      const nuevo: AreaOverrideRow = {
-        usuario_id: selectedUsuario, area_codigo: area, nivel: newNivel, vence_en, motivo: newMotivo || null,
-      };
-      setAreaOverrides((prev) => [
-        ...prev.filter((o) => !(o.usuario_id === selectedUsuario && o.area_codigo === area)),
-        nuevo,
-      ]);
-      startTransition(async () => {
-        const res = await setUsuarioAreaAction(selectedUsuario, area, newNivel, vence_en, newMotivo || undefined);
-        if ("error" in res) { setError(res.error); setAreaOverrides(initialAreaOverrides); }
-        else resetForm();
-      });
-      return;
-    }
-
-    // Una o varias secciones puntuales, de un tiro.
-    const secs = selectedSecs;
-    const nuevos: SeccionOverrideRow[] = secs.map((seccion) => ({
+    const nuevosAreas: AreaOverrideRow[] = areasFull.map((area) => ({
+      usuario_id: selectedUsuario, area_codigo: area, nivel: newNivel, vence_en, motivo: newMotivo || null,
+    }));
+    const nuevosSecs: SeccionOverrideRow[] = secs.map((seccion) => ({
       usuario_id: selectedUsuario, seccion_codigo: seccion, nivel: newNivel, vence_en, motivo: newMotivo || null,
     }));
+
+    setAreaOverrides((prev) => [
+      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && areasFull.includes(o.area_codigo))),
+      ...nuevosAreas,
+    ]);
     setSeccionOverrides((prev) => [
       ...prev.filter((o) => !(o.usuario_id === selectedUsuario && secs.includes(o.seccion_codigo))),
-      ...nuevos,
+      ...nuevosSecs,
     ]);
+
     startTransition(async () => {
-      const results = await Promise.all(
-        secs.map((seccion) =>
-          setUsuarioSeccionAction(selectedUsuario, seccion, newNivel, vence_en, newMotivo || undefined),
-        ),
-      );
+      const results = await Promise.all([
+        ...areasFull.map((a) => setUsuarioAreaAction(selectedUsuario, a, newNivel, vence_en, newMotivo || undefined)),
+        ...secs.map((s) => setUsuarioSeccionAction(selectedUsuario, s, newNivel, vence_en, newMotivo || undefined)),
+      ]);
       const fallo = results.find((r): r is { error: string } => "error" in r);
-      if (fallo) { setError(fallo.error); setSeccionOverrides(initialSeccionOverrides); }
-      else resetForm();
+      if (fallo) {
+        setError(fallo.error);
+        setAreaOverrides(initialAreaOverrides);
+        setSeccionOverrides(initialSeccionOverrides);
+      } else {
+        limpiarSeleccion();
+      }
     });
   }
 
@@ -183,15 +175,11 @@ export default function UsuarioPermisosOverrides({
       seccionOverrides.some((o) => o.usuario_id === u.id),
   );
 
-  const btnLabel = selectedSecs.length > 1 ? `Agregar ${selectedSecs.length}` : "Agregar";
-
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <ShieldPlus size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Permisos individuales por usuario</h2>
-        </div>
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+        <ShieldPlus size={16} className="text-primary" />
+        <h2 className="text-foreground text-sm font-semibold">Permisos individuales por usuario</h2>
       </div>
 
       {error && (
@@ -206,8 +194,9 @@ export default function UsuarioPermisosOverrides({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Agregar permiso puntual
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1.3fr)_auto] gap-2 items-end">
-          {/* Usuario */}
+
+        {/* Usuario / Nivel / Vencimiento / botón */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,0.85fr)_minmax(0,1.3fr)_auto] gap-2 items-end">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Usuario</label>
             <Combobox
@@ -225,34 +214,6 @@ export default function UsuarioPermisosOverrides({
             />
           </div>
 
-          {/* Área */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              Área
-              {newArea && (
-                <span className="size-2 rounded-full" style={{ background: areaColor(newArea) }} />
-              )}
-            </label>
-            <Combobox
-              value={newArea}
-              onValueChange={(v) => {
-                setNewArea(v as AreaCodigo);
-                setSelectedSecs([]); // al cambiar de área se resetean las secciones
-              }}
-              options={[
-                { id: "", label: "Seleccionar…" },
-                ...areasOrdered.map((a) => ({
-                  id: a.codigo,
-                  label: areaTitulo(a.codigo, a.nombre),
-                  dot: areaColor(a.codigo),
-                })),
-              ]}
-              searchPlaceholder="Buscar área..."
-              triggerClassName="h-9 w-full text-xs"
-            />
-          </div>
-
-          {/* Nivel */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Nivel</label>
             <Combobox
@@ -264,7 +225,6 @@ export default function UsuarioPermisosOverrides({
             />
           </div>
 
-          {/* Vencimiento */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock size={11} />
@@ -288,43 +248,88 @@ export default function UsuarioPermisosOverrides({
             </div>
           </div>
 
-          {/* Botón agregar */}
           <button
             type="button"
-            disabled={!selectedUsuario || !newArea || isPending}
+            disabled={!selectedUsuario || nSeleccion === 0 || isPending}
             onClick={handleAgregar}
             className="h-9 px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors whitespace-nowrap"
           >
-            {btnLabel}
+            {nSeleccion > 0 ? `Agregar ${nSeleccion}` : "Agregar"}
           </button>
         </div>
 
-        {/* Selector de secciones (multi) — aparece al elegir un área con subsecciones */}
-        {newArea && seccionesDelArea.length > 0 && (
-          <div className="mt-3">
-            <label className="text-xs text-muted-foreground">
-              Secciones <span className="text-muted-foreground/70">— elegí una o varias, o dejá “Toda el área”</span>
-            </label>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              <SecChip
-                active={selectedSecs.length === 0}
-                onClick={() => setSelectedSecs([])}
-              >
-                Toda el área
-              </SecChip>
-              {seccionesDelArea.map((s) => (
-                <SecChip
-                  key={s.codigo}
-                  active={selectedSecs.includes(s.codigo)}
-                  lock={confidencial[s.codigo]}
-                  onClick={() => toggleSec(s.codigo)}
-                >
-                  {s.nombre}
-                </SecChip>
-              ))}
+        {/* Dos listas: áreas (grupos) a la izquierda, secciones con checkboxes a la derecha */}
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-[minmax(150px,220px)_1fr] gap-3">
+          {/* Izquierda: grupos del sidebar */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40 border-b border-border">
+              Área
+            </div>
+            <div className="max-h-72 overflow-y-auto p-1">
+              {GRUPOS_SIDEBAR.map((g) => {
+                const activo = grupoSel === g.group;
+                return (
+                  <button
+                    key={g.group}
+                    type="button"
+                    onClick={() => elegirGrupo(g.group)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${
+                      activo ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <span className="size-2.5 rounded-full shrink-0" style={{ background: GRUPO_COLOR[g.group] }} />
+                    <span className="flex-1 truncate">{g.label}</span>
+                    {activo && <Check size={13} className="shrink-0 text-primary" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {/* Derecha: secciones del grupo elegido, con casilleros */}
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40 border-b border-border">
+              Secciones
+            </div>
+            <div className="max-h-72 overflow-y-auto p-2">
+              {!grupoActual ? (
+                <p className="px-1 py-8 text-center text-xs text-muted-foreground/70">
+                  Elegí un área a la izquierda.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {grupoActual.areas.map((area) => {
+                    const seccionesArea = seccionesDeArea(area);
+                    const multi = grupoActual.areas.length > 1;
+                    return (
+                      <div key={area}>
+                        {multi && (
+                          <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                            {areaTitulo(area)}
+                          </p>
+                        )}
+                        <CheckRow checked={areasFull.includes(area)} onToggle={() => toggleArea(area)} bold>
+                          {multi ? `Toda el área (${areaTitulo(area)})` : "Toda el área"}
+                        </CheckRow>
+                        {seccionesArea.map((s) => (
+                          <CheckRow
+                            key={s.codigo}
+                            checked={secs.includes(s.codigo)}
+                            onToggle={() => toggleSec(s.codigo)}
+                            lock={confidencial[s.codigo]}
+                            indent
+                          >
+                            {s.nombre}
+                          </CheckRow>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Motivo opcional */}
         <div className="mt-3">
@@ -338,10 +343,10 @@ export default function UsuarioPermisosOverrides({
         </div>
 
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Elegí <span className="font-medium">un área</span> para todas sus páginas, o bajá a{" "}
+          Tildá <span className="font-medium">Toda el área</span> para todas sus páginas, o{" "}
           <span className="font-medium">una o varias secciones</span> — incluidas las{" "}
           <span className="inline-flex items-center gap-0.5"><Lock size={10} /> confidenciales</span>{" "}
-          (Préstamos, Cheques, Sueldos…), sin abrírselas al resto del rol.
+          (Préstamos, Cheques, Sueldos…), sin abrírselas al resto del rol. Después tocá Agregar.
         </p>
       </div>
 
@@ -400,28 +405,30 @@ export default function UsuarioPermisosOverrides({
   );
 }
 
-/** Chip togglable del selector de secciones. */
-function SecChip({
-  active, lock, onClick, children,
+/** Fila con casillero del panel de secciones. */
+function CheckRow({
+  checked, onToggle, lock, bold, indent, children,
 }: {
-  active: boolean;
+  checked: boolean;
+  onToggle: () => void;
   lock?: boolean;
-  onClick: () => void;
+  bold?: boolean;
+  indent?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-        active
-          ? "border-[#7DD3FC] bg-[#E0F2FE] text-[#075985]"
-          : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-      }`}
+    <label
+      className={`flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer hover:bg-muted/60 ${indent ? "pl-5" : ""}`}
     >
-      {lock && <Lock size={10} className="shrink-0" />}
-      {children}
-    </button>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
+      />
+      {lock && <Lock size={11} className="shrink-0 text-muted-foreground" />}
+      <span className={`text-xs ${bold ? "font-medium text-foreground" : "text-foreground"}`}>{children}</span>
+    </label>
   );
 }
 

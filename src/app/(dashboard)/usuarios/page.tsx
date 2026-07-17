@@ -183,7 +183,6 @@ export default async function UsuariosPage() {
       {showMatriz && areas.length > 0 && (
         <UsuarioPermisosOverrides
           usuarios={usuariosFila}
-          areas={areas}
           overrides={usuarioAreas}
           seccionOverrides={usuarioSecciones}
           confidencial={confidencialMap}
