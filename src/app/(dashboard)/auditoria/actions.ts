@@ -32,6 +32,8 @@ export type GetAuditLogsParams = {
   entidad_tipos?: string[];
   accion?: string;
   page?: number;
+  /** Contar el total (query cara). Solo hace falta al cambiar filtros, no al paginar. */
+  withCount?: boolean;
 };
 
 export type AuditLogsResult = {
@@ -45,17 +47,21 @@ export async function getGlobalAuditLogsAction(
 ): Promise<AuditLogsResult | { error: string }> {
   await requireArea("sistema", "read");
 
-  const { desde, hasta, usuario_id, entidad_tipos, accion, page = 0 } = params;
+  const { desde, hasta, usuario_id, entidad_tipos, accion, page = 0, withCount = true } = params;
   const supabase = createAdminClient();
   const rangeFrom = page * AUDIT_PAGE_SIZE;
   const rangeTo = rangeFrom + AUDIT_PAGE_SIZE - 1;
+
+  // El count exacto es la parte cara y solo cambia al filtrar: al paginar se
+  // omite (el cliente reusa el total que ya tiene) → cambiar de página es más liviano.
+  const selectOpts = withCount ? { count: "exact" as const } : undefined;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from("audit_log")
     .select(
       "id, accion, entidad_tipo, entidad_id, valores_anteriores, valores_nuevos, metadata, created_at, usuario:usuario_id(nombre, apellido)",
-      { count: "exact" }
+      selectOpts
     )
     .order("created_at", { ascending: false })
     .range(rangeFrom, rangeTo);
@@ -101,7 +107,8 @@ export async function getGlobalAuditLogsAction(
 
   const refs = await resolverReferencias(supabase, entries);
 
-  return { data: entries, total: count ?? 0, refs };
+  // total = -1 cuando no se pidió count: el cliente mantiene el total que ya tenía.
+  return { data: entries, total: withCount ? (count ?? 0) : -1, refs };
 }
 
 export async function getAuditUsuariosAction(): Promise<

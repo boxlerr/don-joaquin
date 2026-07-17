@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useRef, useEffect } from "react";
 import {
   X,
   Clock,
   User,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ShieldAlert,
   ListChecks,
   MapPin,
@@ -93,38 +95,71 @@ export default function AuditoriaClient({
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Cache de páginas ya traídas (por combinación de filtros): re-navegar es instantáneo.
+  const cacheRef = useRef<Map<string, { data: AuditLogEntry[]; refs: RefsMap; total: number }>>(new Map());
+
+  const paramsBase = (f: Filters): Omit<GetAuditLogsParams, "page" | "withCount"> => ({
+    desde: f.desde || undefined,
+    hasta: f.hasta || undefined,
+    usuario_id: f.usuario_id || undefined,
+    entidad_tipos: f.entidad_tipos.length > 0 ? f.entidad_tipos : undefined,
+    accion: f.accion || undefined,
+  });
+
+  const claveFiltros = (f: Filters) =>
+    JSON.stringify({ ...paramsBase(f), entidad_tipos: [...f.entidad_tipos].sort() });
+
+  // Trae en silencio (sin spinner) la página siguiente, para que "Siguiente" sea instantáneo.
+  const prefetch = useCallback((f: Filters, nextPage: number, fKey: string, tot: number) => {
+    if (nextPage < 0) return;
+    if (tot > 0 && nextPage >= Math.ceil(tot / PAGE_SIZE)) return;
+    const key = `${fKey}#${nextPage}`;
+    if (cacheRef.current.has(key)) return;
+    void getGlobalAuditLogsAction({ ...paramsBase(f), page: nextPage, withCount: false }).then((r) => {
+      if (!("error" in r)) cacheRef.current.set(key, { data: r.data, refs: r.refs, total: r.total });
+    });
+  }, []);
 
   const fetchData = useCallback(
-    (newFilters: Filters, newPage: number) => {
-      const params: GetAuditLogsParams = {
-        desde: newFilters.desde || undefined,
-        hasta: newFilters.hasta || undefined,
-        usuario_id: newFilters.usuario_id || undefined,
-        entidad_tipos: newFilters.entidad_tipos.length > 0 ? newFilters.entidad_tipos : undefined,
-        accion: newFilters.accion || undefined,
-        page: newPage,
-      };
+    (newFilters: Filters, newPage: number, withCount: boolean) => {
+      const fKey = claveFiltros(newFilters);
+      const cacheKey = `${fKey}#${newPage}`;
+      const cached = cacheRef.current.get(cacheKey);
+      if (cached) {
+        setEntries(cached.data);
+        setRefs(cached.refs);
+        prefetch(newFilters, newPage + 1, fKey, total);
+        return;
+      }
       startTransition(async () => {
-        const result = await getGlobalAuditLogsAction(params);
-        if (!("error" in result)) {
-          setEntries(result.data);
-          setRefs(result.refs);
-          setTotal(result.total);
-        }
+        const result = await getGlobalAuditLogsAction({ ...paramsBase(newFilters), page: newPage, withCount });
+        if ("error" in result) return;
+        setEntries(result.data);
+        setRefs(result.refs);
+        const tot = result.total >= 0 ? result.total : total;
+        if (result.total >= 0) setTotal(result.total);
+        cacheRef.current.set(cacheKey, { data: result.data, refs: result.refs, total: tot });
+        prefetch(newFilters, newPage + 1, fKey, tot);
       });
     },
-    [],
+    [prefetch, total],
   );
+
+  // Al cambiar filtros: limpia la cache y recalcula el total (la parte cara).
+  const aplicarFiltros = (newFilters: Filters) => {
+    cacheRef.current.clear();
+    setFilters(newFilters);
+    setPage(0);
+    fetchData(newFilters, 0, true);
+  };
 
   const handleFilterChange = <K extends Exclude<keyof Filters, "entidad_tipos">>(
     key: K,
     value: string,
   ) => {
-    const newFilters = { ...filters, [key]: value };
-    setFilters(newFilters);
-    setPage(0);
-    fetchData(newFilters, 0);
+    aplicarFiltros({ ...filters, [key]: value });
   };
 
   const toggleEntidad = (tipos: readonly string[]) => {
@@ -137,23 +172,34 @@ export default function AuditoriaClient({
         ? filters.entidad_tipos.filter((v) => !tipos.includes(v))
         : Array.from(new Set([...filters.entidad_tipos, ...tipos]));
     }
-    const newFilters = { ...filters, entidad_tipos: next };
-    setFilters(newFilters);
-    setPage(0);
-    fetchData(newFilters, 0);
+    aplicarFiltros({ ...filters, entidad_tipos: next });
   };
 
   const handlePageChange = (newPage: number) => {
+    if (newPage < 0 || newPage >= totalPages || newPage === page) return;
     setPage(newPage);
-    fetchData(filters, newPage);
+    fetchData(filters, newPage, false); // paginar reusa el total: no recuenta
   };
 
   const clearFilters = () => {
-    const empty: Filters = { desde: "", hasta: "", usuario_id: "", entidad_tipos: [], accion: "" };
-    setFilters(empty);
     setQ("");
-    setPage(0);
-    fetchData(empty, 0);
+    aplicarFiltros({ desde: "", hasta: "", usuario_id: "", entidad_tipos: [], accion: "" });
+  };
+
+  // Salto directo a una página (input editable en el pie).
+  const [jumpTo, setJumpTo] = useState("1");
+  useEffect(() => {
+    setJumpTo(String(page + 1));
+  }, [page]);
+  const commitJump = () => {
+    const n = parseInt(jumpTo, 10);
+    if (!Number.isFinite(n)) {
+      setJumpTo(String(page + 1));
+      return;
+    }
+    const destino = Math.min(Math.max(n, 1), totalPages);
+    setJumpTo(String(destino));
+    handlePageChange(destino - 1);
   };
 
   const hasFilters =
@@ -408,26 +454,62 @@ export default function AuditoriaClient({
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-            <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft size={14} />
-              Anterior
-            </button>
-            <span className="text-xs text-muted-foreground/70">
-              Página {page + 1} de {totalPages}
-            </span>
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page >= totalPages - 1}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Siguiente
-              <ChevronRight size={14} />
-            </button>
+          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handlePageChange(0)}
+                disabled={page === 0}
+                title="Primera página"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronsLeft size={15} />
+              </button>
+              <button
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page === 0}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+                Anterior
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Página</span>
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={jumpTo}
+                onChange={(e) => setJumpTo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                onBlur={commitJump}
+                aria-label="Ir a la página"
+                className="w-14 text-center rounded-md border border-border bg-card px-1 py-1 text-sm text-foreground tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span>de {totalPages}</span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page >= totalPages - 1}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+                <ChevronRight size={14} />
+              </button>
+              <button
+                onClick={() => handlePageChange(totalPages - 1)}
+                disabled={page >= totalPages - 1}
+                title="Última página"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronsRight size={15} />
+              </button>
+            </div>
           </div>
         )}
       </div>
