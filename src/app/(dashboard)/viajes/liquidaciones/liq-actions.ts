@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Tipos para el listado de liquidaciones de Loma (Excels importados)
@@ -120,14 +121,15 @@ export async function getLiqLomaFileUrlAction(
 }
 
 // ---------------------------------------------------------------------------
-// Eliminar una liquidación (solo admin). Borra el registro y el archivo.
-// Los viajes vinculados quedan con liq_loma_id=null (FK on delete set null).
+// Eliminar una liquidación (nivel Edición del área Viajes). Borra el registro
+// y el archivo. Los viajes vinculados quedan con liq_loma_id=null (FK on delete
+// set null). Queda registrado en auditoría.
 // ---------------------------------------------------------------------------
 
 export async function deleteLiqLomaAction(
   liqId: string,
 ): Promise<{ ok?: boolean; error?: string }> {
-  await requireArea("viajes", "admin");
+  const user = await requireArea("viajes", "write");
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,6 +151,13 @@ export async function deleteLiqLomaAction(
   if (liq?.archivo_id) {
     await sb.from("documentos_archivos").delete().eq("id", liq.archivo_id);
   }
+
+  await logAudit({
+    accion: "eliminar",
+    entidadTipo: "compliance_liq_loma",
+    entidadId: liqId,
+    usuarioId: user.id,
+  });
 
   revalidatePath("/viajes/liquidaciones");
   return { ok: true };

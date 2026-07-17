@@ -7,11 +7,13 @@ import { SECCIONES, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/seccione
 // ---------------------------------------------------------------------------
 
 export type AreaCodigo =
+  | "principal"
   | "logistica"
   | "viajes"
   | "flota"
   | "mantenimiento"
   | "combustible"
+  | "seguridad"
   | "comercial"
   | "finanzas"
   | "caja"
@@ -31,11 +33,13 @@ const NIVEL_RANK: Record<AreaNivel, number> = {
 export type PermisosArea = Record<AreaCodigo, AreaNivel>;
 
 const AREAS_VACIAS: PermisosArea = {
+  principal: "none",
   logistica: "none",
   viajes: "none",
   flota: "none",
   mantenimiento: "none",
   combustible: "none",
+  seguridad: "none",
   comercial: "none",
   finanzas: "none",
   caja: "none",

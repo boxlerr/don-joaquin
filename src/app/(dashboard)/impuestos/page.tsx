@@ -4,6 +4,7 @@ import { Landmark, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getImpuestosAction } from "./actions";
 import ImpuestosClient from "./ImpuestosClient";
+import HelpTutorialButton from "./help-tutorial-button";
 
 function diasRestantes(fechaISO: string): number {
   const [y, m, d] = fechaISO.split("-").map(Number);
@@ -33,6 +34,7 @@ export default async function ImpuestosPage() {
       <PageHeader
         title="Impuestos"
         description="Calendario de vencimientos impositivos — checklist de presentación y alertas"
+        action={<HelpTutorialButton />}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

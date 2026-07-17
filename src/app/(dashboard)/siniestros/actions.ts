@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -26,7 +26,7 @@ export async function createSiniestroAction(data: {
   numero_siniestro_seguro: string;
   terceros_involucrados: string;
 }): Promise<{ error?: string; success?: true }> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
 
   const supabase = createAdminClient();
   const authClient = await createClient();
@@ -60,7 +60,7 @@ export async function updateSiniestroAction(id: string, data: {
   numero_siniestro_seguro: string;
   terceros_involucrados: string;
 }): Promise<{ error?: string; success?: true }> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
 
   const supabase = createAdminClient();
 
@@ -77,7 +77,7 @@ export async function updateSiniestroAction(id: string, data: {
 }
 
 export async function deleteSiniestroAction(id: string): Promise<{ error?: string; success?: true }> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
   const supabase = createAdminClient();
 
   const { error } = await supabase.from("siniestros").delete().eq("id", id);
@@ -99,7 +99,7 @@ export async function registrarPagoSiniestroAction(data: {
   concepto: string;
   observaciones: string | null;
 }): Promise<{ error?: string; success?: true }> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
 
   const supabase = createAdminClient();
   const authClient = await createClient();
@@ -144,7 +144,7 @@ export async function crearUrlSubidaSiniestroAction(input: {
   siniestro_id: string;
   filename: string;
 }): Promise<CrearUrlResult> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
   return crearUrlSubidaAdjunto(SINIESTRO_CFG, input.filename, input.siniestro_id);
 }
 
@@ -153,7 +153,7 @@ export async function vincularArchivosSiniestroAction(
   descripcion: string | null,
   archivos: AdjuntoArchivoMeta[],
 ): Promise<{ ok: boolean; vinculados?: number; fallidos?: number; error?: string }> {
-  const user = await requireArea("logistica", "write");
+  const user = await requireSeccion("siniestros", "write");
   if (!siniestro_id || !archivos?.length) return { ok: false, error: "Datos incompletos." };
   const desc = descripcion?.trim() || null;
   const { vinculados, fallidos } = await vincularAdjuntos(
@@ -178,7 +178,7 @@ export type SiniestroArchivo = {
 };
 
 export async function getArchivosSiniestroAction(siniestro_id: string): Promise<SiniestroArchivo[]> {
-  await requireArea("logistica", "read");
+  await requireSeccion("siniestros", "read");
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -269,7 +269,7 @@ export async function uploadArchivoSiniestroAction(formData: FormData): Promise<
 }
 
 export async function deleteArchivoSiniestroAction(adjunto_id: string): Promise<{ error?: string; success?: true }> {
-  await requireArea("logistica", "write");
+  await requireSeccion("siniestros", "write");
   const supabase = createAdminClient();
 
   const { data: adjunto, error: getErr } = await supabase

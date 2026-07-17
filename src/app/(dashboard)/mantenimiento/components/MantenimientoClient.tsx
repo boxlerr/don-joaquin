@@ -220,7 +220,7 @@ export default function MantenimientoClient({
         description="Servicios, gomería y roturas de la flota — simple y al día"
         action={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <HelpTutorialButton canWrite={canWrite} />
+            <HelpTutorialButton />
             <ExportMenu onToast={showToast} />
             {canWrite && (
               <>

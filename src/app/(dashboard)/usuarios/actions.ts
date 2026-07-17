@@ -257,6 +257,153 @@ export async function updateRolAreaAction(
 }
 
 // ---------------------------------------------------------------------------
+// CRUD de roles: crear, renombrar y eliminar.
+// El rol `admin` (Administrador) está protegido: no se renombra ni se elimina.
+// Un rol solo se borra si no tiene usuarios asignados (primero reasignarlos).
+// ---------------------------------------------------------------------------
+
+/** Genera un código interno (slug) a partir del nombre visible. */
+function slugRol(nombre: string): string {
+  const base = nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // sacar tildes
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  return base || "rol";
+}
+
+export async function crearRolAction(
+  nombre: string,
+): Promise<{ ok: true; rol: { id: string; codigo: string; nombre: string } } | { error: string }> {
+  const admin = await requireDueño();
+  const limpio = nombre.trim();
+  if (limpio.length < 2) return { error: "Poné un nombre de al menos 2 caracteres." };
+
+  const supabase = createAdminClient();
+
+  // Código único: slug base + sufijo numérico si ya existe. Nunca "admin".
+  let codigo = slugRol(limpio);
+  if (codigo === "admin") codigo = "rol_admin";
+  const { data: existentes } = await supabase.from("roles").select("codigo");
+  const usados = new Set((existentes ?? []).map((r) => r.codigo));
+  if (usados.has(codigo)) {
+    let i = 2;
+    while (usados.has(`${codigo}_${i}`)) i++;
+    codigo = `${codigo}_${i}`;
+  }
+
+  // Rol nuevo arranca sin permisos (todas las áreas en "none"): mínimo privilegio.
+  const { data: creado, error } = await supabase
+    .from("roles")
+    .insert({ codigo, nombre: limpio })
+    .select("id, codigo, nombre")
+    .single();
+  if (error || !creado) return { error: error?.message ?? "No se pudo crear el rol." };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "crear",
+    entidadTipo: "roles",
+    entidadId: creado.id,
+    valoresNuevos: { codigo: creado.codigo, nombre: creado.nombre },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true, rol: creado };
+}
+
+export async function renombrarRolAction(
+  rol_id: string,
+  nombre: string,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+  const limpio = nombre.trim();
+  if (limpio.length < 2) return { error: "Poné un nombre de al menos 2 caracteres." };
+
+  const supabase = createAdminClient();
+  const { data: rol } = await supabase
+    .from("roles")
+    .select("codigo, nombre")
+    .eq("id", rol_id)
+    .single();
+  if (!rol) return { error: "Rol inexistente" };
+  if (rol.codigo === "admin") {
+    return { error: "El rol Administrador no se renombra." };
+  }
+  if (rol.nombre === limpio) return { ok: true };
+
+  const { error } = await supabase
+    .from("roles")
+    .update({ nombre: limpio, updated_at: new Date().toISOString() })
+    .eq("id", rol_id);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "actualizar",
+    entidadTipo: "roles",
+    entidadId: rol_id,
+    valoresAnteriores: { nombre: rol.nombre },
+    valoresNuevos: { nombre: limpio },
+    metadata: { rol_codigo: rol.codigo },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+export async function eliminarRolAction(
+  rol_id: string,
+): Promise<{ ok: true } | { error: string }> {
+  const admin = await requireDueño();
+  const supabase = createAdminClient();
+
+  const { data: rol } = await supabase
+    .from("roles")
+    .select("codigo, nombre")
+    .eq("id", rol_id)
+    .single();
+  if (!rol) return { error: "Rol inexistente" };
+  if (rol.codigo === "admin") {
+    return { error: "El rol Administrador no se puede eliminar." };
+  }
+
+  const { count } = await supabase
+    .from("usuarios")
+    .select("id", { count: "exact", head: true })
+    .eq("rol_id", rol_id);
+  if ((count ?? 0) > 0) {
+    return {
+      error: `Tiene ${count} usuario(s) con este rol. Reasignalos a otro rol antes de borrarlo.`,
+    };
+  }
+
+  // Limpiamos los permisos del rol antes de borrarlo (por si las FK no cascadean).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rol_secciones aún no está en los tipos generados
+  await (supabase as any).from("rol_secciones").delete().eq("rol_id", rol_id);
+  await supabase.from("rol_areas").delete().eq("rol_id", rol_id);
+
+  const { error } = await supabase.from("roles").delete().eq("id", rol_id);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: admin.id,
+    accion: "eliminar",
+    entidadTipo: "roles",
+    entidadId: rol_id,
+    valoresAnteriores: { codigo: rol.codigo, nombre: rol.nombre },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Override de subsección por rol (un nivel más fino que el área)
 // ---------------------------------------------------------------------------
 

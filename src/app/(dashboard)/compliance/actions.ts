@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -478,10 +479,16 @@ export async function setComplianceEnviarAAction(input: {
 }
 
 export async function deleteComplianceDocAction(doc_id: string) {
-  await requireArea("compliance", "admin");
+  const user = await requireArea("compliance", "write");
   const supabase = createAdminClient();
   const { error } = await supabase.from("compliance_documentos").delete().eq("id", doc_id);
   if (error) return { error: "Error al eliminar" };
+  await logAudit({
+    accion: "eliminar",
+    entidadTipo: "compliance_documentos",
+    entidadId: doc_id,
+    usuarioId: user.id,
+  });
   revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
   return { success: true };

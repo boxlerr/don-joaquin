@@ -5,6 +5,7 @@ import { getMetricasAction } from "./actions";
 import MetricasClient from "./MetricasClient";
 import MesSelectorMetricas from "./components/MesSelectorMetricas";
 import ExportarButton from "./components/ExportarButton";
+import HelpTutorialButton from "./help-tutorial-button";
 
 // Métricas históricas — las 6 planillas de gestión (sueldo s/facturación,
 // facturación por km, costo vs km, km vacíos, km al 100%, toneladas) en un
@@ -35,6 +36,7 @@ export default async function MetricasPage({
               mesesDisponibles={data.mesesDisponibles}
               hoyMes={data.hoyMes}
             />
+            <HelpTutorialButton />
             <ExportarButton mes={data.mes} />
           </div>
         }

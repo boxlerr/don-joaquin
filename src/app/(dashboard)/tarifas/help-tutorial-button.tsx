@@ -1,717 +1,606 @@
 "use client";
 
-import { useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import HelpTutorialDialog, {
+  MockField,
+  type TutorialTab,
+} from "@/components/help/HelpTutorialDialog";
 import {
-  HelpCircle,
-  X,
-  Plus,
-  Search,
-  History,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
-  Pencil,
-  PauseCircle,
-  Clock,
-  Lightbulb,
   Calculator,
   Users,
+  Route,
   Settings,
-  Layers,
+  Search,
+  Plus,
+  Pencil,
+  PauseCircle,
+  History,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Zap,
+  Info,
+  Calendar,
+  DollarSign,
+  Lock,
+  User,
+  Weight,
+  MapPin,
+  Flag,
+  Coins,
+  Save,
 } from "lucide-react";
 
-type TabId = "secciones" | "crear" | "busqueda" | "auditoria";
+// ===========================================================================
+// Helpers de mockup (todos a nivel de módulo)
+// ===========================================================================
 
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: "secciones", label: "Secciones", icon: <Layers size={14} /> },
-  { id: "crear", label: "Crear / Editar", icon: <Plus size={14} /> },
-  { id: "busqueda", label: "Búsqueda y Filtros", icon: <Search size={14} /> },
-  { id: "auditoria", label: "Editar y Auditoría", icon: <History size={14} /> },
-];
-
-export default function HelpTutorialButton() {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>("secciones");
-  const [step, setStep] = useState(0);
-
-  const steps =
-    tab === "secciones"
-      ? SECCIONES_STEPS
-      : tab === "crear"
-        ? MANUAL_STEPS
-        : tab === "busqueda"
-          ? SEARCH_STEPS
-          : AUDIT_STEPS;
-  const totalSteps = steps.length;
-  const current = steps[step];
-
-  function changeTab(t: TabId) {
-    setTab(t);
-    setStep(0);
-  }
-
+function FilaTarifa({
+  ruta,
+  modalidad,
+  valor,
+  activa,
+}: {
+  ruta: string;
+  modalidad: string;
+  valor: string;
+  activa: boolean;
+}) {
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) {
-          setTab("secciones");
-          setStep(0);
-        }
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ayuda"
-        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
-      >
-        <HelpCircle size={18} />
-      </button>
-
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
-                <HelpCircle size={18} />
-              </span>
-              <div>
-                <Dialog.Title className="text-foreground text-sm font-bold">
-                  Guía de Gestión
-                </Dialog.Title>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Tabs inside header */}
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-                {TABS.map((t) => {
-                  const active = tab === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => changeTab(t.id)}
-                      className={
-                        "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
-                        (active
-                          ? "bg-card text-primary shadow-sm"
-                          : "text-muted-foreground hover:text-foreground")
-                      }
-                    >
-                      {t.icon}
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <Dialog.Close
-                render={
-                  <button
-                    type="button"
-                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
-                    aria-label="Cerrar"
-                  />
-                }
-              >
-                <X size={16} />
-              </Dialog.Close>
-            </div>
-          </div>
-
-          {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/30 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-              {steps.map((_, i) => {
-                const isDone = i < step;
-                const isCurrent = i === step;
-                return (
-                  <div key={i} className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => setStep(i)}
-                      className={
-                        "size-5 rounded-full text-[9px] font-bold inline-flex items-center justify-center transition-all " +
-                        (isCurrent
-                          ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
-                          : isDone
-                            ? "bg-[#10B981] text-white"
-                            : "bg-card text-muted-foreground/70 border border-border")
-                      }
-                    >
-                      {isDone ? <CheckCircle2 size={10} /> : i + 1}
-                    </button>
-                    {i < totalSteps - 1 && (
-                      <div className={
-                        "w-4 h-0.5 mx-1 rounded-full " +
-                        (isDone ? "bg-[#10B981]" : "bg-[#E2E8F0]")
-                      } />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full whitespace-nowrap ml-4">
-              Paso {step + 1} de {totalSteps}
-            </div>
-          </div>
-
-          {/* Side-by-Side Content */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Left Column: Instructions */}
-            <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-foreground text-lg font-bold leading-tight">
-                    {current.title}
-                  </h3>
-                  <p className="text-muted-foreground text-[13px] leading-relaxed">
-                    {current.description}
-                  </p>
-                </div>
-
-                {current.hint && (
-                  <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-primary" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
-                    </div>
-                    <p className="text-xs leading-normal opacity-90">
-                      {current.hint}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
-              <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
-                      <div className="flex gap-1">
-                        <div className="size-2 rounded-full bg-[#FF5F56]/30" />
-                        <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
-                        <div className="size-2 rounded-full bg-[#27C93F]/30" />
-                      </div>
-                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-muted rounded-full" />
-                      </div>
-                    </div>
-                    <div className="p-5 overflow-hidden">
-                      {current.mockup}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
-            <button
-              type="button"
-              disabled={step === 0}
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
-            >
-              <ChevronLeft size={14} />
-              Anterior
-            </button>
-            <span className="text-[11px] text-muted-foreground/70">
-              {step + 1} / {totalSteps}
-            </span>
-            {step === totalSteps - 1 ? (
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
-              >
-                Entendido
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
-              >
-                Siguiente
-                <ChevronRight size={14} />
-              </button>
-            )}
-          </div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <div className="px-3 py-2 flex items-center gap-3 text-[11px] border-b border-border last:border-0">
+      <span className="flex-1 text-foreground truncate">{ruta}</span>
+      <span className="w-16">
+        <span className="px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#004A99] font-medium text-[10px]">
+          {modalidad}
+        </span>
+      </span>
+      <span className="w-14 text-right font-mono font-semibold text-foreground">
+        {valor}
+      </span>
+      <span className="w-14">
+        {activa ? (
+          <span className="inline-flex items-center gap-1 text-[#10B981] font-medium">
+            <CheckCircle2 size={11} /> Activa
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-muted-foreground/70">
+            <XCircle size={11} /> Inactiva
+          </span>
+        )}
+      </span>
+      <div className="w-16 flex items-center justify-end gap-1 text-muted-foreground/70">
+        <Pencil size={11} />
+        <PauseCircle size={11} />
+        <History size={11} />
+      </div>
+    </div>
   );
 }
 
-// =============================================================================
-// Tipo
-// =============================================================================
+function FilaCircuito({
+  codigo,
+  origen,
+  destino,
+  carga,
+  vacio,
+}: {
+  codigo: string;
+  origen: string;
+  destino: string;
+  carga: string;
+  vacio: string;
+}) {
+  return (
+    <div className="px-3 py-2 flex items-center gap-2 text-[11px] border-b border-border last:border-0">
+      <span className="w-10 font-mono text-muted-foreground">{codigo}</span>
+      <span className="flex-1 inline-flex items-center gap-1 text-foreground truncate">
+        {origen}
+        <ArrowRight size={11} className="text-muted-foreground/70 shrink-0" />
+        {destino}
+      </span>
+      <span className="w-12 text-right font-mono text-foreground">{carga}</span>
+      <span className="w-12 text-right font-mono text-foreground">{vacio}</span>
+      <div className="w-14 flex items-center justify-end gap-1 text-muted-foreground/70">
+        <Pencil size={11} />
+        <PauseCircle size={11} />
+      </div>
+    </div>
+  );
+}
 
-type TutorialStep = {
-  title: string;
-  description: React.ReactNode;
-  mockup: React.ReactNode;
-  hint?: React.ReactNode;
-};
+function EventoHistorial({
+  usuario,
+  fecha,
+  accion,
+  accionColor,
+  campo,
+  antes,
+  despues,
+}: {
+  usuario: string;
+  fecha: string;
+  accion: string;
+  accionColor: string;
+  campo: string;
+  antes?: string;
+  despues: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border p-2.5">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="size-5 rounded-full bg-[#E1F5FE] inline-flex items-center justify-center shrink-0">
+            <User size={10} className="text-primary" />
+          </span>
+          <span className="text-[11px] font-medium text-foreground truncate">
+            {usuario}
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-0.5 shrink-0">
+          <span
+            className={`text-[8px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${accionColor}`}
+          >
+            {accion}
+          </span>
+          <span className="text-[9px] text-muted-foreground">{fecha}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+        <span className="text-muted-foreground font-medium">{campo}:</span>
+        {antes !== undefined && (
+          <>
+            <span className="font-mono bg-[#FEF2F2] text-[#7F1D1D] px-1.5 py-0.5 rounded border border-[#FECACA]">
+              {antes}
+            </span>
+            <ArrowRight size={11} className="text-muted-foreground/70" />
+          </>
+        )}
+        <span className="font-mono bg-[#ECFDF5] text-[#064E3B] px-1.5 py-0.5 rounded border border-[#A7F3D0]">
+          {despues}
+        </span>
+      </div>
+    </div>
+  );
+}
 
-// =============================================================================
-// Pasos: Secciones de la página
-// =============================================================================
-
-const SECCIONES_STEPS: TutorialStep[] = [
-  {
-    title: "Las 3 pestañas de Tarifas",
-    description:
-      'La página se divide en 3 secciones arriba: "Calculadora", "Tarifas por cliente" y "Ajustes globales". Cada una cumple un rol distinto.',
-    mockup: <MockSeccionesTabs />,
-    hint: "La página abre en Calculadora. El alta y la gestión de tarifas viven en Tarifas por cliente.",
-  },
-  {
-    title: "Calculadora",
-    description:
-      "Es la pestaña inicial. Elegís cliente, ruta, peso (kg) y km, y te dice cuánto cobrar. Si el cliente tiene una tarifa propia para esa ruta, la usa; si no, cae a los valores globales.",
-    mockup: <MockCalculadora />,
-    hint: "Para los KM prevalecen los KM oficiales de la ruta por sobre el valor que ingreses a mano.",
-  },
-  {
-    title: "Tarifas por cliente",
-    description:
-      'Es el listado de tarifas con el botón "Nueva tarifa", el buscador y los filtros. Todo lo que ves en las pestañas "Crear / Editar", "Búsqueda y Filtros" y "Editar y Auditoría" de esta guía ocurre acá.',
-    mockup: <MockTarifaTable highlight="none" />,
-  },
-  {
-    title: "Ajustes globales",
-    description:
-      "Define los valores base de respaldo: tarifa base, precio por kg y precio por km. La calculadora los usa cuando un cliente no tiene una tarifa propia cargada.",
-    mockup: <MockAjustesGlobales />,
-    hint: "Es solo lectura si no tenés permiso de edición sobre Comercial.",
-  },
-];
-
-// =============================================================================
-// Pasos: Crear / Editar
-// =============================================================================
-
-const MANUAL_STEPS: TutorialStep[] = [
-  {
-    title: 'Abrí "Nueva tarifa"',
-    description:
-      'Entrá a la pestaña "Tarifas por cliente" y, arriba a la derecha del panel, hacé clic en "Nueva tarifa". Se abre un modal centrado.',
-    mockup: <MockToolbarTarifas highlight="new" />,
-    hint: 'El botón "Nueva tarifa" solo aparece si tenés permiso de edición sobre Comercial.',
-  },
-  {
-    title: "Elegí un cliente",
-    description:
-      "Dropdown con clientes activos. Al seleccionar, se cargan sus rutas automáticamente.",
-    mockup: <MockClienteDropdown />,
-    hint: "Si el cliente tiene varias rutas, cada una puede tener tarifa diferente.",
-  },
-  {
-    title: "Elegí la ruta",
-    description:
-      "La lista de rutas se carga según el cliente. Selecciona la que querés tarifar.",
-    mockup: <MockRutaDropdown />,
-    hint: "Las rutas vienen de la BD. Si no aparece la que buscas, podés crearla antes en puntos_ruta.",
-  },
-  {
-    title: "Elegí cómo se cobra",
-    description:
-      "Modalidad: fija (precio único), por kilo, por tonelada, por km.",
-    mockup: <MockModalidadSelect />,
-    hint: "Fija = mismo precio siempre. Por tonelada = precio × peso. Por km = precio × distancia.",
-  },
-  {
-    title: "Colocá el precio unitario",
-    description:
-      "Según la modalidad elegida, ingresá el valor. Ej: si es 'por_kg', ingresá $ por kg.",
-    mockup: <MockPrecioInput />,
-    hint: "El campo dice automáticamente qué unidad de medida corresponde. Siempre ≥ $0.",
-  },
-  {
-    title: "Tarifa base (opcional)",
-    description:
-      "Suma fija que se agrega a cualquier modalidad. Ej: $500 base + $2 por km.",
-    mockup: <MockBaseInput />,
-    hint: "Si dejás en blanco = $0. Útil para fletes que tienen componente fija + variable.",
-  },
-  {
-    title: "Cuándo es válida",
-    description:
-      "Fecha inicio (hoy) y fin (opcional). Si no ponés fin = vigente indefinidamente.",
-    mockup: <MockVigenciaInputs />,
-    hint: "Importante: fecha_fin > fecha_inicio. Si querés retirar una tarifa, cambiala a inactiva.",
-  },
-  {
-    title: "Guardar",
-    description:
-      "Apretá 'Guardar tarifa'. Se audita el cambio y aparece en la tabla.",
-    mockup: <MockGuardarButton />,
-    hint: "Todos los cambios quedan registrados en el historial. Podés ver quién cambió qué y cuándo.",
-  },
-];
-
-// =============================================================================
-// Pasos: Búsqueda y Filtros
-// =============================================================================
-
-const SEARCH_STEPS: TutorialStep[] = [
-  {
-    title: "Buscá cliente o ruta",
-    description:
-      "La barra de búsqueda filtra por razón social del cliente o nombre de ruta.",
-    mockup: <MockSearchBar />,
-    hint: "Busca en tiempo real. Sirve para encontrar rápido entre 100+ tarifas.",
-  },
-  {
-    title: "Filtrá por modalidad",
-    description:
-      "Dropdown de modalidad: Todas, Fija, Por tonelada, Por kilo, Por kilómetro.",
-    mockup: <MockModalidadFiltro />,
-    hint: "Combiná con la búsqueda de texto para llegar directo a lo que necesitás.",
-  },
-  {
-    title: "Filtrá solo activas",
-    description:
-      "Checkbox 'Solo activas' para esconder las tarifas pausadas. Útil en carteras grandes.",
-    mockup: <MockSoloActivas />,
-    hint: "Las inactivas no se usan en cálculos, pero quedan guardadas para auditoría.",
-  },
-  {
-    title: "Resultados en tabla",
-    description:
-      "Lista de tarifas filtradas agrupadas por cliente. Columnas: Ruta | Modalidad | Valor | Vigencia | Estado | Acciones.",
-    mockup: <MockTarifaTable highlight="none" />,
-    hint: "En acciones ves: editar (lápiz), cambiar estado (pausa/check), y ver historial (reloj).",
-  },
-];
-
-// =============================================================================
-// Pasos: Editar y Auditoría
-// =============================================================================
-
-const AUDIT_STEPS: TutorialStep[] = [
-  {
-    title: "Editá una tarifa",
-    description:
-      "En la fila de la tarifa, hacé clic en el ícono lápiz. Se abre el mismo modal de creación pre-llenado.",
-    mockup: <MockTarifaTable highlight="edit" />,
-    hint: "Podés cambiar modalidad, precio, fechas. El cambio se audita automáticamente.",
-  },
-  {
-    title: "Activá o desactivá",
-    description:
-      "Botón pausa/check para cambiar de 'activa' a 'inactiva'. No borra datos.",
-    mockup: <MockTarifaTable highlight="status" />,
-    hint: "Inactiva = no se usa en cálculos pero queda en BD. Perfecta para pausar una tarifa.",
-  },
-  {
-    title: "Historial y quién editó",
-    description:
-      "Ícono reloj abre un drawer mostrando todas las versiones anteriores: quién cambió, cuándo, y qué cambió.",
-    mockup: <MockHistorialDrawer />,
-    hint: "Si necesitás volver atrás, hay un botón 'Revertir' en cada evento antiguo.",
-  },
-  {
-    title: "Deshacé cambios (revert)",
-    description:
-      "En el historial, hacé clic en un evento anterior y apretá 'Revertir'. Vuelven los valores viejos.",
-    mockup: <MockRevertEvent />,
-    hint: "Se registra como nuevo cambio. No borra el evento original.",
-  },
-];
-
-// =============================================================================
-// Mocks
-// =============================================================================
+// ===========================================================================
+// TAB 1 — Calculadora
+// ===========================================================================
 
 function MockSeccionesTabs() {
   const tabs = [
     { label: "Calculadora", icon: <Calculator size={12} />, active: true },
     { label: "Tarifas por cliente", icon: <Users size={12} />, active: false },
+    { label: "Circuitos", icon: <Route size={12} />, active: false },
     { label: "Ajustes globales", icon: <Settings size={12} />, active: false },
   ];
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-1 border-b border-border">
+      <div className="flex items-center gap-0.5 border-b border-border overflow-x-auto no-scrollbar">
         {tabs.map((t) => (
           <div
             key={t.label}
             className={
-              "relative flex items-center gap-1.5 px-3 py-2 text-[11px] font-medium " +
+              "relative flex items-center gap-1.5 px-2.5 py-2 text-[10px] font-medium whitespace-nowrap " +
               (t.active ? "text-primary" : "text-muted-foreground")
             }
           >
             {t.icon}
             {t.label}
-            {t.active && <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />}
+            {t.active && (
+              <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />
+            )}
           </div>
         ))}
       </div>
       <div className="text-[10px] text-muted-foreground/80 px-1">
-        ↑ Cambiás de sección desde estas pestañas.
+        Cambiás de sección desde estas 4 pestañas.
       </div>
     </div>
   );
 }
 
-function MockCalculadora() {
+function MockCalcCampos() {
   return (
-    <div className="bg-card border border-border rounded-md p-3 space-y-2 max-w-[400px] mx-auto">
-      <div className="grid grid-cols-2 gap-2">
-        <MockField label="Cliente" value="Don Joaquín SA" />
-        <MockField label="Ruta" value="CABA – Tres Arroyos" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <MockField label="Peso (kg)" value="30.000" />
-        <MockField label="Km" value="510" />
-      </div>
-      <div className="rounded-md bg-[#ECFDF5] border border-[#A7F3D0] px-3 py-2 flex items-center justify-between">
-        <span className="text-[10px] font-semibold text-[#065F46] uppercase tracking-wide">Total a cobrar</span>
-        <span className="text-sm font-bold text-[#065F46]">$ 75.000,00</span>
-      </div>
-      <div className="text-[10px] text-muted-foreground/80">
-        Tarifa del cliente — Por kilo · $ 2,50 × 30.000 kg
+    <div className="space-y-2.5">
+      <MockField label="Cliente" value="Don Joaquín SA" required />
+      <MockField
+        label="Ruta"
+        value="Necochea → Bahía Blanca (280 km)"
+        icon={<Route size={11} />}
+      />
+      <div className="rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] text-[10px] text-[#075985] px-2.5 py-1.5">
+        Sin cliente, la calculadora usa los <b>parámetros globales</b>.
       </div>
     </div>
   );
 }
 
-function MockAjustesGlobales() {
+function MockCalcPesoKm() {
   return (
-    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[340px] mx-auto">
-      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-        <Settings size={13} className="text-primary" />
-        <div className="text-foreground text-xs font-semibold">Ajustes de tarifa</div>
-      </div>
-      <div className="p-3 space-y-2">
-        <MockField label="Tarifa base ($)" value="500,00" />
-        <MockField label="Precio por kg ($)" value="2,00" />
-        <MockField label="Precio por km ($)" value="180,00" />
-        <div className="h-7 rounded-md bg-[#0088D1] text-white text-[11px] font-semibold inline-flex items-center justify-center w-full">
-          Guardar ajustes
+    <div className="space-y-2.5">
+      <MockField label="Peso carga" value="28.000 kg" icon={<Weight size={11} />} />
+      <div>
+        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+          Distancia
+        </div>
+        <div className="h-7 px-2 text-[11px] rounded border border-border bg-muted/40 text-muted-foreground/70 inline-flex items-center gap-1.5 w-full">
+          <Route size={11} /> 280 (auto) km
+        </div>
+        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+          Con una ruta elegida se usan sus KM oficiales y el campo queda bloqueado.
         </div>
       </div>
     </div>
   );
 }
 
-function MockToolbarTarifas({ highlight }: { highlight: "new" }) {
+function MockCalcResultado() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center opacity-50">
-        Buscar por cliente, ruta, observaciones…
+    <div className="space-y-2.5">
+      <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Total
+        </span>
+        <span className="text-xl font-bold font-mono text-foreground">
+          ARS 70.000,00
+        </span>
       </div>
-      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center opacity-50">
+      <p className="text-[11px] text-muted-foreground">
+        Por kilo — 2,50 × 28.000 kg
+      </p>
+      <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-[11px] bg-[#ECFDF5] text-[#064E3B] border border-[#A7F3D0]">
+        <Zap size={12} className="mt-0.5 shrink-0" />
+        <div>
+          <p className="font-semibold">Tarifa contractual aplicada</p>
+          <p className="mt-0.5">Don Joaquín SA · Necochea → Bahía Blanca</p>
+        </div>
+      </div>
+      <div className="flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] bg-[#FFFBEB] text-[#78350F] border border-[#FCD34D]">
+        <Info size={12} className="mt-0.5 shrink-0" />
+        <span>
+          Si el cliente no tiene tarifa activa, cae a los <b>parámetros globales</b>.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// TAB 2 — Tarifas por cliente
+// ===========================================================================
+
+function MockTarifaTable() {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Don Joaquín SA
+        </span>
+        <span className="text-[10px] text-muted-foreground/70">2 tarifas</span>
+      </div>
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[9px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-3">
+          <span className="flex-1">Ruta</span>
+          <span className="w-16">Modalidad</span>
+          <span className="w-14 text-right">Valor</span>
+          <span className="w-14">Estado</span>
+          <span className="w-16 text-right">Acciones</span>
+        </div>
+        <FilaTarifa
+          ruta="Necochea → Bahía Blanca"
+          modalidad="Por kilo"
+          valor="$ 2,50"
+          activa
+        />
+        <FilaTarifa
+          ruta="Sin ruta específica"
+          modalidad="Por tonelada"
+          valor="$ 3.200"
+          activa={false}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MockToolbarTarifas() {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="relative flex-1 min-w-[140px]">
+        <Search
+          size={12}
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70"
+        />
+        <div className="h-8 pl-7 pr-2 bg-card border-2 border-[#0088D1] rounded-md text-[11px] text-foreground inline-flex items-center w-full shadow-[0_0_0_3px_rgba(0,136,209,0.12)]">
+          don joaquín
+        </div>
+      </div>
+      <div className="h-8 px-2.5 bg-card border border-border rounded-md text-[11px] text-muted-foreground inline-flex items-center">
         Todas las modalidades ▾
       </div>
-      <div className="size-9 rounded-md border border-border bg-card text-primary inline-flex items-center justify-center opacity-50">
-        <HelpCircle size={14} />
-      </div>
-      <div
-        className={
-          "h-9 px-4 rounded-md text-xs font-bold inline-flex items-center gap-1.5 transition-all " +
-          (highlight === "new"
-            ? "bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white scale-105"
-            : "bg-[#0088D1] text-white opacity-50")
-        }
-      >
-        <Plus size={14} /> Nueva tarifa
+      <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="size-3.5 rounded border-2 border-[#0088D1] bg-[#0088D1] inline-flex items-center justify-center">
+          <CheckCircle2 size={9} className="text-white" />
+        </span>
+        Solo activas
+      </label>
+      <div className="h-8 px-3 rounded-md bg-[#0088D1] text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white">
+        <Plus size={12} /> Nueva tarifa
       </div>
     </div>
   );
 }
 
-function MockField({
-  label,
-  value,
-  required,
-}: {
-  label: string;
-  value: string;
-  required?: boolean;
-}) {
+function MockModalTarifaCampos() {
+  const mods = ["Fija", "Por tonelada", "Por kilo", "Por km"];
   return (
-    <div>
-      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
-      <div
-        className={
-          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-border")
-        }
-      >
-        {value}
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <span className="size-6 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+          <Coins size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-foreground">Nueva tarifa</span>
       </div>
-    </div>
-  );
-}
-
-function MockClienteDropdown() {
-  return (
-    <div className="space-y-2 max-w-[380px] mx-auto">
-      <MockField label="Cliente *" value="Don Joaquín SA" required />
-      <div className="text-[10px] text-muted-foreground/70 pl-0.5">
-        ↓ Al seleccionar el cliente, se cargan sus rutas
-      </div>
-      <div className="h-7 px-2 text-[11px] rounded border border-border bg-muted text-muted-foreground/70 inline-flex items-center w-full">
-        Ruta (cargando…)
-      </div>
-    </div>
-  );
-}
-
-function MockRutaDropdown() {
-  return (
-    <div className="space-y-2 max-w-[380px] mx-auto">
-      <MockField label="Cliente *" value="Don Joaquín SA" required />
-      <div>
-        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Ruta</div>
-        <div className="border border-[#0088D1]/60 rounded bg-card text-[11px] overflow-hidden">
-          <div className="px-2 py-1.5 bg-[#E1F5FE] text-primary font-semibold flex items-center gap-1">
-            Ruta CABA – Tres Arroyos
+      <div className="p-3 space-y-2.5">
+        <MockField label="Cliente *" value="Don Joaquín SA" required />
+        <div>
+          <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+            Modalidad *
           </div>
-          <div className="px-2 py-1.5 text-muted-foreground border-t border-border">Ruta Rosario – Córdoba</div>
-          <div className="px-2 py-1.5 text-muted-foreground border-t border-border">Sin ruta específica</div>
+          <div className="flex flex-wrap gap-1">
+            {mods.map((m) => (
+              <span
+                key={m}
+                className={
+                  "px-2 py-0.5 rounded text-[10px] font-medium " +
+                  (m === "Por kilo"
+                    ? "bg-[#0088D1] text-white"
+                    : "bg-muted text-muted-foreground")
+                }
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+        <MockField
+          label="Ruta"
+          value="Necochea → Bahía Blanca"
+          icon={<Route size={11} />}
+        />
+        <div className="rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-800 px-2.5 py-1.5">
+          La ruta es <b>obligatoria</b> para modalidad Fija y Por km.
         </div>
       </div>
     </div>
   );
 }
 
-function MockModalidadSelect() {
-  const opciones = [
-    { value: "fija", label: "Fija", desc: "Precio único sin importar distancia o peso" },
-    { value: "por_kilo", label: "Por kilo", desc: "$ por kg", active: true },
-    { value: "por_tonelada", label: "Por tonelada", desc: "$ por tonelada" },
-    { value: "por_km", label: "Por kilómetro", desc: "$ por km recorrido" },
+function MockModalTarifaValor() {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        <MockField
+          label="Valor ($/kg) *"
+          value="$ 2,50"
+          icon={<DollarSign size={11} />}
+          required
+        />
+        <MockField label="Moneda *" value="ARS" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <MockField
+          label="Vigencia desde *"
+          value="16/07/2026"
+          icon={<Calendar size={11} />}
+          required
+        />
+        <MockField
+          label="Vigencia hasta"
+          value="Opcional"
+          icon={<Calendar size={11} />}
+        />
+      </div>
+      <div className="flex justify-end pt-1.5 border-t border-border">
+        <div className="h-7 px-3 text-[10px] rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 font-bold">
+          <CheckCircle2 size={11} /> Crear tarifa
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockAccionesLegend() {
+  const items = [
+    {
+      icon: <Pencil size={12} />,
+      label: "Editar",
+      desc: "Reabre el modal precargado.",
+      tone: "primary" as const,
+    },
+    {
+      icon: <PauseCircle size={12} />,
+      label: "Activar / pausar",
+      desc: "Cambia el estado sin borrar la tarifa.",
+      tone: "amber" as const,
+    },
+    {
+      icon: <History size={12} />,
+      label: "Historial",
+      desc: "Quién cambió qué y cuándo.",
+      tone: "primary" as const,
+    },
   ];
   return (
-    <div className="space-y-1.5 max-w-[380px] mx-auto">
-      <div className="text-[10px] font-semibold text-muted-foreground mb-1">Modalidad *</div>
-      {opciones.map((o) => (
+    <div className="space-y-1.5">
+      {items.map((it) => (
         <div
-          key={o.value}
-          className={
-            "flex items-center gap-2 px-2.5 py-1.5 rounded border text-[11px] cursor-pointer " +
-            (o.active
-              ? "border-[#0088D1] bg-[#E1F5FE] text-primary"
-              : "border-border bg-card text-muted-foreground")
-          }
+          key={it.label}
+          className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2"
         >
           <span
             className={
-              "size-3.5 rounded-full border-2 inline-flex items-center justify-center shrink-0 " +
-              (o.active ? "border-[#0088D1]" : "border-[#CBD5E1]")
+              "size-7 rounded-md inline-flex items-center justify-center shrink-0 " +
+              (it.tone === "amber"
+                ? "bg-amber-50 text-amber-600"
+                : "bg-[#E1F5FE] text-primary")
             }
           >
-            {o.active && <span className="size-1.5 rounded-full bg-[#0088D1]" />}
+            {it.icon}
           </span>
-          <span className="font-semibold">{o.label}</span>
-          <span className="text-muted-foreground/70 ml-auto">{o.desc}</span>
+          <div>
+            <div className="text-[11px] font-semibold text-foreground">
+              {it.label}
+            </div>
+            <div className="text-[10px] text-muted-foreground">{it.desc}</div>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function MockPrecioInput() {
+// ===========================================================================
+// TAB 3 — Circuitos
+// ===========================================================================
+
+function MockCircuitoQueEs() {
   return (
-    <div className="space-y-2 max-w-[380px] mx-auto">
-      <div>
-        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-          Precio unitario ($ / kg) *
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground">
+            <MapPin size={12} className="text-primary" /> Necochea
+          </span>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-border bg-muted/40 text-muted-foreground inline-flex items-center">
-            $
-          </div>
-          <div className="h-7 px-2 text-[11px] rounded-r border border-[#0088D1]/60 bg-card text-foreground font-mono inline-flex items-center flex-1">
-            2.50
-          </div>
+        <div className="flex flex-col items-center shrink-0">
+          <ArrowRight size={16} className="text-primary" />
+          <span className="text-[9px] text-muted-foreground">280 km carga</span>
         </div>
-        <div className="text-[10px] text-muted-foreground/70 mt-0.5">Precio por kilogramo transportado</div>
+        <div className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-center">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground">
+            <Flag size={12} className="text-primary" /> Bahía Blanca
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+        <ArrowRight size={12} className="rotate-180" /> 60 km de retorno vacío
+      </div>
+      <div className="rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] text-[10px] text-[#075985] px-2.5 py-2">
+        Al cargar un viaje con este circuito, los{" "}
+        <b>km cargados y vacíos se autocompletan</b>.
       </div>
     </div>
   );
 }
 
-function MockBaseInput() {
+function MockCircuitoForm() {
   return (
-    <div className="space-y-2 max-w-[380px] mx-auto">
-      <MockField label="Precio unitario ($ / kg) *" value="$ 2.50" />
-      <div>
-        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
-          Suma base ($ — opcional)
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <span className="size-6 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+          <Route size={13} />
+        </span>
+        <span className="text-[11px] font-bold text-foreground">Nuevo circuito</span>
+      </div>
+      <div className="p-3 space-y-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          <MockField label="Origen *" value="Necochea" icon={<MapPin size={11} />} required />
+          <MockField label="Destino *" value="Bahía Blanca" icon={<Flag size={11} />} required />
         </div>
-        <div className="flex items-center gap-1">
-          <div className="h-7 px-2 text-[11px] rounded-l border border-r-0 border-border bg-muted/40 text-muted-foreground inline-flex items-center">
-            $
-          </div>
-          <div className="h-7 px-2 text-[11px] rounded-r border border-border bg-card text-muted-foreground/70 italic inline-flex items-center flex-1">
-            0.00
-          </div>
+        <div className="grid grid-cols-2 gap-2">
+          <MockField label="Km con carga *" value="280" required />
+          <MockField label="Km vacíos *" value="60" required />
         </div>
-        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
-          Se suma fija a cualquier cálculo. Ej: $500 base + $2.50/kg
+        <MockField label="Código interno" value="110 (opcional)" />
+        <div className="flex justify-end pt-1.5 border-t border-border">
+          <div className="h-7 px-3 text-[10px] rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 font-bold">
+            <CheckCircle2 size={11} /> Crear circuito
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function MockVigenciaInputs() {
+function MockCircuitoTable() {
   return (
-    <div className="space-y-2 max-w-[380px] mx-auto">
-      <div className="grid grid-cols-2 gap-2">
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[9px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-2">
+        <span className="w-10">Cód.</span>
+        <span className="flex-1">Recorrido</span>
+        <span className="w-12 text-right">Carga</span>
+        <span className="w-12 text-right">Vacío</span>
+        <span className="w-14 text-right">Acciones</span>
+      </div>
+      <FilaCircuito
+        codigo="110"
+        origen="Necochea"
+        destino="Bahía Blanca"
+        carga="280"
+        vacio="60"
+      />
+      <FilaCircuito
+        codigo="112"
+        origen="Mar del Plata"
+        destino="CABA"
+        carga="400"
+        vacio="120"
+      />
+    </div>
+  );
+}
+
+function MockCircuitoListado() {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[120px]">
+          <Search
+            size={12}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70"
+          />
+          <div className="h-8 pl-7 pr-2 bg-card border border-border rounded-md text-[11px] text-muted-foreground/70 inline-flex items-center w-full">
+            Buscar por código, origen, destino…
+          </div>
+        </div>
+        <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="size-3.5 rounded border border-border inline-flex" />
+          Solo activos
+        </label>
+        <div className="h-8 px-3 rounded-md bg-[#0088D1] text-white text-[11px] font-bold inline-flex items-center gap-1">
+          <Plus size={12} /> Nuevo circuito
+        </div>
+      </div>
+      <MockCircuitoTable />
+    </div>
+  );
+}
+
+function MockCircuitoAcciones() {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2">
+        <span className="size-7 rounded-md bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
+          <Pencil size={12} />
+        </span>
         <div>
-          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Vigente desde *</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-[#0088D1]/60 bg-card text-foreground inline-flex items-center w-full">
-            11/05/2026
+          <div className="text-[11px] font-semibold text-foreground">Editar</div>
+          <div className="text-[10px] text-muted-foreground">
+            Cambiás recorrido, km cargados/vacíos o el código.
           </div>
         </div>
+      </div>
+      <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2">
+        <span className="size-7 rounded-md bg-amber-50 text-amber-600 inline-flex items-center justify-center shrink-0">
+          <PauseCircle size={12} />
+        </span>
         <div>
-          <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Vigente hasta</div>
-          <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-muted-foreground/70 italic inline-flex items-center w-full">
-            Sin vencimiento
+          <div className="text-[11px] font-semibold text-foreground">
+            Activar / pausar
           </div>
-        </div>
-      </div>
-      <div className="text-[10px] text-muted-foreground/70">
-        Si no ponés fecha fin, la tarifa queda vigente indefinidamente.
-      </div>
-    </div>
-  );
-}
-
-function MockGuardarButton() {
-  return (
-    <div className="max-w-[440px] mx-auto bg-card border border-border rounded-lg shadow-md overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9]">
-        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Nueva tarifa</div>
-      </div>
-      <div className="p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <MockField label="Cliente" value="Don Joaquín SA" />
-          <MockField label="Ruta" value="CABA – Tres Arroyos" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <MockField label="Modalidad" value="Por kilo" />
-          <MockField label="Precio / kg" value="$ 2.50" />
-        </div>
-        <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
-            Cancelar
-          </div>
-          <div className="h-8 px-4 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
-            Guardar tarifa
+          <div className="text-[10px] text-muted-foreground">
+            Un circuito inactivo deja de ofrecerse al cargar viajes.
           </div>
         </div>
       </div>
@@ -719,104 +608,23 @@ function MockGuardarButton() {
   );
 }
 
-function MockSearchBar() {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="relative flex-1">
-        <Search
-          size={12}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70"
-        />
-        <div className="h-9 pl-7 pr-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-foreground inline-flex items-center w-full shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
-          don joaquin
-        </div>
-      </div>
-      <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground inline-flex items-center">
-        Todas las modalidades ▾
-      </div>
-    </div>
-  );
-}
+// ===========================================================================
+// TAB 4 — Ajustes y auditoría
+// ===========================================================================
 
-function MockModalidadFiltro() {
+function MockAjustesGlobales() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
-        Buscar por cliente, ruta…
+    <div className="rounded-lg border border-border bg-card overflow-hidden max-w-[300px] mx-auto">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <Settings size={13} className="text-primary" />
+        <div className="text-[11px] font-bold text-foreground">Ajustes de tarifa</div>
       </div>
-      <div className="h-9 px-3 bg-card border-2 border-[#0088D1] rounded-md text-xs text-primary font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
-        Por tonelada ▾
-      </div>
-    </div>
-  );
-}
-
-function MockSoloActivas() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
-        Buscar por cliente, ruta…
-      </div>
-      <label className="flex items-center gap-2 text-xs text-primary font-semibold cursor-pointer select-none bg-[#E1F5FE] px-2.5 h-9 rounded-md border border-[#0088D1]/40">
-        <span className="size-4 rounded border-2 border-[#0088D1] bg-[#0088D1] inline-flex items-center justify-center">
-          <CheckCircle2 size={10} className="text-white" />
-        </span>
-        Solo activas
-      </label>
-    </div>
-  );
-}
-
-function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "history" | "none" }) {
-  return (
-    <div className="bg-card border border-border rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
-        <span className="flex-1">Ruta</span>
-        <span className="w-20">Modalidad</span>
-        <span className="w-16 text-right">Valor</span>
-        <span className="w-16">Estado</span>
-        <span className="w-20 text-right">Acciones</span>
-      </div>
-      <div className="px-3 py-2.5 flex items-center gap-4 text-[11px]">
-        <span className="flex-1 text-foreground">CABA – Tres Arroyos</span>
-        <span className="w-20">
-          <span className="px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#004A99] font-medium">Por kilo</span>
-        </span>
-        <span className="w-16 text-right font-mono text-foreground font-semibold">$ 2.50</span>
-        <span className="w-16 text-[#10B981] font-medium flex items-center gap-1">
-          <CheckCircle2 size={10} /> Activa
-        </span>
-        <div className="w-20 flex items-center justify-end gap-1">
-          <span
-            className={
-              "size-6 rounded inline-flex items-center justify-center " +
-              (highlight === "edit"
-                ? "bg-[#0088D1] text-white ring-2 ring-[#0088D1] shadow-[0_0_0_3px_rgba(0,136,209,0.25)]"
-                : "text-muted-foreground/70 hover:text-primary")
-            }
-          >
-            <Pencil size={11} />
-          </span>
-          <span
-            className={
-              "size-6 rounded inline-flex items-center justify-center " +
-              (highlight === "status"
-                ? "bg-[#FFF7E6] text-[#FFB300] ring-2 ring-[#FFB300] shadow-[0_0_0_3px_rgba(255,179,0,0.2)]"
-                : "text-muted-foreground/70")
-            }
-          >
-            <PauseCircle size={11} />
-          </span>
-          <span
-            className={
-              "size-6 rounded inline-flex items-center justify-center " +
-              (highlight === "history"
-                ? "bg-[#E1F5FE] text-primary ring-2 ring-[#0088D1] shadow-[0_0_0_3px_rgba(0,136,209,0.25)]"
-                : "text-muted-foreground/70")
-            }
-          >
-            <Clock size={11} />
-          </span>
+      <div className="p-3 space-y-2">
+        <MockField label="Tarifa base ($)" value="500,00" />
+        <MockField label="Precio por kg ($)" value="2,00" />
+        <MockField label="Precio por km ($)" value="180,00" />
+        <div className="h-7 rounded-md bg-[#0088D1] text-white text-[10px] font-bold inline-flex items-center justify-center gap-1 w-full">
+          <Save size={11} /> Guardar ajustes
         </div>
       </div>
     </div>
@@ -824,86 +632,205 @@ function MockTarifaTable({ highlight }: { highlight: "edit" | "status" | "histor
 }
 
 function MockHistorialDrawer() {
-  const events = [
-    { user: "Lucas G.", date: "11/05/2026", prev: "$ 2.00 / kg", next: "$ 2.50 / kg", current: true },
-    { user: "María R.", date: "01/03/2026", prev: "$ 1.80 / kg", next: "$ 2.00 / kg", current: false },
-    { user: "Lucas G.", date: "10/01/2026", prev: "—", next: "$ 1.80 / kg", current: false },
-  ];
   return (
-    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[380px] mx-auto">
-      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-        <Clock size={13} className="text-primary" />
-        <div className="text-foreground text-xs font-semibold">Historial de cambios</div>
+    <div className="rounded-lg border border-border bg-card overflow-hidden max-w-[360px] mx-auto">
+      <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-3 py-2 flex items-center gap-1.5">
+        <History size={13} />
+        <span className="text-[11px] font-bold">Historial de tarifa</span>
       </div>
-      <div className="divide-y divide-border">
-        {events.map((e, i) => (
-          <div key={i} className={`px-3 py-2 text-[11px] ${e.current ? "bg-[#F0F9FF]" : ""}`}>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-foreground">{e.user}</span>
-              <span className="text-muted-foreground/70">{e.date}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
-              <span className="line-through text-muted-foreground/70">{e.prev}</span>
-              <span>→</span>
-              <span className="text-foreground font-medium">{e.next}</span>
-            </div>
-          </div>
-        ))}
+      <div className="p-2.5 space-y-2">
+        <EventoHistorial
+          usuario="Lucas G."
+          fecha="16/07 · 10:24"
+          accion="Edición"
+          accionColor="bg-[#EFF6FF] text-[#1E3A8A]"
+          campo="Valor"
+          antes="2,00"
+          despues="2,50"
+        />
+        <EventoHistorial
+          usuario="María R."
+          fecha="01/03 · 09:10"
+          accion="Estado"
+          accionColor="bg-[#FFFBEB] text-[#78350F]"
+          campo="Activa"
+          antes="No"
+          despues="Sí"
+        />
+        <EventoHistorial
+          usuario="Lucas G."
+          fecha="10/01 · 16:40"
+          accion="Creación"
+          accionColor="bg-[#ECFDF5] text-[#064E3B]"
+          campo="Valor"
+          despues="1,80"
+        />
       </div>
     </div>
   );
 }
 
-function MockRevertEvent() {
+function MockSoloLectura() {
   return (
-    <div className="bg-card border border-border rounded-md overflow-hidden max-w-[380px] mx-auto">
-      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
-        <Clock size={13} className="text-primary" />
-        <div className="text-foreground text-xs font-semibold">Historial de cambios</div>
-      </div>
-      <div className="px-3 py-2 bg-[#F0F9FF] border-b border-border text-[11px]">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-foreground">Lucas G.</span>
-          <span className="text-muted-foreground/70">11/05/2026</span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
-          <span className="line-through text-muted-foreground/70">$ 2.00 / kg</span>
-          <span>→</span>
-          <span className="text-foreground font-medium">$ 2.50 / kg</span>
+    <div className="space-y-2">
+      <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5 flex items-start gap-2">
+        <Lock size={13} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-amber-900">
+          <p className="font-semibold">Solo lectura</p>
+          <p className="mt-0.5 text-amber-800">
+            Sin permiso de <b>edición sobre Comercial</b> ves los valores, pero no
+            aparece el botón de guardar.
+          </p>
         </div>
       </div>
-      <div className="px-3 py-2 text-[11px] border-b border-border bg-[#FFFBEB]">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-foreground">María R.</span>
-          <span className="text-muted-foreground/70">01/03/2026</span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 text-muted-foreground">
-          <span className="line-through text-muted-foreground/70">$ 1.80 / kg</span>
-          <span>→</span>
-          <span className="text-foreground font-medium">$ 2.00 / kg</span>
-        </div>
-        <div className="mt-1.5">
-          <span className="px-2 py-0.5 rounded border border-[#FBBF24] text-[#92400E] bg-[#FFFBEB] font-semibold text-[10px] cursor-pointer hover:bg-[#FEF3C7]">
-            Revertir a $ 2.00 / kg
-          </span>
-        </div>
-      </div>
-      <div className="px-3 py-2 text-[11px] text-muted-foreground">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-foreground">Lucas G.</span>
-          <span className="text-muted-foreground/70">10/01/2026</span>
-        </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-muted-foreground/70">—</span>
-          <span>→</span>
-          <span className="text-foreground font-medium">$ 1.80 / kg</span>
-        </div>
-        <div className="mt-1.5">
-          <span className="px-2 py-0.5 rounded border border-[#FBBF24] text-[#92400E] bg-[#FFFBEB] font-semibold text-[10px] cursor-pointer hover:bg-[#FEF3C7]">
-            Revertir a $ 1.80 / kg
-          </span>
-        </div>
+      <div className="rounded-lg border border-border bg-card px-3 py-2 opacity-60">
+        <MockField label="Tarifa base ($)" value="500,00" />
       </div>
     </div>
   );
+}
+
+// ===========================================================================
+// Tabs
+// ===========================================================================
+
+const TABS: TutorialTab[] = [
+  {
+    id: "calculadora",
+    label: "Calculadora",
+    icon: <Calculator size={14} />,
+    steps: [
+      {
+        title: "Las 4 pestañas de Tarifas",
+        description:
+          "La pantalla abre en la Calculadora y arriba tenés 4 secciones: Calculadora, Tarifas por cliente, Circuitos y Ajustes globales. El botón Tutorial está a la derecha de estas pestañas.",
+        mockup: <MockSeccionesTabs />,
+      },
+      {
+        title: "Elegí cliente y ruta",
+        description:
+          "Buscás el cliente y, si querés, una ruta. Si el cliente tiene una tarifa propia para esa combinación, se usa esa; si no elegís cliente, la calculadora cae directo a los parámetros globales.",
+        mockup: <MockCalcCampos />,
+        hint: "Cliente y ruta son comboboxes con buscador: escribí las primeras letras y filtra al toque.",
+      },
+      {
+        title: "Cargá el peso y la distancia",
+        description:
+          "Poné el peso de la carga en kg. La distancia la escribís a mano solo si no elegiste ruta: en cuanto seleccionás una ruta, el sistema usa sus KM oficiales y bloquea el campo.",
+        mockup: <MockCalcPesoKm />,
+        hint: "Para los KM siempre prevalecen los oficiales de la ruta por sobre lo que cargues a mano.",
+      },
+      {
+        title: "Leé el resultado",
+        description:
+          "Apretás Calcular tarifa y te muestra el total, el desglose de cómo se llegó a ese número y de dónde salió: tarifa contractual del cliente (verde) o parámetros globales (ámbar).",
+        mockup: <MockCalcResultado />,
+        hint: "El cartel ámbar te avisa cuando el cliente no tenía tarifa activa y se usó el respaldo global.",
+      },
+    ],
+  },
+  {
+    id: "tarifas",
+    label: "Tarifas",
+    icon: <Users size={14} />,
+    steps: [
+      {
+        title: "El listado por cliente",
+        description:
+          "Las tarifas se agrupan por cliente. En cada fila ves la ruta, la modalidad, el valor, la vigencia, el estado (activa/inactiva) y los botones de acción.",
+        mockup: <MockTarifaTable />,
+      },
+      {
+        title: "Buscá y filtrá",
+        description:
+          "El buscador cruza cliente, ruta y observaciones. Sumá el filtro por modalidad y el check “Solo activas” para llegar rápido a lo que necesitás entre muchas tarifas.",
+        mockup: <MockToolbarTarifas />,
+        hint: "El botón “Nueva tarifa” solo aparece si tenés permiso de edición sobre Comercial.",
+      },
+      {
+        title: "Nueva tarifa: cliente, modalidad y ruta",
+        description:
+          "Con “Nueva tarifa” se abre un modal centrado. Elegís el cliente, la modalidad (Fija, Por tonelada, Por kilo o Por km) y la ruta. Para Fija y Por km la ruta es obligatoria.",
+        mockup: <MockModalTarifaCampos />,
+        hint: "La modalidad define cómo se cobra: fija = monto único; por tonelada/kilo/km = valor × la cantidad.",
+      },
+      {
+        title: "Valor, moneda y vigencia",
+        description:
+          "Cargás el valor (la unidad se ajusta sola a la modalidad: $/kg, $/t, $/km), la moneda, y desde cuándo rige. La “Vigencia hasta” es opcional; si la dejás vacía, queda vigente indefinidamente.",
+        mockup: <MockModalTarifaValor />,
+        hint: "Si ponés fecha hasta, tiene que ser posterior a la fecha desde, o el sistema no te deja guardar.",
+      },
+      {
+        title: "Editar, pausar y ver historial",
+        description:
+          "Cada fila tiene tres botones: el lápiz reabre el modal para editar, el de pausa/check activa o desactiva la tarifa sin borrarla, y el reloj abre el historial de cambios.",
+        mockup: <MockAccionesLegend />,
+        hint: "Una tarifa inactiva no se usa en cálculos, pero queda guardada para auditoría.",
+      },
+    ],
+  },
+  {
+    id: "circuitos",
+    label: "Circuitos",
+    icon: <Route size={14} />,
+    steps: [
+      {
+        title: "Qué es un circuito",
+        description:
+          "Un circuito es un tramo origen → destino con sus km cargados y sus km vacíos típicos. Sirve para no recalcular a mano cada viaje.",
+        mockup: <MockCircuitoQueEs />,
+        hint: "Al cargar un viaje con este circuito, los km cargados y vacíos se autocompletan.",
+      },
+      {
+        title: "Cargá un circuito nuevo",
+        description:
+          "Con “Nuevo circuito” elegís origen y destino (con autocompletado de lugares ya usados), los km con carga y los km vacíos. El código interno y la descripción son opcionales.",
+        mockup: <MockCircuitoForm />,
+        hint: "Origen y destino tienen que ser distintos, y los km no pueden ser negativos.",
+      },
+      {
+        title: "El listado de circuitos",
+        description:
+          "La tabla muestra código, recorrido, km con carga, km vacíos y estado. Arriba tenés el buscador (código, origen o destino) y el check “Solo activos”.",
+        mockup: <MockCircuitoListado />,
+      },
+      {
+        title: "Editar o pausar un circuito",
+        description:
+          "Igual que las tarifas: el lápiz edita el circuito y el botón de pausa/check lo activa o desactiva. Nada se borra, solo cambia de estado.",
+        mockup: <MockCircuitoAcciones />,
+      },
+    ],
+  },
+  {
+    id: "ajustes",
+    label: "Ajustes",
+    icon: <Settings size={14} />,
+    steps: [
+      {
+        title: "Ajustes globales de respaldo",
+        description:
+          "Son los valores base: tarifa base, precio por kg y precio por km. La calculadora los usa cuando el cliente no tiene una tarifa propia cargada para esa combinación.",
+        mockup: <MockAjustesGlobales />,
+      },
+      {
+        title: "Historial de cada tarifa",
+        description:
+          "Desde el reloj de una tarifa se abre un panel lateral con todos los cambios: quién lo hizo, cuándo, el tipo de acción (Creación, Edición, Estado, Baja) y el valor de antes → después.",
+        mockup: <MockHistorialDrawer />,
+        hint: "Es un registro de auditoría: se ve todo lo que pasó, no se edita ni se borra.",
+      },
+      {
+        title: "Cuando es solo lectura",
+        description:
+          "Si tu usuario no tiene edición sobre Comercial, vas a ver los ajustes y las tarifas, pero sin los botones para guardar ni crear. Pedile el permiso a un administrador.",
+        mockup: <MockSoloLectura />,
+      },
+    ],
+  },
+];
+
+export default function HelpTutorialButton() {
+  return <HelpTutorialDialog title="Guía de Tarifas" tabs={TABS} />;
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Tipos para el listado de DMs (Documentos de Medición de YPF)
@@ -134,14 +135,15 @@ export async function getDmYpfPdfUrlAction(
 }
 
 // ---------------------------------------------------------------------------
-// Eliminar un DM (solo admin). Borra el registro y el archivo en storage.
-// Los viajes asociados quedan con dm_ypf_id=null (cascade soft).
+// Eliminar un DM (nivel Edición del área Viajes). Borra el registro y el archivo
+// en storage. Los viajes asociados quedan con dm_ypf_id=null (cascade soft).
+// Queda registrado en auditoría.
 // ---------------------------------------------------------------------------
 
 export async function deleteDmYpfAction(
   dmId: string,
 ): Promise<{ ok?: boolean; error?: string }> {
-  await requireArea("viajes", "admin");
+  const user = await requireArea("viajes", "write");
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,6 +166,13 @@ export async function deleteDmYpfAction(
   if (dm?.archivo_id) {
     await sb.from("documentos_archivos").delete().eq("id", dm.archivo_id);
   }
+
+  await logAudit({
+    accion: "eliminar",
+    entidadTipo: "compliance_dm_ypf",
+    entidadId: dmId,
+    usuarioId: user.id,
+  });
 
   revalidatePath("/viajes/liquidaciones");
   return { ok: true };

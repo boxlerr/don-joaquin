@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { Database } from "@/types/database";
 import * as XLSX from "xlsx";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { buildSingleSheetWorkbook, type ProColumn, type CellValue } from "@/lib/excel/professional-sheet";
 import {
   normalizeDate,
@@ -79,7 +79,7 @@ export async function previewExtintoresImportAction(formData: FormData): Promise
   summary?: { validas: number; invalidas: number; chasis: number; acoplados: number; otros: number };
   error?: string;
 }> {
-  await requireArea("flota", "read");
+  await requireSeccion("extintores", "read");
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -298,7 +298,7 @@ export async function confirmExtintoresImportAction(rows: ParsedExtintorImportRo
   skipped: number;
   errors: { row: number; message: string }[];
 }> {
-  await requireArea("flota", "write");
+  await requireSeccion("extintores", "write");
 
   const supabase = createAdminClient();
 
@@ -373,7 +373,7 @@ export async function exportExtintoresAction(): Promise<{
   filename: string;
   base64: string;
 }> {
-  await requireArea("flota", "read");
+  await requireSeccion("extintores", "read");
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("extintores")

@@ -78,8 +78,10 @@ export const SECCIONES: Seccion[] = [
   { codigo: "choferes_ranking", area: "logistica", nombre: "Ranking", orden: 11 },
   { codigo: "choferes_rotacion", area: "logistica", nombre: "Rotación", orden: 12 },
   { codigo: "choferes_vacaciones", area: "logistica", nombre: "Vacaciones", orden: 13 },
-  { codigo: "siniestros", area: "logistica", nombre: "Siniestros", orden: 14 },
-  { codigo: "reportes", area: "logistica", nombre: "Reportes", orden: 15 },
+  // Siniestros y Extintores viven en el grupo "Seguridad" del sidebar → área propia.
+  { codigo: "siniestros", area: "seguridad", nombre: "Siniestros", orden: 14 },
+  // Reportes vive en el grupo "Principal" del sidebar → área propia.
+  { codigo: "reportes", area: "principal", nombre: "Reportes", orden: 15 },
   { codigo: "sueldos", area: "logistica", nombre: "Sueldos", orden: 16, confidencial: true },
   // --- Viajes --------------------------------------------------------------
   { codigo: "viajes_listado", area: "viajes", nombre: "Listado y mensual", orden: 10 },
@@ -89,7 +91,7 @@ export const SECCIONES: Seccion[] = [
   { codigo: "viajes_liquidaciones", area: "viajes", nombre: "DM y liquidaciones", orden: 14 },
   // --- Flota ---------------------------------------------------------------
   { codigo: "camiones", area: "flota", nombre: "Camiones", orden: 10 },
-  { codigo: "extintores", area: "flota", nombre: "Extintores", orden: 11 },
+  { codigo: "extintores", area: "seguridad", nombre: "Extintores", orden: 11 },
   // --- Mantenimiento -------------------------------------------------------
   { codigo: "mantenimiento_servicios", area: "mantenimiento", nombre: "Servicios", orden: 10 },
   { codigo: "mantenimiento_costos", area: "mantenimiento", nombre: "Costos rep. y rep.", orden: 11 },
@@ -109,10 +111,10 @@ export const SECCIONES: Seccion[] = [
   // El dashboard general (/dashboard) queda sin facturación para todos; la
   // facturación acumulada vive en /dashboard/completo, solo Bárbara + Nicolás
   // (audios 30/06, tema 6 — opción B "dos dashboards").
-  { codigo: "dashboard_completo", area: "finanzas", nombre: "Dashboard completo", orden: 13, confidencial: true },
+  { codigo: "dashboard_completo", area: "principal", nombre: "Dashboard completo", orden: 13, confidencial: true },
   // Métricas históricas (las 6 planillas del padre + comparativa interanual):
   // confidencial, por defecto solo administradores (8vo feedback, 08/07).
-  { codigo: "metricas", area: "finanzas", nombre: "Métricas históricas", orden: 14, confidencial: true },
+  { codigo: "metricas", area: "principal", nombre: "Métricas históricas", orden: 14, confidencial: true },
   // --- Caja ------------------------------------------------------------------
   // "Operar ≠ ver": con área caja en write se pueden CARGAR movimientos, pero
   // saldo/historial/retiros (caja_saldo) y la caja grande (caja_grande) son

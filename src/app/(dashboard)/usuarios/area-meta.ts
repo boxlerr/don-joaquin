@@ -2,18 +2,22 @@
 // y QUÉ SECCIONES controla cada área, para mostrarlo claro en la matriz, los
 // overrides y el tutorial. (El permiso real vive en la DB; esto es solo UI.)
 
+import type { AreaCodigo } from "@/lib/auth";
+
 export type AreaMeta = { titulo: string; paginas: string[] };
 
 export const AREA_META: Record<string, AreaMeta> = {
+  principal: { titulo: "Principal", paginas: ["Reportes", "Métricas (confidencial)", "Dashboard completo (confidencial)"] },
   viajes: { titulo: "Viajes", paginas: ["Viajes", "Carga rápida", "Importar hoja de ruta", "Importar PDF de YPF"] },
-  logistica: { titulo: "Personal, Siniestros y Reportes", paginas: ["Legajos", "Ranking de choferes", "Rotación", "Vacaciones", "Sueldos choferes (confidencial)", "Siniestros", "Reportes"] },
-  flota: { titulo: "Camiones y Extintores", paginas: ["Camiones", "Extintores"] },
+  logistica: { titulo: "Personal", paginas: ["Legajos", "Ranking de choferes", "Rotación", "Vacaciones", "Sueldos choferes (confidencial)"] },
+  flota: { titulo: "Camiones", paginas: ["Camiones"] },
   mantenimiento: { titulo: "Mantenimiento", paginas: ["Mantenimiento (taller, services, roturas)"] },
   combustible: { titulo: "Combustible", paginas: ["Combustible (cargas de gasoil)"] },
+  seguridad: { titulo: "Seguridad", paginas: ["Siniestros", "Extintores"] },
   comercial: { titulo: "Comercial", paginas: ["Clientes", "Tarifas"] },
-  finanzas: { titulo: "Finanzas", paginas: ["Gastos", "Cheques"] },
+  finanzas: { titulo: "Finanzas", paginas: ["Gastos", "Cheques", "Impuestos (confidencial)", "Préstamos (confidencial)"] },
   caja: { titulo: "Caja", paginas: ["Caja (movimientos de dinero)"] },
-  rrhh: { titulo: "RR.HH.", paginas: ["Entrevistas", "Sueldos admin y taller (confidencial)"] },
+  rrhh: { titulo: "Entrevistas", paginas: ["Entrevistas", "Sueldos admin y taller (confidencial)"] },
   compliance: { titulo: "Compliance", paginas: ["Loma Negra", "YPF", "SICOP", "Secondi", "Próximas presentaciones"] },
   sistema: { titulo: "Sistema", paginas: ["Usuarios y permisos", "Auditoría", "Configuración"] },
 };
@@ -23,11 +27,31 @@ export const areaTitulo = (codigo: string, fallback?: string) =>
 
 export const areaPaginas = (codigo: string): string[] => AREA_META[codigo]?.paginas ?? [];
 
+// ---------------------------------------------------------------------------
+// Estructura del SIDEBAR: los 9 grupos como los ve el usuario. Cada grupo manda
+// sobre 1 o 2 áreas reales. La matriz muestra una columna por grupo (nivel
+// grueso, bulk sobre sus áreas) y el editor fino de abajo desglosa área x
+// subsección. El orden espeja el sidebar.
+// ---------------------------------------------------------------------------
+export type GrupoSidebar = { group: string; label: string; areas: AreaCodigo[] };
+
+export const GRUPOS_SIDEBAR: GrupoSidebar[] = [
+  { group: "PRINCIPAL", label: "Principal", areas: ["principal"] },
+  { group: "LOGÍSTICA", label: "Logística", areas: ["viajes", "combustible"] },
+  { group: "FLOTA", label: "Flota", areas: ["flota", "mantenimiento"] },
+  { group: "SEGURIDAD", label: "Seguridad", areas: ["seguridad"] },
+  { group: "RRHH", label: "RR.HH.", areas: ["logistica", "rrhh"] },
+  { group: "COMERCIAL", label: "Comercial", areas: ["comercial"] },
+  { group: "FINANZAS", label: "Finanzas", areas: ["caja", "finanzas"] },
+  { group: "COMPLIANCE", label: "Compliance", areas: ["compliance"] },
+  { group: "SISTEMA", label: "Sistema", areas: ["sistema"] },
+];
+
 // Niveles de permiso — etiqueta + qué significa.
 export const NIVEL_INFO: Record<string, { label: string; desc: string; clase: string }> = {
   none: { label: "Sin acceso", desc: "No ve la sección", clase: "bg-muted text-muted-foreground" },
   read: { label: "Lectura", desc: "Puede ver, no editar", clase: "bg-blue-50 text-blue-700" },
-  write: { label: "Edición", desc: "Puede ver y cargar/editar", clase: "bg-green-50 text-green-700" },
+  write: { label: "Edición", desc: "Control total del área: ver, cargar, editar y borrar", clase: "bg-green-50 text-green-700" },
   admin: { label: "Admin", desc: "Control total del área", clase: "bg-amber-50 text-amber-700" },
 };
 

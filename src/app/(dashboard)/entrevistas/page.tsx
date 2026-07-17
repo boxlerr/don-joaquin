@@ -13,7 +13,7 @@ import ImportarButton from "./components/ImportarButton";
 export default async function EntrevistasPage() {
   const user = await requireArea("rrhh", "read");
   const canWrite = hasArea(user, "rrhh", "write");
-  const canDelete = hasArea(user, "rrhh", "admin");
+  const canDelete = hasArea(user, "rrhh", "write");
 
   const supabase = createAdminClient();
   // `as any`: `etapa` y la tabla `entrevista_archivos` son nuevas, aún no están en database.ts.

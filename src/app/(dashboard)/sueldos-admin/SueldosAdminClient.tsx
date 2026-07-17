@@ -27,6 +27,7 @@ import {
   type AumentoRow,
 } from "./actions";
 import AumentosMetricas from "./AumentosMetricas";
+import HelpTutorialButton from "./help-tutorial-button";
 import type { InflacionData } from "@/lib/inflacion";
 
 const pesos = (n: number) => `$ ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
@@ -273,6 +274,9 @@ export default function SueldosAdminClient({
             <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
               <Wallet size={16} className="text-primary" />
               <h2 className="text-foreground text-sm font-semibold">Planilla por empleado</h2>
+              <div className="ml-auto">
+                <HelpTutorialButton />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <Table>

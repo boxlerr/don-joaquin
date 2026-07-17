@@ -260,7 +260,7 @@ export async function updateEntrevistaAction(id: string, data: EntrevistaFormDat
 }
 
 export async function deleteEntrevistaAction(id: string) {
-  const user = await requireArea("rrhh", "admin");
+  const user = await requireArea("rrhh", "write");
   const supabase = createAdminClient();
 
   const { data: anterior } = await supabase

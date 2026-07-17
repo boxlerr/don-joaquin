@@ -201,7 +201,7 @@ export default function UsuarioPermisosOverrides({ usuarios, areas, overrides: i
             <Combobox
               value={newNivel}
               onValueChange={(v) => setNewNivel(v as AreaNivel)}
-              options={(["read", "write", "admin"] as AreaNivel[]).map((n) => ({ id: n, label: NIVEL_LABEL[n] }))}
+              options={(["read", "write"] as AreaNivel[]).map((n) => ({ id: n, label: NIVEL_LABEL[n] }))}
               searchable={false}
               triggerClassName={`h-9 w-full text-xs ${NIVEL_CLASS[newNivel]}`}
             />

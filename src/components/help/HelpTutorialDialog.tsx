@@ -40,15 +40,25 @@ export default function HelpTutorialDialog({
   const [open, setOpen] = useState(false);
   const [tabId, setTabId] = useState(tabs[0]?.id ?? "");
   const [step, setStep] = useState(0);
+  // Solapas ya recorridas hasta el final (para la tilde verde en el header).
+  const [completadas, setCompletadas] = useState<Set<string>>(() => new Set());
 
   const activeTab = tabs.find((t) => t.id === tabId) ?? tabs[0];
   const steps = activeTab?.steps ?? [];
   const totalSteps = steps.length;
   const current = steps[step] ?? steps[0];
 
+  const tabIndex = tabs.findIndex((t) => t.id === tabId);
+  const nextTab = tabs[tabIndex + 1];
+  const isLastStep = step === totalSteps - 1;
+
   function changeTab(id: string) {
     setTabId(id);
     setStep(0);
+  }
+
+  function completar(id: string) {
+    setCompletadas((c) => new Set(c).add(id));
   }
 
   if (!activeTab || !current) return null;
@@ -61,16 +71,19 @@ export default function HelpTutorialDialog({
         if (!v) {
           setTabId(tabs[0].id);
           setStep(0);
+          setCompletadas(new Set());
         }
       }}
     >
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Ayuda"
-        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
+        title="Tutorial de la sección — cómo funciona esta pantalla, paso a paso"
+        aria-label="Abrir el tutorial de la sección"
+        className="h-9 px-3 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1.5 text-[13px] font-medium"
       >
-        <HelpCircle size={18} />
+        <HelpCircle size={16} />
+        Tutorial
       </button>
 
       <Dialog.Portal>
@@ -93,6 +106,7 @@ export default function HelpTutorialDialog({
               <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
                 {tabs.map((t) => {
                   const active = t.id === tabId;
+                  const done = completadas.has(t.id) && !active;
                   return (
                     <button
                       key={t.id}
@@ -102,10 +116,12 @@ export default function HelpTutorialDialog({
                         "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
                           ? "bg-card text-primary shadow-sm"
-                          : "text-muted-foreground hover:text-foreground")
+                          : done
+                            ? "text-emerald-600 hover:text-emerald-700"
+                            : "text-muted-foreground hover:text-foreground")
                       }
                     >
-                      {t.icon}
+                      {done ? <CheckCircle2 size={13} className="text-emerald-500" /> : t.icon}
                       {t.label}
                     </button>
                   );
@@ -228,15 +244,7 @@ export default function HelpTutorialDialog({
             <span className="text-[11px] text-muted-foreground/70">
               {step + 1} / {totalSteps}
             </span>
-            {step === totalSteps - 1 ? (
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
-              >
-                Entendido
-              </button>
-            ) : (
+            {!isLastStep ? (
               <button
                 type="button"
                 onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
@@ -244,6 +252,24 @@ export default function HelpTutorialDialog({
               >
                 Siguiente
                 <ChevronRight size={14} />
+              </button>
+            ) : nextTab ? (
+              <button
+                type="button"
+                onClick={() => { completar(tabId); changeTab(nextTab.id); }}
+                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1 max-w-[220px]"
+                title={`Continuar con “${nextTab.label}”`}
+              >
+                <span className="truncate">Seguir: {nextTab.label}</span>
+                <ChevronRight size={14} className="shrink-0" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { completar(tabId); setOpen(false); }}
+                className="h-8 px-3 text-sm rounded-md bg-[#10B981] text-white hover:bg-[#059669] inline-flex items-center gap-1"
+              >
+                <CheckCircle2 size={14} /> Terminar
               </button>
             )}
           </div>

@@ -1,444 +1,104 @@
 "use client";
 
-import { useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
+import HelpTutorialDialog, {
+  MockField,
+  type TutorialTab,
+} from "@/components/help/HelpTutorialDialog";
 import {
-  HelpCircle,
-  X,
   Plus,
+  Upload,
   Camera,
-  ChevronLeft,
-  ChevronRight,
-  Lightbulb,
-  CheckCircle2,
   User,
-  FileText,
-  MapPin,
-  RefreshCw,
   Phone,
+  MapPin,
   Calendar,
+  Truck,
+  Lock,
+  CreditCard,
+  FileText,
+  Trophy,
   Wallet,
-  Zap,
+  RefreshCw,
   LogOut,
   RotateCcw,
-  Trophy,
-  CreditCard,
+  Trash2,
+  AlertTriangle,
   Stethoscope,
   Coins,
-  AlertTriangle,
+  Check,
+  X,
+  Search,
+  ArrowDownUp,
+  ChevronRight,
+  FileSpreadsheet,
+  Archive,
+  CalendarOff,
+  Plane,
+  Users,
+  Briefcase,
+  ClipboardCheck,
+  Fingerprint,
+  Hash,
+  Mail,
+  UserPlus,
+  LayoutDashboard,
+  FolderOpen,
+  Zap,
 } from "lucide-react";
 
-type TabId = "manual" | "legajo" | "acciones";
-
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: "manual", label: "Crear chofer", icon: <Plus size={14} /> },
-  { id: "legajo", label: "Legajo digital", icon: <FileText size={14} /> },
-  { id: "acciones", label: "Acciones rápidas", icon: <Zap size={14} /> },
-];
-
-export default function HelpTutorialButton() {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>("manual");
-  const [step, setStep] = useState(0);
-
-  const steps =
-    tab === "manual" ? MANUAL_STEPS : tab === "legajo" ? LEGAJO_STEPS : ACCIONES_STEPS;
-  const totalSteps = steps.length;
-  const current = steps[step];
-
-  function changeTab(t: TabId) {
-    setTab(t);
-    setStep(0);
-  }
-
-  return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) {
-          setTab("manual");
-          setStep(0);
-        }
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ayuda"
-        className="size-9 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center justify-center"
-      >
-        <HelpCircle size={18} />
-      </button>
-
-      <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <div className="flex items-center gap-2.5">
-              <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
-                <HelpCircle size={18} />
-              </span>
-              <div>
-                <Dialog.Title className="text-foreground text-sm font-bold">
-                  Guía de Gestión
-                </Dialog.Title>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Tabs inside header */}
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-                {TABS.map((t) => {
-                  const active = tab === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => changeTab(t.id)}
-                      className={
-                        "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
-                        (active
-                          ? "bg-card text-primary shadow-sm"
-                          : "text-muted-foreground hover:text-foreground")
-                      }
-                    >
-                      {t.icon}
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <Dialog.Close
-                render={
-                  <button
-                    type="button"
-                    className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
-                    aria-label="Cerrar"
-                  />
-                }
-              >
-                <X size={16} />
-              </Dialog.Close>
-            </div>
-          </div>
-
-          {/* Stepper */}
-          <div className="px-5 py-2.5 border-b border-[#F1F5F9] bg-muted/30 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {steps.map((_, i) => {
-                const isDone = i < step;
-                const isCurrent = i === step;
-                return (
-                  <div key={i} className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => setStep(i)}
-                      className={
-                        "size-6 rounded-full text-[10px] font-bold inline-flex items-center justify-center transition-all " +
-                        (isCurrent
-                          ? "bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20"
-                          : isDone
-                            ? "bg-[#10B981] text-white"
-                            : "bg-card text-muted-foreground/70 border border-border")
-                      }
-                    >
-                      {isDone ? <CheckCircle2 size={12} /> : i + 1}
-                    </button>
-                    {i < totalSteps - 1 && (
-                      <div className={
-                        "w-6 h-0.5 mx-1 rounded-full " +
-                        (isDone ? "bg-[#10B981]" : "bg-[#E2E8F0]")
-                      } />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-2 py-0.5 rounded-full">
-              Paso {step + 1} de {totalSteps}
-            </div>
-          </div>
-
-          {/* Side-by-Side Content */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Left Column: Instructions */}
-            <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h3 className="text-foreground text-lg font-bold leading-tight">
-                    {current.title}
-                  </h3>
-                  <p className="text-muted-foreground text-[13px] leading-relaxed">
-                    {current.description}
-                  </p>
-                </div>
-
-                {current.hint && (
-                  <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#BAE6FD] text-[#075985] shadow-sm">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Lightbulb size={14} className="text-primary" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Pro Tip</span>
-                    </div>
-                    <p className="text-xs leading-normal opacity-90">
-                      {current.hint}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Column: Visual Preview */}
-            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
-              <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
-                      <div className="flex gap-1">
-                        <div className="size-2 rounded-full bg-[#FF5F56]/30" />
-                        <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
-                        <div className="size-2 rounded-full bg-[#27C93F]/30" />
-                      </div>
-                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-muted rounded-full" />
-                      </div>
-                    </div>
-                    <div className="p-5 overflow-hidden">
-                      {current.mockup}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
-            <button
-              type="button"
-              disabled={step === 0}
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
-            >
-              <ChevronLeft size={14} />
-              Anterior
-            </button>
-            <span className="text-[11px] text-muted-foreground/70">
-              {step + 1} / {totalSteps}
-            </span>
-            {step === totalSteps - 1 ? (
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
-              >
-                Entendido
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
-              >
-                Siguiente
-                <ChevronRight size={14} />
-              </button>
-            )}
-          </div>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-
 // =============================================================================
-// Pasos: Crear chofer
+// TAB 1 — Alta de legajo
 // =============================================================================
-
-const MANUAL_STEPS: TutorialStep[] = [
-  {
-    title: 'Abrí "Nuevo chofer"',
-    description:
-      'Arriba a la derecha de la página, hacé clic en el botón azul "+ Nuevo chofer". Se abre un modal centrado.',
-    mockup: <MockToolbar />,
-  },
-  {
-    title: "Completá los datos básicos",
-    description:
-      "Apellido, nombre y DNI son obligatorios. Teléfono, localidad y fecha de ingreso suman al legajo y se ven después en la card.",
-    mockup: <MockNewChoferForm />,
-    hint: "Los choferes no acceden al sistema. Es gestión administrativa: legajo, viajes asignados y cuenta corriente.",
-  },
-  {
-    title: "Guardar y listo",
-    description:
-      'Apretá "Guardar chofer". Aparece en el listado como una card ordenada alfabéticamente por apellido.',
-    mockup: <MockChoferCard />,
-  },
-];
-
-// =============================================================================
-// Pasos: Legajo digital
-// =============================================================================
-
-const LEGAJO_STEPS: TutorialStep[] = [
-  {
-    title: "Subí la foto de perfil",
-    description:
-      "En la card del chofer, hacé clic sobre el círculo del avatar para abrir el selector y subir una imagen. Si ya tiene foto, el clic la reemplaza.",
-    mockup: <MockAvatarUpload />,
-    hint: "Máximo 5 MB por imagen. Acepta JPG, PNG, WEBP, GIF y HEIC.",
-  },
-  {
-    title: 'Abrí el "Legajo digital"',
-    description:
-      'En cada card hay un botón "Ver legajo" (o podés hacer clic en su nombre) que te lleva a su página dedicada. Ahí toda la información se organiza en 8 pestañas: Información General, Documentación, Historial Viajes, Cuenta Corriente, Productividad, Apercibimientos, Licencias Médicas y Préstamos.',
-    mockup: <MockLegajoTabs />,
-  },
-  {
-    title: "Cargá los datos bancarios",
-    description:
-      'En "Información General" completás los datos personales y el bloque de datos bancarios: banco, CVU/CBU y alias. Se usan para liquidaciones y transferencias al chofer.',
-    mockup: <MockDatosBancarios />,
-    hint: "CVU y CBU van en el mismo campo: cargá el que tengas.",
-  },
-  {
-    title: "Cargá la documentación",
-    description:
-      'En el tab "Documentación" cargás licencia de conducir, ART, libreta sanitaria, etc. Si ponés fecha de vencimiento, el sistema te avisa cuando se acerca (y los vencimientos saltan en las stats de la sección).',
-    mockup: <MockDocumentos />,
-  },
-  {
-    title: "Mirá la productividad y el score",
-    description:
-      'El tab "Productividad" calcula solo los KPIs del chofer: viajes, km, toneladas, eficiencia de gasoil (km/l) y un score que lo ubica en el ranking. No cargás nada a mano, sale de las hojas de ruta y los viajes.',
-    mockup: <MockProductividad />,
-    hint: "El ranking general y el comparador entre choferes están en /choferes/ranking y /choferes/comparar.",
-  },
-  {
-    title: "Apercibimientos, licencias y préstamos",
-    description:
-      'Tres tabs administrativos: "Apercibimientos" para sanciones por categoría, "Licencias Médicas" para ausencias con parte médico, y "Préstamos" para adelantos con seguimiento del saldo pendiente.',
-    mockup: <MockLegajoAdmin />,
-  },
-  {
-    title: "Mirá viajes y cuenta corriente",
-    description:
-      'Los tabs "Historial Viajes" y "Cuenta Corriente" muestran lo que el chofer manejó y los movimientos asociados (viáticos, anticipos, etc.) sin que tengas que ir a otra sección.',
-    mockup: <MockViajesCuenta />,
-  },
-];
-
-// =============================================================================
-// Pasos: Acciones rápidas
-// =============================================================================
-
-const ACCIONES_STEPS: TutorialStep[] = [
-  {
-    title: "Ver legajo y viajes asociados",
-    description:
-      'En el footer de la card, "Ver legajo" abre la página dedicada del chofer y el ícono de pin abre la sección Viajes ya filtrada por este chofer. Más rápido que ir a Viajes y filtrar a mano.',
-    mockup: <MockCardFooter />,
-  },
-  {
-    title: "Cambiar el estado activo/inactivo",
-    description:
-      'El ícono de flechas circulares cambia al chofer entre "Activo" e "Inactivo". No borra nada — sólo lo saca de las listas activas (por ejemplo, mientras está de licencia larga).',
-    mockup: <MockEstadoToggle />,
-  },
-  {
-    title: "Egresar (baja con motivo)",
-    description:
-      'El ícono ámbar de salida da de baja al chofer. Te pide motivo y fecha de egreso. No se borra: pasa al historial conservando todos sus viajes, documentación y movimientos.',
-    mockup: <MockEgresar />,
-    hint: "Nunca se elimina un chofer de forma definitiva. La baja preserva el historial operativo completo.",
-  },
-  {
-    title: "Reactivar e historial de egresados",
-    description:
-      'Los egresados quedan en una sección colapsable al final del listado. Desde su card, el ícono de reactivar lo vuelve a poner en plantilla. También podés filtrarlos con el selector de estado → "Egresado".',
-    mockup: <MockReactivar />,
-  },
-];
-
-// =============================================================================
-// Tipo y mocks
-// =============================================================================
-
-type TutorialStep = {
-  title: string;
-  description: React.ReactNode;
-  mockup: React.ReactNode;
-  hint?: React.ReactNode;
-};
 
 function MockToolbar() {
   return (
     <div className="flex items-center justify-between gap-2">
-      <div className="opacity-50 transition-opacity">
-        <div className="text-foreground text-sm font-bold uppercase tracking-tight">Choferes</div>
+      <div className="opacity-60">
+        <div className="text-foreground text-sm font-bold">Personal</div>
         <div className="text-muted-foreground text-[10px] mt-0.5">
-          Legajo digital — sin acceso
+          Legajo digital de todo el personal
         </div>
       </div>
-      <div className="h-9 px-4 rounded-md text-xs font-bold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white transition-all scale-105">
-        <Plus size={14} /> Nuevo chofer
+      <div className="flex items-center gap-1.5">
+        <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 border border-border bg-card text-muted-foreground">
+          <Upload size={13} /> Importar
+        </div>
+        <div className="h-8 px-3 rounded-md text-[11px] font-bold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white scale-105">
+          <Plus size={13} /> Nuevo legajo
+        </div>
       </div>
     </div>
   );
 }
 
-function MockNewChoferForm() {
+function MockNuevoLegajoForm() {
   return (
     <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[440px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] bg-card">
-        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Nuevo chofer</div>
+      <div className="px-4 py-3 border-b border-border bg-card">
+        <div className="text-foreground text-xs font-bold uppercase tracking-wider">
+          Agregar nuevo legajo
+        </div>
       </div>
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-3">
+        <MockField label="Área / Rol *" value="Chofer" required icon={<Briefcase size={12} />} />
         <div className="grid grid-cols-2 gap-3">
-          <MockField label="Apellido *" value="Pérez" required />
           <MockField label="Nombre *" value="Juan" required />
+          <MockField label="Apellido *" value="Pérez" required />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <MockField label="DNI *" value="30.123.456" required />
-          <MockField label="Teléfono" value="+54 9 22…" />
+          <MockField label="DNI *" value="30.123.456" required icon={<Fingerprint size={12} />} />
+          <MockField label="CUIL *" value="20-30123456-9" required icon={<Hash size={12} />} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <MockField label="Localidad" value="Tres Arroyos" />
-          <MockField label="Fecha ingreso" value="01/06/2024" />
+          <MockField label="Teléfono *" value="+54 9 2983…" required icon={<Phone size={12} />} />
+          <MockField label="Localidad *" value="Tres Arroyos" required icon={<MapPin size={12} />} />
         </div>
-        <div className="flex justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-          <div className="h-8 px-3 text-[11px] rounded-md border border-border text-muted-foreground inline-flex items-center hover:bg-muted/40">
-            Cancelar
-          </div>
-          <div className="h-8 px-3 text-[11px] rounded-md bg-[#0088D1] text-white inline-flex items-center font-bold shadow-sm">
-            Guardar chofer
-          </div>
+        <MockField label="Email" value="juan@mail.com" icon={<Mail size={12} />} />
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-[11px] text-foreground">
+          <ClipboardCheck size={13} className="text-primary" />
+          <span className="font-semibold">Período de prueba</span>
+          <span className="ml-auto text-muted-foreground font-mono">01/06 → 6 meses</span>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MockField({
-  label,
-  value,
-  required,
-}: {
-  label: string;
-  value: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">{label}</div>
-      <div
-        className={
-          "h-7 px-2 text-[11px] rounded border bg-card text-foreground inline-flex items-center w-full " +
-          (required ? "border-[#0088D1]/60" : "border-border")
-        }
-      >
-        {value}
       </div>
     </div>
   );
@@ -455,15 +115,22 @@ function MockChoferCard() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-foreground font-semibold text-xs">Pérez, Juan</div>
-            <div className="text-muted-foreground text-[10px] font-mono mt-0.5">DNI 30.123.456</div>
-            <span className="mt-1 inline-block text-[9px] font-semibold uppercase tracking-wide bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] rounded-full px-1.5 py-0.5">
-              Activo
-            </span>
+            <div className="text-muted-foreground text-[10px] font-mono mt-0.5">
+              DNI 30.123.456
+            </div>
+            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+              <span className="inline-block text-[9px] font-semibold uppercase tracking-wide bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] rounded-full px-1.5 py-0.5">
+                Activo
+              </span>
+              <span className="inline-block text-[9px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-1.5 py-0.5">
+                Chofer
+              </span>
+            </div>
           </div>
         </div>
         <div className="mt-2 pt-2 border-t border-[#F1F5F9] space-y-1 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <Phone size={10} className="text-muted-foreground/70" /> +54 9 22…
+            <Phone size={10} className="text-muted-foreground/70" /> +54 9 2983…
           </div>
           <div className="flex items-center gap-1.5">
             <MapPin size={10} className="text-muted-foreground/70" /> Tres Arroyos
@@ -471,11 +138,239 @@ function MockChoferCard() {
           <div className="flex items-center gap-1.5">
             <Calendar size={10} className="text-muted-foreground/70" /> Ingreso: 01/06/2024
           </div>
+          <div className="flex items-center gap-1.5">
+            <Truck size={10} className="text-muted-foreground/70" />{" "}
+            <span className="font-mono text-foreground/80">AF930GJ</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+// =============================================================================
+// TAB 2 — Panel, filtros e importación
+// =============================================================================
+
+function MockStats() {
+  const roles = [
+    { l: "Choferes", v: "38", c: "text-emerald-600" },
+    { l: "Administr.", v: "6", c: "text-primary" },
+    { l: "Manten.", v: "4", c: "text-amber-600" },
+    { l: "Fleteros", v: "3", c: "text-primary" },
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-[#0088D1]/40 bg-[#E1F5FE]/40 p-2.5">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
+            Total personal
+          </div>
+          <div className="text-foreground text-lg font-bold leading-none mt-1">51</div>
+          <div className="text-[9px] text-muted-foreground mt-0.5">44 activos · 7 inactivos</div>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {roles.map((r) => (
+            <div key={r.l} className="rounded-md border border-border p-1.5">
+              <div className="text-[8px] uppercase text-muted-foreground truncate">{r.l}</div>
+              <div className={`text-sm font-bold ${r.c}`}>{r.v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-md border border-border p-2">
+          <div className="text-[8px] uppercase text-muted-foreground">Documentos</div>
+          <div className="text-foreground text-sm font-bold">128</div>
+        </div>
+        <div className="rounded-md border border-red-200 bg-red-50/60 p-2">
+          <div className="text-[8px] uppercase text-red-700 flex items-center gap-1">
+            <AlertTriangle size={9} /> Vencidos
+          </div>
+          <div className="text-red-700 text-sm font-bold">5</div>
+        </div>
+        <div className="rounded-md border border-amber-200 bg-amber-50/60 p-2">
+          <div className="text-[8px] uppercase text-amber-700">Por vencer</div>
+          <div className="text-amber-700 text-sm font-bold">9</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockVencimientos() {
+  const rows = [
+    {
+      n: "Pérez, Juan",
+      d: "Licencia de conducir",
+      f: "12/07/2026",
+      t: "VENCIDO",
+      cls: "bg-[#FEF2F2] text-[#7F1D1D] border-[#FECACA]",
+    },
+    {
+      n: "Gómez, Luis",
+      d: "ART",
+      f: "30/07/2026",
+      t: "POR VENCER",
+      cls: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]",
+    },
+  ];
+  return (
+    <div className="space-y-1.5">
+      {rows.map((r) => (
+        <div
+          key={r.n}
+          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
+        >
+          <FileText size={13} className="text-primary shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold text-foreground truncate">{r.n}</div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {r.d} · {r.f}
+            </div>
+          </div>
+          <span className={`text-[9px] font-bold rounded-full border px-2 py-0.5 ${r.cls}`}>
+            {r.t}
+          </span>
+          <ChevronRight size={13} className="text-muted-foreground/50 shrink-0" />
+        </div>
+      ))}
+      <div className="text-[10px] text-muted-foreground/80 pt-0.5">
+        Tocás la tarjeta y te lleva al legajo, pestaña Documentación.
+      </div>
+    </div>
+  );
+}
+
+function MockFiltros() {
+  const roles = ["Todos", "Choferes", "Administr.", "Manten.", "Fleteros"];
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 text-[11px] text-foreground">
+        <Users size={13} className="text-primary" />
+        <span className="font-semibold">Choferes en plantilla</span>
+        <span className="text-muted-foreground">38 de 38</span>
+      </div>
+      <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-lg">
+        {roles.map((r, i) => (
+          <span
+            key={r}
+            className={
+              "px-2 py-1 rounded-md text-[10px] font-medium " +
+              (i === 1 ? "bg-card text-primary shadow-sm" : "text-muted-foreground")
+            }
+          >
+            {r}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="h-7 rounded-md border border-border bg-card px-2 text-[10px] text-muted-foreground inline-flex items-center justify-between">
+          Activo <span className="text-muted-foreground/50">▾</span>
+        </div>
+        <div className="h-7 rounded-md border border-border bg-card px-2 text-[10px] text-muted-foreground inline-flex items-center gap-1">
+          <ArrowDownUp size={10} /> Apellido A–Z
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="h-7 flex-1 rounded-md border border-border bg-card px-2 text-[10px] text-muted-foreground inline-flex items-center gap-1">
+          <Search size={10} /> Nombre, DNI, CUIL…
+        </div>
+        <div className="h-7 rounded-md border border-border bg-card px-2 text-[10px] text-muted-foreground inline-flex items-center gap-1">
+          <X size={10} /> Limpiar
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockImport() {
+  const rows = [
+    { ok: true, n: "Pérez, Juan", d: "30.123.456" },
+    { ok: true, n: "Gómez, Luis", d: "28.998.111" },
+    { ok: false, n: "(sin apellido)", d: "—" },
+  ];
+  return (
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <span className="size-6 rounded-md bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
+          <FileSpreadsheet size={13} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold text-foreground">
+            Detectado: Planilla de Choferes
+          </div>
+          <div className="text-[9px]">
+            <span className="text-emerald-600 font-semibold">2 válidas</span> ·{" "}
+            <span className="text-red-600 font-semibold">1 con error</span>
+          </div>
+        </div>
+      </div>
+      <div className="p-2 space-y-1">
+        {rows.map((r) => (
+          <div
+            key={r.n}
+            className={
+              "flex items-center gap-2 rounded px-2 py-1 text-[10px] " + (r.ok ? "" : "bg-[#FEF2F2]")
+            }
+          >
+            {r.ok ? (
+              <Check size={11} className="text-[#10B981]" />
+            ) : (
+              <X size={11} className="text-red-500" />
+            )}
+            <span className="text-foreground font-medium flex-1 truncate">{r.n}</span>
+            <span className="text-muted-foreground font-mono">{r.d}</span>
+          </div>
+        ))}
+      </div>
+      <div className="px-3 py-2 border-t border-border flex justify-end">
+        <div className="h-7 px-3 rounded-md bg-[#0088D1] text-white text-[10px] font-bold inline-flex items-center gap-1">
+          <Upload size={11} /> Confirmar 2 registros
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockReactivar() {
+  return (
+    <div className="space-y-2">
+      <div className="w-full bg-card rounded-md border border-border px-3 py-2 flex items-center justify-between text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+          <Archive size={12} /> Historial de Choferes Egresados
+        </span>
+        <span>2 choferes ▾</span>
+      </div>
+      <div className="bg-card border border-amber-200 rounded-md px-3 py-2 flex items-center justify-between opacity-90">
+        <div className="text-xs text-foreground">
+          <b>Pérez, Juan</b>{" "}
+          <span className="ml-2 text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+            Egresado
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div
+            className="size-7 rounded-md text-emerald-500 border border-emerald-200 inline-flex items-center justify-center"
+            title="Reactivar"
+          >
+            <RotateCcw size={12} />
+          </div>
+          <div
+            className="size-7 rounded-md text-red-500 border border-red-200 inline-flex items-center justify-center"
+            title="Eliminar"
+          >
+            <Trash2 size={12} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// TAB 3 — Legajo digital
+// =============================================================================
 
 function MockAvatarUpload() {
   return (
@@ -503,9 +398,12 @@ function MockLegajoTabs() {
     "Documentación",
     "Historial Viajes",
     "Cuenta Corriente",
+    "Sueldos",
     "Productividad",
     "Apercibimientos",
     "Licencias Médicas",
+    "Ausencias",
+    "Vacaciones",
     "Préstamos",
   ];
   return (
@@ -517,19 +415,25 @@ function MockLegajoTabs() {
         <span className="font-semibold">Pérez, Juan</span>
       </div>
       <div className="p-2 flex flex-wrap gap-1">
-        {tabs.map((t, i) => (
-          <span
-            key={t}
-            className={
-              "px-2 py-1 rounded text-[10px] font-medium border " +
-              (i === 0
-                ? "bg-[#E1F5FE] text-primary border-[#0088D1]/40"
-                : "bg-card text-muted-foreground border-border")
-            }
-          >
-            {t}
-          </span>
-        ))}
+        {tabs.map((t, i) => {
+          const sueldos = t === "Sueldos";
+          return (
+            <span
+              key={t}
+              className={
+                "px-2 py-1 rounded text-[10px] font-medium border inline-flex items-center gap-1 " +
+                (i === 0
+                  ? "bg-[#E1F5FE] text-primary border-[#0088D1]/40"
+                  : sueldos
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-card text-muted-foreground border-border")
+              }
+            >
+              {sueldos && <Lock size={9} />}
+              {t}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -553,7 +457,40 @@ function MockDatosBancarios() {
         <span className="text-muted-foreground">Alias</span>
         <span className="text-foreground font-mono">perez.juan.dj</span>
       </div>
-      <div className="text-[10px] text-muted-foreground/80 pt-0.5">Se usan para liquidaciones y transferencias.</div>
+      <div className="text-[10px] text-muted-foreground/80 pt-0.5">
+        Se usan para liquidaciones y transferencias.
+      </div>
+    </div>
+  );
+}
+
+function MockDocumentos() {
+  return (
+    <div className="bg-card border border-border rounded-md p-3 space-y-1.5 text-[11px]">
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> Licencia de conducir
+        </span>
+        <span className="text-[10px] text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-full px-2 py-0.5">
+          Vigente
+        </span>
+      </div>
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> ART
+        </span>
+        <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-full px-2 py-0.5">
+          Vence en 20 días
+        </span>
+      </div>
+      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
+        <span className="inline-flex items-center gap-1.5 text-foreground">
+          <FileText size={11} className="text-primary" /> Libreta sanitaria
+        </span>
+        <span className="text-[10px] text-[#7F1D1D] bg-[#FEF2F2] border border-[#FECACA] rounded-full px-2 py-0.5">
+          Vencida
+        </span>
+      </div>
     </div>
   );
 }
@@ -591,59 +528,6 @@ function MockProductividad() {
   );
 }
 
-function MockLegajoAdmin() {
-  return (
-    <div className="space-y-1.5 text-[11px]">
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card">
-        <AlertTriangle size={12} className="text-[#F59E0B]" />
-        <span className="text-foreground flex-1">Apercibimiento — Demora reiterada</span>
-        <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-full px-2 py-0.5">Leve</span>
-      </div>
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card">
-        <Stethoscope size={12} className="text-primary" />
-        <span className="text-foreground flex-1">Licencia médica — 3 días</span>
-        <span className="text-[10px] text-muted-foreground">con parte</span>
-      </div>
-      <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card">
-        <Coins size={12} className="text-[#065F46]" />
-        <span className="text-foreground flex-1">Préstamo — saldo pendiente</span>
-        <span className="text-[11px] font-semibold text-[#7F1D1D]">$ 80.000</span>
-      </div>
-    </div>
-  );
-}
-
-function MockDocumentos() {
-  return (
-    <div className="bg-card border border-border rounded-md p-3 space-y-1.5 text-[11px]">
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
-        <span className="inline-flex items-center gap-1.5 text-foreground">
-          <FileText size={11} className="text-primary" /> Licencia de conducir
-        </span>
-        <span className="text-[10px] text-[#065F46] bg-[#ECFDF5] border border-[#A7F3D0] rounded-full px-2 py-0.5">
-          Vigente
-        </span>
-      </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
-        <span className="inline-flex items-center gap-1.5 text-foreground">
-          <FileText size={11} className="text-primary" /> ART
-        </span>
-        <span className="text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-full px-2 py-0.5">
-          Vence en 20 días
-        </span>
-      </div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded border border-border">
-        <span className="inline-flex items-center gap-1.5 text-foreground">
-          <FileText size={11} className="text-primary" /> Libreta sanitaria
-        </span>
-        <span className="text-[10px] text-[#7F1D1D] bg-[#FEF2F2] border border-[#FECACA] rounded-full px-2 py-0.5">
-          Vencida
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function MockViajesCuenta() {
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -667,6 +551,34 @@ function MockViajesCuenta() {
         <div className="flex items-center justify-between text-[11px]">
           <span className="text-foreground">Anticipo</span>
           <span className="text-[#7F1D1D] font-semibold">- $ 50.000</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// TAB 4 — Acciones y seguimiento
+// =============================================================================
+
+function MockCardFooter() {
+  return (
+    <div className="bg-muted/40 border border-border rounded-md px-3 py-2.5 flex items-center justify-between gap-1">
+      <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+        <User size={12} /> Ver legajo
+      </div>
+      <div className="flex items-center gap-1">
+        <div
+          className="size-8 rounded-md text-primary border border-[#0088D1] inline-flex items-center justify-center"
+          title="Ver viajes"
+        >
+          <MapPin size={13} />
+        </div>
+        <div className="size-8 rounded-md text-amber-500 border border-border inline-flex items-center justify-center">
+          <RefreshCw size={13} />
+        </div>
+        <div className="size-8 rounded-md text-amber-500 border border-border inline-flex items-center justify-center">
+          <LogOut size={13} />
         </div>
       </div>
     </div>
@@ -703,32 +615,13 @@ function MockEstadoToggle() {
   );
 }
 
-function MockCardFooter() {
-  return (
-    <div className="bg-muted/40 border border-border rounded-md px-3 py-2.5 flex items-center justify-between gap-1">
-      <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 bg-[#0088D1] text-white shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
-        <User size={12} /> Ver legajo
-      </div>
-      <div className="flex items-center gap-1">
-        <div className="size-8 rounded-md text-primary border border-[#0088D1] inline-flex items-center justify-center" title="Ver viajes">
-          <MapPin size={13} />
-        </div>
-        <div className="size-8 rounded-md text-amber-500 border border-border inline-flex items-center justify-center">
-          <RefreshCw size={13} />
-        </div>
-        <div className="size-8 rounded-md text-amber-500 border border-border inline-flex items-center justify-center">
-          <LogOut size={13} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function MockEgresar() {
   return (
     <div className="bg-card border border-amber-200 rounded-md overflow-hidden">
       <div className="px-3 py-2 flex items-center justify-between">
-        <div className="text-xs text-foreground"><b>Pérez, Juan</b></div>
+        <div className="text-xs text-foreground">
+          <b>Pérez, Juan</b>
+        </div>
         <div className="size-7 rounded-md text-amber-500 border border-amber-200 bg-amber-50 inline-flex items-center justify-center shadow-[0_0_0_3px_rgba(245,158,11,0.15)] ring-2 ring-amber-300">
           <LogOut size={12} />
         </div>
@@ -737,31 +630,218 @@ function MockEgresar() {
         <div className="flex items-center gap-1.5 text-amber-700 font-semibold uppercase tracking-wide">
           <LogOut size={11} /> Chofer egresado
         </div>
-        <div className="text-foreground/90">Motivo: <span className="font-medium">renuncia</span></div>
+        <div className="text-foreground/90">
+          Motivo: <span className="font-medium">renuncia</span>
+        </div>
         <div className="text-foreground/90">Fecha de egreso: 30/04/2026</div>
       </div>
     </div>
   );
 }
 
-function MockReactivar() {
+function MockLegajoAdmin() {
+  const rows = [
+    {
+      icon: <AlertTriangle size={12} className="text-[#F59E0B]" />,
+      t: "Apercibimiento — Demora reiterada",
+      tag: "Leve",
+      tagCls: "text-[#92400E] bg-[#FEF3C7] border-[#FCD34D]",
+    },
+    {
+      icon: <Stethoscope size={12} className="text-primary" />,
+      t: "Licencia médica — 3 días",
+      tag: "con parte",
+      tagCls: "text-muted-foreground bg-muted border-border",
+    },
+    {
+      icon: <CalendarOff size={12} className="text-muted-foreground" />,
+      t: "Ausencia — falta sin aviso",
+      tag: "1 día",
+      tagCls: "text-muted-foreground bg-muted border-border",
+    },
+    {
+      icon: <Plane size={12} className="text-emerald-600" />,
+      t: "Vacaciones — saldo 14 días",
+      tag: "cronograma",
+      tagCls: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    },
+    {
+      icon: <Coins size={12} className="text-[#065F46]" />,
+      t: "Préstamo — saldo pendiente",
+      tag: "$ 80.000",
+      tagCls: "text-[#7F1D1D] bg-[#FEF2F2] border-[#FECACA]",
+    },
+  ];
   return (
-    <div className="space-y-2">
-      <div className="w-full bg-card rounded-md border border-border px-3 py-2 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="font-semibold text-foreground">Historial de Choferes Egresados</span>
-        <span>2 choferes ▾</span>
-      </div>
-      <div className="bg-card border border-amber-200 rounded-md px-3 py-2 flex items-center justify-between opacity-90">
-        <div className="text-xs text-foreground">
-          <b>Pérez, Juan</b>{" "}
-          <span className="ml-2 text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
-            Egresado
+    <div className="space-y-1.5 text-[11px]">
+      {rows.map((r) => (
+        <div
+          key={r.t}
+          className="flex items-center gap-2 px-2 py-1.5 rounded border border-border bg-card"
+        >
+          {r.icon}
+          <span className="text-foreground flex-1 truncate">{r.t}</span>
+          <span className={`text-[9px] rounded-full border px-2 py-0.5 shrink-0 ${r.tagCls}`}>
+            {r.tag}
           </span>
         </div>
-        <div className="size-7 rounded-md text-emerald-500 border border-emerald-200 inline-flex items-center justify-center" title="Reactivar">
-          <RotateCcw size={12} />
-        </div>
-      </div>
+      ))}
     </div>
   );
+}
+
+// =============================================================================
+// Solapas
+// =============================================================================
+
+const TABS: TutorialTab[] = [
+  {
+    id: "alta",
+    label: "Alta",
+    icon: <UserPlus size={14} />,
+    steps: [
+      {
+        title: 'Abrí "Nuevo legajo"',
+        description:
+          'Arriba a la derecha está el botón azul "Nuevo legajo" (y al lado "Importar", para cargar planillas). El de Personal no es solo para choferes: acá va todo el personal.',
+        mockup: <MockToolbar />,
+        hint: "Los choferes no entran al sistema. Esto es gestión administrativa: legajo, viajes y cuenta corriente.",
+      },
+      {
+        title: "Elegí el área y cargá los datos",
+        description:
+          'Lo primero es el "Área / Rol": Chofer, Administración, Mantenimiento o Fletero (tercerizado). Después el resto: nombre, apellido, DNI, CUIL, teléfono, email y localidad. El período de prueba (6 meses) arranca solo desde la fecha de ingreso.',
+        mockup: <MockNuevoLegajoForm />,
+        hint: "El rol define de qué stat suma la persona y, en choferes, si se le puede asignar un camión.",
+      },
+      {
+        title: "Guardá — aparece en el listado",
+        description:
+          "Al guardar, la persona aparece como una tarjeta ordenada por apellido. Podés guardar aunque falten datos: el legajo queda marcado como incompleto y no se puede asignar a viajes ni siniestros hasta completarlo.",
+        mockup: <MockChoferCard />,
+        hint: "Nombre, apellido, DNI, CUIL, teléfono, localidad y fecha de ingreso: con eso el legajo queda completo.",
+      },
+    ],
+  },
+  {
+    id: "panel",
+    label: "Panel",
+    icon: <LayoutDashboard size={14} />,
+    steps: [
+      {
+        title: "Leé el panel de arriba",
+        description:
+          "La primera fila desglosa el personal por rol (choferes, administración, mantenimiento, fleteros) más el total con activos e inactivos. La segunda muestra la documentación cargada y cuánta está vencida o por vencer.",
+        mockup: <MockStats />,
+      },
+      {
+        title: "Vencimientos que saltan",
+        description:
+          'Las tarjetas "Vencidos" y "Por vencer" son clickeables: se abre el detalle con el chofer, el tipo de documento y los días. Tocás cualquiera y vas directo a su legajo, pestaña Documentación.',
+        mockup: <MockVencimientos />,
+        hint: "Los avisos salen de las fechas de vencimiento que cargás en cada documento del legajo.",
+      },
+      {
+        title: "Filtrá, ordená y buscá",
+        description:
+          "Las pestañas de rol filtran por área (con el conteo al lado). Sumás estado (activo, inactivo, en período de prueba o egresado), un orden (apellido o antigüedad) y el buscador por nombre, DNI, CUIL o teléfono. Limpiar deja todo como estaba.",
+        mockup: <MockFiltros />,
+      },
+      {
+        title: "Importá desde Excel",
+        description:
+          'Con "Importar" subís una planilla .xlsx o .csv. El sistema detecta solo si es de choferes, de vencimientos de licencias o de manuales, te muestra una vista previa con válidas y errores, y recién ahí confirmás.',
+        mockup: <MockImport />,
+        hint: "Importar choferes da de alta los nuevos y actualiza los que ya existen (empareja por DNI/CUIL). No pisa a lo loco.",
+      },
+      {
+        title: "Historial de egresados",
+        description:
+          "Los que diste de baja no se borran: quedan en una sección colapsable al final del listado. Desde su tarjeta los reactivás (vuelven a plantilla) o, si de verdad hace falta, los eliminás definitivamente. También los filtrás con el estado \"Egresado\".",
+        mockup: <MockReactivar />,
+      },
+    ],
+  },
+  {
+    id: "legajo",
+    label: "Legajo",
+    icon: <FolderOpen size={14} />,
+    steps: [
+      {
+        title: "Subí la foto de perfil",
+        description:
+          "En la tarjeta, hacé clic sobre el círculo del avatar para subir una imagen. Si ya tiene foto, el clic la reemplaza y el tachito rojo la borra.",
+        mockup: <MockAvatarUpload />,
+        hint: "Máximo 5 MB por imagen. Acepta JPG, PNG, WEBP, GIF y HEIC.",
+      },
+      {
+        title: 'Abrí el "Legajo digital"',
+        description:
+          'Desde "Ver legajo" (o el nombre) entrás a su página. Todo se organiza en pestañas: Información General, Documentación, Historial Viajes, Cuenta Corriente, Productividad, Apercibimientos, Licencias Médicas, Ausencias, Vacaciones y Préstamos. Sueldos es aparte: confidencial, solo con permiso.',
+        mockup: <MockLegajoTabs />,
+      },
+      {
+        title: "Datos personales y bancarios",
+        description:
+          'En "Información General" completás los datos y el bloque bancario: banco, CVU/CBU y alias. Se usan para liquidaciones y transferencias al chofer. Ahí también cargás contactos de emergencia y el camión asignado.',
+        mockup: <MockDatosBancarios />,
+        hint: "CVU y CBU van en el mismo campo: cargá el que tengas.",
+      },
+      {
+        title: "Documentación con vencimientos",
+        description:
+          'En "Documentación" subís licencia, ART, libreta sanitaria, etc. Si ponés fecha de vencimiento, el sistema avisa cuando se acerca y eso alimenta las tarjetas de vencidos/por vencer del panel.',
+        mockup: <MockDocumentos />,
+      },
+      {
+        title: "Productividad y score",
+        description:
+          '"Productividad" calcula solo los KPIs: viajes, km, toneladas, eficiencia de gasoil (km/l) y un score que lo ubica en el ranking. No cargás nada a mano, sale de las hojas de ruta y los viajes.',
+        mockup: <MockProductividad />,
+        hint: "El ranking general y el comparador entre choferes están en /choferes/ranking y /choferes/comparar.",
+      },
+      {
+        title: "Viajes y cuenta corriente",
+        description:
+          'Los tabs "Historial Viajes" y "Cuenta Corriente" muestran lo que el chofer manejó y sus movimientos (viáticos, anticipos, etc.) sin que tengas que ir a otra sección.',
+        mockup: <MockViajesCuenta />,
+      },
+    ],
+  },
+  {
+    id: "acciones",
+    label: "Acciones",
+    icon: <Zap size={14} />,
+    steps: [
+      {
+        title: "Ver legajo y viajes asociados",
+        description:
+          'En el pie de la tarjeta, "Ver legajo" abre la página del chofer y el ícono de pin abre Viajes ya filtrado por esa persona. Más rápido que ir a Viajes y filtrar a mano.',
+        mockup: <MockCardFooter />,
+      },
+      {
+        title: "Activo / inactivo",
+        description:
+          'El ícono de flechas circulares cambia entre "Activo" e "Inactivo". No borra nada: solo lo saca de las listas activas (por ejemplo, mientras está de licencia larga).',
+        mockup: <MockEstadoToggle />,
+      },
+      {
+        title: "Egresar (baja con motivo)",
+        description:
+          "El ícono ámbar de salida da de baja al chofer. Te pide motivo y fecha de egreso. No se borra: pasa al historial conservando viajes, documentación y movimientos.",
+        mockup: <MockEgresar />,
+        hint: "Un chofer con viajes o registros asociados no se puede eliminar del todo: el sistema lo impide y lo deja en el historial.",
+      },
+      {
+        title: "Seguimiento de RR.HH.",
+        description:
+          "Dentro del legajo llevás el seguimiento del personal: apercibimientos por categoría, licencias médicas con parte, ausencias, vacaciones (saldo + cronograma) y préstamos con el saldo pendiente. Todo editable con permiso de logística.",
+        mockup: <MockLegajoAdmin />,
+      },
+    ],
+  },
+];
+
+export default function HelpTutorialButton() {
+  return <HelpTutorialDialog title="Personal y legajos — guía" tabs={TABS} />;
 }

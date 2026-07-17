@@ -16,7 +16,7 @@ export default async function ViajesLiquidacionesPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const user = await requireSeccion("viajes_liquidaciones", "read");
-  const canDelete = hasArea(user, "viajes", "admin");
+  const canDelete = hasArea(user, "viajes", "write");
   const { tab } = await searchParams;
 
   const [dms, liqs] = await Promise.all([listDmYpfAction(), listLiqLomaAction()]);

@@ -3,6 +3,7 @@ import { Lock } from "lucide-react";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getPrestamosAction } from "./actions";
 import PrestamosClient from "./PrestamosClient";
+import HelpTutorialButton from "./help-tutorial-button";
 
 /**
  * Préstamos bancarios (audio Bárbara 02/07): la planilla de la mamá en el
@@ -21,6 +22,7 @@ export default async function PrestamosPage() {
       <PageHeader
         title="Préstamos"
         description="Cuotas por banco, vencimientos y carga semanal de pagos"
+        action={<HelpTutorialButton />}
       />
 
       <div className="flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3">

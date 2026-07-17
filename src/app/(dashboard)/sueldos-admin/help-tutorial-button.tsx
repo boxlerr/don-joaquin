@@ -1,0 +1,657 @@
+"use client";
+
+import HelpTutorialDialog, { type TutorialTab } from "@/components/help/HelpTutorialDialog";
+import {
+  Wallet,
+  TrendingUp,
+  FileSpreadsheet,
+  Receipt,
+  Percent,
+  Pencil,
+  Save,
+  ArrowDown,
+  Calendar,
+  Lock,
+  Plus,
+  X,
+  Trash2,
+  Flame,
+  Clock,
+  Upload,
+  CheckCircle2,
+} from "lucide-react";
+
+// Tutorial de la sección "Sueldos admin y taller" (planilla del personal de
+// administración y taller, aumentos e importación desde el Excel de Bárbara).
+// Todos los componentes de mockup van a NIVEL DE MÓDULO (nunca anidados).
+
+// ---------------------------------------------------------------------------
+// Helpers de mockup
+// ---------------------------------------------------------------------------
+
+function SectorChip({ label, tone }: { label: string; tone: "admin" | "taller" }) {
+  const cls =
+    tone === "admin"
+      ? "bg-blue-50 text-blue-700 border-blue-200/60"
+      : "bg-orange-50 text-orange-700 border-orange-200/60";
+  return (
+    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  tone?: "default" | "primary" | "green";
+}) {
+  const box = tone === "primary" ? "border-primary/30 bg-primary/5" : "border-border bg-card";
+  const iconCls =
+    tone === "green" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary";
+  const valCls = tone === "primary" ? "text-primary" : "text-foreground";
+  return (
+    <div className={`rounded-lg border p-2.5 ${box}`}>
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground leading-tight">
+          {label}
+        </span>
+        <span className={`p-1 rounded ${iconCls}`}>{icon}</span>
+      </div>
+      <div className={`text-[15px] font-black mt-1 ${valCls}`}>{value}</div>
+    </div>
+  );
+}
+
+function VarField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">{label}</div>
+      <div className="h-7 px-2 rounded border border-[#0088D1]/50 bg-card text-[10px] font-mono text-foreground flex items-center justify-end">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SectorRow({ nombre, base, total }: { nombre: string; base: string; total: string }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-1.5 border-t border-border/60 text-[10px]">
+      <span className="font-medium text-foreground truncate">{nombre}</span>
+      <span className="font-mono text-muted-foreground w-14 text-right">{base}</span>
+      <span className="font-mono font-semibold text-foreground w-14 text-right">{total}</span>
+    </div>
+  );
+}
+
+function MatrizCell({ value, highlight }: { value: string; highlight?: boolean }) {
+  return (
+    <div
+      className={`py-1.5 text-[9px] font-mono border-l border-border/40 text-center ${highlight ? "text-primary font-bold bg-primary/5" : "text-foreground"}`}
+    >
+      {value}
+    </div>
+  );
+}
+
+function AumentoItem({
+  mes,
+  monto,
+  delta,
+  vigente,
+}: {
+  mes: string;
+  monto: string;
+  delta?: string;
+  vigente?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg border p-2 ${vigente ? "border-emerald-200/70 bg-emerald-50/40" : "border-border bg-card"}`}
+    >
+      <div className="flex flex-col items-center w-12 shrink-0 leading-tight">
+        <span className="text-[7px] uppercase text-muted-foreground">desde</span>
+        <span className="text-[9px] font-semibold capitalize text-foreground text-center">{mes}</span>
+      </div>
+      <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+        <span className="font-mono text-[11px] font-bold text-foreground">{monto}</span>
+        {delta && (
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-600">
+            <TrendingUp size={10} /> {delta}
+          </span>
+        )}
+        {vigente && (
+          <span className="bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded text-[8px] font-semibold">
+            vigente
+          </span>
+        )}
+      </div>
+      <Trash2 size={11} className="text-muted-foreground/60 shrink-0" />
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  icon: React.ReactNode;
+  tone: "green" | "amber";
+}) {
+  const iconCls =
+    tone === "green" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600";
+  const subCls = tone === "green" ? "text-emerald-600" : "text-muted-foreground";
+  return (
+    <div className="rounded-lg border border-border bg-card p-2">
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-[7px] font-bold uppercase tracking-wider text-muted-foreground leading-tight">
+          {label}
+        </span>
+        <span className={`p-0.5 rounded ${iconCls}`}>{icon}</span>
+      </div>
+      <div className="text-[14px] font-black text-foreground mt-0.5">{value}</div>
+      <div className={`text-[8px] font-semibold ${subCls}`}>{sub}</div>
+    </div>
+  );
+}
+
+function MatchRow({
+  nombre,
+  legajo,
+  estado,
+}: {
+  nombre: string;
+  legajo: string;
+  estado: "auto" | "chofer" | "sin";
+}) {
+  const badge =
+    estado === "auto"
+      ? { t: "auto", c: "bg-emerald-500/10 text-emerald-600" }
+      : estado === "chofer"
+        ? { t: "¿chofer?", c: "bg-amber-500/10 text-amber-600" }
+        : { t: "sin match", c: "bg-red-500/10 text-red-600" };
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-1.5">
+      <span className="w-14 shrink-0 font-mono text-[9px] font-medium text-foreground truncate">
+        {nombre}
+      </span>
+      <span className="flex-1 h-6 rounded border border-border bg-card px-1.5 inline-flex items-center text-[9px] text-muted-foreground truncate">
+        {legajo}
+      </span>
+      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-medium ${badge.c}`}>
+        {badge.t}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB 1 — Planilla del mes
+// ---------------------------------------------------------------------------
+
+function MockQueEs() {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Mes</span>
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+          <Calendar size={12} className="text-primary" /> junio 2026
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SectorChip label="Administración" tone="admin" />
+        <SectorChip label="Taller" tone="taller" />
+        <span className="text-[10px] text-muted-foreground">personal de oficina y taller</span>
+      </div>
+      <div className="rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-800 px-2.5 py-2 flex items-center gap-1.5">
+        <Lock size={12} className="text-amber-600 shrink-0" /> Sección <b>confidencial</b>: la ven solo los administradores.
+      </div>
+    </div>
+  );
+}
+
+function MockKpis() {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <KpiCard label="Total sueldos" value="$ 41,2M" icon={<Wallet size={13} />} />
+      <KpiCard label="Facturación" value="$ 310M" icon={<Receipt size={13} />} tone="green" />
+      <KpiCard label="% s/ facturación" value="13,3%" icon={<Percent size={13} />} tone="primary" />
+    </div>
+  );
+}
+
+function MockFilaEmpleado() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/40">
+        <span className="text-[11px] font-semibold text-foreground">Gómez, Ana</span>
+        <SectorChip label="Administración" tone="admin" />
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-muted-foreground">Sueldo base</span>
+          <span className="font-mono text-foreground">$ 3.100.000</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <VarField label="Comisión logística" value="290.000" />
+          <VarField label="Combustible" value="100.000" />
+          <VarField label="Plus YPF" value="0" />
+          <VarField label="Sábados" value="68.000" />
+        </div>
+        <div className="flex items-center justify-between border-t border-border pt-2">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Total</span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[12px] font-bold text-foreground">$ 3.558.000</span>
+            <span className="h-6 px-2 rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 text-[10px] font-bold">
+              <Save size={11} /> Guardar
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockTablaSectores() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-3 py-1.5 bg-muted/50 text-[8px] font-bold uppercase text-muted-foreground">
+        <span>Empleado</span>
+        <span className="w-14 text-right inline-flex items-center justify-end gap-0.5">
+          Base <ArrowDown size={9} className="text-foreground" />
+        </span>
+        <span className="w-14 text-right">Total</span>
+      </div>
+      <div className="px-3 py-1 bg-blue-50/60 text-[9px] font-bold uppercase tracking-wider text-blue-700">
+        Administración · subtotal $ 22,4M
+      </div>
+      <SectorRow nombre="Gómez, Ana" base="$ 3,1M" total="$ 3,5M" />
+      <SectorRow nombre="Ruiz, Marco" base="$ 2,9M" total="$ 3,1M" />
+      <div className="px-3 py-1 bg-orange-50/60 text-[9px] font-bold uppercase tracking-wider text-orange-700 border-t border-border">
+        Taller · subtotal $ 18,8M
+      </div>
+      <SectorRow nombre="Sosa, Julio" base="$ 2,6M" total="$ 2,9M" />
+      <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-1.5 border-t border-border bg-muted/40">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Total</span>
+        <span className="w-14" />
+        <span className="font-mono font-black text-foreground w-14 text-right text-[10px]">$ 41,2M</span>
+      </div>
+    </div>
+  );
+}
+
+function MockFacturacion() {
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Facturación del mes</span>
+          <Receipt size={13} className="text-emerald-600" />
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[15px] font-black text-foreground">$ 310M</span>
+          <span className="bg-blue-50 text-blue-700 border border-blue-200/60 px-1.5 py-0.5 rounded text-[9px] font-semibold">
+            del sistema
+          </span>
+          <span className="ml-auto inline-flex size-6 items-center justify-center rounded-md bg-muted text-primary">
+            <Pencil size={11} />
+          </span>
+        </div>
+        <div className="text-[9px] text-muted-foreground mt-1">suma de los viajes del mes</div>
+      </div>
+      <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground">
+        <Pencil size={11} className="text-amber-600" /> con el lápiz la pisás a mano →
+        <span className="bg-amber-50 text-amber-700 border border-amber-200/60 px-1.5 py-0.5 rounded text-[9px] font-semibold">
+          manual
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB 2 — Aumentos
+// ---------------------------------------------------------------------------
+
+function MockMatriz() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="grid grid-cols-[56px_1fr_1fr_1fr_1fr] text-center">
+        <div className="bg-muted" />
+        <div className="col-span-2 bg-muted py-1 text-[9px] font-bold text-muted-foreground border-l border-border">
+          2025
+        </div>
+        <div className="col-span-2 bg-muted py-1 text-[9px] font-bold text-muted-foreground border-l border-border">
+          2026
+        </div>
+      </div>
+      <div className="grid grid-cols-[56px_1fr_1fr_1fr_1fr] text-center bg-muted/60 border-t border-border">
+        <div className="py-1 text-[8px] font-bold uppercase text-muted-foreground text-left pl-2">Empl.</div>
+        {["nov", "dic", "ene", "feb"].map((m) => (
+          <div
+            key={m}
+            className="py-1 text-[8px] font-semibold capitalize text-muted-foreground border-l border-border/60"
+          >
+            {m}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-[56px_1fr_1fr_1fr_1fr] border-t border-border/60">
+        <div className="py-1.5 text-[9px] font-semibold text-foreground text-left pl-2 truncate">Gómez</div>
+        <MatrizCell value="2,7M" />
+        <MatrizCell value="2,8M" />
+        <MatrizCell value="2,9M" />
+        <MatrizCell value="3,1M" highlight />
+      </div>
+      <div className="grid grid-cols-[56px_1fr_1fr_1fr_1fr] border-t border-border/60">
+        <div className="py-1.5 text-[9px] font-semibold text-foreground text-left pl-2 truncate">Ruiz</div>
+        <MatrizCell value="—" />
+        <MatrizCell value="2,6M" />
+        <MatrizCell value="2,6M" />
+        <MatrizCell value="2,8M" />
+      </div>
+    </div>
+  );
+}
+
+function MockRegistrarAumento() {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Registrar aumento</div>
+      <div className="h-7 rounded border border-border bg-card px-2 flex items-center gap-1.5 text-[10px] text-foreground">
+        <Calendar size={11} className="text-primary" /> febrero 2026
+      </div>
+      <div>
+        <div className="h-7 rounded border border-border bg-card px-2 flex items-center justify-end text-[10px] font-mono text-foreground">
+          $ 3.100.000
+        </div>
+        <div className="mt-1 text-[10px] font-semibold text-emerald-600 inline-flex items-center gap-1">
+          <TrendingUp size={11} /> +8,3% vs anterior
+        </div>
+      </div>
+      <div className="h-7 rounded border border-border bg-card px-2 flex items-center text-[10px] text-muted-foreground">
+        Observaciones (opcional)
+      </div>
+      <div className="flex justify-end">
+        <span className="h-7 px-3 rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 text-[10px] font-bold">
+          <Save size={11} /> Registrar
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MockHistorial() {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Historial de aumentos</div>
+      <AumentoItem mes="feb 2026" monto="$ 3,1M" delta="+8,3%" vigente />
+      <AumentoItem mes="dic 2025" monto="$ 2,8M" delta="+7,7%" />
+      <AumentoItem mes="ago 2025" monto="$ 2,6M" delta="+10,0%" />
+    </div>
+  );
+}
+
+function MockAgregarMes() {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-end">
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-card border border-primary/40 rounded-md px-2 py-1">
+          <Plus size={11} /> Agregar mes
+        </span>
+      </div>
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="grid grid-cols-2 text-center bg-muted/60 text-[9px] font-semibold text-muted-foreground">
+          <div className="py-1.5 border-r border-border/60 capitalize">ene</div>
+          <div className="py-1.5 inline-flex items-center justify-center gap-1">
+            <span className="italic capitalize text-muted-foreground/80">feb</span>
+            <X size={10} className="text-muted-foreground/60" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 text-center border-t border-border/60 text-[9px] font-mono">
+          <div className="py-1.5 border-r border-border/40 text-foreground">$ 3,1M</div>
+          <div className="py-1.5 text-muted-foreground/40">—</div>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span className="italic">feb</span> = columna sin datos aún
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Trash2 size={10} className="text-destructive" /> borra todo el mes
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MockMetricasAumentos() {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Período</span>
+        <span className="inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+          {["Todo", "12m", "6m", "3m"].map((p, i) => (
+            <span
+              key={p}
+              className={`px-1.5 h-4 inline-flex items-center rounded text-[8px] font-medium ${i === 0 ? "bg-card text-primary shadow-sm" : "text-muted-foreground"}`}
+            >
+              {p}
+            </span>
+          ))}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <MetricCard label="Inflación INDEC" value="2,1%" sub="acum. +142%" icon={<Flame size={12} />} tone="amber" />
+        <MetricCard label="Aumentos" value="+165%" sub="real +9,5%" icon={<TrendingUp size={12} />} tone="green" />
+        <MetricCard label="Atrasados" value="2" sub="3+ meses" icon={<Clock size={12} />} tone="amber" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB 3 — Importar Excel
+// ---------------------------------------------------------------------------
+
+function MockImportBtn() {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-end">
+        <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-card text-[11px] font-semibold text-primary">
+          <Upload size={13} /> Importar Excel
+        </span>
+      </div>
+      <div className="rounded-lg border border-border bg-card p-3 flex items-center gap-2.5">
+        <span className="size-8 rounded-lg bg-emerald-500/10 text-emerald-600 inline-flex items-center justify-center shrink-0">
+          <FileSpreadsheet size={16} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold text-foreground truncate">SUELDOS E INSUMOS.xlsx</div>
+          <div className="text-[9px] text-muted-foreground">bloques por mes · sueldo, comisión, combustible, plus YPF, sábados</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockMesesDetectados() {
+  return (
+    <div className="space-y-2.5">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Meses detectados (6)</div>
+      <div className="flex flex-wrap gap-1.5">
+        {["ene 2026", "feb 2026", "mar 2026", "abr 2026", "may 2026", "jun 2026"].map((m) => (
+          <span key={m} className="rounded-md bg-muted px-2 py-1 text-[10px] text-foreground">
+            {m}
+          </span>
+        ))}
+      </div>
+      <div className="rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] text-[10px] text-[#075985] px-2.5 py-2">
+        Cada bloque trae su <b>facturación</b> y cuántos empleados carga.
+      </div>
+    </div>
+  );
+}
+
+function MockMatchNombres() {
+  return (
+    <div className="space-y-2">
+      <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Empleados del Excel → legajo</div>
+      <div className="rounded-lg border border-border divide-y divide-border">
+        <MatchRow nombre="ANA G." legajo="Gómez, Ana · Administración" estado="auto" />
+        <MatchRow nombre="SOSA" legajo="Sosa, Julio · Taller" estado="chofer" />
+        <MatchRow nombre="R. NN" legajo="No cargar" estado="sin" />
+      </div>
+    </div>
+  );
+}
+
+function MockResultado() {
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 flex items-start gap-2">
+        <CheckCircle2 size={15} className="text-emerald-600 mt-0.5 shrink-0" />
+        <div>
+          <div className="text-[11px] font-semibold text-emerald-700">Importación completada</div>
+          <div className="text-[9px] text-emerald-700/90 mt-0.5">6 meses · 34 sueldos base · 34 filas de variables</div>
+        </div>
+      </div>
+      <div className="rounded-lg bg-amber-50 border border-amber-200 text-[10px] text-amber-800 px-2.5 py-2">
+        Re-importar el mismo mes <b>pisa</b> los valores viejos con los del archivo.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+const TABS: TutorialTab[] = [
+  {
+    id: "planilla",
+    label: "Planilla del mes",
+    icon: <Wallet size={14} />,
+    steps: [
+      {
+        title: "Qué es y para quién",
+        description:
+          "La planilla de sueldos del personal de administración y taller. Los choferes no van acá: se liquidan aparte, por viajes. Es una sección confidencial (solo administradores) y arriba elegís el mes que estás viendo.",
+        mockup: <MockQueEs />,
+        hint: "El mes se cambia con el selector de arriba a la derecha. Cada mes guarda sus propios valores.",
+      },
+      {
+        title: "Los tres indicadores de arriba",
+        description:
+          "Tres tarjetas: el total de sueldos del mes, la facturación del mes y el porcentaje que los sueldos se llevan de lo facturado. Sirve para ver de un vistazo cuánto pesa la nómina admin/taller.",
+        mockup: <MockKpis />,
+      },
+      {
+        title: "Cargá las variables de cada uno",
+        description:
+          "Por empleado, sobre su sueldo base, sumás comisión logística, combustible, plus YPF y sábados (las mismas columnas del Excel). El total se calcula solo y guardás fila por fila con el botón que aparece al editar.",
+        mockup: <MockFilaEmpleado />,
+        hint: "Los montos no pueden ser negativos: si escribís un número en rojo, el botón Guardar queda bloqueado hasta corregirlo.",
+      },
+      {
+        title: "Ordenada por sector, con subtotales",
+        description:
+          "Las filas se agrupan en Administración y Taller, cada grupo con su subtotal, y abajo el total general. Tocá cualquier encabezado de columna para ordenar por ese valor (de mayor a menor y al revés).",
+        mockup: <MockTablaSectores />,
+      },
+      {
+        title: "La facturación del mes",
+        description:
+          "Sale sola de los viajes del mes (badge «del sistema»). Si el número real es otro, con el lápiz la pisás a mano (badge «manual») y el porcentaje se recalcula contra ese valor. Siempre podés volver a la del sistema.",
+        mockup: <MockFacturacion />,
+      },
+    ],
+  },
+  {
+    id: "aumentos",
+    label: "Aumentos",
+    icon: <TrendingUp size={14} />,
+    steps: [
+      {
+        title: "La matriz mes a mes",
+        description:
+          "Como la hoja de aumentos del Excel: cada empleado en una fila y cada mes en una columna, con el sueldo base vigente en ese momento. El año va arriba (2025, 2026…) y el mes abajo. Un «—» es un mes sin dato.",
+        mockup: <MockMatriz />,
+      },
+      {
+        title: "Cargá o editá un aumento",
+        description:
+          "Tocá una celda (o el nombre del empleado) y se abre su ficha: elegís el mes desde el que rige, el nuevo sueldo base y una observación opcional. Antes de guardar te muestra el «% vs el anterior».",
+        mockup: <MockRegistrarAumento />,
+        hint: "Sirve también para aumentos retroactivos: elegí un mes pasado y el % se compara con la base que había justo antes de ese mes.",
+      },
+      {
+        title: "El historial de cada empleado",
+        description:
+          "En la misma ficha ves todos sus aumentos, del más nuevo al más viejo, con el salto porcentual de cada uno y el badge «vigente» en el actual. El tacho borra un aumento puntual si te equivocaste.",
+        mockup: <MockHistorial />,
+      },
+      {
+        title: "Agregar y eliminar meses",
+        description:
+          "Con «Agregar mes» sumás una columna nueva a medida que pasa el tiempo (queda en itálica hasta que tenga datos). Pasá el mouse por un mes con datos para borrar todos sus aumentos, o usá la X para quitar una columna vacía.",
+        mockup: <MockAgregarMes />,
+      },
+      {
+        title: "Aumentos vs inflación",
+        description:
+          "Arriba del todo, tarjetas que cruzan tus aumentos con la inflación del INDEC (traída sola): cuánto aumentaste en promedio, si le ganaste a la inflación en términos reales y quiénes están atrasados (3+ meses sin aumento). El período se elige con Todo / 12m / 6m / 3m.",
+        mockup: <MockMetricasAumentos />,
+        hint: "«Atrasados» no depende del período: siempre mira cuántos meses pasaron desde el último aumento de cada persona.",
+      },
+    ],
+  },
+  {
+    id: "importar",
+    label: "Importar Excel",
+    icon: <FileSpreadsheet size={14} />,
+    steps: [
+      {
+        title: "Para qué sirve",
+        description:
+          "En vez de cargar mes por mes a mano, subís el Excel de sueldos (el de bloques por mes: sueldo, comisión, combustible, plus YPF, sábados y facturación) y el sistema lo carga todo. Botón «Importar Excel» arriba a la derecha.",
+        mockup: <MockImportBtn />,
+      },
+      {
+        title: "Analizá el archivo",
+        description:
+          "Elegís el .xlsx y tocás «Analizar». El sistema detecta los meses del archivo, con su facturación y cuántos empleados trae cada bloque. Todavía no se guarda nada: es solo una vista previa.",
+        mockup: <MockMesesDetectados />,
+      },
+      {
+        title: "Revisá el matcheo de nombres",
+        description:
+          "Cada nombre del Excel se enlaza con un legajo. Verde «auto» = match claro; ámbar «¿chofer?» = una sugerencia para confirmar; rojo «sin match» = elegilo a mano o dejalo en «No cargar». Todo es editable antes de importar.",
+        mockup: <MockMatchNombres />,
+        hint: "Lo que dejes en «No cargar» simplemente no se guarda; podés re-importar ese mes después, corregido.",
+      },
+      {
+        title: "Confirmá e importá",
+        description:
+          "Apretás «Importar» y listo: te dice cuántos meses, sueldos base y filas de variables cargó, y qué nombres quedaron sin cargar. Re-importar el mismo mes pisa los valores viejos con los del archivo (es idempotente).",
+        mockup: <MockResultado />,
+      },
+    ],
+  },
+];
+
+export default function HelpTutorialButton() {
+  return <HelpTutorialDialog title="Guía de Sueldos admin y taller" tabs={TABS} />;
+}
