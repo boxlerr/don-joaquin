@@ -47,6 +47,31 @@ export const GRUPOS_SIDEBAR: GrupoSidebar[] = [
   { group: "SISTEMA", label: "Sistema", areas: ["sistema"] },
 ];
 
+// Color de acento de cada grupo del sidebar. Espeja `GROUP_ACCENT` de
+// components/layout/Sidebar.tsx (misma paleta) para que los chips de permisos
+// usen el mismo color con el que se ve el grupo en el menú lateral.
+export const GRUPO_COLOR: Record<string, string> = {
+  PRINCIPAL: "#475569",
+  "LOGÍSTICA": "#0088D1",
+  FLOTA: "#6366F1",
+  SEGURIDAD: "#EF4444",
+  RRHH: "#10B981",
+  COMERCIAL: "#A855F7",
+  FINANZAS: "#F59E0B",
+  COMPLIANCE: "#06B6D4",
+  SISTEMA: "#64748B",
+};
+
+/** Grupo del sidebar al que pertenece un área (ej. finanzas → FINANZAS). */
+export function grupoDeArea(area: AreaCodigo): string {
+  return GRUPOS_SIDEBAR.find((g) => g.areas.includes(area))?.group ?? "SISTEMA";
+}
+
+/** Color del área = color de su grupo del sidebar. */
+export function areaColor(area: AreaCodigo): string {
+  return GRUPO_COLOR[grupoDeArea(area)] ?? "#64748B";
+}
+
 // Niveles de permiso — etiqueta + qué significa.
 export const NIVEL_INFO: Record<string, { label: string; desc: string; clase: string }> = {
   none: { label: "Sin acceso", desc: "No ve la sección", clase: "bg-muted text-muted-foreground" },

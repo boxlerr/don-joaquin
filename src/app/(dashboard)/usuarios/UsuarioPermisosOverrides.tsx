@@ -5,7 +5,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { setUsuarioAreaAction, setUsuarioSeccionAction } from "./actions";
 import type { AreaCodigo, AreaNivel } from "@/lib/auth";
 import { ShieldPlus, Trash2, Clock, AlertCircle, Lock } from "lucide-react";
-import { areaTitulo, rolLabel } from "./area-meta";
+import { areaTitulo, areaColor, rolLabel } from "./area-meta";
 import { seccionesDeArea, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
 
 interface Area {
@@ -59,8 +59,6 @@ const NIVEL_CLASS: Record<AreaNivel, string> = {
   admin: "bg-amber-50 text-amber-700",
 };
 
-const TODA_EL_AREA = "__area__";
-
 function finDeHoy(): string {
   const d = new Date();
   d.setHours(23, 59, 59, 0);
@@ -71,11 +69,9 @@ function finDeHoy(): string {
 function formatVence(vence_en: string | null): string {
   if (!vence_en) return "Permanente";
   const d = new Date(vence_en);
-  const ahora = new Date();
-  if (d <= ahora) return "Expirado";
+  if (d <= new Date()) return "Expirado";
   return d.toLocaleString("es-AR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -84,11 +80,9 @@ function estaVencido(vence_en: string | null): boolean {
   return new Date(vence_en) <= new Date();
 }
 
-/** Etiqueta corta de una sección para el chip: "Finanzas · Préstamos". */
-function seccionEtiqueta(codigo: SeccionCodigo): string {
-  const s = SECCION_BY_CODIGO[codigo];
-  if (!s) return codigo;
-  return `${areaTitulo(s.area)} · ${s.nombre}`;
+/** Fondo + borde tenue en el color del área (funciona en claro y oscuro). */
+function tint(hex: string) {
+  return { background: `${hex}14`, borderColor: `${hex}55` };
 }
 
 export default function UsuarioPermisosOverrides({
@@ -103,7 +97,7 @@ export default function UsuarioPermisosOverrides({
 
   const [selectedUsuario, setSelectedUsuario] = useState<string | "">("");
   const [newArea, setNewArea] = useState<AreaCodigo | "">("");
-  const [newSeccion, setNewSeccion] = useState<string>(TODA_EL_AREA);
+  const [selectedSecs, setSelectedSecs] = useState<SeccionCodigo[]>([]); // vacío = toda el área
   const [newNivel, setNewNivel] = useState<AreaNivel>("read");
   const [newVence, setNewVence] = useState<string>("");
   const [newMotivo, setNewMotivo] = useState<string>("");
@@ -115,63 +109,58 @@ export default function UsuarioPermisosOverrides({
 
   function resetForm() {
     setNewArea("");
-    setNewSeccion(TODA_EL_AREA);
+    setSelectedSecs([]);
     setNewVence("");
     setNewMotivo("");
+  }
+
+  function toggleSec(codigo: SeccionCodigo) {
+    setSelectedSecs((prev) =>
+      prev.includes(codigo) ? prev.filter((c) => c !== codigo) : [...prev, codigo],
+    );
   }
 
   function handleAgregar() {
     if (!selectedUsuario || !newArea) return;
     const vence_en = newVence ? new Date(newVence).toISOString() : null;
     setError(null);
-    const otorgaSeccion = newSeccion !== TODA_EL_AREA;
 
-    if (otorgaSeccion) {
-      const seccion = newSeccion as SeccionCodigo;
-      const nuevo: SeccionOverrideRow = {
-        usuario_id: selectedUsuario,
-        seccion_codigo: seccion,
-        nivel: newNivel,
-        vence_en,
-        motivo: newMotivo || null,
+    // Sin secciones elegidas → override de toda el área (comportamiento original).
+    if (selectedSecs.length === 0) {
+      const area = newArea as AreaCodigo;
+      const nuevo: AreaOverrideRow = {
+        usuario_id: selectedUsuario, area_codigo: area, nivel: newNivel, vence_en, motivo: newMotivo || null,
       };
-      setSeccionOverrides((prev) => [
-        ...prev.filter((o) => !(o.usuario_id === selectedUsuario && o.seccion_codigo === seccion)),
+      setAreaOverrides((prev) => [
+        ...prev.filter((o) => !(o.usuario_id === selectedUsuario && o.area_codigo === area)),
         nuevo,
       ]);
       startTransition(async () => {
-        const res = await setUsuarioSeccionAction(selectedUsuario, seccion, newNivel, vence_en, newMotivo || undefined);
-        if ("error" in res) {
-          setError(res.error);
-          setSeccionOverrides(initialSeccionOverrides);
-        } else {
-          resetForm();
-        }
+        const res = await setUsuarioAreaAction(selectedUsuario, area, newNivel, vence_en, newMotivo || undefined);
+        if ("error" in res) { setError(res.error); setAreaOverrides(initialAreaOverrides); }
+        else resetForm();
       });
       return;
     }
 
-    // Toda el área (comportamiento original).
-    const area = newArea as AreaCodigo;
-    const nuevo: AreaOverrideRow = {
-      usuario_id: selectedUsuario,
-      area_codigo: area,
-      nivel: newNivel,
-      vence_en,
-      motivo: newMotivo || null,
-    };
-    setAreaOverrides((prev) => [
-      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && o.area_codigo === area)),
-      nuevo,
+    // Una o varias secciones puntuales, de un tiro.
+    const secs = selectedSecs;
+    const nuevos: SeccionOverrideRow[] = secs.map((seccion) => ({
+      usuario_id: selectedUsuario, seccion_codigo: seccion, nivel: newNivel, vence_en, motivo: newMotivo || null,
+    }));
+    setSeccionOverrides((prev) => [
+      ...prev.filter((o) => !(o.usuario_id === selectedUsuario && secs.includes(o.seccion_codigo))),
+      ...nuevos,
     ]);
     startTransition(async () => {
-      const res = await setUsuarioAreaAction(selectedUsuario, area, newNivel, vence_en, newMotivo || undefined);
-      if ("error" in res) {
-        setError(res.error);
-        setAreaOverrides(initialAreaOverrides);
-      } else {
-        resetForm();
-      }
+      const results = await Promise.all(
+        secs.map((seccion) =>
+          setUsuarioSeccionAction(selectedUsuario, seccion, newNivel, vence_en, newMotivo || undefined),
+        ),
+      );
+      const fallo = results.find((r): r is { error: string } => "error" in r);
+      if (fallo) { setError(fallo.error); setSeccionOverrides(initialSeccionOverrides); }
+      else resetForm();
     });
   }
 
@@ -193,12 +182,13 @@ export default function UsuarioPermisosOverrides({
     });
   }
 
-  // Usuarios que tienen al menos un override (de área o de sección).
   const usuariosConOverrides = usuarios.filter(
     (u) =>
       areaOverrides.some((o) => o.usuario_id === u.id) ||
       seccionOverrides.some((o) => o.usuario_id === u.id),
   );
+
+  const btnLabel = selectedSecs.length > 1 ? `Agregar ${selectedSecs.length}` : "Agregar";
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
@@ -222,7 +212,7 @@ export default function UsuarioPermisosOverrides({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Agregar permiso puntual
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,1.25fr)_auto] gap-2 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,1.3fr)_auto] gap-2 items-end">
           {/* Usuario */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Usuario</label>
@@ -243,37 +233,23 @@ export default function UsuarioPermisosOverrides({
 
           {/* Área */}
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Área</label>
+            <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+              Área
+              {newArea && (
+                <span className="size-2 rounded-full" style={{ background: areaColor(newArea) }} />
+              )}
+            </label>
             <Combobox
               value={newArea}
               onValueChange={(v) => {
                 setNewArea(v as AreaCodigo);
-                setNewSeccion(TODA_EL_AREA); // al cambiar de área se resetea la sección
+                setSelectedSecs([]); // al cambiar de área se resetean las secciones
               }}
               options={[
                 { id: "", label: "Seleccionar…" },
                 ...areasOrdered.map((a) => ({ id: a.codigo, label: areaTitulo(a.codigo, a.nombre) })),
               ]}
               searchPlaceholder="Buscar área..."
-              triggerClassName="h-9 w-full text-xs"
-            />
-          </div>
-
-          {/* Sección */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Sección</label>
-            <Combobox
-              value={newSeccion}
-              onValueChange={setNewSeccion}
-              options={[
-                { id: TODA_EL_AREA, label: "Toda el área" },
-                ...seccionesDelArea.map((s) => ({
-                  id: s.codigo,
-                  label: `${confidencial[s.codigo] ? "🔒 " : ""}${s.nombre}`,
-                })),
-              ]}
-              searchable={seccionesDelArea.length > 6}
-              disabled={!newArea || seccionesDelArea.length === 0}
               triggerClassName="h-9 w-full text-xs"
             />
           </div>
@@ -319,14 +295,43 @@ export default function UsuarioPermisosOverrides({
             type="button"
             disabled={!selectedUsuario || !newArea || isPending}
             onClick={handleAgregar}
-            className="h-9 px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors"
+            className="h-9 px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors whitespace-nowrap"
           >
-            Agregar
+            {btnLabel}
           </button>
         </div>
 
+        {/* Selector de secciones (multi) — aparece al elegir un área con subsecciones */}
+        {newArea && seccionesDelArea.length > 0 && (
+          <div className="mt-3">
+            <label className="text-xs text-muted-foreground">
+              Secciones <span className="text-muted-foreground/70">— elegí una o varias, o dejá “Toda el área”</span>
+            </label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <SecChip
+                active={selectedSecs.length === 0}
+                color={areaColor(newArea)}
+                onClick={() => setSelectedSecs([])}
+              >
+                Toda el área
+              </SecChip>
+              {seccionesDelArea.map((s) => (
+                <SecChip
+                  key={s.codigo}
+                  active={selectedSecs.includes(s.codigo)}
+                  color={areaColor(newArea)}
+                  lock={confidencial[s.codigo]}
+                  onClick={() => toggleSec(s.codigo)}
+                >
+                  {s.nombre}
+                </SecChip>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Motivo opcional */}
-        <div className="mt-2">
+        <div className="mt-3">
           <input
             type="text"
             value={newMotivo}
@@ -337,8 +342,8 @@ export default function UsuarioPermisosOverrides({
         </div>
 
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Elegí <span className="font-medium">un área</span> para dar todas sus páginas, o bajá a
-          <span className="font-medium"> una sección</span> puntual — incluidas las{" "}
+          Elegí <span className="font-medium">un área</span> para todas sus páginas, o bajá a{" "}
+          <span className="font-medium">una o varias secciones</span> — incluidas las{" "}
           <span className="inline-flex items-center gap-0.5"><Lock size={10} /> confidenciales</span>{" "}
           (Préstamos, Cheques, Sueldos…), sin abrírselas al resto del rol.
         </p>
@@ -363,75 +368,32 @@ export default function UsuarioPermisosOverrides({
                   </span>
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {areaRows.map((row) => {
-                    const vencido = estaVencido(row.vence_en);
-                    return (
-                      <div
-                        key={`area-${row.area_codigo}`}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
-                          vencido
-                            ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50"
-                            : "bg-[#F0F9FF] border-[#BAE6FD] text-[#075985]"
-                        }`}
-                      >
-                        <span className={NIVEL_CLASS[row.nivel] + " px-1.5 py-0.5 rounded text-[10px]"}>
-                          {NIVEL_LABEL[row.nivel]}
-                        </span>
-                        <span className="font-semibold">{areaTitulo(row.area_codigo)}</span>
-                        <span className="text-muted-foreground font-normal">
-                          {vencido ? "· Expirado" : `· ${formatVence(row.vence_en)}`}
-                        </span>
-                        {row.motivo && (
-                          <span className="text-muted-foreground/60 italic">&quot;{row.motivo}&quot;</span>
-                        )}
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => quitarArea(row.usuario_id, row.area_codigo)}
-                          className="ml-1 text-muted-foreground/50 hover:text-red-500 transition-colors disabled:opacity-30"
-                          title="Quitar permiso"
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    );
-                  })}
-
+                  {areaRows.map((row) => (
+                    <OverrideChip
+                      key={`area-${row.area_codigo}`}
+                      color={areaColor(row.area_codigo)}
+                      label={areaTitulo(row.area_codigo)}
+                      nivel={row.nivel}
+                      vence_en={row.vence_en}
+                      motivo={row.motivo}
+                      disabled={isPending}
+                      onDelete={() => quitarArea(row.usuario_id, row.area_codigo)}
+                    />
+                  ))}
                   {seccionRows.map((row) => {
-                    const vencido = estaVencido(row.vence_en);
-                    const esConf = confidencial[row.seccion_codigo];
+                    const sec = SECCION_BY_CODIGO[row.seccion_codigo];
                     return (
-                      <div
+                      <OverrideChip
                         key={`sec-${row.seccion_codigo}`}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
-                          vencido
-                            ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50"
-                            : "bg-[#F0F9FF] border-[#BAE6FD] text-[#075985]"
-                        }`}
-                      >
-                        <span className={NIVEL_CLASS[row.nivel] + " px-1.5 py-0.5 rounded text-[10px]"}>
-                          {NIVEL_LABEL[row.nivel]}
-                        </span>
-                        <span className="font-semibold inline-flex items-center gap-1">
-                          {esConf && <Lock size={10} className="shrink-0" />}
-                          {seccionEtiqueta(row.seccion_codigo)}
-                        </span>
-                        <span className="text-muted-foreground font-normal">
-                          {vencido ? "· Expirado" : `· ${formatVence(row.vence_en)}`}
-                        </span>
-                        {row.motivo && (
-                          <span className="text-muted-foreground/60 italic">&quot;{row.motivo}&quot;</span>
-                        )}
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => quitarSeccion(row.usuario_id, row.seccion_codigo)}
-                          className="ml-1 text-muted-foreground/50 hover:text-red-500 transition-colors disabled:opacity-30"
-                          title="Quitar permiso"
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
+                        color={sec ? areaColor(sec.area) : "#64748B"}
+                        label={sec ? `${areaTitulo(sec.area)} · ${sec.nombre}` : row.seccion_codigo}
+                        lock={confidencial[row.seccion_codigo]}
+                        nivel={row.nivel}
+                        vence_en={row.vence_en}
+                        motivo={row.motivo}
+                        disabled={isPending}
+                        onDelete={() => quitarSeccion(row.usuario_id, row.seccion_codigo)}
+                      />
                     );
                   })}
                 </div>
@@ -440,6 +402,80 @@ export default function UsuarioPermisosOverrides({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Chip togglable del selector de secciones. */
+function SecChip({
+  active, color, lock, onClick, children,
+}: {
+  active: boolean;
+  color: string;
+  lock?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={active ? tint(color) : undefined}
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+        active
+          ? "text-foreground"
+          : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}
+    >
+      {active && <span className="size-1.5 rounded-full shrink-0" style={{ background: color }} />}
+      {lock && <Lock size={10} className="shrink-0" />}
+      {children}
+    </button>
+  );
+}
+
+/** Chip de un permiso otorgado (en el color de su área), con botón de quitar. */
+function OverrideChip({
+  color, label, lock, nivel, vence_en, motivo, onDelete, disabled,
+}: {
+  color: string;
+  label: string;
+  lock?: boolean;
+  nivel: AreaNivel;
+  vence_en: string | null;
+  motivo: string | null;
+  onDelete: () => void;
+  disabled: boolean;
+}) {
+  const vencido = estaVencido(vence_en);
+  return (
+    <div
+      style={vencido ? undefined : tint(color)}
+      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
+        vencido ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50" : "text-foreground"
+      }`}
+    >
+      <span className={NIVEL_CLASS[nivel] + " px-1.5 py-0.5 rounded text-[10px]"}>
+        {NIVEL_LABEL[nivel]}
+      </span>
+      {!vencido && <span className="size-2 rounded-full shrink-0" style={{ background: color }} />}
+      <span className="font-semibold inline-flex items-center gap-1">
+        {lock && <Lock size={10} className="shrink-0" />}
+        {label}
+      </span>
+      <span className="text-muted-foreground font-normal">
+        {vencido ? "· Expirado" : `· ${formatVence(vence_en)}`}
+      </span>
+      {motivo && <span className="text-muted-foreground/60 italic">&quot;{motivo}&quot;</span>}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onDelete}
+        className="ml-1 text-muted-foreground/50 hover:text-red-500 transition-colors disabled:opacity-30"
+        title="Quitar permiso"
+      >
+        <Trash2 size={11} />
+      </button>
     </div>
   );
 }
