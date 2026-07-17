@@ -1,9 +1,9 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { Lock } from "lucide-react";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getPrestamosAction } from "./actions";
 import PrestamosClient from "./PrestamosClient";
 import HelpTutorialButton from "./help-tutorial-button";
+import ExportPrestamosButton from "./export-prestamos-button";
 
 /**
  * Préstamos bancarios (audio Bárbara 02/07): la planilla de la mamá en el
@@ -22,19 +22,13 @@ export default async function PrestamosPage() {
       <PageHeader
         title="Préstamos"
         description="Cuotas por banco, vencimientos y carga semanal de pagos"
-        action={<HelpTutorialButton />}
+        action={
+          <div className="flex items-center gap-2">
+            <ExportPrestamosButton />
+            <HelpTutorialButton />
+          </div>
+        }
       />
-
-      <div className="flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3">
-        <Lock size={16} className="text-amber-700 mt-0.5 shrink-0" />
-        <div className="text-xs text-amber-800 leading-relaxed">
-          <p className="font-semibold">Sección privada — solo dirección.</p>
-          <p className="mt-0.5">
-            El sistema avisa los vencimientos por la campana de notificaciones (una semana antes,
-            el día previo y si una cuota quedó vencida sin marcar como pagada).
-          </p>
-        </div>
-      </div>
 
       <PrestamosClient prestamos={prestamos} canWrite={canWrite} />
     </div>
