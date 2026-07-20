@@ -5,6 +5,7 @@ import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getImpuestosAction } from "./actions";
 import ImpuestosClient from "./ImpuestosClient";
 import HelpTutorialButton from "./help-tutorial-button";
+import ExportImpuestosButton from "./export-impuestos-button";
 
 function diasRestantes(fechaISO: string): number {
   const [y, m, d] = fechaISO.split("-").map(Number);
@@ -34,7 +35,12 @@ export default async function ImpuestosPage() {
       <PageHeader
         title="Impuestos"
         description="Calendario de vencimientos impositivos — checklist de presentación y alertas"
-        action={<HelpTutorialButton />}
+        action={
+          <div className="flex items-center gap-2">
+            <ExportImpuestosButton />
+            <HelpTutorialButton />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

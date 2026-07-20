@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Landmark, Plus, Pencil, Trash2, Loader2, Check, CalendarClock,
+  Landmark, Plus, Pencil, Trash2, Loader2, Check, CalendarClock, ChevronRight, Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +17,15 @@ import {
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
   togglePresentadoImpuestoAction,
+  setFechaPresentacionAction,
+  setFechaVencimientoAction,
   updateImpuestoAction,
   createImpuestoAction,
   deleteImpuestoAction,
   type ImpuestoRow,
 } from "./actions";
+import CeldaFecha from "./components/CeldaFecha";
+import ImpuestoDetalle from "./components/ImpuestoDetalle";
 
 function diasRestantes(fechaISO: string): number {
   const [y, m, d] = fechaISO.split("-").map(Number);
@@ -31,10 +35,6 @@ function diasRestantes(fechaISO: string): number {
   return Math.round((venc.getTime() - hoyMid.getTime()) / 86400000);
 }
 
-function fmtFecha(fechaISO: string): string {
-  const [y, m, d] = fechaISO.split("-");
-  return `${d}/${m}/${y}`;
-}
 
 function VencimientoBadge({ fechaISO, presentado }: { fechaISO: string; presentado: boolean }) {
   if (presentado) {
@@ -74,6 +74,7 @@ export default function ImpuestosClient({
   const [dialog, setDialog] = useState<DialogState>({ mode: "closed" });
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form state (compartido add/edit)
@@ -144,10 +145,12 @@ export default function ImpuestosClient({
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
-            {canWrite && <TableHead className="w-10 pl-6" />}
+            <TableHead className="w-8 pl-4" />
+            {canWrite && <TableHead className="w-10" />}
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Impuesto</TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Organismo</TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Vencimiento</TableHead>
+            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Presentado el</TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Estado</TableHead>
             {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Acciones</TableHead>}
           </TableRow>
@@ -155,13 +158,34 @@ export default function ImpuestosClient({
         <TableBody>
           {impuestos.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canWrite ? 6 : 4} className="py-16 text-center text-muted-foreground text-sm">
+              <TableCell colSpan={canWrite ? 8 : 6} className="py-16 text-center text-muted-foreground text-sm">
                 No hay impuestos cargados. {canWrite && "Usá “Agregar impuesto” para empezar."}
               </TableCell>
             </TableRow>
           ) : (
             impuestos.map((i) => (
-              <TableRow key={i.id} className={`hover:bg-muted/10 transition-colors ${i.presentado ? "opacity-60" : ""}`}>
+              <Fragment key={i.id}>
+              <TableRow className={`hover:bg-muted/10 transition-colors ${i.presentado ? "opacity-60" : ""}`}>
+                <TableCell className="pl-4">
+                  <button
+                    type="button"
+                    onClick={() => setExpandidoId(expandidoId === i.id ? null : i.id)}
+                    aria-expanded={expandidoId === i.id}
+                    title="Comprobantes e historial"
+                    className="flex items-center gap-1 text-muted-foreground hover:text-primary"
+                  >
+                    <ChevronRight
+                      size={14}
+                      className={`transition-transform ${expandidoId === i.id ? "rotate-90" : ""}`}
+                    />
+                    {i.archivos > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold">
+                        <Paperclip size={10} />
+                        {i.archivos}
+                      </span>
+                    )}
+                  </button>
+                </TableCell>
                 {canWrite && (
                   <TableCell className="pl-6">
                     <button
@@ -189,7 +213,31 @@ export default function ImpuestosClient({
                     </span>
                   ) : <span className="text-muted-foreground/40">—</span>}
                 </TableCell>
-                <TableCell className="text-foreground font-medium tabular-nums">{fmtFecha(i.fecha_vencimiento)}</TableCell>
+                <TableCell className="font-medium">
+                  <CeldaFecha
+                    valor={i.fecha_vencimiento}
+                    canEdit={canWrite}
+                    onGuardar={async (f) => {
+                      const res = await setFechaVencimientoAction(i.id, f!);
+                      if ("error" in res) return res;
+                      router.refresh();
+                    }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <CeldaFecha
+                    valor={i.fecha_presentacion}
+                    canEdit={canWrite}
+                    permitirVaciar
+                    tone="success"
+                    placeholder="Sin presentar"
+                    onGuardar={async (f) => {
+                      const res = await setFechaPresentacionAction(i.id, f);
+                      if ("error" in res) return res;
+                      router.refresh();
+                    }}
+                  />
+                </TableCell>
                 <TableCell><VencimientoBadge fechaISO={i.fecha_vencimiento} presentado={i.presentado} /></TableCell>
                 {canWrite && (
                   <TableCell className="text-right pr-6">
@@ -213,6 +261,14 @@ export default function ImpuestosClient({
                   </TableCell>
                 )}
               </TableRow>
+              {expandidoId === i.id && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={canWrite ? 8 : 6} className="p-0">
+                    <ImpuestoDetalle impuesto={i} canWrite={canWrite} />
+                  </TableCell>
+                </TableRow>
+              )}
+              </Fragment>
             ))
           )}
         </TableBody>
