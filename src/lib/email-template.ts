@@ -115,8 +115,14 @@ function renderAlerta(a: AlertaEmailView): string {
   const sev = SEV_STYLE[a.severidad];
   const est = estiloDe(a.categoria);
 
+  // Una alerta ya vencida no puede decir "vence": se lee mal justo en el caso
+  // más urgente.
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const yaVencio = a.fecha_vencimiento !== null && a.fecha_vencimiento < hoyISO;
   const meta = a.fecha_vencimiento
-    ? `<div style="font-size:12px;color:#94A3B8;margin-top:9px;">Vence el ${formatFecha(a.fecha_vencimiento)}</div>`
+    ? `<div style="font-size:12px;color:${yaVencio ? "#B91C1C" : "#94A3B8"};margin-top:9px;">${
+        yaVencio ? "Venció el" : "Vence el"
+      } ${formatFecha(a.fecha_vencimiento)}</div>`
     : "";
 
   return `

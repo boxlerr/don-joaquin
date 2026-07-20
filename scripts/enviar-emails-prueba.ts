@@ -29,6 +29,8 @@ const getArg = (n: string) => {
 const to = getArg("--to");
 const solo = getArg("--solo");
 const dry = args.includes("--dry");
+/** Un solo mail con TODOS los tipos mezclados: es el caso del resumen diario. */
+const digest = args.includes("--digest");
 
 // En los mails reales esto sale de NEXT_PUBLIC_APP_URL; en local no está, así
 // que apuntamos a producción para que el logo y los links funcionen.
@@ -196,8 +198,8 @@ const MUESTRAS: Muestra[] = [
   },
 ];
 
-function construir(m: Muestra): string {
-  const alertas: AlertaEmailView[] = m.alertas.map((a) => ({
+function vistasDe(m: Muestra): AlertaEmailView[] {
+  return m.alertas.map((a) => ({
     titulo: a.titulo,
     mensaje: a.mensaje,
     severidad: a.severidad,
@@ -205,7 +207,28 @@ function construir(m: Muestra): string {
     categoria: m.categoria,
     href: `${BASE}/notificaciones`,
   }));
-  return renderEmail({ baseUrl: BASE, titulo: m.titulo, intro: m.intro, alertas });
+}
+
+function construir(m: Muestra): string {
+  return renderEmail({ baseUrl: BASE, titulo: m.titulo, intro: m.intro, alertas: vistasDe(m) });
+}
+
+/**
+ * Resumen diario: un único mail con una alerta de cada tipo, ordenadas por
+ * severidad como en el envío real. Sirve para ver si el formato aguanta con
+ * todas las categorías mezcladas.
+ */
+function construirDigest(): string {
+  const orden = { critica: 0, advertencia: 1, info: 2 } as const;
+  const alertas = MUESTRAS.flatMap(vistasDe).sort(
+    (a, b) => orden[a.severidad] - orden[b.severidad],
+  );
+  return renderEmail({
+    baseUrl: BASE,
+    titulo: "Resumen diario de alertas",
+    intro: `Hay ${alertas.length} alertas pendientes en el sistema.`,
+    alertas,
+  });
 }
 
 async function main() {
@@ -218,6 +241,11 @@ async function main() {
   if (dry) {
     const dir = ".tmp/emails-prueba";
     mkdirSync(dir, { recursive: true });
+    if (digest) {
+      writeFileSync(`${dir}/_resumen-diario.html`, construirDigest());
+      console.log(`✓ ${dir}/_resumen-diario.html`);
+      return;
+    }
     for (const m of lista) {
       writeFileSync(`${dir}/${m.categoria}.html`, construir(m));
       console.log(`✓ ${dir}/${m.categoria}.html`);
@@ -244,6 +272,18 @@ async function main() {
     secure: process.env.SMTP_SECURE !== undefined ? process.env.SMTP_SECURE === "true" : port === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
+
+  if (digest) {
+    const total = MUESTRAS.reduce((n, m) => n + m.alertas.length, 0);
+    await transporter.sendMail({
+      from: EMAIL_FROM ?? SMTP_USER,
+      to,
+      subject: `📋 Resumen diario — ${total} alertas pendientes · Don Joaquín`,
+      html: construirDigest(),
+    });
+    console.log(`  ✓ resumen diario (${total} alertas, todos los tipos) → ${to}`);
+    return;
+  }
 
   console.log(`Enviando ${lista.length} email(s) a ${to}…\n`);
   for (const m of lista) {
