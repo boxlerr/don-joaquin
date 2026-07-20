@@ -38,7 +38,18 @@ type AlertaEmail = {
   severidad: Severidad;
   fecha_vencimiento: string | null;
   entidad_tipo: string | null;
+  /** Sólo lo traen las alertas de la tabla; las "live" se recalculan al vuelo. */
+  notificacion_procesada?: boolean;
 };
+
+/**
+ * Las alertas de documentación y cheques del resumen se recalculan en vivo y
+ * llevan un id sintético (`docvenc-…`, `chequevenc-…`): no son filas de la
+ * tabla, así que no se pueden marcar como notificadas.
+ */
+function esDeTabla(id: string): boolean {
+  return !id.startsWith("docvenc-") && !id.startsWith("chequevenc-");
+}
 
 // Orden de presentación del email: replica el de la vista /notificaciones
 // (ver NotificacionesView.tsx). Mantener ambos en sync si se cambia el criterio.
@@ -242,7 +253,9 @@ async function construirResumenFiltrado(
   const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
     supabase
       .from("alertas")
-      .select("id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo")
+      .select(
+        "id, tipo, titulo, mensaje, severidad, fecha_vencimiento, entidad_tipo, notificacion_procesada",
+      )
       .eq("estado", "pendiente")
       .not("tipo", "in", "(vencimiento_doc_camion,vencimiento_doc_chofer,vencimiento_cheque)")
       .order("severidad", { ascending: false })
@@ -308,8 +321,21 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
     return { enviado: false, motivo: "canal_email_inactivo" };
   }
 
-  const filtradas = await construirResumenFiltrado(supabase, params);
-  if (filtradas.length === 0) return { enviado: false, motivo: "sin_alertas" };
+  // Cadencia: el correo NO sale todos los días.
+  //  - Días de semana → sólo lo NUEVO (alertas que todavía no se notificaron).
+  //    Así llega en las fechas de los umbrales y no repite lo mismo a diario.
+  //  - Lunes → resumen completo de todo lo pendiente, para arrancar la semana.
+  // Las alertas "live" (documentación y cheques) no son filas de la tabla y no
+  // tienen forma de saber si ya se avisaron: van sólo en el resumen del lunes.
+  const esLunes = new Date().getUTCDay() === 1;
+  const todas = await construirResumenFiltrado(supabase, params);
+  const filtradas = esLunes
+    ? todas
+    : todas.filter((a) => esDeTabla(a.id) && a.notificacion_procesada === false);
+
+  if (filtradas.length === 0) {
+    return { enviado: false, motivo: esLunes ? "sin_alertas" : "nada_nuevo" };
+  }
 
   // Reparto granular por usuario, igual que las críticas: cada uno recibe sólo
   // las columnas que tiene tildadas en la matriz (ej. Paula sólo Préstamos).
@@ -358,6 +384,18 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   if (!huboDestinatario) return { enviado: false, motivo: "sin_destinatarios" };
   if (enviados === 0) {
     return { enviado: false, motivo: errorEnvio ? "error_envio" : "sin_alertas", error: errorEnvio };
+  }
+
+  // Lo que salió queda marcado como notificado: es lo que hace que mañana no
+  // vuelva a mandarse lo mismo. (Las "live" no son filas, no se marcan.)
+  const idsAMarcar = filtradas
+    .filter((a) => esDeTabla(a.id) && a.notificacion_procesada === false)
+    .map((a) => a.id);
+  if (idsAMarcar.length > 0) {
+    await supabase
+      .from("alertas")
+      .update({ notificacion_procesada: true })
+      .in("id", idsAMarcar);
   }
 
   return { enviado: true, total: filtradas.length };
