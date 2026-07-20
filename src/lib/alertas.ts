@@ -120,6 +120,16 @@ export async function generarAlertas() {
   const hoy = new Date();
   const hoyStr = hoy.toISOString().split("T")[0]!;
 
+  // Lunes de la semana en curso. Se usa como ancla de los recordatorios
+  // semanales: la clave del aviso incluye este lunes, así sale una vez por
+  // semana y vuelve a salir el lunes siguiente mientras siga pendiente.
+  const lunesDeLaSemana = (() => {
+    const d = new Date(hoy);
+    const dow = (d.getUTCDay() + 6) % 7; // 0 = lunes
+    d.setUTCDate(d.getUTCDate() - dow);
+    return d.toISOString().split("T")[0]!;
+  })();
+
   const umbrales = await getUmbralesAlertas();
 
   const enDocDias = new Date(hoy);
@@ -817,16 +827,31 @@ export async function generarAlertas() {
     const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     const dias = Math.round((venceMid.getTime() - hoyMid.getTime()) / 86400000);
 
-    type DispPrestamo = { umbral: "vencido" | "T1" | "T7"; severidad: "info" | "advertencia" | "critica" };
+    // Disparos por VENTANA, no por igualdad exacta de días. Antes eran
+    // `dias === 7` y `dias === 1`: si el cron no corría justo ese día (o los
+    // datos se cargaban unas horas más tarde), el aviso no salía nunca —
+    // la condición ya no volvía a ser verdadera al día siguiente.
+    type DispPrestamo = { umbral: string; clase: "vencido" | "inminente" | "semana"; severidad: "info" | "advertencia" | "critica" };
     const disparos: DispPrestamo[] = [];
-    if (dias < 0) disparos.push({ umbral: "vencido", severidad: "critica" });
-    if (dias === 1) disparos.push({ umbral: "T1", severidad: "advertencia" });
-    if (dias === 7) disparos.push({ umbral: "T7", severidad: "info" });
+    if (dias < 0) {
+      disparos.push({ umbral: "vencido", clase: "vencido", severidad: "critica" });
+    }
+    if (dias >= 0 && dias <= 1) {
+      disparos.push({ umbral: "T1", clase: "inminente", severidad: "advertencia" });
+    }
+    // Recordatorio semanal anclado al lunes: mientras la cuota siga impaga y
+    // caiga dentro de los próximos 7 días, vuelve a avisar UNA vez por semana.
+    // Así no depende de pegarle a un día exacto (que encima podía caer domingo).
+    if (dias >= 0 && dias <= 7) {
+      disparos.push({ umbral: `S:${lunesDeLaSemana}`, clase: "semana", severidad: "info" });
+    }
     if (disparos.length === 0) continue;
 
     const cuotaLabel = `cuota ${cu.nro}/${pr.cuotas_total}`;
     const tasaLabel = pr.tasa != null ? ` · tasa ${Number(pr.tasa).toLocaleString("es-AR")}%` : "";
     const importeLabel = `$${Math.round(Number(cu.importe)).toLocaleString("es-AR")}`;
+    const [vy, vm, vd] = cu.fecha_vencimiento.split("-");
+    const venceLabel = `${vd}/${vm}/${vy}`;
 
     for (const d of disparos) {
       const entidad_tipo = `prestamo_cuota:${d.umbral}`;
@@ -834,16 +859,25 @@ export async function generarAlertas() {
       if (existentesSet.has(key)) continue;
 
       const mensaje =
-        d.umbral === "vencido"
+        d.clase === "vencido"
           ? `La ${cuotaLabel} de ${pr.banco} (${importeLabel}${tasaLabel}) venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura pagada.`
-          : d.umbral === "T1"
-            ? `Mañana vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`
-            : `En 7 días vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`;
+          : d.clase === "inminente"
+            ? dias === 0
+              ? `Hoy vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`
+              : `Mañana vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`
+            : `Esta semana vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}. Vence el ${venceLabel}${dias > 1 ? ` (en ${dias} días)` : ""}.`;
+
+      const tituloEstado =
+        d.clase === "vencido"
+          ? "cuota vencida"
+          : d.clase === "inminente"
+            ? "cuota por vencer"
+            : "cuota de esta semana";
 
       nuevasAlertas.push({
         tipo: "otro",
         severidad: d.severidad,
-        titulo: `Préstamo ${pr.banco} — ${d.umbral === "vencido" ? "cuota vencida" : "cuota por vencer"} (${cu.nro}/${pr.cuotas_total})`,
+        titulo: `Préstamo ${pr.banco} — ${tituloEstado} (${cu.nro}/${pr.cuotas_total})`,
         mensaje,
         entidad_id: cu.id,
         entidad_tipo,

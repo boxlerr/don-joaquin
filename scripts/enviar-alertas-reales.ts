@@ -83,25 +83,39 @@ async function alertasDePrestamos(sb: any): Promise<AlertaEmailView[]> {
     const vence = new Date(y!, m! - 1, d!);
     const dias = Math.round((vence.getTime() - hoyMid.getTime()) / 86400000);
 
-    const disparos: { sev: SeveridadEmail; msg: string; vencida: boolean }[] = [];
+    const disparos: { sev: SeveridadEmail; msg: string; estado: string }[] = [];
     const cuota = `cuota ${cu.nro}/${pr.cuotas_total}`;
     const tasa = pr.tasa != null ? ` · tasa ${Number(pr.tasa).toLocaleString("es-AR")}%` : "";
     const imp = ars(Number(cu.importe));
+    const [vy, vm, vd] = String(cu.fecha_vencimiento).split("-");
+    const venceLabel = `${vd}/${vm}/${vy}`;
 
+    // Mismas ventanas que alertas.ts (no igualdad exacta de días).
     if (dias < 0)
       disparos.push({
         sev: "critica",
-        vencida: true,
+        estado: "cuota vencida",
         msg: `La ${cuota} de ${pr.banco} (${imp}${tasa}) venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura pagada.`,
       });
-    if (dias === 1)
-      disparos.push({ sev: "advertencia", vencida: false, msg: `Mañana vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.` });
-    if (dias === 7)
-      disparos.push({ sev: "info", vencida: false, msg: `En 7 días vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.` });
+    if (dias >= 0 && dias <= 1)
+      disparos.push({
+        sev: "advertencia",
+        estado: "cuota por vencer",
+        msg:
+          dias === 0
+            ? `Hoy vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.`
+            : `Mañana vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.`,
+      });
+    if (dias >= 0 && dias <= 7)
+      disparos.push({
+        sev: "info",
+        estado: "cuota de esta semana",
+        msg: `Esta semana vence la ${cuota} de ${pr.banco}: ${imp}${tasa}. Vence el ${venceLabel}${dias > 1 ? ` (en ${dias} días)` : ""}.`,
+      });
 
     for (const disp of disparos) {
       out.push({
-        titulo: `Préstamo ${pr.banco} — ${disp.vencida ? "cuota vencida" : "cuota por vencer"} (${cu.nro}/${pr.cuotas_total})`,
+        titulo: `Préstamo ${pr.banco} — ${disp.estado} (${cu.nro}/${pr.cuotas_total})`,
         mensaje: disp.msg,
         severidad: disp.sev,
         fecha_vencimiento: cu.fecha_vencimiento,
