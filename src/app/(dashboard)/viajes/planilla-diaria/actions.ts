@@ -13,6 +13,8 @@ export type PlanillaChofer = {
   apellido: string;
   /** Camión "habitual" del chofer (camiones.chofer_actual_id). */
   camion_habitual_id: string | null;
+  /** Patente del camión "habitual" del chofer. */
+  camion_habitual_patente: string | null;
   /** Camión asignado para la fecha consultada (asignacion_diaria). */
   camion_asignado_id: string | null;
   observaciones: string | null;
@@ -27,6 +29,9 @@ export type PlanillaDiariaData = {
   editable: boolean;
   choferes: PlanillaChofer[];
   camiones: { id: string; label: string }[];
+  guardado_por?: string | null;
+  guardado_el?: string | null;
+  fechas_con_cambios?: string[];
 };
 
 /**
@@ -73,7 +78,9 @@ export async function getPlanillaDiariaData(
   }
 
   const habitualPorChofer = new Map<string, string>();
+  const patentePorCamion = new Map<string, string>();
   for (const cam of camionesRes.data ?? []) {
+    patentePorCamion.set(cam.id, cam.patente);
     const chid = (cam as { chofer_actual_id?: string | null }).chofer_actual_id;
     if (chid) habitualPorChofer.set(chid, cam.id);
   }
@@ -87,11 +94,13 @@ export async function getPlanillaDiariaData(
   const choferes: PlanillaChofer[] = (choferesRes.data ?? []).map((c) => {
     const asig = asigPorChofer.get(c.id);
     const habitual = habitualPorChofer.get(c.id) ?? null;
+    const habitualPatente = habitual ? patentePorCamion.get(habitual) ?? null : null;
     return {
       chofer_id: c.id,
       nombre: c.nombre,
       apellido: c.apellido,
       camion_habitual_id: habitual,
+      camion_habitual_patente: habitualPatente,
       // HOY: la asignación fija manda (sincronizada con el legajo). Otras fechas:
       // el snapshot de ese día (historial), con el habitual como último recurso.
       camion_asignado_id: editable ? habitual : asig?.camion_id ?? habitual,
@@ -99,12 +108,44 @@ export async function getPlanillaDiariaData(
     };
   });
 
+  // Obtenemos los metadatos de edición del snapshot de ese día si no es hoy
+  let guardado_por: string | null = null;
+  let guardado_el: string | null = null;
+  
+  if (!editable && (asignacionesRes.data ?? []).length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: metaData } = await (supabase as any)
+      .from("asignacion_diaria")
+      .select(`
+        updated_at,
+        usuarios!updated_by (nombre, apellido)
+      `)
+      .eq("fecha", fecha)
+      .limit(1)
+      .maybeSingle();
+
+    const editor = metaData?.usuarios;
+    guardado_por = editor
+      ? [editor.nombre, editor.apellido].filter(Boolean).join(" ").trim() || null
+      : null;
+    guardado_el = metaData?.updated_at ?? null;
+  }
+
+  // Obtener todas las fechas que tienen asignaciones guardadas
+  const { data: fechasRes } = await (supabase as any)
+    .from("asignacion_diaria")
+    .select("fecha");
+  const fechas_con_cambios = Array.from(new Set((fechasRes ?? []).map((f: any) => f.fecha))) as string[];
+
   return {
     fecha,
     hoy,
     editable,
     choferes,
     camiones: (camionesRes.data ?? []).map((c) => ({ id: c.id, label: c.patente })),
+    guardado_por,
+    guardado_el,
+    fechas_con_cambios,
   };
 }
 
@@ -279,3 +320,70 @@ export async function guardarPlanillaDiariaAction(
   revalidatePath("/camiones");
   return { ok: true, guardadas };
 }
+
+export type PlanillaHistorialRow = {
+  id: string;
+  fecha: string;
+  chofer_nombre: string;
+  camion_patente: string;
+  observaciones: string | null;
+  editor_nombre: string | null;
+  editor_email: string | null;
+  created_at: string;
+};
+
+export async function getPlanillaDiariaHistorialAction(): Promise<
+  PlanillaHistorialRow[] | { error: string }
+> {
+  await requireArea("viajes", "read");
+  const supabase = createAdminClient();
+
+  // Query asignacion_diaria joining choferes, camiones, and usuarios
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("asignacion_diaria")
+    .select(`
+      id,
+      fecha,
+      observaciones,
+      created_at,
+      choferes (nombre, apellido),
+      camiones (patente),
+      usuarios!updated_by (nombre, apellido, email)
+    `)
+    .order("fecha", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error("Error fetching planilla diaria history:", error);
+    return { error: "No se pudo cargar el historial." };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => {
+    const chofer = row.choferes;
+    const camion = row.camiones;
+    const editor = row.usuarios;
+
+    const choferNombre = chofer
+      ? [chofer.apellido, chofer.nombre].filter(Boolean).join(", ").trim()
+      : "Desconocido";
+
+    const editorNombre = editor
+      ? [editor.nombre, editor.apellido].filter(Boolean).join(" ").trim() || null
+      : null;
+
+    return {
+      id: row.id,
+      fecha: row.fecha,
+      chofer_nombre: choferNombre,
+      camion_patente: camion?.patente ?? "Sin asignar",
+      observaciones: row.observaciones,
+      editor_nombre: editorNombre,
+      editor_email: editor?.email ?? null,
+      created_at: row.created_at,
+    };
+  });
+}
+

@@ -105,6 +105,59 @@ function subFecha(row: ComplianceEstadoRow): string {
   return base;
 }
 
+interface EntityGroup {
+  id: string;
+  label: string;
+  rows: ComplianceEstadoRow[];
+  vencidos: number;
+  porVencer: number;
+  faltantes: number;
+}
+
+function groupRows(rows: ComplianceEstadoRow[], nivel: ComplianceNivel): EntityGroup[] {
+  const groupsMap = new Map<string, EntityGroup>();
+
+  for (const r of rows) {
+    let id = "";
+    let label = "";
+
+    if (nivel === "chofer") {
+      id = r.chofer_id ?? "sin-chofer";
+      label = r.chofer_nombre ?? "Chofer sin nombre";
+    } else if (nivel === "unidad") {
+      id = r.camion_id ?? "sin-camion";
+      label = r.camion_patente ?? "Unidad sin patente";
+    } else {
+      id = "empresa";
+      label = "Empresa";
+    }
+
+    let g = groupsMap.get(id);
+    if (!g) {
+      g = {
+        id,
+        label,
+        rows: [],
+        vencidos: 0,
+        porVencer: 0,
+        faltantes: 0,
+      };
+      groupsMap.set(id, g);
+    }
+    g.rows.push(r);
+    if (r.estado === "vencido") g.vencidos++;
+    else if (r.estado === "por_vencer") g.porVencer++;
+    else if (r.estado === "faltante") g.faltantes++;
+  }
+
+  return Array.from(groupsMap.values()).sort((a, b) => {
+    if (b.vencidos !== a.vencidos) return b.vencidos - a.vencidos;
+    if (b.porVencer !== a.porVencer) return b.porVencer - a.porVencer;
+    if (b.faltantes !== a.faltantes) return b.faltantes - a.faltantes;
+    return a.label.localeCompare(b.label);
+  });
+}
+
 export default function ComplianceChecklistPage({
   titulo,
   subtitulo,
@@ -117,8 +170,9 @@ export default function ComplianceChecklistPage({
   const [, startTransition] = useTransition();
 
   const [busqueda, setBusqueda] = useState("");
-  const [soloPendientes, setSoloPendientes] = useState(true);
-  const [colapsados, setColapsados] = useState<Set<ComplianceNivel>>(new Set());
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [colapsados, setColapsados] = useState<Set<ComplianceNivel>>(() => new Set(["unidad", "chofer"]));
+  const [groupsExpandidos, setGroupsExpandidos] = useState<Set<string>>(new Set());
   const [dialogState, setDialogState] = useState<{
     requisito: ComplianceRequisito;
     chofer_id?: string;
@@ -223,6 +277,14 @@ export default function ComplianceChecklistPage({
       return next;
     });
 
+  const toggleGroupColapso = (groupId: string) =>
+    setGroupsExpandidos((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+
   const handleExport = () => {
     // El armado del .xlsx corre en el server (export-action.ts); se mandan las
     // filas visibles en el mismo orden del tablero (por nivel).
@@ -313,24 +375,108 @@ export default function ComplianceChecklistPage({
                 <span className="text-[11px] text-muted-foreground/70">{grupo.length}</span>
               </button>
 
-              {abierto && (
-                <div className="border border-border rounded-[12px] overflow-hidden bg-card">
-                  {grupo.map((r, i) => (
-                    <ChecklistRow
-                      key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
-                      row={r}
-                      nivel={n}
-                      enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
-                      canWrite={canWrite}
-                      primero={i === 0}
-                      onCasilla={() => handleCasilla(r)}
-                      onSubir={() => handleSubir(r)}
-                      onHistorial={() => handleHistorial(r)}
-                      onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
-                    />
-                  ))}
-                </div>
-              )}
+              {abierto && (() => {
+                if (n === "empresa") {
+                  return (
+                    <div className="border border-border rounded-[12px] overflow-hidden bg-card">
+                      {grupo.map((r, i) => (
+                        <ChecklistRow
+                          key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
+                          row={r}
+                          nivel={n}
+                          enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
+                          canWrite={canWrite}
+                          primero={i === 0}
+                          onCasilla={() => handleCasilla(r)}
+                          onSubir={() => handleSubir(r)}
+                          onHistorial={() => handleHistorial(r)}
+                          onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+
+                const groupedEntities = groupRows(grupo, n);
+
+                return (
+                  <div className="space-y-3">
+                    {groupedEntities.map((g) => {
+                      const gAbierto = groupsExpandidos.has(g.id);
+                      const SubIcon = n === "chofer" ? Users : Truck;
+                      return (
+                        <div
+                          key={g.id}
+                          className="border border-border rounded-[12px] bg-card overflow-hidden shadow-sm"
+                        >
+                          {/* Cabecera del subgrupo (Chofer / Unidad) */}
+                          <div
+                            onClick={() => toggleGroupColapso(g.id)}
+                            className="bg-muted/30 hover:bg-muted/50 px-4 py-2.5 border-b border-border flex items-center justify-between cursor-pointer select-none transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ChevronDown
+                                size={14}
+                                className={`text-muted-foreground/70 transition-transform ${
+                                  gAbierto ? "" : "-rotate-90"
+                                }`}
+                              />
+                              <SubIcon size={14} className="text-muted-foreground/80" />
+                              <span className="text-xs font-bold text-foreground">
+                                {g.label}
+                              </span>
+                            </div>
+
+                            {/* Indicadores de estado resumidos */}
+                            <div className="flex items-center gap-1.5 text-[10px]">
+                              {g.vencidos > 0 && (
+                                <span className="bg-[#FEF2F2] text-[#991B1B] font-medium px-2 py-0.5 rounded-full border border-[#FECACA]">
+                                  {g.vencidos} vencido{g.vencidos > 1 ? "s" : ""}
+                                </span>
+                              )}
+                              {g.porVencer > 0 && (
+                                <span className="bg-[#FFFBEB] text-[#92400E] font-medium px-2 py-0.5 rounded-full border border-[#FDE68A]">
+                                  {g.porVencer} por vencer
+                                </span>
+                              )}
+                              {g.faltantes > 0 && (
+                                <span className="bg-muted text-muted-foreground font-medium px-2 py-0.5 rounded-full border border-border">
+                                  {g.faltantes} falta{g.faltantes > 1 ? "s" : ""}
+                                </span>
+                              )}
+                              {g.vencidos === 0 && g.porVencer === 0 && g.faltantes === 0 && (
+                                <span className="bg-[#F0FDF4] text-[#166534] font-medium px-2 py-0.5 rounded-full border border-[#BBF7D0]">
+                                  Al día
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Lista de documentos del subgrupo */}
+                          {gAbierto && (
+                            <div className="divide-y divide-border">
+                              {g.rows.map((r, i) => (
+                                <ChecklistRow
+                                  key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
+                                  row={r}
+                                  nivel={n}
+                                  enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
+                                  canWrite={canWrite}
+                                  primero={i === 0}
+                                  onCasilla={() => handleCasilla(r)}
+                                  onSubir={() => handleSubir(r)}
+                                  onHistorial={() => handleHistorial(r)}
+                                  onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </section>
           );
         })
@@ -388,7 +534,7 @@ function ChecklistRow({
 }) {
   const ui = ESTADO_UI[row.estado];
   const tag = tagCliente(row.cliente_aplica);
-  const entidad = nivel === "chofer" ? row.chofer_nombre : nivel === "unidad" ? row.camion_patente : null;
+  const entidad = null;
 
   return (
     <div

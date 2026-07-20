@@ -12,6 +12,8 @@ import {
   RotateCcw,
   History,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   guardarPlanillaDiariaAction,
@@ -23,6 +25,7 @@ type Fila = {
   nombre: string;
   apellido: string;
   camion_habitual_id: string | null;
+  camion_habitual_patente: string | null;
   /** "" = sin asignar */
   camion_id: string;
   observaciones: string;
@@ -39,6 +42,7 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     nombre: c.nombre,
     apellido: c.apellido,
     camion_habitual_id: c.camion_habitual_id,
+    camion_habitual_patente: c.camion_habitual_patente,
     // El server ya resuelve el valor por defecto (asignación fija hoy · snapshot en historial).
     camion_id: c.camion_asignado_id ?? c.camion_habitual_id ?? "",
     observaciones: c.observaciones ?? "",
@@ -51,6 +55,70 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const [filas, setFilas] = useState<Fila[]>(() => buildFilas(data));
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(() => new Date(data.fecha + "T00:00:00"));
+
+  const fechasConCambios = useMemo(() => new Set(data.fechas_con_cambios ?? []), [data.fechas_con_cambios]);
+
+  const calendarCells = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+
+    const startDay = new Date(year, month, 1).getDay(); // 0 is Sunday
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevDaysInMonth = new Date(year, month, 0).getDate();
+
+    const cells: { dateStr: string; dayNum: number; isCurrentMonth: boolean }[] = [];
+
+    // Padding anterior
+    for (let i = startDay - 1; i >= 0; i--) {
+      const d = prevDaysInMonth - i;
+      const m = month === 0 ? 11 : month - 1;
+      const y = month === 0 ? year - 1 : year;
+      cells.push({
+        dateStr: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+        dayNum: d,
+        isCurrentMonth: false,
+      });
+    }
+
+    // Días del mes actual
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({
+        dateStr: `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+        dayNum: d,
+        isCurrentMonth: true,
+      });
+    }
+
+    // Padding posterior
+    const remaining = 42 - cells.length;
+    for (let d = 1; d <= remaining; d++) {
+      const m = month === 11 ? 0 : month + 1;
+      const y = month === 11 ? year + 1 : year;
+      cells.push({
+        dateStr: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+        dayNum: d,
+        isCurrentMonth: false,
+      });
+    }
+
+    return cells;
+  }, [currentMonth]);
+
+  const MESES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+  };
+
+  const prevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+  };
 
   // Qué chofer(es) tienen cada camión hoy — para marcar ocupado/libre en el selector.
   const ocupadoPor = useMemo(() => {
@@ -147,15 +215,102 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     <div className="space-y-5">
       {/* Barra superior: fecha + atajos */}
       <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex flex-wrap items-end gap-4">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted-foreground">Fecha</label>
-          <input
-            type="date"
-            value={data.fecha}
-            max={data.hoy}
-            onChange={(e) => cambiarFecha(e.target.value)}
-            className="h-9 px-3 text-sm rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-          />
+        <div className="space-y-1 relative">
+          <label className="text-xs font-semibold text-muted-foreground block">Fecha</label>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(!pickerOpen)}
+            className="h-9 px-3 text-sm rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] flex items-center gap-2 font-medium min-w-[130px] hover:bg-muted/30 transition-colors"
+          >
+            <CalendarClock size={15} className="text-[#0088D1]" />
+            {fmtFecha(data.fecha)}
+          </button>
+
+          {pickerOpen && (
+            <>
+              {/* Backdrop para cerrar al hacer clic afuera */}
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setPickerOpen(false)} 
+              />
+              
+              <div className="absolute top-[62px] left-0 z-50 bg-card border border-border shadow-lg rounded-[8px] p-4 w-[280px]">
+                {/* Cabecera */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-semibold text-sm text-foreground">
+                    {MESES[currentMonth.getMonth()]} de {currentMonth.getFullYear()}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={prevMonth}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={nextMonth}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Días de la semana */}
+                <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-muted-foreground mb-1">
+                  {["DO", "LU", "MA", "MI", "JU", "VI", "SA"].map((d) => (
+                    <div key={d}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Grilla de días */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarCells.map((cell) => {
+                    const isSelected = cell.dateStr === data.fecha;
+                    const isToday = cell.dateStr === data.hoy;
+                    const hasChanges = fechasConCambios.has(cell.dateStr);
+                    const isFuture = cell.dateStr > data.hoy;
+
+                    let btnClass = "h-8 w-8 text-xs rounded-full flex items-center justify-center transition-colors relative ";
+                    if (!cell.isCurrentMonth) {
+                      btnClass += "text-muted-foreground/30 ";
+                    } else if (isFuture) {
+                      btnClass += "text-muted-foreground/30 cursor-not-allowed ";
+                    } else {
+                      btnClass += "text-foreground hover:bg-muted/60 ";
+                    }
+
+                    if (isSelected) {
+                      btnClass += "bg-[#0088D1] text-white hover:bg-[#0088D1] font-bold ";
+                    } else if (hasChanges && cell.isCurrentMonth && !isFuture) {
+                      btnClass += "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60 ";
+                    }
+
+                    return (
+                      <button
+                        key={cell.dateStr}
+                        type="button"
+                        disabled={isFuture}
+                        onClick={() => {
+                          cambiarFecha(cell.dateStr);
+                          setPickerOpen(false);
+                        }}
+                        className={btnClass}
+                        title={hasChanges ? "Planilla guardada" : undefined}
+                      >
+                        {cell.dayNum}
+                        {isToday && !isSelected && (
+                          <span className="absolute bottom-1 size-1 bg-[#0088D1] rounded-full" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -191,8 +346,14 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
           <History size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
           <div className="flex-1">
-            <p className="font-medium text-foreground">
-              Estás viendo el historial del {fmtFecha(data.fecha)}.
+            <p className="font-medium text-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>Estás viendo el historial del {fmtFecha(data.fecha)}.</span>
+              {data.guardado_por && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  (Guardado por <strong className="text-foreground">{data.guardado_por}</strong>
+                  {data.guardado_el && ` el ${new Date(data.guardado_el).toLocaleDateString("es-AR")} a las ${new Date(data.guardado_el).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`})
+                </span>
+              )}
             </p>
             <p className="text-xs mt-0.5">
               Las asignaciones de días anteriores son solo lectura. Para cambiar qué camión maneja
@@ -255,6 +416,21 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                           <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide">
                             habitual
                           </span>
+                        )}
+                        {!esHabitual && !duplicado && (
+                          <div className="flex flex-col gap-0.5">
+                            {f.camion_id ? (
+                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                Reemplazo {f.camion_habitual_patente ? `(Habitual: ${f.camion_habitual_patente})` : ""}
+                              </span>
+                            ) : (
+                              f.camion_habitual_patente && (
+                                <span className="text-[10px] font-medium text-muted-foreground/60 italic">
+                                  Habitual: {f.camion_habitual_patente}
+                                </span>
+                              )
+                            )}
+                          </div>
                         )}
                         {duplicado && (
                           <span title="Camión asignado a otro chofer">
