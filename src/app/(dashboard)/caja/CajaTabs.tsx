@@ -1,41 +1,50 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Wallet, Receipt, type LucideIcon } from "lucide-react";
+import { Wallet, Landmark, Receipt, type LucideIcon } from "lucide-react";
 
-type Tab = { href: string; label: string; icon: LucideIcon };
-
-const TABS: Tab[] = [
-  { href: "/caja", label: "Movimientos", icon: Wallet },
-  { href: "/caja/gastos", label: "Gastos", icon: Receipt },
-];
+export type CajaTabId = "diaria" | "grande" | "gastos";
 
 /**
- * Navegación entre las pantallas de Caja. Gastos dejó de ser una sección propia
- * del sidebar (es un tipo de egreso de la caja) y pasó a ser una solapa de acá.
- * Mismo patrón que ConfigTabs: son enlaces de ruta, así que usa un landmark de
- * navegación con aria-current — no el patrón ARIA de tabs.
+ * Solapas de Caja, todas al mismo nivel: Caja diaria · Caja grande · Gastos.
  *
- * Si el usuario no tiene la subsección "gastos" no se muestra nada: la pantalla
- * queda igual que antes.
+ * Antes había dos filas anidadas (Movimientos | Gastos, y adentro Caja diaria |
+ * Caja grande), que escondía que Gastos es una caja más y no un hermano de
+ * "Movimientos". Las tres son rutas, así que se navega con enlaces y la activa
+ * llega por prop desde el server (sin hooks de cliente).
  */
-export default function CajaTabs({ showGastos }: { showGastos: boolean }) {
-  const pathname = usePathname();
+export default function CajaTabs({
+  activa,
+  showGrande,
+  showGastos,
+}: {
+  activa: CajaTabId;
+  /** Caja grande es subsección confidencial: sólo si la tiene. */
+  showGrande: boolean;
+  /** Gastos depende de la subsección "gastos". */
+  showGastos: boolean;
+}) {
+  const tabs: { id: CajaTabId; label: string; href: string; icon: LucideIcon }[] = [
+    { id: "diaria", label: "Caja diaria", href: "/caja", icon: Wallet },
+    ...(showGrande
+      ? [{ id: "grande" as const, label: "Caja grande", href: "/caja?caja=grande", icon: Landmark }]
+      : []),
+    ...(showGastos
+      ? [{ id: "gastos" as const, label: "Gastos", href: "/caja/gastos", icon: Receipt }]
+      : []),
+  ];
 
-  if (!showGastos) return null;
+  if (tabs.length === 1) return null;
 
   return (
     <nav
       aria-label="Secciones de caja"
       className="flex items-center gap-1 border-b border-border mb-5"
     >
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const Icon = t.icon;
-        const active = t.href === "/caja" ? pathname === "/caja" : pathname.startsWith(t.href);
+        const active = activa === t.id;
         return (
           <Link
-            key={t.href}
+            key={t.id}
             href={t.href}
             aria-current={active ? "page" : undefined}
             className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${

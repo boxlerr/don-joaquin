@@ -25,6 +25,8 @@ function formatARS(n: number): string {
 export default async function CajaGastosPage() {
   const user = await requireSeccion("gastos", "read");
   const canWrite = hasSeccion(user, "gastos", "write");
+  // La solapa de Caja grande sólo aparece si tiene esa subsección confidencial.
+  const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
   const supabase = createAdminClient();
 
   const hoy = new Date();
@@ -96,7 +98,7 @@ export default async function CajaGastosPage() {
         }
       />
 
-      <CajaTabs showGastos />
+      <CajaTabs activa="gastos" showGrande={puedeVerGrande} showGastos />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard

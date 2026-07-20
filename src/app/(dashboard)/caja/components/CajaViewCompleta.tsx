@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import {
   ArrowUpRight,
   ArrowDownRight,
   ArrowRightLeft,
-  Landmark,
   Receipt,
-  Wallet,
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -45,12 +42,9 @@ type Props = {
   puedeOperarGrande: boolean;
   /** Ve la solapa Gastos (subsección "gastos" ≥ read). */
   showGastos: boolean;
+  /** Caja activa, definida por la URL (?caja=grande). */
+  caja: CajaId;
 };
-
-const TABS: { id: CajaId; label: string; icon: typeof Wallet }[] = [
-  { id: "diaria", label: "Caja diaria", icon: Wallet },
-  { id: "grande", label: "Caja grande", icon: Landmark },
-];
 
 /**
  * Vista completa de la caja (requiere caja_saldo). Si además tiene caja_grande,
@@ -66,8 +60,8 @@ export default function CajaViewCompleta({
   puedeVerGrande,
   puedeOperarGrande,
   showGastos,
+  caja,
 }: Props) {
-  const [caja, setCaja] = useState<CajaId>("diaria");
   const esGrande = caja === "grande";
 
   return (
@@ -127,40 +121,8 @@ export default function CajaViewCompleta({
         }
       />
 
-      {/* Solapas de Caja: Movimientos | Gastos (Gastos salió del sidebar). */}
-      <CajaTabs showGastos={showGastos} />
-
-      {/* Switcher de caja: solo si puede ver la grande (subsección confidencial). */}
-      {puedeVerGrande && (
-        <div
-          role="tablist"
-          aria-label="Seleccionar caja"
-          className="flex items-center gap-1 border-b border-border mb-5"
-        >
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const active = caja === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setCaja(t.id)}
-                className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon size={14} />
-                {t.label}
-                {active && (
-                  <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Una sola fila: Caja diaria · Caja grande · Gastos (mismo nivel). */}
+      <CajaTabs activa={caja} showGrande={puedeVerGrande} showGastos={showGastos} />
 
       {/* key: al cambiar de caja se resetea el mes/rango y recarga el resumen. */}
       <CajaDashboard key={caja} tiposGasto={tiposGasto} mesesConDatos={mesesConDatos} caja={caja} />

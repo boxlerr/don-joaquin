@@ -12,8 +12,13 @@ import CajaTabs from "./CajaTabs";
 import MisMovimientosRecientes from "./components/MisMovimientosRecientes";
 import HelpTutorialButton from "./help-tutorial-button";
 
-export default async function CajaPage() {
+export default async function CajaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ caja?: string }>;
+}) {
   const user = await requireArea("caja", "read");
+  const { caja: cajaParam } = await searchParams;
 
   // Operar ≠ ver (pedido de Bárbara): cargar movimientos viene del área, pero
   // el saldo/historial (caja_saldo) y la caja grande (caja_grande) son
@@ -26,6 +31,11 @@ export default async function CajaPage() {
   // permiso sigue siendo el mismo de siempre: la subsección "gastos".
   const puedeVerGastos = hasSeccion(user, "gastos", "read");
 
+  // La caja activa viaja en la URL (?caja=grande) para que las tres solapas
+  // —diaria, grande y gastos— sean enlaces del mismo nivel.
+  const cajaActiva: "diaria" | "grande" =
+    cajaParam === "grande" && puedeVerGrande ? "grande" : "diaria";
+
   // Sin saldo ni carga: solo el aviso de acceso restringido.
   if (!puedeVerSaldo && !puedeOperar) {
     return (
@@ -34,7 +44,7 @@ export default async function CajaPage() {
           title="Caja General"
           description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         />
-        <CajaTabs showGastos={puedeVerGastos} />
+        <CajaTabs activa={cajaActiva} showGrande={puedeVerGrande} showGastos={puedeVerGastos} />
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
           <Lock size={16} className="text-amber-600 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-700">
@@ -138,7 +148,7 @@ export default async function CajaPage() {
           }
         />
 
-        <CajaTabs showGastos={puedeVerGastos} />
+        <CajaTabs activa={cajaActiva} showGrande={puedeVerGrande} showGastos={puedeVerGastos} />
 
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
           <EyeOff size={16} className="text-amber-600 mt-0.5 shrink-0" />
@@ -165,6 +175,7 @@ export default async function CajaPage() {
         puedeOperar={puedeOperar}
         puedeVerGrande={puedeVerGrande}
         puedeOperarGrande={puedeOperarGrande}
+        caja={cajaActiva}
         showGastos={puedeVerGastos}
       />
     </div>
