@@ -140,6 +140,26 @@ export async function deleteLiqLomaAction(
     .eq("id", liqId)
     .single();
 
+  // Quitar el ingreso de caja consolidado de esta liquidación (revierte el cobro).
+  // La FK es ON DELETE CASCADE, pero lo borramos explícito para poder auditarlo y
+  // revalidar /caja.
+  const { data: movCaja } = await sb
+    .from("caja_movimientos")
+    .select("id, monto")
+    .eq("liq_loma_id", liqId)
+    .maybeSingle();
+  if (movCaja?.id) {
+    await sb.from("caja_movimientos").delete().eq("id", movCaja.id);
+    await logAudit({
+      accion: "eliminar",
+      entidadTipo: "caja",
+      entidadId: movCaja.id,
+      usuarioId: user.id,
+      valoresAnteriores: { monto: movCaja.monto, motivo: "Baja de la liquidación de Loma" },
+      client: supabase,
+    });
+  }
+
   const { error } = await sb.from("compliance_liq_loma").delete().eq("id", liqId);
   if (error) return { error: "No se pudo eliminar la liquidación" };
 
@@ -160,5 +180,7 @@ export async function deleteLiqLomaAction(
   });
 
   revalidatePath("/viajes/liquidaciones");
+  revalidatePath("/caja");
+  revalidatePath("/dashboard");
   return { ok: true };
 }

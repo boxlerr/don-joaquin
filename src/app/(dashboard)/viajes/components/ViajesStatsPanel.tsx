@@ -47,7 +47,7 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
     { key: "en_curso", label: "En curso", value: stats.enCurso, color: "success", estado: "en_curso", facturado: null, esVacio: null },
     { key: "pendiente", label: "Pendientes", value: stats.pendientes, color: "warning", estado: "pendiente", facturado: null, esVacio: null },
     // "Sin facturar" excluye los vacíos: solo viajes reales pendientes de facturar.
-    { key: "sin_facturar", label: "Sin facturar", value: stats.sinFacturar, color: "error", sub: "Finalizados", estado: "", facturado: false, esVacio: false },
+    { key: "sin_facturar", label: "Sin remito", value: stats.sinFacturar, color: "error", sub: "Finalizados", estado: "", facturado: false, esVacio: false },
     { key: "vacios", label: "Viajes vacíos", value: stats.vacios, color: "neutral", sub: "Sin carga", estado: "", facturado: null, esVacio: true },
   ];
 

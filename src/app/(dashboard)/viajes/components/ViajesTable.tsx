@@ -115,7 +115,7 @@ const COLUMNS: ColumnDef[] = [
   { label: "Material", cellClass: "hidden xl:table-cell" },
   { label: "Importe", sortKey: "monto", cellClass: "hidden lg:table-cell", align: "right" },
   { label: "Estado" },
-  { label: "Facturado", cellClass: "hidden sm:table-cell" },
+  { label: "Remito", cellClass: "hidden sm:table-cell" },
   { label: "" },
 ];
 
@@ -493,7 +493,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                         onChange={() => toggleSeleccion(v.id)}
                       />
                     ) : v.facturado ? (
-                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Facturado" />
+                      <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Con remito" />
                     ) : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -559,11 +559,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <span
-                      className={`text-xs font-medium ${
-                        v.facturado ? "text-[#10B981]" : "text-muted-foreground/70"
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
+                        v.facturado
+                          ? "bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/30"
+                          : "bg-[#C00000]/10 text-[#C00000] border border-[#C00000]/30"
                       }`}
                     >
-                      {v.facturado ? "Sí" : "No"}
+                      {v.facturado ? "REMITO" : "SIN REMITO"}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -966,7 +968,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                 </div>
                 <div>
                   <DialogTitle className="text-foreground text-base font-bold">
-                    Viaje facturado
+                    Viaje con remito
                   </DialogTitle>
                   <DialogDescription className="text-muted-foreground text-xs mt-0.5">
                     {confirmEditViaje.codigo} · {confirmEditViaje.cliente}
@@ -977,11 +979,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
 
             <div className="py-4 space-y-2">
               <p className="text-sm text-foreground font-medium">
-                Este viaje ya está facturado (tiene remito y valor cargados).
+                Este viaje ya tiene el remito cargado (con remito y valor).
               </p>
               <p className="text-sm text-muted-foreground">
                 Podés editar los datos igual: si cambiás el monto, el viaje se recalcula solo
-                (con monto queda facturado; sin monto vuelve a &quot;sin facturar&quot;).
+                (con monto queda &quot;REMITO&quot;; sin monto vuelve a &quot;SIN REMITO&quot;).
               </p>
             </div>
 

@@ -800,6 +800,39 @@ async function archivarLiquidacionLoma(
     .single();
   if (liqErr || !liq) throw new Error("No se pudo registrar la liquidación de Loma.");
 
+  // Ingreso a caja consolidado por la liquidación (decisión 20/07/2026): el cobro
+  // de los fletes entra a la caja al cargar la liquidación de Loma, como UN único
+  // movimiento (no viaje por viaje). Best-effort: si falla, la liquidación ya quedó
+  // registrada y el ingreso se puede regenerar. La fecha contable es la del período
+  // de la liquidación (lo más fiel a la contabilidad); el índice único evita duplicar.
+  if (meta.total > 0) {
+    try {
+      const clienteId = await getOrCreateLomaCliente(supabase, userId);
+      const fechaContable =
+        meta.periodoHasta ?? meta.periodoDesde ?? new Date().toISOString().slice(0, 10);
+      const periodo =
+        meta.periodoDesde && meta.periodoHasta
+          ? `${meta.periodoDesde} a ${meta.periodoHasta}`
+          : (meta.periodoHasta ?? meta.periodoDesde ?? "");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("caja_movimientos").insert({
+        tipo: "ingreso",
+        categoria: "cobro_cliente",
+        medio: "transferencia",
+        concepto: `Liquidación Loma Negra${periodo ? ` (${periodo})` : ""}`,
+        observaciones: `${meta.fletes} flete(s). Cargada el ${new Date().toISOString().slice(0, 10)}.`,
+        monto: meta.total,
+        moneda: "ARS",
+        fecha: fechaContable,
+        cliente_id: clienteId,
+        liq_loma_id: liq.id,
+        created_by: userId,
+      });
+    } catch (e) {
+      console.error("No se pudo generar el ingreso de caja de la liquidación Loma:", e);
+    }
+  }
+
   return liq.id as string;
 }
 

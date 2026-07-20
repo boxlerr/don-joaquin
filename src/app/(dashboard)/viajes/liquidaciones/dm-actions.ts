@@ -154,6 +154,26 @@ export async function deleteDmYpfAction(
     .eq("id", dmId)
     .single();
 
+  // Quitar el ingreso de caja consolidado de este DM (revierte el cobro).
+  // La FK es ON DELETE CASCADE, pero lo borramos explícito para auditarlo y
+  // revalidar /caja.
+  const { data: movCaja } = await sb
+    .from("caja_movimientos")
+    .select("id, monto")
+    .eq("dm_ypf_id", dmId)
+    .maybeSingle();
+  if (movCaja?.id) {
+    await sb.from("caja_movimientos").delete().eq("id", movCaja.id);
+    await logAudit({
+      accion: "eliminar",
+      entidadTipo: "caja",
+      entidadId: movCaja.id,
+      usuarioId: user.id,
+      valoresAnteriores: { monto: movCaja.monto, motivo: "Baja del DM de YPF" },
+      client: supabase,
+    });
+  }
+
   // Eliminar el registro DM (las viajes.dm_ypf_id quedan en null por la FK)
   const { error } = await sb.from("compliance_dm_ypf").delete().eq("id", dmId);
   if (error) return { error: "No se pudo eliminar el DM" };
@@ -175,5 +195,7 @@ export async function deleteDmYpfAction(
   });
 
   revalidatePath("/viajes/liquidaciones");
+  revalidatePath("/caja");
+  revalidatePath("/dashboard");
   return { ok: true };
 }

@@ -354,6 +354,8 @@ export type Database = {
           pago_cliente_id: string | null
           siniestro_id: string | null
           tipo: Database["public"]["Enums"]["caja_movimiento_tipo"]
+          liq_loma_id: string | null
+          dm_ypf_id: string | null
           viaje_id: string | null
           viatico_id: string | null
         }
@@ -378,6 +380,8 @@ export type Database = {
           pago_cliente_id?: string | null
           siniestro_id?: string | null
           tipo: Database["public"]["Enums"]["caja_movimiento_tipo"]
+          liq_loma_id?: string | null
+          dm_ypf_id?: string | null
           viaje_id?: string | null
           viatico_id?: string | null
         }
@@ -402,6 +406,8 @@ export type Database = {
           pago_cliente_id?: string | null
           siniestro_id?: string | null
           tipo?: Database["public"]["Enums"]["caja_movimiento_tipo"]
+          liq_loma_id?: string | null
+          dm_ypf_id?: string | null
           viaje_id?: string | null
           viatico_id?: string | null
         }

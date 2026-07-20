@@ -441,5 +441,42 @@ async function guardarDmYpf(
     console.error("Error creando compliance_dm_ypf:", dmErr);
     return null;
   }
+
+  // Ingreso a caja consolidado por el DM (decisión 20/07/2026): el cobro de los
+  // fletes de YPF entra a la caja al cargar el DM, como UN único movimiento (no
+  // viaje por viaje). Best-effort. Fecha contable = fecha de certificación del DM
+  // (o el período). El índice único (dm_ypf_id) evita duplicar si se reprocesa.
+  const totalDm = Number(parsed.caratula?.totalCertificadoArs ?? 0);
+  if (totalDm > 0) {
+    try {
+      const { data: ypfCliente } = await sb
+        .from("clientes")
+        .select("id")
+        .or("razon_social.ilike.%ypf%,nombre_comercial.ilike.%ypf%")
+        .limit(1)
+        .maybeSingle();
+      const fechaContable =
+        parsed.caratula?.fechaCertificacion ??
+        parsed.quincenaHasta ??
+        parsed.quincenaDesde ??
+        new Date().toISOString().slice(0, 10);
+      await sb.from("caja_movimientos").insert({
+        tipo: "ingreso",
+        categoria: "cobro_cliente",
+        medio: "transferencia",
+        concepto: `DM YPF (${parsed.quincenaDesde} a ${parsed.quincenaHasta})`,
+        observaciones: `Certificación YPF. Cargado el ${new Date().toISOString().slice(0, 10)}.`,
+        monto: totalDm,
+        moneda: "ARS",
+        fecha: fechaContable,
+        cliente_id: ypfCliente?.id ?? null,
+        dm_ypf_id: dm.id,
+        created_by: userId,
+      });
+    } catch (e) {
+      console.error("No se pudo generar el ingreso de caja del DM YPF:", e);
+    }
+  }
+
   return dm.id as string;
 }
