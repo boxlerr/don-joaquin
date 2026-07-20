@@ -21,6 +21,12 @@ export type AlertaEmailView = {
   categoria: string;
   /** Link ya resuelto a la vista in-app. */
   href: string;
+  /**
+   * Datos duros de la alerta (importe, banco, cuota, tasa…). Van en una grilla
+   * aparte y no enterrados en la prosa: en un aviso de plata, el número tiene
+   * que poder leerse sin leer la oración.
+   */
+  datos?: { label: string; valor: string; destacar?: boolean }[];
 };
 
 const SEV_STYLE: Record<SeveridadEmail, { label: string; bg: string; border: string; text: string }> = {
@@ -125,6 +131,23 @@ function renderAlerta(a: AlertaEmailView): string {
       } ${formatFecha(a.fecha_vencimiento)}</div>`
     : "";
 
+  // Datos duros en dos columnas: etiqueta arriba, valor abajo. Los destacados
+  // (el importe) van más grandes y en el color de la categoría.
+  const datos = a.datos?.length
+    ? `<table cellpadding="0" cellspacing="0" role="presentation" style="margin-top:12px;border-collapse:collapse;">
+         <tr>
+           ${a.datos
+             .map(
+               (d) => `<td style="padding:0 22px 0 0;vertical-align:top;">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8;">${escapeHtml(d.label)}</div>
+                  <div style="font-size:${d.destacar ? "17" : "14"}px;font-weight:700;color:${d.destacar ? est.color : "#0F172A"};margin-top:3px;white-space:nowrap;">${escapeHtml(d.valor)}</div>
+                </td>`,
+             )
+             .join("")}
+         </tr>
+       </table>`
+    : "";
+
   return `
     <tr>
       <td style="padding:20px 0 22px 0;border-top:1px solid #E2E8F0;">
@@ -135,6 +158,7 @@ function renderAlerta(a: AlertaEmailView): string {
         </div>
         <div style="font-size:17px;font-weight:700;color:#0F172A;line-height:1.35;margin-top:10px;">${escapeHtml(a.titulo)}</div>
         <div style="font-size:14px;color:#475569;margin-top:7px;line-height:1.6;">${escapeHtml(a.mensaje)}</div>
+        ${datos}
         ${meta}
         <div style="margin-top:12px;">
           <a href="${a.href}" style="font-size:13px;font-weight:600;color:${est.color};text-decoration:none;border-bottom:1px solid ${est.color};padding-bottom:1px;">${escapeHtml(est.cta)}</a>

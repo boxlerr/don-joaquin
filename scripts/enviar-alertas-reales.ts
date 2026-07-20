@@ -107,6 +107,14 @@ async function alertasDePrestamos(sb: any): Promise<AlertaEmailView[]> {
         fecha_vencimiento: cu.fecha_vencimiento,
         categoria: "prestamos_vencimiento",
         href: `${BASE}/prestamos`,
+        datos: [
+          { label: "Importe", valor: ars(Number(cu.importe)), destacar: true },
+          { label: "Banco", valor: String(pr.banco) },
+          { label: "Cuota", valor: `${cu.nro} de ${pr.cuotas_total}` },
+          ...(pr.tasa != null
+            ? [{ label: "Tasa", valor: `${Number(pr.tasa).toLocaleString("es-AR")}%` }]
+            : []),
+        ],
       });
     }
   }
@@ -136,10 +144,19 @@ async function main() {
       return;
     }
     const n = alertas.length;
+    // El encabezado de un aviso de plata tiene que decir CUÁNTA plata, no sólo
+    // cuántas cuotas.
+    const totalPlata = alertas.reduce((s, a) => {
+      const imp = a.datos?.find((d) => d.label === "Importe")?.valor ?? "";
+      return s + Number(imp.replace(/[^\d]/g, ""));
+    }, 0);
     const html = renderEmail({
       baseUrl: BASE,
       titulo: n === 1 ? "Cuota de préstamo por vencer" : "Cuotas de préstamo por vencer",
-      intro: `Hay ${n} cuota${n !== 1 ? "s" : ""} que requiere${n !== 1 ? "n" : ""} atención.`,
+      intro:
+        n === 1
+          ? `Hay 1 cuota por ${ars(totalPlata)} que requiere atención.`
+          : `Hay ${n} cuotas por un total de ${ars(totalPlata)} que requieren atención.`,
       alertas,
     });
     for (const a of alertas) console.log(`  · ${a.severidad.padEnd(11)} ${a.titulo}`);
