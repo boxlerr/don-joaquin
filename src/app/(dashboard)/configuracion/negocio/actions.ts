@@ -6,15 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 
-const EMPRESA_KEYS = [
-  "empresa_razon_social",
-  "empresa_cuit",
-  "empresa_domicilio",
-  "empresa_email",
-  "empresa_telefono",
-] as const;
+type EmpresaKey =
+  | "empresa_razon_social"
+  | "empresa_cuit"
+  | "empresa_domicilio"
+  | "empresa_email"
+  | "empresa_telefono";
 
-const KEY_DESCRIPCION: Record<(typeof EMPRESA_KEYS)[number], string> = {
+const KEY_DESCRIPCION: Record<EmpresaKey, string> = {
   empresa_razon_social: "Razón social de la empresa.",
   empresa_cuit: "CUIT de la empresa.",
   empresa_domicilio: "Domicilio fiscal de la empresa.",

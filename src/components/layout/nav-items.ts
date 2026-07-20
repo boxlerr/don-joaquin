@@ -163,7 +163,6 @@ export const NAV_GROUPS: NavGroup[] = [
         area: "sistema",
         children: [
           { label: "General", href: "/configuracion", seccion: "configuracion" },
-          { label: "Negocio", href: "/configuracion/negocio", seccion: "configuracion" },
           { label: "Notificaciones", href: "/configuracion/notificaciones", seccion: "configuracion" },
         ],
       },

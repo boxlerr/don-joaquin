@@ -1,76 +1,75 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
-  Bell,
-  Building2,
+  ArrowUpRight,
   Check,
+  ChevronDown,
   History,
-  type LucideIcon,
+  Lock,
   Pencil,
   PencilLine,
   Search,
-  Shield,
-  Wallet,
+  Settings2,
   X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
+import { cn } from "@/lib/utils";
 import { actualizarParametro } from "./actions";
 import HistorialDrawer from "./HistorialDrawer";
 import BulkEditForm from "./BulkEditForm";
 import { getValidacion } from "./validaciones";
-import type { Database } from "@/types/database";
-
-type Parametro = Database["public"]["Tables"]["parametros_sistema"]["Row"];
-
-const CATEGORY_META: Record<string, { icon: LucideIcon; titulo: string }> = {
-  general: { icon: Building2, titulo: "Empresa y datos generales" },
-  notificaciones: { icon: Bell, titulo: "Notificaciones" },
-  seguridad: { icon: Shield, titulo: "Seguridad" },
-  liquidacion: { icon: Wallet, titulo: "Liquidación" },
-  tarifas: { icon: Wallet, titulo: "Tarifas" },
-};
-
-const CATEGORY_ORDER = ["general", "notificaciones", "seguridad", "liquidacion", "tarifas"];
-
-function getCategoryMeta(cat: string) {
-  return (
-    CATEGORY_META[cat] ?? {
-      icon: Building2,
-      titulo: cat.charAt(0).toUpperCase() + cat.slice(1),
-    }
-  );
-}
-
-function formatValor(valor: string, tipo: string): string {
-  if (valor === "") return "—";
-  if (tipo === "boolean") return valor === "true" ? "Activado" : "Desactivado";
-  return valor;
-}
+import {
+  CATEGORY_LINK,
+  CATEGORY_ORDER,
+  displayValorParam,
+  esAvanzado,
+  getCategoryMeta,
+  moduloDeParam,
+  type Parametro,
+} from "./meta";
 
 export default function ParametrosList({
   parametros,
   canWrite = false,
+  hideClaves = [],
 }: {
   parametros: Parametro[];
   canWrite?: boolean;
+  /** Claves que se muestran en otra ficha y no deben duplicarse en la lista. */
+  hideClaves?: string[];
 }) {
   const [search, setSearch] = useState("");
   const [bulkCategoria, setBulkCategoria] = useState<string | null>(null);
   const [savedBanner, setSavedBanner] = useState<{ cat: string; count: number } | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [historialParam, setHistorialParam] = useState<Parametro | null>(null);
+
+  const visibles = useMemo(() => {
+    if (hideClaves.length === 0) return parametros;
+    const ocultas = new Set(hideClaves);
+    return parametros.filter((p) => !ocultas.has(p.clave));
+  }, [parametros, hideClaves]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return parametros;
-    return parametros.filter(
+    if (!q) return visibles;
+    return visibles.filter(
       (p) =>
         p.clave.toLowerCase().includes(q) ||
         (p.descripcion ?? "").toLowerCase().includes(q) ||
         (p.categoria ?? "").toLowerCase().includes(q),
     );
-  }, [parametros, search]);
+  }, [visibles, search]);
+
+  /** Buscar y editar en bloque no conviven: el form recibiría sólo lo filtrado. */
+  function onSearchChange(value: string) {
+    setSearch(value);
+    if (value && bulkCategoria) setBulkCategoria(null);
+  }
 
   const grouped = useMemo(() => {
     const acc: Record<string, Parametro[]> = {};
@@ -90,27 +89,61 @@ export default function ParametrosList({
     return [...conocidas, ...extras];
   }, [grouped]);
 
+  const totalEditables = useMemo(
+    () => visibles.filter((p) => p.editable && !esAvanzado(p)).length,
+    [visibles],
+  );
+
+  function toggleCollapse(cat: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-4">
-      <div className="relative max-w-md">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
-        />
-        <Input
-          type="search"
-          placeholder="Buscar parámetro por nombre, clave o categoría…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-9 pl-8 text-sm"
-        />
+      {/* Buscador + resumen */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
+          />
+          <Input
+            type="search"
+            placeholder="Buscar parámetro por nombre, clave o categoría…"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="h-9 pl-9 text-sm"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {visibles.length} parámetro{visibles.length !== 1 ? "s" : ""} ·{" "}
+          {totalEditables} editable{totalEditables !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {categoriasVisibles.length === 0 && (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 text-center">
-          <p className="text-muted-foreground text-sm">
-            No se encontraron parámetros con ese criterio.
+        <div className="bg-card rounded-[10px] border border-border shadow-sm p-10 text-center">
+          <Search size={28} className="mx-auto text-muted-foreground/40 mb-3" />
+          <p className="text-foreground text-sm font-medium">Sin resultados</p>
+          <p className="text-muted-foreground text-xs mt-1">
+            No hay parámetros que coincidan con “{search}”.
           </p>
+          {search && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSearch("")}
+              className="mt-4"
+            >
+              Limpiar búsqueda
+            </Button>
+          )}
         </div>
       )}
 
@@ -118,63 +151,140 @@ export default function ParametrosList({
         const meta = getCategoryMeta(cat);
         const Icon = meta.icon;
         const isBulk = bulkCategoria === cat;
-        const tieneEditables = grouped[cat]!.some((p) => p.editable);
+        const items = grouped[cat]!;
+        const tieneEditables = items.some((p) => p.editable && !esAvanzado(p));
         const isSaved = savedBanner?.cat === cat;
+        const isCollapsed = !search && collapsed.has(cat);
+        const link = CATEGORY_LINK[cat];
 
         return (
-          <div key={cat}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Icon size={14} className="text-muted-foreground" />
-                <h3 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  {meta.titulo}
-                </h3>
-              </div>
-              {canWrite && !isBulk && tieneEditables && !search && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    setSavedBanner(null);
-                    setBulkCategoria(cat);
-                  }}
-                  className="text-muted-foreground hover:text-primary"
+          <section
+            key={cat}
+            className="bg-card rounded-[10px] border border-border shadow-sm overflow-hidden"
+          >
+            {/* Encabezado de categoría */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border bg-muted/30">
+              <button
+                type="button"
+                onClick={() => toggleCollapse(cat)}
+                disabled={!!search}
+                aria-expanded={!isCollapsed}
+                aria-label={isCollapsed ? "Expandir categoría" : "Contraer categoría"}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left group disabled:cursor-default"
+              >
+                <span
+                  className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+                  style={{ backgroundColor: meta.bg, color: meta.color }}
                 >
-                  <PencilLine size={11} />
-                  Editar categoría
-                </Button>
-              )}
-              {isSaved && (
-                <span className="flex items-center gap-1 text-xs text-[#10B981] font-medium">
-                  <Check size={12} />
-                  {savedBanner!.count === 1
-                    ? "1 cambio guardado"
-                    : `${savedBanner!.count} cambios guardados`}
+                  <Icon size={17} />
                 </span>
-              )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-foreground text-sm font-semibold truncate">
+                      {meta.titulo}
+                    </h3>
+                    <span className="shrink-0 text-[10px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                      {items.length}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-xs mt-0.5 truncate">
+                    {meta.descripcion}
+                  </p>
+                </div>
+                {!search && (
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 text-muted-foreground/60 transition-transform ${
+                      isCollapsed ? "-rotate-90" : ""
+                    }`}
+                  />
+                )}
+              </button>
+
+              <div className="flex flex-wrap items-center gap-1 shrink-0 ml-auto">
+                {link && (
+                  <Link
+                    href={link.href}
+                    className={cn(
+                      buttonVariants({ variant: "ghost", size: "xs" }),
+                      "text-muted-foreground hover:text-primary",
+                    )}
+                  >
+                    <Settings2 size={12} />
+                    <span className="hidden sm:inline">{link.label}</span>
+                  </Link>
+                )}
+                {isSaved && (
+                  <span
+                    role="status"
+                    className="flex items-center gap-1 text-xs text-[#059669] font-medium px-1"
+                  >
+                    <Check size={13} />
+                    {savedBanner!.count === 1
+                      ? "1 cambio guardado"
+                      : `${savedBanner!.count} cambios guardados`}
+                  </span>
+                )}
+                {canWrite && !isBulk && tieneEditables && !search && !isCollapsed && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      setSavedBanner(null);
+                      setBulkCategoria(cat);
+                    }}
+                    className="text-muted-foreground hover:text-primary"
+                  >
+                    <PencilLine size={12} />
+                    Editar categoría
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {isBulk ? (
-              <BulkEditForm
-                params={grouped[cat]!}
-                onCancel={() => setBulkCategoria(null)}
-                onSaved={(count) => {
-                  setBulkCategoria(null);
-                  setSavedBanner({ cat, count });
-                  setTimeout(() => setSavedBanner(null), 3000);
-                }}
-              />
-            ) : (
-              <div className="bg-card rounded-[8px] border border-border shadow-sm divide-y divide-border">
-                {grouped[cat]!.map((p) => (
-                  <ParametroRow key={p.id} parametro={p} canWrite={canWrite} />
-                ))}
-              </div>
-            )}
-          </div>
+            {/* Cuerpo */}
+            {!isCollapsed &&
+              (isBulk ? (
+                <div className="p-3">
+                  <BulkEditForm
+                    params={items}
+                    onCancel={() => setBulkCategoria(null)}
+                    onSaved={(count) => {
+                      setBulkCategoria(null);
+                      setSavedBanner({ cat, count });
+                      setTimeout(() => setSavedBanner(null), 3000);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {items.map((p) => (
+                    <ParametroRow
+                      key={p.id}
+                      parametro={p}
+                      canWrite={canWrite}
+                      onOpenHistorial={() => setHistorialParam(p)}
+                    />
+                  ))}
+                </div>
+              ))}
+          </section>
         );
       })}
+
+      {/* Único drawer de historial para toda la lista (evita N paneles fixed).
+          El `key` remonta el panel al cambiar de parámetro, así no arrastra el
+          historial ni los errores del anterior. */}
+      <HistorialDrawer
+        key={historialParam?.id ?? "sin-parametro"}
+        open={historialParam !== null}
+        onClose={() => setHistorialParam(null)}
+        parametroId={historialParam?.id ?? ""}
+        parametroDescripcion={historialParam?.descripcion ?? historialParam?.clave ?? ""}
+        parametroClave={historialParam?.clave ?? ""}
+        parametroTipo={historialParam?.tipo_dato ?? "string"}
+      />
     </div>
   );
 }
@@ -182,18 +292,21 @@ export default function ParametrosList({
 function ParametroRow({
   parametro,
   canWrite = false,
+  onOpenHistorial,
 }: {
   parametro: Parametro;
   canWrite?: boolean;
+  onOpenHistorial: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [valor, setValor] = useState(parametro.valor);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [historialOpen, setHistorialOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const validacion = getValidacion(parametro.clave, parametro.tipo_dato);
-  const editable = canWrite && parametro.editable;
+  const avanzado = esAvanzado(parametro);
+  const modulo = moduloDeParam(parametro);
+  const editable = canWrite && parametro.editable && !avanzado;
 
   function onEdit() {
     setValor(parametro.valor);
@@ -236,55 +349,78 @@ function ParametroRow({
   }
 
   return (
-    <div className="flex items-start gap-4 px-5 py-3.5">
+    <div className="flex items-start gap-4 px-4 py-3.5 hover:bg-muted/20 transition-colors">
       <div className="flex-1 min-w-0">
         <p className="text-foreground text-sm font-medium">
           {parametro.descripcion ?? parametro.clave}
         </p>
-        <p className="text-muted-foreground/70 text-xs mt-0.5 font-mono">{parametro.clave}</p>
+        <p className="text-muted-foreground/70 text-[11px] mt-0.5 font-mono truncate">
+          {parametro.clave}
+        </p>
         {error && (
-          <p className="text-[#EF4444] text-xs mt-1.5">{error}</p>
+          <p role="alert" className="text-[#DC2626] text-xs mt-1.5">
+            {error}
+          </p>
         )}
       </div>
 
-      <HistorialDrawer
-        open={historialOpen}
-        onClose={() => setHistorialOpen(false)}
-        parametroId={parametro.id}
-        parametroDescripcion={parametro.descripcion ?? parametro.clave}
-        parametroClave={parametro.clave}
-        parametroTipo={parametro.tipo_dato}
-      />
-
-      <div className="shrink-0 flex items-center gap-2">
-        {!editable && (
+      <div className="shrink-0 flex items-center gap-2 pt-0.5">
+        {/* Parámetro avanzado — se edita en su módulo */}
+        {avanzado && (
           <>
-            <span className="text-foreground text-sm font-semibold">
-              {formatValor(parametro.valor, parametro.tipo_dato)}
+            {modulo ? (
+              <Link
+                href={modulo.href}
+                className={buttonVariants({ variant: "outline", size: "xs" })}
+              >
+                {modulo.label}
+                <ArrowUpRight size={12} />
+              </Link>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">Configuración avanzada</span>
+            )}
+          </>
+        )}
+
+        {/* Solo lectura */}
+        {!avanzado && !editable && (
+          <>
+            <span
+              className="text-foreground text-sm font-semibold max-w-[240px] truncate"
+              title={displayValorParam(parametro)}
+            >
+              {displayValorParam(parametro)}
             </span>
-            <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide ml-2">
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80 bg-muted border border-border px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              <Lock size={9} />
               Solo lectura
             </span>
           </>
         )}
 
+        {/* Booleano editable */}
         {editable && parametro.tipo_dato === "boolean" && (
           <BooleanToggle
             value={parametro.valor === "true"}
             disabled={isPending}
             onToggle={onToggleBoolean}
             saved={saved}
+            nombre={parametro.descripcion ?? parametro.clave}
           />
         )}
 
+        {/* Editable no-booleano — vista */}
         {editable && parametro.tipo_dato !== "boolean" && !editing && (
           <>
             <span className="text-foreground text-sm font-semibold max-w-[240px] truncate">
-              {formatValor(parametro.valor, parametro.tipo_dato)}
+              {displayValorParam(parametro)}
             </span>
             {saved ? (
-              <span className="inline-flex items-center gap-1 text-[#10B981] text-xs font-medium">
-                <Check size={12} />
+              <span
+                role="status"
+                className="inline-flex items-center gap-1 text-[#059669] text-xs font-medium"
+              >
+                <Check size={13} />
                 Guardado
               </span>
             ) : (
@@ -295,12 +431,13 @@ function ParametroRow({
                 onClick={onEdit}
                 aria-label={`Editar ${parametro.clave}`}
               >
-                <Pencil size={12} />
+                <Pencil size={13} />
               </Button>
             )}
           </>
         )}
 
+        {/* Editable no-booleano — edición */}
         {editable && parametro.tipo_dato !== "boolean" && editing && (
           <>
             <div className="flex flex-col items-end gap-1">
@@ -309,36 +446,34 @@ function ParametroRow({
                   value={valor}
                   onValueChange={setValor}
                   disabled={isPending}
-                  options={validacion.opciones.map((opt) => ({ id: opt, label: opt }))}
+                  options={validacion.opciones.map((opt) => ({
+                    id: opt,
+                    label: validacion.opcionesLabels?.[opt] ?? opt,
+                  }))}
                   triggerClassName="h-8 w-48 text-sm"
                 />
-              ) : (
+              ) : validacion.inputTipo === "time" ? (
                 <Input
-                  type={parametro.tipo_dato === "number" ? "number" : "text"}
-                  step={
-                    parametro.tipo_dato === "number"
-                      ? (validacion.step ?? 0.01).toString()
-                      : undefined
-                  }
-                  min={
-                    parametro.tipo_dato === "number" && validacion.min !== undefined
-                      ? validacion.min
-                      : undefined
-                  }
-                  max={
-                    parametro.tipo_dato === "number" && validacion.max !== undefined
-                      ? validacion.max
-                      : undefined
-                  }
+                  type="time"
                   value={valor}
                   onChange={(e) => setValor(e.target.value)}
                   autoFocus
                   disabled={isPending}
-                  className="h-8 w-48 text-sm"
+                  className="h-8 w-32 text-sm"
+                />
+              ) : (
+                <MoneyOrTextInput
+                  parametro={parametro}
+                  validacion={validacion}
+                  valor={valor}
+                  onChange={setValor}
+                  disabled={isPending}
                 />
               )}
               {validacion.pista && (
-                <span className="text-[10px] text-muted-foreground/70">{validacion.pista}</span>
+                <span className="text-[10px] text-muted-foreground/70 text-right max-w-[220px]">
+                  {validacion.pista}
+                </span>
               )}
             </div>
             <Button
@@ -349,7 +484,7 @@ function ParametroRow({
               disabled={isPending}
               aria-label="Guardar"
             >
-              <Check size={12} />
+              <Check size={13} />
             </Button>
             <Button
               type="button"
@@ -359,7 +494,7 @@ function ParametroRow({
               disabled={isPending}
               aria-label="Cancelar"
             >
-              <X size={12} />
+              <X size={13} />
             </Button>
           </>
         )}
@@ -368,13 +503,52 @@ function ParametroRow({
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={() => setHistorialOpen(true)}
+          onClick={onOpenHistorial}
           aria-label={`Ver historial de ${parametro.clave}`}
+          title="Ver historial de cambios"
           className="text-muted-foreground/70 hover:text-primary"
         >
-          <History size={12} />
+          <History size={13} />
         </Button>
       </div>
+    </div>
+  );
+}
+
+function MoneyOrTextInput({
+  parametro,
+  validacion,
+  valor,
+  onChange,
+  disabled,
+}: {
+  parametro: Parametro;
+  validacion: ReturnType<typeof getValidacion>;
+  valor: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const isNumber = parametro.tipo_dato === "number";
+  const hasPrefix = validacion.prefijo && isNumber;
+
+  return (
+    <div className="relative">
+      {hasPrefix && (
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+          {validacion.prefijo}
+        </span>
+      )}
+      <Input
+        type={isNumber ? "number" : "text"}
+        step={isNumber ? (validacion.step ?? 0.01).toString() : undefined}
+        min={isNumber && validacion.min !== undefined ? validacion.min : undefined}
+        max={isNumber && validacion.max !== undefined ? validacion.max : undefined}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        autoFocus
+        disabled={disabled}
+        className={`h-8 w-48 text-sm ${hasPrefix ? "pl-6" : ""}`}
+      />
     </div>
   );
 }
@@ -384,11 +558,13 @@ function BooleanToggle({
   disabled,
   onToggle,
   saved,
+  nombre,
 }: {
   value: boolean;
   disabled: boolean;
   onToggle: () => void;
   saved: boolean;
+  nombre: string;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -396,6 +572,7 @@ function BooleanToggle({
         type="button"
         role="switch"
         aria-checked={value}
+        aria-label={nombre}
         disabled={disabled}
         onClick={onToggle}
         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -412,8 +589,8 @@ function BooleanToggle({
         {value ? "Activado" : "Desactivado"}
       </span>
       {saved && (
-        <span className="inline-flex items-center gap-1 text-[#10B981] text-xs font-medium">
-          <Check size={12} />
+        <span className="inline-flex items-center gap-1 text-[#059669] text-xs font-medium">
+          <Check size={13} />
         </span>
       )}
     </div>

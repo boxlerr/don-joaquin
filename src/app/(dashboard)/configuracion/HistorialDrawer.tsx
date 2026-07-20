@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ArrowRight, Check, History, RotateCcw, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +75,16 @@ export default function HistorialDrawer({
     };
   }, [open, parametroId, refreshKey]);
 
+  // Foco: al abrir se lleva el foco al botón Cerrar del panel y, al cerrar, se
+  // devuelve al elemento que lo abrió (el botón de historial de la fila).
+  const cerrarRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const previo = document.activeElement as HTMLElement | null;
+    cerrarRef.current?.focus();
+    return () => previo?.focus?.();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -113,25 +123,26 @@ export default function HistorialDrawer({
     });
   }
 
+  if (!open) return null;
+
   return (
     <>
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 transition-opacity"
-          onClick={() => {
-            if (confirmandoId) {
-              setConfirmandoId(null);
-            } else {
-              onClose();
-            }
-          }}
-        />
-      )}
+      <div
+        className="fixed inset-0 bg-black/40 z-40 animate-in fade-in duration-200"
+        onClick={() => {
+          if (confirmandoId) {
+            setConfirmandoId(null);
+          } else {
+            onClose();
+          }
+        }}
+      />
 
       <div
-        className={`fixed top-0 right-0 h-full w-[460px] max-w-[90vw] bg-card shadow-2xl z-50 transform transition-transform duration-200 flex flex-col ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Historial de ${parametroDescripcion}`}
+        className="fixed top-0 right-0 h-full w-[460px] max-w-[90vw] bg-card shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200"
       >
         <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-6 py-4 flex items-center justify-between shrink-0">
           <div className="min-w-0">
@@ -139,14 +150,13 @@ export default function HistorialDrawer({
               <History size={16} />
               <h2 className="text-base font-bold truncate">{parametroDescripcion}</h2>
             </div>
-            <p className="text-xs text-blue-100 mt-0.5 font-mono truncate">
-              {parametroClave}
-            </p>
+            <p className="text-xs text-blue-100 mt-0.5 font-mono truncate">{parametroClave}</p>
           </div>
           <button
+            ref={cerrarRef}
             onClick={onClose}
-            className="p-1.5 hover:bg-card/20 rounded-lg transition-colors shrink-0"
-            aria-label="Cerrar"
+            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+            aria-label="Cerrar historial"
           >
             <X size={18} />
           </button>

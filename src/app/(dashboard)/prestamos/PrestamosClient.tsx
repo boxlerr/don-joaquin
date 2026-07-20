@@ -15,6 +15,8 @@ import {
   Landmark,
   BarChart3,
   Bell,
+  CalendarDays,
+  Sunrise,
 } from "lucide-react";
 import {
   BarChart,
@@ -30,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +84,38 @@ function keySemana(d: Date): string {
 
 const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+/** Paleta del módulo — variedad sin caer en arcoíris (pedido de Bárbara). */
+const VIOLETA = "#7C3AED";
+const AMBAR = "#F59E0B";
+
+/** Suma días a una fecha ISO respetando el calendario local (no UTC). */
+function addDiasISO(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y!, m! - 1, d! + n);
+  const p = (x: number) => String(x).padStart(2, "0");
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+}
+
+/** Etiqueta corta para el gráfico diario ("mar 22"). */
+function labelDia(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y!, m! - 1, d!);
+  return `${DIAS_CORTOS[dt.getDay()]} ${dt.getDate()}`;
+}
+
+/** "2026-08" → "Agosto 2026". */
+function labelMes(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return `${MESES[m! - 1]} ${y}`;
+}
+
 function labelSemana(lunes: Date): string {
   const fin = new Date(lunes);
   fin.setDate(fin.getDate() + 6);
@@ -129,6 +164,7 @@ export default function PrestamosClient({
   const [, startTransition] = useTransition();
 
   const hoy = new Date().toISOString().slice(0, 10);
+  const [mesSel, setMesSel] = useState(hoy.slice(0, 7));
 
   // Todas las cuotas impagas de préstamos activos, ordenadas por vencimiento.
   const cuotasPendientes = useMemo(() => {
@@ -187,10 +223,45 @@ export default function PrestamosClient({
     (c) => c.fecha_vencimiento >= hoy && c.fecha_vencimiento <= finDeSemana,
   );
   const totalSemana = cuotasSemana.reduce((s, c) => s + c.importe, 0);
+  // Mes elegible a futuro (Bárbara: "el mes que viene, agosto, ¿cuánto tengo
+  // que pagar?"). Arranca en el mes actual y ofrece los 12 siguientes.
   const mesActual = hoy.slice(0, 7);
-  const cuotasMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === mesActual);
+  const mesesOpciones = useMemo(() => {
+    const y0 = Number(mesActual.slice(0, 4));
+    const m0 = Number(mesActual.slice(5, 7)) - 1;
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(y0, m0 + i, 1);
+      const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return { id, label: labelMes(id) };
+    });
+  }, [mesActual]);
+
+  const cuotasMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === mesSel);
   const totalMes = cuotasMes.reduce((s, c) => s + c.importe, 0);
-  const nombreMes = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][Number(mesActual.slice(5)) - 1];
+  const esMesActual = mesSel === mesActual;
+
+  // "Mañana tenés que pagar esto" — el pedido textual de Bárbara.
+  const manana = addDiasISO(hoy, 1);
+  const cuotasManana = cuotasPendientes.filter((c) => c.fecha_vencimiento === manana);
+  const totalManana = cuotasManana.reduce((s, c) => s + c.importe, 0);
+
+  // Carga día a día: hoy + los próximos 13 (el "cuánto hay que pagar en el día"
+  // que pidió como gráfico aparte del semanal).
+  const dias = useMemo(() => {
+    return Array.from({ length: 14 }, (_, i) => {
+      const iso = addDiasISO(hoy, i);
+      const delDia = cuotasPendientes.filter((c) => c.fecha_vencimiento === iso);
+      return {
+        iso,
+        label: i === 0 ? "Hoy" : i === 1 ? "Mañana" : labelDia(iso),
+        total: delDia.reduce((s, c) => s + c.importe, 0),
+        cuotas: delDia.length,
+        isToday: i === 0,
+      };
+    });
+  }, [cuotasPendientes, hoy]);
+  const hayCargaDiaria = dias.some((d) => d.total > 0);
+
   const totalDeuda = prestamos.reduce((s, p) => s + p.restante, 0);
 
   const togglePagada = (cuotaId: string, pagada: boolean) => {
@@ -231,7 +302,19 @@ export default function PrestamosClient({
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard
+          icon={Sunrise}
+          iconColor="text-amber-600"
+          iconBg="bg-amber-500/10"
+          label="A pagar mañana"
+          value={ars(totalManana)}
+          hint={
+            cuotasManana.length
+              ? `${cuotasManana.length} cuota${cuotasManana.length > 1 ? "s" : ""} vence${cuotasManana.length > 1 ? "n" : ""} mañana`
+              : "Mañana no vence nada"
+          }
+        />
         <KpiCard
           icon={CalendarClock}
           iconColor="text-sky-600"
@@ -245,12 +328,21 @@ export default function PrestamosClient({
           }
         />
         <KpiHero
-          label={`A pagar en ${nombreMes}`}
+          label={`A pagar en ${labelMes(mesSel)}`}
           value={ars(totalMes)}
           hint={
             cuotasMes.length
-              ? `${cuotasMes.length} cuota${cuotasMes.length > 1 ? "s" : ""} este mes`
-              : "Sin cuotas este mes"
+              ? `${cuotasMes.length} cuota${cuotasMes.length > 1 ? "s" : ""} ${esMesActual ? "este mes" : "ese mes"}`
+              : `Sin cuotas en ${labelMes(mesSel)}`
+          }
+          action={
+            <Combobox
+              value={mesSel}
+              onValueChange={setMesSel}
+              options={mesesOpciones}
+              aria-label="Elegir mes"
+              triggerClassName="h-7 w-[150px] border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
+            />
           }
         />
         <KpiCard
@@ -262,6 +354,44 @@ export default function PrestamosClient({
           valueTone={vencidas.length > 0 ? "text-red-600" : "text-emerald-600"}
           hint={vencidas.length > 0 ? "Marcalas como pagadas si ya se abonaron" : "Todo al día ✓"}
         />
+      </div>
+
+      {/* Carga diaria — pedido de Bárbara: además de semana y mes, "cuánto hay
+          que pagar en el día", en un gráfico aparte. */}
+      <div className="rounded-[12px] border border-border bg-card p-5 shadow-sm">
+        <div className="mb-1 flex items-center gap-2">
+          <CalendarDays size={16} style={{ color: VIOLETA }} />
+          <h2 className="text-sm font-semibold text-foreground">Cuánto hay que pagar por día</h2>
+        </div>
+        <p className="mb-4 text-[11px] text-muted-foreground">
+          Los próximos 14 días, uno por uno — para saber qué cae mañana y qué cae pasado.
+        </p>
+        {hayCargaDiaria ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={dias} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis
+                dataKey="label"
+                interval={0}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              />
+              <YAxis hide />
+              <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
+              <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
+                {dias.map((d, i) => (
+                  <Cell key={i} fill={d.isToday ? AMBAR : VIOLETA} fillOpacity={d.isToday ? 1 : 0.55} />
+                ))}
+                <LabelList dataKey="total" content={<MoneyLabel vertical />} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            No vence ninguna cuota en los próximos 14 días.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -578,15 +708,18 @@ function MoneyLabel(props: {
   width?: number;
   height?: number;
   value?: number;
+  /** Barras verticales (gráfico diario): la etiqueta va arriba, centrada. */
+  vertical?: boolean;
 }) {
-  const { x = 0, y = 0, width = 0, height = 0, value = 0 } = props;
+  const { x = 0, y = 0, width = 0, height = 0, value = 0, vertical = false } = props;
   if (!value || value <= 0) return null;
   return (
     <text
-      x={x + width + 6}
-      y={y + height / 2}
-      dominantBaseline="central"
-      fontSize={11}
+      x={vertical ? x + width / 2 : x + width + 6}
+      y={vertical ? y - 6 : y + height / 2}
+      textAnchor={vertical ? "middle" : "start"}
+      dominantBaseline={vertical ? "auto" : "central"}
+      fontSize={vertical ? 10 : 11}
       fontWeight={600}
       fill="var(--foreground)"
     >
@@ -649,7 +782,17 @@ function KpiCard({
 }
 
 /** Card destacado (el foco de la pantalla): fondo de marca, texto claro. */
-function KpiHero({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function KpiHero({
+  label,
+  value,
+  hint,
+  action,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div
       className="rounded-[12px] p-5 shadow-sm"
@@ -659,7 +802,10 @@ function KpiHero({ label, value, hint }: { label: string; value: string; hint?: 
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
           <PiggyBank size={16} className="text-white" />
         </span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-white/80">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-white/80">
+          {label}
+        </span>
+        {action}
       </div>
       <p className="mt-3 text-[26px] font-bold leading-none tabular-nums text-white">{value}</p>
       {hint && <p className="mt-2 text-xs text-white/70">{hint}</p>}

@@ -81,6 +81,12 @@ export const ALERTAS = [
     nombre: "Compliance Loma Negra / YPF",
     descripcion: "Documentos por vencer o vencidos a presentar a clientes principales",
   },
+  {
+    key: "prestamos_vencimiento",
+    nombre: "Préstamos por vencer",
+    descripcion:
+      "Cuotas de préstamos bancarios que vencen en 7 días, mañana, o que vencieron sin marcarse como pagadas",
+  },
 ] as const;
 
 export type AlertaKey = (typeof ALERTAS)[number]["key"];

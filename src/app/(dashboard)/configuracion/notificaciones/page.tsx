@@ -2,7 +2,15 @@ import PageHeader from "@/components/layout/PageHeader";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
 import { emailConfigurado } from "@/lib/email";
-import { Bell, Users, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Bell,
+  BellRing,
+  Users,
+  AlertTriangle,
+  CheckCircle2,
+  type LucideIcon,
+} from "lucide-react";
+import ConfigTabs from "../ConfigTabs";
 import CanalCard from "./CanalCard";
 import AlertaToggle from "./AlertaToggle";
 import DestinatarioMatriz from "./DestinatarioMatriz";
@@ -74,11 +82,14 @@ export default async function ConfiguracionNotificacionesPage() {
         action={<TestNotificacionButton />}
       />
 
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <Bell size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Canales de Notificación</h2>
-        </div>
+      <ConfigTabs />
+
+      <div className="pt-2">
+        <SectionHeader
+          icon={Bell}
+          title="Canales de notificación"
+          descripcion="Por dónde salen los avisos automáticos del sistema."
+        />
 
         {emailListo ? (
           <div className="mb-4 p-4 rounded-[8px] border border-[#A7F3D0] bg-[#ECFDF5] flex items-start gap-3">
@@ -136,10 +147,11 @@ export default async function ConfiguracionNotificacionesPage() {
       </div>
 
       <div className="pt-6 border-t border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Tipos de Alertas</h2>
-        </div>
+        <SectionHeader
+          icon={BellRing}
+          title="Tipos de alertas"
+          descripcion="Qué eventos disparan un aviso. Desactivá los que no quieras recibir."
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {ALERTAS.map((alerta) => (
@@ -155,14 +167,11 @@ export default async function ConfiguracionNotificacionesPage() {
       </div>
 
       <div className="pt-6 border-t border-border">
-        <div className="flex items-center gap-2 mb-1">
-          <Users size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">Avisos por usuario</h2>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Elegí qué tipo de aviso recibe cada persona. Ej.: los cheques a Pablo, Nico y
-          Barbie; las vacaciones solo a logística. Aplica al email (la campana muestra todo).
-        </p>
+        <SectionHeader
+          icon={Users}
+          title="Avisos por usuario"
+          descripcion="Elegí qué tipo de aviso recibe cada persona. Ej.: los cheques a Pablo, Nico y Barbie; las vacaciones solo a logística. Aplica al email (la campana muestra todo)."
+        />
 
         {(usuarios ?? []).length === 0 ? (
           <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 text-center">
@@ -191,6 +200,28 @@ export default async function ConfiguracionNotificacionesPage() {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  descripcion,
+}: {
+  icon: LucideIcon;
+  title: string;
+  descripcion: string;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 mb-4">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#E1F5FE] text-primary shrink-0">
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0">
+        <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{descripcion}</p>
       </div>
     </div>
   );

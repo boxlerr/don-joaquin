@@ -85,14 +85,26 @@ const TIPO_A_TOGGLE: Partial<Record<AlertaTipo, string>> = {
 // Matriz granular por usuario (qué tipo de aviso recibe cada uno por email).
 const MATRIZ_CLAVE = "notificaciones_matriz_por_usuario";
 const OTROS_AVISOS = "otros_avisos";
+const PRESTAMOS_COL = "prestamos_vencimiento";
 const COLUMNAS_TODAS = [
   "vencimiento_docs", "cheques_vencidos", "viaticos_sin_rendir", "gastos_pendientes",
-  "cambios_caja", "nuevo_viaje", "vencimiento_compliance", OTROS_AVISOS,
+  "cambios_caja", "nuevo_viaje", "vencimiento_compliance", PRESTAMOS_COL, OTROS_AVISOS,
 ];
 
-/** Columna de la matriz a la que pertenece un tipo de alerta. */
-function alertaColumnaDe(tipo: AlertaTipo): string {
-  return TIPO_A_TOGGLE[tipo] ?? OTROS_AVISOS;
+/**
+ * Las cuotas de préstamo se guardan con `tipo: "otro"` (no hay valor propio en el
+ * enum `alerta_tipo`), pero su `entidad_tipo` es `prestamo_cuota:<umbral>`. Eso
+ * alcanza para darles columna propia y poder mandárselas sólo a quien corresponde
+ * (ej. Paula) en vez de mezclarlas en "Otros avisos".
+ */
+function esAlertaPrestamo(a: { entidad_tipo?: string | null }): boolean {
+  return (a.entidad_tipo ?? "").startsWith("prestamo_cuota");
+}
+
+/** Columna de la matriz a la que pertenece una alerta. */
+function alertaColumnaDe(a: { tipo: AlertaTipo; entidad_tipo?: string | null }): string {
+  if (esAlertaPrestamo(a)) return PRESTAMOS_COL;
+  return TIPO_A_TOGGLE[a.tipo] ?? OTROS_AVISOS;
 }
 
 function parseIds(raw: string | undefined): string[] {
@@ -125,35 +137,18 @@ async function leerParametros(supabase: Supabase): Promise<Map<string, string>> 
   return new Map((data ?? []).map((p) => [p.clave, p.valor ?? ""]));
 }
 
-function tipoHabilitado(tipo: AlertaTipo, params: Map<string, string>): boolean {
-  const key = TIPO_A_TOGGLE[tipo];
+function tipoHabilitado(
+  a: { tipo: AlertaTipo; entidad_tipo?: string | null },
+  params: Map<string, string>,
+): boolean {
+  // Préstamos: toggle propio, pero si el parámetro todavía no existe no se
+  // suprime (evita apagar avisos ya existentes por una fila faltante).
+  if (esAlertaPrestamo(a)) {
+    return params.get(alertaClave(PRESTAMOS_COL)) !== "false";
+  }
+  const key = TIPO_A_TOGGLE[a.tipo];
   if (!key) return true; // sin toggle propio → no se suprime
   return params.get(alertaClave(key)) === "true";
-}
-
-async function getDestinatarios(
-  supabase: Supabase,
-  params: Map<string, string>,
-): Promise<string[]> {
-  const raw = params.get(DESTINATARIOS_CLAVE);
-  if (!raw) return [];
-  let ids: string[];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    ids = parsed.filter((x): x is string => typeof x === "string");
-  } catch {
-    return [];
-  }
-  if (ids.length === 0) return [];
-
-  const { data } = await supabase
-    .from("usuarios")
-    .select("email")
-    .in("id", ids)
-    .eq("estado", "activo");
-
-  return (data ?? []).map((u) => u.email).filter((e): e is string => Boolean(e));
 }
 
 // --- Render del email (estilos inline: requisito de los clientes de correo) ---
@@ -274,7 +269,7 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
   // Orden de presentación por fecha de vencimiento (el filtro de reparto por
   // usuario preserva este orden).
   const aEnviar = (criticas ?? [])
-    .filter((a) => tipoHabilitado(a.tipo, params))
+    .filter((a) => tipoHabilitado(a, params))
     .sort(compararAlertasEmail);
   if (aEnviar.length === 0) return { enviadas: 0, motivo: "nada_pendiente" };
 
@@ -299,7 +294,7 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
     if (keys.size === 0) continue;
     huboDestinatario = true;
 
-    const suyas = aEnviar.filter((a) => keys.has(alertaColumnaDe(a.tipo)));
+    const suyas = aEnviar.filter((a) => keys.has(alertaColumnaDe(a)));
     if (suyas.length === 0) continue;
 
     const subject =
@@ -363,7 +358,7 @@ async function construirResumenFiltrado(
 
   // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
   return [...(pendientes ?? []), ...docLive, ...chequeLive]
-    .filter((a) => tipoHabilitado(a.tipo, params))
+    .filter((a) => tipoHabilitado(a, params))
     .sort(compararAlertasEmail);
 }
 
@@ -417,27 +412,56 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
     return { enviado: false, motivo: "canal_email_inactivo" };
   }
 
-  const destinatarios = await getDestinatarios(supabase, params);
-  if (destinatarios.length === 0) return { enviado: false, motivo: "sin_destinatarios" };
-
   const filtradas = await construirResumenFiltrado(supabase, params);
   if (filtradas.length === 0) return { enviado: false, motivo: "sin_alertas" };
 
-  const html = renderEmail({
-    titulo: "Resumen diario de alertas",
-    intro: `Hay ${filtradas.length} alerta${filtradas.length !== 1 ? "s" : ""} pendiente${filtradas.length !== 1 ? "s" : ""} en el sistema.`,
-    alertas: filtradas,
-  });
+  // Reparto granular por usuario, igual que las críticas: cada uno recibe sólo
+  // las columnas que tiene tildadas en la matriz (ej. Paula sólo Préstamos).
+  // Fallback retrocompatible: sin matriz, hereda la vieja lista global.
+  const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
+  const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
 
-  const res = await enviarEmail({
-    para: destinatarios,
-    asunto: `📋 Resumen diario — ${filtradas.length} alerta${filtradas.length !== 1 ? "s" : ""} pendiente${filtradas.length !== 1 ? "s" : ""}`,
-    html,
-  });
+  const { data: usuariosActivos } = await supabase
+    .from("usuarios")
+    .select("id, email")
+    .eq("estado", "activo");
 
-  if (!res.ok) {
-    console.error("[notificaciones] envío de resumen falló:", res.error);
-    return { enviado: false, motivo: res.skipped ? "smtp_no_configurado" : "error_envio", error: res.error };
+  let huboDestinatario = false;
+  let enviados = 0;
+  let errorEnvio: string | undefined;
+
+  for (const u of usuariosActivos ?? []) {
+    if (!u.email) continue;
+    const keys = new Set(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : []));
+    if (keys.size === 0) continue;
+    huboDestinatario = true;
+
+    const suyas = filtradas.filter((a) => keys.has(alertaColumnaDe(a)));
+    if (suyas.length === 0) continue;
+
+    const html = renderEmail({
+      titulo: "Resumen diario de alertas",
+      intro: `Hay ${suyas.length} alerta${suyas.length !== 1 ? "s" : ""} pendiente${suyas.length !== 1 ? "s" : ""} para vos.`,
+      alertas: suyas,
+    });
+
+    const res = await enviarEmail({
+      para: [u.email],
+      asunto: `📋 Resumen diario — ${suyas.length} alerta${suyas.length !== 1 ? "s" : ""} pendiente${suyas.length !== 1 ? "s" : ""}`,
+      html,
+    });
+
+    if (res.ok) {
+      enviados++;
+    } else {
+      errorEnvio = res.error;
+      console.error(`[notificaciones] envío de resumen a ${u.email} falló:`, res.error);
+    }
+  }
+
+  if (!huboDestinatario) return { enviado: false, motivo: "sin_destinatarios" };
+  if (enviados === 0) {
+    return { enviado: false, motivo: errorEnvio ? "error_envio" : "sin_alertas", error: errorEnvio };
   }
 
   return { enviado: true, total: filtradas.length };
