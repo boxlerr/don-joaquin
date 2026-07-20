@@ -4,6 +4,11 @@ import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
 import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
 import { categoriaDeAlerta } from "@/app/(dashboard)/notificaciones/utils";
 import {
+  alertaColumnaDe,
+  COLUMNAS_TODAS,
+  tipoHabilitado,
+} from "@/lib/alertas-routing";
+import {
   renderEmail as renderEmailTemplate,
   type AlertaEmailView,
   type SeveridadEmail,
@@ -70,47 +75,9 @@ function compararAlertasEmail(a: AlertaEmail, b: AlertaEmail): number {
 // Claves de `parametros_sistema` (mismas que usa la UI de configuración).
 const CANAL_EMAIL_CLAVE = "notificaciones_email_activas";
 const DESTINATARIOS_CLAVE = "notificaciones_destinatarios_ids";
-const alertaClave = (key: string) => `alerta_${key}_activa`;
-
-// Mapea cada tipo de alerta de la base al toggle correspondiente de la UI.
-// Los tipos sin toggle propio (mantenimiento, auditoría, "otro": cumpleaños,
-// período de prueba, ausencias) no se suprimen: se incluyen siempre que el
-// canal Email esté activo.
-const TIPO_A_TOGGLE: Partial<Record<AlertaTipo, string>> = {
-  vencimiento_doc_camion: "vencimiento_docs",
-  vencimiento_doc_chofer: "vencimiento_docs",
-  vencimiento_cheque: "cheques_vencidos",
-  cheque_rechazado_recordatorio: "cheques_vencidos",
-  viatico_pendiente_rendicion: "viaticos_sin_rendir",
-  gasto_sin_comprobante: "gastos_pendientes",
-  viaje_sin_cerrar: "nuevo_viaje",
-  vencimiento_compliance: "vencimiento_compliance",
-};
 
 // Matriz granular por usuario (qué tipo de aviso recibe cada uno por email).
 const MATRIZ_CLAVE = "notificaciones_matriz_por_usuario";
-const OTROS_AVISOS = "otros_avisos";
-const PRESTAMOS_COL = "prestamos_vencimiento";
-const COLUMNAS_TODAS = [
-  "vencimiento_docs", "cheques_vencidos", "viaticos_sin_rendir", "gastos_pendientes",
-  "cambios_caja", "nuevo_viaje", "vencimiento_compliance", PRESTAMOS_COL, OTROS_AVISOS,
-];
-
-/**
- * Las cuotas de préstamo se guardan con `tipo: "otro"` (no hay valor propio en el
- * enum `alerta_tipo`), pero su `entidad_tipo` es `prestamo_cuota:<umbral>`. Eso
- * alcanza para darles columna propia y poder mandárselas sólo a quien corresponde
- * (ej. Paula) en vez de mezclarlas en "Otros avisos".
- */
-function esAlertaPrestamo(a: { entidad_tipo?: string | null }): boolean {
-  return (a.entidad_tipo ?? "").startsWith("prestamo_cuota");
-}
-
-/** Columna de la matriz a la que pertenece una alerta. */
-function alertaColumnaDe(a: { tipo: AlertaTipo; entidad_tipo?: string | null }): string {
-  if (esAlertaPrestamo(a)) return PRESTAMOS_COL;
-  return TIPO_A_TOGGLE[a.tipo] ?? OTROS_AVISOS;
-}
 
 function parseIds(raw: string | undefined): string[] {
   if (!raw) return [];
@@ -140,20 +107,6 @@ async function leerParametros(supabase: Supabase): Promise<Map<string, string>> 
     .select("clave, valor")
     .eq("categoria", "notificaciones");
   return new Map((data ?? []).map((p) => [p.clave, p.valor ?? ""]));
-}
-
-function tipoHabilitado(
-  a: { tipo: AlertaTipo; entidad_tipo?: string | null },
-  params: Map<string, string>,
-): boolean {
-  // Préstamos: toggle propio, pero si el parámetro todavía no existe no se
-  // suprime (evita apagar avisos ya existentes por una fila faltante).
-  if (esAlertaPrestamo(a)) {
-    return params.get(alertaClave(PRESTAMOS_COL)) !== "false";
-  }
-  const key = TIPO_A_TOGGLE[a.tipo];
-  if (!key) return true; // sin toggle propio → no se suprime
-  return params.get(alertaClave(key)) === "true";
 }
 
 // --- Render del email (la plantilla vive en ./email-template, sin server-only) ---
