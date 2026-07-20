@@ -29,6 +29,12 @@ const getArg = (n: string) => {
 const to = getArg("--to");
 const dry = args.includes("--dry");
 const limite = Number(getArg("--limite") ?? 200);
+/**
+ * Calcula y muestra las alertas de PRÉSTAMOS a partir de las cuotas reales, en
+ * vez de leerlas de la tabla `alertas`. Sirve para ver qué le va a llegar a
+ * quien tenga esa columna (ej. Paula) sin esperar a que corra el generador.
+ */
+const soloPrestamos = args.includes("--prestamos");
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://donjoaquinsistema.com";
 
@@ -49,6 +55,64 @@ type Fila = {
   entidad_tipo: string | null;
 };
 
+const ars = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+
+/**
+ * Reproduce EXACTAMENTE los disparos de cuotas de préstamo de
+ * `src/lib/alertas.ts`: vencida (crítica), mañana (advertencia) y a 7 días
+ * (info). Son umbrales discretos: si el generador no corre justo ese día, el
+ * aviso no se emite.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function alertasDePrestamos(sb: any): Promise<AlertaEmailView[]> {
+  const { data } = await sb
+    .from("prestamo_cuotas")
+    .select("id, nro, fecha_vencimiento, importe, prestamo:prestamos!inner(banco, tasa, cuotas_total, estado)")
+    .eq("pagada", false)
+    .eq("prestamo.estado", "activo");
+
+  const hoy = new Date();
+  const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  const out: AlertaEmailView[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const cu of (data ?? []) as any[]) {
+    const pr = Array.isArray(cu.prestamo) ? cu.prestamo[0] : cu.prestamo;
+    if (!pr) continue;
+    const [y, m, d] = String(cu.fecha_vencimiento).split("-").map(Number);
+    const vence = new Date(y!, m! - 1, d!);
+    const dias = Math.round((vence.getTime() - hoyMid.getTime()) / 86400000);
+
+    const disparos: { sev: SeveridadEmail; msg: string; vencida: boolean }[] = [];
+    const cuota = `cuota ${cu.nro}/${pr.cuotas_total}`;
+    const tasa = pr.tasa != null ? ` · tasa ${Number(pr.tasa).toLocaleString("es-AR")}%` : "";
+    const imp = ars(Number(cu.importe));
+
+    if (dias < 0)
+      disparos.push({
+        sev: "critica",
+        vencida: true,
+        msg: `La ${cuota} de ${pr.banco} (${imp}${tasa}) venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura pagada.`,
+      });
+    if (dias === 1)
+      disparos.push({ sev: "advertencia", vencida: false, msg: `Mañana vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.` });
+    if (dias === 7)
+      disparos.push({ sev: "info", vencida: false, msg: `En 7 días vence la ${cuota} de ${pr.banco}: ${imp}${tasa}.` });
+
+    for (const disp of disparos) {
+      out.push({
+        titulo: `Préstamo ${pr.banco} — ${disp.vencida ? "cuota vencida" : "cuota por vencer"} (${cu.nro}/${pr.cuotas_total})`,
+        mensaje: disp.msg,
+        severidad: disp.sev,
+        fecha_vencimiento: cu.fecha_vencimiento,
+        categoria: "prestamos_vencimiento",
+        href: `${BASE}/prestamos`,
+      });
+    }
+  }
+  return out;
+}
+
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -63,6 +127,25 @@ async function main() {
     .select("clave, valor")
     .eq("categoria", "notificaciones");
   const paramMap = new Map((params ?? []).map((p) => [p.clave, p.valor ?? ""]));
+
+  // Modo préstamos: lo que le llegaría hoy a quien tenga esa columna.
+  if (soloPrestamos) {
+    const alertas = await alertasDePrestamos(sb);
+    if (alertas.length === 0) {
+      console.log("Hoy no dispara ninguna alerta de préstamos (ninguna cuota vencida, ni a 1 ni a 7 días).");
+      return;
+    }
+    const n = alertas.length;
+    const html = renderEmail({
+      baseUrl: BASE,
+      titulo: n === 1 ? "Cuota de préstamo por vencer" : "Cuotas de préstamo por vencer",
+      intro: `Hay ${n} cuota${n !== 1 ? "s" : ""} que requiere${n !== 1 ? "n" : ""} atención.`,
+      alertas,
+    });
+    for (const a of alertas) console.log(`  · ${a.severidad.padEnd(11)} ${a.titulo}`);
+    await entregar(html, `🏛️ Préstamos por vencer — Don Joaquín`, n);
+    return;
+  }
 
   const { data, error } = await sb
     .from("alertas")
@@ -125,11 +208,16 @@ async function main() {
     console.log(`  ${String(q).padStart(3)}  ${c}`);
   }
 
+  await entregar(html, `📋 Resumen de alertas — ${n} pendiente${n !== 1 ? "s" : ""} · Don Joaquín`, n);
+}
+
+/** Escribe el HTML (--dry) o lo envía por SMTP (--to). */
+async function entregar(html: string, asunto: string, n: number) {
   if (dry) {
     mkdirSync(".tmp/emails-prueba", { recursive: true });
-    const out = ".tmp/emails-prueba/_alertas-reales.html";
+    const out = `.tmp/emails-prueba/${soloPrestamos ? "_prestamos-reales" : "_alertas-reales"}.html`;
     writeFileSync(out, html);
-    console.log(`\n✓ ${out} (no se envió nada)`);
+    console.log(`\n✓ ${out} (${n} alertas, no se envió nada)`);
     return;
   }
 
@@ -151,12 +239,7 @@ async function main() {
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 
-  await transporter.sendMail({
-    from: EMAIL_FROM ?? SMTP_USER,
-    to,
-    subject: `📋 Resumen de alertas — ${n} pendiente${n !== 1 ? "s" : ""} · Don Joaquín`,
-    html,
-  });
+  await transporter.sendMail({ from: EMAIL_FROM ?? SMTP_USER, to, subject: asunto, html });
   console.log(`\n✓ Enviado a ${to}`);
 }
 

@@ -41,47 +41,47 @@ export const CATEGORIA_ESTILO: Record<
 > = {
   vencimiento_docs: {
     label: "Documentación",
-    color: "#0369A1", bg: "#E0F2FE", borde: "#BAE6FD",
+    color: "#075985", bg: "#E0F2FE", borde: "#BAE6FD",
     icono: "📄", cta: "Ver documentación",
   },
   cheques_vencidos: {
     label: "Cheques",
-    color: "#047857", bg: "#D1FAE5", borde: "#A7F3D0",
+    color: "#065F46", bg: "#D1FAE5", borde: "#A7F3D0",
     icono: "🧾", cta: "Ver cheques",
   },
   viaticos_sin_rendir: {
     label: "Viáticos",
-    color: "#B45309", bg: "#FEF3C7", borde: "#FDE68A",
+    color: "#92400E", bg: "#FEF3C7", borde: "#FDE68A",
     icono: "💵", cta: "Ver viáticos",
   },
   gastos_pendientes: {
     label: "Gastos",
-    color: "#7C3AED", bg: "#EDE9FE", borde: "#DDD6FE",
+    color: "#6D28D9", bg: "#EDE9FE", borde: "#DDD6FE",
     icono: "🧮", cta: "Ver gastos",
   },
   cambios_caja: {
     label: "Caja",
-    color: "#0D9488", bg: "#CCFBF1", borde: "#99F6E4",
+    color: "#0F766E", bg: "#CCFBF1", borde: "#99F6E4",
     icono: "🏦", cta: "Ver caja",
   },
   nuevo_viaje: {
     label: "Viajes",
-    color: "#0088D1", bg: "#E1F5FE", borde: "#B3E5FC",
+    color: "#0277BD", bg: "#E1F5FE", borde: "#B3E5FC",
     icono: "🚚", cta: "Ver viajes",
   },
   vencimiento_compliance: {
     label: "Compliance",
-    color: "#0E7490", bg: "#CFFAFE", borde: "#A5F3FC",
+    color: "#155E75", bg: "#CFFAFE", borde: "#A5F3FC",
     icono: "🛡️", cta: "Ver compliance",
   },
   prestamos_vencimiento: {
     label: "Préstamos",
-    color: "#4338CA", bg: "#E0E7FF", borde: "#C7D2FE",
+    color: "#3730A3", bg: "#E0E7FF", borde: "#C7D2FE",
     icono: "🏛️", cta: "Ver préstamos",
   },
   otros_avisos: {
     label: "Aviso",
-    color: "#475569", bg: "#F1F5F9", borde: "#E2E8F0",
+    color: "#334155", bg: "#F1F5F9", borde: "#E2E8F0",
     icono: "🔔", cta: "Ver aviso",
   },
 };
@@ -128,7 +128,7 @@ function renderAlerta(a: AlertaEmailView): string {
   return `
     <tr>
       <td style="padding:20px 0 22px 0;border-top:1px solid #E2E8F0;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${est.color};">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:${est.color};">
           ${escapeHtml(est.label)}
           <span style="color:#CBD5E1;font-weight:400;">&nbsp;/&nbsp;</span>
           <span style="color:${sev.text};">${sev.label}</span>
@@ -163,7 +163,7 @@ export function renderEmail(opts: {
   const colorAcento = acento?.color ?? "#0088D1";
 
   const kicker = acento
-    ? `<div style="font-size:10px;font-weight:700;color:${colorAcento};letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;">${escapeHtml(acento.label)}</div>`
+    ? `<div style="font-size:11px;font-weight:700;color:${colorAcento};letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;">${escapeHtml(acento.label)}</div>`
     : "";
 
   const boton = `<tr><td style="padding:24px 0 0 0;border-top:1px solid #E2E8F0;">
