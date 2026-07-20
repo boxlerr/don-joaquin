@@ -8,6 +8,7 @@ import AddIngresoDialog from "./components/AddIngresoDialog";
 import AddEgresoDialog from "./components/AddEgresoDialog";
 import AddViaticoDialog from "./components/AddViaticoDialog";
 import CajaViewCompleta from "./components/CajaViewCompleta";
+import CajaTabs from "./CajaTabs";
 import MisMovimientosRecientes from "./components/MisMovimientosRecientes";
 import HelpTutorialButton from "./help-tutorial-button";
 
@@ -21,6 +22,9 @@ export default async function CajaPage() {
   const puedeVerSaldo = hasSeccion(user, "caja_saldo", "read");
   const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
   const puedeOperarGrande = hasSeccion(user, "caja_grande", "write");
+  // Gastos ahora es una solapa de Caja (antes sección propia del sidebar). El
+  // permiso sigue siendo el mismo de siempre: la subsección "gastos".
+  const puedeVerGastos = hasSeccion(user, "gastos", "read");
 
   // Sin saldo ni carga: solo el aviso de acceso restringido.
   if (!puedeVerSaldo && !puedeOperar) {
@@ -30,6 +34,7 @@ export default async function CajaPage() {
           title="Caja General"
           description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
         />
+        <CajaTabs showGastos={puedeVerGastos} />
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
           <Lock size={16} className="text-amber-600 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-700">
@@ -133,6 +138,8 @@ export default async function CajaPage() {
           }
         />
 
+        <CajaTabs showGastos={puedeVerGastos} />
+
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
           <EyeOff size={16} className="text-amber-600 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-700">
@@ -158,6 +165,7 @@ export default async function CajaPage() {
         puedeOperar={puedeOperar}
         puedeVerGrande={puedeVerGrande}
         puedeOperarGrande={puedeOperarGrande}
+        showGastos={puedeVerGastos}
       />
     </div>
   );

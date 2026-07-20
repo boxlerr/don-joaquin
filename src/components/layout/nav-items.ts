@@ -12,8 +12,6 @@ import {
   Wallet,
   FileText,
   Fuel,
-  Receipt,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Settings,
@@ -137,8 +135,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     group: "FINANZAS",
     items: [
+      // Gastos ya no es entrada propia: es un tipo de egreso de la caja y vive
+      // como solapa dentro de Caja (/caja/gastos). /gastos redirige ahí.
       { label: "Caja", href: "/caja", icon: Wallet, area: "caja" },
-      { label: "Gastos", href: "/gastos", icon: Receipt, seccion: "gastos" },
       { label: "Cheques", href: "/cheques", icon: FileText, seccion: "cheques" },
       { label: "Impuestos", href: "/impuestos", icon: Landmark, seccion: "impuestos" },
       // Cuotas de préstamos bancarios — confidencial (solo dirección).

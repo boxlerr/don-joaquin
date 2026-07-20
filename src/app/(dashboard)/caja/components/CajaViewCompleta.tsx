@@ -19,6 +19,7 @@ import TransferirCajaDialog from "./TransferirCajaDialog";
 import CajaDashboard from "./CajaDashboard";
 import ViaticosPendientesPanel from "./ViaticosPendientesPanel";
 import HelpTutorialButton from "../help-tutorial-button";
+import CajaTabs from "../CajaTabs";
 import type { ViaticoPendiente } from "./RendirViaticoDialog";
 import type { CajaId } from "../actions";
 
@@ -42,6 +43,8 @@ type Props = {
   puedeVerGrande: boolean;
   /** Opera la caja grande y transfiere entre cajas (caja_grande ≥ write). */
   puedeOperarGrande: boolean;
+  /** Ve la solapa Gastos (subsección "gastos" ≥ read). */
+  showGastos: boolean;
 };
 
 const TABS: { id: CajaId; label: string; icon: typeof Wallet }[] = [
@@ -62,6 +65,7 @@ export default function CajaViewCompleta({
   puedeOperar,
   puedeVerGrande,
   puedeOperarGrande,
+  showGastos,
 }: Props) {
   const [caja, setCaja] = useState<CajaId>("diaria");
   const esGrande = caja === "grande";
@@ -122,6 +126,9 @@ export default function CajaViewCompleta({
           </div>
         }
       />
+
+      {/* Solapas de Caja: Movimientos | Gastos (Gastos salió del sidebar). */}
+      <CajaTabs showGastos={showGastos} />
 
       {/* Switcher de caja: solo si puede ver la grande (subsección confidencial). */}
       {puedeVerGrande && (
