@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
@@ -35,6 +35,9 @@ export default function AddPrestamoDialog() {
   const [cuotasTotal, setCuotasTotal] = useState("");
   const [proximaNro, setProximaNro] = useState("1");
   const [proximaFecha, setProximaFecha] = useState("");
+  // El diálogo se monta en dos lugares (encabezado y tabla): ids únicos por
+  // instancia para que las etiquetas nunca apunten al input equivocado.
+  const uid = useId();
 
   const reset = () => {
     setBanco("");
@@ -100,11 +103,11 @@ export default function AddPrestamoDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="pr-banco" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-banco`} className="text-xs font-semibold text-muted-foreground">
                 Banco
               </Label>
               <Input
-                id="pr-banco"
+                id={`${uid}-banco`}
                 value={banco}
                 onChange={(e) => setBanco(e.target.value)}
                 placeholder="Ej: Galicia"
@@ -112,11 +115,11 @@ export default function AddPrestamoDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pr-detalle" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-detalle`} className="text-xs font-semibold text-muted-foreground">
                 Detalle <span className="font-normal text-muted-foreground/70">(opcional)</span>
               </Label>
               <Input
-                id="pr-detalle"
+                id={`${uid}-detalle`}
                 value={detalle}
                 onChange={(e) => setDetalle(e.target.value)}
                 placeholder="Ej: préstamo camión 2025"
@@ -126,11 +129,11 @@ export default function AddPrestamoDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="pr-cuota" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-cuota`} className="text-xs font-semibold text-muted-foreground">
                 Importe de la cuota $
               </Label>
               <Input
-                id="pr-cuota"
+                id={`${uid}-cuota`}
                 type="number"
                 min="1"
                 step="0.01"
@@ -141,11 +144,11 @@ export default function AddPrestamoDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pr-tasa" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-tasa`} className="text-xs font-semibold text-muted-foreground">
                 Tasa % <span className="font-normal text-muted-foreground/70">(opcional)</span>
               </Label>
               <Input
-                id="pr-tasa"
+                id={`${uid}-tasa`}
                 type="number"
                 min="0"
                 step="0.01"
@@ -158,11 +161,11 @@ export default function AddPrestamoDialog() {
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="pr-total" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-total`} className="text-xs font-semibold text-muted-foreground">
                 Cuotas totales
               </Label>
               <Input
-                id="pr-total"
+                id={`${uid}-total`}
                 type="number"
                 min="1"
                 value={cuotasTotal}
@@ -172,11 +175,11 @@ export default function AddPrestamoDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pr-prox" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-prox`} className="text-xs font-semibold text-muted-foreground">
                 Próxima cuota Nº
               </Label>
               <Input
-                id="pr-prox"
+                id={`${uid}-prox`}
                 type="number"
                 min="1"
                 value={proximaNro}
@@ -185,11 +188,11 @@ export default function AddPrestamoDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="pr-fecha" className="text-xs font-semibold text-muted-foreground">
+              <Label htmlFor={`${uid}-fecha`} className="text-xs font-semibold text-muted-foreground">
                 Vence el
               </Label>
               <Input
-                id="pr-fecha"
+                id={`${uid}-fecha`}
                 type="date"
                 value={proximaFecha}
                 onChange={(e) => setProximaFecha(e.target.value)}
@@ -198,10 +201,25 @@ export default function AddPrestamoDialog() {
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Para un préstamo ya en curso (ej: va por la cuota 44 de 48) poné la próxima cuota y su
-            fecha: las anteriores quedan marcadas como pagadas.
-          </p>
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-foreground">
+              ¿El préstamo ya viene pagándose hace meses?
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              No hace falta cargar las cuotas viejas a mano. Poné en{" "}
+              <b className="text-foreground">Cuotas totales</b> cuántas tiene en total, y en{" "}
+              <b className="text-foreground">Próxima cuota Nº</b> más{" "}
+              <b className="text-foreground">Vence el</b> la primera que todavía NO pagaste.
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+              Ejemplo: un préstamo de <b className="text-foreground">48 cuotas</b> del que ya pagaste
+              43 y la que sigue vence el 10/08 → cuotas totales <b className="text-foreground">48</b>,
+              próxima cuota <b className="text-foreground">44</b>, vence el{" "}
+              <b className="text-foreground">10/08</b>. El sistema arma las 48: marca las{" "}
+              <b className="text-foreground">1 a 43 como pagadas</b> y agenda las{" "}
+              <b className="text-foreground">44 a 48</b>, una por mes.
+            </p>
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>

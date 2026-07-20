@@ -4,6 +4,7 @@ import { getPrestamosAction } from "./actions";
 import PrestamosClient from "./PrestamosClient";
 import HelpTutorialButton from "./help-tutorial-button";
 import ExportPrestamosButton from "./export-prestamos-button";
+import AddPrestamoDialog from "./AddPrestamoDialog";
 
 /**
  * Préstamos bancarios (audio Bárbara 02/07): la planilla de la mamá en el
@@ -26,6 +27,9 @@ export default async function PrestamosPage() {
           <div className="flex items-center gap-2">
             <ExportPrestamosButton />
             <HelpTutorialButton />
+            {/* También arriba: cargar un préstamo es la acción principal y
+                estaba sólo al pie de la tabla. */}
+            {canWrite && <AddPrestamoDialog />}
           </div>
         }
       />

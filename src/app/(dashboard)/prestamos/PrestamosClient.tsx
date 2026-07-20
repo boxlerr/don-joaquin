@@ -16,6 +16,7 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
+  CalendarRange,
   Sunrise,
 } from "lucide-react";
 import {
@@ -94,6 +95,16 @@ const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 /** Paleta del módulo — variedad sin caer en arcoíris (pedido de Bárbara). */
 const VIOLETA = "#7C3AED";
 const AMBAR = "#F59E0B";
+const TEAL = "#0D9488";
+
+/** Escalas de tiempo del gráfico de carga de pagos. */
+type VistaGrafico = "dia" | "semana" | "mes";
+
+const VISTAS: { id: VistaGrafico; label: string }[] = [
+  { id: "dia", label: "Día" },
+  { id: "semana", label: "Semana" },
+  { id: "mes", label: "Mes" },
+];
 
 /** Suma días a una fecha ISO respetando el calendario local (no UTC). */
 function addDiasISO(iso: string, n: number): string {
@@ -165,6 +176,8 @@ export default function PrestamosClient({
 
   const hoy = new Date().toISOString().slice(0, 10);
   const [mesSel, setMesSel] = useState(hoy.slice(0, 7));
+  /** Un solo gráfico con tres escalas de tiempo (pedido: verlo de todas las formas). */
+  const [vista, setVista] = useState<VistaGrafico>("semana");
 
   // Todas las cuotas impagas de préstamos activos, ordenadas por vencimiento.
   const cuotasPendientes = useMemo(() => {
@@ -223,18 +236,27 @@ export default function PrestamosClient({
     (c) => c.fecha_vencimiento >= hoy && c.fecha_vencimiento <= finDeSemana,
   );
   const totalSemana = cuotasSemana.reduce((s, c) => s + c.importe, 0);
-  // Mes elegible a futuro (Bárbara: "el mes que viene, agosto, ¿cuánto tengo
-  // que pagar?"). Arranca en el mes actual y ofrece los 12 siguientes.
+  // Mes elegible (Bárbara: "el mes que viene, agosto, ¿cuánto tengo que
+  // pagar?"). El rango sale de las cuotas reales — de la más vieja a la más
+  // nueva — así se puede elegir cualquier mes con movimiento, no una ventana
+  // fija de 12.
   const mesActual = hoy.slice(0, 7);
   const mesesOpciones = useMemo(() => {
-    const y0 = Number(mesActual.slice(0, 4));
-    const m0 = Number(mesActual.slice(5, 7)) - 1;
-    return Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(y0, m0 + i, 1);
-      const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      return { id, label: labelMes(id) };
-    });
-  }, [mesActual]);
+    const todas = prestamos.flatMap((p) => p.cuotas.map((c) => c.fecha_vencimiento.slice(0, 7)));
+    const conActual = [...todas, mesActual].sort();
+    const desde = conActual[0]!;
+    const hasta = conActual[conActual.length - 1]!;
+    const out: { id: string; label: string }[] = [];
+    let y = Number(desde.slice(0, 4));
+    let m = Number(desde.slice(5, 7));
+    while (`${y}-${String(m).padStart(2, "0")}` <= hasta) {
+      const id = `${y}-${String(m).padStart(2, "0")}`;
+      out.push({ id, label: labelMes(id) });
+      m += 1;
+      if (m > 12) { m = 1; y += 1; }
+    }
+    return out;
+  }, [prestamos, mesActual]);
 
   const cuotasMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === mesSel);
   const totalMes = cuotasMes.reduce((s, c) => s + c.importe, 0);
@@ -261,6 +283,25 @@ export default function PrestamosClient({
     });
   }, [cuotasPendientes, hoy]);
   const hayCargaDiaria = dias.some((d) => d.total > 0);
+
+  // Carga por mes: los próximos 12, para ver la película larga.
+  const meses = useMemo(() => {
+    const y0 = Number(mesActual.slice(0, 4));
+    const m0 = Number(mesActual.slice(5, 7)) - 1;
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(y0, m0 + i, 1);
+      const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const delMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === id);
+      return {
+        id,
+        label: `${MESES_CORTOS[d.getMonth()]}${d.getMonth() === 0 || i === 0 ? ` ${String(d.getFullYear()).slice(2)}` : ""}`,
+        total: delMes.reduce((s, c) => s + c.importe, 0),
+        cuotas: delMes.length,
+        isCurrent: i === 0,
+      };
+    });
+  }, [cuotasPendientes, mesActual]);
+  const hayCargaMensual = meses.some((m) => m.total > 0);
 
   const totalDeuda = prestamos.reduce((s, p) => s + p.restante, 0);
 
@@ -327,8 +368,10 @@ export default function PrestamosClient({
               : "Sin vencimientos esta semana"
           }
         />
+        {/* El mes es parte del título: "A pagar en [Agosto 2026]". Antes el
+            label competía por el espacio con el selector y quedaba en "A P…". */}
         <KpiHero
-          label={`A pagar en ${labelMes(mesSel)}`}
+          label="A pagar en"
           value={ars(totalMes)}
           hint={
             cuotasMes.length
@@ -341,7 +384,8 @@ export default function PrestamosClient({
               onValueChange={setMesSel}
               options={mesesOpciones}
               aria-label="Elegir mes"
-              triggerClassName="h-7 w-[150px] border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
+              searchable
+              triggerClassName="h-7 w-[142px] shrink-0 border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
             />
           }
         />
@@ -356,87 +400,146 @@ export default function PrestamosClient({
         />
       </div>
 
-      {/* Carga diaria — pedido de Bárbara: además de semana y mes, "cuánto hay
-          que pagar en el día", en un gráfico aparte. */}
-      <div className="rounded-[12px] border border-border bg-card p-5 shadow-sm">
-        <div className="mb-1 flex items-center gap-2">
-          <CalendarDays size={16} style={{ color: VIOLETA }} />
-          <h2 className="text-sm font-semibold text-foreground">Cuánto hay que pagar por día</h2>
-        </div>
-        <p className="mb-4 text-[11px] text-muted-foreground">
-          Los próximos 14 días, uno por uno — para saber qué cae mañana y qué cae pasado.
-        </p>
-        {hayCargaDiaria ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={dias} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="label"
-                interval={0}
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-              />
-              <YAxis hide />
-              <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
-              <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
-                {dias.map((d, i) => (
-                  <Cell key={i} fill={d.isToday ? AMBAR : VIOLETA} fillOpacity={d.isToday ? 1 : 0.55} />
-                ))}
-                <LabelList dataKey="total" content={<MoneyLabel vertical />} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            No vence ninguna cuota en los próximos 14 días.
-          </p>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Carga semanal (idea de Bárbara: "la tercera semana de agosto la tengo
-            compleja, dejemos los pagos para la primera y la cuarta") */}
+      <div className="space-y-4">
+        {/* Un solo gráfico de carga de pagos, con tres escalas de tiempo:
+            día (qué cae mañana), semana (en cuál conviene pagar o financiar) y
+            mes (la película larga). */}
         <div className="rounded-[12px] border border-border bg-card p-5 shadow-sm">
-          <div className="mb-1 flex items-center gap-2">
-            <BarChart3 size={16} className="text-[#0088D1]" />
-            <h2 className="text-sm font-semibold text-foreground">Cuánto hay que pagar por semana</h2>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {vista === "dia" ? (
+                <CalendarDays size={16} style={{ color: VIOLETA }} />
+              ) : vista === "semana" ? (
+                <BarChart3 size={16} className="text-[#0088D1]" />
+              ) : (
+                <CalendarRange size={16} style={{ color: TEAL }} />
+              )}
+              <h2 className="text-sm font-semibold text-foreground">
+                Cuánto hay que pagar por {vista === "dia" ? "día" : vista === "semana" ? "semana" : "mes"}
+              </h2>
+            </div>
+            <div
+              role="group"
+              aria-label="Escala del gráfico"
+              className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5"
+            >
+              {VISTAS.map((v) => {
+                const activa = vista === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setVista(v.id)}
+                    aria-pressed={activa}
+                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                      activa
+                        ? "bg-card text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <p className="mb-4 text-[11px] text-muted-foreground">
-            Las próximas 8 semanas — para decidir en cuál conviene pagar o financiar.
+            {vista === "dia"
+              ? "Los próximos 14 días, uno por uno — para saber qué cae mañana y qué cae pasado."
+              : vista === "semana"
+                ? "Las próximas 8 semanas — para decidir en cuál conviene pagar o financiar."
+                : "Los próximos 12 meses — la carga completa mes a mes."}
           </p>
-          {hayCargaSemanal ? (
-            <ResponsiveContainer width="100%" height={288}>
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 2, right: 60, bottom: 2, left: 6 }}
-                barCategoryGap={9}
-              >
-                <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  width={94}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                />
-                <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
-                <Bar dataKey="total" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
-                  {chartData.map((d, i) => (
-                    <Cell key={i} fill={BRAND} fillOpacity={d.isCurrent ? 1 : 0.42} />
-                  ))}
-                  <LabelList dataKey="total" content={<MoneyLabel />} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-14 text-center text-sm text-muted-foreground">
-              Sin cuotas en las próximas 8 semanas.
-            </p>
-          )}
+
+          {vista === "dia" &&
+            (hayCargaDiaria ? (
+              <ResponsiveContainer width="100%" height={288}>
+                <BarChart data={dias} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="label"
+                    interval={0}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis hide />
+                  <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
+                  <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
+                    {dias.map((d, i) => (
+                      <Cell key={i} fill={d.isToday ? AMBAR : VIOLETA} fillOpacity={d.isToday ? 1 : 0.55} />
+                    ))}
+                    <LabelList dataKey="total" content={<MoneyLabel vertical />} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-14 text-center text-sm text-muted-foreground">
+                No vence ninguna cuota en los próximos 14 días.
+              </p>
+            ))}
+
+          {vista === "semana" &&
+            (hayCargaSemanal ? (
+              <ResponsiveContainer width="100%" height={288}>
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 2, right: 60, bottom: 2, left: 6 }}
+                  barCategoryGap={9}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    width={94}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  />
+                  <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
+                  <Bar dataKey="total" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={BRAND} fillOpacity={d.isCurrent ? 1 : 0.42} />
+                    ))}
+                    <LabelList dataKey="total" content={<MoneyLabel />} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-14 text-center text-sm text-muted-foreground">
+                Sin cuotas en las próximas 8 semanas.
+              </p>
+            ))}
+
+          {vista === "mes" &&
+            (hayCargaMensual ? (
+              <ResponsiveContainer width="100%" height={288}>
+                <BarChart data={meses} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="label"
+                    interval={0}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis hide />
+                  <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
+                  <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
+                    {meses.map((m, i) => (
+                      <Cell key={i} fill={TEAL} fillOpacity={m.isCurrent ? 1 : 0.5} />
+                    ))}
+                    <LabelList dataKey="total" content={<MoneyLabel vertical />} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-14 text-center text-sm text-muted-foreground">
+                Sin cuotas en los próximos 12 meses.
+              </p>
+            ))}
         </div>
 
         {/* Próximos vencimientos */}
