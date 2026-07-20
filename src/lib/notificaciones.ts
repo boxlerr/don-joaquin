@@ -3,6 +3,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
 import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
 import { categoriaDeAlerta } from "@/app/(dashboard)/notificaciones/utils";
+import {
+  renderEmail as renderEmailTemplate,
+  type AlertaEmailView,
+  type SeveridadEmail,
+} from "@/lib/email-template";
 import type { Database } from "@/types/database";
 
 /**
@@ -151,89 +156,27 @@ function tipoHabilitado(
   return params.get(alertaClave(key)) === "true";
 }
 
-// --- Render del email (estilos inline: requisito de los clientes de correo) ---
+// --- Render del email (la plantilla vive en ./email-template, sin server-only) ---
 
-const SEV_STYLE: Record<Severidad, { label: string; bg: string; border: string; text: string }> = {
-  critica: { label: "Crítica", bg: "#FEE2E2", border: "#FCA5A5", text: "#7F1D1D" },
-  advertencia: { label: "Advertencia", bg: "#FFFBEB", border: "#FDE68A", text: "#92400E" },
-  info: { label: "Info", bg: "#EFF6FF", border: "#BFDBFE", text: "#1E40AF" },
-};
-
-function formatFecha(f: string | null): string {
-  if (!f) return "";
-  const parts = f.split("-");
-  if (parts.length !== 3) return f;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function renderAlerta(a: AlertaEmail): string {
-  const sev = SEV_STYLE[a.severidad];
-  // Cada alerta linkea a la vista in-app, filtrada por su categoría y severidad,
-  // para aterrizar directo en esa sección de /notificaciones.
+function aVista(a: AlertaEmail): AlertaEmailView {
   const cat = categoriaDeAlerta(a.tipo, a.entidad_tipo);
-  const url = `${appUrl()}/notificaciones?categoria=${cat}&amp;severidad=${a.severidad}`;
-  const venc = a.fecha_vencimiento
-    ? `<div style="font-size:12px;color:#64748b;margin-top:6px;">Vence: ${formatFecha(a.fecha_vencimiento)}</div>`
-    : "";
-  return `
-    <tr>
-      <td style="padding:0 0 12px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e2e8f0;border-left:4px solid ${sev.border};border-radius:8px;">
-          <tr>
-            <td style="padding:14px 16px;">
-              <a href="${url}" style="display:block;text-decoration:none;color:inherit;">
-                <span style="display:inline-block;font-size:11px;font-weight:600;color:${sev.text};background:${sev.bg};border-radius:9999px;padding:2px 10px;margin-bottom:8px;">${sev.label}</span>
-                <div style="font-size:14px;font-weight:600;color:#0f172a;">${escapeHtml(a.titulo)}</div>
-                <div style="font-size:13px;color:#475569;margin-top:4px;line-height:1.5;">${escapeHtml(a.mensaje)}</div>
-                ${venc}
-                <div style="font-size:12px;color:#0088D1;font-weight:600;margin-top:8px;">Ver en notificaciones &rarr;</div>
-              </a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>`;
+  return {
+    titulo: a.titulo,
+    mensaje: a.mensaje,
+    severidad: a.severidad as SeveridadEmail,
+    fecha_vencimiento: a.fecha_vencimiento,
+    categoria: alertaColumnaDe(a),
+    href: `${appUrl()}/notificaciones?categoria=${cat}&severidad=${a.severidad}`,
+  };
 }
 
 function renderEmail(opts: { titulo: string; intro: string; alertas: AlertaEmail[] }): string {
-  const boton = `<tr><td style="padding:8px 0 0 0;">
-         <a href="${appUrl()}/notificaciones" style="display:inline-block;background:#0088D1;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver en el sistema</a>
-       </td></tr>`;
-
-  return `<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
-        <tr><td style="padding:0 16px 16px 16px;">
-          <div style="font-size:18px;font-weight:700;color:#0088D1;">Don Joaquín</div>
-          <div style="font-size:15px;font-weight:600;color:#0f172a;margin-top:8px;">${escapeHtml(opts.titulo)}</div>
-          <div style="font-size:13px;color:#64748b;margin-top:4px;">${escapeHtml(opts.intro)}</div>
-        </td></tr>
-        <tr><td style="padding:0 16px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            ${opts.alertas.map(renderAlerta).join("")}
-            ${boton}
-          </table>
-        </td></tr>
-        <tr><td style="padding:16px;">
-          <div style="font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;">
-            Aviso automático del sistema de gestión Don Joaquín. Para dejar de recibir estos correos, ajustá los destinatarios en Configuración → Notificaciones.
-          </div>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+  return renderEmailTemplate({
+    baseUrl: appUrl(),
+    titulo: opts.titulo,
+    intro: opts.intro,
+    alertas: opts.alertas.map(aVista),
+  });
 }
 
 // --- API pública ---

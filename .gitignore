@@ -51,3 +51,6 @@ CLAUDE.local.md
 
 # Playwright screenshots y snapshots de pruebas manuales
 /.playwright-mcp/
+
+# Salida temporal de scripts (previews de emails, etc.)
+.tmp/
