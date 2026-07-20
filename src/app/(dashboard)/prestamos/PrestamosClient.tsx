@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Loader2,
   Trash2,
@@ -178,6 +179,12 @@ export default function PrestamosClient({
   const [mesSel, setMesSel] = useState(hoy.slice(0, 7));
   /** Un solo gráfico con tres escalas de tiempo (pedido: verlo de todas las formas). */
   const [vista, setVista] = useState<VistaGrafico>("semana");
+  /** Desplazamiento de la ventana del gráfico: -1 = anterior, +1 = siguiente. */
+  const [offset, setOffset] = useState(0);
+  const cambiarVista = (v: VistaGrafico) => {
+    setVista(v);
+    setOffset(0);
+  };
 
   // Todas las cuotas impagas de préstamos activos, ordenadas por vencimiento.
   const cuotasPendientes = useMemo(() => {
@@ -197,6 +204,7 @@ export default function PrestamosClient({
   // decidir en qué semana conviene pagar/financiar).
   const semanas = useMemo(() => {
     const inicio = lunesDe(hoy);
+    inicio.setDate(inicio.getDate() + offset * 8 * 7);
     const buckets: { lunes: Date; total: number; cuotas: number }[] = Array.from(
       { length: 8 },
       (_, i) => {
@@ -213,17 +221,17 @@ export default function PrestamosClient({
       buckets[idx].cuotas += 1;
     }
     return buckets;
-  }, [cuotasPendientes, hoy]);
+  }, [cuotasPendientes, hoy, offset]);
 
   const chartData = useMemo(
     () =>
       semanas.map((s, i) => ({
-        label: i === 0 ? "Esta semana" : labelSemana(s.lunes),
+        label: i === 0 && offset === 0 ? "Esta semana" : labelSemana(s.lunes),
         total: s.total,
         cuotas: s.cuotas,
-        isCurrent: i === 0,
+        isCurrent: i === 0 && offset === 0,
       })),
-    [semanas],
+    [semanas, offset],
   );
   const hayCargaSemanal = semanas.some((s) => s.total > 0);
 
@@ -270,18 +278,21 @@ export default function PrestamosClient({
   // Carga día a día: hoy + los próximos 13 (el "cuánto hay que pagar en el día"
   // que pidió como gráfico aparte del semanal).
   const dias = useMemo(() => {
+    const base = addDiasISO(hoy, offset * 14);
+    const manana = addDiasISO(hoy, 1);
     return Array.from({ length: 14 }, (_, i) => {
-      const iso = addDiasISO(hoy, i);
+      const iso = addDiasISO(base, i);
       const delDia = cuotasPendientes.filter((c) => c.fecha_vencimiento === iso);
+      const esHoy = iso === hoy;
       return {
         iso,
-        label: i === 0 ? "Hoy" : i === 1 ? "Mañana" : labelDia(iso),
+        label: esHoy ? "Hoy" : iso === manana ? "Mañana" : labelDia(iso),
         total: delDia.reduce((s, c) => s + c.importe, 0),
         cuotas: delDia.length,
-        isToday: i === 0,
+        isToday: esHoy,
       };
     });
-  }, [cuotasPendientes, hoy]);
+  }, [cuotasPendientes, hoy, offset]);
   const hayCargaDiaria = dias.some((d) => d.total > 0);
 
   // Carga por mes: los próximos 12, para ver la película larga.
@@ -289,7 +300,7 @@ export default function PrestamosClient({
     const y0 = Number(mesActual.slice(0, 4));
     const m0 = Number(mesActual.slice(5, 7)) - 1;
     return Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(y0, m0 + i, 1);
+      const d = new Date(y0, m0 + offset * 12 + i, 1);
       const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const delMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === id);
       return {
@@ -297,11 +308,26 @@ export default function PrestamosClient({
         label: `${MESES_CORTOS[d.getMonth()]}${d.getMonth() === 0 || i === 0 ? ` ${String(d.getFullYear()).slice(2)}` : ""}`,
         total: delMes.reduce((s, c) => s + c.importe, 0),
         cuotas: delMes.length,
-        isCurrent: i === 0,
+        isCurrent: id === mesActual,
       };
     });
-  }, [cuotasPendientes, mesActual]);
+  }, [cuotasPendientes, mesActual, offset]);
   const hayCargaMensual = meses.some((m) => m.total > 0);
+
+  /** Rango que está mostrando el gráfico (reemplaza la bajada fija). */
+  const rangoLabel = useMemo(() => {
+    const corto = (iso: string) => {
+      const [, m, d] = iso.split("-").map(Number);
+      return `${d} ${MESES_CORTOS[m! - 1]}`;
+    };
+    if (vista === "dia") return `${corto(dias[0]!.iso)} – ${corto(dias[dias.length - 1]!.iso)}`;
+    if (vista === "semana") {
+      const fin = new Date(semanas[semanas.length - 1]!.lunes);
+      fin.setDate(fin.getDate() + 6);
+      return `${corto(keySemana(semanas[0]!.lunes))} – ${corto(keySemana(fin))}`;
+    }
+    return `${labelMes(meses[0]!.id)} – ${labelMes(meses[meses.length - 1]!.id)}`;
+  }, [vista, dias, semanas, meses]);
 
   const totalDeuda = prestamos.reduce((s, p) => s + p.restante, 0);
 
@@ -379,14 +405,25 @@ export default function PrestamosClient({
               : `Sin cuotas en ${labelMes(mesSel)}`
           }
           action={
-            <Combobox
-              value={mesSel}
-              onValueChange={setMesSel}
-              options={mesesOpciones}
-              aria-label="Elegir mes"
-              searchable
-              triggerClassName="h-7 w-[142px] shrink-0 border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Combobox
+                value={mesSel}
+                onValueChange={setMesSel}
+                options={mesesOpciones}
+                aria-label="Elegir mes"
+                searchable
+                triggerClassName="h-7 w-[152px] border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
+              />
+              {!esMesActual && (
+                <button
+                  type="button"
+                  onClick={() => setMesSel(mesActual)}
+                  className="text-[11px] font-semibold text-white/80 underline underline-offset-2 hover:text-white"
+                >
+                  Ver mes actual
+                </button>
+              )}
+            </div>
           }
         />
         <KpiCard
@@ -429,7 +466,7 @@ export default function PrestamosClient({
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => setVista(v.id)}
+                    onClick={() => cambiarVista(v.id)}
                     aria-pressed={activa}
                     className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                       activa
@@ -443,13 +480,36 @@ export default function PrestamosClient({
               })}
             </div>
           </div>
-          <p className="mb-4 text-[11px] text-muted-foreground">
-            {vista === "dia"
-              ? "Los próximos 14 días, uno por uno — para saber qué cae mañana y qué cae pasado."
-              : vista === "semana"
-                ? "Las próximas 8 semanas — para decidir en cuál conviene pagar o financiar."
-                : "Los próximos 12 meses — la carga completa mes a mes."}
-          </p>
+          {/* Navegación de la ventana: se puede ir a períodos anteriores y
+              posteriores, no sólo mirar hacia adelante. */}
+          <div className="mb-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o - 1)}
+              aria-label="Período anterior"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setOffset((o) => o + 1)}
+              aria-label="Período siguiente"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight size={14} />
+            </button>
+            <span className="text-[11px] font-medium text-muted-foreground">{rangoLabel}</span>
+            {offset !== 0 && (
+              <button
+                type="button"
+                onClick={() => setOffset(0)}
+                className="text-[11px] font-semibold text-primary hover:underline"
+              >
+                Volver a hoy
+              </button>
+            )}
+          </div>
 
           {vista === "dia" &&
             (hayCargaDiaria ? (
@@ -901,16 +961,16 @@ function KpiHero({
       className="rounded-[12px] p-5 shadow-sm"
       style={{ background: "linear-gradient(135deg, #0088D1 0%, #0072B0 100%)" }}
     >
+      {/* El título va solo en su fila: compartirla con el selector lo dejaba
+          cortado en "A PA…" por más corto que fuera. */}
       <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20">
           <PiggyBank size={16} className="text-white" />
         </span>
-        <span className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-white/80">
-          {label}
-        </span>
-        {action}
+        <span className="text-xs font-semibold uppercase tracking-wide text-white/80">{label}</span>
       </div>
       <p className="mt-3 text-[26px] font-bold leading-none tabular-nums text-white">{value}</p>
+      {action && <div className="mt-3">{action}</div>}
       {hint && <p className="mt-2 text-xs text-white/70">{hint}</p>}
     </div>
   );
