@@ -105,45 +105,34 @@ export function formatFecha(f: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+/**
+ * Cada aviso se compone sólo con tipografía y una línea fina de separación:
+ * sin caja redondeada, sin barra de color a la izquierda y sin franjas
+ * pasteles. El color de la categoría aparece en dosis chicas (el rótulo y el
+ * enlace), que es lo que le da carácter de comunicación seria y no de tarjeta.
+ */
 function renderAlerta(a: AlertaEmailView): string {
   const sev = SEV_STYLE[a.severidad];
   const est = estiloDe(a.categoria);
-  const venc = a.fecha_vencimiento
-    ? `<div style="font-size:12px;color:#64748b;margin-top:8px;">
-         <span style="color:${est.color};font-weight:600;">Vence:</span> ${formatFecha(a.fecha_vencimiento)}
-       </div>`
+
+  const meta = a.fecha_vencimiento
+    ? `<div style="font-size:12px;color:#94A3B8;margin-top:9px;">Vence el ${formatFecha(a.fecha_vencimiento)}</div>`
     : "";
 
   return `
     <tr>
-      <td style="padding:0 0 14px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-               style="background:#ffffff;border:1px solid ${est.borde};border-left:4px solid ${est.color};border-radius:10px;">
-          <tr>
-            <td style="background:${est.bg};padding:9px 14px;border-radius:0 9px 0 0;">
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td align="left" style="font-size:11px;font-weight:700;color:${est.color};letter-spacing:.06em;text-transform:uppercase;">
-                    ${est.icono}&nbsp; ${est.label}
-                  </td>
-                  <td align="right">
-                    <span style="display:inline-block;font-size:10px;font-weight:700;color:${sev.text};background:#ffffff;border:1px solid ${sev.border};border-radius:9999px;padding:2px 9px;">${sev.label}</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:14px 16px;background:#ffffff;border-radius:0 0 9px 9px;">
-              <a href="${a.href}" style="display:block;text-decoration:none;color:inherit;">
-                <div style="font-size:15px;font-weight:700;color:#0F172A;line-height:1.35;">${escapeHtml(a.titulo)}</div>
-                <div style="font-size:13px;color:#475569;margin-top:5px;line-height:1.55;">${escapeHtml(a.mensaje)}</div>
-                ${venc}
-                <div style="font-size:12px;color:${est.color};font-weight:700;margin-top:10px;">${est.cta} &rarr;</div>
-              </a>
-            </td>
-          </tr>
-        </table>
+      <td style="padding:20px 0 22px 0;border-top:1px solid #E2E8F0;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${est.color};">
+          ${escapeHtml(est.label)}
+          <span style="color:#CBD5E1;font-weight:400;">&nbsp;/&nbsp;</span>
+          <span style="color:${sev.text};">${sev.label}</span>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:#0F172A;line-height:1.35;margin-top:10px;">${escapeHtml(a.titulo)}</div>
+        <div style="font-size:14px;color:#475569;margin-top:7px;line-height:1.6;">${escapeHtml(a.mensaje)}</div>
+        ${meta}
+        <div style="margin-top:12px;">
+          <a href="${a.href}" style="font-size:13px;font-weight:600;color:${est.color};text-decoration:none;border-bottom:1px solid ${est.color};padding-bottom:1px;">${escapeHtml(est.cta)}</a>
+        </div>
       </td>
     </tr>`;
 }
@@ -168,11 +157,11 @@ export function renderEmail(opts: {
   const colorAcento = acento?.color ?? "#0088D1";
 
   const kicker = acento
-    ? `<div style="font-size:11px;font-weight:700;color:${colorAcento};letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;">${acento.icono}&nbsp; ${acento.label}</div>`
+    ? `<div style="font-size:10px;font-weight:700;color:${colorAcento};letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;">${escapeHtml(acento.label)}</div>`
     : "";
 
-  const boton = `<tr><td style="padding:6px 0 0 0;">
-         <a href="${base}/notificaciones" style="display:inline-block;background:${colorAcento};color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;padding:11px 20px;border-radius:8px;">Ver en el sistema</a>
+  const boton = `<tr><td style="padding:24px 0 0 0;border-top:1px solid #E2E8F0;">
+         <a href="${base}/notificaciones" style="display:inline-block;background:${colorAcento};color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:11px 20px;border-radius:4px;">Ver en el sistema</a>
        </td></tr>`;
 
   return `<!DOCTYPE html>
@@ -182,21 +171,21 @@ export function renderEmail(opts: {
     <tr><td align="center" style="padding:28px 12px 36px 12px;">
       <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;">
 
-        <!-- Encabezado de marca -->
-        <tr><td style="padding:0 4px 16px 4px;border-bottom:3px solid ${colorAcento};">
-          <img src="${base}/logo-horizontal.png" alt="Don Joaquín" width="190"
-               style="display:block;border:0;outline:none;text-decoration:none;height:auto;max-width:190px;">
+        <!-- Membrete -->
+        <tr><td style="padding:0 4px 14px 4px;border-bottom:2px solid #0F172A;">
+          <img src="${base}/logo-horizontal.png" alt="Don Joaquín" width="180"
+               style="display:block;border:0;outline:none;text-decoration:none;height:auto;max-width:180px;">
         </td></tr>
 
         <!-- Título -->
-        <tr><td style="padding:22px 4px 4px 4px;">
+        <tr><td style="padding:26px 4px 2px 4px;">
           ${kicker}
-          <div style="font-size:21px;font-weight:800;color:#0F172A;line-height:1.25;">${escapeHtml(opts.titulo)}</div>
-          <div style="font-size:14px;color:#475569;margin-top:6px;line-height:1.55;">${escapeHtml(opts.intro)}</div>
+          <div style="font-size:22px;font-weight:800;color:#0F172A;line-height:1.25;letter-spacing:-.01em;">${escapeHtml(opts.titulo)}</div>
+          <div style="font-size:14px;color:#475569;margin-top:7px;line-height:1.6;">${escapeHtml(opts.intro)}</div>
         </td></tr>
 
         <!-- Alertas -->
-        <tr><td style="padding:20px 4px 0 4px;">
+        <tr><td style="padding:22px 4px 0 4px;">
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
             ${opts.alertas.map(renderAlerta).join("")}
             ${boton}
