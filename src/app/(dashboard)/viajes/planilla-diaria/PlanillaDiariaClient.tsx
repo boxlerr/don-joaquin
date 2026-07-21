@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import ImprimirPlanillaButton from "./ImprimirPlanillaButton";
+import CambiosDrawer from "./CambiosDrawer";
 import {
   CheckCircle2,
   Loader2,
@@ -14,6 +15,8 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  ArrowRight,
+  Repeat2,
 } from "lucide-react";
 import {
   guardarPlanillaDiariaAction,
@@ -28,6 +31,9 @@ type Fila = {
   camion_habitual_patente: string | null;
   /** "" = sin asignar */
   camion_id: string;
+  /** Camión que tenía antes de esta planilla. "" = ninguno. */
+  camion_previo_id: string;
+  camion_previo_patente: string | null;
   observaciones: string;
 };
 
@@ -44,9 +50,29 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     camion_habitual_id: c.camion_habitual_id,
     camion_habitual_patente: c.camion_habitual_patente,
     // El server ya resuelve el valor por defecto (asignación fija hoy · snapshot en historial).
-    camion_id: c.camion_asignado_id ?? c.camion_habitual_id ?? "",
+    camion_id: c.camion_asignado_id ?? "",
+    camion_previo_id: c.camion_previo_id ?? "",
+    camion_previo_patente: c.camion_previo_patente,
     observaciones: c.observaciones ?? "",
   }));
+}
+
+/** "AD916TF → AE331SH": de qué unidad a cuál pasó el chofer. */
+function CambioCamion({ antes, ahora }: { antes: string | null; ahora: string | null }) {
+  return (
+    <span
+      title={`Cambió de ${antes ?? "sin camión"} a ${ahora ?? "sin camión"}`}
+      className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold"
+    >
+      <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+        {antes ?? "Sin camión"}
+      </span>
+      <ArrowRight size={11} className="text-muted-foreground/70 shrink-0" />
+      <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+        {ahora ?? "Sin camión"}
+      </span>
+    </span>
+  );
 }
 
 export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaData }) {
@@ -57,9 +83,30 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [cambiosOpen, setCambiosOpen] = useState(false);
+  const [soloCambios, setSoloCambios] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => new Date(data.fecha + "T00:00:00"));
 
-  const fechasConCambios = useMemo(() => new Set(data.fechas_con_cambios ?? []), [data.fechas_con_cambios]);
+  const fechasGuardadas = useMemo(
+    () => new Set(data.fechas_guardadas ?? []),
+    [data.fechas_guardadas],
+  );
+  const fechasConCambios = useMemo(
+    () => new Set(data.fechas_con_cambios ?? []),
+    [data.fechas_con_cambios],
+  );
+
+  // Patente por id, para poder mostrar "de qué camión a cuál".
+  const patentePorCamion = useMemo(
+    () => new Map(data.camiones.map((c) => [c.id, c.label])),
+    [data.camiones],
+  );
+
+  /** Una fila cambió si el camión que tiene ahora no es el que traía. */
+  const tieneCambio = (f: Fila) => f.camion_id !== f.camion_previo_id;
+
+  const filasConCambio = useMemo(() => filas.filter(tieneCambio), [filas]);
+  const filasVisibles = soloCambios ? filasConCambio : filas;
 
   const calendarCells = useMemo(() => {
     const year = currentMonth.getFullYear();
@@ -204,7 +251,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     setGuardando(false);
 
     if (res.ok) {
-      setResultado({ ok: true, mensaje: `Planilla guardada: ${res.guardadas} chofer(es) con camión. Queda fijo hasta que lo cambies.` });
+      setResultado({
+        ok: true,
+        mensaje:
+          res.cambios > 0
+            ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es). Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
+            : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
+      });
       router.refresh();
     } else {
       setResultado({ ok: false, mensaje: res.error });
@@ -213,6 +266,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   return (
     <div className="space-y-5">
+      <CambiosDrawer open={cambiosOpen} onClose={() => setCambiosOpen(false)} />
+
       {/* Barra superior: fecha + atajos */}
       <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex flex-wrap items-end gap-4">
         <div className="space-y-1 relative">
@@ -270,7 +325,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                   {calendarCells.map((cell) => {
                     const isSelected = cell.dateStr === data.fecha;
                     const isToday = cell.dateStr === data.hoy;
-                    const hasChanges = fechasConCambios.has(cell.dateStr);
+                    const guardada = fechasGuardadas.has(cell.dateStr);
+                    const conCambios = fechasConCambios.has(cell.dateStr);
                     const isFuture = cell.dateStr > data.hoy;
 
                     let btnClass = "h-8 w-8 text-xs rounded-full flex items-center justify-center transition-colors relative ";
@@ -284,7 +340,9 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
                     if (isSelected) {
                       btnClass += "bg-[#0088D1] text-white hover:bg-[#0088D1] font-bold ";
-                    } else if (hasChanges && cell.isCurrentMonth && !isFuture) {
+                    } else if (conCambios && cell.isCurrentMonth && !isFuture) {
+                      btnClass += "bg-amber-50 text-amber-700 hover:bg-amber-100/80 font-semibold border border-amber-300/70 ";
+                    } else if (guardada && cell.isCurrentMonth && !isFuture) {
                       btnClass += "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60 ";
                     }
 
@@ -298,7 +356,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                           setPickerOpen(false);
                         }}
                         className={btnClass}
-                        title={hasChanges ? "Planilla guardada" : undefined}
+                        title={
+                          conCambios
+                            ? "Planilla guardada · hubo cambios de camión"
+                            : guardada
+                              ? "Planilla guardada"
+                              : undefined
+                        }
                       >
                         {cell.dayNum}
                         {isToday && !isSelected && (
@@ -307,6 +371,17 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-border flex flex-col gap-1 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
+                    planilla guardada
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2.5 rounded-full bg-amber-50 border border-amber-300/70" />
+                    hubo cambio de camión
+                  </span>
                 </div>
               </div>
             </>
@@ -327,9 +402,35 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
             </Button>
           )}
           <ImprimirPlanillaButton fecha={data.fecha} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setCambiosOpen(true)}
+            className="gap-1.5 h-9 text-xs"
+            title="Ver todos los cambios de camión registrados"
+          >
+            <Repeat2 size={13} />
+            Cambios de camión
+          </Button>
         </div>
 
         <div className="self-center ml-auto flex items-center gap-3 text-xs text-muted-foreground/80">
+          {(filasConCambio.length > 0 || soloCambios) && (
+            <button
+              type="button"
+              onClick={() => setSoloCambios((v) => !v)}
+              title={soloCambios ? "Ver todos los choferes" : "Ver solo los que cambiaron"}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+                soloCambios
+                  ? "bg-amber-500 border-amber-500 text-white"
+                  : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100"
+              }`}
+            >
+              <Repeat2 size={12} />
+              {filasConCambio.length} {filasConCambio.length === 1 ? "cambio" : "cambios"} de camión
+            </button>
+          )}
           <span className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-emerald-500" /> libre
           </span>
@@ -341,8 +442,26 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         </div>
       </div>
 
+      {/* Ese día nunca se guardó planilla: no hay nada que comparar */}
+      {!editable && data.hay_planilla === false && (
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
+          <History size={16} className="shrink-0 mt-0.5 text-muted-foreground/60" />
+          <div className="flex-1">
+            <p className="font-medium text-foreground">
+              No se guardó planilla el {fmtFecha(data.fecha)}.
+            </p>
+            <p className="text-xs mt-0.5">
+              Elegí un día marcado en el calendario para ver qué camión manejó cada chofer.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-8 text-xs shrink-0">
+            <CalendarClock size={13} /> Ir a hoy
+          </Button>
+        </div>
+      )}
+
       {/* Aviso: fecha pasada = solo lectura (historial) */}
-      {!editable && (
+      {!editable && data.hay_planilla !== false && (
         <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
           <History size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
           <div className="flex-1">
@@ -356,7 +475,28 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               )}
             </p>
             <p className="text-xs mt-0.5">
-              Las asignaciones de días anteriores son solo lectura. Para cambiar qué camión maneja
+              {filasConCambio.length > 0 ? (
+                <>
+                  Ese día hubo{" "}
+                  <strong className="text-amber-700">
+                    {filasConCambio.length}{" "}
+                    {filasConCambio.length === 1 ? "cambio" : "cambios"} de camión
+                  </strong>
+                  {data.fecha_anterior && (
+                    <> respecto de la planilla del {fmtFecha(data.fecha_anterior)}</>
+                  )}
+                  . Se marcan en la columna <em>Cambio</em>.
+                </>
+              ) : (
+                <>
+                  Ese día no hubo cambios de camión
+                  {data.fecha_anterior && (
+                    <> respecto de la planilla del {fmtFecha(data.fecha_anterior)}</>
+                  )}
+                  .
+                </>
+              )}{" "}
+              Las asignaciones de días anteriores son solo lectura: para cambiar qué camión maneja
               cada chofer, volvé a la planilla de hoy.
             </p>
           </div>
@@ -372,7 +512,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="bg-muted/40">
-                {["Chofer", "Camión del día", "Observaciones"].map((h) => (
+                {["Chofer", "Camión del día", "Cambio", "Observaciones"].map((h) => (
                   <th
                     key={h}
                     className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide text-xs border-b border-border whitespace-nowrap"
@@ -383,13 +523,16 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               </tr>
             </thead>
             <tbody>
-              {filas.map((f) => {
+              {filasVisibles.map((f) => {
                 const esHabitual = !!f.camion_id && f.camion_id === f.camion_habitual_id;
                 const duplicado = !!f.camion_id && camionesDuplicados.has(f.camion_id);
+                const cambio = tieneCambio(f);
                 return (
                   <tr
                     key={f.chofer_id}
-                    className={`border-b border-border/60 hover:bg-muted/20 transition-colors ${duplicado ? "bg-red-50/50" : ""}`}
+                    className={`border-b border-border/60 hover:bg-muted/20 transition-colors ${
+                      duplicado ? "bg-red-50/50" : cambio ? "bg-amber-50/40" : ""
+                    }`}
                   >
                     {/* Chofer */}
                     <td className="px-3 py-1.5 whitespace-nowrap">
@@ -440,6 +583,24 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       </div>
                     </td>
 
+                    {/* Cambio de unidad: de qué camión venía y a cuál pasó */}
+                    <td className="px-3 py-1.5">
+                      {cambio ? (
+                        <CambioCamion
+                          antes={
+                            f.camion_previo_id
+                              ? f.camion_previo_patente ??
+                                patentePorCamion.get(f.camion_previo_id) ??
+                                null
+                              : null
+                          }
+                          ahora={f.camion_id ? patentePorCamion.get(f.camion_id) ?? null : null}
+                        />
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+
                     {/* Observaciones */}
                     <td className="px-3 py-1.5">
                       <input
@@ -455,10 +616,12 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                   </tr>
                 );
               })}
-              {filas.length === 0 && (
+              {filasVisibles.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                    No hay choferes activos.
+                  <td colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                    {soloCambios
+                      ? "No hubo cambios de camión."
+                      : "No hay choferes activos."}
                   </td>
                 </tr>
               )}

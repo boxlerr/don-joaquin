@@ -46,7 +46,7 @@ type Filters = {
 // pertenecen a esa área, para filtrar la auditoría como se navega el sistema.
 const ENTIDAD_TABS = [
   { key: "todas", label: "Todas", icon: ListChecks, tipos: [] as string[] },
-  { key: "logistica", label: "Logística", icon: MapPin, tipos: ["viaje", "hoja_ruta", "ruta", "carga_combustible"] },
+  { key: "logistica", label: "Logística", icon: MapPin, tipos: ["viaje", "hoja_ruta", "ruta", "carga_combustible", "planilla_diaria"] },
   { key: "flota", label: "Flota", icon: Truck, tipos: ["camion", "mantenimiento", "rotura_goma", "insumo_catalogo"] },
   { key: "seguridad", label: "Seguridad", icon: ShieldAlert, tipos: ["siniestro", "extintor"] },
   { key: "rrhh", label: "RR.HH.", icon: IdCard, tipos: ["chofer", "entrevista", "rotacion_baja", "pesos_score_chofer"] },

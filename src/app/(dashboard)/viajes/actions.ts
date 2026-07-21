@@ -413,8 +413,12 @@ export async function getViajeFormData(): Promise<ViajeFormData | { error: strin
     }
   }
 
-  for (const a of (asignacionesHoyRes.data ?? []) as { chofer_id: string; camion_id: string }[]) {
-    camionPorChofer.set(a.chofer_id, a.camion_id);
+  for (const a of (asignacionesHoyRes.data ?? []) as {
+    chofer_id: string;
+    camion_id: string | null;
+  }[]) {
+    // camion_id null = la planilla de hoy lo dejó sin unidad; no pisamos el habitual.
+    if (a.camion_id) camionPorChofer.set(a.chofer_id, a.camion_id);
   }
 
   // Ausencia más próxima por chofer (la de fecha_inicio menor). enCurso = ya empezó.

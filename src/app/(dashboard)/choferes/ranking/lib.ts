@@ -626,7 +626,9 @@ export async function computeScoreChofer(
   for (const h of (historial ?? []) as { camion_id: string; desde: string; hasta: string | null }[]) {
     if (h.desde <= hasta && (!h.hasta || h.hasta >= desde)) camIds.add(h.camion_id);
   }
-  for (const a of (asignacionDiaria ?? []) as { camion_id: string }[]) camIds.add(a.camion_id);
+  for (const a of (asignacionDiaria ?? []) as { camion_id: string | null }[]) {
+    if (a.camion_id) camIds.add(a.camion_id);
+  }
 
   // Capacidad de los camiones que no son el actual (historial/asignación).
   const faltanCap = [...camIds].filter((id) => !capacidadPorCamion.has(id));

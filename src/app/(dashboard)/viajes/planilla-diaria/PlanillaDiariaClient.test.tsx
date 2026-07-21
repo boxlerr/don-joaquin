@@ -1,0 +1,162 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, within, fireEvent } from "@testing-library/react";
+import PlanillaDiariaClient from "./PlanillaDiariaClient";
+import type { PlanillaDiariaData } from "./actions";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
+vi.mock("./actions", () => ({
+  guardarPlanillaDiariaAction: vi.fn(),
+}));
+
+vi.mock("./ImprimirPlanillaButton", () => ({
+  default: () => null,
+}));
+
+vi.mock("./CambiosDrawer", () => ({
+  default: () => null,
+}));
+
+const CAMIONES = [
+  { id: "cam-a", label: "AD916TF" },
+  { id: "cam-b", label: "AE601GF" },
+  { id: "cam-c", label: "AF696CW" },
+];
+
+/** Planilla de una fecha pasada (historial, solo lectura). */
+function historial(
+  overrides: Partial<PlanillaDiariaData["choferes"][number]>[] = [],
+): PlanillaDiariaData {
+  const base = [
+    {
+      chofer_id: "ch-1",
+      nombre: "Marcelo",
+      apellido: "Bustos",
+      camion_habitual_id: "cam-a",
+      camion_habitual_patente: "AD916TF",
+      camion_asignado_id: "cam-b",
+      // Ese día pasó de AD916TF a AE601GF.
+      camion_previo_id: "cam-a",
+      camion_previo_patente: "AD916TF",
+      observaciones: null,
+    },
+    {
+      chofer_id: "ch-2",
+      nombre: "Pablo",
+      apellido: "Acosta",
+      camion_habitual_id: "cam-c",
+      camion_habitual_patente: "AF696CW",
+      camion_asignado_id: "cam-c",
+      // Sin cambio: el previo es el mismo camión.
+      camion_previo_id: "cam-c",
+      camion_previo_patente: "AF696CW",
+      observaciones: null,
+    },
+  ];
+
+  return {
+    fecha: "2026-07-13",
+    hoy: "2026-07-21",
+    editable: false,
+    choferes: base.map((c, i) => ({ ...c, ...(overrides[i] ?? {}) })),
+    camiones: CAMIONES,
+    guardado_por: "Bárbara Joaquín",
+    guardado_el: "2026-07-13T12:36:13.000Z",
+    fechas_guardadas: ["2026-07-06", "2026-07-13"],
+    fechas_con_cambios: ["2026-07-13"],
+    fecha_anterior: "2026-07-06",
+    hay_planilla: true,
+  };
+}
+
+function filaDe(apellido: string): HTMLElement {
+  return screen.getByText(new RegExp(`^${apellido},`)).closest("tr") as HTMLElement;
+}
+
+describe("PlanillaDiariaClient · marca de cambio de camión", () => {
+  it("muestra de qué camión a cuál pasó el chofer que cambió", () => {
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    const fila = filaDe("Bustos");
+    expect(within(fila).getByTitle("Cambió de AD916TF a AE601GF")).toBeInTheDocument();
+  });
+
+  it("no marca cambio en el chofer que siguió con el mismo camión", () => {
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    const fila = filaDe("Acosta");
+    expect(within(fila).getByText("—")).toBeInTheDocument();
+  });
+
+  it("cuenta los cambios del día y lo dice en el cartel del historial", () => {
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    // El chip del encabezado y el cartel del historial dicen lo mismo.
+    expect(screen.getAllByText(/1 cambio de camión/)).toHaveLength(2);
+    expect(
+      screen.getByText(/respecto de la planilla del 06\/07\/2026/).textContent,
+    ).toMatch(/1 cambio de camión/);
+  });
+
+  it("filtra a solo los choferes que cambiaron", () => {
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    fireEvent.click(screen.getByTitle("Ver solo los que cambiaron"));
+
+    expect(screen.getByText(/^Bustos,/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Acosta,/)).not.toBeInTheDocument();
+  });
+
+  it("muestra 'Sin camión' cuando el chofer se quedó sin unidad", () => {
+    const data = historial([
+      { camion_asignado_id: null, camion_previo_id: "cam-a", camion_previo_patente: "AD916TF" },
+    ]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const fila = filaDe("Bustos");
+    expect(within(fila).getByTitle("Cambió de AD916TF a sin camión")).toBeInTheDocument();
+    expect(within(fila).getByText("Sin camión")).toBeInTheDocument();
+  });
+
+  it("no inventa cambios en un día sin planilla guardada", () => {
+    // Regresión: antes comparaba contra la última planilla y marcaba a TODOS
+    // los choferes como "cambió a sin camión".
+    const data = {
+      ...historial(),
+      hay_planilla: false,
+      choferes: historial().choferes.map((c) => ({
+        ...c,
+        camion_asignado_id: null,
+        camion_previo_id: null,
+        camion_previo_patente: null,
+      })),
+    };
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(screen.getByText(/No se guardó planilla el 13\/07\/2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/cambios? de camión/)).not.toBeInTheDocument();
+  });
+
+  it("deja apagar el filtro aunque ya no queden cambios", () => {
+    // Regresión: el chip se desmontaba al quedar 0 cambios y la planilla entera
+    // quedaba escondida sin forma de volver.
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    fireEvent.click(screen.getByTitle("Ver solo los que cambiaron"));
+    expect(screen.queryByText(/^Acosta,/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Ver todos los choferes"));
+    expect(screen.getByText(/^Acosta,/)).toBeInTheDocument();
+  });
+
+  it("avisa cuando ese día no hubo ningún cambio", () => {
+    const data = historial([
+      { camion_asignado_id: "cam-a", camion_previo_id: "cam-a", camion_previo_patente: "AD916TF" },
+    ]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(screen.getByText(/no hubo cambios de camión/)).toBeInTheDocument();
+  });
+});

@@ -188,7 +188,9 @@ export type Database = {
       }
       asignacion_diaria: {
         Row: {
-          camion_id: string
+          cambio: boolean
+          camion_anterior_id: string | null
+          camion_id: string | null
           chofer_id: string
           created_at: string
           created_by: string | null
@@ -199,7 +201,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          camion_id: string
+          cambio?: boolean
+          camion_anterior_id?: string | null
+          camion_id?: string | null
           chofer_id: string
           created_at?: string
           created_by?: string | null
@@ -210,7 +214,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          camion_id?: string
+          cambio?: boolean
+          camion_anterior_id?: string | null
+          camion_id?: string | null
           chofer_id?: string
           created_at?: string
           created_by?: string | null
