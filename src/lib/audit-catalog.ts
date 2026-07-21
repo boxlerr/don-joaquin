@@ -80,6 +80,7 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   rotacion_baja: "Baja de chofer",
   planilla_diaria: "Planilla diaria",
   tarifa: "Tarifa",
+  cliente_aumento: "Aumento de cliente",
   ruta: "Ruta",
   entrevista: "Entrevista",
   compliance_liq_loma: "Liquidación de Loma",

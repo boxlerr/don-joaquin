@@ -163,6 +163,8 @@ export type MetricasData = {
   /** Aumentos clientes vs sueldos, interanual (pedido Bárbara 14/07). */
   paridad: Paridad;
   canWrite: boolean;
+  /** Puede ver /tarifas → los aumentos linkean al historial por cliente. */
+  canTarifas: boolean;
 };
 
 function mesInfo(monthStr?: string): string {
@@ -677,6 +679,7 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
     comparacion,
     paridad,
     canWrite: hasSeccion(user, "metricas", "write"),
+    canTarifas: hasSeccion(user, "tarifas", "read"),
   };
 }
 
@@ -734,6 +737,7 @@ export async function crearAumentoClienteAction(input: {
   });
 
   revalidatePath("/metricas");
+  revalidatePath("/tarifas");
   return { ok: true };
 }
 
@@ -764,5 +768,6 @@ export async function eliminarAumentoClienteAction(id: string): Promise<{ ok: tr
   });
 
   revalidatePath("/metricas");
+  revalidatePath("/tarifas");
   return { ok: true };
 }

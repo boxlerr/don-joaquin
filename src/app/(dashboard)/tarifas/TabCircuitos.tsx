@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   CheckCircle2,
+  Download,
   PauseCircle,
   Pencil,
   Plus,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ModalNuevoCircuito from "./ModalNuevoCircuito";
+import ImportarCircuitosDialog from "./ImportarCircuitosDialog";
 import {
   cambiarEstadoCircuito,
   obtenerCircuitos,
@@ -35,6 +37,7 @@ export default function TabCircuitos({
   const [busqueda, setBusqueda] = useState("");
   const [soloActivos, setSoloActivos] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editar, setEditar] = useState<CircuitoConRelaciones | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -127,6 +130,17 @@ export default function TabCircuitos({
           {canWrite && (
             <Button
               type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+            >
+              <Download size={13} />
+              Importar desde viajes
+            </Button>
+          )}
+          {canWrite && (
+            <Button
+              type="button"
               variant="brand"
               size="sm"
               onClick={() => {
@@ -142,12 +156,23 @@ export default function TabCircuitos({
       </div>
 
       {filtrados.length === 0 ? (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center space-y-3">
           <p className="text-muted-foreground text-sm">
             {circuitos.length === 0
-              ? "Aún no hay circuitos cargados. Creá el primero con el botón Nuevo circuito."
+              ? "Aún no hay circuitos cargados. Podés importarlos automáticamente desde los viajes ya cargados (cada recorrido con su km), o crear uno con Nuevo circuito."
               : "No se encontraron circuitos con esos filtros."}
           </p>
+          {circuitos.length === 0 && canWrite && (
+            <Button
+              type="button"
+              variant="brand"
+              size="sm"
+              onClick={() => setImportOpen(true)}
+            >
+              <Download size={13} />
+              Importar desde viajes
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
@@ -256,6 +281,22 @@ export default function TabCircuitos({
           onSaved={onSaved}
           puntos={puntos}
           circuito={editar}
+        />
+      )}
+
+      {importOpen && (
+        <ImportarCircuitosDialog
+          open
+          onClose={() => setImportOpen(false)}
+          onImported={(creados) => {
+            setImportOpen(false);
+            setSavedFlash(`${creados} circuito${creados === 1 ? "" : "s"} importado${creados === 1 ? "" : "s"}`);
+            if (flashTimer.current) clearTimeout(flashTimer.current);
+            flashTimer.current = setTimeout(() => setSavedFlash(null), 3500);
+            startTransition(() => {
+              refresh();
+            });
+          }}
         />
       )}
     </div>

@@ -232,12 +232,28 @@ export default function ResumenTab({
 
               {p.clientes.porCliente.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {p.clientes.porCliente.map((c) => (
-                    <span key={c.nombre} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
-                      {c.nombre} <span className="font-mono text-amber-600">{fmtPct(c.acumulado)}</span>
-                      {c.cantidad > 1 ? ` (${c.cantidad} aumentos)` : ""}
-                    </span>
-                  ))}
+                  {p.clientes.porCliente.map((c) => {
+                    const chip = (
+                      <>
+                        {c.nombre} <span className="font-mono text-amber-600">{fmtPct(c.acumulado)}</span>
+                        {c.cantidad > 1 ? ` (${c.cantidad} aumentos)` : ""}
+                      </>
+                    );
+                    return data.canTarifas ? (
+                      <Link
+                        key={c.nombre}
+                        href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c.nombre)}`}
+                        title={`Ver el historial de ${c.nombre} en Tarifas`}
+                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                      >
+                        {chip}
+                      </Link>
+                    ) : (
+                      <span key={c.nombre} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
+                        {chip}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -248,7 +264,13 @@ export default function ResumenTab({
           <p className="text-[11px] text-muted-foreground">
             Aumentos de tarifa mes a mes — la fila <span className="font-medium">Interanual</span> se compone y alimenta el card de arriba.
           </p>
-          <Link href="/clientes" className="shrink-0 text-[11px] text-primary hover:underline">Clientes</Link>
+          {data.canTarifas ? (
+            <Link href="/tarifas?tab=aumentos" className="shrink-0 text-[11px] text-primary hover:underline">
+              Ver historial en Tarifas →
+            </Link>
+          ) : (
+            <Link href="/clientes" className="shrink-0 text-[11px] text-primary hover:underline">Clientes</Link>
+          )}
         </div>
         {aumentosMes.clientes.length ? (
           <>
@@ -258,7 +280,19 @@ export default function ResumenTab({
                   <tr className="border-b border-border bg-muted/40">
                     <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Mes</th>
                     {aumentosMes.clientes.map((c) => (
-                      <th key={c} className="px-2 py-1.5 text-right font-medium text-foreground">{c}</th>
+                      <th key={c} className="px-2 py-1.5 text-right font-medium text-foreground">
+                        {data.canTarifas ? (
+                          <Link
+                            href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c)}`}
+                            title={`Ver el historial de ${c} en Tarifas`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {c}
+                          </Link>
+                        ) : (
+                          c
+                        )}
+                      </th>
                     ))}
                   </tr>
                 </thead>
