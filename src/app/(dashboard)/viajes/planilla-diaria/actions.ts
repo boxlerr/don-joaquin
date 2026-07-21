@@ -56,8 +56,11 @@ export type PlanillaDiariaData = {
   fechas_con_cambios?: string[];
   /** Última fecha con planilla guardada anterior a la que se está viendo. */
   fecha_anterior?: string | null;
-  /** false = ese día nunca se guardó la planilla (no hay nada que comparar). */
+  /** false = no hay ninguna planilla vigente para esa fecha (es anterior a la
+   *  primera que se guardó, así que no sabemos qué manejaba cada chofer). */
   hay_planilla?: boolean;
+  /** Si ese día no se guardó planilla propia, la fecha de la que sigue vigente. */
+  vigente_desde?: string | null;
 };
 
 /**
@@ -143,6 +146,34 @@ export async function getPlanillaDiariaData(
     asigPorChofer.set(a.chofer_id, a);
   }
 
+  // La planilla se ARRASTRA: mientras no se cambie nada, sigue rigiendo la última
+  // guardada. Así que un día sin planilla propia no está "sin asignar" — muestra
+  // la vigente, y ningún chofer figura como cambio (el cambio pasó otro día).
+  const propia = asigPorChofer.size > 0;
+  let vigente_desde: string | null = null;
+  if (!editable && !propia && fecha_anterior) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: vigenteRows } = await (supabase as any)
+      .from("asignacion_diaria")
+      .select("chofer_id, camion_id, observaciones")
+      .eq("fecha", fecha_anterior);
+    for (const v of (vigenteRows ?? []) as {
+      chofer_id: string;
+      camion_id: string | null;
+      observaciones: string | null;
+    }[]) {
+      asigPorChofer.set(v.chofer_id, {
+        chofer_id: v.chofer_id,
+        camion_id: v.camion_id,
+        // Heredada: el camión venía de antes, así que no hubo cambio ESE día.
+        camion_anterior_id: v.camion_id,
+        cambio: false,
+        observaciones: v.observaciones,
+      });
+    }
+    if (asigPorChofer.size > 0) vigente_desde = fecha_anterior;
+  }
+
   // Las planillas viejas (anteriores a esta función) no guardaban fila para el
   // chofer que quedaba sin unidad, así que para esos casos el "anterior" lo
   // sacamos de la última planilla guardada. Solo aplica si ese día EFECTIVAMENTE
@@ -150,7 +181,7 @@ export async function getPlanillaDiariaData(
   const hayPlanilla = asigPorChofer.size > 0;
   const previoSnapshotAnterior = new Map<string, string>();
   const faltanFila = (choferesRes.data ?? []).some((c) => !asigPorChofer.has(c.id));
-  if (!editable && hayPlanilla && fecha_anterior && faltanFila) {
+  if (!editable && propia && fecha_anterior && faltanFila) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: prevRows } = await (supabase as any)
       .from("asignacion_diaria")
@@ -166,8 +197,8 @@ export async function getPlanillaDiariaData(
     const habitual = habitualPorChofer.get(c.id) ?? null;
     const habitualPatente = habitual ? patentePorCamion.get(habitual) ?? null : null;
 
-    // HOY: la asignación fija manda (sincronizada con el legajo).
-    // Otras fechas: exactamente lo que se guardó ese día (sin fila = sin camión).
+    // HOY: la asignación fija manda (sincronizada con el legajo). Otras fechas:
+    // lo que regía ese día (planilla propia o, si no hubo, la que venía vigente).
     const asignado = editable ? habitual : asig?.camion_id ?? null;
 
     // Referencia para marcar el cambio. Si el chofer tiene fila, el anterior real
@@ -194,7 +225,8 @@ export async function getPlanillaDiariaData(
   let guardado_por: string | null = null;
   let guardado_el: string | null = null;
   
-  if (!editable && (asignacionesRes.data ?? []).length > 0) {
+  const fechaVigente = propia ? fecha : vigente_desde;
+  if (!editable && fechaVigente) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: metaData } = await (supabase as any)
       .from("asignacion_diaria")
@@ -202,7 +234,7 @@ export async function getPlanillaDiariaData(
         updated_at,
         usuarios!updated_by (nombre, apellido)
       `)
-      .eq("fecha", fecha)
+      .eq("fecha", fechaVigente)
       .limit(1)
       .maybeSingle();
 
@@ -236,6 +268,7 @@ export async function getPlanillaDiariaData(
     fechas_con_cambios: [...conCambios],
     fecha_anterior,
     hay_planilla: editable || hayPlanilla,
+    vigente_desde,
   };
 }
 
@@ -268,8 +301,15 @@ export async function getPlanillaImpresionAction(
       .or("rol.is.null,rol.eq.chofer")
       .order("apellido", { ascending: true }),
     supabase.from("camiones").select("id, patente, chofer_actual_id").eq("estado", "activo"),
+    // La planilla se arrastra: si ese día no se guardó una nueva, imprimimos la
+    // que seguía vigente (la última guardada hasta esa fecha).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from("asignacion_diaria").select("chofer_id, camion_id").eq("fecha", fecha),
+    (supabase as any)
+      .from("asignacion_diaria")
+      .select("chofer_id, camion_id, fecha")
+      .lte("fecha", fecha)
+      .order("fecha", { ascending: false })
+      .limit(500),
     supabase.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
     supabase.from("acoplados").select("id, patente"),
   ]);
@@ -286,12 +326,16 @@ export async function getPlanillaImpresionAction(
     if (chid) habitualPorChofer.set(chid, c.id);
   }
 
-  const asigPorChofer = new Map<string, string | null>();
-  for (const a of (asignacionesRes.data ?? []) as {
+  // Nos quedamos solo con la planilla vigente (la fecha más nueva del lote).
+  const filasVigentes = (asignacionesRes.data ?? []) as {
     chofer_id: string;
     camion_id: string | null;
-  }[]) {
-    asigPorChofer.set(a.chofer_id, a.camion_id);
+    fecha: string;
+  }[];
+  const fechaVigente = filasVigentes[0]?.fecha ?? null;
+  const asigPorChofer = new Map<string, string | null>();
+  for (const a of filasVigentes) {
+    if (a.fecha === fechaVigente) asigPorChofer.set(a.chofer_id, a.camion_id);
   }
 
   const patenteAcoplado = new Map<string, string>();

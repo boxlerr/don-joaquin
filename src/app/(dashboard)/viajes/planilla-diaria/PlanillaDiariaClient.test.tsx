@@ -68,6 +68,7 @@ function historial(
     fechas_con_cambios: ["2026-07-13"],
     fecha_anterior: "2026-07-06",
     hay_planilla: true,
+    vigente_desde: null,
   };
 }
 
@@ -120,13 +121,35 @@ describe("PlanillaDiariaClient · marca de cambio de camión", () => {
     expect(within(fila).getByText("Sin camión")).toBeInTheDocument();
   });
 
-  it("no inventa cambios en un día sin planilla guardada", () => {
-    // Regresión: antes comparaba contra la última planilla y marcaba a TODOS
-    // los choferes como "cambió a sin camión".
+  it("arrastra la planilla vigente en un día sin planilla propia", () => {
+    // La planilla sigue rigiendo hasta que se cambia: ese día no está "sin
+    // asignar", tiene las mismas unidades y ningún cambio marcado.
+    const base = historial();
     const data = {
-      ...historial(),
+      ...base,
+      vigente_desde: "2026-07-06",
+      choferes: base.choferes.map((c) => ({
+        ...c,
+        // Heredada: el previo es el mismo camión, así que no hay cambio.
+        camion_previo_id: c.camion_asignado_id,
+        camion_previo_patente: null,
+      })),
+    };
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(
+      screen.getByText(/seguía vigente la del/).textContent,
+    ).toMatch(/06\/07\/2026/);
+    expect(within(filaDe("Bustos")).getByText("AE601GF")).toBeInTheDocument();
+    expect(screen.queryByText(/cambios? de camión/)).not.toBeInTheDocument();
+  });
+
+  it("avisa cuando la fecha es anterior a la primera planilla", () => {
+    const base = historial();
+    const data = {
+      ...base,
       hay_planilla: false,
-      choferes: historial().choferes.map((c) => ({
+      choferes: base.choferes.map((c) => ({
         ...c,
         camion_asignado_id: null,
         camion_previo_id: null,
@@ -135,7 +158,7 @@ describe("PlanillaDiariaClient · marca de cambio de camión", () => {
     };
     render(<PlanillaDiariaClient data={data} />);
 
-    expect(screen.getByText(/No se guardó planilla el 13\/07\/2026/)).toBeInTheDocument();
+    expect(screen.getByText(/No hay planilla registrada al 13\/07\/2026/)).toBeInTheDocument();
     expect(screen.queryByText(/cambios? de camión/)).not.toBeInTheDocument();
   });
 
@@ -157,6 +180,6 @@ describe("PlanillaDiariaClient · marca de cambio de camión", () => {
     ]);
     render(<PlanillaDiariaClient data={data} />);
 
-    expect(screen.getByText(/no hubo cambios de camión/)).toBeInTheDocument();
+    expect(screen.getByText(/sin cambios de camión/)).toBeInTheDocument();
   });
 });

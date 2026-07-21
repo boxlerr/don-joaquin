@@ -448,10 +448,11 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <History size={16} className="shrink-0 mt-0.5 text-muted-foreground/60" />
           <div className="flex-1">
             <p className="font-medium text-foreground">
-              No se guardó planilla el {fmtFecha(data.fecha)}.
+              No hay planilla registrada al {fmtFecha(data.fecha)}.
             </p>
             <p className="text-xs mt-0.5">
-              Elegí un día marcado en el calendario para ver qué camión manejó cada chofer.
+              Es anterior a la primera planilla guardada, así que no sabemos qué camión
+              manejaba cada chofer ese día.
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-8 text-xs shrink-0">
@@ -475,7 +476,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               )}
             </p>
             <p className="text-xs mt-0.5">
-              {filasConCambio.length > 0 ? (
+              {data.vigente_desde ? (
+                <>
+                  Ese día no se cargó una planilla nueva: seguía vigente la del{" "}
+                  <strong className="text-foreground">{fmtFecha(data.vigente_desde)}</strong>, con
+                  las mismas unidades.
+                </>
+              ) : filasConCambio.length > 0 ? (
                 <>
                   Ese día hubo{" "}
                   <strong className="text-amber-700">
@@ -489,9 +496,9 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                 </>
               ) : (
                 <>
-                  Ese día no hubo cambios de camión
+                  Ese día se guardó la planilla sin cambios de camión
                   {data.fecha_anterior && (
-                    <> respecto de la planilla del {fmtFecha(data.fecha_anterior)}</>
+                    <> respecto de la del {fmtFecha(data.fecha_anterior)}</>
                   )}
                   .
                 </>
