@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { actualizarParametrosBulk } from "./actions";
 import { getValidacion, type ValidacionParametro } from "./validaciones";
-import { displayValorParam, esAvanzado, moduloDeParam, type Parametro } from "./meta";
+import { displayValorParam, esAvanzado, etiquetaParam, moduloDeParam, type Parametro } from "./meta";
 
 type FieldError = { clave: string; error: string };
 
@@ -91,12 +91,9 @@ export default function BulkEditForm({
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-foreground text-sm font-medium">{p.descripcion ?? p.clave}</p>
+                  <p className="text-foreground text-sm font-medium">{etiquetaParam(p)}</p>
                   {changed && <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#0088D1]" />}
                 </div>
-                <p className="text-muted-foreground/70 text-[11px] mt-0.5 font-mono truncate">
-                  {p.clave}
-                </p>
                 {fieldError && <p className="text-[#DC2626] text-xs mt-1">{fieldError}</p>}
               </div>
 
@@ -105,7 +102,7 @@ export default function BulkEditForm({
                   <BooleanToggleBulk
                     value={values[p.id] === "true"}
                     disabled={isPending}
-                    nombre={p.descripcion ?? p.clave}
+                    nombre={etiquetaParam(p)}
                     onChange={(v) =>
                       setValues((prev) => ({ ...prev, [p.id]: v ? "true" : "false" }))
                     }
@@ -153,10 +150,7 @@ export default function BulkEditForm({
           return (
             <div key={p.id} className="flex items-start gap-4 px-4 py-3.5 bg-muted/20">
               <div className="flex-1 min-w-0">
-                <p className="text-foreground text-sm font-medium">{p.descripcion ?? p.clave}</p>
-                <p className="text-muted-foreground/70 text-[11px] mt-0.5 font-mono truncate">
-                  {p.clave}
-                </p>
+                <p className="text-foreground text-sm font-medium">{etiquetaParam(p)}</p>
               </div>
               <div className="shrink-0">
                 {modulo ? (
@@ -178,10 +172,7 @@ export default function BulkEditForm({
         {readOnly.map((p) => (
           <div key={p.id} className="flex items-start gap-4 px-4 py-3.5 opacity-70">
             <div className="flex-1 min-w-0">
-              <p className="text-foreground text-sm font-medium">{p.descripcion ?? p.clave}</p>
-              <p className="text-muted-foreground/70 text-[11px] mt-0.5 font-mono truncate">
-                {p.clave}
-              </p>
+              <p className="text-foreground text-sm font-medium">{etiquetaParam(p)}</p>
             </div>
             <div className="shrink-0 flex items-center gap-2">
               <span

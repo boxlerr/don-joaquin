@@ -30,14 +30,12 @@ export default function HistorialDrawer({
   onClose,
   parametroId,
   parametroDescripcion,
-  parametroClave,
   parametroTipo,
 }: {
   open: boolean;
   onClose: () => void;
   parametroId: string;
   parametroDescripcion: string;
-  parametroClave: string;
   parametroTipo: string;
 }) {
   const [eventos, setEventos] = useState<HistorialEvento[]>([]);
@@ -150,7 +148,6 @@ export default function HistorialDrawer({
               <History size={16} />
               <h2 className="text-base font-bold truncate">{parametroDescripcion}</h2>
             </div>
-            <p className="text-xs text-blue-100 mt-0.5 font-mono truncate">{parametroClave}</p>
           </div>
           <button
             ref={cerrarRef}

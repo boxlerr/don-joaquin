@@ -27,6 +27,7 @@ import {
   CATEGORY_ORDER,
   displayValorParam,
   esAvanzado,
+  etiquetaParam,
   getCategoryMeta,
   moduloDeParam,
   type Parametro,
@@ -114,7 +115,7 @@ export default function ParametrosList({
           />
           <Input
             type="search"
-            placeholder="Buscar parámetro por nombre, clave o categoría…"
+            placeholder="Buscar parámetro por nombre o categoría…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="h-9 pl-9 text-sm"
@@ -281,8 +282,7 @@ export default function ParametrosList({
         open={historialParam !== null}
         onClose={() => setHistorialParam(null)}
         parametroId={historialParam?.id ?? ""}
-        parametroDescripcion={historialParam?.descripcion ?? historialParam?.clave ?? ""}
-        parametroClave={historialParam?.clave ?? ""}
+        parametroDescripcion={historialParam ? etiquetaParam(historialParam) : ""}
         parametroTipo={historialParam?.tipo_dato ?? "string"}
       />
     </div>
@@ -351,12 +351,7 @@ function ParametroRow({
   return (
     <div className="flex items-start gap-4 px-4 py-3.5 hover:bg-muted/20 transition-colors">
       <div className="flex-1 min-w-0">
-        <p className="text-foreground text-sm font-medium">
-          {parametro.descripcion ?? parametro.clave}
-        </p>
-        <p className="text-muted-foreground/70 text-[11px] mt-0.5 font-mono truncate">
-          {parametro.clave}
-        </p>
+        <p className="text-foreground text-sm font-medium">{etiquetaParam(parametro)}</p>
         {error && (
           <p role="alert" className="text-[#DC2626] text-xs mt-1.5">
             {error}
@@ -405,7 +400,7 @@ function ParametroRow({
             disabled={isPending}
             onToggle={onToggleBoolean}
             saved={saved}
-            nombre={parametro.descripcion ?? parametro.clave}
+            nombre={etiquetaParam(parametro)}
           />
         )}
 
@@ -429,7 +424,7 @@ function ParametroRow({
                 variant="ghost"
                 size="icon-sm"
                 onClick={onEdit}
-                aria-label={`Editar ${parametro.clave}`}
+                aria-label={`Editar ${etiquetaParam(parametro)}`}
               >
                 <Pencil size={13} />
               </Button>
@@ -504,7 +499,7 @@ function ParametroRow({
           variant="ghost"
           size="icon-sm"
           onClick={onOpenHistorial}
-          aria-label={`Ver historial de ${parametro.clave}`}
+          aria-label={`Ver historial de ${etiquetaParam(parametro)}`}
           title="Ver historial de cambios"
           className="text-muted-foreground/70 hover:text-primary"
         >

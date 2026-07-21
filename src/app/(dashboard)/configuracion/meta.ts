@@ -124,6 +124,21 @@ export const CATEGORY_LINK: Record<string, { href: string; label: string }> = {
 };
 
 /**
+ * Nombre legible a partir de la clave técnica, para los parámetros que no
+ * traen descripción: `sesion_inactividad_horas` → "Sesión inactividad horas".
+ * La clave con guiones bajos no se muestra nunca en pantalla.
+ */
+export function humanizarClave(clave: string): string {
+  const texto = clave.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Cómo se llama un parámetro para el usuario: su descripción, no su clave. */
+export function etiquetaParam(p: Parametro): string {
+  return p.descripcion?.trim() || humanizarClave(p.clave);
+}
+
+/**
  * Claves que se muestran y editan en la ficha "Datos de la empresa" (arriba de
  * la lista), así que se ocultan de la lista de parámetros para no duplicarlas.
  */
