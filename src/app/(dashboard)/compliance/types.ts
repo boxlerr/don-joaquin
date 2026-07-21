@@ -49,6 +49,28 @@ export type ComplianceEstadoRow = {
   observaciones?: string | null;
 };
 
+/**
+ * Ficha de una unidad para la cabecera del checklist. `v_compliance_estado` solo
+ * trae `camion_id` + `camion_patente`, así que estos datos se traen aparte de
+ * `camiones` (mismo criterio que las observaciones, ver `adjuntarObservaciones`):
+ * la vista también la consume `lib/alertas.ts` y no conviene ensancharla.
+ */
+export type UnidadInfo = {
+  patente: string;
+  marca: string | null;
+  modelo: string | null;
+  ano: number | null;
+  capacidad_tn: number | null;
+  tipo_camion: string | null;
+  tercerizacion_estado: "interno" | "en_transicion" | "tercerizado" | null;
+  km_actual: number | null;
+  /** Chofer asignado hoy (`camiones.chofer_actual_id`) — misma fuente que el legajo. */
+  chofer_id: string | null;
+  chofer_nombre: string | null;
+  /** Patentes de los acoplados vinculados vigentes (`camion_acoplados.hasta is null`). */
+  acoplados: string[];
+};
+
 export type ProximaPresentacion = ComplianceEstadoRow & {
   // los campos extra los suma el caller
 };

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ShieldCheck, FileCheck2, ClipboardList, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
-import StatCard from "@/components/ui/StatCard";
 import ComplianceChecklistPage from "./components/ComplianceChecklistPage";
 import OrganismoChecklistPage from "./organismos/OrganismoChecklistPage";
 import Form931Client from "./form-931/Form931Client";
@@ -12,10 +11,15 @@ import type {
   ComplianceEstadoRow,
   ComplianceRequisito,
   OrganismoChecklistRow,
+  UnidadInfo,
 } from "./types";
 import type { Form931Row } from "./form-931/actions";
 
-type ClienteData = { rows: ComplianceEstadoRow[]; requisitos: ComplianceRequisito[] };
+type ClienteData = {
+  rows: ComplianceEstadoRow[];
+  requisitos: ComplianceRequisito[];
+  unidades: Record<string, UnidadInfo>;
+};
 type OrganismoData = {
   destinatario: ComplianceDestinatario;
   rows: OrganismoChecklistRow[];
@@ -67,6 +71,11 @@ export default function ComplianceUnifiedClient({
   envio931,
   initialPlat,
 }: Props) {
+  // El F931 vive dentro de la papeleta (fila "F931" de Empresa): ahí se despliega
+  // el seguimiento de períodos con su fecha límite y el envío a YPF/Loma. Antes era
+  // una solapa aparte y quedaba duplicado con el ítem de Documentación.
+  const pendientes931 = periodos931.filter((p) => !(p.enviado_ypf && p.enviado_loma)).length;
+
   const tabs = useMemo<TabDef[]>(() => {
     const out: TabDef[] = [];
 
@@ -74,15 +83,23 @@ export default function ComplianceUnifiedClient({
       id: "documentacion",
       label: "Documentación",
       icon: ClipboardList,
-      alerta: documentacion.rows.filter((r) => esPendiente(r.estado)).length,
+      alerta:
+        documentacion.rows.filter((r) => esPendiente(r.estado)).length + pendientes931,
       render: () => (
         <ComplianceChecklistPage
           titulo="Documentación"
           subtitulo="Checklist de la papeleta de flota (YPF y Loma). Los que van a todas las plataformas no llevan nada; los específicos van marcados (solo YPF) / (solo Loma)."
           rows={documentacion.rows}
           requisitos={documentacion.requisitos}
+          unidades={documentacion.unidades}
           canWrite={canWrite}
           embedded
+          panelInicial={initialPlat?.toLowerCase() === "931" ? "F931" : undefined}
+          renderRowPanel={(row) =>
+            row.requisito_codigo === "F931" ? (
+              <Form931Panel periodos={periodos931} envio931={envio931} canWrite={canWrite} />
+            ) : null
+          }
         />
       ),
     });
@@ -104,23 +121,18 @@ export default function ComplianceUnifiedClient({
       });
     }
 
-    out.push({
-      id: "931",
-      label: "Formulario 931",
-      icon: FileCheck2,
-      alerta: periodos931.filter((p) => !(p.enviado_ypf && p.enviado_loma)).length,
-      render: () => <Form931Panel periodos={periodos931} envio931={envio931} canWrite={canWrite} />,
-    });
-
     return out;
-  }, [documentacion, organismos, periodos931, envio931, canWrite]);
+  }, [documentacion, organismos, periodos931, pendientes931, envio931, canWrite, initialPlat]);
 
   // Resolver la solapa inicial (?plat=). Las rutas viejas (ypf/loma/generales)
   // caen todas en "Documentación", que ahora las junta.
   const resolveInitial = (): string => {
     if (!initialPlat) return tabs[0]?.id ?? "documentacion";
     const p = initialPlat.toLowerCase();
-    if (["ypf", "loma", "generales", "documentacion", "docs"].includes(p)) return "documentacion";
+    // "931" también cae acá: dejó de ser solapa y ahora es una fila de la papeleta
+    // (se abre desplegada vía `panelInicial`).
+    if (["ypf", "loma", "generales", "documentacion", "docs", "931"].includes(p))
+      return "documentacion";
     const direct = tabs.find((t) => t.id === p);
     if (direct) return direct.id;
     const org = tabs.find((t) => t.id === `org:${p}`);
@@ -182,7 +194,11 @@ export default function ComplianceUnifiedClient({
   );
 }
 
-/** Panel del Formulario 931 embebido: aviso + stats + checklist. */
+/**
+ * Panel del Formulario 931 — se despliega dentro de la fila "F931" de la papeleta.
+ * Lleva el aviso de que es bloqueante, a dónde se presenta, el resumen y la tabla
+ * de períodos (fecha límite editable + envío a YPF/Loma).
+ */
 function Form931Panel({
   periodos,
   envio931,
@@ -220,14 +236,45 @@ function Form931Panel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Períodos" value={String(periodos.length)} sub="En seguimiento" color="brand" icon={FileCheck2} variant="dashboard" />
-        <StatCard label="Completos" value={String(completos)} sub="Enviado a YPF y Loma" color="success" icon={CheckCircle2} variant="dashboard" />
-        <StatCard label="Por vencer" value={String(porVencer)} sub="Pendientes en ≤ 7 días" color="warning" icon={Clock} variant="dashboard" />
-        <StatCard label="Vencidos" value={String(vencidos)} sub="Pendientes pasados de fecha" color="error" icon={AlertTriangle} variant="dashboard" />
+      <div className="flex flex-wrap items-center gap-2">
+        <ResumenChip icon={FileCheck2} label="períodos" n={periodos.length} tone="brand" />
+        <ResumenChip icon={CheckCircle2} label="completos" n={completos} tone="success" />
+        <ResumenChip icon={Clock} label="por vencer" n={porVencer} tone="warning" />
+        <ResumenChip icon={AlertTriangle} label="vencidos" n={vencidos} tone="error" />
       </div>
 
       <Form931Client periodos={periodos} canWrite={canWrite} />
     </div>
+  );
+}
+
+/** Contador compacto del resumen del F931 (reemplaza a los StatCard, que anidados pesaban demasiado). */
+function ResumenChip({
+  icon: Icon,
+  label,
+  n,
+  tone,
+}: {
+  icon: typeof FileCheck2;
+  label: string;
+  n: number;
+  tone: "brand" | "success" | "warning" | "error";
+}) {
+  const cls = {
+    brand: "bg-primary/5 text-primary border-primary/20",
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+    warning: "bg-amber-50 text-amber-700 border-amber-200/60",
+    error: "bg-red-50 text-red-700 border-red-200/60",
+  }[tone];
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cls} ${
+        n === 0 ? "opacity-50" : ""
+      }`}
+    >
+      <Icon size={12} />
+      <span className="tabular-nums">{n}</span>
+      <span className="font-medium">{label}</span>
+    </span>
   );
 }

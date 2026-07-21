@@ -21,13 +21,14 @@ export default async function ComplianceClientePage({
   const user = await requireArea("compliance", "read");
   const canWrite = hasArea(user, "compliance", "write");
 
-  const { rows, requisitos } = await getComplianceEstadoAction(cliente);
+  const { rows, requisitos, unidades } = await getComplianceEstadoAction(cliente);
 
   return (
     <ComplianceChecklistPage
       titulo={`Compliance — ${CLIENTE_LABEL[cliente]}`}
       rows={rows}
       requisitos={requisitos}
+      unidades={unidades}
       canWrite={canWrite}
     />
   );

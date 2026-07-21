@@ -17,6 +17,7 @@ import type {
   ComplianceEstadoRow,
   ComplianceHistorialDoc,
   ComplianceRequisito,
+  UnidadInfo,
 } from "./types";
 
 function clienteToEnum(c: ComplianceCliente): "YPF" | "LOMA_NEGRA" {
@@ -46,11 +47,12 @@ export async function crearUrlSubidaComplianceDocAction(input: { filename: strin
 export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[]): Promise<{
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
+  unidades: Record<string, UnidadInfo>;
 }> {
   await requireArea("compliance", "read");
   const supabase = createAdminClient();
 
-  const [rowsRes, reqRes] = await Promise.all([
+  const [rowsRes, reqRes, unidades] = await Promise.all([
     supabase
       .from("v_compliance_estado")
       .select("*")
@@ -63,6 +65,7 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
       .eq("activo", true)
       .in("cliente_aplica", aplica)
       .order("orden", { ascending: true }),
+    getUnidadesInfo(supabase),
   ]);
 
   const rows = (rowsRes.data as ComplianceEstadoRow[] | null) ?? [];
@@ -71,12 +74,70 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
   return {
     rows,
     requisitos: (reqRes.data as ComplianceRequisito[] | null) ?? [],
+    unidades,
   };
+}
+
+/**
+ * Ficha de cada unidad (marca/modelo/año/capacidad/chofer/acoplado) indexada por
+ * `camion_id`, para la cabecera de "Unidades" del checklist. Va aparte de la vista
+ * porque `v_compliance_estado` la comparte con las alertas y solo necesita la patente.
+ */
+async function getUnidadesInfo(
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<Record<string, UnidadInfo>> {
+  const [camionesRes, choferesRes, vinculosRes] = await Promise.all([
+    supabase
+      .from("camiones")
+      .select(
+        "id, patente, marca, modelo, ano, capacidad_tn, tipo_camion, tercerizacion_estado, km_actual, chofer_actual_id",
+      ),
+    supabase.from("choferes").select("id, nombre, apellido"),
+    // Solo la vinculación vigente (sin fecha de baja).
+    supabase
+      .from("camion_acoplados")
+      .select("camion_id, acoplado:acoplados(patente)")
+      .is("hasta", null),
+  ]);
+
+  // Mismo formato que la tabla de /camiones: "Apellido Nombre".
+  const choferNombre = new Map<string, string>();
+  for (const ch of choferesRes.data ?? []) {
+    choferNombre.set(ch.id, `${ch.apellido ?? ""}${ch.nombre ? ` ${ch.nombre}` : ""}`.trim());
+  }
+
+  const acopladosDe = new Map<string, string[]>();
+  for (const v of vinculosRes.data ?? []) {
+    const ac = Array.isArray(v.acoplado) ? v.acoplado[0] : v.acoplado;
+    if (!v.camion_id || !ac?.patente) continue;
+    const arr = acopladosDe.get(v.camion_id) ?? [];
+    arr.push(ac.patente);
+    acopladosDe.set(v.camion_id, arr);
+  }
+
+  const out: Record<string, UnidadInfo> = {};
+  for (const c of camionesRes.data ?? []) {
+    out[c.id] = {
+      patente: c.patente,
+      marca: c.marca,
+      modelo: c.modelo,
+      ano: c.ano,
+      capacidad_tn: c.capacidad_tn === null ? null : Number(c.capacidad_tn),
+      tipo_camion: c.tipo_camion,
+      tercerizacion_estado: c.tercerizacion_estado,
+      km_actual: c.km_actual === null ? null : Number(c.km_actual),
+      chofer_id: c.chofer_actual_id,
+      chofer_nombre: c.chofer_actual_id ? choferNombre.get(c.chofer_actual_id) ?? null : null,
+      acoplados: acopladosDe.get(c.id) ?? [],
+    };
+  }
+  return out;
 }
 
 export async function getComplianceEstadoAction(cliente: ComplianceCliente): Promise<{
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
+  unidades: Record<string, UnidadInfo>;
 }> {
   return getComplianceEstadoAplica(["AMBOS", clienteToEnum(cliente)]);
 }

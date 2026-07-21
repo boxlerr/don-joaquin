@@ -7,6 +7,8 @@
 // período que viene, para no cargarlo a mano cada mes; Nico ajusta la fecha real
 // si difiere (ej. el período en curso vence el 13/07, no el 20).
 
+import { logAudit } from "@/lib/audit";
+
 // form931_presentaciones es tabla nueva, aún no está en database.ts → cliente laxo.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
@@ -72,20 +74,44 @@ export async function ensureProximoForm931(
       .maybeSingle();
     if (existing?.id) return { created: false, periodo };
 
-    const { error } = await supabase.from("form931_presentaciones").insert({
-      periodo,
-      fecha_limite: fechaLimite,
-      observaciones:
-        "Generado automáticamente. Vencimiento por defecto: día 20 — ajustalo a la fecha real de AFIP si difiere.",
-      created_by: createdBy,
-    });
+    const { data: creado, error } = await supabase
+      .from("form931_presentaciones")
+      .insert({
+        periodo,
+        fecha_limite: fechaLimite,
+        observaciones:
+          "Generado automáticamente. Vencimiento por defecto: día 20 — ajustalo a la fecha real de AFIP si difiere.",
+        created_by: createdBy,
+      })
+      .select("id")
+      .single();
 
     // 23505 = otro proceso lo creó en paralelo → lo tratamos como ya existente.
     if (error && (error as { code?: string }).code !== "23505") {
       console.error("ensureProximoForm931:", error);
       return { created: false, periodo };
     }
-    return { created: !error, periodo };
+    if (error) return { created: false, periodo };
+
+    // Queda asentado en auditoría que el período lo generó el sistema y no una
+    // persona: `created_by` guarda a quien abrió la pantalla que lo disparó, así
+    // que sin este registro parecía que alguien lo había cargado a mano.
+    await logAudit({
+      client: supabase,
+      usuarioId: null,
+      accion: "crear",
+      entidadTipo: "form931",
+      entidadId: creado?.id ?? null,
+      valoresNuevos: { periodo, fecha_limite: fechaLimite },
+      metadata: {
+        evento: "generado_automaticamente",
+        origen: createdBy ? "apertura_de_pantalla" : "cron",
+        // Usuario cuya visita disparó la generación (no es quien lo "cargó").
+        disparado_por: createdBy,
+      },
+    });
+
+    return { created: true, periodo };
   } catch (e) {
     console.error("ensureProximoForm931:", e);
     return { created: false, periodo };

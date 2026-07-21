@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Send,
   ShieldCheck,
+  CalendarClock,
 } from "lucide-react";
 import {
   NIVEL_LABEL,
@@ -28,6 +29,7 @@ import {
   type ComplianceEstadoRow,
   type ComplianceNivel,
   type ComplianceRequisito,
+  type UnidadInfo,
 } from "../types";
 import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplianceDocDialog";
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
@@ -44,6 +46,16 @@ interface Props {
   canWrite: boolean;
   /** Cuando es true, omite el padding lateral del root (lo asume el wrapper). */
   embedded?: boolean;
+  /**
+   * Panel desplegable propio de un requisito, que se abre debajo de su fila.
+   * Lo usa el F931, que además de la papeleta lleva el seguimiento de períodos
+   * (fecha límite, envío a YPF/Loma). Si devuelve null, la fila no es desplegable.
+   */
+  renderRowPanel?: (row: ComplianceEstadoRow) => React.ReactNode | null;
+  /** Código de requisito cuyo panel arranca abierto (deep-link `?plat=931`). */
+  panelInicial?: string;
+  /** Ficha de cada unidad por `camion_id`, para la cabecera del grupo "Unidades". */
+  unidades?: Record<string, UnidadInfo>;
 }
 
 const NIVELES: ComplianceNivel[] = ["empresa", "unidad", "chofer"];
@@ -87,6 +99,44 @@ const ESTADO_UI: Record<
 
 function esPendiente(e: ComplianceEstado): boolean {
   return e === "vencido" || e === "por_vencer" || e === "faltante";
+}
+
+// Centinela del seed de carga inicial: unidades que en el Excel vinieron solo con
+// patente quedaron con marca/modelo = "Sin datos". No tiene sentido mostrarlo.
+const SIN_DATOS = "Sin datos";
+
+// Mismos colores que la tabla de /camiones. "Interno" no se muestra: es el 90% de
+// la flota y no aporta nada en la cabecera; solo se marcan las excepciones.
+const TERCERIZACION_BADGE: Record<string, { label: string; cls: string }> = {
+  en_transicion: { label: "En transición", cls: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]" },
+  tercerizado: { label: "Tercerizado", cls: "bg-muted text-muted-foreground border-border" },
+};
+
+const TIPO_CAMION_LABEL: Record<string, string> = {
+  tractor: "Tractor",
+  chasis_rigido: "Chasis rígido",
+  batea: "Batea",
+  otro: "Otro",
+};
+
+/**
+ * Ficha corta de la unidad para la cabecera, en el mismo orden que /camiones:
+ * marca+modelo · año · capacidad · tipo · km · acoplado. Omite lo que está vacío
+ * y el tipo "tractor" (61 de 62 unidades: no discrimina).
+ */
+function metaUnidad(u: UnidadInfo): string[] {
+  const out: string[] = [];
+  const marca = u.marca && u.marca !== SIN_DATOS ? u.marca : null;
+  const modelo = u.modelo && u.modelo !== SIN_DATOS ? u.modelo : null;
+  const marcaModelo = [marca, modelo].filter(Boolean).join(" ");
+  if (marcaModelo) out.push(marcaModelo);
+  if (u.ano) out.push(String(u.ano));
+  if (u.capacidad_tn !== null) out.push(`${u.capacidad_tn.toFixed(1)} TN`);
+  if (u.tipo_camion && u.tipo_camion !== "tractor")
+    out.push(TIPO_CAMION_LABEL[u.tipo_camion] ?? u.tipo_camion);
+  if (u.km_actual !== null) out.push(`${u.km_actual.toLocaleString("es-AR")} km`);
+  if (u.acoplados.length) out.push(`Acoplado ${u.acoplados.join(" + ")}`);
+  return out;
 }
 
 function tagCliente(aplica: string): string | null {
@@ -165,9 +215,15 @@ export default function ComplianceChecklistPage({
   requisitos,
   canWrite,
   embedded = false,
+  renderRowPanel,
+  panelInicial,
+  unidades,
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [panelesAbiertos, setPanelesAbiertos] = useState<Set<string>>(
+    () => new Set(panelInicial ? [panelInicial] : []),
+  );
 
   const [busqueda, setBusqueda] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
@@ -285,6 +341,14 @@ export default function ComplianceChecklistPage({
       return next;
     });
 
+  const togglePanel = (codigo: string) =>
+    setPanelesAbiertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(codigo)) next.delete(codigo);
+      else next.add(codigo);
+      return next;
+    });
+
   const handleExport = () => {
     // El armado del .xlsx corre en el server (export-action.ts); se mandan las
     // filas visibles en el mismo orden del tablero (por nivel).
@@ -292,6 +356,33 @@ export default function ComplianceChecklistPage({
   };
 
   const hayResultados = NIVELES.some((n) => rowsPorNivel[n].length > 0);
+
+  /** Una fila del checklist + su panel desplegable, si el requisito tiene uno. */
+  const renderFila = (r: ComplianceEstadoRow, i: number, n: ComplianceNivel) => {
+    const panel = renderRowPanel?.(r) ?? null;
+    const abierto = panelesAbiertos.has(r.requisito_codigo);
+    return (
+      <div key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
+        <ChecklistRow
+          row={r}
+          nivel={n}
+          enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
+          canWrite={canWrite}
+          primero={i === 0}
+          expandible={panel !== null}
+          panelAbierto={abierto}
+          onTogglePanel={() => togglePanel(r.requisito_codigo)}
+          onCasilla={() => handleCasilla(r)}
+          onSubir={() => handleSubir(r)}
+          onHistorial={() => handleHistorial(r)}
+          onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
+        />
+        {panel !== null && abierto && (
+          <div className="border-t border-border bg-muted/20 px-3 sm:px-4 py-4">{panel}</div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={`${embedded ? "space-y-4" : "p-6 sm:p-8 space-y-4"} print:p-2`}>
@@ -362,37 +453,33 @@ export default function ComplianceChecklistPage({
               <button
                 type="button"
                 onClick={() => toggleColapso(n)}
-                className="flex items-center gap-2 w-full text-left group"
+                aria-expanded={abierto}
+                className="flex items-center gap-2 w-full text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
               >
-                <ChevronDown
-                  size={15}
-                  className={`text-muted-foreground transition-transform ${abierto ? "" : "-rotate-90"}`}
-                />
+                {/* Chevron en caja: sin esto la cabecera se leía como un título y
+                    no como algo que se puede abrir. */}
+                <span
+                  className={`flex items-center justify-center size-[22px] shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
+                    abierto ? "" : "-rotate-90"
+                  }`}
+                >
+                  <ChevronDown size={14} />
+                </span>
                 <Icon size={15} className="text-muted-foreground" />
                 <span className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {NIVEL_LABEL[n]} · {NIVEL_SUB[n]}
                 </span>
                 <span className="text-[11px] text-muted-foreground/70">{grupo.length}</span>
+                <span className="ml-auto text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
+                  {abierto ? "Ocultar" : "Mostrar"}
+                </span>
               </button>
 
               {abierto && (() => {
                 if (n === "empresa") {
                   return (
                     <div className="border border-border rounded-[12px] overflow-hidden bg-card">
-                      {grupo.map((r, i) => (
-                        <ChecklistRow
-                          key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
-                          row={r}
-                          nivel={n}
-                          enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
-                          canWrite={canWrite}
-                          primero={i === 0}
-                          onCasilla={() => handleCasilla(r)}
-                          onSubir={() => handleSubir(r)}
-                          onHistorial={() => handleHistorial(r)}
-                          onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
-                        />
-                      ))}
+                      {grupo.map((r, i) => renderFila(r, i, n))}
                     </div>
                   );
                 }
@@ -410,25 +497,34 @@ export default function ComplianceChecklistPage({
                           className="border border-border rounded-[12px] bg-card overflow-hidden shadow-sm"
                         >
                           {/* Cabecera del subgrupo (Chofer / Unidad) */}
-                          <div
+                          <button
+                            type="button"
                             onClick={() => toggleGroupColapso(g.id)}
-                            className="bg-muted/30 hover:bg-muted/50 px-4 py-2.5 border-b border-border flex items-center justify-between cursor-pointer select-none transition-colors"
+                            aria-expanded={gAbierto}
+                            title={gAbierto ? "Ocultar documentos" : "Ver documentos"}
+                            className={`group w-full text-left bg-muted/30 hover:bg-muted/60 px-4 py-2.5 flex items-center justify-between gap-3 select-none transition-colors ${
+                              gAbierto ? "border-b border-border" : ""
+                            }`}
                           >
-                            <div className="flex items-center gap-2">
-                              <ChevronDown
-                                size={14}
-                                className={`text-muted-foreground/70 transition-transform ${
+                            <div className="flex items-center gap-2 min-w-0">
+                              {/* Chevron en caja + contador: la fila tiene que
+                                  leerse como "esto se abre", no como un título. */}
+                              <span
+                                className={`flex items-center justify-center size-5 shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
                                   gAbierto ? "" : "-rotate-90"
                                 }`}
-                              />
-                              <SubIcon size={14} className="text-muted-foreground/80" />
-                              <span className="text-xs font-bold text-foreground">
-                                {g.label}
+                              >
+                                <ChevronDown size={13} />
                               </span>
+                              <SubIcon size={14} className="shrink-0 text-muted-foreground/80" />
+                              <GroupHeaderInfo nivel={n} groupId={g.id} label={g.label} unidades={unidades} />
                             </div>
 
                             {/* Indicadores de estado resumidos */}
-                            <div className="flex items-center gap-1.5 text-[10px]">
+                            <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                              <span className="hidden sm:inline text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors mr-1">
+                                {gAbierto ? "Ocultar" : `Ver ${g.rows.length} doc.`}
+                              </span>
                               {g.vencidos > 0 && (
                                 <span className="bg-[#FEF2F2] text-[#991B1B] font-medium px-2 py-0.5 rounded-full border border-[#FECACA]">
                                   {g.vencidos} vencido{g.vencidos > 1 ? "s" : ""}
@@ -450,25 +546,12 @@ export default function ComplianceChecklistPage({
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </button>
 
                           {/* Lista de documentos del subgrupo */}
                           {gAbierto && (
                             <div className="divide-y divide-border">
-                              {g.rows.map((r, i) => (
-                                <ChecklistRow
-                                  key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}
-                                  row={r}
-                                  nivel={n}
-                                  enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
-                                  canWrite={canWrite}
-                                  primero={i === 0}
-                                  onCasilla={() => handleCasilla(r)}
-                                  onSubir={() => handleSubir(r)}
-                                  onHistorial={() => handleHistorial(r)}
-                                  onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
-                                />
-                              ))}
+                              {g.rows.map((r, i) => renderFila(r, i, n))}
                             </div>
                           )}
                         </div>
@@ -511,12 +594,93 @@ export default function ComplianceChecklistPage({
   );
 }
 
+/**
+ * Cabecera de un grupo (unidad o chofer): patente/nombre + la ficha de datos que
+ * tenemos cargada. En "unidad" muestra marca/modelo/año/capacidad/acoplado y el
+ * chofer que la maneja; en "chofer", la unidad que tiene asignada. La asignación
+ * sale de `camiones.chofer_actual_id`, la misma que reescribe la planilla diaria,
+ * así que un cambio de camión se refleja acá al instante.
+ */
+function GroupHeaderInfo({
+  nivel,
+  groupId,
+  label,
+  unidades,
+}: {
+  nivel: ComplianceNivel;
+  groupId: string;
+  label: string;
+  unidades?: Record<string, UnidadInfo>;
+}) {
+  const unidad = nivel === "unidad" ? unidades?.[groupId] : undefined;
+
+  // En el grupo "chofer" mostramos la unidad que maneja (relación inversa).
+  const unidadDelChofer =
+    nivel === "chofer" && unidades
+      ? Object.values(unidades).find((u) => u.chofer_id === groupId)
+      : undefined;
+
+  const terc = unidad?.tercerizacion_estado
+    ? TERCERIZACION_BADGE[unidad.tercerizacion_estado]
+    : undefined;
+
+  const partes = unidad ? metaUnidad(unidad) : [];
+  const chofer = unidad?.chofer_nombre ?? null;
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold text-foreground">{label}</span>
+        {terc && (
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${terc.cls}`}>
+            {terc.label}
+          </span>
+        )}
+      </div>
+
+      {(partes.length > 0 || unidad || unidadDelChofer) && (
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+          {partes.length > 0 && <span className="truncate">{partes.join(" · ")}</span>}
+
+          {unidad && (
+            <>
+              {partes.length > 0 && <span className="text-muted-foreground/40">·</span>}
+              <span
+                className={`inline-flex items-center gap-1 shrink-0 ${
+                  chofer ? "text-[#075985] font-medium" : "italic"
+                }`}
+                title={chofer ? `Chofer asignado: ${chofer}` : "Sin chofer asignado"}
+              >
+                <Users size={10} className="shrink-0" />
+                {chofer ?? "Sin chofer"}
+              </span>
+            </>
+          )}
+
+          {unidadDelChofer && (
+            <span
+              className="inline-flex items-center gap-1 shrink-0 text-[#075985] font-medium"
+              title={`Unidad asignada: ${unidadDelChofer.patente}`}
+            >
+              <Truck size={10} className="shrink-0" />
+              {unidadDelChofer.patente}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChecklistRow({
   row,
   nivel,
   enviarA,
   canWrite,
   primero,
+  expandible = false,
+  panelAbierto = false,
+  onTogglePanel,
   onCasilla,
   onSubir,
   onHistorial,
@@ -527,6 +691,10 @@ function ChecklistRow({
   enviarA: string | null;
   canWrite: boolean;
   primero: boolean;
+  /** El requisito tiene panel propio (ej. los períodos del F931). */
+  expandible?: boolean;
+  panelAbierto?: boolean;
+  onTogglePanel?: () => void;
   onCasilla: () => void;
   onSubir: () => void;
   onHistorial: () => void;
@@ -562,7 +730,29 @@ function ChecklistRow({
       {/* Nombre + entidad */}
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">
-          {row.requisito_nombre}
+          {expandible ? (
+            <button
+              type="button"
+              onClick={onTogglePanel}
+              aria-expanded={panelAbierto}
+              className="group/exp inline-flex items-center gap-1.5 hover:text-primary transition-colors"
+              title={panelAbierto ? "Ocultar presentaciones" : "Ver presentaciones y fechas límite"}
+            >
+              {row.requisito_nombre}
+              <span
+                className={`flex items-center justify-center size-[18px] rounded-md border border-border bg-card text-muted-foreground transition-all group-hover/exp:border-primary/50 group-hover/exp:text-primary ${
+                  panelAbierto ? "" : "-rotate-90"
+                }`}
+              >
+                <ChevronDown size={12} />
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground/70 group-hover/exp:text-primary transition-colors">
+                {panelAbierto ? "Ocultar" : "Ver presentaciones"}
+              </span>
+            </button>
+          ) : (
+            row.requisito_nombre
+          )}
           {tag && <span className="text-muted-foreground font-normal"> ({tag})</span>}
         </p>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -602,6 +792,14 @@ function ChecklistRow({
 
       {/* Acciones */}
       <div className="flex items-center gap-0.5 shrink-0 print:hidden">
+        {expandible && onTogglePanel && (
+          <IconBtn
+            title={panelAbierto ? "Ocultar presentaciones" : "Ver presentaciones y fechas límite"}
+            onClick={onTogglePanel}
+          >
+            <CalendarClock size={14} />
+          </IconBtn>
+        )}
         {row.archivo_id && (
           <IconBtn title="Descargar documento" onClick={onDescargar}>
             <Download size={14} />
