@@ -485,14 +485,14 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         </div>
       )}
 
-      {/* Guardar */}
+      {/* Guardar (Flotante) */}
       {editable && (
-        <div className="flex justify-end">
+        <div className="fixed bottom-6 right-6 z-50">
           <Button
             type="button"
             onClick={handleGuardar}
             disabled={guardando || hayDuplicados}
-            className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-8 h-10 gap-2"
+            className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-6 h-11 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
           >
             {guardando ? (
               <><Loader2 size={15} className="animate-spin" /> Guardando...</>
