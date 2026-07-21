@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarPlus, Loader2, X } from "lucide-react";
+import { CalendarPlus, Loader2, Pencil, X } from "lucide-react";
 
 function fmt(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -94,21 +94,36 @@ export default function CeldaFecha({
     );
   }
 
+  // Sin fecha: se dibuja como un campo vacío para completar (borde punteado e
+  // ícono siempre visible). Antes era texto gris y el ícono sólo aparecía al
+  // pasar el mouse, así que no se notaba que era clickeable.
+  if (!valor) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditando(true)}
+        title="Cargar la fecha (lo marca como presentado)"
+        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-[#CBD5E1] px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-[#0088D1] hover:bg-[#0088D1]/5 hover:text-primary"
+      >
+        <CalendarPlus size={12} />
+        {placeholder}
+      </button>
+    );
+  }
+
+  // Con fecha: se mantiene sobria, pero al pasar el mouse se levanta como campo
+  // editable y aparece el lápiz.
   return (
     <button
       type="button"
       onClick={() => setEditando(true)}
       title="Editar fecha"
-      className={`group inline-flex items-center gap-1.5 rounded px-1 -mx-1 tabular-nums transition-colors hover:bg-muted ${
-        valor
-          ? tone === "success"
-            ? "font-medium text-emerald-700"
-            : "text-foreground"
-          : "text-muted-foreground/50"
+      className={`group inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2 py-1 tabular-nums transition-colors hover:border-border hover:bg-muted ${
+        tone === "success" ? "font-medium text-emerald-700" : "text-foreground"
       }`}
     >
-      {valor ? fmt(valor) : placeholder}
-      {!valor && <CalendarPlus size={12} className="opacity-0 group-hover:opacity-100" />}
+      {fmt(valor)}
+      <Pencil size={11} className="opacity-0 transition-opacity group-hover:opacity-60" />
     </button>
   );
 }
