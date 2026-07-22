@@ -441,13 +441,40 @@ export async function generarAlertas() {
     const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     const diasHasta31 = Math.round((fin31.getTime() - hoyMid.getTime()) / 86400000);
     if (diasHasta31 >= 0 && diasHasta31 <= 120) {
+      // Saldo viejo = días otorgados de años anteriores − períodos imputados a
+      // esos años (chofer_vacaciones_anios + chofer_ausencias.anio_cargo).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: saldosVac } = await (supabase as any)
-        .from("chofer_vacaciones")
-        .select("chofer_id, dias_adeudados")
-        .gt("dias_adeudados", 0);
+      const sbVac = supabase as any;
+      const [{ data: aniosVac }, { data: periodosVac }] = await Promise.all([
+        sbVac
+          .from("chofer_vacaciones_anios")
+          .select("chofer_id, anio, dias_correspondientes")
+          .lt("anio", anioActual),
+        sbVac
+          .from("chofer_ausencias")
+          .select("chofer_id, fecha_inicio, fecha_fin, anio_cargo")
+          .eq("es_vacaciones", true)
+          .is("deleted_at", null)
+          .lt("anio_cargo", anioActual),
+      ]);
+      const adeudadosPorChofer = new Map<string, number>();
+      for (const r of (aniosVac ?? []) as { chofer_id: string; dias_correspondientes: number }[]) {
+        adeudadosPorChofer.set(
+          r.chofer_id,
+          (adeudadosPorChofer.get(r.chofer_id) ?? 0) + (r.dias_correspondientes ?? 0),
+        );
+      }
+      for (const p of (periodosVac ?? []) as { chofer_id: string; fecha_inicio: string; fecha_fin: string }[]) {
+        const ini = new Date(p.fecha_inicio + "T00:00:00").getTime();
+        const fin = new Date(p.fecha_fin + "T00:00:00").getTime();
+        const dias = Math.max(1, Math.round((fin - ini) / 86_400_000) + 1);
+        adeudadosPorChofer.set(p.chofer_id, (adeudadosPorChofer.get(p.chofer_id) ?? 0) - dias);
+      }
+      const saldosVac = [...adeudadosPorChofer.entries()]
+        .filter(([, dias]) => dias > 0)
+        .map(([chofer_id, dias]) => ({ chofer_id, dias_adeudados: dias }));
       const vence31 = `${anioActual}-12-31`;
-      for (const s of (saldosVac ?? []) as { chofer_id: string; dias_adeudados: number }[]) {
+      for (const s of saldosVac) {
         const nombre = nombrePorId.get(s.chofer_id);
         if (!nombre) continue; // inactivo / fuera de dotación
         const key = `otro:${s.chofer_id}:choferes_vacaciones_saldo:${vence31}`;

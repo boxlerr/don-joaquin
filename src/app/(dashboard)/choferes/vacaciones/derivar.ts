@@ -47,6 +47,51 @@ export function proximoHito(ingresoISO: string, anios: number, refY: number, ref
   return `${Math.max(0, meses)} meses → ${sig} años`;
 }
 
+// ── Saldos por año ────────────────────────────────────────────────────────────
+// Los días otorgados viven en `chofer_vacaciones_anios` (una fila por año) y los
+// períodos descuentan del año al que están imputados (`chofer_ausencias.anio_cargo`).
+// Un período con `anio_cargo` null es histórico: ya estaba reflejado en la carga
+// inicial de saldos y no vuelve a descontar.
+
+export type SaldoAnio = {
+  anio: number;
+  otorgados: number;
+  usados: number;
+  saldo: number;
+  observaciones: string | null;
+};
+
+export function saldosPorAnio(
+  otorgados: { anio: number; dias: number; observaciones?: string | null }[],
+  usadosPorAnio: Map<number, number>,
+): SaldoAnio[] {
+  const anios = new Set<number>([...otorgados.map((o) => o.anio), ...usadosPorAnio.keys()]);
+  return [...anios]
+    .sort((a, b) => a - b)
+    .map((anio) => {
+      const o = otorgados.find((x) => x.anio === anio);
+      const usados = usadosPorAnio.get(anio) ?? 0;
+      return {
+        anio,
+        otorgados: o?.dias ?? 0,
+        usados,
+        saldo: (o?.dias ?? 0) - usados,
+        observaciones: o?.observaciones ?? null,
+      };
+    });
+}
+
+/**
+ * Año al que se imputa un período nuevo: el más viejo con saldo disponible
+ * (sin pasarse del año calendario del período). Si no queda saldo en ningún
+ * año, se imputa al año de la fecha de inicio.
+ */
+export function anioParaImputar(saldos: SaldoAnio[], fechaInicioISO: string): number {
+  const anioFecha = Number(fechaInicioISO.slice(0, 4));
+  const conSaldo = saldos.filter((s) => s.saldo > 0 && s.anio <= anioFecha);
+  return conSaldo.length > 0 ? conSaldo[0]!.anio : anioFecha;
+}
+
 export type Semaforo = "🔴" | "🟠" | "🟡" | "🟢";
 
 export function semaforo(adeudados: number, disponibles: number): Semaforo {
@@ -70,14 +115,13 @@ export function derivarVacaciones(opts: {
   fecha_ingreso: string | null;
   corresponden: number;
   adeudados: number;
-  tomados: number;
+  disponibles: number;
   finPeriodoY: number;
 }) {
-  const { rol, fecha_ingreso, corresponden, adeudados, tomados, finPeriodoY } = opts;
+  const { rol, fecha_ingreso, corresponden, adeudados, disponibles, finPeriodoY } = opts;
   const sector = ROL_A_SECTOR[rol ?? ""] ?? "Chofer";
   const anios = fecha_ingreso ? aniosCumplidos(fecha_ingreso, finPeriodoY) : 0;
   const total = corresponden + adeudados;
-  const disponibles = total - tomados;
   // Días que deberían corresponder por antigüedad actual (para detectar desfasaje
   // con el valor cargado cuando alguien cruza un hito).
   const diasSegunAntiguedad = fecha_ingreso ? diasPorAntiguedad(anios) : corresponden;

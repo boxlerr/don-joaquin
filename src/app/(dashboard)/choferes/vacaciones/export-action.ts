@@ -53,8 +53,10 @@ export async function exportarVacacionesXlsxAction(
       { header: "Tomados", width: 10, align: "c", numFmt: "#,##0" },
       { header: "Disponibles", width: 12, align: "c", numFmt: "#,##0" },
       { header: "Vence saldo", width: 12, align: "c" },
+      { header: "Vence período", width: 13, align: "c" },
       { header: "Próximo hito", width: 18, align: "l" },
       { header: "Estado", width: 16, align: "c" },
+      { header: "Detalle por año", width: 40, align: "l" },
     ];
     const rows: CellValue[][] = saldos.map((s) => [
       s.sector,
@@ -68,8 +70,12 @@ export async function exportarVacacionesXlsxAction(
       s.tomados,
       s.disponibles,
       s.vence_saldo ?? "—",
+      s.vence_periodo,
       s.proximo_hito,
       semaforoTexto(s.semaforo),
+      s.saldos_anio
+        .map((a) => `${a.anio}: ${a.saldo} de ${a.otorgados}${a.usados > 0 ? ` (usados ${a.usados})` : ""}`)
+        .join(" · ") || "—",
     ]);
     sheets.push({
       name: "Saldos",
@@ -89,6 +95,7 @@ export async function exportarVacacionesXlsxAction(
       { header: "Desde", width: 12, align: "c", numFmt: "dd/mm/yyyy" },
       { header: "Hasta", width: 12, align: "c", numFmt: "dd/mm/yyyy" },
       { header: "Días", width: 8, align: "c", numFmt: "#,##0" },
+      { header: "Descuenta de", width: 13, align: "c" },
       { header: "Estado", width: 12, align: "c" },
       { header: "Observaciones", width: 36, align: "l" },
     ];
@@ -98,6 +105,7 @@ export async function exportarVacacionesXlsxAction(
       fechaCell(p.fecha_inicio),
       fechaCell(p.fecha_fin),
       p.dias,
+      p.anio_cargo != null ? String(p.anio_cargo) : "Histórico",
       p.estado,
       p.observaciones ?? null,
     ]);

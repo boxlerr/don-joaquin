@@ -49,7 +49,6 @@ export default function ChoferVacacionesTab({
   const venceSaldo = venceSaldoLabel(adeudadosNum, finPeriodoY);
   const diasAntig = anios != null ? diasPorAntiguedad(anios) : correspondenNum;
   const desfasaje = correspondenNum > 0 && anios != null && diasAntig !== correspondenNum;
-  const inicioPeriodoISO = `${finPeriodoY}-01-01`;
 
   const guardar = async () => {
     setSaving(true);
@@ -113,6 +112,27 @@ export default function ChoferVacacionesTab({
           />
         )}
       </div>
+
+      {/* Desglose por año (otorgados − imputados = saldo) */}
+      {saldo.anios.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Por año</span>
+          {saldo.anios.map((a) => (
+            <span
+              key={a.anio}
+              title={a.observaciones ?? undefined}
+              className={`px-2 py-0.5 rounded-full border font-mono ${
+                a.saldo > 0
+                  ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
+                  : "bg-muted text-muted-foreground border-border"
+              }`}
+            >
+              {a.anio}: {a.saldo} de {a.otorgados}
+              {a.usados > 0 ? ` (usados ${a.usados})` : ""}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Edición del saldo */}
       {can_write && (
@@ -187,10 +207,17 @@ export default function ChoferVacacionesTab({
                       En curso
                     </span>
                   )}
-                  {a.fecha_inicio < inicioPeriodoISO && (
+                  {a.anio_cargo != null ? (
                     <span
                       className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
-                      title="De un período anterior — ya está reflejado en el saldo, no descuenta de los días actuales"
+                      title={`Descuenta del saldo ${a.anio_cargo}`}
+                    >
+                      Saldo {a.anio_cargo}
+                    </span>
+                  ) : (
+                    <span
+                      className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
+                      title="Histórico — ya está reflejado en el saldo, no descuenta de los días actuales"
                     >
                       Histórico
                     </span>

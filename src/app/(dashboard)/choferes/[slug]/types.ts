@@ -156,16 +156,20 @@ export type Ausencia = {
   es_vacaciones: boolean;
   // false = ausencia injustificada (penaliza el ranking). Default true.
   justificada: boolean;
+  // Año de vacaciones al que se imputa el período. null = histórico: ya estaba
+  // reflejado en la carga inicial de saldos y no vuelve a descontar.
+  anio_cargo: number | null;
   created_at: string;
 };
 
-// Saldo de vacaciones por chofer. `corresponden` y `adeudados` los carga RRHH;
-// `tomados` se calcula sumando las ausencias marcadas como vacaciones.
+// Saldo de vacaciones por chofer, derivado de los días otorgados por año
+// (chofer_vacaciones_anios) menos los períodos imputados a cada año.
 export type VacacionesSaldo = {
   dias_correspondientes: number;
   dias_adeudados: number;
   dias_tomados: number;
   dias_disponibles: number;
+  anios: { anio: number; otorgados: number; usados: number; saldo: number; observaciones: string | null }[];
 };
 
 export type CamionHistorialItem = {

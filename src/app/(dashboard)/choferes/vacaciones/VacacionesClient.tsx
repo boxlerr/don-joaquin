@@ -16,14 +16,24 @@ import {
   AlertTriangle,
   Download,
   Info,
+  ExternalLink,
+  Table2,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
-import { guardarSaldoVacacionesAction, cancelarAusenciaAction } from "../[slug]/actions";
+import {
+  guardarSaldoVacacionesAction,
+  cancelarAusenciaAction,
+  cargarVacacionesBatchAction,
+  editarAusenciaAction,
+} from "../[slug]/actions";
 import { recalcularDiasPorAntiguedadAction } from "./actions";
+import { planSugerido } from "./plan";
 import CargarVacacionesDialog, { type ChoferOpcion, type SugerenciaSemana } from "./CargarVacacionesDialog";
 import EditarPeriodoDialog from "./EditarPeriodoDialog";
+import ImportarPlanillaDialog from "./import-planilla/ImportarPlanillaDialog";
 import CronogramaAnual from "./CronogramaAnual";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +45,6 @@ import {
 import { Button } from "@/components/ui/button";
 import type { VacacionesSaldoChofer, VacacionesPeriodo, VacacionesSector } from "./lib";
 
-const UMBRAL_SOLAPE = 4; // semanas con más de N de vacaciones se marcan
 const SECTORES: VacacionesSector[] = ["Chofer", "Oficina", "Taller"];
 const MES_LBL = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -59,6 +68,9 @@ function fmtIngreso(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+function diffDias(aISO: string, bISO: string): number {
+  return Math.round((new Date(bISO + "T00:00:00").getTime() - new Date(aISO + "T00:00:00").getTime()) / 86_400_000);
+}
 function construirSemanas(inicio: Date, n: number) {
   return Array.from({ length: n }, (_, i) => {
     const start = new Date(inicio);
@@ -74,9 +86,11 @@ interface Props {
   periodos: VacacionesPeriodo[];
   finPeriodoY: number;
   canWrite: boolean;
+  umbralAusentes?: number;
 }
 
-export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWrite }: Props) {
+export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWrite, umbralAusentes }: Props) {
+  const umbral = umbralAusentes ?? 4;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -88,6 +102,15 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   // --- Cronograma: rango + vista ---------------------------------------------
   const [numSemanas, setNumSemanas] = useState(10);
   const [vista, setVista] = useState<"semanas" | "anual">("semanas");
+  const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios">("resumen");
+  const [detalle, setDetalle] = useState<VacacionesPeriodo | null>(null);
+  const [resaltado, setResaltado] = useState<string | null>(null);
+  const [planAbierto, setPlanAbierto] = useState(false);
+  const [confirmPlan, setConfirmPlan] = useState(false);
+  const [planCargando, setPlanCargando] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  // Drag & drop de períodos entre semanas (misma fila).
+  const [dragInfo, setDragInfo] = useState<{ periodo: VacacionesPeriodo; semanaStart: string } | null>(null);
 
   // --- Diálogos --------------------------------------------------------------
   const [addOpen, setAddOpen] = useState(false);
@@ -109,6 +132,31 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   }));
 
   const refrescar = () => startTransition(() => router.refresh());
+
+  const irA = (id: string) =>
+    document.getElementById(id)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+  // Salta a la fila del empleado en "Saldos por empleado" y la resalta un rato.
+  // Si los filtros la ocultan, primero los limpia.
+  const verEnTabla = (choferId: string) => {
+    const visible = saldos.some(
+      (s) =>
+        s.chofer_id === choferId &&
+        (fSector === "Todos" || s.sector === fSector) &&
+        (fSemaforo === "Todos" || s.semaforo === fSemaforo) &&
+        (!busqueda.trim() || `${s.apellido} ${s.nombre}`.toLowerCase().includes(busqueda.toLowerCase())),
+    );
+    if (!visible) {
+      setFSector("Todos");
+      setFSemaforo("Todos");
+      setBusqueda("");
+    }
+    setResaltado(choferId);
+    window.setTimeout(() => {
+      document.getElementById(`saldo-${choferId}`)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }, 80);
+    window.setTimeout(() => setResaltado((r) => (r === choferId ? null : r)), 3200);
+  };
 
   const abrirAdd = (chofer?: ChoferOpcion, inicio?: string, fin?: string) => {
     setAddChofer(chofer ?? null);
@@ -155,6 +203,12 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     exportarVacacionesXlsx(saldosFiltrados, periodosFiltrados, semanas, finPeriodoY, hoyISO);
   };
 
+  const exportarPlanilla = async () => {
+    const { exportarPlanillaBarbaraXlsx } = await import("./export");
+    // La planilla va completa (sin filtros): es el archivo que se comparte.
+    exportarPlanillaBarbaraXlsx(saldos, finPeriodoY, hoyISO);
+  };
+
   const recalcular = async () => {
     const res = await recalcularDiasPorAntiguedadAction();
     if (res?.error) alert(res.error);
@@ -186,7 +240,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       fin: s.end,
       ocupados: new Set(periodos.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
     }))
-    .filter((s) => s.ocupados < UMBRAL_SOLAPE)
+    .filter((s) => s.ocupados < umbral)
     .sort((a, b) => a.ocupados - b.ocupados || a.inicio.localeCompare(b.inicio))
     .slice(0, 3);
 
@@ -252,16 +306,111 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
 
   const periodosVentanaFiltrados = periodosEnVentana.filter((p) => idsFiltrados.has(p.chofer_id));
 
-  const saldosPorSector = SECTORES.map((sec) => ({
-    sector: sec,
-    filas: saldosFiltrados
+  // --- Plan sugerido: liquida los saldos viejos antes del 31/12 --------------
+  // Se recalcula solo en cada render con los datos vivos: si se carga un
+  // período, esa persona sale del plan automáticamente.
+  const plan = (() => {
+    if (urgentes.length === 0) return { items: [], sinLugar: [] };
+    const proximoLunes = lunesDe(new Date());
+    proximoLunes.setDate(proximoLunes.getDate() + 7);
+    const nSemanas = Math.max(1, Math.ceil((new Date(finPeriodoY, 11, 31).getTime() - proximoLunes.getTime()) / (7 * 86_400_000)));
+    const semanasPlan = construirSemanas(proximoLunes, nSemanas);
+    const ocupacion = semanasPlan.map(
+      (s) => new Set(periodos.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
+    );
+    const ocupadoPorChofer = new Set<string>();
+    for (const s of semanasPlan) {
+      for (const p of periodos) {
+        if (p.fecha_inicio <= s.end && p.fecha_fin >= s.start) ocupadoPorChofer.add(`${p.chofer_id}|${s.start}`);
+      }
+    }
+    return planSugerido({
+      urgentes: urgentes.map((u) => ({ chofer_id: u.chofer_id, apellido: u.apellido, nombre: u.nombre, adeudados: u.adeudados })),
+      semanas: semanasPlan,
+      ocupacion,
+      ocupadoPorChofer,
+      umbral,
+    });
+  })();
+
+  const aplicarPlan = async () => {
+    setPlanCargando(true);
+    const res = await cargarVacacionesBatchAction(
+      plan.items.map((i) => ({ chofer_id: i.chofer_id, fecha_inicio: i.fecha_inicio, fecha_fin: i.fecha_fin })),
+    );
+    setPlanCargando(false);
+    setConfirmPlan(false);
+    const err = res?.errores?.length ? ` (${res.errores.length} con problemas)` : "";
+    alert(`Se cargaron ${res?.creados ?? 0} período(s) del plan${err}.`);
+    refrescar();
+  };
+
+  // Mover un período de semana (drag & drop, misma persona).
+  const moverPeriodo = async (p: VacacionesPeriodo, desdeSemana: string, haciaSemana: string) => {
+    const delta = diffDias(desdeSemana, haciaSemana);
+    if (delta === 0) return;
+    const nuevoInicio = toISO(new Date(new Date(p.fecha_inicio + "T00:00:00").getTime() + delta * 86_400_000));
+    const nuevoFin = toISO(new Date(new Date(p.fecha_fin + "T00:00:00").getTime() + delta * 86_400_000));
+    const res = await editarAusenciaAction(p.id, p.chofer_id, {
+      tipo: p.tipo || "Vacaciones",
+      fecha_inicio: nuevoInicio,
+      fecha_fin: nuevoFin,
+      observaciones: p.observaciones,
+      es_vacaciones: true,
+      justificada: true,
+    });
+    if (res?.error) alert(res.error);
+    else refrescar();
+  };
+
+  const saldosPorSector = SECTORES.map((sec) => {
+    const filas = saldosFiltrados
       .filter((s) => s.sector === sec)
       .sort((a, b) => {
         if ((a.adeudados > 0) !== (b.adeudados > 0)) return a.adeudados > 0 ? -1 : 1;
         if (a.disponibles !== b.disponibles) return b.disponibles - a.disponibles;
         return a.apellido.localeCompare(b.apellido);
-      }),
-  })).filter((g) => g.filas.length > 0);
+      });
+    return {
+      sector: sec,
+      filas,
+      saldoViejo: filas.reduce((acc, s) => acc + s.adeudados, 0),
+      diasAnio: filas.reduce((acc, s) => acc + s.corresponden, 0),
+      disp: filas.reduce((acc, s) => acc + s.disponibles, 0),
+    };
+  }).filter((g) => g.filas.length > 0);
+
+  // Desglose por año para el tooltip de saldo/disponibles.
+  const desglose = (s: VacacionesSaldoChofer) =>
+    s.saldos_anio.length === 0
+      ? "Sin días cargados"
+      : s.saldos_anio
+          .map(
+            (a) =>
+              `${a.anio}: quedan ${a.saldo} de ${a.otorgados}${a.usados > 0 ? ` (usados ${a.usados})` : ""}${
+                a.anio < finPeriodoY - 1 ? ` — VENCIDO el 31/12/${a.anio + 1}` : ""
+              }`,
+          )
+          .join(" · ");
+
+  // Columnas de la vista "Por año" (mismo formato que la planilla de Bárbara).
+  const aniosColumnas = [...new Set(saldos.flatMap((s) => s.saldos_anio.map((a) => a.anio)))].sort();
+  const sectorDe = new Map(saldos.map((s) => [s.chofer_id, s.sector]));
+
+  // Posición del tramo de un período dentro de una semana (barras proporcionales
+  // a los días reales, no bloques de semana entera).
+  const tramoEnSemana = (p: VacacionesPeriodo, sem: { start: string; end: string }) => {
+    const ini = p.fecha_inicio > sem.start ? p.fecha_inicio : sem.start;
+    const fin = p.fecha_fin < sem.end ? p.fecha_fin : sem.end;
+    const offset = diffDias(sem.start, ini);
+    const dias = diffDias(ini, fin) + 1;
+    return {
+      left: (offset / 7) * 100,
+      width: (dias / 7) * 100,
+      empiezaAca: p.fecha_inicio >= sem.start,
+      terminaAca: p.fecha_fin <= sem.end,
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -305,8 +454,24 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         >
           <Download size={14} /> Excel
         </Button>
+        <Button
+          variant="outline"
+          onClick={exportarPlanilla}
+          className="h-9 gap-1.5 text-muted-foreground border-border"
+          title="Descargar la planilla completa en el formato de siempre (resumen con semáforo, por sector y urgentes)"
+        >
+          <Download size={14} /> Planilla
+        </Button>
         {canWrite && (
           <>
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="h-9 gap-1.5 text-muted-foreground border-border"
+              title="Importar la planilla de vacaciones (VACACIONES 2.xlsx) con vista previa de diferencias"
+            >
+              <Table2 size={14} /> Importar planilla
+            </Button>
             <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
               <Plus size={15} /> Cargar vacaciones
             </Button>
@@ -331,14 +496,22 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             value={urgentes.length}
             tone="danger"
             emoji="🔴"
-            info={`Empleados que todavía tienen días del período ${finPeriodoY - 1} sin tomar. Vencen el 31/12/${finPeriodoY}: si no los toman, los pierden. Priorizá darles fecha (filtrá por 🔴 Urgentes).`}
+            info={`Empleados que todavía tienen días del período ${finPeriodoY - 1} sin tomar. Vencen el 31/12/${finPeriodoY}: si no los toman, los pierden. Clic para verlos en la tabla.`}
+            onClick={() => {
+              setFSemaforo("🔴");
+              irA("card-saldos");
+            }}
           />
           <StatCard
             label="Días en riesgo (31/12)"
             value={diasEnRiesgo}
             tone="danger"
             emoji="⏱️"
-            info={`Suma de todos los días del año anterior que vencen el 31/12/${finPeriodoY}. Es la cantidad total de días que la empresa perdería si nadie los toma a tiempo.`}
+            info={`Suma de todos los días del año anterior que vencen el 31/12/${finPeriodoY}. Es la cantidad total de días que la empresa perdería si nadie los toma a tiempo. Clic para ver los urgentes.`}
+            onClick={() => {
+              setFSemaforo("🔴");
+              irA("card-saldos");
+            }}
           />
           <StatCard
             label={`Días a otorgar ${finPeriodoY}`}
@@ -346,6 +519,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             tone="brand"
             emoji="🏖️"
             info={`Total de días que corresponden por ${finPeriodoY} a toda la dotación (según antigüedad: 14/21/28/35). Es lo que hay que ir planificando a lo largo del año.`}
+            onClick={() => irA("card-saldos")}
           />
           <StatCard
             label="Períodos planificados"
@@ -353,13 +527,15 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             tone="muted"
             emoji="📅"
             info="Cantidad de tramos de vacaciones cargados de hoy en adelante. Aparecen en el cronograma. Cargá más con “+ Cargar vacaciones”."
+            onClick={() => irA(periodosVentanaFiltrados.length > 0 ? "card-periodos" : "card-cronograma")}
           />
           <StatCard
             label="De vacaciones ahora"
             value={enVacacionesAhora.length}
             tone="success"
             emoji="✈️"
-            info="Empleados que están de vacaciones hoy. Logística también los ve como no disponibles en Viajes."
+            info="Empleados que están de vacaciones hoy. Logística también los ve como no disponibles en Viajes. Clic para verlos en el cronograma."
+            onClick={() => irA("card-cronograma")}
           />
         </div>
       </TooltipProvider>
@@ -372,17 +548,106 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         </div>
       )}
 
+      {/* Plan sugerido para liquidar los saldos viejos antes del 31/12. Se
+          recalcula solo: al cargar un período, esa persona sale del plan. */}
+      {urgentes.length > 0 && plan.items.length > 0 && (
+        <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 px-5 py-3.5">
+            <span className="text-base">🧩</span>
+            <h2 className="text-sm font-bold text-foreground">Plan sugerido</h2>
+            <span className="text-xs text-muted-foreground">
+              {plan.items.length} período(s) para liquidar los {diasEnRiesgo} días del {finPeriodoY - 1} antes del 31/12,
+              sin pasar de {umbral} ausentes por semana. Se rearma solo a medida que cargás.
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {planAbierto && canWrite && (
+                <Button
+                  variant="brand"
+                  onClick={() => setConfirmPlan(true)}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <Check size={13} /> Cargar todo el plan
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setPlanAbierto((v) => !v)}
+                className="h-8 text-xs text-muted-foreground border-border"
+              >
+                {planAbierto ? "Ocultar" : "Ver plan"}
+              </Button>
+            </div>
+          </div>
+          {planAbierto && (
+            <div className="border-t border-border">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      {["Empleado", "Desde", "Hasta", "Días", ""].map((c, i) => (
+                        <th key={i} className={`px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? "text-left" : i === 4 ? "" : "text-right"}`}>{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plan.items.map((it, i) => (
+                      <tr key={i} className="border-t border-border hover:bg-muted/20">
+                        <td className="px-4 py-1.5">
+                          <button type="button" onClick={() => verEnTabla(it.chofer_id)} className="font-medium text-foreground hover:text-primary" title="Ver su saldo en la tabla">
+                            {it.apellido}, {it.nombre}
+                          </button>
+                        </td>
+                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_inicio)}</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_fin)}</td>
+                        <td className="px-4 py-1.5 text-right font-mono">{it.dias}</td>
+                        <td className="px-4 py-1.5 text-right">
+                          {canWrite && (
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                abrirAdd({ chofer_id: it.chofer_id, nombre: it.nombre, apellido: it.apellido }, it.fecha_inicio, it.fecha_fin)
+                              }
+                              className="h-7 text-xs text-muted-foreground border-border"
+                            >
+                              Cargar…
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {plan.sinLugar.length > 0 && (
+                <div className="px-5 py-2.5 border-t border-border text-xs text-amber-700 bg-amber-50">
+                  ⚠ Sin lugar en el año para: {plan.sinLugar.map((s) => `${s.apellido} (${s.dias} días)`).join(", ")} — habría que superar el umbral de {umbral} ausentes o mover otros períodos.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Cronograma */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+      <div id="card-cronograma" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
           <CalendarRange size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Cronograma</h2>
           <span className="text-[11px] text-muted-foreground hidden sm:inline">
             {vista === "anual"
               ? `· ${finPeriodoY} completo, día por día`
-              : `· solo aparecen los que ya tienen vacaciones${canWrite ? " · clic en una celda para cargar o quitar" : ""}`}
+              : `· solo aparecen los que ya tienen vacaciones${canWrite ? " · clic en un período para ver el detalle" : ""}`}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <div className="relative hidden md:block">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                className="h-8 w-36 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
+              />
+            </div>
             {vista === "semanas" && (
               <select
                 value={numSemanas}
@@ -436,12 +701,12 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                     <th
                       key={s.start}
                       className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
-                        conteoPorSemana[i]! > UMBRAL_SOLAPE ? "text-[#EF4444]" : i === 0 ? "text-primary" : "text-muted-foreground/70"
+                        conteoPorSemana[i]! > umbral ? "text-[#EF4444]" : i === 0 ? "text-primary" : "text-muted-foreground/70"
                       }`}
                       title={`${conteoPorSemana[i]} de vacaciones esta semana`}
                     >
-                      <div>{s.label}</div>
-                      <div className={`text-[9px] font-bold ${conteoPorSemana[i]! > UMBRAL_SOLAPE ? "text-[#EF4444]" : "text-muted-foreground/50"}`}>
+                      <div>{i === 0 ? `${s.label} · hoy` : s.label}</div>
+                      <div className={`text-[9px] font-bold ${conteoPorSemana[i]! > umbral ? "text-[#EF4444]" : "text-muted-foreground/50"}`}>
                         {conteoPorSemana[i]}
                       </div>
                     </th>
@@ -451,32 +716,84 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
               <tbody>
                 {filasCrono.map((f) => (
                   <tr key={f.id} className="border-t border-border hover:bg-muted/20">
-                    <td className="sticky left-0 z-10 bg-card px-4 py-2 text-sm">
-                      <Link href={`/choferes/${choferSlug(f)}?tab=vacaciones`} className="font-medium text-foreground hover:text-primary">
+                    <td className="sticky left-0 z-10 bg-card px-4 py-2 text-sm whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => verEnTabla(f.id)}
+                        title="Ver su saldo en la tabla de abajo"
+                        className="font-medium text-foreground hover:text-primary text-left"
+                      >
                         {f.apellido}, {f.nombre}
+                      </button>
+                      {sectorDe.get(f.id) && sectorDe.get(f.id) !== "Chofer" && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground/70">{sectorDe.get(f.id)}</span>
+                      )}
+                      <Link
+                        href={`/choferes/${choferSlug(f)}?tab=vacaciones`}
+                        title="Abrir legajo"
+                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary"
+                      >
+                        <ExternalLink size={11} />
                       </Link>
                     </td>
                     {semanas.map((s, i) => {
                       const p = periodoEnSemana(f.periodos, i);
+                      const t = p ? tramoEnSemana(p, s) : null;
+                      const dropOk = !!dragInfo && dragInfo.periodo.chofer_id === f.id && !p;
                       return (
-                        <td key={i} className="px-1 py-2">
+                        <td
+                          key={i}
+                          className={`px-0.5 py-2 ${dropOk ? "bg-primary/5" : ""}`}
+                          onDragOver={(e) => {
+                            if (dropOk) e.preventDefault();
+                          }}
+                          onDrop={() => {
+                            if (dragInfo && dropOk) {
+                              const d = dragInfo;
+                              setDragInfo(null);
+                              void moverPeriodo(d.periodo, d.semanaStart, s.start);
+                            }
+                          }}
+                        >
                           <button
                             type="button"
-                            disabled={!canWrite}
+                            disabled={!canWrite && !p}
+                            draggable={canWrite && !!p && p.fecha_fin >= hoyISO}
+                            onDragStart={() => p && setDragInfo({ periodo: p, semanaStart: s.start })}
+                            onDragEnd={() => setDragInfo(null)}
                             onClick={() =>
                               p
-                                ? setCancelar(p)
+                                ? setDetalle(p)
                                 : abrirAdd({ chofer_id: f.id, nombre: f.nombre, apellido: f.apellido }, s.start, s.end)
                             }
-                            title={p ? `${fmtFecha(p.fecha_inicio)} → ${fmtFecha(p.fecha_fin)} · clic para quitar` : canWrite ? "Cargar esta semana" : ""}
-                            className={`h-5 w-full rounded-[3px] transition-colors ${
+                            title={
                               p
-                                ? "bg-[#10B981]/80 hover:bg-[#EF4444]/70"
+                                ? `${fmtFecha(p.fecha_inicio)} → ${fmtFecha(p.fecha_fin)} · ${p.dias} día${p.dias !== 1 ? "s" : ""}${p.anio_cargo != null ? ` · descuenta ${p.anio_cargo}` : " · histórico"}${p.viajes_conflicto > 0 ? ` · ⚠ ${p.viajes_conflicto} viaje(s) asignados en esas fechas` : ""} · clic: detalle${canWrite && p.fecha_fin >= hoyISO ? " · arrastrá para mover de semana" : ""}`
+                                : canWrite
+                                  ? "Cargar esta semana"
+                                  : ""
+                            }
+                            className={`relative h-5 w-full rounded-[3px] transition-colors ${
+                              p
+                                ? "bg-transparent cursor-pointer"
                                 : canWrite
                                   ? "bg-transparent hover:bg-primary/15 border border-dashed border-transparent hover:border-primary/40"
                                   : "bg-transparent"
                             }`}
-                          />
+                          >
+                            {p && t && (
+                              <span
+                                style={{ left: `${t.left}%`, width: `${t.width}%` }}
+                                className={`absolute top-0 h-5 ${p.viajes_conflicto > 0 ? "bg-[#F59E0B]/80 hover:bg-[#F59E0B]" : "bg-[#10B981]/80 hover:bg-[#10B981]"} ${
+                                  t.empiezaAca ? "rounded-l-[3px]" : ""
+                                } ${t.terminaAca ? "rounded-r-[3px]" : ""}`}
+                              >
+                                {p.viajes_conflicto > 0 && t.terminaAca && (
+                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#EF4444] border border-white" />
+                                )}
+                              </span>
+                            )}
+                          </button>
                         </td>
                       );
                     })}
@@ -498,9 +815,10 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             )}
 
             <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#10B981]/80" /> de vacaciones</span>
-              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#EF4444]/70" /> al pasar el mouse: quitar</span>
-              <span className="text-[#EF4444]">· el número rojo marca semanas con más de {UMBRAL_SOLAPE} ausentes</span>
+              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#10B981]/80" /> de vacaciones (el largo de la barra son los días reales)</span>
+              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#F59E0B]/80" /> con viajes asignados en esas fechas</span>
+              <span>· clic en un período: detalle{canWrite ? " · arrastralo para moverlo de semana · clic en una celda vacía: cargar" : ""}</span>
+              <span className="text-[#EF4444]">· el número rojo marca semanas con más de {umbral} ausentes (10% de la flota activa)</span>
             </div>
           </div>
         )}
@@ -508,7 +826,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
 
       {/* Próximos períodos */}
       {periodosVentanaFiltrados.length > 0 && (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+        <div id="card-periodos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <CalendarRange size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-foreground">Períodos en la ventana</h2>
@@ -518,12 +836,32 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             {periodosVentanaFiltrados.map((p) => (
               <li key={p.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
                 <div className="min-w-0">
-                  <span className="text-sm font-medium text-foreground">{p.apellido}, {p.nombre}</span>
+                  <button
+                    type="button"
+                    onClick={() => verEnTabla(p.chofer_id)}
+                    title="Ver su saldo en la tabla de abajo"
+                    className="text-sm font-medium text-foreground hover:text-primary"
+                  >
+                    {p.apellido}, {p.nombre}
+                  </button>
                   {p.observaciones && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{p.observaciones}</p>}
                 </div>
                 <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
                   {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">{p.dias} día{p.dias !== 1 ? "s" : ""}</span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
+                    title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
+                  >
+                    {p.dias} día{p.dias !== 1 ? "s" : ""}{p.anio_cargo != null ? ` · ${p.anio_cargo}` : ""}
+                  </span>
+                  {p.viajes_conflicto > 0 && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                      title="El chofer tiene viajes asignados dentro del período: reasignarlos o mover las vacaciones"
+                    >
+                      ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""}
+                    </span>
+                  )}
                   {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
                   {canWrite && (
                     <>
@@ -539,21 +877,48 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       )}
 
       {/* Saldos por sector */}
-      <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Palmtree size={16} className="text-primary" />
-            <h2 className="text-sm font-bold text-foreground">Saldos por empleado</h2>
-          </div>
+      <div id="card-saldos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
+          <Palmtree size={16} className="text-primary" />
+          <h2 className="text-sm font-bold text-foreground">Saldos por empleado</h2>
           <span className="text-xs text-muted-foreground">{saldosFiltrados.length} / {saldos.length}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="relative hidden md:block">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                className="h-8 w-36 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
+              />
+            </div>
+            <div className="inline-flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setVistaTabla("resumen")}
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "resumen" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <Table2 size={13} /> Resumen
+              </button>
+              <button
+                onClick={() => setVistaTabla("anios")}
+                title="Saldo y otorgados de cada año, como la planilla"
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "anios" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <CalendarDays size={13} /> Por año
+              </button>
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
                 <th className="px-2 py-2.5 w-8" />
-                {["Empleado", "Ingreso", "Antig.", "Hito", `Saldo ${finPeriodoY - 1}`, `Días ${finPeriodoY}`, "Total", "Tomados", "Disp.", "Vence saldo", "Próx. hito"].map((c, i) => (
-                  <th key={c} className={`px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap ${i === 0 || i === 3 || i === 9 || i === 10 ? "text-left" : "text-right"}`}>{c}</th>
+                {(vistaTabla === "resumen"
+                  ? ["Empleado", "Ingreso", "Antig.", "Hito", `Saldo ${finPeriodoY - 1}`, `Días ${finPeriodoY}`, "Total", "Tomados", "Disp.", "Vence", "Próx. hito"]
+                  : ["Empleado", "Ingreso", "Antig.", "Hito", ...aniosColumnas.map((a) => `Saldo ${a}`), "Disp.", "Vence", "Próx. hito"]
+                ).map((c, i, arr) => (
+                  <th key={c} className={`px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap ${i === 0 || i === 3 || i >= arr.length - 2 ? "text-left" : "text-right"}`}>{c}</th>
                 ))}
                 {canWrite && <th className="px-3 py-2.5 w-20" />}
               </tr>
@@ -561,14 +926,28 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             {saldosPorSector.map((g) => (
               <tbody key={g.sector}>
                 <tr className="bg-muted/20">
-                  <td colSpan={canWrite ? 13 : 12} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {g.sector === "Chofer" ? "Choferes" : g.sector} · {g.filas.length}
+                  <td
+                    colSpan={1 + (vistaTabla === "resumen" ? 11 : 7 + aniosColumnas.length) + (canWrite ? 1 : 0)}
+                    className="px-4 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground"
+                  >
+                    <span className="font-bold">{g.sector === "Chofer" ? "Choferes" : g.sector} · {g.filas.length}</span>
+                    <span className="ml-3 normal-case tracking-normal font-normal text-muted-foreground/80">
+                      saldo {finPeriodoY - 1}: <span className={`font-mono ${g.saldoViejo > 0 ? "text-[#EF4444]" : ""}`}>{g.saldoViejo}</span>
+                      {" · "}días {finPeriodoY}: <span className="font-mono">{g.diasAnio}</span>
+                      {" · "}disponibles: <span className="font-mono">{g.disp}</span>
+                    </span>
                   </td>
                 </tr>
                 {g.filas.map((s) => {
                   const editing = editSaldo === s.chofer_id;
                   return (
-                    <tr key={s.chofer_id} className="border-t border-border hover:bg-muted/20">
+                    <tr
+                      key={s.chofer_id}
+                      id={`saldo-${s.chofer_id}`}
+                      className={`border-t border-border hover:bg-muted/20 transition-colors ${
+                        resaltado === s.chofer_id ? "bg-primary/10 ring-2 ring-inset ring-primary/50" : ""
+                      }`}
+                    >
                       <td className="px-2 py-2 text-center">{s.semaforo}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <Link href={`/choferes/${choferSlug(s)}?tab=vacaciones`} className="font-medium text-foreground hover:text-primary inline-flex items-center gap-1.5">
@@ -582,24 +961,58 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                         {s.hito}
                         {s.desfasaje && <span className="ml-1 text-amber-500" title={`Por antigüedad le corresponderían ${s.dias_segun_antiguedad}`}>⚠</span>}
                       </td>
-                      <td className="px-3 py-2 text-right">
-                        {editing ? (
-                          <input value={editAdeu} onChange={(e) => setEditAdeu(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
+                      {vistaTabla === "anios" ? (
+                        aniosColumnas.map((anio) => {
+                          const a = s.saldos_anio.find((x) => x.anio === anio);
+                          const vencido = anio < finPeriodoY - 1;
+                          return (
+                            <td
+                              key={anio}
+                              className="px-3 py-2 text-right whitespace-nowrap"
+                              title={vencido ? `Venció el 31/12/${anio + 1}${a?.observaciones ? ` · ${a.observaciones}` : ""}` : (a?.observaciones ?? undefined)}
+                            >
+                              {a ? (
+                                <>
+                                  <span className={`font-mono font-semibold ${vencido ? "line-through text-muted-foreground/50" : a.saldo > 0 ? (anio < finPeriodoY ? "text-[#EF4444]" : "text-foreground") : "text-muted-foreground"}`}>{a.saldo}</span>
+                                  <span className="font-mono text-[10px] text-muted-foreground/60"> /{a.otorgados}</span>
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground/40">—</span>
+                              )}
+                            </td>
+                          );
+                        })
+                      ) : (
+                        <>
+                          <td className="px-3 py-2 text-right">
+                            {editing ? (
+                              <input value={editAdeu} onChange={(e) => setEditAdeu(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
+                            ) : (
+                              <span title={desglose(s)} className={`font-mono cursor-help ${s.adeudados > 0 ? "text-[#EF4444] font-semibold" : "text-muted-foreground"}`}>{s.adeudados}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {editing ? (
+                              <input value={editCorr} onChange={(e) => setEditCorr(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
+                            ) : (
+                              <span className="font-mono text-muted-foreground">{s.corresponden}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold text-foreground">{s.total}</td>
+                          <td className="px-3 py-2 text-right font-mono text-[#92400E]">{s.tomados}</td>
+                        </>
+                      )}
+                      <td title={desglose(s)} className={`px-3 py-2 text-right font-mono font-semibold cursor-help ${s.disponibles < 0 ? "text-[#EF4444]" : s.disponibles === 0 ? "text-muted-foreground" : "text-[#10B981]"}`}>{s.disponibles}</td>
+                      <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
+                        {s.vence_saldo ? (
+                          <span className="text-[#EF4444] font-medium" title={`Saldo ${finPeriodoY - 1}: si no se toma antes del 31/12/${finPeriodoY}, se pierde`}>{s.vence_saldo}</span>
                         ) : (
-                          <span className={`font-mono ${s.adeudados > 0 ? "text-[#EF4444] font-semibold" : "text-muted-foreground"}`}>{s.adeudados}</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
+                        <span className="block text-[10px] text-muted-foreground/60" title={`Ventana para otorgar el período ${finPeriodoY}`}>
+                          per. {finPeriodoY}: {s.vence_periodo}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 text-right">
-                        {editing ? (
-                          <input value={editCorr} onChange={(e) => setEditCorr(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
-                        ) : (
-                          <span className="font-mono text-muted-foreground">{s.corresponden}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono font-semibold text-foreground">{s.total}</td>
-                      <td className="px-3 py-2 text-right font-mono text-[#92400E]">{s.tomados}</td>
-                      <td className={`px-3 py-2 text-right font-mono font-semibold ${s.disponibles < 0 ? "text-[#EF4444]" : s.disponibles === 0 ? "text-muted-foreground" : "text-[#10B981]"}`}>{s.disponibles}</td>
-                      <td className="px-3 py-2 text-left text-xs whitespace-nowrap text-muted-foreground">{s.vence_saldo ?? "—"}</td>
                       <td className="px-3 py-2 text-left text-xs whitespace-nowrap text-muted-foreground">{s.proximo_hito}</td>
                       {canWrite && (
                         <td className="px-3 py-2">
@@ -612,7 +1025,9 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                             ) : (
                               <>
                                 <button onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })} className="text-muted-foreground hover:text-primary" title="Cargar vacaciones"><Plus size={15} /></button>
-                                <button onClick={() => abrirEditSaldo(s)} className="text-muted-foreground hover:text-primary" title="Editar saldo"><Pencil size={13} /></button>
+                                {vistaTabla === "resumen" && (
+                                  <button onClick={() => abrirEditSaldo(s)} className="text-muted-foreground hover:text-primary" title="Editar saldo"><Pencil size={13} /></button>
+                                )}
                               </>
                             )}
                           </div>
@@ -655,6 +1070,93 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
         onSuccess={refrescar}
       />
 
+      {/* Confirmar carga del plan completo */}
+      <ConfirmDialog
+        open={confirmPlan}
+        onOpenChange={setConfirmPlan}
+        title="Cargar todo el plan sugerido"
+        description={`Se van a cargar ${plan.items.length} período(s) de vacaciones (${plan.items.reduce((a, i) => a + i.dias, 0)} días) para liquidar los saldos ${finPeriodoY - 1} antes del 31/12. Después podés mover o quitar cualquiera desde el cronograma.`}
+        confirmLabel="Cargar plan"
+        destructive={false}
+        loading={planCargando}
+        onConfirm={aplicarPlan}
+      />
+
+      {/* Importar planilla de Bárbara con vista previa */}
+      <ImportarPlanillaDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={refrescar} />
+
+      {/* Detalle de un período (clic en el cronograma) */}
+      <Dialog open={!!detalle} onOpenChange={(v) => !v && setDetalle(null)}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-foreground text-lg">
+              {detalle && `${detalle.apellido}, ${detalle.nombre}`}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {detalle && (
+                <>
+                  {fmtFecha(detalle.fecha_inicio)} → {fmtFecha(detalle.fecha_fin)} · {detalle.dias} día{detalle.dias !== 1 ? "s" : ""}
+                  {detalle.anio_cargo != null ? ` · descuenta del saldo ${detalle.anio_cargo}` : " · histórico (no descuenta)"}
+                  {detalle.en_curso && " · en curso"}
+                  {detalle.viajes_conflicto > 0 && (
+                    <span className="block mt-1 text-[#92400E]">
+                      ⚠ Tiene {detalle.viajes_conflicto} viaje{detalle.viajes_conflicto !== 1 ? "s" : ""} asignado{detalle.viajes_conflicto !== 1 ? "s" : ""} dentro del período — reasignarlos o mover las vacaciones.
+                    </span>
+                  )}
+                  {detalle.observaciones && (
+                    <span className="block mt-1 italic">{detalle.observaciones}</span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="text-muted-foreground border-border"
+              onClick={() => {
+                if (detalle) verEnTabla(detalle.chofer_id);
+                setDetalle(null);
+              }}
+            >
+              Ver saldo en la tabla
+            </Button>
+            {detalle && (
+              <Button
+                variant="outline"
+                className="text-muted-foreground border-border"
+                onClick={() => router.push(`/choferes/${choferSlug(detalle)}?tab=vacaciones`)}
+              >
+                <ExternalLink size={13} className="mr-1" /> Abrir legajo
+              </Button>
+            )}
+            {canWrite && (
+              <>
+                <Button
+                  variant="outline"
+                  className="text-muted-foreground border-border"
+                  onClick={() => {
+                    if (detalle) abrirEdit(detalle);
+                    setDetalle(null);
+                  }}
+                >
+                  <Pencil size={13} className="mr-1" /> Editar fechas
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setCancelar(detalle);
+                    setDetalle(null);
+                  }}
+                >
+                  Quitar
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmar cancelación */}
       <Dialog open={!!cancelar} onOpenChange={(v) => !v && setCancelar(null)}>
         <DialogContent className="sm:max-w-[420px]">
@@ -684,12 +1186,14 @@ function StatCard({
   tone,
   emoji,
   info,
+  onClick,
 }: {
   label: string;
   value: number;
   tone: "danger" | "brand" | "success" | "muted";
   emoji: string;
   info: string;
+  onClick?: () => void;
 }) {
   const valueClass =
     tone === "danger" ? "text-[#EF4444]" : tone === "brand" ? "text-primary" : tone === "success" ? "text-[#10B981]" : "text-foreground";
@@ -697,7 +1201,10 @@ function StatCard({
     <Tooltip>
       <TooltipTrigger
         render={
-          <div className="rounded-[8px] border border-border bg-card p-3 cursor-help hover:border-primary/40 hover:shadow-sm transition-colors">
+          <div
+            onClick={onClick}
+            className={`rounded-[8px] border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition-colors ${onClick ? "cursor-pointer" : "cursor-help"}`}
+          >
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
               <span>{emoji}</span>
               <span className="truncate">{label}</span>

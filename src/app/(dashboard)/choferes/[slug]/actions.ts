@@ -8,6 +8,7 @@ import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
+import { saldosPorAnio, anioParaImputar } from "../vacaciones/derivar";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -268,7 +269,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
-    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, anio_cargo, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
     .eq("chofer_id", chofer_id)
     .is("deleted_at", null)
     .order("fecha_inicio", { ascending: false })) as {
@@ -282,20 +283,22 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           observaciones: string | null;
           es_vacaciones: boolean | null;
           justificada: boolean | null;
+          anio_cargo: number | null;
           created_at: string;
           autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
         }[]
       | null;
   };
 
-  // Saldo de vacaciones del chofer (lo que carga RRHH). Tabla nueva → cast.
+  // Días de vacaciones otorgados por año (los saldos se derivan restando los
+  // períodos imputados a cada año). Tabla nueva → cast.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: vacacionesSaldoRaw } = (await (supabase as any)
-    .from("chofer_vacaciones")
-    .select("dias_correspondientes, dias_adeudados")
+  const { data: vacacionesAniosRaw } = (await (supabase as any)
+    .from("chofer_vacaciones_anios")
+    .select("anio, dias_correspondientes, observaciones")
     .eq("chofer_id", chofer_id)
-    .maybeSingle()) as {
-    data: { dias_correspondientes: number; dias_adeudados: number } | null;
+    .order("anio")) as {
+    data: { anio: number; dias_correspondientes: number; observaciones: string | null }[] | null;
   };
 
   // Camiones que el chofer manejó en el mes: historial que solapa el período + el actual.
@@ -863,29 +866,44 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         en_curso: a.fecha_inicio <= hoyStr2 && a.fecha_fin >= hoyStr2,
         es_vacaciones: a.es_vacaciones ?? false,
         justificada: a.justificada ?? true,
+        anio_cargo: a.anio_cargo ?? null,
         created_at: a.created_at,
       };
     }),
     vacaciones: (() => {
-      const corresponden = vacacionesSaldoRaw?.dias_correspondientes ?? 0;
-      const adeudados = vacacionesSaldoRaw?.dias_adeudados ?? 0;
-      // Días tomados = suma de días de las vacaciones del período en curso
-      // (fecha_inicio >= 1/1 del año actual). El saldo 2025 (adeudados) ya viene
-      // neto de lo tomado en 2025, así que sólo contamos las del período vigente
-      // para no descontar dos veces.
-      const inicioPeriodo = `${new Date().getFullYear()}-01-01`;
-      const tomados = (ausenciasRaw ?? [])
-        .filter((a) => a.es_vacaciones && a.fecha_inicio >= inicioPeriodo)
-        .reduce((acc, a) => {
-          const ini = new Date(a.fecha_inicio + "T00:00:00");
-          const fin = new Date(a.fecha_fin + "T00:00:00");
-          return acc + Math.max(1, Math.round((fin.getTime() - ini.getTime()) / 86_400_000) + 1);
-        }, 0);
+      // Saldos por año: otorgados (chofer_vacaciones_anios) − períodos imputados
+      // a cada año (anio_cargo). Los períodos con anio_cargo null son históricos
+      // y no descuentan (ya estaban reflejados en la carga inicial).
+      const anioActual = new Date().getFullYear();
+      const inicioPeriodo = `${anioActual}-01-01`;
+      const diasDe = (a: { fecha_inicio: string; fecha_fin: string }) => {
+        const ini = new Date(a.fecha_inicio + "T00:00:00");
+        const fin = new Date(a.fecha_fin + "T00:00:00");
+        return Math.max(1, Math.round((fin.getTime() - ini.getTime()) / 86_400_000) + 1);
+      };
+      const usadosPorAnio = new Map<number, number>();
+      let tomados = 0;
+      for (const a of ausenciasRaw ?? []) {
+        if (!a.es_vacaciones) continue;
+        const dias = diasDe(a);
+        if (a.fecha_inicio >= inicioPeriodo) tomados += dias;
+        if (a.anio_cargo != null)
+          usadosPorAnio.set(a.anio_cargo, (usadosPorAnio.get(a.anio_cargo) ?? 0) + dias);
+      }
+      const saldosAnio = saldosPorAnio(
+        (vacacionesAniosRaw ?? []).map((r) => ({
+          anio: r.anio,
+          dias: r.dias_correspondientes ?? 0,
+          observaciones: r.observaciones,
+        })),
+        usadosPorAnio,
+      );
       return {
-        dias_correspondientes: corresponden,
-        dias_adeudados: adeudados,
+        dias_correspondientes: saldosAnio.find((s) => s.anio === anioActual)?.otorgados ?? 0,
+        dias_adeudados: saldosAnio.filter((s) => s.anio < anioActual).reduce((a, s) => a + s.saldo, 0),
         dias_tomados: tomados,
-        dias_disponibles: corresponden + adeudados - tomados,
+        dias_disponibles: saldosAnio.reduce((a, s) => a + s.saldo, 0),
+        anios: saldosAnio,
       };
     })(),
     categorias_apercibimiento: categoriasApe ?? [],
@@ -1188,6 +1206,49 @@ function formatFechaCorta(fecha: string): string {
   return `${d}/${m}`;
 }
 
+function diasPeriodo(inicio: string, fin: string): number {
+  const ini = new Date(inicio + "T00:00:00").getTime();
+  const f = new Date(fin + "T00:00:00").getTime();
+  return Math.max(1, Math.round((f - ini) / 86_400_000) + 1);
+}
+
+// Saldos por año del chofer (otorgados − períodos imputados), opcionalmente
+// excluyendo un período (para reimputar al editarlo).
+async function saldosAnioChofer(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  chofer_id: string,
+  excluirPeriodoId?: string,
+) {
+  const [{ data: anios }, { data: periodos }] = await Promise.all([
+    sb
+      .from("chofer_vacaciones_anios")
+      .select("anio, dias_correspondientes, observaciones")
+      .eq("chofer_id", chofer_id)
+      .order("anio"),
+    sb
+      .from("chofer_ausencias")
+      .select("id, fecha_inicio, fecha_fin, anio_cargo")
+      .eq("chofer_id", chofer_id)
+      .eq("es_vacaciones", true)
+      .is("deleted_at", null)
+      .not("anio_cargo", "is", null),
+  ]);
+  const usados = new Map<number, number>();
+  for (const p of (periodos ?? []) as { id: string; fecha_inicio: string; fecha_fin: string; anio_cargo: number }[]) {
+    if (excluirPeriodoId && p.id === excluirPeriodoId) continue;
+    usados.set(p.anio_cargo, (usados.get(p.anio_cargo) ?? 0) + diasPeriodo(p.fecha_inicio, p.fecha_fin));
+  }
+  return saldosPorAnio(
+    ((anios ?? []) as { anio: number; dias_correspondientes: number; observaciones: string | null }[]).map((r) => ({
+      anio: r.anio,
+      dias: r.dias_correspondientes ?? 0,
+      observaciones: r.observaciones,
+    })),
+    usados,
+  );
+}
+
 export async function crearAusenciaAction(
   chofer_id: string,
   data: {
@@ -1212,7 +1273,12 @@ export async function crearAusenciaAction(
   if (solape) return { error: solape };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from("chofer_ausencias").insert({
+  const sbAny = supabase as any;
+  // Las vacaciones se imputan al año más viejo con saldo disponible.
+  const anioCargo = data.es_vacaciones
+    ? anioParaImputar(await saldosAnioChofer(sbAny, chofer_id), data.fecha_inicio)
+    : null;
+  const { error } = await sbAny.from("chofer_ausencias").insert({
     chofer_id,
     tipo,
     fecha_inicio: data.fecha_inicio,
@@ -1222,6 +1288,7 @@ export async function crearAusenciaAction(
     observaciones: data.observaciones?.trim() || null,
     es_vacaciones: data.es_vacaciones ?? false,
     justificada: data.justificada ?? true,
+    anio_cargo: anioCargo,
     created_by: user.id,
   });
 
@@ -1239,6 +1306,63 @@ export async function crearAusenciaAction(
   revalidatePath("/viajes");
   revalidatePath("/choferes/vacaciones");
   return { success: true };
+}
+
+// Carga varios períodos de vacaciones de una vez (el "plan sugerido" de la
+// página de Vacaciones). Cada uno se valida e imputa igual que la carga manual;
+// los que fallan (solape, etc.) se informan sin frenar al resto.
+export async function cargarVacacionesBatchAction(
+  items: { chofer_id: string; fecha_inicio: string; fecha_fin: string }[],
+) {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+
+  let creados = 0;
+  const errores: string[] = [];
+  for (const item of items.slice(0, 100)) {
+    if (!item.fecha_inicio || !item.fecha_fin || item.fecha_fin < item.fecha_inicio) {
+      errores.push("Fechas inválidas");
+      continue;
+    }
+    const solape = await ausenciaSolapadaError(supabase, item.chofer_id, item.fecha_inicio, item.fecha_fin);
+    if (solape) {
+      errores.push(solape);
+      continue;
+    }
+    const anioCargo = anioParaImputar(await saldosAnioChofer(sb, item.chofer_id), item.fecha_inicio);
+    const { error } = await sb.from("chofer_ausencias").insert({
+      chofer_id: item.chofer_id,
+      tipo: "Vacaciones",
+      fecha_inicio: item.fecha_inicio,
+      fecha_fin: item.fecha_fin,
+      estado: "autorizada",
+      autorizado_por: user.id,
+      observaciones: "Plan sugerido",
+      es_vacaciones: true,
+      justificada: true,
+      anio_cargo: anioCargo,
+      created_by: user.id,
+    });
+    if (error) {
+      errores.push("No se pudo cargar un período");
+      continue;
+    }
+    creados++;
+    await logChoferAudit(
+      item.chofer_id,
+      "ausencia_creada",
+      null,
+      { tipo: "Vacaciones", fecha_inicio: item.fecha_inicio, fecha_fin: item.fecha_fin, origen: "plan_sugerido" },
+      user.id,
+    );
+  }
+
+  revalidatePath("/choferes/vacaciones");
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/viajes");
+  return { success: true, creados, errores };
 }
 
 export async function editarAusenciaAction(
@@ -1275,17 +1399,27 @@ export async function editarAusenciaAction(
   const sb = supabase as any;
   const { data: previo } = await sb
     .from("chofer_ausencias")
-    .select("tipo, fecha_inicio, fecha_fin, observaciones")
+    .select("tipo, fecha_inicio, fecha_fin, observaciones, es_vacaciones, anio_cargo")
     .eq("id", id)
     .single();
+
+  // Imputación por año: si deja de ser vacaciones se limpia; si pasa a serlo se
+  // asigna al año más viejo con saldo. Un cargo ya asignado (o null histórico)
+  // se conserva aunque cambien las fechas.
+  const esVac = data.es_vacaciones ?? false;
+  let anioCargo: number | null = previo?.anio_cargo ?? null;
+  if (!esVac) anioCargo = null;
+  else if (previo && !previo.es_vacaciones)
+    anioCargo = anioParaImputar(await saldosAnioChofer(sb, chofer_id, id), data.fecha_inicio);
 
   const nuevos = {
     tipo,
     fecha_inicio: data.fecha_inicio,
     fecha_fin: data.fecha_fin,
     observaciones: data.observaciones?.trim() || null,
-    es_vacaciones: data.es_vacaciones ?? false,
+    es_vacaciones: esVac,
     justificada: data.justificada ?? true,
+    anio_cargo: anioCargo,
   };
 
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);
@@ -1326,9 +1460,10 @@ export async function cancelarAusenciaAction(id: string, chofer_id: string) {
   return { success: true };
 }
 
-// Guarda/actualiza el saldo de vacaciones del chofer (días que le corresponden del
-// período + días adeudados de períodos anteriores). Los "tomados" no se cargan acá:
-// se calculan a partir de las ausencias marcadas como vacaciones.
+// Guarda/actualiza el saldo de vacaciones del chofer sobre `chofer_vacaciones_anios`:
+// "días que corresponden" es la fila del año en curso, y "días adeudados" es el
+// saldo restante deseado de años anteriores (se resuelve ajustando la fila del
+// año pasado, contemplando lo ya imputado). Los "tomados" no se cargan acá.
 export async function guardarSaldoVacacionesAction(
   chofer_id: string,
   data: { dias_correspondientes: number; dias_adeudados: number; observaciones?: string | null },
@@ -1345,29 +1480,59 @@ export async function guardarSaldoVacacionesAction(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const { data: previo } = await sb
-    .from("chofer_vacaciones")
-    .select("dias_correspondientes, dias_adeudados")
-    .eq("chofer_id", chofer_id)
-    .maybeSingle();
+  const anioActual = new Date().getFullYear();
+  const anioPrevio = anioActual - 1;
+  const saldos = await saldosAnioChofer(sb, chofer_id);
 
-  const { error } = await sb.from("chofer_vacaciones").upsert(
+  const previo = {
+    dias_correspondientes: saldos.find((s) => s.anio === anioActual)?.otorgados ?? 0,
+    dias_adeudados: saldos.filter((s) => s.anio < anioActual).reduce((a, s) => a + s.saldo, 0),
+  };
+
+  // El saldo viejo deseado se resuelve sobre la fila del año pasado: otorgados =
+  // saldo deseado + lo ya imputado a ese año − el saldo que aportan años previos.
+  const saldoOtrosViejos = saldos
+    .filter((s) => s.anio < anioPrevio)
+    .reduce((a, s) => a + s.saldo, 0);
+  const usadosPrevio = saldos.find((s) => s.anio === anioPrevio)?.usados ?? 0;
+  const otorgadosPrevio = adeudados + usadosPrevio - saldoOtrosViejos;
+  if (otorgadosPrevio < 0)
+    return {
+      error: `No se puede dejar el saldo anterior en ${adeudados}: hay ${saldoOtrosViejos} día(s) de años previos a ${anioPrevio}. Ajustá esos años desde el legajo.`,
+    };
+
+  const nowIso = new Date().toISOString();
+  const filas: Record<string, unknown>[] = [
     {
       chofer_id,
+      anio: anioActual,
       dias_correspondientes: corresponden,
-      dias_adeudados: adeudados,
-      observaciones: data.observaciones?.trim() || null,
+      observaciones: data.observaciones?.trim() || "Editado manualmente",
       updated_by: user.id,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     },
-    { onConflict: "chofer_id" },
-  );
+  ];
+  const filaPrevia = saldos.find((s) => s.anio === anioPrevio);
+  if (filaPrevia || otorgadosPrevio > 0) {
+    filas.push({
+      chofer_id,
+      anio: anioPrevio,
+      dias_correspondientes: otorgadosPrevio,
+      observaciones: "Editado manualmente",
+      updated_by: user.id,
+      updated_at: nowIso,
+    });
+  }
+
+  const { error } = await sb
+    .from("chofer_vacaciones_anios")
+    .upsert(filas, { onConflict: "chofer_id,anio" });
   if (error) return { error: "No se pudo guardar el saldo de vacaciones." };
 
   await logChoferAudit(
     chofer_id,
-    previo ? "vacaciones_saldo_editado" : "vacaciones_saldo_creado",
-    previo ?? null,
+    "vacaciones_saldo_editado",
+    previo,
     { dias_correspondientes: corresponden, dias_adeudados: adeudados },
     user.id,
   );
