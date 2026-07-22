@@ -179,7 +179,8 @@ export default function EntrevistaDrawer({
             <div className="shrink-0 border-b border-border p-5 pb-4 pr-14">
               <DialogTitle className="flex flex-wrap items-center gap-3 text-lg font-bold text-foreground">
                 {e.nombre}
-                <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={canWrite} />
+                {/* Solo lectura: la etapa se maneja acá abajo con los pills. */}
+                <Semaforo entrevistaId={e.id} etapa={e.etapa} canWrite={false} />
               </DialogTitle>
               <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Calendar size={13} />{fmtFecha(e.fecha_entrevista)}</span>

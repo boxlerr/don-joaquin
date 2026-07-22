@@ -58,7 +58,7 @@ export default function CerradosBoard({
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold leading-tight text-foreground">{e.nombre}</span>
         <span onClick={(ev) => ev.stopPropagation()}>
-          <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={false} size={10} />
+          <Semaforo entrevistaId={e.id} etapa={e.etapa} canWrite={false} size={10} />
         </span>
       </div>
       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">

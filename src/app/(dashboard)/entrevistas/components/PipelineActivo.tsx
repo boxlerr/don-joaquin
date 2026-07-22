@@ -108,7 +108,7 @@ export default function PipelineActivo({
             {e.nombre}
           </button>
           <div className="flex shrink-0 items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
-            <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={canWrite} size={11} />
+            <Semaforo entrevistaId={e.id} etapa={e.etapa} nombre={e.nombre} canWrite={canWrite} size={11} />
             {canWrite && (
               <EntrevistaFormDialog entrevista={e}>
                 <button type="button" title="Editar" className="p-0.5 text-muted-foreground/60 hover:text-foreground"><Pencil size={13} /></button>

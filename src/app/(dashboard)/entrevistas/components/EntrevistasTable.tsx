@@ -49,8 +49,6 @@ export interface Entrevista {
   aprobado?: string | null;
   entro?: string | null;
   se_mantuvo?: string | null;
-  /** Semáforo de Bárbara: 'me_gusto' | 'medio' | 'no_gusto' | null. */
-  valoracion?: string | null;
   contacto_emergencia?: string | null;
   cv_count?: number; // cantidad de CVs adjuntos
   created_at: string;
@@ -159,7 +157,7 @@ export default function EntrevistasTable({
           )}
         </TableCell>
         <TableCell>
-          <Semaforo entrevistaId={e.id} valoracion={e.valoracion} canWrite={canWrite} size={12} />
+          <Semaforo entrevistaId={e.id} etapa={e.etapa} nombre={e.nombre} canWrite={canWrite} size={12} />
         </TableCell>
         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1"><Calendar className="size-3" />{fmtFecha(e.fecha_entrevista)}</span>

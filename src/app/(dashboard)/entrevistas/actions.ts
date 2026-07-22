@@ -40,8 +40,6 @@ const CV_CFG: AdjuntoCfg = {
   folder: "cv-entrevistas",
 };
 
-const VALORACION_VALUES = ["me_gusto", "medio", "no_gusto"] as const;
-
 export type EntrevistaFormData = {
   nombre: string;
   fecha_entrevista?: string;
@@ -105,25 +103,8 @@ function buildPayload(data: EntrevistaFormData): EntrevistaInsert | { error: str
   } as unknown as EntrevistaInsert;
 }
 
-// ── Semáforo de valoración (verde / amarillo / rojo, un click) ──────────────
-export async function setValoracionAction(id: string, valoracion: string | null) {
-  const user = await requireArea("rrhh", "write");
-  if (valoracion != null && !VALORACION_VALUES.includes(valoracion as never)) {
-    return { error: "Valoración inválida." };
-  }
-  const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
-  const { data: anterior } = await sb.from("entrevistas").select("valoracion").eq("id", id).single();
-  const { error } = await sb.from("entrevistas").update({ valoracion }).eq("id", id);
-  if (error) {
-    console.error("Error al valorar entrevista:", error);
-    return { error: "No se pudo guardar la valoración." };
-  }
-  await logEntrevistaAudit(id, "editar", anterior ?? null, { valoracion }, user.id);
-  revalidatePath("/entrevistas");
-  return { success: true };
-}
+// El semáforo de la lista/tablero ya no guarda una "valoración" propia: ahora
+// refleja y mueve la `etapa` del pipeline (ver setEtapaEntrevistaAction abajo).
 
 // ── Guardado parcial desde la ficha (drawer): solo los campos editados ──────
 const PATCH_TEXTO = [
