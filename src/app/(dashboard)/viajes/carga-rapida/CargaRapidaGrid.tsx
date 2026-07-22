@@ -133,13 +133,16 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         prev.map((f) => {
           if (f.id !== id) return f;
           if (!c) return { ...f, ruta_id: circuitoId };
+          // La distancia del circuito es una sola: va a km con carga si la fila
+          // es cargada, o a km vacíos si es vacía (un viaje = un tramo, nunca ambos).
+          const dist = String(c.km_con_carga || c.km_vacios);
           return {
             ...f,
             ruta_id: circuitoId,
             origen_nombre: c.origen === "—" ? "" : c.origen,
             destino_nombre: c.destino === "—" ? "" : c.destino,
-            km_con_carga: String(c.km_con_carga),
-            km_vacios: String(c.km_vacios),
+            km_con_carga: f.es_vacio ? "0" : dist,
+            km_vacios: f.es_vacio ? dist : "0",
             // Cambió la ruta: el monto se recalcula con "Calcular $ por tarifa".
             tarifa_id: "",
           };

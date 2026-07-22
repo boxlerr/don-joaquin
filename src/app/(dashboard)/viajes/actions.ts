@@ -495,7 +495,7 @@ export async function getKmHistoricoAction(
   // Vía del viaje (Ruta 5 / Ruta 22): los km cambian según por dónde fue, así
   // que el historial se consulta por vía. Sin vía = cualquier viaje del par.
   via?: "ruta_5" | "ruta_22" | null,
-): Promise<{ km_con_carga: number; km_vacios: number } | null> {
+): Promise<{ distancia: number } | null> {
   await requireArea("viajes", "read");
 
   const o = origenNombre.trim();
@@ -521,7 +521,13 @@ export async function getKmHistoricoAction(
   // veces van cargadas y otras de retorno vacío). Y hay rutas que SIEMPRE van
   // vacías (km_con_carga = 0): antes el filtro `km_con_carga > 0` las dejaba sin
   // precargar los km vacíos. Tomamos el valor más reciente de cada uno.
-  const base = (col: "km_con_carga" | "km_vacios") => {
+  //
+  // La vía define la distancia (Ruta 5 va más corto que Ruta 22 en el mismo par):
+  //  - Con vía marcada → solo viajes de ESA vía.
+  //  - Sin marcar → preferimos viajes también sin marcar, para no arrastrar la
+  //    distancia de una Ruta 5/22 a un viaje "normal". Si el par no tiene ningún
+  //    viaje sin marcar (todos fueron por una vía), caemos a cualquiera (fallback).
+  const base = (col: "km_con_carga" | "km_vacios", soloSinMarcar: boolean) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = (supabase as any)
       .from("viajes")
@@ -530,23 +536,37 @@ export async function getKmHistoricoAction(
       .eq("destino_id", destinoId)
       .neq("estado", "cancelado")
       .gt(col, 0);
-    // Con vía marcada, solo cuentan los viajes de ESA vía: la primera vez que
-    // usan una ruta los km se tipean a mano y de ahí en más se aprenden.
     if (via) q = q.eq("ruta_via", via);
+    else if (soloSinMarcar) q = q.is("ruta_via", null);
     return q.order("fecha_viaje", { ascending: false }).limit(1);
   };
 
-  const [conCargaRes, vaciosRes] = await Promise.all([
-    base("km_con_carga"),
-    base("km_vacios"),
-  ]);
+  const leer = async (soloSinMarcar: boolean) => {
+    const [conCargaRes, vaciosRes] = await Promise.all([
+      base("km_con_carga", soloSinMarcar),
+      base("km_vacios", soloSinMarcar),
+    ]);
+    return {
+      km_con_carga: Number(conCargaRes.data?.[0]?.km_con_carga) || 0,
+      km_vacios: Number(vaciosRes.data?.[0]?.km_vacios) || 0,
+    };
+  };
 
-  const km_con_carga = Number(conCargaRes.data?.[0]?.km_con_carga) || 0;
-  const km_vacios = Number(vaciosRes.data?.[0]?.km_vacios) || 0;
+  // Sin vía marcada empezamos exigiendo viajes sin marcar; con vía el flag no aplica.
+  let res = await leer(!via);
+  // Fallback: par sin historial "sin marcar" → usar cualquier viaje del par.
+  if (!via && !res.km_con_carga && !res.km_vacios) {
+    res = await leer(false);
+  }
 
-  if (!km_con_carga && !km_vacios) return null;
+  // La distancia de un tramo es UNA sola (la misma vaya cargado o vacío): se
+  // prefiere la del viaje cargado y, si la ruta solo tuvo vacíos, se usa esa. El
+  // caller la pone en km con carga (viaje cargado) o km vacíos (vuelta vacía),
+  // nunca en las dos: un viaje es un tramo.
+  const distancia = res.km_con_carga || res.km_vacios;
+  if (!distancia) return null;
 
-  return { km_con_carga, km_vacios };
+  return { distancia };
 }
 
 // ============================================================================
@@ -1580,6 +1600,7 @@ export type ViajeParaEditar = {
   destino_nombre: string | null;
   km_con_carga: number;
   km_vacios: number;
+  ruta_via: RutaVia | null;
   tonelaje_real: number;
   monto_flete: number;
   tarifa_id: string | null;
@@ -1600,7 +1621,7 @@ export async function getViajeParaEditarAction(
       `id, codigo, fecha_viaje, estado, facturado,
        cliente_id, chofer_id, camion_id, tipo_carga_id, ruta_id,
        origen_id, destino_id,
-       km_con_carga, km_vacios, tonelaje_real, monto_flete, tarifa_id, observaciones,
+       km_con_carga, km_vacios, ruta_via, tonelaje_real, monto_flete, tarifa_id, observaciones,
        nro_viaje_ypf, material,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
@@ -1633,6 +1654,7 @@ export async function getViajeParaEditarAction(
     destino_nombre: destino?.nombre ?? null,
     km_con_carga: data.km_con_carga ?? 0,
     km_vacios: data.km_vacios ?? 0,
+    ruta_via: (data.ruta_via as RutaVia | null) ?? null,
     tonelaje_real: data.tonelaje_real ?? 0,
     monto_flete: data.monto_flete ?? 0,
     tarifa_id: data.tarifa_id ?? null,
@@ -1667,6 +1689,7 @@ export async function updateViajeAction(
     destino_nombre: string | null;
     km_con_carga: number;
     km_vacios: number;
+    ruta_via?: RutaVia | null;
     tonelaje_real: number;
     monto_flete: number;
     tarifa_id?: string | null;
@@ -1687,6 +1710,7 @@ export async function updateViajeAction(
     destino_nombre: data.destino_nombre,
     km_con_carga: data.km_con_carga,
     km_vacios: data.km_vacios,
+    ruta_via: data.ruta_via ?? null,
     tonelaje_real: data.tonelaje_real,
     monto_flete: data.monto_flete,
     tarifa_id: data.tarifa_id ?? null,
@@ -1730,7 +1754,7 @@ export async function updateViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previo } = await (supabase as any)
     .from("viajes")
-    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, tonelaje_real, monto_flete, es_vacio, cobrado, facturado")
+    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, ruta_via, tonelaje_real, monto_flete, es_vacio, cobrado, facturado")
     .eq("id", id)
     .single();
 
@@ -1783,6 +1807,7 @@ export async function updateViajeAction(
       destino_id,
       km_con_carga: parsed.data.km_con_carga,
       km_vacios: parsed.data.km_vacios,
+      ruta_via: parsed.data.ruta_via ?? null,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
       tarifa_id: parsed.data.tarifa_id ?? null,
@@ -1817,6 +1842,7 @@ export async function updateViajeAction(
       destino_id,
       km_con_carga: parsed.data.km_con_carga,
       km_vacios: parsed.data.km_vacios,
+      ruta_via: parsed.data.ruta_via ?? null,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
       facturado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),

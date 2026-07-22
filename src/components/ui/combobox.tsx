@@ -174,7 +174,7 @@ export function Combobox({
             className={cn(
               // El popup crece hasta el contenido para no cortar opciones largas,
               // con un piso = ancho del trigger y un techo = ancho disponible.
-              "max-h-[min(22rem,var(--available-height))] w-max min-w-[var(--anchor-width)] max-w-[min(26rem,var(--available-width))] origin-[var(--transform-origin)]",
+              "max-h-[min(22rem,var(--available-height))] w-max min-w-[var(--anchor-width)] max-w-[min(38rem,var(--available-width))] origin-[var(--transform-origin)]",
               "flex flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg",
               "transition-[transform,scale,opacity] data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
               className,

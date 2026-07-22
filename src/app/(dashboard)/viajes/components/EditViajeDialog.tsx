@@ -76,6 +76,8 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
   const [destinoNombre, setDestinoNombre] = useState("");
   const [kmConCarga, setKmConCarga] = useState("0");
   const [kmVacios, setKmVacios] = useState("0");
+  // Vía del viaje (Ruta 5 directa / Ruta 22 por la base): define los km del par.
+  const [rutaVia, setRutaVia] = useState<"" | "ruta_5" | "ruta_22">("");
   const [tonelaje, setTonelaje] = useState("0");
   const [montoFlete, setMontoFlete] = useState("0");
   const [tarifaId, setTarifaId] = useState("");
@@ -125,6 +127,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       setDestinoNombre(vd.destino_nombre ?? "");
       setKmConCarga(String(vd.km_con_carga));
       setKmVacios(String(vd.km_vacios));
+      setRutaVia(vd.ruta_via ?? "");
       setTonelaje(String(vd.tonelaje_real));
       setMontoFlete(String(vd.monto_flete));
       setTarifaId(vd.tarifa_id ?? "");
@@ -196,8 +199,10 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
     if (c) {
       setOrigenNombre(c.origen === "—" ? "" : c.origen);
       setDestinoNombre(c.destino === "—" ? "" : c.destino);
-      setKmConCarga(String(c.km_con_carga));
-      setKmVacios(String(c.km_vacios));
+      // Un viaje es un tramo (cargado o vacío), nunca ambos: la distancia del
+      // circuito va a km con carga; si el viaje es vacío, movela a km vacíos.
+      setKmConCarga(String(c.km_con_carga || c.km_vacios));
+      setKmVacios("0");
     }
   };
 
@@ -220,6 +225,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       destino_nombre: destinoNombre.trim() || null,
       km_con_carga: Number(kmConCarga) || 0,
       km_vacios: Number(kmVacios) || 0,
+      ruta_via: rutaVia || null,
       tonelaje_real: Number(tonelaje) || 0,
       monto_flete: Number(montoFlete) || 0,
       tarifa_id: tarifaId || null,
@@ -505,6 +511,15 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               </CField>
             </div>
 
+            {/* Vía del viaje: Ruta 5 (directa) vs Ruta 22 (por la base) — define los
+                km propios del par. La marca la trae el Excel; acá se puede corregir. */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                <Route size={12} /> ¿Por qué ruta fue?
+              </label>
+              <ViaSegmented value={rutaVia} onChange={setRutaVia} />
+            </div>
+
             {/* Monto de flete — se recalcula por tarifa si cambiás destino/tonelaje (editable) */}
             <CField label="Monto de flete (ARS)" icon={DollarSign} error={fieldErrors.monto_flete}>
               <input
@@ -573,6 +588,43 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Selector segmentado de vía: Sin marcar · Ruta 5 · Ruta 22 (mismo control que
+ *  en Nuevo viaje). La vía define los km propios del par origen→destino. */
+function ViaSegmented({
+  value,
+  onChange,
+}: {
+  value: "" | "ruta_5" | "ruta_22";
+  onChange: (v: "" | "ruta_5" | "ruta_22") => void;
+}) {
+  const opts: { v: "" | "ruta_5" | "ruta_22"; label: string; title: string }[] = [
+    { v: "", label: "Sin marcar", title: "No aplica o no se sabe por dónde fue" },
+    { v: "ruta_5", label: "Ruta 5", title: "Directa (más corta): van derecho, no pasan por la base" },
+    { v: "ruta_22", label: "Ruta 22", title: "Por la base/zona: cargar combustible, arreglar roturas" },
+  ];
+  return (
+    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+      {opts.map((o, i) => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.label}
+            type="button"
+            title={o.title}
+            aria-pressed={active}
+            onClick={() => onChange(o.v)}
+            className={`px-3 h-8 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+              active ? "bg-[#0088D1]/10 text-[#0277BD]" : "bg-card text-muted-foreground hover:bg-muted/40"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

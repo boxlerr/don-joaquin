@@ -238,8 +238,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       }
       return;
     }
-    setKmConCarga(String(res.km_con_carga));
-    setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
+    setKmConCarga(String(res.distancia));
+    setKmVacios("0"); // el viaje principal es cargado; la vuelta vacía va aparte
     kmDirty.current = false;
     setKmHistHint(
       `Km precargados del historial (${oo} → ${dd}${via ? ` por ${VIA_LABEL[via]}` : ""}). Editá si esta vez fue distinto.`,
@@ -258,8 +258,15 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     kmDirty.current = true;
     kmReqSeq.current++;
     setKmHistHint(null);
-    if (which === "con") setKmConCarga(v);
-    else setKmVacios(v);
+    // Un viaje es un tramo: cargado O vacío. Al poner un valor en uno, el otro
+    // vuelve a 0 y queda deshabilitado — nunca conviven km con carga y vacíos.
+    if (which === "con") {
+      setKmConCarga(v);
+      if ((Number(v) || 0) > 0) setKmVacios("0");
+    } else {
+      setKmVacios(v);
+      if ((Number(v) || 0) > 0) setKmConCarga("0");
+    }
   };
 
   // Autocompletar los km de la VUELTA desde el historial del par (al elegir
@@ -282,9 +289,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     if (seq !== vKmReqSeq.current || vKmDirty.current) return;
     if (!res) return;
     if (modo === "cargado") {
-      setVKmConCarga(String(res.km_con_carga || res.km_vacios || 0));
+      setVKmConCarga(String(res.distancia));
     } else {
-      setVKmVacios(String(res.km_vacios || res.km_con_carga || 0));
+      setVKmVacios(String(res.distancia));
     }
     vKmDirty.current = false;
   };
@@ -324,8 +331,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       const seq = kmReqSeq.current;
       const res = await getKmHistoricoAction(o, d, rutaVia || null);
       if (cancelado || !res || kmDirty.current || seq !== kmReqSeq.current) return;
-      setKmConCarga(String(res.km_con_carga));
-      setKmVacios(res.km_vacios ? String(res.km_vacios) : "0");
+      setKmConCarga(String(res.distancia));
+      setKmVacios("0"); // viaje principal = cargado; la vuelta vacía va aparte
       setKmHistHint(
         `Km precargados del historial (${o} → ${d}${rutaVia ? ` por ${VIA_LABEL[rutaVia]}` : ""}). Editá si esta vez fue distinto.`,
       );
@@ -392,8 +399,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     if (c) {
       setOrigen(c.origen === "—" ? "" : c.origen);
       setDestino(c.destino === "—" ? "" : c.destino);
-      setKmConCarga(String(c.km_con_carga));
-      setKmVacios(String(c.km_vacios));
+      // El viaje principal es cargado: la distancia del circuito va a km con
+      // carga y los vacíos quedan en 0 (la vuelta vacía es un viaje aparte).
+      setKmConCarga(String(c.km_con_carga || c.km_vacios));
+      setKmVacios("0");
       // Km del circuito = valores explícitos: que el autocompletado no los pise.
       kmDirty.current = true;
       setKmHistHint(null);
@@ -472,7 +481,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(640px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(900px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
         >
           {/* Header */}
           <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border">
@@ -510,27 +519,29 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
           >
             <input type="hidden" name="estado" value="pendiente" />
 
-            <InputFieldWithIcon
-              label="Fecha del viaje *"
-              name="fecha_viaje"
-              type="date"
-              defaultValue={today}
-              required
-              icon={Calendar}
-              error={state?.fieldErrors?.fecha_viaje}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InputFieldWithIcon
+                label="Fecha del viaje *"
+                name="fecha_viaje"
+                type="date"
+                defaultValue={today}
+                required
+                icon={Calendar}
+                error={state?.fieldErrors?.fecha_viaje}
+              />
 
-            {/* Cliente — al elegirlo se puede precargar el monto desde su tarifa */}
-            <SelectField
-              label="Cliente *"
-              name="cliente_id"
-              options={data.clientes}
-              required
-              icon={User}
-              error={state?.fieldErrors?.cliente_id}
-              onValueChange={setSelectedClienteId}
-              searchPlaceholder="Buscar cliente..."
-            />
+              {/* Cliente — al elegirlo se puede precargar el monto desde su tarifa */}
+              <SelectField
+                label="Cliente *"
+                name="cliente_id"
+                options={data.clientes}
+                required
+                icon={User}
+                error={state?.fieldErrors?.cliente_id}
+                onValueChange={setSelectedClienteId}
+                searchPlaceholder="Buscar cliente..."
+              />
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Chofer */}
@@ -680,6 +691,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 onChange={(v) => setKmManual("con", v)}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_con_carga}
+                disabled={(Number(kmVacios) || 0) > 0 && (Number(kmConCarga) || 0) === 0}
               />
               <InputFieldWithIcon
                 label="Km vacíos"
@@ -689,6 +701,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                 onChange={(v) => setKmManual("vac", v)}
                 icon={Navigation}
                 error={state?.fieldErrors?.km_vacios}
+                disabled={(Number(kmConCarga) || 0) > 0 && (Number(kmVacios) || 0) === 0}
               />
               <InputFieldWithIcon
                 label="Tonelaje (tn)"
@@ -727,23 +740,25 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               </p>
             )}
 
-            {/* Material (opcional) */}
-            <InputFieldWithIcon
-              label="Material"
-              name="material"
-              placeholder="Ej: Cemento, Clinker, Arena (opcional)"
-              icon={Package}
-              error={state?.fieldErrors?.material}
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Material (opcional) */}
+              <InputFieldWithIcon
+                label="Material"
+                name="material"
+                placeholder="Ej: Cemento, Clinker, Arena (opcional)"
+                icon={Package}
+                error={state?.fieldErrors?.material}
+              />
 
-            {/* Nº de viaje (opcional) — remito / comprobante, no es solo de YPF */}
-            <InputFieldWithIcon
-              label="Nº de viaje"
-              name="nro_viaje_ypf"
-              placeholder="Ej: 123456 (opcional)"
-              icon={Hash}
-              error={state?.fieldErrors?.nro_viaje_ypf}
-            />
+              {/* Nº de viaje (opcional) — remito / comprobante, no es solo de YPF */}
+              <InputFieldWithIcon
+                label="Nº de viaje"
+                name="nro_viaje_ypf"
+                placeholder="Ej: 123456 (opcional)"
+                icon={Hash}
+                error={state?.fieldErrors?.nro_viaje_ypf}
+              />
+            </div>
 
             {/* Viaje de vuelta (opcional): carga ida + vuelta en un solo submit */}
             <div
@@ -989,6 +1004,7 @@ function InputFieldWithIcon({
   error,
   icon: Icon,
   list,
+  disabled,
 }: {
   label: string;
   name: string;
@@ -1001,12 +1017,17 @@ function InputFieldWithIcon({
   error?: string;
   icon: LucideIcon;
   list?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
       <label className="text-xs font-semibold text-muted-foreground">{label}</label>
-      <div className={`relative flex items-center h-10 w-full rounded-lg border bg-card overflow-hidden focus-within:ring-2 transition-all ${
-        error ? "border-red-300 focus-within:ring-red-100 focus-within:border-red-500" : "border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
+      <div className={`relative flex items-center h-10 w-full rounded-lg border overflow-hidden focus-within:ring-2 transition-all ${
+        disabled
+          ? "bg-muted/40 opacity-60 border-border"
+          : error
+          ? "bg-card border-red-300 focus-within:ring-red-100 focus-within:border-red-500"
+          : "bg-card border-border focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1]"
       }`}>
         <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
           <Icon size={15} />
@@ -1016,11 +1037,12 @@ function InputFieldWithIcon({
           type={type}
           placeholder={placeholder}
           required={required}
+          disabled={disabled}
           {...(value !== undefined
             ? { value, onChange: (e) => onChange?.(e.target.value) }
             : { defaultValue })}
           list={list}
-          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
+          className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground disabled:cursor-not-allowed"
         />
       </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
