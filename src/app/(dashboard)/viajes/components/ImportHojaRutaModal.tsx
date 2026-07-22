@@ -44,6 +44,29 @@ const money = (n: number | null | undefined) =>
 const num = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
 
+// Pastilla de vía (Ruta 5 / Ruta 22): se lee de la marca en la columna MATERIAL
+// y define los km propios del par. Sin marcar no muestra nada.
+function ViaPill({ via }: { via: "ruta_5" | "ruta_22" | null }) {
+  if (!via) return null;
+  const label = via === "ruta_5" ? "Ruta 5" : "Ruta 22";
+  const cls =
+    via === "ruta_5"
+      ? "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]"
+      : "bg-[#EDE9FE] text-[#5B21B6] border-[#DDD6FE]";
+  return (
+    <span
+      className={`ml-1 inline-block rounded border px-1 py-0 text-[9px] font-semibold uppercase tracking-wide align-middle ${cls}`}
+      title={
+        via === "ruta_5"
+          ? "Ruta 5: directa (más corta). Tiene su propia distancia para este par."
+          : "Ruta 22: por la base/zona (más larga). Tiene su propia distancia para este par."
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
 type ImportHojaRutaModalProps = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -539,7 +562,10 @@ function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
               className={v.dup ? "opacity-50 line-through" : ""}
             >
               <td className="px-2 py-1.5 font-mono whitespace-nowrap">{v.fecha}</td>
-              <td className="px-2 py-1.5">{v.saleDe} → {v.llegaA}</td>
+              <td className="px-2 py-1.5">
+                {v.saleDe} → {v.llegaA}
+                <ViaPill via={v.via} />
+              </td>
               <td className="px-2 py-1.5 text-right font-mono">{v.km != null ? num(v.km) : "—"}</td>
               <td className="px-2 py-1.5 font-mono">
                 {v.vacio ? (

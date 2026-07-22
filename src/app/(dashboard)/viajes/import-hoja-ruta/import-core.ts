@@ -10,6 +10,7 @@ import {
   REMITO_VACIO,
   type HrParseResult,
   type HrSheetParsed,
+  type HrRutaVia,
 } from "./parser-hoja-ruta";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 
@@ -33,6 +34,7 @@ export type SheetViajePreview = {
   llegaA: string;
   remito: string; // el número tal cual del Excel, o REMITO_VACIO
   material: string | null;
+  via: HrRutaVia | null; // vía marcada (Ruta 5 / Ruta 22), leída de MATERIAL
   ton: number | null;
   km: number | null; // KM REC del Excel (distancia del tramo)
   importe: number | null;
@@ -49,6 +51,8 @@ export type SheetPreview = {
   conRemito: number;
   pendientesFacturar: number;
   yaImportados: number;
+  viasRuta5: number; // viajes marcados por Ruta 5 (distancia directa)
+  viasRuta22: number; // viajes marcados por Ruta 22 (por la base)
   sumaImporte: number;
   sumaTon: number;
   sumaKm: number;
@@ -128,19 +132,22 @@ function esRemitoReal(remito: string | null): boolean {
 
 /** Clave de dedup de un viaje no-vacío.
  *  - Con remito real: chofer + fecha + remito (la clave única natural).
- *  - Sin remito real: chofer + fecha + ruta + tonelaje, para no pisar viajes
- *    distintos del mismo día (ej. dos tramos con nota "SCANIA" en remito). */
+ *  - Sin remito real: chofer + fecha + ruta + tonelaje + vía, para no pisar
+ *    viajes distintos del mismo día (ej. dos tramos con nota "SCANIA" en remito,
+ *    o el mismo par hecho una vez por Ruta 5 y otra sin marcar: son viajes
+ *    distintos con distancia propia, no un duplicado). */
 export function dedupKey(
   choferId: string,
   fecha: string,
   remito: string | null,
   ton: number | null,
   ruta: string,
+  via?: string | null,
 ): string {
   if (esRemitoReal(remito)) {
     return `${choferId}|${fecha}|R:${remito!.trim()}`;
   }
-  return `${choferId}|${fecha}|X:${ruta}|T:${ton == null ? "" : ton.toFixed(2)}`;
+  return `${choferId}|${fecha}|X:${ruta}|T:${ton == null ? "" : ton.toFixed(2)}|V:${via ?? ""}`;
 }
 
 function rutaKey(saleDe: string | null, llegaA: string | null): string {
@@ -166,7 +173,7 @@ export async function loadExistentes(
     const { data } = await supabase
       .from("viajes")
       .select(`
-        chofer_id, fecha_viaje, nro_remito, tonelaje_real, es_vacio,
+        chofer_id, fecha_viaje, nro_remito, tonelaje_real, es_vacio, ruta_via,
         origen:puntos_ruta!viajes_origen_id_fkey(nombre),
         destino:puntos_ruta!viajes_destino_id_fkey(nombre)
       `)
@@ -180,6 +187,7 @@ export async function loadExistentes(
       nro_remito: string | null;
       tonelaje_real: number | null;
       es_vacio: boolean | null;
+      ruta_via: string | null;
       origen: { nombre: string } | { nombre: string }[] | null;
       destino: { nombre: string } | { nombre: string }[] | null;
     }[];
@@ -194,6 +202,7 @@ export async function loadExistentes(
           v.nro_remito,
           v.tonelaje_real,
           rutaKey(ori?.nombre ?? null, des?.nombre ?? null),
+          v.ruta_via,
         ),
       );
     }
@@ -436,6 +445,8 @@ function buildSheetPreview(
   let conRemito = 0;
   let pendientes = 0;
   let yaImportados = 0;
+  let viasRuta5 = 0;
+  let viasRuta22 = 0;
   const viajes: SheetViajePreview[] = [];
 
   for (const v of sp.viajes) {
@@ -449,9 +460,11 @@ function buildSheetPreview(
     if (vacio) vacios++;
     else conRemito++;
     if (!vacio && v.importe == null) pendientes++;
+    if (v.rutaVia === "ruta_5") viasRuta5++;
+    else if (v.rutaVia === "ruta_22") viasRuta22++;
     let dup = false;
     if (chofer.status === "ok" && !vacio) {
-      const key = dedupKey(chofer.id, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA));
+      const key = dedupKey(chofer.id, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
       if (existentes.has(key)) {
         yaImportados++;
         dup = true;
@@ -463,6 +476,7 @@ function buildSheetPreview(
       llegaA: v.llegaA,
       remito,
       material: v.material,
+      via: v.rutaVia,
       ton,
       km: v.kmRec,
       importe: vacio ? 0 : v.importe,
@@ -474,6 +488,13 @@ function buildSheetPreview(
   if (sp.filasIgnoradas > 0) {
     warnings.push(`${sp.filasIgnoradas} filas no son viajes (totales / gastos pegados).`);
   }
+  if (viasRuta5 + viasRuta22 > 0) {
+    const partes = [
+      viasRuta5 ? `${viasRuta5} por Ruta 5` : null,
+      viasRuta22 ? `${viasRuta22} por Ruta 22` : null,
+    ].filter(Boolean);
+    warnings.push(`Vía marcada: ${partes.join(" · ")} (distancia propia del par).`);
+  }
 
   return {
     sheetName: sp.sheetName,
@@ -484,6 +505,8 @@ function buildSheetPreview(
     conRemito,
     pendientesFacturar: pendientes,
     yaImportados,
+    viasRuta5,
+    viasRuta22,
     sumaImporte,
     sumaTon,
     sumaKm,
@@ -624,7 +647,7 @@ export async function runHojaRutaImport(
       // y se cargan todos). La clave usa remito cuando es real, y ruta+tonelaje
       // cuando la columna trae notas tipo "SCANIA" (ver dedupKey).
       if (!vacio) {
-        const key = dedupKey(choferId, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA));
+        const key = dedupKey(choferId, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
         if (existentes.has(key) || seenThisRun.has(key)) {
           duplicados++;
           continue;
@@ -659,6 +682,9 @@ export async function runHojaRutaImport(
         monto_flete: importeFinal,
         nro_remito: remitoNormalizado,
         material: v.material,
+        // Vía leída de la marca "RUTA 5"/"RUTA 22" del material: define los km del
+        // par (IBICUY→LAJE 20 va 1360 por Ruta 5 y ~1480 sin marcar). NULL = sin marcar.
+        ruta_via: v.rutaVia,
         es_vacio: vacio,
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
@@ -670,6 +696,7 @@ export async function runHojaRutaImport(
         observaciones: [
           `[Import HOJA DE RUTA · ${sp.sheetName}]`,
           v.material ? `Material: ${v.material}` : null,
+          v.rutaVia === "ruta_5" ? "Ruta 5" : v.rutaVia === "ruta_22" ? "Ruta 22" : null,
           vacio ? "VIAJE VACÍO" : null,
         ].filter(Boolean).join(" · "),
         created_by: userId,

@@ -15,6 +15,11 @@ import * as XLSX from "xlsx";
 // Tipos
 // ---------------------------------------------------------------------------
 
+/** Vía del viaje según por dónde fue (reunión Nico 02/07). La marcan a mano en la
+ * columna MATERIAL: "Ruta 5" = directa (más corta) · "Ruta 22" = por la base/zona.
+ * NULL = sin marcar (la mayoría de los corredores no tiene variante de vía). */
+export type HrRutaVia = "ruta_5" | "ruta_22";
+
 export type HrViajeRaw = {
   fecha: string; // ISO YYYY-MM-DD
   saleDe: string;
@@ -24,7 +29,8 @@ export type HrViajeRaw = {
   tnEsc35: number | null;
   tnEsc37_5: number | null;
   remito: string | null; // celda cruda: número, null, o "VACIO" tal cual lo guardan en Excel
-  material: string | null;
+  material: string | null; // ya sin la marca de vía (ver extraerVia)
+  rutaVia: HrRutaVia | null; // vía leída de la marca "RUTA 5"/"RUTA 22" del material
   kmVacios: number | null;
   importe: number | null; // null = todavía sin importe cargado
 };
@@ -200,6 +206,7 @@ export function parseHojaRutaXlsx(buffer: Buffer | ArrayBuffer): HrParseResult {
         continue;
       }
 
+      const { via, material } = extraerVia(asStr(row[8]));
       viajes.push({
         fecha,
         saleDe,
@@ -209,7 +216,8 @@ export function parseHojaRutaXlsx(buffer: Buffer | ArrayBuffer): HrParseResult {
         tnEsc35: asNum(row[5]),
         tnEsc37_5: asNum(row[6]),
         remito: asStr(row[7]),
-        material: asStr(row[8]),
+        material,
+        rutaVia: via,
         kmVacios: asNum(row[9]),
         importe: asNum(row[10]),
       });
@@ -236,4 +244,46 @@ export function normalizarRemito(remito: string | null | undefined): string {
   const s = remito?.trim();
   if (!s || s.toUpperCase() === "VACIO") return REMITO_VACIO;
   return s;
+}
+
+// La vía se marca a mano dentro de la columna MATERIAL, pegada al material. Dos
+// formas conviven:
+//  1) Explícita: "YPF LAJE RUTA 5", "YPF RUTA  5" (doble espacio), "RUTA 22", o
+//     "RUTA 5" sola en un vacío.
+//  2) Abreviada: solo el número de vía al final del material ("YPF TORO 5" = por
+//     Ruta 5, confirmado por el cliente).
+// En ambas separamos la vía a su columna (ruta_via) y dejamos el material limpio.
+// Solo 5 y 22 son vías válidas.
+const VIA_EN_MATERIAL = /\bRUTA\s*(5|22)\b/i;
+// Número de vía suelto al final, con material real (con letras) delante. El chequeo
+// de letras evita tomar por vía una celda que es solo un número (ej. "10000").
+const VIA_NUMERO_FINAL = /^(.+?)\s+(5|22)\s*$/;
+
+/** Separa la marca de vía del texto del material.
+ *  - "YPF LAJE RUTA 5" → { via: "ruta_5", material: "YPF LAJE" }
+ *  - "RUTA 22"         → { via: "ruta_22", material: null }
+ *  - "YPF TORO 5"      → { via: "ruta_5", material: "YPF TORO" }  (número al final)
+ *  - "10000" / "CLINKER" / null → { via: null, material: <igual> } */
+export function extraerVia(
+  material: string | null,
+): { via: HrRutaVia | null; material: string | null } {
+  if (!material) return { via: null, material };
+
+  // 1) Marca explícita "RUTA 5/22" en cualquier parte del texto.
+  const m = material.match(VIA_EN_MATERIAL);
+  if (m) {
+    const via: HrRutaVia = m[1] === "22" ? "ruta_22" : "ruta_5";
+    const limpio = material.replace(VIA_EN_MATERIAL, " ").replace(/\s+/g, " ").trim();
+    return { via, material: limpio ? limpio : null };
+  }
+
+  // 2) Número de vía suelto al final ("YPF TORO 5"), solo si hay material con letras
+  //    delante (no una celda numérica suelta).
+  const m2 = material.match(VIA_NUMERO_FINAL);
+  if (m2 && /[a-z]/i.test(m2[1])) {
+    const via: HrRutaVia = m2[2] === "22" ? "ruta_22" : "ruta_5";
+    return { via, material: m2[1].replace(/\s+/g, " ").trim() };
+  }
+
+  return { via: null, material };
 }
