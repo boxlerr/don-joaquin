@@ -524,6 +524,7 @@ function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
           <tr>
             <th className="text-left px-2 py-1.5">Día</th>
             <th className="text-left px-2 py-1.5">Ruta</th>
+            <th className="text-right px-2 py-1.5">Km</th>
             <th className="text-left px-2 py-1.5">Remito</th>
             <th className="text-left px-2 py-1.5">Material</th>
             <th className="text-right px-2 py-1.5">Tn</th>
@@ -539,6 +540,7 @@ function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
             >
               <td className="px-2 py-1.5 font-mono whitespace-nowrap">{v.fecha}</td>
               <td className="px-2 py-1.5">{v.saleDe} → {v.llegaA}</td>
+              <td className="px-2 py-1.5 text-right font-mono">{v.km != null ? num(v.km) : "—"}</td>
               <td className="px-2 py-1.5 font-mono">
                 {v.vacio ? (
                   // Igual que la planilla Excel del cliente y la hoja de ruta: "VACIO" en rojo.

@@ -34,6 +34,7 @@ export type SheetViajePreview = {
   remito: string; // el número tal cual del Excel, o REMITO_VACIO
   material: string | null;
   ton: number | null;
+  km: number | null; // KM REC del Excel (distancia del tramo)
   importe: number | null;
   vacio: boolean;
   dup: boolean; // ya estaba importado (no se vuelve a cargar)
@@ -463,6 +464,7 @@ function buildSheetPreview(
       remito,
       material: v.material,
       ton,
+      km: v.kmRec,
       importe: vacio ? 0 : v.importe,
       vacio,
       dup,
