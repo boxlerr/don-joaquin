@@ -33,6 +33,10 @@ import {
   ArrowDown,
   ArrowUpDown,
   Receipt,
+  CalendarDays,
+  Route,
+  Package,
+  Hash,
 } from "lucide-react";
 import {
   Dialog,
@@ -47,6 +51,7 @@ import {
   updateViajeEstadoAction,
   type ViajeOrderBy,
 } from "../actions";
+import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
 import type { ViajeBasico } from "../types";
 import { formatFecha } from "@/lib/utils";
 import HelpTutorialButton from "../help-tutorial-button";
@@ -119,6 +124,236 @@ const COLUMNS: ColumnDef[] = [
   { label: "" },
 ];
 
+const ESTADO_LABELS: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_curso: "En curso",
+  cerrado: "Cerrado",
+  cancelado: "Cancelado",
+};
+
+const ESTADO_BADGE: Record<string, string> = {
+  cerrado: "bg-green-100 text-green-700",
+  en_curso: "bg-sky-100 text-sky-700",
+  pendiente: "bg-amber-100 text-amber-700",
+  cancelado: "bg-red-100 text-red-700",
+};
+
+const VIA_LABELS: Record<string, string> = { ruta_5: "Ruta 5", ruta_22: "Ruta 22" };
+
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Fila etiqueta → valor del panel de detalle. */
+function DetField({
+  label,
+  value,
+  mono,
+  strong,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+  strong?: boolean;
+  tone?: string;
+}) {
+  const vacio = value == null || value === "" || value === "—";
+  return (
+    <div className="flex items-baseline justify-between gap-2 py-1">
+      <span className="text-[11px] text-muted-foreground shrink-0">{label}</span>
+      <span
+        className={`text-[11px] text-right ${mono ? "font-mono" : ""} ${
+          strong ? "font-bold" : "font-medium"
+        } ${vacio ? "text-muted-foreground/40" : tone ?? "text-foreground/90"}`}
+      >
+        {vacio ? "—" : value}
+      </span>
+    </div>
+  );
+}
+
+function DetSkeleton({ n }: { n: number }) {
+  return (
+    <div className="py-1.5 space-y-2">
+      {Array.from({ length: n }).map((_, i) => (
+        <Skeleton key={i} className="h-3 w-full" />
+      ))}
+    </div>
+  );
+}
+
+/** Encabezado del panel expandido: código, estado, quién/cuándo lo cargó y la ruta. */
+function ViajeDetalleHeader({
+  viaje: v,
+  detalle,
+}: {
+  viaje: ViajeBasico;
+  detalle: ViajeDetalle | "loading" | "error" | undefined;
+}) {
+  const det = typeof detalle === "object" ? detalle : null;
+  return (
+    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 shadow-2xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-sm font-bold text-foreground">{v.codigo}</span>
+        <span
+          className={`rounded-full text-[10px] font-bold px-2 py-0.5 ${
+            ESTADO_BADGE[v.estado] ?? "bg-muted text-muted-foreground"
+          }`}
+        >
+          {ESTADO_LABELS[v.estado] ?? v.estado}
+        </span>
+        {v.es_vacio && (
+          <span className="rounded-full bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
+            VACÍO
+          </span>
+        )}
+        {v.facturado && (
+          <span className="rounded-full bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
+            <CheckCircle2 size={11} /> Facturado
+          </span>
+        )}
+        {v.cobrado && (
+          <span className="rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-0.5">
+            Cobrado
+          </span>
+        )}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
+        <CalendarDays size={12} className="shrink-0" />
+        Cargado el {fmtDateTime(det?.createdAt ?? null)}
+        {det?.creadoPor && (
+          <>
+            · por <span className="font-medium text-foreground/80">{det.creadoPor}</span>
+          </>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+        <span className="inline-flex items-center gap-1 font-medium text-foreground/90">
+          <Route size={12} className="text-primary shrink-0" /> {v.origen ?? "—"} → {v.destino ?? "—"}
+        </span>
+        {det?.rutaVia && (
+          <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground/80">
+            {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
+          </span>
+        )}
+        {det?.tipoCarga && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <Package size={12} /> {det.tipoCarga}
+          </span>
+        )}
+        {v.material && <span className="text-muted-foreground">{v.material}</span>}
+        {!v.es_vacio && v.nro_remito && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <Hash size={11} /> Remito {v.nro_remito}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Tarjeta con los datos del chofer (traídos al expandir la fila). */
+function ChoferCard({
+  detalle,
+  choferNombre,
+}: {
+  detalle: ViajeDetalle | "loading" | "error" | undefined;
+  choferNombre: string | null;
+}) {
+  const det = typeof detalle === "object" ? detalle : null;
+  const c = det?.chofer;
+  const cargando = detalle === "loading";
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+      <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground flex items-center gap-1.5 border-b border-border pb-2 mb-1">
+        <User size={13} className="text-primary" /> Chofer
+      </h4>
+      <div className="divide-y divide-border/40">
+        <DetField
+          label="Nombre"
+          value={c ? [c.apellido, c.nombre].filter(Boolean).join(", ") : choferNombre}
+          strong
+        />
+        {cargando ? (
+          <DetSkeleton n={4} />
+        ) : (
+          <>
+            <DetField label="Teléfono" value={c?.telefono} mono />
+            <DetField label="DNI" value={c?.dni} mono />
+            <DetField label="Localidad" value={c?.localidad} />
+            <DetField label="Ingreso" value={c?.fecha_ingreso ? formatFecha(c.fecha_ingreso) : "—"} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Tarjeta con los datos del camión + el flete y las distancias del viaje. */
+function CamionFleteCard({
+  detalle,
+  viaje: v,
+}: {
+  detalle: ViajeDetalle | "loading" | "error" | undefined;
+  viaje: ViajeBasico;
+}) {
+  const det = typeof detalle === "object" ? detalle : null;
+  const cam = det?.camion;
+  const cargando = detalle === "loading";
+  return (
+    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+      <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground flex items-center gap-1.5 border-b border-border pb-2 mb-1">
+        <Truck size={13} className="text-primary" /> Camión &amp; flete
+      </h4>
+      <div className="divide-y divide-border/40">
+        <DetField label="Patente" value={cam?.patente ?? v.camion} mono strong />
+        {cargando ? (
+          <DetSkeleton n={3} />
+        ) : (
+          <>
+            <DetField label="Marca / Modelo" value={[cam?.marca, cam?.modelo].filter(Boolean).join(" ")} />
+            <DetField label="Capacidad" value={cam?.capacidad_tn != null ? `${cam.capacidad_tn} tn` : "—"} mono />
+            <DetField
+              label="Km actual"
+              value={cam?.km_actual != null ? `${cam.km_actual.toLocaleString("es-AR")} km` : "—"}
+              mono
+            />
+          </>
+        )}
+        <DetField
+          label="Monto flete"
+          value={v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
+          mono
+          strong
+          tone="text-[#10B981]"
+        />
+        <DetField label="Km con carga" value={`${(v.km_con_carga ?? 0).toLocaleString("es-AR")} km`} mono />
+        <DetField
+          label="Km vacíos"
+          value={`${(v.km_vacios ?? 0).toLocaleString("es-AR")} km`}
+          mono
+          tone={v.km_vacios ? "text-[#C00000]" : undefined}
+        />
+        <DetField
+          label="Toneladas"
+          value={v.toneladas != null ? `${v.toneladas.toLocaleString("es-AR")} tn` : "—"}
+          mono
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData }: Props) {
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
@@ -129,6 +364,25 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   const [isPending, startTransition] = useTransition();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Detalle rico (chofer, camión, quién/cuándo lo cargó), traído al expandir.
+  const [detalles, setDetalles] = useState<
+    Record<string, ViajeDetalle | "loading" | "error">
+  >({});
+  useEffect(() => {
+    const id = expandedId;
+    if (!id || detalles[id]) return;
+    let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- marcar "cargando" al abrir la fila
+    setDetalles((p) => ({ ...p, [id]: "loading" }));
+    getViajeDetalleAction(id).then((res) => {
+      if (cancel) return;
+      setDetalles((p) => ({ ...p, [id]: "error" in res ? "error" : res }));
+    });
+    return () => {
+      cancel = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar de fila expandida
+  }, [expandedId]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
@@ -587,36 +841,12 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                 {expandedId === v.id && (
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
-                      <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 animate-in fade-in-50 duration-200">
-                        {/* Detalles Operativos */}
-                        <div className="space-y-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
-                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
-                            <User size={14} className="text-primary" /> Chofer Asignado
-                          </h4>
-                          <p className="text-sm font-medium text-foreground/90">{v.chofer ?? "—"}</p>
+                      <div className="p-4 sm:p-5 space-y-4 animate-in fade-in-50 duration-200">
+                        <ViajeDetalleHeader viaje={v} detalle={detalles[v.id]} />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <ChoferCard detalle={detalles[v.id]} choferNombre={v.chofer} />
 
-                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2 pt-2">
-                            <Truck size={14} className="text-primary" /> Vehículo / Patente
-                          </h4>
-                          <p className="text-sm font-medium text-foreground/90">{v.camion ?? "—"}</p>
-                        </div>
-
-                        {/* Finanzas y Distancias Parciales */}
-                        <div className="space-y-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
-                          <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
-                            <Coins size={14} className="text-[#10B981]" /> Flete y Distancias
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                            <span className="text-muted-foreground">Monto Flete:</span>
-                            <span className="font-semibold text-foreground text-right">
-                              {v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
-                            </span>
-                            <span className="text-muted-foreground">KM con Carga:</span>
-                            <span className="font-mono text-foreground/90 text-right">{v.km_con_carga ?? 0} km</span>
-                            <span className="text-muted-foreground">KM Vacíos:</span>
-                            <span className="font-mono text-foreground/90 text-right">{v.km_vacios ?? 0} km</span>
-                          </div>
-                        </div>
+                        <CamionFleteCard detalle={detalles[v.id]} viaje={v} />
 
                         {/* Notas y Acciones Operativas */}
                         <div className="space-y-3 flex flex-col justify-between bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
@@ -858,7 +1088,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                             )}
                           </div>
                         </div>
+                        </div>
 
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <ViajeDocumentosPanel viajeId={v.id} />
 
                         <ViajeGastosPanel
@@ -868,6 +1100,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                           moneda={v.moneda ?? "ARS"}
                           esVacio={v.es_vacio}
                         />
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
