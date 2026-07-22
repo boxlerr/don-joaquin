@@ -6,7 +6,8 @@
 import {
   parseHojaRutaXlsx,
   tonelajeDe,
-  esViajeVacio,
+  normalizarRemito,
+  REMITO_VACIO,
   type HrParseResult,
   type HrSheetParsed,
 } from "./parser-hoja-ruta";
@@ -30,7 +31,7 @@ export type SheetViajePreview = {
   fecha: string;
   saleDe: string;
   llegaA: string;
-  remito: string | null;
+  remito: string; // el número tal cual del Excel, o REMITO_VACIO
   material: string | null;
   ton: number | null;
   importe: number | null;
@@ -438,7 +439,8 @@ function buildSheetPreview(
 
   for (const v of sp.viajes) {
     const ton = tonelajeDe(v);
-    const vacio = esViajeVacio(v);
+    const remito = normalizarRemito(v.remito);
+    const vacio = remito === REMITO_VACIO;
     sumaImporte += v.importe ?? 0;
     sumaTon += ton ?? 0;
     sumaKm += v.kmRec ?? 0;
@@ -458,7 +460,7 @@ function buildSheetPreview(
       fecha: v.fecha,
       saleDe: v.saleDe,
       llegaA: v.llegaA,
-      remito: vacio ? null : v.remito,
+      remito,
       material: v.material,
       ton,
       importe: vacio ? 0 : v.importe,
@@ -612,7 +614,8 @@ export async function runHojaRutaImport(
     }
 
     for (const v of sp.viajes) {
-      const vacio = esViajeVacio(v);
+      const remito = normalizarRemito(v.remito);
+      const vacio = remito === REMITO_VACIO;
       const ton = tonelajeDe(v);
 
       // Dedup SOLO para viajes con remito (los vacíos no tienen identidad propia
@@ -627,8 +630,9 @@ export async function runHojaRutaImport(
         seenThisRun.add(key);
       }
 
-      const remitoNormalizado = vacio ? null : v.remito;
-      const importeFinal = vacio ? 0 : v.importe; // NULL si esperando remito
+      // En la BD el viaje vacío se marca con es_vacio, así que nro_remito queda NULL.
+      const remitoNormalizado = vacio ? null : remito;
+      const importeFinal = vacio ? 0 : v.importe; // NULL = todavía sin importe
 
       if (!vacio && importeFinal == null) pendientesFacturar++;
 
@@ -656,9 +660,9 @@ export async function runHojaRutaImport(
         es_vacio: vacio,
         moneda: "ARS",
         estado: importeFinal == null ? "pendiente" : "cerrado",
-        // Regla del cliente: el viaje tiene valor solo cuando entra el remito y se
-        // factura → tener monto > 0 significa facturado (y cobrado, espejo: no hay
-        // flujo de cobro aparte). Vacíos (0) y "esperando remito" (null) quedan sin facturar.
+        // Regla del cliente: el viaje tiene valor solo cuando se factura → tener
+        // monto > 0 significa facturado (y cobrado, espejo: no hay flujo de cobro
+        // aparte). Vacíos (0) y viajes sin importe (null) quedan sin facturar.
         facturado: viajeEstaFacturado(importeFinal, vacio),
         cobrado: viajeEstaFacturado(importeFinal, vacio),
         observaciones: [

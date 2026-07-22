@@ -265,7 +265,7 @@ export default function HojaRutaMensualClient({
                       {c.pendientesFacturar > 0 && (
                         <span
                           className="inline-flex items-center justify-center min-w-[18px] h-4 rounded-full bg-[#FEF3C7] text-[#92400E] text-[9px] font-bold px-1"
-                          title={`${c.pendientesFacturar} viajes esperando remito`}
+                          title={`${c.pendientesFacturar} viajes sin importe (pendientes de facturar)`}
                         >
                           {c.pendientesFacturar}
                         </span>
@@ -488,7 +488,8 @@ function FilaViaje({
           // Igual que la planilla Excel del cliente: "VACIO" en rojo en la columna remito.
           <span className="text-[#C00000] font-bold">VACIO</span>
         ) : (
-          viaje.nro_remito ?? (esPendiente ? <span className="text-[#92400E] italic">pendiente</span> : "—")
+          // La columna remito muestra el remito y nada más: no depende del importe.
+          viaje.nro_remito ?? "—"
         )}
       </td>
       <td className="px-3 py-2 text-[11px]">
@@ -508,7 +509,7 @@ function FilaViaje({
         ) : viaje.monto_flete != null ? (
           fmtARS(viaje.monto_flete)
         ) : (
-          <span className="text-[#92400E] italic text-[10px]">esperando remito</span>
+          <span className="text-[#92400E] italic text-[10px]">sin importe</span>
         )}
       </td>
       <td className="px-3 py-2 whitespace-nowrap">

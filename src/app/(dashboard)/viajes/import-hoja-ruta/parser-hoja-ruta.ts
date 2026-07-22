@@ -23,10 +23,10 @@ export type HrViajeRaw = {
   tnCom29: number | null;
   tnEsc35: number | null;
   tnEsc37_5: number | null;
-  remito: string | null; // null o "VACIO" tal cual lo guardan en Excel
+  remito: string | null; // celda cruda: número, null, o "VACIO" tal cual lo guardan en Excel
   material: string | null;
   kmVacios: number | null;
-  importe: number | null; // null = pendiente de facturar
+  importe: number | null; // null = todavía sin importe cargado
 };
 
 export type HrSheetParsed = {
@@ -39,10 +39,12 @@ export type HrSheetParsed = {
 export type HrParseResult = {
   sheets: HrSheetParsed[];
   totalViajes: number;
-  totalRemitos: number;
-  totalPendientesFacturar: number; // viajes sin importe
   warnings: string[];
 };
+
+/** Etiqueta única para la ausencia de remito. La columna REMITO Nº del Excel
+ * viene en blanco o con la palabra "VACIO" cuando el viaje no llevó carga. */
+export const REMITO_VACIO = "vacío";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -217,20 +219,8 @@ export function parseHojaRutaXlsx(buffer: Buffer | ArrayBuffer): HrParseResult {
   }
 
   const totalViajes = sheets.reduce((acc, s) => acc + s.viajes.length, 0);
-  const totalRemitos = sheets.reduce(
-    (acc, s) => acc + s.viajes.filter((v) => v.remito && v.remito.toUpperCase() !== "VACIO").length,
-    0,
-  );
-  const totalPendientesFacturar = sheets.reduce(
-    (acc, s) =>
-      acc +
-      s.viajes.filter(
-        (v) => (v.remito && v.remito.toUpperCase() !== "VACIO") && v.importe == null,
-      ).length,
-    0,
-  );
 
-  return { sheets, totalViajes, totalRemitos, totalPendientesFacturar, warnings };
+  return { sheets, totalViajes, warnings };
 }
 
 /** Tonelaje único de un viaje (la columna que tenga valor de las 3 escalas). */
@@ -238,8 +228,12 @@ export function tonelajeDe(v: HrViajeRaw): number | null {
   return v.tnEsc37_5 ?? v.tnEsc35 ?? v.tnCom29 ?? null;
 }
 
-/** ¿El viaje fue vacío (sin carga ni remito)? */
-export function esViajeVacio(v: HrViajeRaw): boolean {
-  if (!v.remito) return true;
-  return v.remito.toUpperCase() === "VACIO";
+/** Lee la celda REMITO Nº y nada más: el número tal cual si lo hay, o
+ * REMITO_VACIO si viene en blanco, nula o dice "VACIO". No depende del importe:
+ * un remito cargado sin valor de flete sigue siendo un remito, y que el
+ * resultado sea REMITO_VACIO es lo único que define un viaje vacío. */
+export function normalizarRemito(remito: string | null | undefined): string {
+  const s = remito?.trim();
+  if (!s || s.toUpperCase() === "VACIO") return REMITO_VACIO;
+  return s;
 }

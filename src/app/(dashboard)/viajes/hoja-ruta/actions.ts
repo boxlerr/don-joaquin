@@ -18,7 +18,7 @@ export type HrChoferListItem = {
   nombre: string;
   estado: string; // "activo" | "baja" — egresados con viajes en el mes también se listan
   viajes: number; // del mes seleccionado
-  pendientesFacturar: number; // sin importe (esperando remito)
+  pendientesFacturar: number; // sin importe cargado (el remito no tiene nada que ver)
   totalImporte: number;
   totalTn: number;
   totalKm: number;

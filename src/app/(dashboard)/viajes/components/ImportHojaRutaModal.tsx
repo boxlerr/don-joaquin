@@ -211,7 +211,7 @@ export default function ImportHojaRutaModal({
                 <>
                   {result.imported.viajes} viajes creados
                   {result.imported.pendientesFacturar > 0 && (
-                    <> · <span className="text-[#92400E] font-semibold">{result.imported.pendientesFacturar} esperando remito</span></>
+                    <> · <span className="text-[#92400E] font-semibold">{result.imported.pendientesFacturar} sin importe</span></>
                   )}
                 </>
               )}
@@ -229,7 +229,8 @@ export default function ImportHojaRutaModal({
                 <ul className="list-disc list-inside space-y-0.5 mt-1">
                   <li>Cada sheet del Excel = un chofer (cruce por apellido)</li>
                   <li>Estructura esperada: DIA · SALE DE · LLEGA A · KM · Tn 29/35/37,5 · Nº REMITO · MATERIAL · KM VACÍOS · $</li>
-                  <li>Viajes sin <code>$</code> se cargan con monto NULL = &quot;esperando remito&quot;</li>
+                  <li>Viajes sin <code>$</code> se cargan con monto NULL = pendientes de facturar</li>
+                  <li>La columna <code>REMITO Nº</code> se toma tal cual: si está en blanco o dice VACIO, el viaje es vacío</li>
                   <li>Dedup por (chofer + fecha + remito): no se duplican viajes ya cargados por el importador YPF</li>
                   <li>Si el chofer de un sheet no está dado de alta en Legajos, el import se bloquea: dalo de alta en Choferes → Legajos y volvé a analizar (o asignale un chofer existente en el preview)</li>
                   <li>Sheets ignorados: TOTALES, HOJA DE GASTOS, FISCHER y PABLO FISCHER (fleteros, otro formato), TOTAL, Hoja1</li>
@@ -281,7 +282,7 @@ export default function ImportHojaRutaModal({
                       <th className="text-left px-3 py-2">Sheet → Chofer</th>
                       <th className="text-right px-3 py-2">Viajes</th>
                       <th className="text-right px-3 py-2">Vacíos</th>
-                      <th className="text-right px-3 py-2">Pend.</th>
+                      <th className="text-right px-3 py-2" title="Viajes sin importe (pendientes de facturar)">Pend.</th>
                       <th className="text-right px-3 py-2">Dup.</th>
                       <th className="text-right px-3 py-2">Importe</th>
                     </tr>
@@ -340,7 +341,7 @@ export default function ImportHojaRutaModal({
                 <div><strong>{result.imported?.viajes ?? 0}</strong> viajes insertados desde <strong>{result.imported?.sheetsConfirmados ?? 0}</strong> sheets</div>
                 {(result.imported?.pendientesFacturar ?? 0) > 0 && (
                   <div className="text-[#92400E]">
-                    <strong>{result.imported?.pendientesFacturar}</strong> esperando remito (monto NULL).
+                    <strong>{result.imported?.pendientesFacturar}</strong> quedaron sin importe (monto NULL).
                     Aparecen como &quot;pendientes de facturar&quot; en /viajes.
                   </div>
                 )}
@@ -527,29 +528,28 @@ function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
             <th className="text-left px-2 py-1.5">Material</th>
             <th className="text-right px-2 py-1.5">Tn</th>
             <th className="text-right px-2 py-1.5">Importe</th>
-            <th className="text-left px-2 py-1.5">Estado</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-[#F1F5F9]">
           {viajes.map((v, i) => (
-            <tr key={i} className={v.dup ? "opacity-50" : v.vacio ? "text-muted-foreground" : ""}>
+            <tr
+              key={i}
+              title={v.dup ? "Ya estaba cargado — no se vuelve a importar" : undefined}
+              className={v.dup ? "opacity-50 line-through" : ""}
+            >
               <td className="px-2 py-1.5 font-mono whitespace-nowrap">{v.fecha}</td>
               <td className="px-2 py-1.5">{v.saleDe} → {v.llegaA}</td>
-              <td className="px-2 py-1.5 font-mono">{v.vacio ? "—" : v.remito ?? "—"}</td>
+              <td className="px-2 py-1.5 font-mono">
+                {v.vacio ? (
+                  // Igual que la planilla Excel del cliente y la hoja de ruta: "VACIO" en rojo.
+                  <span className="text-[#C00000] font-bold">VACIO</span>
+                ) : (
+                  v.remito
+                )}
+              </td>
               <td className="px-2 py-1.5">{v.material ?? "—"}</td>
               <td className="px-2 py-1.5 text-right font-mono">{v.ton != null ? num(v.ton) : "—"}</td>
               <td className="px-2 py-1.5 text-right font-mono">{v.vacio ? "—" : money(v.importe)}</td>
-              <td className="px-2 py-1.5">
-                {v.dup ? (
-                  <span className="text-muted-foreground">ya cargado</span>
-                ) : v.vacio ? (
-                  <span className="text-muted-foreground">vacío</span>
-                ) : v.importe == null ? (
-                  <span className="text-[#92400E]">esperando remito</span>
-                ) : (
-                  <span className="text-[#047857]">a importar</span>
-                )}
-              </td>
             </tr>
           ))}
         </tbody>
