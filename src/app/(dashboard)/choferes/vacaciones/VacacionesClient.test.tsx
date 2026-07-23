@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import VacacionesClient from "./VacacionesClient";
+import VacacionesClient, { agruparMeses } from "./VacacionesClient";
 import type { VacacionesSaldoChofer, VacacionesPeriodo } from "./lib";
 
 vi.mock("next/navigation", () => ({
@@ -90,24 +90,37 @@ describe("VacacionesClient", () => {
     expect(screen.getByText(`Con saldo ${finPeriodoY - 1} por vencer`)).toBeInTheDocument();
     expect(screen.getByText("De vacaciones ahora")).toBeInTheDocument();
 
-    // Buscadores: el de la toolbar + los de cada tabla
+    // Buscadores: el del cronograma (empleado) + el de la tabla de saldos.
+    // La toolbar de arriba ya no tiene buscador (era redundante).
     expect(screen.getByPlaceholderText("Buscar empleado…")).toBeInTheDocument();
-    expect(screen.getAllByPlaceholderText("Buscar…").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByPlaceholderText("Buscar…").length).toBeGreaterThanOrEqual(1);
 
     // Cronograma: fila del empleado con botón que salta a la tabla
     const filaCrono = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
     expect(filaCrono.length).toBeGreaterThanOrEqual(1);
 
-    // Período en la ventana con el año que descuenta
-    expect(screen.getByText(`4 días · ${finPeriodoY - 1}`)).toBeInTheDocument();
+    // Toggles de las dos listas nuevas.
+    expect(screen.getByText("Tarjetas")).toBeInTheDocument();
+    expect(screen.getByText("Por año")).toBeInTheDocument();
+    expect(screen.getByText("Timeline")).toBeInTheDocument();
+    expect(screen.getByText("Lista")).toBeInTheDocument();
 
-    // Vence: saldo viejo + ventana del período nuevo
-    expect(screen.getAllByText(`31/12/${finPeriodoY}`).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(`per. ${finPeriodoY}: Oct ${finPeriodoY + 1}`).length).toBeGreaterThanOrEqual(1);
+    // Período (vista timeline por defecto): badge con días + año que descuenta.
+    expect(screen.getByText(`4d · ${finPeriodoY - 1}`)).toBeInTheDocument();
 
-    // Subtotales por sector en el encabezado del grupo
+    // Tarjetas (vista por defecto): pill "Vence 31/12" para quien tiene saldo viejo.
+    expect(screen.getAllByText(new RegExp(`31/12/${finPeriodoY}`)).length).toBeGreaterThanOrEqual(1);
+
+    // Subtotales por sector en el encabezado del grupo (tarjetas).
     expect(screen.getByText(/Choferes · 1/)).toBeInTheDocument();
     expect(screen.getByText(/Taller · 1/)).toBeInTheDocument();
+  });
+
+  it("la vista Resumen muestra la columna Vence con saldo y período", () => {
+    render(<VacacionesClient saldos={saldos} periodos={periodos} finPeriodoY={finPeriodoY} canWrite />);
+    fireEvent.click(screen.getByText("Resumen"));
+    expect(screen.getAllByText(`31/12/${finPeriodoY}`).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(`per. ${finPeriodoY}: Oct ${finPeriodoY + 1}`).length).toBeGreaterThanOrEqual(1);
   });
 
   it("clic en un período abre el detalle con acciones", () => {
@@ -134,5 +147,38 @@ describe("VacacionesClient", () => {
     fireEvent.change(screen.getByPlaceholderText("Buscar empleado…"), { target: { value: "heim" } });
     expect(screen.getAllByText(/Heim, Jonatan/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Saenz Buruaga, Gaston/)).not.toBeInTheDocument();
+  });
+});
+
+describe("agruparMeses (banda de meses del cronograma)", () => {
+  const semanas = (starts: string[]) => starts.map((start) => ({ start }));
+
+  it("agrupa semanas consecutivas por mes y los colSpan suman el total", () => {
+    // 5 semanas: 2 de julio, 2 de agosto, 1 de septiembre
+    const { grupos, iniciosMes } = agruparMeses(
+      semanas(["2026-07-20", "2026-07-27", "2026-08-03", "2026-08-10", "2026-08-31"]),
+    );
+    expect(grupos.map((g) => g.span)).toEqual([2, 3]); // jul x2, ago+ago+ago(31 sigue siendo agosto)
+    expect(grupos.reduce((a, g) => a + g.span, 0)).toBe(5);
+    expect([...iniciosMes]).toEqual([0, 2]);
+    expect(grupos[0]!.label).toBe("Jul 26");
+    expect(grupos[1]!.label).toBe("Ago 26");
+  });
+
+  it("cruza el fin de año sin romperse (Dic 26 → Ene 27)", () => {
+    const { grupos } = agruparMeses(semanas(["2026-12-21", "2026-12-28", "2027-01-04"]));
+    expect(grupos.map((g) => g.label)).toEqual(["Dic 26", "Ene 27"]);
+    expect(grupos.map((g) => g.span)).toEqual([2, 1]);
+  });
+
+  it("52 semanas (año completo): los colSpan siempre cubren todas las columnas", () => {
+    const starts: string[] = [];
+    const base = new Date("2026-07-20T00:00:00");
+    for (let i = 0; i < 52; i++) {
+      const d = new Date(base.getTime() + i * 7 * 86_400_000);
+      starts.push(d.toISOString().slice(0, 10));
+    }
+    const { grupos } = agruparMeses(semanas(starts));
+    expect(grupos.reduce((a, g) => a + g.span, 0)).toBe(52);
   });
 });

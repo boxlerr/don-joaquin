@@ -18,6 +18,8 @@ import {
   Info,
   ExternalLink,
   Table2,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
@@ -68,6 +70,15 @@ function fmtIngreso(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+// Iniciales y un color estable por nombre para los avatares (vistas de tarjetas
+// y timeline). Sin dependencias: el hash es determinístico.
+function iniciales(nombre?: string, apellido?: string): string {
+  return ((nombre?.[0] ?? "") + (apellido?.[0] ?? "")).toUpperCase() || "—";
+}
+function colorAvatar(nombre?: string, apellido?: string): string {
+  const hue = ((nombre?.charCodeAt(0) ?? 0) * 7 + (apellido?.charCodeAt(0) ?? 0) * 13) % 360;
+  return `hsl(${hue} 42% 52%)`;
+}
 function diffDias(aISO: string, bISO: string): number {
   return Math.round((new Date(bISO + "T00:00:00").getTime() - new Date(aISO + "T00:00:00").getTime()) / 86_400_000);
 }
@@ -79,6 +90,32 @@ function construirSemanas(inicio: Date, n: number) {
     end.setDate(end.getDate() + 6);
     return { start: toISO(start), end: toISO(end), label: fmtDiaMes(start) };
   });
+}
+
+// Agrupa las semanas consecutivas por el mes de su fecha de inicio, para el
+// encabezado de dos niveles del cronograma (banda de meses arriba, semanas
+// abajo). Devuelve los grupos con su ancho (colSpan) y las posiciones donde
+// arranca un mes nuevo, para separar mejor las columnas. Función pura.
+export function agruparMeses(semanas: { start: string }[]) {
+  const grupos: { key: string; label: string; span: number; inicio: number }[] = [];
+  const iniciosMes = new Set<number>();
+  semanas.forEach((s, i) => {
+    const d = new Date(s.start + "T00:00:00");
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.key === key) {
+      ultimo.span += 1;
+    } else {
+      iniciosMes.add(i);
+      grupos.push({
+        key,
+        label: `${MES_LBL[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`,
+        span: 1,
+        inicio: i,
+      });
+    }
+  });
+  return { grupos, iniciosMes };
 }
 
 interface Props {
@@ -102,7 +139,8 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   // --- Cronograma: rango + vista ---------------------------------------------
   const [numSemanas, setNumSemanas] = useState(10);
   const [vista, setVista] = useState<"semanas" | "anual">("semanas");
-  const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios">("resumen");
+  const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios" | "tarjetas">("tarjetas");
+  const [vistaPeriodos, setVistaPeriodos] = useState<"lista" | "timeline">("timeline");
   const [detalle, setDetalle] = useState<VacacionesPeriodo | null>(null);
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [planAbierto, setPlanAbierto] = useState(false);
@@ -231,6 +269,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const conteoPorSemana = semanas.map(
     (s) => new Set(periodosEnVentana.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
   );
+  const { grupos: gruposMes, iniciosMes } = agruparMeses(semanas);
 
   // Sugerencias: 13 semanas fijas, las 3 con menos gente (independiente del filtro de rango).
   const semanasSug = construirSemanas(inicioSem, 13);
@@ -298,6 +337,10 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const urgentes = saldos.filter((s) => s.adeudados > 0);
   const desfasados = saldos.filter((s) => s.desfasaje).length;
   const hoyISO = new Date().toISOString().slice(0, 10);
+  // Posición de "hoy" dentro de la primera semana del cronograma (que arranca el
+  // lunes de esta semana), para dibujar la línea de medición vertical.
+  const hoyDOW = Math.min(6, Math.max(0, diffDias(semanas[0]!.start, hoyISO)));
+  const hoyLeftPct = ((hoyDOW + 0.5) / 7) * 100;
 
   // KPIs
   const diasEnRiesgo = urgentes.reduce((a, s) => a + s.adeudados, 0);
@@ -416,15 +459,6 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     <div className="space-y-6">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar empleado…"
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-background text-sm text-foreground"
-          />
-        </div>
         <select
           value={fSector}
           onChange={(e) => setFSector(e.target.value as typeof fSector)}
@@ -632,20 +666,15 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       <div id="card-cronograma" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
           <CalendarRange size={16} className="text-primary" />
-          <h2 className="text-sm font-bold text-foreground">Cronograma</h2>
-          <span className="text-[11px] text-muted-foreground hidden sm:inline">
-            {vista === "anual"
-              ? `· ${finPeriodoY} completo, día por día`
-              : `· solo aparecen los que ya tienen vacaciones${canWrite ? " · clic en un período para ver el detalle" : ""}`}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="relative hidden md:block">
+          <h2 className="text-sm font-bold text-foreground">Cronograma de personal con vacaciones</h2>
+          <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
+            <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar…"
-                className="h-8 w-36 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
+                placeholder="Buscar empleado…"
+                className="h-8 w-40 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
               />
             </div>
             {vista === "semanas" && (
@@ -693,14 +722,31 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-muted/40">
-                  <th className="sticky left-0 z-10 bg-muted/40 text-left px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide min-w-[12rem]">
+                {/* Banda de meses: agrupa las semanas y separa las columnas. */}
+                <tr className="bg-muted/60">
+                  <th
+                    rowSpan={2}
+                    className="sticky left-0 z-20 bg-muted text-left px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-px whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)]"
+                  >
                     Empleado
                   </th>
+                  {gruposMes.map((g) => (
+                    <th
+                      key={g.key}
+                      colSpan={g.span}
+                      className="px-2 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground border-l-2 border-border"
+                    >
+                      {g.label}
+                    </th>
+                  ))}
+                </tr>
+                <tr className="bg-muted/40">
                   {semanas.map((s, i) => (
                     <th
                       key={s.start}
                       className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
+                        i === 0 ? "bg-primary/[0.06]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
+                      } ${
                         conteoPorSemana[i]! > umbral ? "text-[#EF4444]" : i === 0 ? "text-primary" : "text-muted-foreground/70"
                       }`}
                       title={`${conteoPorSemana[i]} de vacaciones esta semana`}
@@ -714,9 +760,17 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                 </tr>
               </thead>
               <tbody>
-                {filasCrono.map((f) => (
-                  <tr key={f.id} className="border-t border-border hover:bg-muted/20">
-                    <td className="sticky left-0 z-10 bg-card px-4 py-2 text-sm whitespace-nowrap">
+                {filasCrono.map((f) => {
+                  const filaEnCurso = f.periodos.some((pp) => pp.en_curso);
+                  return (
+                  <tr key={f.id} className={`border-t border-border hover:bg-muted/20 ${filaEnCurso ? "bg-[#ECFDF5]/60" : ""}`}>
+                    <td className={`sticky left-0 z-10 px-4 py-2 text-sm whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)] ${filaEnCurso ? "bg-[#F0FDF4]" : "bg-card"}`}>
+                      {filaEnCurso && (
+                        <span className="relative inline-flex mr-1.5 w-1.5 h-1.5 align-middle" title="De vacaciones hoy">
+                          <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
+                          <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => verEnTabla(f.id)}
@@ -743,7 +797,9 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                       return (
                         <td
                           key={i}
-                          className={`px-0.5 py-2 ${dropOk ? "bg-primary/5" : ""}`}
+                          className={`relative px-0.5 py-2 ${
+                            i === 0 ? "bg-primary/[0.04]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
+                          } ${dropOk ? "bg-primary/5" : ""}`}
                           onDragOver={(e) => {
                             if (dropOk) e.preventDefault();
                           }}
@@ -784,7 +840,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                             {p && t && (
                               <span
                                 style={{ left: `${t.left}%`, width: `${t.width}%` }}
-                                className={`absolute top-0 h-5 ${p.viajes_conflicto > 0 ? "bg-[#F59E0B]/80 hover:bg-[#F59E0B]" : "bg-[#10B981]/80 hover:bg-[#10B981]"} ${
+                                className={`absolute top-0 h-5 ${p.viajes_conflicto > 0 ? "bg-[#F59E0B]/80 hover:bg-[#F59E0B]" : p.en_curso ? "bg-[#059669] hover:bg-[#047857]" : "bg-[#10B981]/80 hover:bg-[#10B981]"} ${
                                   t.empiezaAca ? "rounded-l-[3px]" : ""
                                 } ${t.terminaAca ? "rounded-r-[3px]" : ""}`}
                               >
@@ -794,11 +850,20 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                               </span>
                             )}
                           </button>
+                          {/* Línea de "hoy": marca vertical en la columna de la semana en curso. */}
+                          {i === 0 && (
+                            <span
+                              className="pointer-events-none absolute inset-y-0.5 w-0.5 bg-primary/70 z-[1]"
+                              style={{ left: `${hoyLeftPct}%` }}
+                              aria-hidden
+                            />
+                          )}
                         </td>
                       );
                     })}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
 
@@ -827,52 +892,167 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       {/* Próximos períodos */}
       {periodosVentanaFiltrados.length > 0 && (
         <div id="card-periodos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+          <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
             <CalendarRange size={16} className="text-primary" />
             <h2 className="text-sm font-bold text-foreground">Períodos en la ventana</h2>
             <span className="text-xs text-muted-foreground">({periodosVentanaFiltrados.length})</span>
+            <div className="ml-auto inline-flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => setVistaPeriodos("timeline")}
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaPeriodos === "timeline" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <CalendarRange size={13} /> Timeline
+              </button>
+              <button
+                onClick={() => setVistaPeriodos("lista")}
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaPeriodos === "lista" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <List size={13} /> Lista
+              </button>
+            </div>
           </div>
-          <ul className="divide-y divide-border">
-            {periodosVentanaFiltrados.map((p) => (
-              <li key={p.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
-                <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => verEnTabla(p.chofer_id)}
-                    title="Ver su saldo en la tabla de abajo"
-                    className="text-sm font-medium text-foreground hover:text-primary"
-                  >
-                    {p.apellido}, {p.nombre}
-                  </button>
-                  {p.observaciones && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{p.observaciones}</p>}
-                </div>
-                <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-                  {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
-                    title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
-                  >
-                    {p.dias} día{p.dias !== 1 ? "s" : ""}{p.anio_cargo != null ? ` · ${p.anio_cargo}` : ""}
-                  </span>
-                  {p.viajes_conflicto > 0 && (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
-                      title="El chofer tiene viajes asignados dentro del período: reasignarlos o mover las vacaciones"
+
+          {vistaPeriodos === "timeline" ? (
+            <div className="max-h-[70vh] overflow-auto">
+              {(() => {
+                // Agrupa por mes de inicio; el orden cronológico ya viene dado.
+                const grupos: { key: string; label: string; items: typeof periodosVentanaFiltrados }[] = [];
+                for (const p of periodosVentanaFiltrados) {
+                  const d = new Date(p.fecha_inicio + "T00:00:00");
+                  const key = `${d.getFullYear()}-${d.getMonth()}`;
+                  let g = grupos[grupos.length - 1];
+                  if (!g || g.key !== key) {
+                    g = { key, label: `${MES_LBL[d.getMonth()]} ${d.getFullYear()}`, items: [] };
+                    grupos.push(g);
+                  }
+                  g.items.push(p);
+                }
+                return grupos.map((g) => {
+                  const totalDias = g.items.reduce((a, p) => a + p.dias, 0);
+                  return (
+                    <section key={g.key}>
+                      <div className="sticky top-0 z-10 flex items-center gap-2 px-5 py-1.5 bg-muted/90 backdrop-blur-sm border-b border-border">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.label}</h3>
+                        <span className="text-[10px] font-mono text-muted-foreground/70">
+                          {g.items.length} período{g.items.length !== 1 ? "s" : ""} · {totalDias} día{totalDias !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <ul className="divide-y divide-border">
+                        {g.items.map((p) => {
+                          const barra = p.viajes_conflicto > 0 ? "#F59E0B" : p.en_curso ? "#0088D1" : "#10B981";
+                          return (
+                            <li key={p.id} className={`group flex items-center gap-3 pl-4 pr-4 py-2.5 hover:bg-muted/20 ${p.en_curso ? "bg-[#FFFBEB]/60" : ""}`}>
+                              <span
+                                className="shrink-0 grid place-items-center w-8 h-8 rounded-full text-[10px] font-bold text-white select-none"
+                                style={{ backgroundColor: colorAvatar(p.nombre, p.apellido) }}
+                                aria-hidden
+                              >
+                                {iniciales(p.nombre, p.apellido)}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => verEnTabla(p.chofer_id)}
+                                    title="Ver su saldo en la tabla"
+                                    className="truncate text-sm font-medium text-foreground hover:text-primary"
+                                  >
+                                    {p.apellido}, {p.nombre}
+                                  </button>
+                                  {p.en_curso && (
+                                    <span className="inline-flex items-center gap-1 shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
+                                      <span className="relative flex w-1.5 h-1.5">
+                                        <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
+                                        <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
+                                      </span>
+                                      En curso
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <span className="h-1.5 rounded-full overflow-hidden bg-muted shrink-0" style={{ width: 120 }}>
+                                    <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (p.dias / 21) * 100)}%`, backgroundColor: barra }} />
+                                  </span>
+                                  {p.observaciones && <span className="truncate text-[11px] italic text-muted-foreground/80">{p.observaciones}</span>}
+                                </div>
+                              </div>
+                              <div className="shrink-0 flex items-center gap-2 text-right">
+                                <span className="font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+                                  {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
+                                </span>
+                                <span
+                                  className="text-xs font-mono px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] whitespace-nowrap"
+                                  title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
+                                >
+                                  {p.dias}d{p.anio_cargo != null ? ` · ${p.anio_cargo}` : " · hist."}
+                                </span>
+                                {p.viajes_conflicto > 0 && (
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A] whitespace-nowrap"
+                                    title={`${p.viajes_conflicto} viaje(s) asignados dentro del período — reasignarlos o mover las vacaciones`}
+                                  >
+                                    ⚠ {p.viajes_conflicto}
+                                  </span>
+                                )}
+                                {canWrite && (
+                                  <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                    <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
+                                    <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  );
+                });
+              })()}
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {periodosVentanaFiltrados.map((p) => (
+                <li key={p.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => verEnTabla(p.chofer_id)}
+                      title="Ver su saldo en la tabla de abajo"
+                      className="text-sm font-medium text-foreground hover:text-primary"
                     >
-                      ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""}
+                      {p.apellido}, {p.nombre}
+                    </button>
+                    {p.observaciones && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{p.observaciones}</p>}
+                  </div>
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                    {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
+                      title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
+                    >
+                      {p.dias} día{p.dias !== 1 ? "s" : ""}{p.anio_cargo != null ? ` · ${p.anio_cargo}` : ""}
                     </span>
-                  )}
-                  {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
-                  {canWrite && (
-                    <>
-                      <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
-                      <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
-                    </>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+                    {p.viajes_conflicto > 0 && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                        title="El chofer tiene viajes asignados dentro del período: reasignarlos o mover las vacaciones"
+                      >
+                        ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
+                    {canWrite && (
+                      <>
+                        <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
+                        <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -882,7 +1062,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <Palmtree size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Saldos por empleado</h2>
           <span className="text-xs text-muted-foreground">{saldosFiltrados.length} / {saldos.length}</span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
             <div className="relative hidden md:block">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -900,6 +1080,13 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                 <Table2 size={13} /> Resumen
               </button>
               <button
+                onClick={() => setVistaTabla("tarjetas")}
+                title="Tarjetas con medidor de uso por empleado"
+                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "tarjetas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+              >
+                <LayoutGrid size={13} /> Tarjetas
+              </button>
+              <button
                 onClick={() => setVistaTabla("anios")}
                 title="Saldo y otorgados de cada año, como la planilla"
                 className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "anios" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
@@ -909,9 +1096,133 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        {vistaTabla === "tarjetas" ? (
+          <div className="p-4 space-y-5">
+            {saldosPorSector.map((g) => (
+              <section key={g.sector}>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-2 mb-2 border-b border-border">
+                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                    {g.sector === "Chofer" ? "Choferes" : g.sector} · {g.filas.length}
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground/80">
+                    saldo {finPeriodoY - 1}: <span className={`font-mono ${g.saldoViejo > 0 ? "text-[#EF4444]" : ""}`}>{g.saldoViejo}</span>
+                    {" · "}días {finPeriodoY}: <span className="font-mono">{g.diasAnio}</span>
+                    {" · "}disp.: <span className="font-mono text-[#10B981]">{g.disp}</span>
+                  </span>
+                </div>
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {g.filas.map((s) => {
+                    const tint =
+                      s.semaforo === "🔴" ? "#EF4444" : s.semaforo === "🟠" ? "#F59E0B" : s.semaforo === "🟡" ? "#FFB300" : "#10B981";
+                    const amber = Math.max(0, s.tomados);
+                    const rojo = Math.max(0, s.adeudados);
+                    const verde = Math.max(0, s.disponibles - s.adeudados);
+                    const denom = amber + verde + rojo || 1;
+                    return (
+                      <div
+                        key={s.chofer_id}
+                        id={`saldo-${s.chofer_id}`}
+                        className={`group relative flex flex-col rounded-[8px] border border-border bg-card shadow-sm overflow-hidden transition-shadow hover:shadow-md ${
+                          resaltado === s.chofer_id ? "ring-2 ring-inset ring-primary/50" : ""
+                        }`}
+                      >
+                        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: tint }} aria-hidden />
+                        <div className="flex items-start gap-2.5 pl-4 pr-3 pt-3">
+                          <span
+                            className="shrink-0 grid place-items-center w-9 h-9 rounded-full text-[11px] font-bold text-white select-none"
+                            style={{ backgroundColor: colorAvatar(s.nombre, s.apellido) }}
+                            aria-hidden
+                          >
+                            {iniciales(s.nombre, s.apellido)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
+                              title={`${s.apellido}, ${s.nombre}`}
+                              className="block truncate text-sm font-semibold text-foreground leading-tight hover:text-primary"
+                            >
+                              {s.apellido}, {s.nombre}
+                            </Link>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {s.en_vacaciones_ahora && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
+                                  Ahora
+                                </span>
+                              )}
+                              {s.adeudados > 0 && s.vence_saldo && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
+                                  Vence {s.vence_saldo}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right leading-none">
+                            <div className={`font-mono text-2xl font-bold ${s.disponibles < 0 ? "text-[#EF4444]" : s.disponibles === 0 ? "text-muted-foreground" : "text-[#10B981]"}`}>
+                              {s.disponibles}
+                            </div>
+                            <div className="mt-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">disp.</div>
+                          </div>
+                        </div>
+                        <div className="pl-4 pr-3 mt-3">
+                          <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-muted">
+                            {amber > 0 && <div style={{ width: `${(amber / denom) * 100}%`, backgroundColor: "#F59E0B" }} title={`Tomados este año: ${amber}`} />}
+                            {verde > 0 && <div style={{ width: `${(verde / denom) * 100}%`, backgroundColor: "#10B981" }} title={`Disponible del ${finPeriodoY}: ${verde}`} />}
+                            {rojo > 0 && <div style={{ width: `${(rojo / denom) * 100}%`, minWidth: 6, backgroundColor: "#EF4444" }} title={`Por vencer del ${finPeriodoY - 1}: ${rojo}`} />}
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 truncate">
+                              <span className="w-2 h-2 rounded-[2px] bg-[#F59E0B] shrink-0" />
+                              <span className="font-mono text-foreground">{s.tomados}</span> tom.
+                            </span>
+                            <span className="inline-flex items-center justify-center gap-1 truncate">
+                              <span className="w-2 h-2 rounded-[2px] bg-[#10B981] shrink-0" />
+                              <span className="font-mono text-foreground">{s.corresponden}</span>
+                              <span className="text-muted-foreground/60">/{finPeriodoY}</span>
+                            </span>
+                            <span className={`inline-flex items-center justify-end gap-1 truncate ${s.adeudados > 0 ? "text-[#991B1B] font-semibold" : ""}`}>
+                              <span className="w-2 h-2 rounded-[2px] bg-[#EF4444] shrink-0" />
+                              <span className="font-mono">{s.adeudados}</span>
+                              <span className={s.adeudados > 0 ? "text-[#991B1B]/70" : "text-muted-foreground/60"}>/{finPeriodoY - 1}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-2.5 pl-4 pr-2.5 py-2 border-t border-border flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 shrink-0">
+                            <span aria-hidden>{s.semaforo}</span>
+                            <span className="font-mono">{s.anios} año{s.anios !== 1 ? "s" : ""}</span>
+                            {s.desfasaje && <span className="text-amber-500" title={`Por antigüedad le corresponderían ${s.dias_segun_antiguedad}`}>⚠</span>}
+                          </span>
+                          <span className="truncate text-right flex-1" title={s.hito !== "—" ? s.hito : s.proximo_hito}>
+                            {s.hito !== "—" ? s.hito : s.proximo_hito}
+                          </span>
+                          {canWrite && (
+                            <button
+                              type="button"
+                              onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })}
+                              title="Cargar vacaciones"
+                              className="shrink-0 grid place-items-center w-6 h-6 rounded-full text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-muted transition"
+                            >
+                              <Plus size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+            {saldosPorSector.length === 0 && (
+              <div className="py-10 text-center text-sm text-muted-foreground">Nadie coincide con el filtro.</div>
+            )}
+          </div>
+        ) : (
+        <>
+        {/* Alto acotado: la tabla scrollea adentro y el encabezado queda fijo
+            (los ancestros con overflow rompen el sticky contra la página). */}
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40">
+            <thead className="sticky top-0 z-20 [&_th]:bg-muted [&_th]:shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr>
                 <th className="px-2 py-2.5 w-8" />
                 {(vistaTabla === "resumen"
@@ -1046,6 +1357,8 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <span>🟡 atención (≥21)</span>
           <span>🟢 ok</span>
         </div>
+        </>
+        )}
       </div>
 
       {/* Diálogo cargar */}
