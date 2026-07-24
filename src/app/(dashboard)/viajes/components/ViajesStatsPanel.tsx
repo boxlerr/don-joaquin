@@ -2,53 +2,115 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { MapPin, X } from "lucide-react";
-import StatCard from "@/components/ui/StatCard";
+import { MapPin, X, Truck, Receipt, PackageX, CalendarRange, AlertTriangle, type LucideIcon } from "lucide-react";
 import ViajesTable, { type FiltroExterno } from "./ViajesTable";
+import ViajeStatCard, { type ViajeCardTone } from "./ViajeStatCard";
+import PeriodoSelector from "../../choferes/ranking/PeriodoSelector";
+import type { RangoKey } from "../../choferes/ranking/lib";
 import { type GastoFormData } from "./ViajeGastosPanel";
 
 interface Stats {
   total: number;
-  enCurso: number;
-  pendientes: number;
   sinFacturar: number;
   vacios: number;
+  incompletos: number;
 }
 
 interface Props {
   stats: Stats;
   choferId?: string;
   choferNombre?: string | null;
-  /** Filtro preseleccionado desde la URL (key de tarjeta: en_curso, pendiente, sin_facturar, vacios). */
+  /** Filtro preseleccionado desde la URL (key de tarjeta: sin_facturar, vacios). */
   filtroInicial?: string;
   /** Datos de formulario de gasto (resueltos en la página) que la tabla pasa al
    *  panel de gastos de cada fila. */
   gastoFormData: GastoFormData;
+  /** Período elegido (selector de fechas): scopea las tarjetas y siembra el listado. */
+  rango: RangoKey;
+  desdePeriodo: string;
+  hastaPeriodo: string;
   /** Contenido renderizado entre las tarjetas y el listado (ej. disponibilidad de choferes). */
   children?: ReactNode;
 }
 
-type CardColor = "brand" | "success" | "warning" | "error" | "neutral";
-
 interface CardDef {
   key: string;
-  label: string;
+  /** Etiqueta corta de la tarjeta. */
+  kicker: string;
+  /** Frase humana debajo del número. */
+  sub: string;
   value: number;
-  color: CardColor;
-  sub?: string;
-  estado: string;
+  tone: ViajeCardTone;
+  icon: LucideIcon;
   facturado: boolean | null;
   esVacio: boolean | null;
+  incompleto: boolean | null;
 }
 
-export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtroInicial, gastoFormData, children }: Props) {
+export default function ViajesStatsPanel({
+  stats,
+  choferId,
+  choferNombre,
+  filtroInicial,
+  gastoFormData,
+  rango,
+  desdePeriodo,
+  hastaPeriodo,
+  children,
+}: Props) {
+  // Con "total" el listado arranca sin filtro de fecha; con un período, se siembran
+  // los inputs de fecha de la tabla con ese rango (quedan editables para afinar).
+  const tableDesde = rango === "total" ? "" : desdePeriodo;
+  const tableHasta = rango === "total" ? "" : hastaPeriodo;
+  // Tres tarjetas con identidad propia (se quitó el estado operativo — En curso /
+  // Pendientes — que ya no se usa). Total · Sin remito · Vueltas en vacío.
   const cards: CardDef[] = [
-    { key: "todos", label: "Total viajes", value: stats.total, color: "brand", estado: "", facturado: null, esVacio: null },
-    { key: "en_curso", label: "En curso", value: stats.enCurso, color: "success", estado: "en_curso", facturado: null, esVacio: null },
-    { key: "pendiente", label: "Pendientes", value: stats.pendientes, color: "warning", estado: "pendiente", facturado: null, esVacio: null },
-    // "Sin facturar" excluye los vacíos: solo viajes reales pendientes de facturar.
-    { key: "sin_facturar", label: "Sin remito", value: stats.sinFacturar, color: "error", sub: "Finalizados", estado: "", facturado: false, esVacio: false },
-    { key: "vacios", label: "Viajes vacíos", value: stats.vacios, color: "neutral", sub: "Sin carga", estado: "", facturado: null, esVacio: true },
+    {
+      key: "todos",
+      kicker: "Viajes registrados",
+      sub: "Todo el movimiento",
+      value: stats.total,
+      tone: "brand",
+      icon: Truck,
+      facturado: null,
+      esVacio: null,
+      incompleto: null,
+    },
+    {
+      // "Sin remito" excluye los vacíos: solo viajes reales pendientes de facturar.
+      key: "sin_facturar",
+      kicker: "Sin remito",
+      sub: "Esperan su remito",
+      value: stats.sinFacturar,
+      tone: "error",
+      icon: Receipt,
+      facturado: false,
+      esVacio: false,
+      incompleto: null,
+    },
+    {
+      // Les falta origen, destino o chofer (los cargan después).
+      key: "incompletos",
+      kicker: "Incompletos",
+      sub: "Faltan datos",
+      value: stats.incompletos,
+      tone: "warning",
+      icon: AlertTriangle,
+      facturado: null,
+      esVacio: null,
+      incompleto: true,
+    },
+    {
+      key: "vacios",
+      kicker: "Vueltas en vacío",
+      sub: "Sin carga",
+      value: stats.vacios,
+      tone: "neutral",
+      icon: PackageX,
+      facturado: null,
+      esVacio: true,
+      incompleto: null,
+    },
   ];
 
   // Si la URL trae un filtro (ej. desde el dashboard), lo aplicamos como estado inicial.
@@ -58,51 +120,49 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
   const [filtroExterno, setFiltroExterno] = useState<FiltroExterno | undefined>(
     cardInicial
       ? {
-          estado: cardInicial.estado,
           facturado: cardInicial.facturado,
           esVacio: cardInicial.esVacio,
+          incompleto: cardInicial.incompleto,
           nonce: 1,
         }
       : undefined,
   );
   // Filtro actual reportado por la tabla (puede cambiar también desde sus filtros internos).
   const [current, setCurrent] = useState<{
-    estado: string;
     facturado: boolean | null;
     esVacio: boolean | null;
+    incompleto: boolean | null;
   }>({
-    estado: cardInicial?.estado ?? "",
     facturado: cardInicial?.facturado ?? null,
     esVacio: cardInicial?.esVacio ?? null,
+    incompleto: cardInicial?.incompleto ?? null,
   });
 
   const activeKey =
-    current.esVacio === true
-      ? "vacios"
-      : current.facturado === false
-        ? "sin_facturar"
-        : current.estado === "en_curso"
-          ? "en_curso"
-          : current.estado === "pendiente"
-            ? "pendiente"
-            : current.estado === "" && current.facturado === null && current.esVacio === null
-              ? "todos"
-              : null;
+    current.incompleto === true
+      ? "incompletos"
+      : current.esVacio === true
+        ? "vacios"
+        : current.facturado === false
+          ? "sin_facturar"
+          : current.facturado === null && current.esVacio === null && current.incompleto === null
+            ? "todos"
+            : null;
 
   const aplicarFiltro = (
-    estado: string,
     facturado: boolean | null,
     esVacio: boolean | null,
+    incompleto: boolean | null,
   ) => {
-    setFiltroExterno((prev) => ({ estado, facturado, esVacio, nonce: (prev?.nonce ?? 0) + 1 }));
+    setFiltroExterno((prev) => ({ facturado, esVacio, incompleto, nonce: (prev?.nonce ?? 0) + 1 }));
   };
 
   const onCardClick = (card: CardDef) => {
     // Volver a hacer clic en la tarjeta activa (salvo "Total") limpia el filtro.
     if (activeKey === card.key && card.key !== "todos") {
-      aplicarFiltro("", null, null);
+      aplicarFiltro(null, null, null);
     } else {
-      aplicarFiltro(card.estado, card.facturado, card.esVacio);
+      aplicarFiltro(card.facturado, card.esVacio, card.incompleto);
     }
   };
 
@@ -110,14 +170,28 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <CalendarRange size={14} className="text-primary" />
+          Período de las tarjetas
+        </span>
+        <PeriodoSelector
+          rangoActual={rango}
+          desdeActual={desdePeriodo}
+          hastaActual={hastaPeriodo}
+          incluirTotal
+        />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {cards.map((card) => (
-          <StatCard
+          <ViajeStatCard
             key={card.key}
-            label={card.label}
-            value={String(card.value)}
+            kicker={card.kicker}
+            value={card.value}
             sub={card.sub}
-            color={card.color}
+            tone={card.tone}
+            icon={card.icon}
             active={activeKey === card.key}
             onClick={() => onCardClick(card)}
           />
@@ -145,10 +219,10 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
             )}
             {activeCard && (
               <span className="inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                {activeCard.label}
+                {activeCard.kicker}
                 <button
                   type="button"
-                  onClick={() => aplicarFiltro("", null, null)}
+                  onClick={() => aplicarFiltro(null, null, null)}
                   className="flex items-center hover:text-primary/80 transition-colors"
                   aria-label="Limpiar filtro de tarjeta"
                 >
@@ -160,7 +234,15 @@ export default function ViajesStatsPanel({ stats, choferId, choferNombre, filtro
         </div>
       </div>
 
-      <ViajesTable choferId={choferId} filtroExterno={filtroExterno} onFiltroChange={setCurrent} gastoFormData={gastoFormData} />
+      <ViajesTable
+        key={`${rango}-${desdePeriodo}-${hastaPeriodo}`}
+        choferId={choferId}
+        filtroExterno={filtroExterno}
+        onFiltroChange={setCurrent}
+        gastoFormData={gastoFormData}
+        initialDesde={tableDesde}
+        initialHasta={tableHasta}
+      />
     </>
   );
 }

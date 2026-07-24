@@ -12,18 +12,16 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import StatusBadge from "@/components/ui/StatusBadge";
 import {
   ChevronDown,
   ChevronUp,
-  Loader2,
   Trash2,
   User,
   Truck,
   Coins,
   FileText,
 } from "lucide-react";
-import { updateViajeEstadoAction, deleteViajeAction } from "@/app/(dashboard)/viajes/actions";
+import { deleteViajeAction } from "@/app/(dashboard)/viajes/actions";
 import type { ViajeBasico } from "@/app/(dashboard)/viajes/types";
 
 interface Props {
@@ -40,20 +38,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
   const router = useRouter();
   const [rows, setRows] = useState<ViajeBasico[]>(initialViajes);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const handleUpdateEstado = async (id: string, nuevoEstado: string) => {
-    setUpdatingId(`${id}-${nuevoEstado}`);
-    const res = await updateViajeEstadoAction(id, nuevoEstado);
-    setUpdatingId(null);
-    if (res && res.ok) {
-      setRows((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, estado: nuevoEstado } : item))
-      );
-      router.refresh();
-    }
-  };
 
   const handleDelete = async (id: string) => {
     const res = await deleteViajeAction(id);
@@ -69,7 +54,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
     <Table>
       <TableHeader className="bg-muted/40">
         <TableRow className="border-b border-border">
-          {["Origen → Destino", "Cliente", "Chofer", "Estado", "Facturación", ""].map(
+          {["Origen → Destino", "Cliente", "Chofer", "Facturación", ""].map(
             (col) => (
               <TableHead
                 key={col}
@@ -84,7 +69,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
       <TableBody>
         {rows.length === 0 ? (
           <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={6} className="py-12 text-center">
+            <TableCell colSpan={5} className="py-12 text-center">
               <div className="flex flex-col items-center justify-center">
                 <span className="text-foreground text-sm font-bold tracking-tight">Sin viajes registrados</span>
                 <span className="text-muted-foreground/70 text-xs font-medium mt-1">Los viajes que registres aparecerán aquí</span>
@@ -118,20 +103,6 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                   <TableCell className="text-xs text-muted-foreground py-3 px-3">
                     {v.chofer}
                   </TableCell>
-                  <TableCell className="py-3 px-3">
-                    <StatusBadge
-                      label={v.estado.replace("_", " ")}
-                      tone={
-                        v.estado === "cerrado"
-                          ? "success"
-                          : v.estado === "en_curso"
-                          ? "info"
-                          : v.estado === "pendiente"
-                          ? "warning"
-                          : "neutral"
-                      }
-                    />
-                  </TableCell>
                   <TableCell className="text-xs font-semibold text-muted-foreground py-3 px-3">
                     {v.facturado ? (
                       <span className="text-[#10B981] bg-[#ECFDF5] px-2 py-0.5 rounded-full text-[10px] font-bold border border-[#A7F3D0]/50 uppercase">Sí</span>
@@ -148,7 +119,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
 
                 {isExpanded && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={6} className="p-0 border-b border-border">
+                    <TableCell colSpan={5} className="p-0 border-b border-border">
                       <div className="p-5 grid grid-cols-3 gap-5 animate-in fade-in-50 duration-200">
                         {/* Detalles Operativos */}
                         <div className="space-y-3 bg-card p-3.5 rounded-[8px] border border-border shadow-sm">
@@ -205,37 +176,6 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                           </div>
 
                           <div className="pt-2 border-t border-border space-y-2">
-                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">
-                              Cambiar Estado Operativo:
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {["pendiente", "en_curso", "cerrado"].map((st) => {
-                                const isCurrent = v.estado === st;
-                                const isUpd = updatingId === `${v.id}-${st}`;
-                                const labels: Record<string, string> = {
-                                  pendiente: "Pendiente",
-                                  en_curso: "En Curso",
-                                  cerrado: "Cerrado",
-                                };
-                                return (
-                                  <Button
-                                    key={st}
-                                    variant={isCurrent ? "default" : "outline"}
-                                    size="xs"
-                                    disabled={isCurrent || isUpd || updatingId !== null}
-                                    className="text-[10px] h-6 px-2 font-semibold"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUpdateEstado(v.id, st);
-                                    }}
-                                  >
-                                    {isUpd && <Loader2 size={10} className="animate-spin mr-1" />}
-                                    {labels[st]}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-
                             <div className="pt-1 text-right">
                               {deletingId === v.id ? (
                                 <div className="flex items-center justify-end gap-1.5">

@@ -9,9 +9,9 @@ interface ExportViajesButtonProps {
   choferId?: string;
   desde?: string;
   hasta?: string;
-  estado?: string;
   facturado?: boolean;
   esVacio?: boolean;
+  incompleto?: boolean;
   search?: string;
   disabled?: boolean;
 }
@@ -20,14 +20,14 @@ export default function ExportViajesButton({
   choferId,
   desde,
   hasta,
-  estado,
   facturado,
   esVacio,
+  incompleto,
   search,
   disabled,
 }: ExportViajesButtonProps) {
   const hayFiltros = !!(
-    desde || hasta || estado || search || typeof facturado === "boolean" || typeof esVacio === "boolean"
+    desde || hasta || search || typeof facturado === "boolean" || typeof esVacio === "boolean" || incompleto
   );
 
   const handleExport = async () => {
@@ -35,9 +35,9 @@ export default function ExportViajesButton({
       choferId,
       desde,
       hasta,
-      estado,
       facturado,
       esVacio,
+      incompleto,
       search,
     });
 

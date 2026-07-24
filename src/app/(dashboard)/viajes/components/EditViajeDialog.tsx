@@ -21,7 +21,6 @@ import {
   Navigation,
   Scale,
   DollarSign,
-  ChevronDown,
   Check,
   AlertTriangle,
   Loader2,
@@ -40,7 +39,6 @@ import {
   getViajeFormData,
   getImporteSugeridoAction,
   updateViajeAction,
-  type ViajeParaEditar,
   type ViajeFormData,
 } from "../actions";
 import type { ViajeBasico } from "../types";
@@ -52,20 +50,12 @@ interface Props {
   onSuccess: (patch: Partial<ViajeBasico>) => void;
 }
 
-const ESTADOS = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "en_curso", label: "En curso" },
-  { value: "cerrado", label: "Cerrado" },
-];
-
 export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }: Props) {
   const [loadingData, setLoadingData] = useState(false);
-  const [viajeData, setViajeData] = useState<ViajeParaEditar | null>(null);
   const [formOptions, setFormOptions] = useState<ViajeFormData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [fechaViaje, setFechaViaje] = useState("");
-  const [estado, setEstado] = useState("pendiente");
   const [clienteId, setClienteId] = useState("");
   const [choferId, setChoferId] = useState("");
   const [camionId, setCamionId] = useState("");
@@ -113,10 +103,8 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
       if ("error" in vd) { setLoadError(vd.error); return; }
       if ("error" in fd) { setLoadError(fd.error); return; }
 
-      setViajeData(vd);
       setFormOptions(fd);
       setFechaViaje(vd.fecha_viaje);
-      setEstado(vd.estado);
       setClienteId(vd.cliente_id);
       setChoferId(vd.chofer_id);
       setCamionId(vd.camion_id);
@@ -176,7 +164,7 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
     };
   }, [clienteId, origenNombre, destinoNombre, tonelaje, kmConCarga, fechaViaje]);
 
-  const isFacturado = viaje.estado === "cerrado" && viaje.facturado;
+  const isFacturado = viaje.facturado;
 
   const isOtros =
     tipoCargaId === "otros" ||
@@ -214,7 +202,6 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
 
     const result = await updateViajeAction(viaje.id, {
       fecha_viaje: fechaViaje,
-      estado,
       cliente_id: clienteId,
       chofer_id: choferId,
       camion_id: camionId,
@@ -246,7 +233,6 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
 
     onSuccess({
       fecha_viaje: fechaViaje,
-      estado,
       cliente: clienteLabel ?? viaje.cliente,
       chofer: choferLabel ?? viaje.chofer,
       origen: origenNombre.trim() || null,
@@ -315,32 +301,20 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
               />
             )}
 
-            {/* Fecha y Estado */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <CField
-                label="Fecha del viaje *"
-                icon={Calendar}
-                error={fieldErrors.fecha_viaje}
-              >
-                <input
-                  type="date"
-                  value={fechaViaje}
-                  onChange={(e) => setFechaViaje(e.target.value)}
-                  required
-                  className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
-                />
-              </CField>
-
-              <CField label="Estado *" icon={ChevronDown} error={fieldErrors.estado}>
-                <Combobox
-                  value={estado}
-                  onValueChange={setEstado}
-                  options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
-                  searchable={false}
-                  triggerClassName={FIELD_COMBO_TRIGGER}
-                />
-              </CField>
-            </div>
+            {/* Fecha */}
+            <CField
+              label="Fecha del viaje *"
+              icon={Calendar}
+              error={fieldErrors.fecha_viaje}
+            >
+              <input
+                type="date"
+                value={fechaViaje}
+                onChange={(e) => setFechaViaje(e.target.value)}
+                required
+                className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none text-[#0F172A]"
+              />
+            </CField>
 
             {/* Cliente */}
             <CField label="Cliente *" icon={User} error={fieldErrors.cliente_id}>

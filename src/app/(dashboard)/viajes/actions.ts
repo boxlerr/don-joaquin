@@ -87,9 +87,10 @@ export type GetViajesParams = {
   pageSize?: number;
   desde?: string;
   hasta?: string;
-  estado?: string[];
   facturado?: boolean;
   esVacio?: boolean;
+  /** Solo viajes incompletos: les falta origen, destino o chofer. */
+  incompleto?: boolean;
   search?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
@@ -104,9 +105,9 @@ export async function getViajesAction(
     pageSize = PAGE_SIZE,
     desde,
     hasta,
-    estado,
     facturado,
     esVacio,
+    incompleto,
     search,
     orderBy = "fecha",
     orderDir = "desc",
@@ -148,11 +149,9 @@ export async function getViajesAction(
     query = query.lte("fecha_viaje", hasta);
   }
 
-  if (estado && estado.length > 0) {
-    query = query.in("estado", estado);
-  } else {
-    query = query.neq("estado", "cancelado");
-  }
+  // El estado operativo se quitó de la UI: siempre se excluyen los cancelados
+  // (soft-delete), no hay filtro por estado.
+  query = query.neq("estado", "cancelado");
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
@@ -160,6 +159,13 @@ export async function getViajesAction(
 
   if (typeof esVacio === "boolean") {
     query = query.eq("es_vacio", esVacio);
+  }
+
+  // Incompleto = le falta origen, destino o chofer (los cargan después, por su
+  // forma de trabajar). Se evalúa por columnas (origen_id/destino_id/chofer_id),
+  // no por el fallback de observaciones (legado).
+  if (incompleto) {
+    query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
   }
 
   if (search) {
@@ -690,7 +696,9 @@ const viajeSchema = z
     fecha_viaje: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
-    estado: z.enum(VIAJE_ESTADO_VALUES),
+    // El estado operativo se quitó de la UI; el alta/edición/carga rápida ya no
+    // lo mandan. Se defaultea a 'pendiente' para satisfacer la columna NOT NULL.
+    estado: z.enum(VIAJE_ESTADO_VALUES).optional().default("pendiente"),
     cliente_id: z.string().uuid("Cliente inválido."),
     chofer_id: z.string().uuid("Chofer inválido."),
     camion_id: z.string().uuid("Camión inválido."),
@@ -1154,15 +1162,15 @@ export type ExportViajesParams = {
   choferId?: string;
   desde?: string;
   hasta?: string;
-  estado?: string;
   facturado?: boolean;
   esVacio?: boolean;
+  incompleto?: boolean;
   search?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, estado, facturado, esVacio, search } = params ?? {};
+  const { choferId, desde, hasta, facturado, esVacio, incompleto, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -1189,11 +1197,8 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
     query = query.lte("fecha_viaje", hasta);
   }
 
-  if (estado) {
-    query = query.in("estado", [estado]);
-  } else {
-    query = query.neq("estado", "cancelado");
-  }
+  // Igual que el listado: solo se excluyen los cancelados (soft-delete).
+  query = query.neq("estado", "cancelado");
 
   if (typeof facturado === "boolean") {
     query = query.eq("facturado", facturado);
@@ -1201,6 +1206,10 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
 
   if (typeof esVacio === "boolean") {
     query = query.eq("es_vacio", esVacio);
+  }
+
+  if (incompleto) {
+    query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
   }
 
   if (search) {
@@ -1336,64 +1345,6 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
   );
 
   revalidatePath("/viajes");
-  return { ok: true };
-}
-
-// ============================================================================
-// Actualizar estado de viaje + auditoría
-// ============================================================================
-
-const ESTADOS_VALIDOS = ["pendiente", "en_curso", "cerrado", "cancelado"] as const;
-
-export async function updateViajeEstadoAction(
-  id: string,
-  estado: string,
-): Promise<{ ok: boolean; error?: string }> {
-  if (!ESTADOS_VALIDOS.includes(estado as (typeof ESTADOS_VALIDOS)[number])) {
-    return { ok: false, error: "Estado inválido." };
-  }
-
-  const user = await requireArea("viajes", "write");
-
-  const supabase = createAdminClient();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: viajeActual, error: fetchError } = await (supabase as any)
-    .from("viajes")
-    .select("estado, facturado")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !viajeActual) {
-    return { ok: false, error: "Viaje no encontrado." };
-  }
-
-  if (viajeActual.estado === "cancelado") {
-    return { ok: false, error: "El viaje está cancelado y no puede cambiar de estado." };
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
-    .from("viajes")
-    .update({ estado })
-    .eq("id", id);
-
-  if (error) {
-    console.error("Error al actualizar estado del viaje:", error);
-    return { ok: false, error: "No se pudo actualizar el estado." };
-  }
-
-  await logViajeAudit(
-    supabase,
-    id,
-    "cambio_estado",
-    { estado: viajeActual.estado },
-    { estado },
-    user.id,
-  );
-
-  revalidatePath("/viajes");
-  revalidatePath("/caja");
   return { ok: true };
 }
 
@@ -1678,7 +1629,8 @@ export async function updateViajeAction(
   id: string,
   data: {
   fecha_viaje: string;
-    estado: string;
+    /** Ya no se envía desde la UI (el editar no toca el estado operativo). */
+    estado?: string;
     cliente_id: string;
     chofer_id: string;
     camion_id: string;
@@ -1797,7 +1749,8 @@ export async function updateViajeAction(
     .from("viajes")
     .update({
       fecha_viaje: parsed.data.fecha_viaje,
-      estado: parsed.data.estado,
+      // Editar NO toca `estado`: el estado operativo se quitó de la UI y la
+      // columna solo la maneja el flujo (cerrar/facturar) y el soft-delete.
       cliente_id: parsed.data.cliente_id,
       chofer_id: parsed.data.chofer_id,
       camion_id: parsed.data.camion_id,
@@ -1833,7 +1786,6 @@ export async function updateViajeAction(
     previo ?? null,
     {
       fecha_viaje: parsed.data.fecha_viaje,
-      estado: parsed.data.estado,
       cliente_id: parsed.data.cliente_id,
       chofer_id: parsed.data.chofer_id,
       camion_id: parsed.data.camion_id,
@@ -1906,7 +1858,8 @@ export async function updateViajeAction(
 
 export type ViajeFilaRapida = {
   fecha_viaje: string;
-  estado: string;
+  /** El estado operativo se quitó de la UI; si no viene, el schema lo defaultea a 'pendiente'. */
+  estado?: string;
   cliente_id: string;
   chofer_id: string;
   camion_id: string;

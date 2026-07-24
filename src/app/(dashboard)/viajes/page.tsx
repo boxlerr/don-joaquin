@@ -7,40 +7,68 @@ import { requireSeccion, hasSeccion, hasArea } from "@/lib/auth";
 import ViajesStatsPanel from "./components/ViajesStatsPanel";
 import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportsMenu from "./components/ImportsMenu";
+import HelpTutorialButton from "./help-tutorial-button";
 import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
 import { getViajeFormData, getAusenciasProximasAction } from "./actions";
+import { resolverRango } from "../choferes/ranking/lib";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 
 export default async function ViajesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ choferId?: string; filtro?: string }>;
+  searchParams: Promise<{
+    choferId?: string;
+    filtro?: string;
+    rango?: string;
+    desde?: string;
+    hasta?: string;
+  }>;
 }) {
   const user = await requireSeccion("viajes_listado", "read");
   const canWrite = hasSeccion(user, "viajes_listado", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
-  const { choferId, filtro } = await searchParams;
+  const { choferId, filtro, rango, desde, hasta } = await searchParams;
   const supabase = createAdminClient();
 
+  // Período elegido por el selector de fechas. Default "total" = todos los viajes
+  // (las tarjetas muestran el histórico completo si no se elige un rango).
+  const periodo = resolverRango({ rango: rango ?? "total", desde, hasta });
+  const aplicarFecha = periodo.rango !== "total";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conFecha = (q: any) =>
+    aplicarFecha ? q.gte("fecha_viaje", periodo.desde).lte("fecha_viaje", periodo.hasta) : q;
+
   const statsQuery = [
-    // Total = viajes reales: excluye cancelados, igual que el resto de las
-    // tarjetas y que el listado (getViajesAction sin filtro ya los excluye).
-    supabase.from("viajes").select("*", { count: "exact", head: true }).neq("estado", "cancelado"),
-    supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "en_curso"),
-    supabase.from("viajes").select("*", { count: "exact", head: true }).eq("estado", "pendiente"),
-    supabase
-      .from("viajes")
-      .select("*", { count: "exact", head: true })
-      .eq("facturado", false)
-      .eq("es_vacio", false)
-      .neq("estado", "cancelado"),
-    supabase
-      .from("viajes")
-      .select("*", { count: "exact", head: true })
-      .eq("es_vacio", true)
-      .neq("estado", "cancelado"),
-  ] as const;
+    // Total = viajes reales: excluye cancelados (soft-delete), igual que las
+    // tarjetas y el listado (getViajesAction sin filtro ya los excluye).
+    conFecha(supabase.from("viajes").select("*", { count: "exact", head: true }).neq("estado", "cancelado")),
+    // "Sin remito": viajes reales (no vacíos) todavía sin facturar.
+    conFecha(
+      supabase
+        .from("viajes")
+        .select("*", { count: "exact", head: true })
+        .eq("facturado", false)
+        .eq("es_vacio", false)
+        .neq("estado", "cancelado"),
+    ),
+    // Vueltas en vacío.
+    conFecha(
+      supabase
+        .from("viajes")
+        .select("*", { count: "exact", head: true })
+        .eq("es_vacio", true)
+        .neq("estado", "cancelado"),
+    ),
+    // Incompletos: les falta origen, destino o chofer (se cargan después).
+    conFecha(
+      supabase
+        .from("viajes")
+        .select("*", { count: "exact", head: true })
+        .neq("estado", "cancelado")
+        .or("origen_id.is.null,destino_id.is.null,chofer_id.is.null"),
+    ),
+  ];
 
   const choferQuery = choferId
     ? supabase
@@ -53,7 +81,7 @@ export default async function ViajesPage({
   const DIAS_DISPONIBILIDAD = 14;
 
   const [
-    [total, enCurso, pendientes, sinFacturar, vacios],
+    [total, sinFacturar, vacios, incompletos],
     choferResult,
     formData,
     gastoFormData,
@@ -80,6 +108,7 @@ export default async function ViajesPage({
         description="Núcleo operativo: registro, asociación y trazabilidad de viajes"
         action={
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <HelpTutorialButton triggerClassName="h-7 px-2.5 rounded-[min(var(--radius-md),12px)] border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1 text-[0.8rem] font-medium [&_svg]:size-3.5" />
             {canRegistrarGasto && (
               <AddGastoDialog
                 tiposGasto={gastoFormData.tiposGasto}
@@ -118,15 +147,17 @@ export default async function ViajesPage({
       <ViajesStatsPanel
         stats={{
           total: total.count ?? 0,
-          enCurso: enCurso.count ?? 0,
-          pendientes: pendientes.count ?? 0,
           sinFacturar: sinFacturar.count ?? 0,
           vacios: vacios.count ?? 0,
+          incompletos: incompletos.count ?? 0,
         }}
         choferId={choferId}
         choferNombre={choferNombre}
         filtroInicial={filtro}
         gastoFormData={gastoFormData}
+        rango={periodo.rango}
+        desdePeriodo={periodo.desde}
+        hastaPeriodo={periodo.hasta}
       >
         <DisponibilidadChoferes ausencias={ausenciasProximas} dias={DIAS_DISPONIBILIDAD} />
       </ViajesStatsPanel>

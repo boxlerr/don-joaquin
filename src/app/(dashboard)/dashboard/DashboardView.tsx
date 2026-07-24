@@ -13,6 +13,11 @@ import {
   ChevronRight,
   CheckCircle2,
   Trophy,
+  Cake,
+  Award,
+  Settings,
+  Unlock,
+  Wallet,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth";
@@ -48,7 +53,7 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
   const rangoMes = resolverRango(sp);
 
   const [
-    viajesActivos,
+    viajesPeriodo,
     viajesSinFacturar,
     saldoMovimientos,
     viaticosPendientes,
@@ -65,10 +70,14 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
     camionDocsRes,
     choferDocsRes,
   ] = await Promise.all([
+    // Viajes reales del período elegido (excluye cancelados = soft-delete). Ya no
+    // se usa el estado operativo (pendiente/en_curso), que se retiró de la UI.
     supabase
       .from("viajes")
       .select("*", { count: "exact", head: true })
-      .in("estado", ["pendiente", "en_curso"]),
+      .neq("estado", "cancelado")
+      .gte("fecha_viaje", rangoMes.desde)
+      .lte("fecha_viaje", rangoMes.hasta),
     // Misma definición que el filtro "Sin facturar" del panel de /viajes
     // (excluye vacíos y cancelados) para que el contador coincida con esa vista.
     supabase
@@ -241,13 +250,13 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
 
       <div className="grid grid-cols-4 gap-4">
         <StatCard
-          label="Viajes activos"
-          value={String(viajesActivos.count ?? 0)}
-          sub="Pendientes y en curso"
+          label="Viajes registrados"
+          value={String(viajesPeriodo.count ?? 0)}
+          sub="En el período"
           color="brand"
-          icon={Briefcase}
+          icon={Truck}
           variant="dashboard"
-          href="/viajes?filtro=pendiente"
+          href="/viajes"
         />
         <StatCard
           label="Movimientos de caja"
@@ -304,96 +313,82 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
               {alertCount}
             </span>
           </div>
-          <div className="p-5 flex-1 flex items-center justify-center bg-gradient-to-b from-card to-muted/10">
+          <div className="flex-1 flex flex-col">
             {alertCount > 0 ? (
-              // Active Alerts Warning Card (Amber Theme) — desglose por categoría
-              // para no entrar legajo por legajo (pedido explícito del feedback).
-              <div className="w-full bg-gradient-to-br from-[#FFFBEB] to-[#FFFDF5] rounded-[8px] p-4.5 border border-[#FDE68A]/60 shadow-[0_2px_8px_rgba(245,158,11,0.02)] flex flex-col justify-between relative overflow-hidden h-full">
-                <div className="flex items-start gap-3 z-10">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 animate-ping absolute" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0 mt-1 z-10" />
-                  <div className="flex flex-col flex-1">
-                    <p className="text-[#92400E] text-[10px] font-extrabold uppercase tracking-wider">Por categoría</p>
-                    <p className="text-[#B45309] text-sm font-bold mt-0.5 leading-snug">
-                      Se requiere atención
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {(
-                        [
-                          { id: "documentacion", label: "Documentación", icon: "📋", count: catCounts.documentacion },
-                          { id: "personal_prueba", label: "Fin de prueba", icon: "🔓", count: catCounts.personal_prueba },
-                          { id: "personal_cumple", label: "Cumpleaños", icon: "🎂", count: catCounts.personal_cumple },
-                          { id: "personal_aniversario", label: "Aniversarios", icon: "🎉", count: catCounts.personal_aniversario },
-                          { id: "cheques", label: "Cheques", icon: "💰", count: catCounts.cheques },
-                          { id: "viajes", label: "Viajes", icon: "🚚", count: catCounts.viajes },
-                          { id: "sistema", label: "Sistema", icon: "⚙️", count: catCounts.sistema },
-                        ] as const
-                      )
-                        .filter((c) => c.count > 0)
-                        .map((c) => {
-                          // "personal_*" son subcategorías del filtro real "personal";
-                          // lo que sí podemos pasar es la categoría base + un hash a
-                          // futuro. Por ahora link a /notificaciones?categoria=<base>.
-                          const base = c.id.startsWith("personal_") ? "personal" : c.id;
-                          return (
-                            <a
-                              key={c.id}
-                              href={`/notificaciones?categoria=${base}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FEF3C7] border border-[#FCD34D] text-[11px] font-semibold text-[#92400E] hover:bg-[#FDE68A] transition-colors"
-                              title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
-                            >
-                              <span aria-hidden>{c.icon}</span>
-                              <span>{c.label}</span>
-                              <span className="ml-0.5 font-bold tabular-nums">{c.count}</span>
-                            </a>
-                          );
-                        })}
-                    </div>
-                  </div>
+              // Desglose por categoría — lista sobria (sin emojis) para no entrar
+              // legajo por legajo (pedido explícito del feedback).
+              <div className="flex flex-col h-full">
+                <p className="px-5 pt-3.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Se requiere atención
+                </p>
+                <div className="px-3 flex-1 divide-y divide-border/60">
+                  {(
+                    [
+                      { id: "documentacion", label: "Documentación", Icon: FileText, count: catCounts.documentacion, warn: true },
+                      { id: "personal_prueba", label: "Fin de prueba", Icon: Unlock, count: catCounts.personal_prueba, warn: false },
+                      { id: "personal_cumple", label: "Cumpleaños", Icon: Cake, count: catCounts.personal_cumple, warn: false },
+                      { id: "personal_aniversario", label: "Aniversarios", Icon: Award, count: catCounts.personal_aniversario, warn: false },
+                      { id: "cheques", label: "Cheques", Icon: Wallet, count: catCounts.cheques, warn: false },
+                      { id: "viajes", label: "Viajes", Icon: Truck, count: catCounts.viajes, warn: false },
+                      { id: "sistema", label: "Sistema", Icon: Settings, count: catCounts.sistema, warn: false },
+                    ] as const
+                  )
+                    .filter((c) => c.count > 0)
+                    .map((c) => {
+                      // "personal_*" son subcategorías del filtro real "personal".
+                      const base = c.id.startsWith("personal_") ? "personal" : c.id;
+                      return (
+                        <a
+                          key={c.id}
+                          href={`/notificaciones?categoria=${base}`}
+                          className="flex items-center gap-3 px-2 py-2 hover:bg-muted/50 transition-colors"
+                          title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
+                        >
+                          <span
+                            className={`flex items-center justify-center size-7 rounded-md shrink-0 ${
+                              c.warn ? "bg-[#F59E0B]/12 text-[#D97706]" : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            <c.Icon size={14} strokeWidth={2} />
+                          </span>
+                          <span className="flex-1 text-[13px] font-semibold text-foreground">{c.label}</span>
+                          <span
+                            className={`text-[13px] font-extrabold tabular-nums ${
+                              c.warn ? "text-[#D97706]" : "text-foreground"
+                            }`}
+                          >
+                            {c.count}
+                          </span>
+                        </a>
+                      );
+                    })}
                 </div>
-
-                <div className="mt-3 pt-3 border-t border-[#FDE68A]/40 flex items-center justify-between z-10">
-                  <a href={resolverHref} className="text-xs font-bold text-[#D97706] hover:text-[#92400E] flex items-center gap-1 transition-colors">
+                <div className="mt-auto flex items-center justify-between px-5 py-3 border-t border-border">
+                  <a
+                    href={resolverHref}
+                    className="text-[13px] font-bold text-[#D97706] hover:text-[#B45309] inline-flex items-center gap-1 transition-colors"
+                  >
                     Resolver alerta
                     <ChevronRight size={14} />
                   </a>
                   <a
                     href="/notificaciones"
-                    className="text-[10px] font-extrabold uppercase tracking-wider text-[#92400E] hover:underline"
+                    className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Ver todas →
                   </a>
                 </div>
-
-                <svg className="w-16 h-16 text-[#F59E0B]/10 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                </svg>
               </div>
             ) : (
-              // Pristine Safe Card (Green Theme)
-              <div className="w-full bg-gradient-to-br from-[#ECFDF5] to-[#F0FDF4] rounded-[8px] p-4.5 border border-[#A7F3D0]/60 shadow-[0_2px_8px_rgba(16,185,129,0.02)] flex flex-col justify-between relative overflow-hidden h-full">
-                <div className="flex items-start gap-3 z-10">
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1 animate-ping absolute" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1 z-10" />
-                  <div className="flex flex-col">
-                    <p className="text-[#064E3B] text-[10px] font-extrabold uppercase tracking-wider">Flota al día</p>
-                    <p className="text-[#047857] text-sm font-bold mt-0.5 leading-snug">Sin alertas activas</p>
-                    <p className="text-[#047857]/80 text-[11px] font-semibold mt-1 leading-relaxed">
-                      Todo bajo control. La documentación y permisos de camiones y choferes se encuentran validados.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-[#A7F3D0]/40 flex items-center justify-between z-10">
-                  <span className="text-xs font-bold text-[#059669] flex items-center gap-1">
-                    Sistemas seguros
-                  </span>
-                  <CheckCircle2 size={16} className="text-[#10B981]" />
-                </div>
-
-                <svg className="w-16 h-16 text-[#10B981]/8 shrink-0 z-0 absolute right-1 bottom-1 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
+              // Estado "sin alertas": sobrio, sin gradientes chillones.
+              <div className="flex flex-col h-full items-center justify-center text-center px-6 py-10 gap-2">
+                <span className="flex items-center justify-center size-11 rounded-full bg-[#10B981]/10 text-[#10B981]">
+                  <CheckCircle2 size={22} />
+                </span>
+                <p className="text-foreground text-sm font-bold">Sin alertas activas</p>
+                <p className="text-muted-foreground text-xs leading-relaxed max-w-[240px]">
+                  Todo bajo control. La documentación y los permisos de camiones y choferes están validados.
+                </p>
               </div>
             )}
           </div>

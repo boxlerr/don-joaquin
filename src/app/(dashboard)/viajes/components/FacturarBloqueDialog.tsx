@@ -107,10 +107,10 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
             </div>
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">
-                Facturar {viajes.length} viaje{viajes.length !== 1 ? "s" : ""} en bloque
+                Agregar remito a {viajes.length} viaje{viajes.length !== 1 ? "s" : ""}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Cargá remito, tonelaje real y monto. Con el valor cargado quedan facturados y listos.
+                Cargá el remito, el tonelaje y el importe de cada viaje. Con el importe quedan listos.
               </DialogDescription>
             </div>
           </div>
@@ -188,7 +188,7 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
           {sinMonto.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               <AlertTriangle size={14} className="shrink-0" />
-              {sinMonto.length} viaje{sinMonto.length !== 1 ? "s" : ""} sin monto: cargá el importe para poder facturar.
+              {sinMonto.length} viaje{sinMonto.length !== 1 ? "s" : ""} sin importe: cargalo para guardar el remito.
             </div>
           )}
         </div>
@@ -209,7 +209,7 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
             disabled={loading || !puedeFacturar}
             className="h-10 px-6 bg-[#10B981] hover:bg-[#059669] text-white font-bold flex items-center gap-1.5"
           >
-            {loading ? "Facturando..." : (<><Check size={15} /> Facturar {viajes.length}</>)}
+            {loading ? "Guardando..." : (<><Check size={15} /> Agregar remito ({viajes.length})</>)}
           </Button>
         </div>
       </DialogContent>

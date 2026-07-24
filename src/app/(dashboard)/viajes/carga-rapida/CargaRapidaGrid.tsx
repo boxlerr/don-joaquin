@@ -25,7 +25,6 @@ import {
 type Fila = {
   id: number;
   fecha_viaje: string;
-  estado: string;
   chofer_id: string;
   camion_id: string;
   ruta_id: string;
@@ -51,7 +50,6 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
   return {
     id: nextId++,
     fecha_viaje: HOY,
-    estado: "en_curso",
     chofer_id: "",
     camion_id: "",
     ruta_id: "",
@@ -68,12 +66,6 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
     ...overrides,
   };
 }
-
-const ESTADOS = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "en_curso", label: "En curso" },
-  { value: "cerrado", label: "Cerrado" },
-];
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
@@ -183,7 +175,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       const o = prev[idx];
       const vuelta = filaVacia({
         fecha_viaje: o.fecha_viaje,
-        estado: o.estado,
         chofer_id: o.chofer_id,
         camion_id: o.camion_id,
         origen_nombre: o.destino_nombre,
@@ -258,7 +249,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
     const payload: ViajeFilaRapida[] = filas.map((f) => ({
       fecha_viaje: f.fecha_viaje,
-      estado: f.estado,
       cliente_id: globalClienteId,
       chofer_id: f.chofer_id,
       camion_id: f.camion_id,
@@ -349,7 +339,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
               <tr className="bg-muted/40">
                 {[
                   "Fecha",
-                  "Estado",
                   "Chofer",
                   "Camión",
                   ...(data.circuitos.length > 0 ? ["Circuito"] : []),
@@ -388,17 +377,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         value={fila.fecha_viaje}
                         onChange={(e) => actualizarFila(fila.id, "fecha_viaje", e.target.value)}
                         className="h-8 w-32 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
-                      />
-                    </td>
-
-                    {/* Estado */}
-                    <td className="px-1 py-1">
-                      <Combobox
-                        value={fila.estado}
-                        onValueChange={(v) => actualizarFila(fila.id, "estado", v)}
-                        options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
-                        searchable={false}
-                        triggerClassName="h-8 w-28 text-xs"
                       />
                     </td>
 

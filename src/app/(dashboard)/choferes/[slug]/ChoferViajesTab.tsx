@@ -7,20 +7,12 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { formatFecha } from "@/lib/utils";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import type { ViajeBasico } from "./types";
 
 interface Props {
   viajes: ViajeBasico[];
 }
-
-const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "error"> = {
-  cerrado: "success",
-  en_curso: "info",
-  pendiente: "warning",
-  cancelado: "error",
-};
 
 export default function ChoferViajesTab({ viajes }: Props) {
   return (
@@ -36,7 +28,7 @@ export default function ChoferViajesTab({ viajes }: Props) {
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow>
-              {["Código", "Fecha", "KM", "Estado", "Facturado"].map((col) => (
+              {["Código", "Fecha", "KM", "Facturado"].map((col) => (
                 <TableHead
                   key={col}
                   className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
@@ -58,12 +50,6 @@ export default function ChoferViajesTab({ viajes }: Props) {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {(v.km_con_carga + v.km_vacios).toLocaleString("es-AR")} km
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      label={v.estado.replace("_", " ")}
-                      tone={ESTADO_TONE[v.estado] ?? "neutral"}
-                    />
                   </TableCell>
                   <TableCell>
                     <span

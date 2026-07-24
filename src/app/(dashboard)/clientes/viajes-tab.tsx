@@ -15,13 +15,6 @@ function fmtMoney(n: number | null, moneda: string | null) {
   }).format(n);
 }
 
-const ESTADO_TONE: Record<string, string> = {
-  finalizado: "bg-[#ECFDF5] text-[#047857]",
-  en_curso: "bg-[#EFF6FF] text-[#1D4ED8]",
-  programado: "bg-muted text-muted-foreground",
-  cancelado: "bg-[#FEF2F2] text-[#B91C1C]",
-};
-
 export default function ViajesTab({ clienteId }: { clienteId: string }) {
   const [viajes, setViajes] = useState<ViajeReciente[] | null>(null);
 
@@ -59,7 +52,7 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
             <th className="text-left px-3 py-2">Código</th>
             <th className="text-left px-3 py-2">Fecha</th>
             <th className="text-left px-3 py-2">Ruta</th>
-            <th className="text-left px-3 py-2">Estado</th>
+            <th className="text-left px-3 py-2">Remito</th>
             <th className="text-right px-3 py-2">Flete</th>
             <th className="text-right px-3 py-2 w-10"></th>
           </tr>
@@ -89,16 +82,11 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
                 <span
                   className={
                     "inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase " +
-                    (ESTADO_TONE[v.estado] ?? "bg-muted text-muted-foreground")
+                    (v.facturado ? "bg-[#ECFDF5] text-[#047857]" : "bg-[#FEF2F2] text-[#B91C1C]")
                   }
                 >
-                  {v.estado.replace("_", " ")}
+                  {v.facturado ? "Con remito" : "Sin remito"}
                 </span>
-                {v.facturado && (
-                  <span className="ml-1 text-[9px] text-[#047857] uppercase font-semibold">
-                    facturado
-                  </span>
-                )}
               </td>
               <td className="px-3 py-2 text-right font-mono text-foreground">
                 {fmtMoney(v.monto_flete, v.moneda)}
