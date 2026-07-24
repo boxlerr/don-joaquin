@@ -47,6 +47,7 @@ import {
 import {
   getViajesAction,
   deleteViajeAction,
+  updateNotasViajeAction,
   type ViajeOrderBy,
 } from "../actions";
 import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
@@ -208,16 +209,34 @@ function ViajeDetalleHeader({
   detalle: ViajeDetalle | "loading" | "error" | undefined;
 }) {
   const det = typeof detalle === "object" ? detalle : null;
+  const cargandoDet = detalle === "loading";
   const faltas = faltantesDe(v);
   const kmTotal = (v.km_con_carga ?? 0) + (v.km_vacios ?? 0);
   // El camino se pinta rojo si el tramo va vacío (mismo código de color que la tabla).
   const roadColor = v.es_vacio ? "#C00000" : "#0088D1";
+  // Qué se lleva: el material del viaje o, si no hay, el tipo de carga.
+  const carga = v.material || det?.tipoCarga || null;
+  // El código es un correlativo de carga (V-año-número): se explica en el tooltip.
+  const [, anioCod, nroCod] = v.codigo.split("-");
+  const nroCorrelativo = nroCod ? parseInt(nroCod, 10) : NaN;
   return (
     <div className="rounded-xl border border-border/80 bg-card px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
-      {/* Código + badges de estado + quién lo cargó */}
+      {/* Fecha del viaje + código + badges de estado + quién lo cargó */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[15px] font-black tracking-tight text-foreground">{v.codigo}</span>
+          <span className="text-[15px] font-black tracking-tight text-foreground">
+            Viaje del {formatFecha(v.fecha_viaje)}
+          </span>
+          <span
+            className="font-mono text-[10.5px] font-bold text-muted-foreground bg-muted/60 border border-border/70 rounded-md px-1.5 py-0.5 cursor-help"
+            title={
+              Number.isFinite(nroCorrelativo)
+                ? `Código interno: viaje Nº ${nroCorrelativo.toLocaleString("es-AR")} cargado al sistema en ${anioCod}. Es un correlativo automático de carga — no depende de la fecha del viaje ni del cliente.`
+                : "Código interno del viaje (correlativo automático de carga)."
+            }
+          >
+            {v.codigo}
+          </span>
           {v.es_vacio && (
             <span className="rounded-full bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
               VACÍO
@@ -239,17 +258,21 @@ function ViajeDetalleHeader({
             </span>
           )}
         </div>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <CalendarDays size={12} className="shrink-0" />
-          Cargado el {fmtDateTime(det?.createdAt ?? null)}
-          {det?.creadoPor && (
-            <>
-              <span aria-hidden>·</span>
-              <InitialsAvatar name={det.creadoPor} size={17} />
-              <span className="font-semibold text-foreground/80">{det.creadoPor}</span>
-            </>
-          )}
-        </span>
+        {cargandoDet ? (
+          <Skeleton className="h-3.5 w-48" />
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <CalendarDays size={12} className="shrink-0" />
+            Cargado el {fmtDateTime(det?.createdAt ?? null)}
+            {det?.creadoPor && (
+              <>
+                <span aria-hidden>·</span>
+                <InitialsAvatar name={det.creadoPor} size={17} />
+                <span className="font-semibold text-foreground/80">{det.creadoPor}</span>
+              </>
+            )}
+          </span>
+        )}
       </div>
 
       {/* La ruta, dibujada: origen ── 🚚 km ── destino */}
@@ -269,26 +292,38 @@ function ViajeDetalleHeader({
           </div>
         </div>
 
-        <div className="relative flex-1 min-w-[56px] h-8" aria-hidden>
-          <span
-            className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] opacity-45"
-            style={{
-              color: roadColor,
-              backgroundImage:
-                "repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 14px)",
-            }}
-          />
-          <span
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
-            style={{ color: roadColor }}
-          >
-            <Truck size={13} strokeWidth={2.2} />
-            {kmTotal > 0 && (
-              <span className="font-mono text-[10px] font-bold text-foreground/75 whitespace-nowrap">
-                {kmTotal.toLocaleString("es-AR")} km
-              </span>
-            )}
-          </span>
+        <div className="flex-1 min-w-[56px]">
+          <div className="relative h-8" aria-hidden>
+            <span
+              className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] opacity-45"
+              style={{
+                color: roadColor,
+                backgroundImage:
+                  "repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 14px)",
+              }}
+            />
+            <span
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
+              style={{ color: roadColor }}
+            >
+              <Truck size={13} strokeWidth={2.2} />
+              {kmTotal > 0 && (
+                <span className="font-mono text-[10px] font-bold text-foreground/75 whitespace-nowrap">
+                  {kmTotal.toLocaleString("es-AR")} km
+                </span>
+              )}
+            </span>
+          </div>
+          {/* Qué lleva el camión, bien visible en el medio de la ruta */}
+          {carga && (
+            <div
+              className="text-center text-[11.5px] font-bold text-foreground/85 truncate px-2 -mt-1"
+              title={`Carga: ${carga}`}
+            >
+              <Package size={11} className="inline-block mr-1 -mt-px text-muted-foreground" />
+              {carga}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 min-w-0 max-w-[38%]">
@@ -310,22 +345,17 @@ function ViajeDetalleHeader({
         </div>
       </div>
 
-      {/* Chips de contexto: vía, tipo de carga, material, remito */}
-      {(det?.rutaVia || det?.tipoCarga || v.material || (!v.es_vacio && v.nro_remito)) && (
+      {/* Chips de contexto: vía, tipo de carga (si el material ya ocupa la ruta) y remito */}
+      {(det?.rutaVia || (det?.tipoCarga && v.material) || (!v.es_vacio && v.nro_remito)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {det?.rutaVia && (
             <span className="inline-flex items-center gap-1 rounded-full border border-[#0088D1]/30 bg-[#0088D1]/8 px-2 py-0.5 text-[10.5px] font-bold text-[#0277BD] dark:text-sky-300">
               <Route size={11} /> {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
             </span>
           )}
-          {det?.tipoCarga && (
+          {det?.tipoCarga && v.material && (
             <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
               <Package size={11} /> {det.tipoCarga}
-            </span>
-          )}
-          {v.material && (
-            <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
-              {v.material}
             </span>
           )}
           {!v.es_vacio && v.nro_remito && (
@@ -419,8 +449,14 @@ function CamionFleteCard({
   const det = typeof detalle === "object" ? detalle : null;
   const cam = det?.camion;
   const cargando = detalle === "loading";
-  const patente = cam?.patente ?? v.camion;
-  const marcaModelo = [cam?.marca, cam?.modelo].filter(Boolean).join(" ");
+  // v.camion viene del listado como "PATENTE - Marca - Modelo": se parsea para
+  // pintar la chapa y el modelo al instante, sin esperar el detalle (antes la
+  // chapa mostraba el string completo mientras cargaba y rompía el layout).
+  const rowParts = v.camion && v.camion !== "—" ? v.camion.split(" - ") : [];
+  const patente = cam?.patente ?? (rowParts[0]?.trim() || null);
+  const marcaModelo = cam
+    ? [cam.marca, cam.modelo].filter(Boolean).join(" ")
+    : rowParts.slice(1).join(" ").trim();
   return (
     <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
@@ -435,7 +471,7 @@ function CamionFleteCard({
             className={`text-[13px] font-bold truncate ${marcaModelo ? "text-foreground" : "text-muted-foreground/50"}`}
             title={marcaModelo || undefined}
           >
-            {marcaModelo || (cargando ? "Cargando…" : "—")}
+            {marcaModelo || "—"}
           </div>
         </div>
         {patente && (
@@ -502,6 +538,107 @@ function CamionFleteCard({
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Solo el texto libre de observaciones (sin los segmentos legados
+ *  "Origen:"/"Destino:" que traen algunos viajes importados). */
+function notasDe(observaciones: string | null): string {
+  if (!observaciones) return "";
+  return observaciones
+    .split("|")
+    .map((p) => p.trim())
+    .filter((p) => p && !/^(Origen|Destino):/i.test(p))
+    .join(" | ");
+}
+
+/** Notas del viaje editables ahí mismo: clic sobre el texto → textarea →
+ *  Guardar. Persiste con updateNotasViajeAction (conserva los segmentos
+ *  legados) y avisa al padre para refrescar la fila. */
+function NotasEditables({
+  viajeId,
+  observaciones,
+  onSaved,
+}: {
+  viajeId: string;
+  observaciones: string | null;
+  onSaved: (observaciones: string | null) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const notas = notasDe(observaciones);
+
+  if (!editando) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(notas);
+          setError(null);
+          setEditando(true);
+        }}
+        className="group/notas flex-1 w-full text-left rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/50 transition-colors cursor-text"
+        title="Clic para editar las notas"
+      >
+        {notas ? (
+          <p className="text-xs text-muted-foreground italic line-clamp-4 whitespace-pre-wrap">
+            {notas}
+            <Pencil size={10} className="inline-block ml-1.5 opacity-0 group-hover/notas:opacity-60 transition-opacity" />
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground/60 italic inline-flex items-center gap-1.5">
+            <Pencil size={11} className="opacity-60" /> Escribí una nota…
+          </p>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex-1 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        maxLength={1000}
+        placeholder="Ej: Remito entregado en planta, esperar factura…"
+        className="w-full min-h-[64px] px-2.5 py-2 text-xs rounded-lg border border-border bg-card outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all resize-none text-foreground"
+      />
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex items-center gap-1.5">
+        <Button
+          size="xs"
+          className="h-7 px-3 text-[11px] font-bold bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-md"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true);
+            setError(null);
+            const res = await updateNotasViajeAction(viajeId, draft);
+            setSaving(false);
+            if (!res.ok) {
+              setError(res.error ?? "No se pudieron guardar las notas");
+              return;
+            }
+            onSaved(res.observaciones ?? null);
+            setEditando(false);
+          }}
+        >
+          {saving ? "Guardando…" : "Guardar"}
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+          disabled={saving}
+          onClick={() => setEditando(false)}
+        >
+          Cancelar
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1004,15 +1141,17 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                             </div>
                           </div>
 
-                          <p className="flex-1 text-xs text-muted-foreground italic line-clamp-4">
-                            {v.observaciones
-                              ? v.observaciones
-                                  .split("|")
-                                  .filter((p) => !p.includes("Origen:") && !p.includes("Destino:"))
-                                  .join(" | ")
-                                  .trim() || "Sin notas adicionales"
-                              : "Sin notas adicionales"}
-                          </p>
+                          <NotasEditables
+                            viajeId={v.id}
+                            observaciones={v.observaciones}
+                            onSaved={(obs) =>
+                              setRows((prev) =>
+                                prev.map((item) =>
+                                  item.id === v.id ? { ...item, observaciones: obs } : item
+                                )
+                              )
+                            }
+                          />
 
                           <div className="pt-2.5 mt-2.5 border-t border-border space-y-2">
                             {v.facturado ? (

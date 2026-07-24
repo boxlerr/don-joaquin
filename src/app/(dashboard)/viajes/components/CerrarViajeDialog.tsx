@@ -143,6 +143,8 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
       nro_remito: nroRemito.trim() || viaje.nro_remito,
       monto_flete: montoNum,
       toneladas: tonelaje.trim() === "" ? viaje.toneladas : Number(tonelaje) || 0,
+      // Las observaciones ahora se guardan en el viaje: se reflejan al toque.
+      ...(result.observaciones !== undefined && { observaciones: result.observaciones }),
     });
     onOpenChange(false);
   };

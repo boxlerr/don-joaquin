@@ -1365,7 +1365,7 @@ export async function cerrarViajeAction(
     monto_flete?: number | null;
     tonelaje_real?: number | null;
   },
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; observaciones?: string | null; error?: string }> {
 
   const user = await requireArea("viajes", "write");
 
@@ -1374,7 +1374,7 @@ export async function cerrarViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: viaje, error: fetchError } = await (supabase as any)
     .from("viajes")
-    .select("estado, monto_flete, tonelaje_real, nro_remito, es_vacio, facturado, cobrado, codigo")
+    .select("estado, monto_flete, tonelaje_real, nro_remito, es_vacio, facturado, cobrado, codigo, observaciones")
     .eq("id", viajeId)
     .single();
 
@@ -1396,6 +1396,14 @@ export async function cerrarViajeAction(
   if (datos.nro_remito !== undefined) update.nro_remito = datos.nro_remito?.trim()?.slice(0, 60) || null;
   if (datos.monto_flete != null) update.monto_flete = montoFinal;
   if (datos.tonelaje_real != null) update.tonelaje_real = Math.min(1000, Math.max(0, datos.tonelaje_real));
+  // Las observaciones del diálogo se guardan en el viaje (antes solo iban al
+  // audit log y el texto desaparecía de la pantalla). Se agregan al final de
+  // lo que ya haya, sin pisar nada.
+  const obsNueva = datos.observaciones?.trim().slice(0, 1000);
+  if (obsNueva) {
+    const obsActual: string | null = viaje.observaciones ?? null;
+    update.observaciones = obsActual?.trim() ? `${obsActual.trim()} | ${obsNueva}` : obsNueva;
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: updateError } = await (supabase as any)
@@ -1422,7 +1430,55 @@ export async function cerrarViajeAction(
 
   revalidatePath("/viajes");
   revalidatePath("/dashboard");
-  return { ok: true };
+  return {
+    ok: true,
+    ...(update.observaciones !== undefined && { observaciones: update.observaciones as string }),
+  };
+}
+
+/** Guarda las notas del viaje editadas desde el detalle expandido. Conserva los
+ *  segmentos legados "Origen: ..."/"Destino: ..." que algunos viajes importados
+ *  llevan en observaciones y reemplaza solo el texto libre. */
+export async function updateNotasViajeAction(
+  viajeId: string,
+  notas: string,
+): Promise<{ ok: boolean; observaciones?: string | null; error?: string }> {
+  const user = await requireArea("viajes", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: viaje, error: fetchError } = await (supabase as any)
+    .from("viajes")
+    .select("observaciones")
+    .eq("id", viajeId)
+    .single();
+  if (fetchError || !viaje) return { ok: false, error: "Viaje no encontrado." };
+
+  const limpio = notas.trim().slice(0, 1000);
+  const legado = ((viaje.observaciones as string | null) ?? "")
+    .split("|")
+    .map((p) => p.trim())
+    .filter((p) => /^(Origen|Destino):/i.test(p));
+  const observaciones = [...legado, ...(limpio ? [limpio] : [])].join(" | ") || null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateError } = await (supabase as any)
+    .from("viajes")
+    .update({ observaciones })
+    .eq("id", viajeId);
+  if (updateError) return { ok: false, error: "No se pudieron guardar las notas." };
+
+  await logViajeAudit(
+    supabase,
+    viajeId,
+    "actualizar",
+    { observaciones: viaje.observaciones ?? null },
+    { observaciones },
+    user.id,
+  );
+
+  revalidatePath("/viajes");
+  return { ok: true, observaciones };
 }
 
 // ============================================================================
