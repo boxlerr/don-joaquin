@@ -332,13 +332,13 @@ function MockDocumentos() {
         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-muted-foreground">
           <Paperclip size={11} /> Adjuntos
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
+        <span className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
           <FileText size={11} /> remito-0813.pdf
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
           <FileText size={11} /> factura-A0001.pdf
         </span>
-        <span className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+        <span className="inline-flex items-center gap-0.5 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
           <Plus size={11} /> Adjuntar
         </span>
       </div>

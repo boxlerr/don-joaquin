@@ -164,7 +164,7 @@ export default function ViajeAdjuntosStrip({
             {archivos.map((a) => (
               <span
                 key={a.id}
-                className={`group/chip inline-flex items-center gap-1 rounded-full border pl-2 pr-1 py-0.5 text-[11px] font-medium transition-colors ${TIPO_CHIP[a.tipo]}`}
+                className={`group/chip inline-flex items-center gap-1 rounded-md border pl-2 pr-1 py-0.5 text-[11px] font-medium transition-colors ${TIPO_CHIP[a.tipo]}`}
               >
                 {esImagen(a.mime_type) ? (
                   <ImageIcon size={11} className="shrink-0 opacity-70" />
@@ -187,7 +187,7 @@ export default function ViajeAdjuntosStrip({
                     type="button"
                     onClick={() => onDelete(a.id)}
                     disabled={deletingId === a.id}
-                    className="shrink-0 rounded-full p-0.5 opacity-40 hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/50 transition-all disabled:opacity-60"
+                    className="shrink-0 rounded p-0.5 opacity-40 hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/50 transition-all disabled:opacity-60"
                     title="Eliminar adjunto"
                     aria-label={`Eliminar ${a.nombre_original}`}
                   >
@@ -202,7 +202,7 @@ export default function ViajeAdjuntosStrip({
             ))}
 
             {subiendo && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary">
                 <Loader2 size={11} className="animate-spin" />
                 Subiendo {subiendo.idx}/{subiendo.total} ({subiendo.pct}%)
               </span>
@@ -210,13 +210,13 @@ export default function ViajeAdjuntosStrip({
 
             {canWrite && !subiendo && (
               eligiendoTipo ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 pl-2 pr-1 py-0.5">
+                <span className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/5 pl-2 pr-1 py-0.5">
                   {TIPOS.map((t) => (
                     <button
                       key={t.value}
                       type="button"
                       onClick={() => pedirArchivo(t.value)}
-                      className="text-[10.5px] font-semibold text-primary hover:bg-primary/10 rounded-full px-1.5 py-px transition-colors"
+                      className="text-[10.5px] font-semibold text-primary hover:bg-primary/10 rounded px-1.5 py-px transition-colors"
                     >
                       {t.label}
                     </button>
@@ -224,7 +224,7 @@ export default function ViajeAdjuntosStrip({
                   <button
                     type="button"
                     onClick={() => setEligiendoTipo(false)}
-                    className="rounded-full p-0.5 text-muted-foreground hover:bg-muted"
+                    className="rounded p-0.5 text-muted-foreground hover:bg-muted"
                     aria-label="Cancelar"
                   >
                     <X size={10} />
@@ -234,7 +234,7 @@ export default function ViajeAdjuntosStrip({
                 <button
                   type="button"
                   onClick={() => setEligiendoTipo(true)}
-                  className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                  className="inline-flex items-center gap-0.5 rounded-md border border-dashed border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors"
                 >
                   <Plus size={11} /> Adjuntar
                 </button>

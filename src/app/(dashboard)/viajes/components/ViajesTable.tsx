@@ -220,7 +220,7 @@ function ViajeDetalleHeader({
   const [, anioCod, nroCod] = v.codigo.split("-");
   const nroCorrelativo = nroCod ? parseInt(nroCod, 10) : NaN;
   return (
-    <div className="rounded-xl border border-border/80 bg-card px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
+    <div className="rounded-lg border border-border/80 bg-card px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
       {/* Fecha del viaje + código + badges de estado + quién lo cargó */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
@@ -238,22 +238,22 @@ function ViajeDetalleHeader({
             {v.codigo}
           </span>
           {v.es_vacio && (
-            <span className="rounded-full bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
+            <span className="rounded bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
               VACÍO
             </span>
           )}
           {v.facturado && (
-            <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
+            <span className="rounded bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
               <CheckCircle2 size={11} /> Facturado
             </span>
           )}
           {v.cobrado && (
-            <span className="rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 text-[10px] font-bold px-2 py-0.5">
+            <span className="rounded bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 text-[10px] font-bold px-2 py-0.5">
               Cobrado
             </span>
           )}
           {faltas.length > 0 && (
-            <span className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
+            <span className="rounded bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
               <AlertTriangle size={11} /> Incompleto · falta {faltas.join(", ")}
             </span>
           )}
@@ -303,7 +303,7 @@ function ViajeDetalleHeader({
               }}
             />
             <span
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
               style={{ color: roadColor }}
             >
               <Truck size={13} strokeWidth={2.2} />
@@ -349,17 +349,17 @@ function ViajeDetalleHeader({
       {(det?.rutaVia || (det?.tipoCarga && v.material) || (!v.es_vacio && v.nro_remito)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {det?.rutaVia && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-[#0088D1]/30 bg-[#0088D1]/8 px-2 py-0.5 text-[10.5px] font-bold text-[#0277BD] dark:text-sky-300">
+            <span className="inline-flex items-center gap-1 rounded-md border border-[#0088D1]/30 bg-[#0088D1]/8 px-2 py-0.5 text-[10.5px] font-bold text-[#0277BD] dark:text-sky-300">
               <Route size={11} /> {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
             </span>
           )}
           {det?.tipoCarga && v.material && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
               <Package size={11} /> {det.tipoCarga}
             </span>
           )}
           {!v.es_vacio && v.nro_remito && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold font-mono text-foreground/75">
+            <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold font-mono text-foreground/75">
               <Hash size={11} /> Remito {v.nro_remito}
             </span>
           )}
@@ -387,7 +387,7 @@ function ChoferCard({
   const cargando = detalle === "loading";
   const nombre = c ? [c.apellido, c.nombre].filter(Boolean).join(", ") : choferNombre;
   return (
-    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+    <div className="rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
         {nombre ? (
           <InitialsAvatar name={nombre} size={34} />
@@ -458,7 +458,7 @@ function CamionFleteCard({
     ? [cam.marca, cam.modelo].filter(Boolean).join(" ")
     : rowParts.slice(1).join(" ").trim();
   return (
-    <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+    <div className="rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
         <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#7C3AED]/12 text-[#7C3AED] shrink-0">
           <Truck size={17} strokeWidth={2.1} />
@@ -1084,7 +1084,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
+                      className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
                         v.facturado
                           ? "bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/30"
                           : "bg-[#C00000]/10 text-[#C00000] border border-[#C00000]/30"
@@ -1122,7 +1122,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                         <CamionFleteCard detalle={detalles[v.id]} viaje={v} />
 
                         {/* Notas y acciones del viaje */}
-                        <div className="flex flex-col rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+                        <div className="flex flex-col rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
                           <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-2">
                             <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#F59E0B]/14 text-[#D97706] shrink-0">
                               <FileText size={16} strokeWidth={2.1} />

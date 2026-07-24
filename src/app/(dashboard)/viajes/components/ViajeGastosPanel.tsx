@@ -92,7 +92,7 @@ export default function ViajeGastosPanel({
 
   return (
     <div
-      className="bg-card p-3 rounded-xl border border-border/80 shadow-2xs"
+      className="bg-card p-3 rounded-lg border border-border/80 shadow-2xs"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5 mb-3">

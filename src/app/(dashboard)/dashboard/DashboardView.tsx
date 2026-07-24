@@ -399,39 +399,40 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
 
       <TopBottomChoferes top={topChoferes} bottom={bottomChoferes} mostrarFacturacion={conFacturacion} />
 
-      {/* Premio del Mes — Eficiencia de combustible */}
+      {/* Premio del Mes — Eficiencia de combustible. Sobrio, como el resto de
+          las tarjetas del dashboard (nada de banner amarillo). */}
       <a
         href="/combustible"
-        className="block bg-amber-50/60 border border-amber-200/70 rounded-[8px] hover:bg-amber-50 hover:border-amber-300 transition-colors group"
+        className="block bg-card border border-border rounded-[8px] shadow-sm hover:bg-muted/30 transition-colors group"
       >
         <div className="px-4 py-2.5 flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 shrink-0">
-            <Trophy size={15} className="text-white" />
+          <div className="flex items-center justify-center size-8 rounded-md bg-primary/10 text-primary shrink-0">
+            <Trophy size={15} strokeWidth={2.1} />
           </div>
-          <span className="text-amber-700 text-[10px] font-extrabold uppercase tracking-wider shrink-0">
+          <span className="text-muted-foreground text-[10px] font-extrabold uppercase tracking-wider shrink-0">
             Premio del mes
           </span>
           {premioMes ? (
             <div className="flex items-baseline gap-3 flex-1 min-w-0">
-              <span className="text-amber-900 text-sm font-bold truncate">
+              <span className="text-foreground text-sm font-bold truncate">
                 {premioMes.chofer}
               </span>
-              <span className="text-amber-800 text-sm font-semibold shrink-0">
+              <span className="text-foreground/80 text-sm font-semibold shrink-0">
                 {premioMes.eficiencia.toFixed(2)}
-                <span className="text-[10px] font-medium opacity-80 ml-0.5">L/100km</span>
+                <span className="text-[10px] font-medium text-muted-foreground ml-0.5">L/100km</span>
               </span>
-              <span className="text-amber-700/70 text-[11px] shrink-0 hidden sm:inline">
+              <span className="text-muted-foreground text-[11px] shrink-0 hidden sm:inline">
                 {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
               </span>
             </div>
           ) : (
-            <span className="text-amber-700/80 text-xs flex-1">
+            <span className="text-muted-foreground text-xs flex-1">
               Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
             </span>
           )}
           <ChevronRight
             size={14}
-            className="text-amber-600/60 group-hover:translate-x-0.5 transition-transform shrink-0"
+            className="text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform shrink-0"
           />
         </div>
       </a>

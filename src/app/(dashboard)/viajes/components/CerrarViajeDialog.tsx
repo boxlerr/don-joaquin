@@ -269,7 +269,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                 {files.map((f, i) => (
                   <span
                     key={`${f.name}-${i}`}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/40 pl-2 pr-1 py-0.5 text-[11px] font-medium text-sky-800 dark:text-sky-300"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/40 pl-2 pr-1 py-0.5 text-[11px] font-medium text-sky-800 dark:text-sky-300"
                   >
                     {f.type.startsWith("image/") ? <ImageIcon size={11} /> : <FileText size={11} />}
                     <span className="max-w-[170px] truncate" title={f.name}>{f.name}</span>
@@ -277,7 +277,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                     <button
                       type="button"
                       onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                      className="rounded-full p-0.5 opacity-50 hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/50"
+                      className="rounded p-0.5 opacity-50 hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/50"
                       aria-label={`Quitar ${f.name}`}
                     >
                       <X size={10} />

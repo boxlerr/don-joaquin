@@ -119,15 +119,15 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
               </div>
 
               {v.es_vacio ? (
-                <span className="shrink-0 rounded-full bg-[#C00000]/10 text-[#C00000] px-2 py-0.5 text-[10px] font-bold">
+                <span className="shrink-0 rounded bg-[#C00000]/10 text-[#C00000] px-2 py-0.5 text-[10px] font-bold">
                   VACÍO
                 </span>
               ) : v.facturado ? (
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300 px-2 py-0.5 text-[10px] font-bold">
+                <span className="shrink-0 inline-flex items-center gap-1 rounded bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/30 px-2 py-0.5 text-[10px] font-bold">
                   <CheckCircle2 size={10} /> Facturado
                 </span>
               ) : (
-                <span className="shrink-0 rounded-full bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA] dark:bg-red-950/30 dark:text-red-300 dark:border-red-800/40 px-2 py-0.5 text-[10px] font-bold uppercase">
+                <span className="shrink-0 rounded bg-[#C00000]/10 text-[#C00000] border border-[#C00000]/30 px-2 py-0.5 text-[10px] font-bold uppercase">
                   Sin remito
                 </span>
               )}
@@ -143,7 +143,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
             {/* Detalle compacto — mismo lenguaje "Ruta" que /viajes */}
             {isExpanded && (
               <div className="px-4 sm:px-5 pb-3.5 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-                <div className="rounded-xl border border-border/80 bg-card shadow-2xs overflow-hidden">
+                <div className="rounded-lg border border-border/80 bg-card shadow-2xs overflow-hidden">
                   {/* La ruta, dibujada */}
                   <div className="flex items-center gap-3 px-3.5 pt-3 pb-2">
                     <div className="flex items-center gap-2 min-w-0 max-w-[34%]">
@@ -172,7 +172,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                           }}
                         />
                         <span
-                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
+                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
                           style={{ color: roadColor }}
                         >
                           <Truck size={12} strokeWidth={2.2} />
