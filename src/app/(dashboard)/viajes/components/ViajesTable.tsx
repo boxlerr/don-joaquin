@@ -12,9 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { Input } from "@/components/ui/input";
-import { Combobox } from "@/components/ui/combobox";
 import {
   Loader2,
   X,
@@ -23,7 +21,6 @@ import {
   Trash2,
   CheckCircle2,
   Clock,
-  Coins,
   FileText,
   Truck,
   User,
@@ -37,6 +34,8 @@ import {
   Route,
   Package,
   Hash,
+  MapPin,
+  Phone,
 } from "lucide-react";
 import {
   Dialog,
@@ -48,16 +47,15 @@ import {
 import {
   getViajesAction,
   deleteViajeAction,
-  updateViajeEstadoAction,
   type ViajeOrderBy,
 } from "../actions";
 import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
 import type { ViajeBasico } from "../types";
 import { formatFecha } from "@/lib/utils";
-import HelpTutorialButton from "../help-tutorial-button";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
-import ViajeDocumentosPanel from "./ViajeDocumentosPanel";
+import ViajeAdjuntosStrip from "./ViajeAdjuntosStrip";
+import InitialsAvatar from "@/components/ui/InitialsAvatar";
 import { esFacturable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
@@ -69,11 +67,37 @@ function esSeleccionable(v: ViajeBasico): boolean {
   return esFacturable(v);
 }
 
+/** Datos clave que faltan (origen/destino/chofer): los cargan después, por su
+ *  forma de trabajar. Coincide con el filtro/tarjeta "Incompletos". */
+function faltantesDe(v: ViajeBasico): string[] {
+  const falta = (s: string | null | undefined) => !s || s === "—" || s.trim() === "";
+  const out: string[] = [];
+  if (falta(v.origen)) out.push("origen");
+  if (falta(v.destino)) out.push("destino");
+  if (falta(v.chofer)) out.push("chofer");
+  return out;
+}
+
+/** Marcador ⚠ ámbar (con tooltip de qué falta) para viajes incompletos. */
+function IncompletoMark({ v }: { v: ViajeBasico }) {
+  const faltas = faltantesDe(v);
+  if (faltas.length === 0) return null;
+  return (
+    <span
+      title={`Incompleto — falta: ${faltas.join(", ")}`}
+      className="inline-flex shrink-0 text-amber-500"
+      aria-label={`Viaje incompleto, falta ${faltas.join(", ")}`}
+    >
+      <AlertTriangle size={13} />
+    </span>
+  );
+}
+
 /** Filtro empujado desde las tarjetas de estadísticas (clic). */
 export interface FiltroExterno {
-  estado: string;
   facturado: boolean | null;
   esVacio: boolean | null;
+  incompleto: boolean | null;
   nonce: number;
 }
 
@@ -81,21 +105,18 @@ interface Props {
   choferId?: string;
   filtroExterno?: FiltroExterno;
   onFiltroChange?: (f: {
-    estado: string;
     facturado: boolean | null;
     esVacio: boolean | null;
+    incompleto: boolean | null;
   }) => void;
   /** Datos de formulario de gasto, resueltos en la página y compartidos por todas
    *  las filas (evita re-pedirlos al expandir cada viaje). */
   gastoFormData: GastoFormData;
+  /** Rango de fechas inicial sembrado desde el selector de período de la página
+   *  (queda editable en los inputs de fecha del listado). */
+  initialDesde?: string;
+  initialHasta?: string;
 }
-
-const ESTADO_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "error"> = {
-  cerrado: "success",
-  en_curso: "info",
-  pendiente: "warning",
-  cancelado: "error",
-};
 
 type ColumnDef = {
   label: string;
@@ -119,24 +140,9 @@ const COLUMNS: ColumnDef[] = [
   { label: "Remito Nº", cellClass: "hidden xl:table-cell" },
   { label: "Material", cellClass: "hidden xl:table-cell" },
   { label: "Importe", sortKey: "monto", cellClass: "hidden lg:table-cell", align: "right" },
-  { label: "Estado" },
   { label: "Remito", cellClass: "hidden sm:table-cell" },
   { label: "" },
 ];
-
-const ESTADO_LABELS: Record<string, string> = {
-  pendiente: "Pendiente",
-  en_curso: "En curso",
-  cerrado: "Cerrado",
-  cancelado: "Cancelado",
-};
-
-const ESTADO_BADGE: Record<string, string> = {
-  cerrado: "bg-green-100 text-green-700",
-  en_curso: "bg-sky-100 text-sky-700",
-  pendiente: "bg-amber-100 text-amber-700",
-  cancelado: "bg-red-100 text-red-700",
-};
 
 const VIA_LABELS: Record<string, string> = { ruta_5: "Ruta 5", ruta_22: "Ruta 22" };
 
@@ -192,7 +198,8 @@ function DetSkeleton({ n }: { n: number }) {
   );
 }
 
-/** Encabezado del panel expandido: código, estado, quién/cuándo lo cargó y la ruta. */
+/** Encabezado del panel expandido: código, estado, quién/cuándo lo cargó, la
+ *  ruta dibujada (origen ─🚚─ destino) y los adjuntos del viaje como chips. */
 function ViajeDetalleHeader({
   viaje: v,
   detalle,
@@ -201,62 +208,137 @@ function ViajeDetalleHeader({
   detalle: ViajeDetalle | "loading" | "error" | undefined;
 }) {
   const det = typeof detalle === "object" ? detalle : null;
+  const faltas = faltantesDe(v);
+  const kmTotal = (v.km_con_carga ?? 0) + (v.km_vacios ?? 0);
+  // El camino se pinta rojo si el tramo va vacío (mismo código de color que la tabla).
+  const roadColor = v.es_vacio ? "#C00000" : "#0088D1";
   return (
-    <div className="rounded-xl border border-border/80 bg-card px-4 py-3 shadow-2xs">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-sm font-bold text-foreground">{v.codigo}</span>
-        <span
-          className={`rounded-full text-[10px] font-bold px-2 py-0.5 ${
-            ESTADO_BADGE[v.estado] ?? "bg-muted text-muted-foreground"
-          }`}
-        >
-          {ESTADO_LABELS[v.estado] ?? v.estado}
+    <div className="rounded-xl border border-border/80 bg-card px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
+      {/* Código + badges de estado + quién lo cargó */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[15px] font-black tracking-tight text-foreground">{v.codigo}</span>
+          {v.es_vacio && (
+            <span className="rounded-full bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
+              VACÍO
+            </span>
+          )}
+          {v.facturado && (
+            <span className="rounded-full bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
+              <CheckCircle2 size={11} /> Facturado
+            </span>
+          )}
+          {v.cobrado && (
+            <span className="rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 text-[10px] font-bold px-2 py-0.5">
+              Cobrado
+            </span>
+          )}
+          {faltas.length > 0 && (
+            <span className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
+              <AlertTriangle size={11} /> Incompleto · falta {faltas.join(", ")}
+            </span>
+          )}
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <CalendarDays size={12} className="shrink-0" />
+          Cargado el {fmtDateTime(det?.createdAt ?? null)}
+          {det?.creadoPor && (
+            <>
+              <span aria-hidden>·</span>
+              <InitialsAvatar name={det.creadoPor} size={17} />
+              <span className="font-semibold text-foreground/80">{det.creadoPor}</span>
+            </>
+          )}
         </span>
-        {v.es_vacio && (
-          <span className="rounded-full bg-[#C00000]/10 text-[#C00000] text-[10px] font-bold px-2 py-0.5">
-            VACÍO
-          </span>
-        )}
-        {v.facturado && (
-          <span className="rounded-full bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 inline-flex items-center gap-1">
-            <CheckCircle2 size={11} /> Facturado
-          </span>
-        )}
-        {v.cobrado && (
-          <span className="rounded-full bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-0.5">
-            Cobrado
-          </span>
-        )}
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
-        <CalendarDays size={12} className="shrink-0" />
-        Cargado el {fmtDateTime(det?.createdAt ?? null)}
-        {det?.creadoPor && (
-          <>
-            · por <span className="font-medium text-foreground/80">{det.creadoPor}</span>
-          </>
-        )}
+
+      {/* La ruta, dibujada: origen ── 🚚 km ── destino */}
+      <div className="flex items-center gap-3 sm:gap-4 rounded-lg border border-border/60 bg-muted/40 px-3 sm:px-4 py-2.5">
+        <div className="flex items-center gap-2 min-w-0 max-w-[38%]">
+          <span className="size-2.5 rounded-full bg-[#10B981] ring-4 ring-[#10B981]/15 shrink-0" aria-hidden />
+          <div className="min-w-0">
+            <div className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground/80">
+              Origen
+            </div>
+            <div
+              className={`text-[13px] font-bold truncate ${v.origen ? "text-foreground" : "text-muted-foreground/50 italic"}`}
+              title={v.origen ?? undefined}
+            >
+              {v.origen ?? "A definir"}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative flex-1 min-w-[56px] h-8" aria-hidden>
+          <span
+            className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] opacity-45"
+            style={{
+              color: roadColor,
+              backgroundImage:
+                "repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 14px)",
+            }}
+          />
+          <span
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2 py-0.5 shadow-2xs"
+            style={{ color: roadColor }}
+          >
+            <Truck size={13} strokeWidth={2.2} />
+            {kmTotal > 0 && (
+              <span className="font-mono text-[10px] font-bold text-foreground/75 whitespace-nowrap">
+                {kmTotal.toLocaleString("es-AR")} km
+              </span>
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 min-w-0 max-w-[38%]">
+          <MapPin
+            size={16}
+            className={`shrink-0 ${v.destino ? "text-[#C00000]" : "text-muted-foreground/40"}`}
+          />
+          <div className="min-w-0">
+            <div className="text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground/80">
+              Destino
+            </div>
+            <div
+              className={`text-[13px] font-bold truncate ${v.destino ? "text-foreground" : "text-muted-foreground/50 italic"}`}
+              title={v.destino ?? undefined}
+            >
+              {v.destino ?? "A definir"}
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
-        <span className="inline-flex items-center gap-1 font-medium text-foreground/90">
-          <Route size={12} className="text-primary shrink-0" /> {v.origen ?? "—"} → {v.destino ?? "—"}
-        </span>
-        {det?.rutaVia && (
-          <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground/80">
-            {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
-          </span>
-        )}
-        {det?.tipoCarga && (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <Package size={12} /> {det.tipoCarga}
-          </span>
-        )}
-        {v.material && <span className="text-muted-foreground">{v.material}</span>}
-        {!v.es_vacio && v.nro_remito && (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <Hash size={11} /> Remito {v.nro_remito}
-          </span>
-        )}
+
+      {/* Chips de contexto: vía, tipo de carga, material, remito */}
+      {(det?.rutaVia || det?.tipoCarga || v.material || (!v.es_vacio && v.nro_remito)) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {det?.rutaVia && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#0088D1]/30 bg-[#0088D1]/8 px-2 py-0.5 text-[10.5px] font-bold text-[#0277BD] dark:text-sky-300">
+              <Route size={11} /> {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
+            </span>
+          )}
+          {det?.tipoCarga && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
+              <Package size={11} /> {det.tipoCarga}
+            </span>
+          )}
+          {v.material && (
+            <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold text-foreground/75">
+              {v.material}
+            </span>
+          )}
+          {!v.es_vacio && v.nro_remito && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] font-semibold font-mono text-foreground/75">
+              <Hash size={11} /> Remito {v.nro_remito}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Adjuntos (remito / factura / otro) como chips */}
+      <div className="pt-2.5 border-t border-dashed border-border/70">
+        <ViajeAdjuntosStrip viajeId={v.id} />
       </div>
     </div>
   );
@@ -273,22 +355,49 @@ function ChoferCard({
   const det = typeof detalle === "object" ? detalle : null;
   const c = det?.chofer;
   const cargando = detalle === "loading";
+  const nombre = c ? [c.apellido, c.nombre].filter(Boolean).join(", ") : choferNombre;
   return (
     <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground flex items-center gap-1.5 border-b border-border pb-2 mb-1">
-        <User size={13} className="text-primary" /> Chofer
-      </h4>
+      <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
+        {nombre ? (
+          <InitialsAvatar name={nombre} size={34} />
+        ) : (
+          <span className="flex items-center justify-center size-[34px] rounded-full bg-muted text-muted-foreground/60 shrink-0">
+            <User size={16} />
+          </span>
+        )}
+        <div className="min-w-0">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Chofer
+          </div>
+          <div
+            className={`text-[13px] font-bold truncate ${nombre ? "text-foreground" : "text-muted-foreground/60 italic"}`}
+            title={nombre ?? undefined}
+          >
+            {nombre ?? "Sin asignar"}
+          </div>
+        </div>
+      </div>
       <div className="divide-y divide-border/40">
-        <DetField
-          label="Nombre"
-          value={c ? [c.apellido, c.nombre].filter(Boolean).join(", ") : choferNombre}
-          strong
-        />
         {cargando ? (
           <DetSkeleton n={4} />
         ) : (
           <>
-            <DetField label="Teléfono" value={c?.telefono} mono />
+            <DetField
+              label="Teléfono"
+              value={
+                c?.telefono ? (
+                  <a
+                    href={`tel:${c.telefono.replace(/[^\d+]/g, "")}`}
+                    className="inline-flex items-center gap-1 text-primary hover:underline underline-offset-2"
+                    title="Llamar"
+                  >
+                    <Phone size={10} /> {c.telefono}
+                  </a>
+                ) : null
+              }
+              mono
+            />
             <DetField label="DNI" value={c?.dni} mono />
             <DetField label="Localidad" value={c?.localidad} />
             <DetField label="Ingreso" value={c?.fecha_ingreso ? formatFecha(c.fecha_ingreso) : "—"} />
@@ -310,18 +419,43 @@ function CamionFleteCard({
   const det = typeof detalle === "object" ? detalle : null;
   const cam = det?.camion;
   const cargando = detalle === "loading";
+  const patente = cam?.patente ?? v.camion;
+  const marcaModelo = [cam?.marca, cam?.modelo].filter(Boolean).join(" ");
   return (
     <div className="rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
-      <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground flex items-center gap-1.5 border-b border-border pb-2 mb-1">
-        <Truck size={13} className="text-primary" /> Camión &amp; flete
-      </h4>
+      <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
+        <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#7C3AED]/12 text-[#7C3AED] shrink-0">
+          <Truck size={17} strokeWidth={2.1} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Camión &amp; flete
+          </div>
+          <div
+            className={`text-[13px] font-bold truncate ${marcaModelo ? "text-foreground" : "text-muted-foreground/50"}`}
+            title={marcaModelo || undefined}
+          >
+            {marcaModelo || (cargando ? "Cargando…" : "—")}
+          </div>
+        </div>
+        {patente && (
+          <span
+            className="shrink-0 overflow-hidden rounded-[5px] border-[1.5px] border-foreground/45 bg-background shadow-2xs"
+            title={`Patente ${patente}`}
+          >
+            {/* Franja azul arriba, guiño a la chapa Mercosur */}
+            <span className="block h-[3px] bg-[#1D4ED8]" aria-hidden />
+            <span className="block px-1.5 pt-0.5 pb-1 font-mono text-[11px] font-black tracking-[0.1em] leading-none text-foreground">
+              {patente}
+            </span>
+          </span>
+        )}
+      </div>
       <div className="divide-y divide-border/40">
-        <DetField label="Patente" value={cam?.patente ?? v.camion} mono strong />
         {cargando ? (
-          <DetSkeleton n={3} />
+          <DetSkeleton n={2} />
         ) : (
           <>
-            <DetField label="Marca / Modelo" value={[cam?.marca, cam?.modelo].filter(Boolean).join(" ")} />
             <DetField label="Capacidad" value={cam?.capacidad_tn != null ? `${cam.capacidad_tn} tn` : "—"} mono />
             <DetField
               label="Km actual"
@@ -330,13 +464,6 @@ function CamionFleteCard({
             />
           </>
         )}
-        <DetField
-          label="Monto flete"
-          value={v.monto_flete ? `$ ${v.monto_flete.toLocaleString("es-AR")}` : "—"}
-          mono
-          strong
-          tone="text-[#10B981]"
-        />
         <DetField label="Km con carga" value={`${(v.km_con_carga ?? 0).toLocaleString("es-AR")} km`} mono />
         <DetField
           label="Km vacíos"
@@ -350,11 +477,36 @@ function CamionFleteCard({
           mono
         />
       </div>
+      {/* El flete destacado: verde si está, ámbar si falta, neutro si es tramo vacío */}
+      {v.es_vacio ? (
+        <div className="mt-2.5 flex items-center justify-between rounded-lg border border-border/70 bg-muted/50 px-2.5 py-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Flete</span>
+          <span className="text-[11px] font-semibold text-muted-foreground">Tramo vacío · sin flete</span>
+        </div>
+      ) : v.monto_flete ? (
+        <div className="mt-2.5 flex items-center justify-between rounded-lg border border-[#10B981]/25 bg-[#10B981]/8 px-2.5 py-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#059669] dark:text-[#34D399]">
+            Flete
+          </span>
+          <span className="font-mono text-[13px] font-black text-[#059669] dark:text-[#34D399]">
+            $ {v.monto_flete.toLocaleString("es-AR")}
+          </span>
+        </div>
+      ) : (
+        <div className="mt-2.5 flex items-center justify-between rounded-lg border border-amber-500/25 bg-amber-500/8 px-2.5 py-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            Flete
+          </span>
+          <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            Importe pendiente
+          </span>
+        </div>
+      )}
     </div>
   );
 }
 
-export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData }: Props) {
+export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta }: Props) {
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -384,7 +536,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al cambiar de fila expandida
   }, [expandedId]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [auditTrailOpen, setAuditTrailOpen] = useState(false);
   const [auditTrailViajeId, setAuditTrailViajeId] = useState<string | null>(null);
   const [cerrandoViaje, setCerrandoViaje] = useState<ViajeBasico | null>(null);
@@ -396,11 +547,11 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   const [facturarOpen, setFacturarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState("");
+  const [desde, setDesde] = useState(initialDesde ?? "");
+  const [hasta, setHasta] = useState(initialHasta ?? "");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
   const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
+  const [incompletoFiltro, setIncompletoFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -427,16 +578,16 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   const [ultimoNonce, setUltimoNonce] = useState<number | undefined>(undefined);
   if (filtroExterno && filtroExterno.nonce !== ultimoNonce) {
     setUltimoNonce(filtroExterno.nonce);
-    setEstadoFiltro(filtroExterno.estado);
     setFacturadoFiltro(filtroExterno.facturado);
     setEsVacioFiltro(filtroExterno.esVacio);
+    setIncompletoFiltro(filtroExterno.incompleto);
   }
 
   // Reportar el filtro actual al contenedor (para resaltar la tarjeta activa).
   useEffect(() => {
-    onFiltroChange?.({ estado: estadoFiltro, facturado: facturadoFiltro, esVacio: esVacioFiltro });
+    onFiltroChange?.({ facturado: facturadoFiltro, esVacio: esVacioFiltro, incompleto: incompletoFiltro });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro, facturadoFiltro, esVacioFiltro]);
+  }, [facturadoFiltro, esVacioFiltro, incompletoFiltro]);
 
   useEffect(() => {
     let cancelled = false;
@@ -449,9 +600,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       page: 0,
       desde: desde || undefined,
       hasta: hasta || undefined,
-      estado: estadoFiltro ? [estadoFiltro] : undefined,
       facturado: facturadoFiltro ?? undefined,
       esVacio: esVacioFiltro ?? undefined,
+      incompleto: incompletoFiltro ?? undefined,
       search: debouncedSearch || undefined,
       orderBy,
       orderDir,
@@ -472,7 +623,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, estadoFiltro, facturadoFiltro, esVacioFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -482,9 +633,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         page: nextPage,
         desde: desde || undefined,
         hasta: hasta || undefined,
-        estado: estadoFiltro ? [estadoFiltro] : undefined,
         facturado: facturadoFiltro ?? undefined,
         esVacio: esVacioFiltro ?? undefined,
+        incompleto: incompletoFiltro ?? undefined,
         search: debouncedSearch || undefined,
         orderBy,
         orderDir,
@@ -499,15 +650,15 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || !!estadoFiltro || facturadoFiltro !== null || esVacioFiltro !== null;
+    !!desde || !!hasta || !!search || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
     setSearch("");
-    setEstadoFiltro("");
     setFacturadoFiltro(null);
     setEsVacioFiltro(null);
+    setIncompletoFiltro(null);
   };
 
   const toggleOrden = (key: ViajeOrderBy) => {
@@ -566,7 +717,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-muted/40">
-        <HelpTutorialButton />
         <Input
           type="date"
           value={desde}
@@ -589,20 +739,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
           className="text-sm flex-1 min-w-[11rem]"
           aria-label="Buscar viaje por código"
         />
-        <Combobox
-          value={estadoFiltro}
-          onValueChange={setEstadoFiltro}
-          options={[
-            { id: "", label: "Todos los estados" },
-            { id: "pendiente", label: "Pendiente" },
-            { id: "en_curso", label: "En curso" },
-            { id: "cerrado", label: "Cerrado" },
-            { id: "cancelado", label: "Cancelado" },
-          ]}
-          searchable={false}
-          triggerClassName="h-9 w-44"
-          aria-label="Filtrar por estado"
-        />
         {hayFiltros && (
           <Button
             variant="ghost"
@@ -620,9 +756,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
             choferId={choferId}
             desde={desde || undefined}
             hasta={hasta || undefined}
-            estado={estadoFiltro || undefined}
             facturado={facturadoFiltro ?? undefined}
             esVacio={esVacioFiltro ?? undefined}
+            incompleto={incompletoFiltro ?? undefined}
             search={debouncedSearch || undefined}
             disabled={loading || rows.length === 0}
           />
@@ -642,7 +778,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
               onClick={() => setFacturarOpen(true)}
             >
               <Receipt size={14} />
-              Facturar {selectedFacturables.length}
+              Agregar remito ({selectedFacturables.length})
             </Button>
           )}
           <Button
@@ -658,7 +794,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       )}
 
       {/* Tabla */}
-      <div className="overflow-x-auto">
+      {/* container-type: el panel expandido usa 100cqw para quedar siempre
+          dentro del ancho visible aunque la tabla scrollee horizontal. */}
+      <div className="overflow-x-auto [container-type:inline-size]">
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
@@ -754,7 +892,10 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                     {formatFecha(v.fecha_viaje)}
                   </TableCell>
                   <TableCell className="text-sm font-medium text-foreground">
-                    {v.cliente ?? "—"}
+                    <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                      <IncompletoMark v={v} />
+                      <span className="truncate">{v.cliente ?? "—"}</span>
+                    </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
                     {v.chofer ?? "—"}
@@ -804,13 +945,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                       <span className="text-muted-foreground/70">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
-                    {/* El vacío ya se indica con "VACIO" en el remito y en KM vacíos. */}
-                    <StatusBadge
-                      label={v.estado.replace("_", " ")}
-                      tone={ESTADO_TONE[v.estado] ?? "neutral"}
-                    />
-                  </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${
@@ -841,257 +975,146 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                 {expandedId === v.id && (
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
-                      <div className="p-4 sm:p-5 space-y-4 animate-in fade-in-50 duration-200">
+                      {/* sticky + 100cqw: el detalle no se corta con el scroll
+                          horizontal de la tabla — siempre ocupa lo visible. */}
+                      <div className="sticky left-0 w-[100cqw] p-4 sm:p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-1 duration-200">
                         <ViajeDetalleHeader viaje={v} detalle={detalles[v.id]} />
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <ChoferCard detalle={detalles[v.id]} choferNombre={v.chofer} />
 
                         <CamionFleteCard detalle={detalles[v.id]} viaje={v} />
 
-                        {/* Notas y Acciones Operativas */}
-                        <div className="space-y-3 flex flex-col justify-between bg-card p-4 rounded-lg border border-border/80 shadow-2xs">
-                          <div>
-                            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5 border-b border-border pb-2">
-                              <FileText size={14} className="text-[#F59E0B]" /> Notas / Descripción
-                            </h4>
-                            {v.nro_viaje_ypf && (
-                              <p className="text-xs font-semibold text-primary pt-1.5">
-                                Nº viaje: <span className="font-mono">{v.nro_viaje_ypf}</span>
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground pt-1.5 italic line-clamp-3">
-                              {v.observaciones
-                                ? v.observaciones
-                                    .split("|")
-                                    .filter((p) => !p.includes("Origen:") && !p.includes("Destino:"))
-                                    .join(" | ")
-                                    .trim() || "Sin notas adicionales"
-                                : "Sin notas adicionales"}
-                            </p>
+                        {/* Notas y acciones del viaje */}
+                        <div className="flex flex-col rounded-xl border border-border/80 bg-card p-3 shadow-2xs">
+                          <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-2">
+                            <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#F59E0B]/14 text-[#D97706] shrink-0">
+                              <FileText size={16} strokeWidth={2.1} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                                Notas
+                              </div>
+                              {v.nro_viaje_ypf ? (
+                                <div className="text-[13px] font-bold text-foreground truncate">
+                                  Nº viaje <span className="font-mono text-primary">{v.nro_viaje_ypf}</span>
+                                </div>
+                              ) : (
+                                <div className="text-[13px] font-bold text-foreground">Observaciones</div>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="pt-3 border-t border-border space-y-2.5">
-                            {v.facturado ? (
-                              <>
-                                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                  <CheckCircle2 size={14} className="text-green-600 shrink-0" />
-                                  <span className="text-[11px] font-semibold text-green-700">
-                                    Viaje facturado — remito y valor cargados
-                                  </span>
-                                </div>
-                                <div className="pt-1 flex justify-between items-center">
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAuditTrailViajeId(v.id);
-                                        setAuditTrailOpen(true);
-                                      }}
-                                    >
-                                      <Clock size={12} /> Historial
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setConfirmEditViaje(v);
-                                      }}
-                                    >
-                                      <Pencil size={12} /> Editar
-                                    </Button>
-                                  </div>
-                                  {deletingId === v.id ? (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
-                                      <Button
-                                        variant="destructive"
-                                        size="xs"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          const res = await deleteViajeAction(v.id);
-                                          if (res && res.ok) {
-                                            setRows((prev) => prev.filter((item) => item.id !== v.id));
-                                            setExpandedId(null);
-                                          }
-                                          setDeletingId(null);
-                                        }}
-                                      >
-                                        Sí, borrar
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="xs"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeletingId(null);
-                                        }}
-                                      >
-                                        No
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDeletingId(v.id);
-                                      }}
-                                    >
-                                      <Trash2 size={12} /> Eliminar Viaje
-                                    </Button>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
-                                  Cambiar Estado Operativo:
-                                </span>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {["pendiente", "en_curso", "cerrado"].map((st) => {
-                                    const isCurrent = v.estado === st;
-                                    const isUpd = updatingId === `${v.id}-${st}`;
-                                    const labels: Record<string, string> = {
-                                      pendiente: "Pendiente",
-                                      en_curso: "En Curso",
-                                      cerrado: "Cerrado",
-                                    };
-                                    return (
-                                      <Button
-                                        key={st}
-                                        variant={isCurrent ? "default" : "outline"}
-                                        size="xs"
-                                        disabled={isCurrent || isUpd || updatingId !== null}
-                                        className={`text-[11px] h-7 px-2.5 ${isCurrent ? "bg-[#0F172A]" : ""}`}
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (st === "cerrado") {
-                                            setCerrandoViaje(v);
-                                            return;
-                                          }
-                                          setUpdatingId(`${v.id}-${st}`);
-                                          const res = await updateViajeEstadoAction(v.id, st);
-                                          setUpdatingId(null);
-                                          if (res && res.ok) {
-                                            setRows((prev) =>
-                                              prev.map((item) => (item.id === v.id ? { ...item, estado: st } : item))
-                                            );
-                                          }
-                                        }}
-                                      >
-                                        {isUpd && <Loader2 size={10} className="animate-spin mr-1" />}
-                                        {labels[st]}
-                                      </Button>
-                                    );
-                                  })}
-                                </div>
+                          <p className="flex-1 text-xs text-muted-foreground italic line-clamp-4">
+                            {v.observaciones
+                              ? v.observaciones
+                                  .split("|")
+                                  .filter((p) => !p.includes("Origen:") && !p.includes("Destino:"))
+                                  .join(" | ")
+                                  .trim() || "Sin notas adicionales"
+                              : "Sin notas adicionales"}
+                          </p>
 
-                                {v.estado === "cerrado" && !v.facturado && (
+                          <div className="pt-2.5 mt-2.5 border-t border-border space-y-2">
+                            {v.facturado ? (
+                              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800/40 dark:bg-green-950/30 px-3 py-2">
+                                <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                                <span className="text-[11px] font-semibold text-green-700 dark:text-green-300">
+                                  Viaje facturado — remito y valor cargados
+                                </span>
+                              </div>
+                            ) : (
+                              !v.es_vacio && (
+                                <Button
+                                  size="xs"
+                                  className="h-9 w-full rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-[12px] font-bold gap-1.5 shadow-sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCerrandoViaje(v);
+                                  }}
+                                >
+                                  <Receipt size={13} /> Agregar remito
+                                </Button>
+                              )
+                            )}
+
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] dark:hover:bg-sky-950/40 text-[11px] gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAuditTrailViajeId(v.id);
+                                    setAuditTrailOpen(true);
+                                  }}
+                                >
+                                  <Clock size={12} /> Historial
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (v.facturado) {
+                                      setConfirmEditViaje(v);
+                                    } else {
+                                      setEditingViaje(v);
+                                    }
+                                  }}
+                                >
+                                  <Pencil size={12} /> Editar
+                                </Button>
+                              </div>
+                              {deletingId === v.id ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
+                                  <Button
+                                    variant="destructive"
+                                    size="xs"
+                                    className="h-6 px-2 text-[10px]"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      const res = await deleteViajeAction(v.id);
+                                      if (res && res.ok) {
+                                        setRows((prev) => prev.filter((item) => item.id !== v.id));
+                                        setExpandedId(null);
+                                      }
+                                      setDeletingId(null);
+                                    }}
+                                  >
+                                    Sí, borrar
+                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="xs"
-                                    className="h-7 px-2.5 text-[11px] gap-1 text-green-700 border-green-300 hover:bg-green-50 w-full mt-1"
+                                    className="h-6 px-2 text-[10px]"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setCerrandoViaje(v);
+                                      setDeletingId(null);
                                     }}
                                   >
-                                    <Coins size={12} /> Cargar remito / importe
+                                    No
                                   </Button>
-                                )}
-
-                                <div className="pt-2 flex justify-between items-center">
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAuditTrailViajeId(v.id);
-                                        setAuditTrailOpen(true);
-                                      }}
-                                    >
-                                      <Clock size={12} /> Historial
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (v.facturado) {
-                                          setConfirmEditViaje(v);
-                                        } else {
-                                          setEditingViaje(v);
-                                        }
-                                      }}
-                                    >
-                                      <Pencil size={12} /> Editar
-                                    </Button>
-                                  </div>
-                                  {deletingId === v.id ? (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
-                                      <Button
-                                        variant="destructive"
-                                        size="xs"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          const res = await deleteViajeAction(v.id);
-                                          if (res && res.ok) {
-                                            setRows((prev) => prev.filter((item) => item.id !== v.id));
-                                            setExpandedId(null);
-                                          }
-                                          setDeletingId(null);
-                                        }}
-                                      >
-                                        Sí, borrar
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="xs"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeletingId(null);
-                                        }}
-                                      >
-                                        No
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDeletingId(v.id);
-                                      }}
-                                    >
-                                      <Trash2 size={12} /> Eliminar Viaje
-                                    </Button>
-                                  )}
                                 </div>
-                              </>
-                            )}
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-[11px] gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingId(v.id);
+                                  }}
+                                >
+                                  <Trash2 size={12} /> Eliminar Viaje
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                         </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <ViajeDocumentosPanel viajeId={v.id} />
 
                         <ViajeGastosPanel
                           viajeId={v.id}
@@ -1100,7 +1123,6 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                           moneda={v.moneda ?? "ARS"}
                           esVacio={v.es_vacio}
                         />
-                        </div>
                       </div>
                     </TableCell>
                   </TableRow>

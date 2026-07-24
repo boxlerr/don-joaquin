@@ -92,19 +92,29 @@ export default function ViajeGastosPanel({
 
   return (
     <div
-      className="col-span-3 bg-card p-4 rounded-lg border border-border/80 shadow-2xs"
+      className="bg-card p-3 rounded-xl border border-border/80 shadow-2xs"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
-        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <Receipt size={14} className="text-[#EF4444]" />
-          Gastos del viaje
-          {count > 0 && (
-            <span className="font-mono text-[#EF4444] normal-case tracking-normal">
-              · $ {formatARS(total)} en {count}
-            </span>
-          )}
-        </h4>
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#EF4444]/12 text-[#EF4444] shrink-0">
+            <Receipt size={16} strokeWidth={2.1} />
+          </span>
+          <div className="min-w-0">
+            <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
+              Gastos del viaje
+            </div>
+            <div className="text-[13px] font-bold text-foreground truncate">
+              {count > 0 ? (
+                <span className="font-mono text-[#EF4444]">
+                  $ {formatARS(total)} <span className="font-sans text-muted-foreground font-semibold">en {count}</span>
+                </span>
+              ) : (
+                "Sin gastos"
+              )}
+            </div>
+          </div>
+        </div>
         {formData && (
           <AddGastoDialog
             tiposGasto={formData.tiposGasto}

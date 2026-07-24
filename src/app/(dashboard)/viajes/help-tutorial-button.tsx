@@ -9,14 +9,14 @@ import {
   Plus,
   SlidersHorizontal,
   Workflow,
-  CircleDot,
   Eye,
   MapPin,
   Truck,
-  Coins,
   Receipt,
   FileText,
   X,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 
 // =============================================================================
@@ -73,16 +73,10 @@ function MockToolbar({ highlight }: { highlight: "new" }) {
   );
 }
 
-function MockFechaEstado() {
+function MockFecha() {
   return (
-    <div className="grid grid-cols-2 gap-3 max-w-[420px] mx-auto">
+    <div className="max-w-[420px] mx-auto">
       <MockField label="Fecha del viaje *" value="13/05/2026" required />
-      <div>
-        <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Estado *</div>
-        <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-foreground inline-flex items-center w-full">
-          Pendiente ▾
-        </div>
-      </div>
     </div>
   );
 }
@@ -144,16 +138,17 @@ function MockViajeGuardado() {
         <span className="w-24">Fecha</span>
         <span className="flex-1">Origen → Destino</span>
         <span className="w-16 text-right">KM</span>
-        <span className="w-20">Estado</span>
+        <span className="w-24">Remito</span>
         <span className="w-8"></span>
       </div>
       <div className="px-3 py-2.5 flex items-center gap-4 text-[11px] bg-[#F0FFF4]">
         <span className="w-24 text-muted-foreground">13/05/2026</span>
         <span className="flex-1 text-foreground font-medium">LOMASER → LOMA NEGRA</span>
         <span className="w-16 text-right font-mono text-foreground">405 km</span>
-        <span className="w-20 text-[#F59E0B] font-medium flex items-center gap-1">
-          <span className="size-1.5 rounded-full bg-[#F59E0B] inline-block" />
-          Pendiente
+        <span className="w-24">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]">
+            Sin remito
+          </span>
         </span>
         <button className="size-6 rounded inline-flex items-center justify-center text-primary">
           <Eye size={12} />
@@ -196,30 +191,6 @@ function MockFiltroCodigo() {
   );
 }
 
-function MockFiltroEstado() {
-  const estados = ["Todos los estados", "Pendiente", "En curso", "Cerrado", "Cancelado"];
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-9 bg-card border border-border rounded-md px-3 text-xs text-muted-foreground/70 inline-flex items-center">
-        Buscar por código...
-      </div>
-      <div className="bg-card border border-[#0088D1]/60 rounded-md text-[11px] overflow-hidden shadow-[0_0_0_3px_rgba(0,136,209,0.1)]">
-        {estados.map((e, i) => (
-          <div
-            key={e}
-            className={
-              "px-3 py-1.5 border-b last:border-0 border-border " +
-              (i === 1 ? "bg-[#E1F5FE] text-primary font-semibold" : "text-muted-foreground")
-            }
-          >
-            {e}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function MockLimpiarFiltros() {
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -239,122 +210,97 @@ function MockLimpiarFiltros() {
   );
 }
 
-function MockCicloEstados() {
-  const flow = [
-    { label: "Pendiente", color: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]" },
-    { label: "En curso", color: "bg-[#DBEAFE] text-[#1E40AF] border-[#93C5FD]" },
-    { label: "Cerrado", color: "bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]" },
+// Tres tarjetas del encabezado (Total · Sin remito · Vueltas en vacío).
+function MockTarjetas() {
+  const cards = [
+    { k: "Viajes registrados", v: "1.430", c: "#0088D1", active: true },
+    { k: "Sin remito", v: "793", c: "#EF4444", active: false },
+    { k: "Vueltas en vacío", v: "516", c: "#64748B", active: false },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {cards.map((c) => (
+        <div
+          key={c.k}
+          className="relative overflow-hidden rounded-xl border border-border bg-card px-3 pt-2.5 pb-4"
+          style={c.active ? { boxShadow: `0 0 0 2px ${c.c}`, borderColor: "transparent" } : undefined}
+        >
+          <div className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground truncate">{c.k}</div>
+          <div className="text-xl font-black leading-tight" style={{ color: c.c }}>{c.v}</div>
+          <span
+            className="absolute inset-x-0 bottom-0 h-1.5"
+            style={{
+              backgroundImage: `repeating-linear-gradient(90deg, ${c.c} 0 6px, transparent 6px 11px)`,
+              opacity: 0.5,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Flujo simple: cargás el viaje, le agregás el remito, queda facturado.
+function MockFlujo() {
+  const steps = [
+    { label: "Cargar viaje", c: "#0088D1" },
+    { label: "Agregar remito", c: "#10B981" },
+    { label: "Facturado ✓", c: "#10B981" },
   ];
   return (
     <div className="flex items-center gap-2 justify-center flex-wrap">
-      {flow.map((s, i) => (
+      {steps.map((s, i) => (
         <div key={s.label} className="flex items-center gap-2">
           <span
-            className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border ${s.color}`}
+            className="px-3 py-1.5 rounded-full text-[11px] font-semibold border"
+            style={{ color: s.c, borderColor: `${s.c}66`, background: `${s.c}14` }}
           >
             {s.label}
           </span>
-          {i < flow.length - 1 && (
-            <span className="text-muted-foreground/70 text-sm">→</span>
-          )}
+          {i < steps.length - 1 && <span className="text-muted-foreground/70 text-sm">→</span>}
         </div>
       ))}
-      <div className="w-full mt-2 flex justify-center">
-        <span className="px-3 py-1.5 rounded-full text-[11px] font-semibold border bg-[#FEE2E2] text-[#7F1D1D] border-[#FCA5A5]">
-          Cancelado (terminal)
-        </span>
-      </div>
     </div>
   );
 }
 
-function MockEstadoBadge({ estado, desc }: { estado: string; desc: string }) {
-  const styles: Record<string, string> = {
-    pendiente: "bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]",
-    en_curso: "bg-[#DBEAFE] text-[#1E40AF] border-[#93C5FD]",
-    cerrado: "bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]",
-  };
-  const label = estado === "en_curso" ? "En curso" : estado.charAt(0).toUpperCase() + estado.slice(1);
-  return (
-    <div className="flex flex-col items-center gap-3 py-2">
-      <span className={`px-4 py-2 rounded-full text-sm font-semibold border ${styles[estado]}`}>
-        {label}
-      </span>
-      <p className="text-muted-foreground text-xs text-center">{desc}</p>
-    </div>
-  );
-}
-
-function MockFacturado() {
-  return (
-    <div className="bg-card border border-border rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
-        <span className="flex-1">Código</span>
-        <span className="w-20">Estado</span>
-        <span className="w-20 text-center">Facturado</span>
-      </div>
-      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-border">
-        <span className="flex-1 font-mono text-foreground">V-2026-00040</span>
-        <span className="w-20 text-[#10B981] font-medium">Cerrado</span>
-        <span className="w-20 text-center text-[#10B981] font-semibold">Sí</span>
-      </div>
-      <div className="px-3 py-2 flex items-center gap-4 text-[11px] border-b border-border bg-[#FFF7F7]">
-        <span className="flex-1 font-mono text-foreground">V-2026-00041</span>
-        <span className="w-20 text-[#10B981] font-medium">Cerrado</span>
-        <span className="w-20 text-center text-muted-foreground/70 font-semibold">No</span>
-      </div>
-      <div className="px-3 py-2 flex items-center gap-4 text-[11px]">
-        <span className="flex-1 font-mono text-foreground">V-2026-00042</span>
-        <span className="w-20 text-[#3B82F6] font-medium">En curso</span>
-        <span className="w-20 text-center text-muted-foreground/70 font-semibold">No</span>
-      </div>
-    </div>
-  );
-}
-
-function MockRegistrarCobro() {
+// El botón "Agregar remito" en la fila expandida de un viaje sin facturar.
+function MockBotonRemito() {
   return (
     <div className="space-y-2">
-      {/* fila cerrada expandida */}
       <div className="bg-card border border-border rounded-md overflow-hidden">
         <div className="px-3 py-2 flex items-center gap-4 text-[11px] bg-muted/40 border-b border-border">
           <span className="flex-1 font-mono text-foreground">V-2026-00041</span>
-          <span className="text-[#10B981] font-semibold">● Cerrado</span>
-          <span className="text-muted-foreground/70 font-semibold">No</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]">
+            Sin remito
+          </span>
         </div>
-        <div className="px-4 py-3 bg-muted/60 space-y-2">
-          <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Cambiar Estado Operativo:
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-7 px-2.5 text-[11px] rounded border border-border bg-card text-muted-foreground inline-flex items-center">Pendiente</span>
-            <span className="h-7 px-2.5 text-[11px] rounded border border-border bg-card text-muted-foreground inline-flex items-center">En Curso</span>
-            <span className="h-7 px-2.5 text-[11px] rounded border bg-[#0F172A] text-white inline-flex items-center">Cerrado</span>
-          </div>
-          {/* botón destacado */}
-          <div className="h-7 px-2.5 text-[11px] rounded border border-green-400 bg-green-50 text-green-700 font-bold inline-flex items-center gap-1.5 shadow-[0_0_0_3px_rgba(34,197,94,0.15)] w-full justify-center">
-            <Coins size={12} /> Cargar remito / importe
+        <div className="px-4 py-3 bg-muted/60">
+          <div className="h-8 px-2.5 text-[12px] rounded border border-green-400 bg-green-50 text-green-700 font-bold inline-flex items-center gap-1.5 shadow-[0_0_0_3px_rgba(34,197,94,0.15)] w-full justify-center">
+            <Receipt size={13} /> Agregar remito
           </div>
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground text-center">
-        El botón aparece solo en viajes <strong>cerrados sin facturar</strong>
+        Aparece en cualquier viaje <strong>sin remito</strong> (no vacío)
       </p>
     </div>
   );
 }
 
-function MockCerrarConDatos() {
+function MockAgregarRemito() {
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2 text-xs">
-      <p className="font-semibold text-foreground">Cerrar viaje V-2026-01456</p>
+      <p className="font-semibold text-foreground flex items-center gap-1.5">
+        <Receipt size={13} className="text-[#10B981]" /> Agregar remito · V-2026-01456
+      </p>
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-md border border-border px-2 py-1">
           <span className="text-muted-foreground">Nº remito</span>
           <div className="font-mono text-foreground">0813R00281660</div>
         </div>
         <div className="rounded-md border border-border px-2 py-1">
-          <span className="text-muted-foreground">Monto / factura</span>
+          <span className="text-muted-foreground">Importe / factura</span>
           <div className="font-semibold text-foreground">$ 794.527</div>
         </div>
       </div>
@@ -366,8 +312,8 @@ function MockCerrarConDatos() {
         <span className="text-center rounded-md border border-border text-muted-foreground py-1 px-3">
           Cancelar
         </span>
-        <span className="text-center rounded-md bg-[#0F172A] text-white py-1 px-3 font-semibold">
-          Confirmar cierre
+        <span className="text-center rounded-md bg-[#10B981] text-white py-1 px-3 font-semibold">
+          Guardar remito
         </span>
       </div>
     </div>
@@ -376,31 +322,36 @@ function MockCerrarConDatos() {
 
 function MockDocumentos() {
   return (
-    <div className="rounded-lg border border-border bg-card p-3 space-y-2 text-xs">
-      <p className="font-semibold text-foreground flex items-center gap-1.5">
-        <Receipt size={13} className="text-[#0088D1]" /> Documentos (remito / factura)
-      </p>
-      <div className="flex gap-1">
-        <span className="rounded-md bg-[#0088D1] text-white px-2 py-0.5 font-semibold">Remito</span>
-        <span className="rounded-md border border-border text-muted-foreground px-2 py-0.5">Factura</span>
-        <span className="rounded-md border border-border text-muted-foreground px-2 py-0.5">Subir</span>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2.5 text-xs">
+      <div className="rounded-md border-2 border-dashed border-border px-3 py-2.5 text-center text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Upload size={13} className="text-[#0088D1]" /> Arrastrá el remito acá o hacé clic para elegirlo
+        </span>
       </div>
-      <div className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1">
-        <FileText size={13} className="text-muted-foreground" />
-        <span className="rounded bg-sky-100 text-sky-700 px-1 text-[10px] font-semibold">Remito</span>
-        <span className="flex-1 truncate text-foreground/90">remito-0813.pdf</span>
-        <Eye size={12} className="text-primary" />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-muted-foreground">
+          <Paperclip size={11} /> Adjuntos
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
+          <FileText size={11} /> remito-0813.pdf
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+          <FileText size={11} /> factura-A0001.pdf
+        </span>
+        <span className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <Plus size={11} /> Adjuntar
+        </span>
       </div>
     </div>
   );
 }
 
-function MockFacturarBloque() {
+function MockRemitoBloque() {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden text-[11px]">
       <div className="px-3 py-2 border-b border-border flex items-center gap-2 bg-muted/40">
-        <Receipt size={13} className="text-[#0088D1]" />
-        <span className="font-semibold text-foreground">Facturar 3 viajes seleccionados</span>
+        <Receipt size={13} className="text-[#10B981]" />
+        <span className="font-semibold text-foreground">Agregar remito a 3 viajes</span>
       </div>
       <div className="divide-y divide-border">
         {[
@@ -419,7 +370,7 @@ function MockFacturarBloque() {
       </div>
       <div className="px-3 py-2 border-t border-border flex justify-end">
         <span className="h-7 px-3 rounded-md bg-[#10B981] text-white inline-flex items-center gap-1 font-bold">
-          <Receipt size={11} /> Facturar todo
+          <Receipt size={11} /> Agregar remito (3)
         </span>
       </div>
     </div>
@@ -434,8 +385,8 @@ const CICLO_STEPS: TutorialStep[] = [
   {
     title: "El ciclo completo del viaje",
     description:
-      "De principio a fin: cargás el viaje, lo seguís hasta cerrarlo con su remito y su valor, y adjuntás los documentos. Con el valor cargado el viaje queda facturado y listo — no hay un paso de cobro aparte.",
-    mockup: <MockCicloEstados />,
+      "De principio a fin: cargás el viaje y, cuando tenés el remito firmado, se lo agregás con su importe y su PDF o foto — todo en el mismo paso. Con el importe cargado el viaje queda facturado y listo — no hay un paso de cobro aparte.",
+    mockup: <MockFlujo />,
   },
   {
     title: "1. Cargar el viaje",
@@ -445,29 +396,23 @@ const CICLO_STEPS: TutorialStep[] = [
     hint: "También pueden entrar por los importadores (Hoja de ruta / YPF / Loma).",
   },
   {
-    title: "2. El viaje arranca",
+    title: "2. Agregar el remito y el valor",
     description:
-      "Cuando el chofer sale, pasá el viaje a En curso. Cuando entrega y tenés el remito firmado, lo cerrás.",
-    mockup: <MockEstadoBadge estado="en_curso" desc="Camión en ruta. En tránsito activo." />,
+      'Cuando el chofer entrega y tenés el remito firmado, expandí la fila del viaje y tocá "Agregar remito": cargás el Nº de remito, el importe del flete y las toneladas. Con el importe cargado queda facturado de una.',
+    mockup: <MockAgregarRemito />,
+    hint: "La liquidación de Loma o el DM de YPF también completan estos datos solos.",
   },
   {
-    title: "3. Cerrar con remito y valor",
+    title: "3. Adjuntar documentos",
     description:
-      "Al cerrar cargás el Nº de remito, el monto del flete y las toneladas. Con el valor cargado el viaje queda facturado de una.",
-    mockup: <MockCerrarConDatos />,
-    hint: "Entra el remito con su valor → facturado y listo. La liquidación de Loma o el DM de YPF también completan estos datos solos.",
-  },
-  {
-    title: "4. Adjuntar documentos",
-    description:
-      "Expandí la fila del viaje: en la sección Documentos podés subir el PDF o la foto del remito y de la factura (hasta 100 MB) y verlos o descargarlos cuando quieras.",
+      "El PDF o la foto del remito se adjunta en el mismo diálogo de \"Agregar remito\" (hasta 100 MB). Los adjuntos quedan como chips arriba del detalle del viaje: desde ahí los abrís, sumás más (una factura u otro comprobante) o los borrás.",
     mockup: <MockDocumentos />,
   },
   {
-    title: "5. Facturar en bloque",
+    title: "4. Agregar remito en bloque",
     description:
-      "Desde el listado, seleccioná varios viajes y usá Facturar: cargás remito y monto de cada uno y quedan facturados de una.",
-    mockup: <MockFacturarBloque />,
+      'Desde el listado, seleccioná varios viajes con el casillero y usá "Agregar remito": cargás el remito y el importe de cada uno y quedan facturados de una.',
+    mockup: <MockRemitoBloque />,
     hint: "Ideal cuando llegan varios remitos juntos.",
   },
 ];
@@ -484,11 +429,11 @@ const NUEVO_STEPS: TutorialStep[] = [
     mockup: <MockToolbar highlight="new" />,
   },
   {
-    title: "Elegí la fecha y el estado",
+    title: "Elegí la fecha",
     description:
-      "La fecha por defecto es hoy. El estado inicial suele ser Pendiente: el viaje fue asignado pero el camión aún no salió.",
-    mockup: <MockFechaEstado />,
-    hint: "Podés crear el viaje en estado En curso si ya está en camino al momento de registrarlo.",
+      "La fecha por defecto es hoy. No hace falta marcar ningún estado: el viaje queda registrado y esperando su remito.",
+    mockup: <MockFecha />,
+    hint: "El código correlativo (ej. V-2026-00001) se genera solo al guardar.",
   },
   {
     title: "Asociá cliente, chofer y camión",
@@ -513,7 +458,7 @@ const NUEVO_STEPS: TutorialStep[] = [
   {
     title: "Guardar y seguir",
     description:
-      'Apretá "Guardar viaje". El código correlativo (ej. V-2026-00001) se genera automáticamente. El viaje aparece en la tabla.',
+      'Apretá "Guardar viaje". El código correlativo (ej. V-2026-00001) se genera automáticamente. El viaje aparece en la tabla marcado "Sin remito" hasta que le cargues el remito y el importe.',
     mockup: <MockViajeGuardado />,
     hint: 'Desde la ficha del viaje podés agregar remitos, facturas, cartas de porte y viáticos. El botón "Ver" (ojo) en la tabla te lleva directo.',
   },
@@ -527,8 +472,8 @@ const FILTROS_STEPS: TutorialStep[] = [
   {
     title: "Filtrá con las tarjetas de arriba",
     description:
-      "Las 5 tarjetas del encabezado (Total, En curso, Pendientes, Sin facturar, Viajes vacíos) son botones: hacé clic en una y el listado queda filtrado por ese estado. Volvé a clickearla para limpiar.",
-    mockup: <MockFacturado />,
+      "Las 3 tarjetas del encabezado (Viajes registrados, Sin remito y Vueltas en vacío) son botones: hacé clic en una y el listado queda filtrado. Volvé a clickearla para limpiar.",
+    mockup: <MockTarjetas />,
     hint: 'La tarjeta activa muestra un chip "Filtrado por…" arriba del listado, con una X para sacarlo.',
   },
   {
@@ -539,17 +484,10 @@ const FILTROS_STEPS: TutorialStep[] = [
     hint: "Ideal para buscar todos los viajes de una semana o un mes específico.",
   },
   {
-    title: "Buscá por código",
+    title: "Buscá por código, chofer o camión",
     description:
-      'El campo de texto filtra por código correlativo (ej. "V-2026-00042"). Útil cuando te pasan un número de viaje puntual.',
+      'El campo de texto filtra por código correlativo (ej. "V-2026-00042"), nombre de chofer o patente. Útil cuando te pasan un dato puntual.',
     mockup: <MockFiltroCodigo />,
-  },
-  {
-    title: "Filtrá por estado",
-    description:
-      'El dropdown de estado permite ver solo Pendientes, En curso, Cerrados o Cancelados. Por defecto se esconden los Cancelados.',
-    mockup: <MockFiltroEstado />,
-    hint: "Combiná estado + fecha para encontrar, por ejemplo, todos los viajes pendientes de la semana pasada.",
   },
   {
     title: "Limpiar filtros",
@@ -560,50 +498,34 @@ const FILTROS_STEPS: TutorialStep[] = [
 ];
 
 // =============================================================================
-// Solapa: Estados
+// Solapa: Remito
 // =============================================================================
 
-const ESTADOS_STEPS: TutorialStep[] = [
+const REMITO_STEPS: TutorialStep[] = [
   {
-    title: "Ciclo de vida de un viaje",
+    title: 'El botón "Agregar remito"',
     description:
-      "Un viaje pasa por cuatro estados posibles. El flujo normal es Pendiente → En curso → Cerrado. Cancelado es un estado terminal.",
-    mockup: <MockCicloEstados />,
+      'Expandí la fila de un viaje sin remito y tocá el botón verde "Agregar remito". Se abre el diálogo para cargar el Nº de remito, el importe y las toneladas.',
+    mockup: <MockBotonRemito />,
   },
   {
-    title: "Pendiente",
+    title: "Cargar el remito y el valor",
     description:
-      "El viaje fue registrado y asignado pero el camión todavía no salió. Aparece en el stat card amarillo del encabezado.",
-    mockup: <MockEstadoBadge estado="pendiente" desc="Viaje asignado. Sin salida confirmada." />,
-    hint: "Podés cambiar a En curso una vez que el chofer avisa que arrancó.",
+      "Con el importe cargado, el viaje pasa de “Sin remito” (rojo) a “Con remito” y queda facturado y listo. Sin importe se guarda el remito, pero el viaje sigue sin facturar.",
+    mockup: <MockAgregarRemito />,
+    hint: "La liquidación de Loma o el DM de YPF también completan estos datos solos.",
   },
   {
-    title: "En curso",
+    title: "Varios remitos de una",
     description:
-      "El camión salió. El viaje está activo. Aparece en el stat card verde del encabezado.",
-    mockup: <MockEstadoBadge estado="en_curso" desc="Camión en ruta. En tránsito activo." />,
-    hint: "Pasá a Cerrado cuando el chofer entregó la carga y tenés el remito firmado.",
+      'Cuando llegan varios remitos juntos, seleccioná los viajes con el casillero de la izquierda y usá "Agregar remito" en la barra de arriba: cargás todos en una sola pasada.',
+    mockup: <MockRemitoBloque />,
   },
   {
-    title: "Cerrado",
+    title: "Adjuntar el comprobante",
     description:
-      "La entrega se completó. El viaje puede ser incluido en hojas de ruta y facturas.",
-    mockup: <MockEstadoBadge estado="cerrado" desc="Entrega confirmada. Listo para facturar." />,
-    hint: "Solo los viajes cerrados se incluyen en hojas de ruta al liquidar al chofer.",
-  },
-  {
-    title: "Facturado",
-    description:
-      'La columna "Facturado" se prende sola cuando el viaje tiene su valor cargado (con el remito entra el monto). Un viaje cerrado sin valor aparece Sin facturar (rojo en las stats) hasta completarlo.',
-    mockup: <MockFacturado />,
-    hint: 'El stat card "Sin facturar" del encabezado muestra los viajes cerrados/en curso que todavía no tienen factura emitida.',
-  },
-  {
-    title: "Completar remito y valor después",
-    description:
-      'Si cerraste un viaje sin remito o sin valor, podés completarlo después. Expandí la fila del viaje cerrado y usá el botón verde "Cargar remito / importe": con el valor cargado el viaje queda facturado y listo.',
-    mockup: <MockRegistrarCobro />,
-    hint: "También lo podés completar desde la Hoja de Ruta (lápiz en la fila) o dejar que la liquidación de Loma / el DM de YPF lo completen solos.",
+      "En el mismo diálogo podés arrastrar el PDF o la foto del remito. Después quedan como chips arriba del detalle del viaje, donde también podés sumar la factura u otros comprobantes, abrirlos o borrarlos.",
+    mockup: <MockDocumentos />,
   },
 ];
 
@@ -615,9 +537,15 @@ const TABS: TutorialTab[] = [
   { id: "ciclo", label: "Ciclo completo", icon: <Workflow size={14} />, steps: CICLO_STEPS },
   { id: "nuevo", label: "Nuevo viaje", icon: <Plus size={14} />, steps: NUEVO_STEPS },
   { id: "filtros", label: "Filtros", icon: <SlidersHorizontal size={14} />, steps: FILTROS_STEPS },
-  { id: "estados", label: "Estados", icon: <CircleDot size={14} />, steps: ESTADOS_STEPS },
+  { id: "remito", label: "Remito", icon: <Receipt size={14} />, steps: REMITO_STEPS },
 ];
 
-export default function HelpTutorialButton() {
-  return <HelpTutorialDialog title="Guía de viajes" tabs={TABS} />;
+export default function HelpTutorialButton({
+  triggerClassName,
+}: {
+  triggerClassName?: string;
+}) {
+  return (
+    <HelpTutorialDialog title="Guía de viajes" tabs={TABS} triggerClassName={triggerClassName} />
+  );
 }

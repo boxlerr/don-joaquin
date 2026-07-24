@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,11 +10,23 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, DollarSign, Check, Receipt, Scale } from "lucide-react";
+import { DollarSign, Check, Receipt, Scale, Upload, X, FileText, ImageIcon } from "lucide-react";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import { cerrarViajeAction } from "../actions";
 import { computeCierre } from "../flujo-logic";
 import type { ViajeBasico } from "../types";
+import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
+import { crearUrlSubidaViajeAction, vincularArchivosViajeAction } from "../archivos-actions";
+import { ADJUNTOS_REFRESH_EVENT } from "./ViajeAdjuntosStrip";
+
+const MAX_MB = 100;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
+
+function fmtSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
 
 interface Props {
   viaje: ViajeBasico;
@@ -40,6 +52,26 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
   const [observaciones, setObservaciones] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Comprobantes (PDF / foto del remito) que se suben junto con el cierre.
+  const [files, setFiles] = useState<File[]>([]);
+  const [subiendo, setSubiendo] = useState<{ idx: number; total: number; pct: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function agregarFiles(list: FileList | File[] | null) {
+    if (!list) return;
+    const nuevos = Array.from(list).filter(
+      (f) => f.type.startsWith("image/") || f.type === "application/pdf",
+    );
+    const grande = nuevos.find((f) => f.size > MAX_BYTES);
+    if (grande) {
+      setError(`"${grande.name}" pesa ${fmtSize(grande.size)}. El máximo es ${MAX_MB} MB por archivo.`);
+      return;
+    }
+    setError(null);
+    setFiles((prev) => [...prev, ...nuevos]);
+    if (fileRef.current) fileRef.current.value = "";
+  }
 
   // Misma regla de cierre/facturación que el server (flujo-logic.computeCierre):
   // entra el remito con su valor → el viaje queda facturado de una.
@@ -54,6 +86,45 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // 1) Subir los comprobantes (si hay). Van antes del cierre: si la subida
+    //    falla no se guarda nada y se puede reintentar; si el cierre fallara
+    //    después, los archivos ya quedan adjuntos al viaje (no molestan).
+    if (files.length > 0) {
+      try {
+        const metas = [];
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          setSubiendo({ idx: i + 1, total: files.length, pct: 0 });
+          const url = await crearUrlSubidaViajeAction({ filename: f.name });
+          if ("error" in url) throw new Error(url.error);
+          await subirArchivoConUrlFirmada({
+            signedUrl: url.signedUrl,
+            file: f,
+            onProgress: (pct) => setSubiendo({ idx: i + 1, total: files.length, pct }),
+          });
+          metas.push({
+            bucket: url.bucket,
+            path: url.path,
+            nombre_original: f.name,
+            mime_type: f.type || "application/octet-stream",
+            tamano_bytes: f.size,
+          });
+        }
+        const vin = await vincularArchivosViajeAction(viaje.id, "remito", metas);
+        if (!vin.ok) throw new Error(vin.error ?? "No se pudo guardar el comprobante");
+        setFiles([]);
+        window.dispatchEvent(new CustomEvent(ADJUNTOS_REFRESH_EVENT, { detail: viaje.id }));
+      } catch (err) {
+        setSubiendo(null);
+        setLoading(false);
+        setError(err instanceof Error ? err.message : "Error al subir el comprobante");
+        return;
+      }
+      setSubiendo(null);
+    }
+
+    // 2) Cerrar el viaje (remito + importe + toneladas).
     const result = await cerrarViajeAction(viaje.id, {
       observaciones: observaciones.trim() || null,
       nro_remito: nroRemito.trim() || null,
@@ -81,18 +152,15 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
       <DialogContent className="sm:max-w-[480px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-muted text-muted-foreground shrink-0">
-              <CheckCircle2 size={22} />
+            <div className="flex items-center justify-center size-12 rounded-full bg-[#10B981]/10 text-[#10B981] shrink-0">
+              <Receipt size={22} />
             </div>
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">
-                {viaje.estado === "cerrado" ? "Completar facturación" : `Cerrar viaje ${viaje.codigo}`}
+                Agregar remito · {viaje.codigo}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                {viaje.estado === "cerrado" && (
-                  <span className="text-amber-600 font-semibold">Viaje ya cerrado · </span>
-                )}
-                {viaje.cliente} · Cargá remito y valor del viaje
+                {viaje.cliente} · Cargá el remito y el importe del viaje
               </DialogDescription>
             </div>
           </div>
@@ -158,9 +226,63 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
             {!viaje.es_vacio && (
               <p className="text-[11px] text-muted-foreground">
                 {facturable
-                  ? "Al confirmar, el viaje queda facturado y listo (con el remito entra el valor)."
-                  : "Sin monto de flete el viaje se cierra pero no queda facturado."}
+                  ? "Con el importe cargado, el viaje queda facturado y listo."
+                  : "Sin importe se guarda el remito, pero el viaje queda sin facturar."}
               </p>
+            )}
+          </div>
+
+          {/* Comprobante: el PDF o la foto del remito, en el mismo paso */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground">
+              Comprobante <span className="text-muted-foreground/70 font-normal">(PDF o foto · opcional)</span>
+            </Label>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); agregarFiles(e.dataTransfer.files); }}
+              className={`w-full rounded-lg border-2 border-dashed px-3 py-3 text-center transition-colors ${
+                dragOver
+                  ? "border-[#0088D1] bg-[#0088D1]/5"
+                  : "border-border hover:border-[#0088D1]/50 hover:bg-muted/30"
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Upload size={13} className="text-[#0088D1]" />
+                Arrastrá el remito acá o hacé clic para elegirlo
+              </span>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => agregarFiles(e.target.files)}
+            />
+            {files.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {files.map((f, i) => (
+                  <span
+                    key={`${f.name}-${i}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/40 pl-2 pr-1 py-0.5 text-[11px] font-medium text-sky-800 dark:text-sky-300"
+                  >
+                    {f.type.startsWith("image/") ? <ImageIcon size={11} /> : <FileText size={11} />}
+                    <span className="max-w-[170px] truncate" title={f.name}>{f.name}</span>
+                    <span className="text-sky-600/70 dark:text-sky-400/70">{fmtSize(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                      className="rounded-full p-0.5 opacity-50 hover:opacity-100 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/50"
+                      aria-label={`Quitar ${f.name}`}
+                    >
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+              </div>
             )}
           </div>
 
@@ -192,7 +314,11 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
               disabled={loading}
               className="bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm"
             >
-              {loading ? "Cerrando..." : <><Check size={15} /> Confirmar cierre</>}
+              {subiendo
+                ? `Subiendo ${subiendo.idx}/${subiendo.total} (${subiendo.pct}%)`
+                : loading
+                  ? "Guardando..."
+                  : <><Check size={15} /> Guardar remito</>}
             </Button>
           </div>
         </form>
