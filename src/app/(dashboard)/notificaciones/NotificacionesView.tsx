@@ -22,7 +22,6 @@ import {
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
 } from "lucide-react";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { marcarAlertaVista, borrarAlerta, borrarTodasLeidas } from "./actions";
 import {
   type AlertaCategoria,
@@ -30,7 +29,6 @@ import {
   type Severidad,
   CATEGORIA_LABEL,
   SEVERIDAD_LABEL,
-  SEVERIDAD_TONE,
   alertaHref,
   categoriaDeAlerta,
   chipLabelFromDias,
@@ -99,22 +97,12 @@ function esUrgente(a: AlertaItem): boolean {
   return d !== null && d <= 0;
 }
 
-const SEV_ACCENT: Record<Severidad, { border: string; headerBg: string; count: string }> = {
-  critica: {
-    border: "border-l-[#EF4444]",
-    headerBg: "bg-[#FEF2F2]/60 hover:bg-[#FEF2F2]",
-    count: "text-[#DC2626]",
-  },
-  advertencia: {
-    border: "border-l-[#F59E0B]",
-    headerBg: "bg-[#FFFBEB]/60 hover:bg-[#FFFBEB]",
-    count: "text-[#D97706]",
-  },
-  info: {
-    border: "border-l-[#0088D1]",
-    headerBg: "bg-[#F0F9FF]/60 hover:bg-[#F0F9FF]",
-    count: "text-[#0369A1]",
-  },
+// Acento sobrio por severidad: un punto de color + la etiqueta coloreada.
+// (Nada de lomo de color, fondos pastel ni pastillas: cansaban la vista.)
+const SEV_ACCENT: Record<Severidad, { dot: string; label: string }> = {
+  critica: { dot: "bg-[#EF4444]", label: "text-[#DC2626]" },
+  advertencia: { dot: "bg-[#F59E0B]", label: "text-[#D97706]" },
+  info: { dot: "bg-[#0088D1]", label: "text-[#0369A1]" },
 };
 
 const CATEGORIA_ICON: Record<AlertaCategoria, typeof ShieldAlert> = {
@@ -168,24 +156,27 @@ export default function NotificacionesView({
   const [orden, setOrden] = useState<"asc" | "desc">("asc");
   // Colapso inteligente: por defecto solo las críticas quedan abiertas; el resto
   // arranca plegado para descargar la vista. Un deep-link ?severidad=X abre solo
-  // esa sección.
-  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() =>
-    initialSev === "todas"
+  // esa sección, y un deep-link ?categoria=X (desde las alertas del dashboard)
+  // llega con TODO desplegado: lo que se vino a ver tiene que estar a la vista,
+  // sin un clic extra.
+  const [collapsed, setCollapsed] = useState<Record<Severidad, boolean>>(() => {
+    if (initialCat !== "todas") return { critica: false, advertencia: false, info: false };
+    return initialSev === "todas"
       ? { critica: false, advertencia: true, info: true }
       : {
           critica: initialSev !== "critica",
           advertencia: initialSev !== "advertencia",
           info: initialSev !== "info",
-        }
-  );
+        };
+  });
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  // Cuando se entra con ?severidad=X desde el dashboard, scrollear suavemente a
-  // esa sección para que quede visible al instante.
+  // Cuando se entra con ?severidad=X o ?categoria=X desde el dashboard,
+  // scrollear suavemente al listado para que lo filtrado quede visible al toque.
   useEffect(() => {
-    if (initialSev === "todas") return;
-    const id = `sev-${initialSev}`;
+    if (initialSev === "todas" && initialCat === "todas") return;
+    const id = initialSev !== "todas" ? `sev-${initialSev}` : "listado-alertas";
     // Doble RAF para esperar a que el render mostró la sección antes de scrollear.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -390,7 +381,7 @@ export default function NotificacionesView({
       )}
 
       {/* Lista agrupada */}
-      <div className="space-y-4">
+      <div id="listado-alertas" className="space-y-4 scroll-mt-20">
         {!hasAnyAlertas ? (
           <div className="bg-card rounded-[8px] border border-border shadow-sm">
             <div className="flex flex-col items-center justify-center py-16">
@@ -430,33 +421,32 @@ export default function NotificacionesView({
               <div
                 key={sev}
                 id={`sev-${sev}`}
-                className={`bg-card rounded-xl border border-border border-l-[3px] ${accent.border} shadow-sm overflow-hidden scroll-mt-24`}
+                className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden scroll-mt-24"
               >
                 <button
                   type="button"
                   onClick={() =>
                     setCollapsed((prev) => ({ ...prev, [sev]: !prev[sev] }))
                   }
-                  className={`w-full flex items-center justify-between px-5 py-3.5 border-b border-border transition-colors ${accent.headerBg}`}
+                  className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors hover:bg-muted/40 ${
+                    !isCollapsed ? "border-b border-border" : ""
+                  }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    {isCollapsed ? (
-                      <ChevronRight size={16} className="text-muted-foreground/70" />
-                    ) : (
-                      <ChevronDown size={16} className="text-muted-foreground/70" />
-                    )}
-                    <StatusBadge
-                      label={SEVERIDAD_LABEL[sev]}
-                      tone={SEVERIDAD_TONE[sev]}
-                    />
-                    <span className="text-sm font-semibold text-foreground">
-                      {items.length} {items.length === 1 ? "alerta" : "alertas"}
-                    </span>
-                  </div>
-                  <span className={`text-lg font-black ${accent.count}`}>{items.length}</span>
+                  {isCollapsed ? (
+                    <ChevronRight size={15} className="text-muted-foreground/70" />
+                  ) : (
+                    <ChevronDown size={15} className="text-muted-foreground/70" />
+                  )}
+                  <span className={`size-2 rounded-full ${accent.dot}`} aria-hidden />
+                  <span className={`text-[11px] font-extrabold uppercase tracking-wider ${accent.label}`}>
+                    {SEVERIDAD_LABEL[sev]}
+                  </span>
+                  <span className="text-[13px] font-semibold text-muted-foreground">
+                    {items.length} {items.length === 1 ? "alerta" : "alertas"}
+                  </span>
                 </button>
                 {!isCollapsed && (
-                  <div className="divide-y divide-[#F1F5F9]">
+                  <div className="divide-y divide-border/60">
                     {segments.map((seg) => (
                       <BloqueSeccion
                         key={seg.bloque}
@@ -510,40 +500,17 @@ export default function NotificacionesView({
   );
 }
 
+// Tarjetas de resumen sobrias: fondo de tarjeta normal, el color va solo en el
+// punto y en el número (los fondos pastel llenaban la pantalla de colores).
 const RESUMEN_TONE: Record<
   "total" | "urgente" | Severidad,
-  { bg: string; ring: string; value: string; dot: string }
+  { ring: string; value: string; dot: string }
 > = {
-  total: {
-    bg: "bg-card",
-    ring: "ring-[#0088D1]/60 border-[#B3E5FC]",
-    value: "text-foreground",
-    dot: "bg-[#64748B]",
-  },
-  urgente: {
-    bg: "bg-[#FEF2F2]",
-    ring: "ring-[#EF4444]/60 border-[#FECACA]",
-    value: "text-[#DC2626]",
-    dot: "bg-[#EF4444]",
-  },
-  critica: {
-    bg: "bg-[#FEF2F2]",
-    ring: "ring-[#EF4444]/60 border-[#FECACA]",
-    value: "text-[#DC2626]",
-    dot: "bg-[#EF4444]",
-  },
-  advertencia: {
-    bg: "bg-[#FFFBEB]",
-    ring: "ring-[#F59E0B]/60 border-[#FDE68A]",
-    value: "text-[#D97706]",
-    dot: "bg-[#F59E0B]",
-  },
-  info: {
-    bg: "bg-[#F0F9FF]",
-    ring: "ring-[#0088D1]/60 border-[#B3E5FC]",
-    value: "text-[#0369A1]",
-    dot: "bg-[#0088D1]",
-  },
+  total: { ring: "ring-[#0088D1]/50", value: "text-foreground", dot: "bg-[#64748B]" },
+  urgente: { ring: "ring-[#EF4444]/50", value: "text-[#DC2626]", dot: "bg-[#EF4444]" },
+  critica: { ring: "ring-[#EF4444]/50", value: "text-[#DC2626]", dot: "bg-[#EF4444]" },
+  advertencia: { ring: "ring-[#F59E0B]/50", value: "text-[#D97706]", dot: "bg-[#F59E0B]" },
+  info: { ring: "ring-[#0088D1]/50", value: "text-[#0369A1]", dot: "bg-[#0088D1]" },
 };
 
 function ResumenCard({
@@ -566,10 +533,10 @@ function ResumenCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`relative overflow-hidden rounded-[10px] border ${styles.bg} px-3.5 py-3 text-left transition-all hover:shadow-sm hover:-translate-y-0.5 ${
+      className={`relative overflow-hidden rounded-[8px] border bg-card px-3.5 py-3 text-left transition-all hover:shadow-sm ${
         active
-          ? `ring-2 ring-offset-1 ring-offset-background ${styles.ring}`
-          : "border-border"
+          ? `ring-2 ring-offset-1 ring-offset-background border-transparent ${styles.ring}`
+          : "border-border hover:border-border/80"
       } ${dimmed ? "opacity-60" : ""}`}
     >
       <div className="flex items-center gap-1.5">
@@ -609,7 +576,7 @@ function BloqueSeccion({
   return (
     <div>
       {showHeader && <BloqueHeader bloque={bloque} count={items.length} />}
-      <div className="divide-y divide-[#F1F5F9]">
+      <div className="divide-y divide-border/60">
         {visibles.map((alerta) => (
           <AlertaRow
             key={alerta.id}
@@ -685,7 +652,7 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
         <button
           type="button"
@@ -712,7 +679,7 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
         </button>
       </div>
       {open && (
-        <div className="divide-y divide-[#F1F5F9]">
+        <div className="divide-y divide-border/60">
           {items.map((alerta) => {
             const href = alertaHref(alerta);
             return (
@@ -776,7 +743,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${toneCls}`}
+      className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${toneCls}`}
     >
       {label}
     </button>
