@@ -287,8 +287,10 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
+      {/* En xl los viajes toman ~71% del ancho: la lista respira y las alertas
+          (ícono + etiqueta + número) no necesitan más que eso. */}
+      <div className="grid grid-cols-3 xl:grid-cols-7 gap-4">
+        <div className="col-span-2 xl:col-span-5 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <MapPin size={16} className="text-primary" />
@@ -303,7 +305,7 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
           </div>
         </div>
 
-        <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
+        <div className="xl:col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="text-[#F59E0B]" />
