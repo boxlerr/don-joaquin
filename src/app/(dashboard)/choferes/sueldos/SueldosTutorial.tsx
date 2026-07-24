@@ -104,8 +104,9 @@ export default function SueldosTutorial({
           </AnimatePresence>
         </div>
 
-        {/* Texto del paso */}
-        <div className="px-6 pt-5 pb-2 min-h-[120px]">
+        {/* Texto del paso — alto fijo para que los controles de abajo (dots y
+            botón Siguiente) queden siempre en la misma posición entre pasos. */}
+        <div className="px-6 pt-5 pb-2 h-[132px] overflow-y-auto no-scrollbar">
           <AnimatePresence mode="wait" custom={dir}>
             <motion.div
               key={paso.id}

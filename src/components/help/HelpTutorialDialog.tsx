@@ -33,9 +33,14 @@ export type TutorialTab = {
 export default function HelpTutorialDialog({
   title = "Guía de Gestión",
   tabs,
+  triggerClassName,
 }: {
   title?: string;
   tabs: TutorialTab[];
+  /** Override del estilo del botón que abre el tutorial. Por defecto es un
+   *  botón "Tutorial" alto (h-9) pensado para las barras de filtros; el header
+   *  de una página le pasa uno más chico (h-7) para alinear con sus acciones. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [tabId, setTabId] = useState(tabs[0]?.id ?? "");
@@ -80,7 +85,10 @@ export default function HelpTutorialDialog({
         onClick={() => setOpen(true)}
         title="Tutorial de la sección — cómo funciona esta pantalla, paso a paso"
         aria-label="Abrir el tutorial de la sección"
-        className="h-9 px-3 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1.5 text-[13px] font-medium"
+        className={
+          triggerClassName ??
+          "h-9 px-3 rounded-md border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1.5 text-[13px] font-medium"
+        }
       >
         <HelpCircle size={16} />
         Tutorial
@@ -88,7 +96,7 @@ export default function HelpTutorialDialog({
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] h-[560px] max-h-[calc(100vh-2rem)] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
@@ -208,23 +216,25 @@ export default function HelpTutorialDialog({
               </div>
             </div>
 
-            {/* Columna derecha: preview visual */}
-            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden">
-              <div className="flex-1 flex items-center justify-center p-6">
-                <div className="w-full max-w-[440px] transform transition-all duration-500 scale-[0.95]">
-                  <div className="relative rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
-                    <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40">
-                      <div className="flex gap-1">
-                        <div className="size-2 rounded-full bg-[#FF5F56]/30" />
-                        <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
-                        <div className="size-2 rounded-full bg-[#27C93F]/30" />
-                      </div>
-                      <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
-                        <div className="w-16 h-1 bg-muted rounded-full" />
-                      </div>
-                    </div>
-                    <div className="p-5 overflow-hidden">{current.mockup}</div>
+            {/* Columna derecha: preview visual — recuadro de tamaño fijo para
+                que no cambie de tamaño entre pasos ni entre solapas. */}
+            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden p-6">
+              <div className="relative flex-1 min-h-0 flex flex-col rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
+                <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40 shrink-0">
+                  <div className="flex gap-1">
+                    <div className="size-2 rounded-full bg-[#FF5F56]/30" />
+                    <div className="size-2 rounded-full bg-[#FFBD2E]/30" />
+                    <div className="size-2 rounded-full bg-[#27C93F]/30" />
                   </div>
+                  <div className="flex-1 h-4 rounded-md bg-card border border-border/60 flex items-center px-2">
+                    <div className="w-16 h-1 bg-muted rounded-full" />
+                  </div>
+                </div>
+                {/* El mockup se centra en un área de alto fijo; si algún mockup
+                    es más alto que el recuadro, hace scroll interno sin empujar
+                    el layout. */}
+                <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 flex items-center justify-center">
+                  <div className="w-full max-w-[440px]">{current.mockup}</div>
                 </div>
               </div>
             </div>
@@ -236,7 +246,7 @@ export default function HelpTutorialDialog({
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1 min-w-[104px]"
             >
               <ChevronLeft size={14} />
               Anterior
@@ -248,7 +258,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
+                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[104px]"
               >
                 Siguiente
                 <ChevronRight size={14} />
@@ -257,7 +267,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => { completar(tabId); changeTab(nextTab.id); }}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1 max-w-[220px]"
+                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[104px] max-w-[220px]"
                 title={`Continuar con “${nextTab.label}”`}
               >
                 <span className="truncate">Seguir: {nextTab.label}</span>
@@ -267,7 +277,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => { completar(tabId); setOpen(false); }}
-                className="h-8 px-3 text-sm rounded-md bg-[#10B981] text-white hover:bg-[#059669] inline-flex items-center gap-1"
+                className="h-8 px-3 text-sm rounded-md bg-[#10B981] text-white hover:bg-[#059669] inline-flex items-center justify-center gap-1 min-w-[104px]"
               >
                 <CheckCircle2 size={14} /> Terminar
               </button>
