@@ -23,13 +23,20 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          // "Recordarme" destildado (dj_remember="0"): las cookies sb-* se
+          // re-escriben como cookies de sesión (mueren al cerrar el navegador).
+          const soloSesion = request.cookies.get("dj_remember")?.value === "0";
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const opts =
+              soloSesion && name.startsWith("sb-")
+                ? { ...options, maxAge: undefined, expires: undefined }
+                : options;
+            response.cookies.set(name, value, opts);
+          });
         },
       },
     },

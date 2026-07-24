@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
   checkLoginStatus,
@@ -59,6 +59,19 @@ export async function loginAction(
     await auditLoginFailure(email, ipAddress, "rate_limit_ip", userAgent);
     return { error: "Demasiados intentos desde tu ubicación. Intentá de nuevo más tarde." };
   }
+
+  // Preferencia "Recordarme": destildado ⇒ dj_remember="0" para que las cookies
+  // de sesión (sb-*) se escriban como cookies de sesión (mueren al cerrar el
+  // navegador). Tildado ⇒ sesión persistente (comportamiento normal). Se setea
+  // ANTES de signIn para que su escritura de cookies ya respete la preferencia.
+  const recordarme = formData.get("remember-me") !== null;
+  const cookieStore = await cookies();
+  cookieStore.set("dj_remember", recordarme ? "1" : "0", {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });

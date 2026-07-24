@@ -15,9 +15,17 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
+            // "Recordarme" destildado (cookie dj_remember="0"): las cookies de
+            // sesión de Supabase (sb-*) se guardan como cookies de sesión (sin
+            // maxAge/expires) → se borran al cerrar el navegador.
+            const soloSesion = cookieStore.get("dj_remember")?.value === "0";
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const opts =
+                soloSesion && name.startsWith("sb-")
+                  ? { ...options, maxAge: undefined, expires: undefined }
+                  : options;
+              cookieStore.set(name, value, opts);
+            });
           } catch {
             // Server Component context — middleware will refresh the session.
           }
