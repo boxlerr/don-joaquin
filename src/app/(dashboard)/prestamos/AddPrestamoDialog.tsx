@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { addPrestamoAction } from "./actions";
 import { listaBancos } from "./bancos";
+import { Repeat, TrendingUp } from "lucide-react";
 
 /**
  * Alta de un préstamo con los mismos campos de la planilla de la mamá:
@@ -39,6 +40,9 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
   const [proximaNro, setProximaNro] = useState("1");
   const [proximaFecha, setProximaFecha] = useState("");
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const [variable, setVariable] = useState(false);
+  const [recurrente, setRecurrente] = useState(false);
+  const [diaMes, setDiaMes] = useState("");
   // El diálogo se monta en dos lugares (encabezado y tabla): ids únicos por
   // instancia para que las etiquetas nunca apunten al input equivocado.
   const uid = useId();
@@ -56,6 +60,9 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
     setProximaNro("1");
     setProximaFecha("");
     setMoneda("ARS");
+    setVariable(false);
+    setRecurrente(false);
+    setDiaMes("");
     setError(null);
   };
 
@@ -63,6 +70,10 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
     e.preventDefault();
     if (!banco.trim()) {
       setError("Elegí o escribí el banco.");
+      return;
+    }
+    if (recurrente && !diaMes.trim()) {
+      setError("Indicá qué día del mes vence.");
       return;
     }
     setLoading(true);
@@ -78,6 +89,9 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
         proxima_cuota_nro: parseInt(proximaNro) || 1,
         proxima_fecha: proximaFecha,
         moneda,
+        cuota_variable: variable,
+        es_recurrente: recurrente,
+        dia_vencimiento: recurrente ? Number(diaMes) : null,
       });
       if ("error" in res) {
         setError(res.error);
@@ -212,7 +226,60 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          {/* No todo es un préstamo con N cuotas: el plan de ARCA se paga
+              todos los meses y no termina nunca. */}
+          <div className="space-y-2.5 rounded-lg border border-border px-3 py-2.5">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={variable}
+                onChange={(e) => setVariable(e.target.checked)}
+                className="mt-0.5 size-3.5 accent-[#0088D1]"
+              />
+              <span className="text-[12px] leading-snug">
+                <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                  <TrendingUp size={12} className="text-primary" /> La cuota cambia mes a mes
+                </span>
+                <span className="block text-muted-foreground">
+                  Tasa variable. El importe de arriba se toma como el último conocido y la tabla
+                  muestra cuánto se movió; la deuda total pasa a ser una estimación.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={recurrente}
+                onChange={(e) => setRecurrente(e.target.checked)}
+                className="mt-0.5 size-3.5 accent-[#0088D1]"
+              />
+              <span className="text-[12px] leading-snug">
+                <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                  <Repeat size={12} className="text-primary" /> Se paga todos los meses
+                </span>
+                <span className="block text-muted-foreground">
+                  Sin fecha de fin, como el plan de ARCA. No hace falta cargar cuántas cuotas son.
+                </span>
+              </span>
+            </label>
+            {recurrente && (
+              <div className="flex items-center gap-2 pl-[22px]">
+                <Label className="text-xs text-muted-foreground">Vence el día</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={diaMes}
+                  onChange={(e) => setDiaMes(e.target.value)}
+                  placeholder="16"
+                  className="h-8 w-20"
+                />
+                <span className="text-xs text-muted-foreground">de cada mes</span>
+              </div>
+            )}
+          </div>
+
+          <div className={`grid grid-cols-3 gap-3 ${recurrente ? "hidden" : ""}`}>
             <div className="space-y-1">
               <Label htmlFor={`${uid}-total`} className="text-xs font-semibold text-muted-foreground">
                 Cuotas totales
@@ -224,7 +291,7 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                 value={cuotasTotal}
                 onChange={(e) => setCuotasTotal(e.target.value)}
                 placeholder="Ej: 48"
-                required
+                required={!recurrente}
               />
             </div>
             <div className="space-y-1">
@@ -237,7 +304,7 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                 min="1"
                 value={proximaNro}
                 onChange={(e) => setProximaNro(e.target.value)}
-                required
+                required={!recurrente}
               />
             </div>
             <div className="space-y-1">
@@ -249,12 +316,12 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                 type="date"
                 value={proximaFecha}
                 onChange={(e) => setProximaFecha(e.target.value)}
-                required
+                required={!recurrente}
               />
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+          <div className={`rounded-lg border border-border bg-muted/40 px-3 py-2.5 ${recurrente ? "hidden" : ""}`}>
             <p className="text-[11px] font-semibold text-foreground">
               ¿El préstamo ya viene pagándose hace meses?
             </p>

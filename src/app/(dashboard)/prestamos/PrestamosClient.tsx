@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  Repeat,
   Pencil,
   Landmark,
   BarChart3,
@@ -47,6 +48,8 @@ import {
 import AddPrestamoDialog from "./AddPrestamoDialog";
 import EditPrestamoDialog from "./EditPrestamoDialog";
 import { inicialesBanco, marcaBanco } from "./bancos";
+import { textoFaltantes, tieneFaltantes } from "./faltantes";
+import { formatoVariacion, variacionCuota } from "./variacion";
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
@@ -207,7 +210,7 @@ export default function PrestamosClient({
   const [fBanco, setFBanco] = useState("todos");
   const [fEstado, setFEstado] = useState<"todos" | "activos" | "cancelados" | "incompletos">("todos");
   const [busqueda, setBusqueda] = useState("");
-  const [orden, setOrden] = useState<OrdenPrestamo>("proxima");
+  const [orden, setOrden] = useState<OrdenPrestamo>("banco");
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
   const [editPrestamo, setEditPrestamo] = useState<PrestamoRow | null>(null);
   const [editKey, setEditKey] = useState(0);
@@ -373,7 +376,7 @@ export default function PrestamosClient({
   // Los préstamos a los que les falta información quedan fuera de los totales:
   // tienen la cuota en cero y sumarlos daría una deuda más baja que la real.
   const totalDeuda = prestamos
-    .filter((p) => !p.datos_faltantes && p.moneda !== "USD")
+    .filter((p) => !tieneFaltantes(p) && p.moneda !== "USD" && !p.es_recurrente)
     .reduce((s, p) => s + p.restante, 0);
 
   const bancos = [...new Set(prestamos.map((p) => p.banco))].sort((a, b) => a.localeCompare(b));
@@ -385,7 +388,7 @@ export default function PrestamosClient({
       if (fBanco !== "todos" && p.banco !== fBanco) return false;
       if (fEstado === "activos" && p.proxima == null) return false;
       if (fEstado === "cancelados" && p.proxima != null) return false;
-      if (fEstado === "incompletos" && !p.datos_faltantes) return false;
+      if (fEstado === "incompletos" && !tieneFaltantes(p)) return false;
       const q = busqueda.trim().toLowerCase();
       if (q && !`${p.banco} ${p.detalle ?? ""} ${p.referencia ?? ""}`.toLowerCase().includes(q))
         return false;
@@ -413,9 +416,9 @@ export default function PrestamosClient({
     });
 
   const deudaVisible = visibles
-    .filter((p) => !p.datos_faltantes && p.moneda !== "USD")
+    .filter((p) => !tieneFaltantes(p) && p.moneda !== "USD" && !p.es_recurrente)
     .reduce((s, p) => s + p.restante, 0);
-  const incompletos = prestamos.filter((p) => p.datos_faltantes).length;
+  const incompletos = prestamos.filter(tieneFaltantes).length;
 
   const togglePagada = (cuotaId: string, pagada: boolean) => {
     setSavingId(cuotaId);
@@ -885,10 +888,10 @@ export default function PrestamosClient({
                                     USD
                                   </span>
                                 )}
-                                {p.datos_faltantes && (
+                                {tieneFaltantes(p) && (
                                   <span
-                                    title={`Falta completar: ${p.datos_faltantes}`}
-                                    aria-label={`Préstamo incompleto, falta ${p.datos_faltantes}`}
+                                    title={`Falta completar: ${textoFaltantes(p)}`}
+                                    aria-label={`Préstamo incompleto, falta ${textoFaltantes(p)}`}
                                     className="inline-flex shrink-0 text-amber-500"
                                   >
                                     <AlertTriangle size={13} />
@@ -910,24 +913,65 @@ export default function PrestamosClient({
                           {p.tasa != null ? `${p.tasa.toLocaleString("es-AR")}%` : "—"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-foreground">
-                          {p.datos_faltantes && p.importe_cuota === 0
-                            ? "—"
-                            : p.moneda === "USD"
-                              ? `US$ ${p.importe_cuota.toLocaleString("es-AR")}`
-                              : ars(p.importe_cuota)}
+                          {p.importe_cuota === 0 ? (
+                            "—"
+                          ) : (
+                            <>
+                              {p.moneda === "USD"
+                                ? `US$ ${p.importe_cuota.toLocaleString("es-AR")}`
+                                : ars(p.importe_cuota)}
+                              {/* Tasa variable: el número de arriba es el último
+                                  conocido, así que abajo va cuánto se movió
+                                  respecto del importe anterior. */}
+                              {p.cuota_variable &&
+                                (() => {
+                                  const v = variacionCuota(p.cuotas);
+                                  return (
+                                    <span
+                                      className="block text-[11px] font-normal leading-tight text-muted-foreground"
+                                      title={
+                                        v
+                                          ? `La cuota cambia mes a mes. Pasó de ${ars(v.anterior)} a ${ars(v.actual)}.`
+                                          : "La cuota cambia mes a mes: éste es el último importe que nos pasaron."
+                                      }
+                                    >
+                                      {v ? (
+                                        <span
+                                          className={
+                                            v.diferencia >= 0 ? "text-[#B45309]" : "text-[#059669]"
+                                          }
+                                        >
+                                          {formatoVariacion(v.porcentaje)} vs. la anterior
+                                        </span>
+                                      ) : (
+                                        "cuota variable"
+                                      )}
+                                    </span>
+                                  );
+                                })()}
+                            </>
+                          )}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-emerald-500"
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className="tabular-nums text-xs text-muted-foreground">
-                              {p.pagadas}/{p.cuotas_total}
+                          {p.es_recurrente ? (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Repeat size={12} className="text-primary" />
+                              Todos los meses
+                              {p.dia_vencimiento ? `, el ${p.dia_vencimiento}` : ""}
                             </span>
-                          </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-emerald-500"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="tabular-nums text-xs text-muted-foreground">
+                                {p.pagadas}/{p.cuotas_total}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {p.proxima ? fmtFecha(p.proxima.fecha_vencimiento) : "Cancelado ✅"}
@@ -936,7 +980,26 @@ export default function PrestamosClient({
                           {ultima ? fmtFecha(ultima) : "—"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-foreground">
-                          {p.restante > 0 ? ars(p.restante) : "—"}
+                          {p.es_recurrente ? (
+                            // Una obligación sin fin no tiene deuda total.
+                            <span className="font-normal text-muted-foreground/70" title="Es un pago mensual sin fecha de fin: no tiene una deuda total.">
+                              sin fin
+                            </span>
+                          ) : p.restante > 0 ? (
+                            <span
+                              className={p.cuota_variable ? "text-muted-foreground" : undefined}
+                              title={
+                                p.cuota_variable
+                                  ? "Estimado: la cuota cambia mes a mes, esto proyecta el último importe conocido."
+                                  : undefined
+                              }
+                            >
+                              {p.cuota_variable ? "≈ " : ""}
+                              {ars(p.restante)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         {canWrite && (
                           <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>

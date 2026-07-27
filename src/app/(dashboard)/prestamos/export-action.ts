@@ -7,6 +7,7 @@ import {
   type CellValue,
 } from "@/lib/excel/professional-sheet";
 import { getPrestamosAction } from "./actions";
+import { textoFaltantes } from "./faltantes";
 
 // Arma el Excel de préstamos con el estilo profesional del sistema (mismo que
 // cheques, clientes, viajes…) y lo devuelve en base64 para que el botón dispare
@@ -61,7 +62,7 @@ export async function exportarPrestamosXlsxAction(): Promise<{
       fechaCell(p.proxima?.fecha_vencimiento),
       fechaCell(ultima),
       p.restante,
-      p.datos_faltantes || null,
+      textoFaltantes(p),
     ];
   });
 
