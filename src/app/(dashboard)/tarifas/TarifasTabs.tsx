@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Calculator, Route, Settings, TrendingUp, Users } from "lucide-react";
-import AjustesTarifa from "./AjustesTarifa";
+import { Calculator, Route, Users } from "lucide-react";
 import CalculadoraTarifasAvanzada from "./CalculadoraTarifasAvanzada";
 import HelpTutorialButton from "./help-tutorial-button";
-import TabTarifasPorCliente from "./TabTarifasPorCliente";
+import TabClientes from "./TabClientes";
 import TabCircuitos from "./TabCircuitos";
-import TabAumentos from "./TabAumentos";
 import type {
   CircuitoConRelaciones,
   ClienteOption,
@@ -18,7 +16,20 @@ import type {
 } from "./actions";
 import type { AumentoClienteHist } from "./actions-aumentos";
 
-export type TabId = "calculadora" | "tarifas" | "aumentos" | "circuitos" | "ajustes";
+// "aumentos" y "ajustes" ya no son pestañas propias: los aumentos viven dentro
+// de la ficha del cliente y los valores base pasaron a la Calculadora, que es
+// donde se usan. Se aceptan igual como entrada porque /metricas linkea con
+// ?tab=aumentos&cliente=X (ver ALIAS_TAB).
+export type TabId = "calculadora" | "tarifas" | "circuitos";
+export type TabIdEntrada = TabId | "aumentos" | "ajustes";
+
+const ALIAS_TAB: Record<TabIdEntrada, TabId> = {
+  calculadora: "calculadora",
+  tarifas: "tarifas",
+  circuitos: "circuitos",
+  aumentos: "tarifas",
+  ajustes: "calculadora",
+};
 
 type Props = {
   params: TarifaParams;
@@ -29,19 +40,17 @@ type Props = {
   puntos: PuntoRutaOption[];
   aumentos: AumentoClienteHist[];
   canWrite?: boolean;
-  /** Puede ver /metricas → el pie de Aumentos linkea al dashboard. */
+  /** Puede ver /metricas → el pie de los aumentos linkea al dashboard. */
   canMetricas?: boolean;
-  initialTab?: TabId;
-  /** Cliente preseleccionado en la tab Aumentos (link desde /metricas). */
+  initialTab?: TabIdEntrada;
+  /** Cliente preseleccionado (link desde /metricas). */
   initialCliente?: string;
 };
 
 const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
   { id: "calculadora", label: "Calculadora", icon: Calculator },
-  { id: "tarifas", label: "Tarifas por cliente", icon: Users },
-  { id: "aumentos", label: "Aumentos", icon: TrendingUp },
+  { id: "tarifas", label: "Clientes", icon: Users },
   { id: "circuitos", label: "Circuitos", icon: Route },
-  { id: "ajustes", label: "Ajustes globales", icon: Settings },
 ];
 
 export default function TarifasTabs({
@@ -57,7 +66,7 @@ export default function TarifasTabs({
   initialTab,
   initialCliente,
 }: Props) {
-  const [tab, setTabState] = useState<TabId>(initialTab ?? "calculadora");
+  const [tab, setTabState] = useState<TabId>(initialTab ? ALIAS_TAB[initialTab] : "calculadora");
 
   // Tab en la URL: linkeable desde /metricas y sobrevive un refresh.
   const setTab = (t: TabId) => {
@@ -109,22 +118,16 @@ export default function TarifasTabs({
           params={params}
           clientes={clientes}
           rutas={rutas}
-        />
-      )}
-
-      {tab === "tarifas" && (
-        <TabTarifasPorCliente
-          tarifasIniciales={tarifas}
-          clientes={clientes}
-          rutas={rutas}
           canWrite={canWrite}
         />
       )}
 
-      {tab === "aumentos" && (
-        <TabAumentos
+      {tab === "tarifas" && (
+        <TabClientes
+          tarifasIniciales={tarifas}
           aumentosIniciales={aumentos}
           clientes={clientes}
+          rutas={rutas}
           initialCliente={initialCliente}
           canWrite={canWrite}
           canMetricas={canMetricas}
@@ -137,12 +140,6 @@ export default function TarifasTabs({
           puntos={puntos}
           canWrite={canWrite}
         />
-      )}
-
-      {tab === "ajustes" && (
-        <div className="max-w-md">
-          <AjustesTarifa params={params} canWrite={canWrite} />
-        </div>
       )}
     </div>
   );

@@ -169,9 +169,8 @@ function EventoHistorial({
 function MockSeccionesTabs() {
   const tabs = [
     { label: "Calculadora", icon: <Calculator size={12} />, active: true },
-    { label: "Tarifas por cliente", icon: <Users size={12} />, active: false },
+    { label: "Clientes", icon: <Users size={12} />, active: false },
     { label: "Circuitos", icon: <Route size={12} />, active: false },
-    { label: "Ajustes globales", icon: <Settings size={12} />, active: false },
   ];
   return (
     <div className="space-y-3">
@@ -703,7 +702,7 @@ const TABS: TutorialTab[] = [
       {
         title: "Las 4 pestañas de Tarifas",
         description:
-          "La pantalla abre en la Calculadora y arriba tenés 4 secciones: Calculadora, Tarifas por cliente, Circuitos y Ajustes globales. El botón Tutorial está a la derecha de estas pestañas.",
+          "La pantalla abre en la Calculadora y arriba tenés 3 secciones: Calculadora, Clientes y Circuitos. En Clientes está todo lo de cada cliente junto: sus tarifas y sus aumentos. El botón Tutorial está a la derecha de estas pestañas.",
         mockup: <MockSeccionesTabs />,
       },
       {
@@ -805,13 +804,13 @@ const TABS: TutorialTab[] = [
   },
   {
     id: "ajustes",
-    label: "Ajustes",
+    label: "Valores base",
     icon: <Settings size={14} />,
     steps: [
       {
-        title: "Ajustes globales de respaldo",
+        title: "Valores base del cálculo",
         description:
-          "Son los valores base: tarifa base, precio por kg y precio por km. La calculadora los usa cuando el cliente no tiene una tarifa propia cargada para esa combinación.",
+          "Tarifa base, precio por kg y precio por km. Se usan solo cuando el cliente no tiene una tarifa propia para esa combinación. Están abajo de todo en la Calculadora, plegados: antes eran una pestaña aparte, pero solo sirven ahí.",
         mockup: <MockAjustesGlobales />,
       },
       {

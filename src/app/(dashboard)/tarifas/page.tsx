@@ -1,6 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
-import TarifasTabs, { type TabId } from "./TarifasTabs";
+import TarifasTabs, { type TabIdEntrada } from "./TarifasTabs";
 import {
   getTarifaParams,
   obtenerCircuitos,
@@ -12,7 +12,7 @@ import { obtenerAumentosClientes } from "./actions-aumentos";
 
 // Duplicada acá porque TarifasTabs es "use client" y sus valores no se pueden
 // usar del lado server (mismo patrón que /mantenimiento).
-const TABS_VALIDAS: TabId[] = ["calculadora", "tarifas", "aumentos", "circuitos", "ajustes"];
+const TABS_VALIDAS: TabIdEntrada[] = ["calculadora", "tarifas", "aumentos", "circuitos", "ajustes"];
 
 export default async function TarifasPage({
   searchParams,
@@ -23,7 +23,7 @@ export default async function TarifasPage({
   const canWrite = hasSeccion(user, "tarifas", "write");
   const canMetricas = hasSeccion(user, "metricas", "read");
   const { tab, cliente } = await searchParams;
-  const initialTab = TABS_VALIDAS.includes(tab as TabId) ? (tab as TabId) : undefined;
+  const initialTab = TABS_VALIDAS.includes(tab as TabIdEntrada) ? (tab as TabIdEntrada) : undefined;
 
   const [params, { clientes, rutas }, tarifas, circuitos, puntos, aumentos] =
     await Promise.all([
@@ -39,7 +39,7 @@ export default async function TarifasPage({
     <div className="p-8">
       <PageHeader
         title="Tarifas"
-        description="Calculadora, tarifas y aumentos por cliente, circuitos y parámetros globales"
+        description="Calculadora de fletes, tarifas y aumentos por cliente, y circuitos"
       />
       <TarifasTabs
         params={params}

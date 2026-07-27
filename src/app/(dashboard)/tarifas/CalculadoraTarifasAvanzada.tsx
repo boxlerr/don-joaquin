@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Calculator, DollarSign, Info, Route, Weight, Zap } from "lucide-react";
+import { Calculator, ChevronDown, DollarSign, Info, Route, Settings, Weight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,11 +14,13 @@ import {
   type TarifaParams,
 } from "./actions";
 import { getModalidadMeta } from "./validaciones";
+import AjustesTarifa from "./AjustesTarifa";
 
 type Props = {
   params: TarifaParams;
   clientes: ClienteOption[];
   rutas: RutaOption[];
+  canWrite?: boolean;
 };
 
 function fmtARS(n: number): string {
@@ -99,7 +101,11 @@ export default function CalculadoraTarifasAvanzada({
   params,
   clientes,
   rutas,
+  canWrite = false,
 }: Props) {
+  // Los valores base tenían pestaña propia ("Ajustes globales"), pero solo se
+  // usan acá: son el cálculo de respaldo cuando el cliente no tiene tarifa.
+  const [verAjustes, setVerAjustes] = useState(false);
   const [clienteId, setClienteId] = useState("");
   const [rutaId, setRutaId] = useState("");
   const [peso, setPeso] = useState("");
@@ -144,6 +150,7 @@ export default function CalculadoraTarifasAvanzada({
   }
 
   return (
+    <div className="space-y-4">
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="bg-card rounded-[8px] border border-border shadow-sm">
         <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
@@ -349,6 +356,39 @@ export default function CalculadoraTarifasAvanzada({
             )}
           </div>
         </div>
+      </div>
+      </div>
+
+      {/* Valores base del cálculo de respaldo. Plegado: se tocan una vez cada
+          tanto, pero tienen que estar donde se usan y no en una pestaña aparte. */}
+      <div className="rounded-[8px] border border-border bg-card shadow-sm">
+        <button
+          type="button"
+          onClick={() => setVerAjustes((v) => !v)}
+          aria-expanded={verAjustes}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left"
+        >
+          <Settings size={14} className="text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">Valores base del cálculo</span>
+          <span className="text-[11px] text-muted-foreground">
+            base {fmtARS(params.tarifa_base)} · {fmtARS(params.precio_por_kg)}/kg · {fmtARS(params.precio_por_km)}/km
+          </span>
+          <ChevronDown
+            size={15}
+            className={`ml-auto shrink-0 text-muted-foreground transition-transform ${verAjustes ? "rotate-180" : ""}`}
+          />
+        </button>
+        {verAjustes && (
+          <div className="border-t border-border p-4">
+            <p className="mb-3 max-w-2xl text-[12px] leading-snug text-muted-foreground">
+              Se usan solo cuando el cliente no tiene una tarifa propia cargada. Si el cliente tiene
+              tarifa, manda la del cliente y estos valores no intervienen.
+            </p>
+            <div className="max-w-md">
+              <AjustesTarifa params={params} canWrite={canWrite} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
