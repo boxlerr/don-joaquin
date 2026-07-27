@@ -23,7 +23,7 @@ describe("planSugerido", () => {
       semanas: sem,
       ocupacion: sem.map(() => 0),
       ocupadoPorChofer: new Set(),
-      umbral: 2,
+      umbralPorSemana: sem.map(() => 2),
     });
     expect(plan.sinLugar).toHaveLength(0);
     expect(plan.items.reduce((acc, i) => acc + i.dias, 0)).toBe(35);
@@ -41,7 +41,7 @@ describe("planSugerido", () => {
       semanas: sem,
       ocupacion: [1, 0, 0, 0],
       ocupadoPorChofer: new Set([`a|${sem[0]!.start}`]),
-      umbral: 4,
+      umbralPorSemana: sem.map(() => 4),
     });
     expect(plan.items[0]!.fecha_inicio).toBe(sem[1]!.start);
   });
@@ -53,11 +53,25 @@ describe("planSugerido", () => {
       semanas: sem,
       ocupacion: [1, 1], // ya hay 1 de vacaciones en cada semana
       ocupadoPorChofer: new Set(),
-      umbral: 2,
+      umbralPorSemana: sem.map(() => 2),
     });
     // entra uno solo (ocupa el único lugar libre de ambas semanas)
     expect(plan.items.map((i) => i.chofer_id)).toEqual(["a", "a"].slice(0, plan.items.length));
     expect(plan.sinLugar.map((s) => s.chofer_id)).toContain("b");
+  });
+
+  it("aprovecha las semanas con umbral más alto (diciembre) y respeta las bajas", () => {
+    const sem = semanas(4);
+    // Las dos primeras semanas están cerradas (umbral 0), las dos últimas abren.
+    const plan = planSugerido({
+      urgentes: [u("a", 7)],
+      semanas: sem,
+      ocupacion: sem.map(() => 0),
+      ocupadoPorChofer: new Set(),
+      umbralPorSemana: [0, 0, 3, 3],
+    });
+    expect(plan.sinLugar).toHaveLength(0);
+    expect(plan.items[0]!.fecha_inicio).toBe(sem[2]!.start);
   });
 
   it("un saldo de 21 días sale en bloques (14 + 7)", () => {
@@ -67,7 +81,7 @@ describe("planSugerido", () => {
       semanas: sem,
       ocupacion: sem.map(() => 0),
       ocupadoPorChofer: new Set(),
-      umbral: 4,
+      umbralPorSemana: sem.map(() => 4),
     });
     expect(plan.items.filter((i) => i.chofer_id === "a").reduce((acc, i) => acc + i.dias, 0)).toBe(21);
     expect(plan.items[0]!.dias).toBe(14);

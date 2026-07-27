@@ -29,10 +29,28 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
   const [inicio, setInicio] = useState(periodo?.fecha_inicio ?? "");
   const [fin, setFin] = useState(periodo?.fecha_fin ?? "");
   const [observaciones, setObservaciones] = useState(periodo?.observaciones ?? "");
+  // De qué año descuenta. "hist" = histórico (no descuenta del saldo).
+  const [anioCargo, setAnioCargo] = useState<string>(
+    periodo?.anio_cargo != null ? String(periodo.anio_cargo) : "hist",
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
+
+  // Años ofrecibles: el del período por fecha, el anterior, y el que ya tiene.
+  // Se incluye SIEMPRE el año seleccionado: al mover el período a otro año la
+  // lista se recalcula, y si el elegido se caía de la lista el select quedaba en
+  // blanco y guardaba un año que el usuario no veía.
+  const anioFecha = Number((inicio || periodo?.fecha_inicio || "").slice(0, 4)) || new Date().getFullYear();
+  const anioSel = anioCargo === "hist" ? null : Number(anioCargo);
+  const aniosOpciones = [
+    ...new Set(
+      [anioFecha, anioFecha - 1, periodo?.anio_cargo, anioSel].filter(
+        (a): a is number => typeof a === "number" && Number.isFinite(a),
+      ),
+    ),
+  ].sort((a, b) => b - a);
 
   // Viajes en el rango (mismo patrón aceptado que el diálogo de carga).
   useEffect(() => {
@@ -67,6 +85,7 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
       fecha_fin: fin,
       observaciones: observaciones.trim() || null,
       es_vacaciones: true,
+      anio_cargo: anioCargo === "hist" ? null : Number(anioCargo),
     });
     setLoading(false);
     if (res.error) setError(res.error);
@@ -112,6 +131,26 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
               </Label>
               <Input type="date" value={fin} min={inicio} onChange={(e) => setFin(e.target.value)} required />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">Descuenta del saldo</Label>
+            <select
+              value={anioCargo}
+              onChange={(e) => setAnioCargo(e.target.value)}
+              className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+            >
+              {aniosOpciones.map((y) => (
+                <option key={y} value={y}>
+                  Año {y}
+                </option>
+              ))}
+              <option value="hist">Histórico — no descuenta del saldo</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              De qué año salen estos días. Si quedó imputado al año equivocado, se corrige acá y los
+              saldos se recalculan solos.
+            </p>
           </div>
 
           <div className="space-y-1.5">

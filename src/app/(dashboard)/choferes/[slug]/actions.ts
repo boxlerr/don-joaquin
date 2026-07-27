@@ -1,14 +1,20 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea, requireSeccion, requireAdmin, hasArea, hasSeccion } from "@/lib/auth";
+import { requireArea, requireSeccion, requireUser, requireAdmin, hasArea, hasSeccion } from "@/lib/auth";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
-import { saldosPorAnio, anioParaImputar } from "../vacaciones/derivar";
+import {
+  saldosPorAnio,
+  anioParaImputar,
+  resumenSaldos,
+  diasPorAntiguedad,
+  aniosCumplidos,
+} from "../vacaciones/derivar";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -39,7 +45,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   const supabase = createAdminClient();
 
   const baseSelect =
-    "id, nombre, apellido, dni, cuil, estado, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, nro_tramite_dni, clave_fiscal, alta_afip, periodo_prueba_fin, rol, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
+    "id, nombre, apellido, dni, cuil, estado, es_demo, localidad, email, telefono, domicilio, provincia, fecha_nacimiento, fecha_ingreso, fecha_egreso, motivo_egreso, observaciones, cbu, alias_cbu, banco, telefono_emergencia, ciudad_nacimiento, nro_tramite_dni, clave_fiscal, alta_afip, periodo_prueba_fin, rol, updated_at, foto_id, foto:documentos_archivos(bucket, path)";
 
   type ChoferRow = { id: string; apellido: string; nombre: string } & Record<string, unknown>;
   let chofer: ChoferRow | null = null;
@@ -890,19 +896,41 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         if (a.anio_cargo != null)
           usadosPorAnio.set(a.anio_cargo, (usadosPorAnio.get(a.anio_cargo) ?? 0) + dias);
       }
-      const saldosAnio = saldosPorAnio(
-        (vacacionesAniosRaw ?? []).map((r) => ({
-          anio: r.anio,
-          dias: r.dias_correspondientes ?? 0,
-          observaciones: r.observaciones,
-        })),
-        usadosPorAnio,
-      );
+      // La fila del año en curso se crea sola, pero eso pasa al abrir
+      // /choferes/vacaciones. Para que el legajo de alguien que ingresó hace poco
+      // no muestre 0 días hasta que alguien entre a esa pantalla, se anticipa el
+      // mismo valor (días por antigüedad) sin escribir nada desde un getter.
+      const otorgados = (vacacionesAniosRaw ?? []).map((r) => ({
+        anio: r.anio,
+        dias: r.dias_correspondientes ?? 0,
+        observaciones: r.observaciones,
+      }));
+      const ingresoChofer = typeof chofer.fecha_ingreso === "string" ? chofer.fecha_ingreso : null;
+      // Sólo para quien está en la dotación real: a un egresado (o a un chofer
+      // demo) no le corresponden días nuevos, y la vista global tampoco se los
+      // crea. Mismo criterio que vacaciones/lib.ts.
+      const enDotacion = chofer.estado === "activo" && chofer.es_demo !== true;
+      if (enDotacion && ingresoChofer && !otorgados.some((o) => o.anio === anioActual)) {
+        // Sin observación: esta fila todavía no existe en la DB y el editor la
+        // manda tal cual al guardar; una nota explicativa quedaría persistida
+        // como si fuera algo que escribió alguien.
+        otorgados.push({
+          anio: anioActual,
+          dias: diasPorAntiguedad(aniosCumplidos(ingresoChofer, anioActual)),
+          observaciones: null,
+        });
+      }
+      const saldosAnio = saldosPorAnio(otorgados, usadosPorAnio);
+      // Mismo derivador que la vista global: adeudados = saldo de Y−1 (lo
+      // anterior ya venció) y disponibles = saldo vigente, sin volver a restar
+      // los tomados (ya están descontados dentro del año que los consumió).
+      const r = resumenSaldos(saldosAnio, anioActual);
       return {
-        dias_correspondientes: saldosAnio.find((s) => s.anio === anioActual)?.otorgados ?? 0,
-        dias_adeudados: saldosAnio.filter((s) => s.anio < anioActual).reduce((a, s) => a + s.saldo, 0),
+        dias_correspondientes: r.corresponden,
+        dias_adeudados: r.adeudados,
         dias_tomados: tomados,
-        dias_disponibles: saldosAnio.reduce((a, s) => a + s.saldo, 0),
+        dias_disponibles: r.disponibles,
+        dias_vencidos: r.diasVencidos,
         anios: saldosAnio,
       };
     })(),
@@ -1212,6 +1240,17 @@ function diasPeriodo(inicio: string, fin: string): number {
   return Math.max(1, Math.round((f - ini) / 86_400_000) + 1);
 }
 
+/**
+ * Gate de escritura de ausencias. Las vacaciones tienen su propia subsección
+ * (`choferes_vacaciones`), así que cerrársela a alguien tiene que BLOQUEARLE la
+ * acción, no sólo esconderle el botón. Las ausencias comunes siguen bajo
+ * `choferes`. Una subsección no confidencial hereda el nivel de su área, así que
+ * esto no le saca permiso a nadie que hoy pueda escribir.
+ */
+function requireAusenciaWrite(esVacaciones: boolean) {
+  return requireSeccion(esVacaciones ? "choferes_vacaciones" : "choferes", "write");
+}
+
 // Saldos por año del chofer (otorgados − períodos imputados), opcionalmente
 // excluyendo un período (para reimputar al editarlo).
 async function saldosAnioChofer(
@@ -1260,7 +1299,7 @@ export async function crearAusenciaAction(
     justificada?: boolean;
   },
 ) {
-  const user = await requireArea("logistica", "write");
+  const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
   const supabase = createAdminClient();
 
   const tipo = data.tipo.trim();
@@ -1278,19 +1317,23 @@ export async function crearAusenciaAction(
   const anioCargo = data.es_vacaciones
     ? anioParaImputar(await saldosAnioChofer(sbAny, chofer_id), data.fecha_inicio)
     : null;
-  const { error } = await sbAny.from("chofer_ausencias").insert({
-    chofer_id,
-    tipo,
-    fecha_inicio: data.fecha_inicio,
-    fecha_fin: data.fecha_fin,
-    estado: "autorizada",
-    autorizado_por: user.id,
-    observaciones: data.observaciones?.trim() || null,
-    es_vacaciones: data.es_vacaciones ?? false,
-    justificada: data.justificada ?? true,
-    anio_cargo: anioCargo,
-    created_by: user.id,
-  });
+  const { data: creada, error } = await sbAny
+    .from("chofer_ausencias")
+    .insert({
+      chofer_id,
+      tipo,
+      fecha_inicio: data.fecha_inicio,
+      fecha_fin: data.fecha_fin,
+      estado: "autorizada",
+      autorizado_por: user.id,
+      observaciones: data.observaciones?.trim() || null,
+      es_vacaciones: data.es_vacaciones ?? false,
+      justificada: data.justificada ?? true,
+      anio_cargo: anioCargo,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
 
   if (error) return { error: "No se pudo registrar la ausencia" };
 
@@ -1298,8 +1341,15 @@ export async function crearAusenciaAction(
     chofer_id,
     "ausencia_creada",
     null,
-    { tipo, fecha_inicio: data.fecha_inicio, fecha_fin: data.fecha_fin },
+    {
+      tipo,
+      fecha_inicio: data.fecha_inicio,
+      fecha_fin: data.fecha_fin,
+      es_vacaciones: data.es_vacaciones ?? false,
+      anio_cargo: anioCargo,
+    },
     user.id,
+    creada?.id ? { tipo: "chofer_ausencia", id: creada.id as string } : undefined,
   );
 
   revalidatePath("/choferes/[slug]", "page");
@@ -1314,7 +1364,7 @@ export async function crearAusenciaAction(
 export async function cargarVacacionesBatchAction(
   items: { chofer_id: string; fecha_inicio: string; fecha_fin: string }[],
 ) {
-  const user = await requireArea("logistica", "write");
+  const user = await requireSeccion("choferes_vacaciones", "write");
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
@@ -1332,19 +1382,23 @@ export async function cargarVacacionesBatchAction(
       continue;
     }
     const anioCargo = anioParaImputar(await saldosAnioChofer(sb, item.chofer_id), item.fecha_inicio);
-    const { error } = await sb.from("chofer_ausencias").insert({
-      chofer_id: item.chofer_id,
-      tipo: "Vacaciones",
-      fecha_inicio: item.fecha_inicio,
-      fecha_fin: item.fecha_fin,
-      estado: "autorizada",
-      autorizado_por: user.id,
-      observaciones: "Plan sugerido",
-      es_vacaciones: true,
-      justificada: true,
-      anio_cargo: anioCargo,
-      created_by: user.id,
-    });
+    const { data: creada, error } = await sb
+      .from("chofer_ausencias")
+      .insert({
+        chofer_id: item.chofer_id,
+        tipo: "Vacaciones",
+        fecha_inicio: item.fecha_inicio,
+        fecha_fin: item.fecha_fin,
+        estado: "autorizada",
+        autorizado_por: user.id,
+        observaciones: "Plan sugerido",
+        es_vacaciones: true,
+        justificada: true,
+        anio_cargo: anioCargo,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
     if (error) {
       errores.push("No se pudo cargar un período");
       continue;
@@ -1354,8 +1408,15 @@ export async function cargarVacacionesBatchAction(
       item.chofer_id,
       "ausencia_creada",
       null,
-      { tipo: "Vacaciones", fecha_inicio: item.fecha_inicio, fecha_fin: item.fecha_fin, origen: "plan_sugerido" },
+      {
+        tipo: "Vacaciones",
+        fecha_inicio: item.fecha_inicio,
+        fecha_fin: item.fecha_fin,
+        anio_cargo: anioCargo,
+        origen: "plan_sugerido",
+      },
       user.id,
+      creada?.id ? { tipo: "chofer_ausencia", id: creada.id as string } : undefined,
     );
   }
 
@@ -1375,9 +1436,15 @@ export async function editarAusenciaAction(
     observaciones?: string | null;
     es_vacaciones?: boolean;
     justificada?: boolean;
+    /**
+     * Año del que descuenta el período. `undefined` = no tocar (el caso del
+     * drag & drop del cronograma, que sólo mueve fechas). `null` = marcarlo como
+     * histórico. Un número lo reimputa a ese año.
+     */
+    anio_cargo?: number | null;
   },
 ) {
-  const user = await requireArea("logistica", "write");
+  const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
   const supabase = createAdminClient();
 
   const tipo = data.tipo.trim();
@@ -1397,19 +1464,39 @@ export async function editarAusenciaAction(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
-  const { data: previo } = await sb
+  const { data: previo, error: errPrevio } = await sb
     .from("chofer_ausencias")
     .select("tipo, fecha_inicio, fecha_fin, observaciones, es_vacaciones, anio_cargo")
     .eq("id", id)
     .single();
+  // Sin la fila previa no se puede decidir la imputación sin pisarla: mejor
+  // frenar que dejarla en "histórico" en silencio.
+  if (errPrevio || !previo) return { error: "No se encontró la ausencia que se quiere editar." };
 
-  // Imputación por año: si deja de ser vacaciones se limpia; si pasa a serlo se
-  // asigna al año más viejo con saldo. Un cargo ya asignado (o null histórico)
-  // se conserva aunque cambien las fechas.
+  // Si lo que se está editando ERA vacaciones, hace falta el permiso de
+  // vacaciones aunque se lo quiera convertir en una ausencia común: si no,
+  // alguien sin acceso a Vacaciones podría desarmar un período desde Ausencias.
+  if (previo.es_vacaciones && !(data.es_vacaciones ?? false)) {
+    await requireSeccion("choferes_vacaciones", "write");
+  }
+
+  // Imputación por año:
+  //  · si deja de ser vacaciones se limpia;
+  //  · si el que edita eligió un año explícito, manda ese;
+  //  · si pasa a ser vacaciones, se asigna al año más viejo con saldo;
+  //  · si no, se conserva el que tenía (mover de fechas no reimputa solo).
   const esVac = data.es_vacaciones ?? false;
-  let anioCargo: number | null = previo?.anio_cargo ?? null;
+  let anioCargo: number | null = previo.anio_cargo ?? null;
   if (!esVac) anioCargo = null;
-  else if (previo && !previo.es_vacaciones)
+  else if (data.anio_cargo !== undefined) {
+    if (data.anio_cargo === null) anioCargo = null;
+    else {
+      const a = Math.trunc(Number(data.anio_cargo));
+      if (!Number.isInteger(a) || a < 2000 || a > 2100)
+        return { error: "El año del que descuenta no es válido." };
+      anioCargo = a;
+    }
+  } else if (!previo.es_vacaciones)
     anioCargo = anioParaImputar(await saldosAnioChofer(sb, chofer_id, id), data.fecha_inicio);
 
   const nuevos = {
@@ -1425,7 +1512,10 @@ export async function editarAusenciaAction(
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);
   if (error) return { error: "No se pudo actualizar la ausencia" };
 
-  await logChoferAudit(chofer_id, "ausencia_editada", previo ?? null, nuevos, user.id);
+  await logChoferAudit(chofer_id, "ausencia_editada", previo, nuevos, user.id, {
+    tipo: "chofer_ausencia",
+    id,
+  });
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
@@ -1434,16 +1524,23 @@ export async function editarAusenciaAction(
 }
 
 export async function cancelarAusenciaAction(id: string, chofer_id: string) {
-  const user = await requireArea("logistica", "write");
+  // Hay que leer la fila para saber si es un período de vacaciones antes de
+  // decidir qué permiso pedir; requireUser garantiza que haya sesión.
+  await requireUser();
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: previo } = await sb
     .from("chofer_ausencias")
-    .select("tipo, fecha_inicio, fecha_fin")
+    .select("tipo, fecha_inicio, fecha_fin, es_vacaciones, anio_cargo")
     .eq("id", id)
+    .eq("chofer_id", chofer_id)
+    .is("deleted_at", null)
     .single();
+  if (!previo) return { error: "No se encontró la ausencia que se quiere cancelar." };
+
+  const user = await requireAusenciaWrite(previo.es_vacaciones ?? false);
 
   // Soft delete: preserva trazabilidad histórica.
   const { error } = await sb
@@ -1452,7 +1549,10 @@ export async function cancelarAusenciaAction(id: string, chofer_id: string) {
     .eq("id", id);
   if (error) return { error: "No se pudo cancelar la ausencia" };
 
-  await logChoferAudit(chofer_id, "ausencia_cancelada", previo ?? null, null, user.id);
+  await logChoferAudit(chofer_id, "ausencia_cancelada", previo, null, user.id, {
+    tipo: "chofer_ausencia",
+    id,
+  });
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
@@ -1468,7 +1568,7 @@ export async function guardarSaldoVacacionesAction(
   chofer_id: string,
   data: { dias_correspondientes: number; dias_adeudados: number; observaciones?: string | null },
 ) {
-  const user = await requireArea("logistica", "write");
+  const user = await requireSeccion("choferes_vacaciones", "write");
   const supabase = createAdminClient();
 
   const corresponden = Math.trunc(Number(data.dias_correspondientes));
@@ -1484,22 +1584,16 @@ export async function guardarSaldoVacacionesAction(
   const anioPrevio = anioActual - 1;
   const saldos = await saldosAnioChofer(sb, chofer_id);
 
-  const previo = {
-    dias_correspondientes: saldos.find((s) => s.anio === anioActual)?.otorgados ?? 0,
-    dias_adeudados: saldos.filter((s) => s.anio < anioActual).reduce((a, s) => a + s.saldo, 0),
-  };
+  const r = resumenSaldos(saldos, anioActual);
+  const previo = { dias_correspondientes: r.corresponden, dias_adeudados: r.adeudados };
 
-  // El saldo viejo deseado se resuelve sobre la fila del año pasado: otorgados =
-  // saldo deseado + lo ya imputado a ese año − el saldo que aportan años previos.
-  const saldoOtrosViejos = saldos
-    .filter((s) => s.anio < anioPrevio)
-    .reduce((a, s) => a + s.saldo, 0);
+  // "Adeudados" es el saldo del año pasado (lo anterior ya venció, misma
+  // definición que muestran las dos pantallas), así que se resuelve sobre la
+  // fila de Y−1: otorgados = saldo deseado + lo ya imputado a ese año.
+  // Antes se le restaba además el saldo de años vencidos, con lo que guardar
+  // sin cambiar nada le recortaba días a la fila de Y−1.
   const usadosPrevio = saldos.find((s) => s.anio === anioPrevio)?.usados ?? 0;
-  const otorgadosPrevio = adeudados + usadosPrevio - saldoOtrosViejos;
-  if (otorgadosPrevio < 0)
-    return {
-      error: `No se puede dejar el saldo anterior en ${adeudados}: hay ${saldoOtrosViejos} día(s) de años previos a ${anioPrevio}. Ajustá esos años desde el legajo.`,
-    };
+  const otorgadosPrevio = adeudados + usadosPrevio;
 
   const nowIso = new Date().toISOString();
   const filas: Record<string, unknown>[] = [
@@ -1532,9 +1626,175 @@ export async function guardarSaldoVacacionesAction(
   await logChoferAudit(
     chofer_id,
     "vacaciones_saldo_editado",
-    previo,
-    { dias_correspondientes: corresponden, dias_adeudados: adeudados },
+    { ...previo, anios: { [anioPrevio]: saldos.find((s) => s.anio === anioPrevio)?.otorgados ?? 0, [anioActual]: previo.dias_correspondientes } },
+    {
+      dias_correspondientes: corresponden,
+      dias_adeudados: adeudados,
+      anios: { [anioPrevio]: otorgadosPrevio, [anioActual]: corresponden },
+    },
     user.id,
+  );
+
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes/vacaciones");
+  return { success: true };
+}
+
+/**
+ * Edición completa del saldo año por año. Es lo que permite arreglar a mano una
+ * carga inicial mal importada: cambiar los días otorgados de cualquier año,
+ * agregar un año que falta o borrar uno que sobra, con su observación.
+ *
+ * Reemplaza el estado completo: los años que no vengan en `filas` se eliminan
+ * (salvo que tengan períodos imputados, que dejarían el saldo en negativo).
+ */
+export async function guardarSaldosAnioAction(
+  chofer_id: string,
+  filas: { anio: number; dias: number; observaciones?: string | null }[],
+) {
+  const user = await requireSeccion("choferes_vacaciones", "write");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any;
+
+  if (!chofer_id) return { error: "Falta el empleado." };
+  if (filas.length > 60) return { error: "Demasiados años en una sola edición." };
+
+  const limpias: { anio: number; dias: number; observaciones: string | null }[] = [];
+  const vistos = new Set<number>();
+  for (const f of filas) {
+    const anio = Math.trunc(Number(f.anio));
+    const dias = Math.trunc(Number(f.dias));
+    if (!Number.isInteger(anio) || anio < 2000 || anio > 2100)
+      return { error: `El año "${f.anio}" no es válido.` };
+    if (vistos.has(anio)) return { error: `El año ${anio} está cargado dos veces.` };
+    if (!Number.isFinite(dias) || dias < 0 || dias > 365)
+      return { error: `Los días del ${anio} tienen que ser un número entre 0 y 365.` };
+    vistos.add(anio);
+    limpias.push({ anio, dias, observaciones: f.observaciones?.trim() || null });
+  }
+
+  const previos = await saldosAnioChofer(sb, chofer_id);
+  const previo = Object.fromEntries(previos.map((s) => [s.anio, s.otorgados]));
+
+  // Sólo se borran años que existen como fila. `saldosAnioChofer` además
+  // devuelve años que sólo aparecen como imputación (sin fila otorgada), y esos
+  // no hay nada que borrarles.
+  const { data: filasPrevias } = await sb
+    .from("chofer_vacaciones_anios")
+    .select("anio")
+    .eq("chofer_id", chofer_id);
+  const aBorrar = ((filasPrevias ?? []) as { anio: number }[])
+    .map((f) => f.anio)
+    .filter((anio) => !vistos.has(anio));
+
+  // Un año con períodos imputados no se puede borrar: quedarían días usados sin
+  // respaldo (saldo negativo). Primero hay que reimputar esos períodos.
+  const conUso = aBorrar
+    .map((anio) => ({ anio, usados: previos.find((s) => s.anio === anio)?.usados ?? 0 }))
+    .filter((s) => s.usados > 0);
+  if (conUso.length > 0) {
+    const det = conUso.map((s) => `${s.anio} (${s.usados} día(s))`).join(", ");
+    return {
+      error: `No se puede quitar ${det}: hay vacaciones imputadas a ese año. Cambiá primero de qué año descuentan esos períodos.`,
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+  if (limpias.length > 0) {
+    const { error } = await sb.from("chofer_vacaciones_anios").upsert(
+      limpias.map((f) => ({
+        chofer_id,
+        anio: f.anio,
+        dias_correspondientes: f.dias,
+        observaciones: f.observaciones ?? "Editado manualmente",
+        updated_by: user.id,
+        updated_at: nowIso,
+      })),
+      { onConflict: "chofer_id,anio" },
+    );
+    if (error) return { error: "No se pudieron guardar los días por año." };
+  }
+  if (aBorrar.length > 0) {
+    const { error } = await sb
+      .from("chofer_vacaciones_anios")
+      .delete()
+      .eq("chofer_id", chofer_id)
+      .in("anio", aBorrar);
+    if (error) return { error: "No se pudieron quitar los años eliminados." };
+  }
+
+  // Una entrada por año tocado: en /auditoría hay que poder ver QUÉ año cambió,
+  // no sólo que "se editó el saldo de fulano".
+  const tocados = limpias.filter((f) => previo[f.anio] !== f.dias);
+  for (const f of tocados) {
+    await logChoferAudit(
+      chofer_id,
+      "vacaciones_saldo_editado",
+      { anio: f.anio, dias_correspondientes: previo[f.anio] ?? null },
+      { anio: f.anio, dias_correspondientes: f.dias, observaciones: f.observaciones },
+      user.id,
+      { tipo: "chofer_vacaciones_anio", id: `${chofer_id}:${f.anio}` },
+    );
+  }
+  for (const anio of aBorrar) {
+    await logChoferAudit(
+      chofer_id,
+      "vacaciones_saldo_editado",
+      { anio, dias_correspondientes: previo[anio] ?? null },
+      { anio, dias_correspondientes: null, observaciones: "Año quitado" },
+      user.id,
+      { tipo: "chofer_vacaciones_anio", id: `${chofer_id}:${anio}` },
+    );
+  }
+
+  revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes/vacaciones");
+  return { success: true };
+}
+
+/**
+ * Cambia de qué año descuenta un período ya cargado (o lo marca como histórico).
+ * Es el arreglo de los períodos que quedaron imputados al año equivocado por la
+ * imputación automática o por el importador de la planilla.
+ */
+export async function reimputarPeriodoAction(
+  id: string,
+  chofer_id: string,
+  anio_cargo: number | null,
+) {
+  const user = await requireSeccion("choferes_vacaciones", "write");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any;
+
+  let destino: number | null = null;
+  if (anio_cargo !== null) {
+    const a = Math.trunc(Number(anio_cargo));
+    if (!Number.isInteger(a) || a < 2000 || a > 2100)
+      return { error: "El año del que descuenta no es válido." };
+    destino = a;
+  }
+
+  const { data: previo, error: errPrevio } = await sb
+    .from("chofer_ausencias")
+    .select("fecha_inicio, fecha_fin, es_vacaciones, anio_cargo")
+    .eq("id", id)
+    .eq("chofer_id", chofer_id)
+    .is("deleted_at", null)
+    .single();
+  if (errPrevio || !previo) return { error: "No se encontró el período." };
+  if (!previo.es_vacaciones) return { error: "Solo los períodos de vacaciones descuentan de un año." };
+  if ((previo.anio_cargo ?? null) === destino) return { success: true };
+
+  const { error } = await sb.from("chofer_ausencias").update({ anio_cargo: destino }).eq("id", id);
+  if (error) return { error: "No se pudo cambiar el año del que descuenta." };
+
+  await logChoferAudit(
+    chofer_id,
+    "ausencia_editada",
+    { anio_cargo: previo.anio_cargo ?? null },
+    { anio_cargo: destino, fecha_inicio: previo.fecha_inicio, fecha_fin: previo.fecha_fin },
+    user.id,
+    { tipo: "chofer_ausencia", id },
   );
 
   revalidatePath("/choferes/[slug]", "page");

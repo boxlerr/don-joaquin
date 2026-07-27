@@ -20,19 +20,26 @@ import {
   Table2,
   LayoutGrid,
   List,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+  Plane,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
 import {
   guardarSaldoVacacionesAction,
+  guardarSaldosAnioAction,
   cancelarAusenciaAction,
   cargarVacacionesBatchAction,
   editarAusenciaAction,
 } from "../[slug]/actions";
 import { recalcularDiasPorAntiguedadAction } from "./actions";
 import { planSugerido } from "./plan";
+import { umbralBase, umbralDeMes, umbralDeSemana, mesDeSemana, type UmbralConfig } from "./umbral";
 import CargarVacacionesDialog, { type ChoferOpcion, type SugerenciaSemana } from "./CargarVacacionesDialog";
 import EditarPeriodoDialog from "./EditarPeriodoDialog";
+import UmbralDialog from "./UmbralDialog";
 import ImportarPlanillaDialog from "./import-planilla/ImportarPlanillaDialog";
 import CronogramaAnual from "./CronogramaAnual";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -118,16 +125,48 @@ export function agruparMeses(semanas: { start: string }[]) {
   return { grupos, iniciosMes };
 }
 
+/** Cuántos meses de distancia hay entre dos (año, mes), para navegar el cronograma. */
+function sumarMes(anio: number, mes: number, delta: number): { anio: number; mes: number } {
+  const t = anio * 12 + (mes - 1) + delta;
+  return { anio: Math.floor(t / 12), mes: (t % 12) + 1 };
+}
+
+// Rango visible del cronograma: o un mes calendario completo (lo que se necesita
+// para liquidar sueldos a fin de mes) o una tira de semanas desde un ancla.
+//
+// El largo se guarda como preset, no como número: "resto del año" son menos
+// semanas cada día que pasa, y guardar el número dejaba el selector en blanco si
+// la pestaña quedaba abierta de un día para el otro.
+type LargoSemanas = "10" | "13" | "26" | "resto" | "52";
+type RangoCrono =
+  | { modo: "mes"; anio: number; mes: number }
+  | { modo: "semanas"; largo: LargoSemanas; offset: number };
+
 interface Props {
   saldos: VacacionesSaldoChofer[];
   periodos: VacacionesPeriodo[];
   finPeriodoY: number;
   canWrite: boolean;
-  umbralAusentes?: number;
+  umbralConfig?: UmbralConfig;
+  choferesActivos?: number;
 }
 
-export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWrite, umbralAusentes }: Props) {
-  const umbral = umbralAusentes ?? 4;
+export default function VacacionesClient({
+  saldos,
+  periodos,
+  finPeriodoY,
+  canWrite,
+  umbralConfig,
+  choferesActivos = 0,
+}: Props) {
+  const cfgUmbral: UmbralConfig = umbralConfig ?? {
+    modo: "auto",
+    porcentaje: 10,
+    minimo: 4,
+    fijo: 6,
+    porMes: {},
+  };
+  const umbral = umbralBase(cfgUmbral, choferesActivos);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -136,9 +175,14 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const [fSemaforo, setFSemaforo] = useState<"Todos" | "🔴" | "🟠" | "🟡" | "🟢">("Todos");
   const [busqueda, setBusqueda] = useState("");
 
+  // Sólo los que están de vacaciones hoy: con 8 personas se lee bien, pero en
+  // diciembre/enero el cronograma mezcla a los que ya volvieron con los que están.
+  const [soloEnCurso, setSoloEnCurso] = useState(false);
+
   // --- Cronograma: rango + vista ---------------------------------------------
-  const [numSemanas, setNumSemanas] = useState(10);
+  const [rango, setRango] = useState<RangoCrono>({ modo: "semanas", largo: "10", offset: 0 });
   const [vista, setVista] = useState<"semanas" | "anual">("semanas");
+  const [umbralOpen, setUmbralOpen] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios" | "tarjetas">("tarjetas");
   const [vistaPeriodos, setVistaPeriodos] = useState<"lista" | "timeline">("timeline");
   const [detalle, setDetalle] = useState<VacacionesPeriodo | null>(null);
@@ -162,6 +206,12 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const [editSaldo, setEditSaldo] = useState<string | null>(null); // chofer_id en edición
   const [editCorr, setEditCorr] = useState("");
   const [editAdeu, setEditAdeu] = useState("");
+  // Edición año por año (vista "Por año"): { [anio]: días otorgados }
+  const [editAnios, setEditAnios] = useState<Record<number, string>>({});
+  // Con qué vista se abrió la edición. Se congela acá: si se leyera `vistaTabla`
+  // al guardar, cambiar de vista con una fila abierta guardaba por el camino
+  // equivocado y descartaba en silencio lo que se había tipeado.
+  const [editModo, setEditModo] = useState<"resumen" | "anios">("resumen");
 
   const choferesOpts: ChoferOpcion[] = saldos.map((s) => ({
     chofer_id: s.chofer_id,
@@ -218,16 +268,38 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
     else refrescar();
   };
 
+  // Cambiar de vista cierra la edición abierta: los inputs de "Resumen" y los de
+  // "Por año" no son los mismos, y dejar una fila a medio editar entre las dos
+  // hacía que lo tipeado se perdiera sin aviso.
+  const cambiarVistaTabla = (v: "resumen" | "tarjetas" | "anios") => {
+    setEditSaldo(null);
+    setVistaTabla(v);
+  };
+
   const abrirEditSaldo = (s: VacacionesSaldoChofer) => {
     setEditSaldo(s.chofer_id);
+    setEditModo(vistaTabla === "anios" ? "anios" : "resumen");
     setEditCorr(String(s.corresponden));
     setEditAdeu(String(s.adeudados));
+    setEditAnios(Object.fromEntries(s.saldos_anio.map((a) => [a.anio, String(a.otorgados)])));
   };
   const guardarSaldo = async (s: VacacionesSaldoChofer) => {
-    const res = await guardarSaldoVacacionesAction(s.chofer_id, {
-      dias_correspondientes: Number(editCorr) || 0,
-      dias_adeudados: Number(editAdeu) || 0,
-    });
+    // En "Por año" se editan los otorgados de cada año; en "Resumen", los dos
+    // números de siempre (que se traducen a las filas de Y e Y−1).
+    const res =
+      editModo === "anios"
+        ? await guardarSaldosAnioAction(
+            s.chofer_id,
+            Object.entries(editAnios).map(([anio, dias]) => ({
+              anio: Number(anio),
+              dias: Number(dias) || 0,
+              observaciones: s.saldos_anio.find((a) => a.anio === Number(anio))?.observaciones ?? null,
+            })),
+          )
+        : await guardarSaldoVacacionesAction(s.chofer_id, {
+            dias_correspondientes: Number(editCorr) || 0,
+            dias_adeudados: Number(editAdeu) || 0,
+          });
     if (res?.error) alert(res.error);
     else {
       setEditSaldo(null);
@@ -257,12 +329,38 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   };
 
   // --- Ventana de semanas (el React Compiler memoiza solo) -------------------
-  const inicioSem = lunesDe(new Date());
+  // La ventana ya no arranca siempre "hoy": se puede ir hacia atrás (para ver el
+  // mes que se está liquidando) o plantarse en un mes calendario completo.
+  // Fecha local, no UTC: las semanas se arman con fechas locales, así que
+  // `toISOString()` (UTC) adelantaba "hoy" un día entre las 21:00 y medianoche.
+  const hoyISO = toISO(new Date());
+  const lunesHoy = lunesDe(new Date());
   const finAnio = new Date(finPeriodoY, 11, 31);
-  const restoSemanas = Math.max(1, Math.ceil((finAnio.getTime() - inicioSem.getTime()) / (7 * 86_400_000)));
-  const semanas = construirSemanas(inicioSem, numSemanas);
+  const restoSemanas = Math.max(1, Math.ceil((finAnio.getTime() - lunesHoy.getTime()) / (7 * 86_400_000)));
+
+  // "resto" se resuelve acá, en cada render: siempre es lo que queda de año.
+  const largoSemanas = rango.modo === "semanas" ? (rango.largo === "resto" ? restoSemanas : Number(rango.largo)) : 0;
+
+  const inicioSem = (() => {
+    if (rango.modo === "mes") return lunesDe(new Date(rango.anio, rango.mes - 1, 1));
+    const d = new Date(lunesHoy);
+    d.setDate(d.getDate() + rango.offset * 7);
+    return d;
+  })();
+  const numSemanas =
+    rango.modo === "mes"
+      ? Math.round(
+          (lunesDe(new Date(rango.anio, rango.mes, 0)).getTime() - inicioSem.getTime()) / (7 * 86_400_000),
+        ) + 1
+      : largoSemanas;
+
+  const semanas = construirSemanas(inicioSem, Math.max(1, numSemanas));
   const finVentana = semanas[semanas.length - 1]!.end;
   const inicioVentana = semanas[0]!.start;
+
+  // Umbral de cada semana: el del mes que se lleva la mayoría de sus días, así
+  // diciembre puede admitir más gente junta sin que todo aparezca en rojo.
+  const umbralPorSemana = semanas.map((s) => umbralDeSemana(cfgUmbral, s.start, choferesActivos));
 
   const periodosEnVentana = periodos.filter((p) => p.fecha_inicio <= finVentana && p.fecha_fin >= inicioVentana);
 
@@ -271,17 +369,37 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   );
   const { grupos: gruposMes, iniciosMes } = agruparMeses(semanas);
 
-  // Sugerencias: 13 semanas fijas, las 3 con menos gente (independiente del filtro de rango).
-  const semanasSug = construirSemanas(inicioSem, 13);
+  // Sugerencias: 13 semanas fijas desde hoy, las 3 con menos gente (independiente del rango que se esté mirando).
+  const semanasSug = construirSemanas(lunesHoy, 13);
   const sugerencias: SugerenciaSemana[] = semanasSug
     .map((s) => ({
       inicio: s.start,
       fin: s.end,
       ocupados: new Set(periodos.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
+      umbral: umbralDeSemana(cfgUmbral, s.start, choferesActivos),
     }))
-    .filter((s) => s.ocupados < umbral)
+    .filter((s) => s.ocupados < s.umbral)
     .sort((a, b) => a.ocupados - b.ocupados || a.inicio.localeCompare(b.inicio))
     .slice(0, 3);
+
+  // Navegación del cronograma: un mes / una ventana entera para cada lado.
+  const irVentana = (delta: number) =>
+    setRango((r) =>
+      r.modo === "mes"
+        ? { modo: "mes", ...sumarMes(r.anio, r.mes, delta) }
+        : { ...r, offset: r.offset + delta * Math.max(1, largoSemanas) },
+    );
+  const volverAHoy = () =>
+    setRango((r) =>
+      r.modo === "mes"
+        ? { modo: "mes", anio: new Date().getFullYear(), mes: new Date().getMonth() + 1 }
+        : { ...r, offset: 0 },
+    );
+  const rangoLabel =
+    rango.modo === "mes"
+      ? `${MES_LBL[rango.mes - 1]} ${rango.anio}`
+      : `${fmtFecha(inicioVentana)} → ${fmtFecha(finVentana)}`;
+  const ventanaTieneHoy = inicioVentana <= hoyISO && finVentana >= hoyISO;
 
   // Resumen por mes de la ventana visible (personas distintas + días-persona).
   const resumenMeses = (() => {
@@ -303,7 +421,15 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => {
         const [, m] = k.split("-");
-        return { mes: k, label: MES_LBL[Number(m) - 1]!, personas: v.personas.size, dias: v.dias };
+        const mes = Number(m);
+        return {
+          mes: k,
+          label: MES_LBL[mes - 1]!,
+          personas: v.personas.size,
+          dias: v.dias,
+          // Antes era un 5 fijo, sin relación con el umbral de las semanas.
+          umbral: umbralDeMes(cfgUmbral, mes, choferesActivos),
+        };
       });
   })();
 
@@ -321,6 +447,13 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const idsFiltrados = new Set(saldosFiltrados.map((s) => s.chofer_id));
   const periodosFiltrados = periodos.filter((p) => idsFiltrados.has(p.chofer_id));
 
+  // El cronograma lista a quien tenga algún período que toque la ventana. Con
+  // "solo de vacaciones hoy" quedan únicamente los que están afuera ahora mismo,
+  // sin los que ya volvieron dentro de la misma ventana.
+  // El botón del filtro sólo existe en la vista de semanas: si se aplicara
+  // también en la anual, quedaría filtrando sin ningún control a la vista.
+  const filtroEnCurso = soloEnCurso && vista === "semanas";
+  const enCursoAhora = (ps: VacacionesPeriodo[]) => ps.some((p) => p.en_curso);
   const filasCrono = [...new Set(periodosEnVentana.map((p) => p.chofer_id))]
     .filter((id) => idsFiltrados.has(id))
     .map((id) => {
@@ -328,6 +461,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       const info = ps[0]!;
       return { id, nombre: info.nombre, apellido: info.apellido, periodos: ps };
     })
+    .filter((f) => !filtroEnCurso || enCursoAhora(f.periodos))
     .sort((a, b) => a.apellido.localeCompare(b.apellido));
 
   const periodoEnSemana = (ps: VacacionesPeriodo[], semIdx: number) =>
@@ -336,18 +470,20 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
   const enVacacionesAhora = saldos.filter((s) => s.en_vacaciones_ahora);
   const urgentes = saldos.filter((s) => s.adeudados > 0);
   const desfasados = saldos.filter((s) => s.desfasaje).length;
-  const hoyISO = new Date().toISOString().slice(0, 10);
-  // Posición de "hoy" dentro de la primera semana del cronograma (que arranca el
-  // lunes de esta semana), para dibujar la línea de medición vertical.
-  const hoyDOW = Math.min(6, Math.max(0, diffDias(semanas[0]!.start, hoyISO)));
-  const hoyLeftPct = ((hoyDOW + 0.5) / 7) * 100;
+  // Línea vertical de "hoy". La ventana ya no arranca necesariamente esta semana,
+  // así que hay que ubicar en qué columna cae (o no dibujarla).
+  const idxSemanaHoy = semanas.findIndex((s) => s.start <= hoyISO && s.end >= hoyISO);
+  const hoyLeftPct =
+    idxSemanaHoy >= 0 ? ((Math.min(6, Math.max(0, diffDias(semanas[idxSemanaHoy]!.start, hoyISO))) + 0.5) / 7) * 100 : 0;
 
   // KPIs
   const diasEnRiesgo = urgentes.reduce((a, s) => a + s.adeudados, 0);
   const diasOtorgar = saldos.reduce((a, s) => a + s.corresponden, 0);
   const planificados = periodos.filter((p) => p.fecha_inicio >= hoyISO).length;
 
-  const periodosVentanaFiltrados = periodosEnVentana.filter((p) => idsFiltrados.has(p.chofer_id));
+  const periodosVentanaFiltrados = periodosEnVentana
+    .filter((p) => idsFiltrados.has(p.chofer_id))
+    .filter((p) => !filtroEnCurso || p.en_curso);
 
   // --- Plan sugerido: liquida los saldos viejos antes del 31/12 --------------
   // Se recalcula solo en cada render con los datos vivos: si se carga un
@@ -372,7 +508,7 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
       semanas: semanasPlan,
       ocupacion,
       ocupadoPorChofer,
-      umbral,
+      umbralPorSemana: semanasPlan.map((s) => umbralDeSemana(cfgUmbral, s.start, choferesActivos)),
     });
   })();
 
@@ -678,17 +814,73 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
               />
             </div>
             {vista === "semanas" && (
-              <select
-                value={numSemanas}
-                onChange={(e) => setNumSemanas(Number(e.target.value))}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
-              >
-                <option value={10}>10 semanas</option>
-                <option value={13}>3 meses</option>
-                <option value={26}>6 meses</option>
-                <option value={restoSemanas}>Resto del año</option>
-                <option value={52}>Año completo</option>
-              </select>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSoloEnCurso((v) => !v)}
+                  title="Dejar solo a los que están de vacaciones hoy (los que ya volvieron quedan afuera)"
+                  className={`h-8 px-2.5 rounded-lg border text-xs inline-flex items-center gap-1.5 transition-colors ${
+                    soloEnCurso
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Plane size={13} /> Solo de vacaciones hoy
+                  <span className="font-mono">{enVacacionesAhora.length}</span>
+                </button>
+                <select
+                  value={rango.modo === "mes" ? "mes" : rango.largo}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "mes") {
+                      const hoy = new Date();
+                      setRango({ modo: "mes", anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 });
+                    } else {
+                      setRango({ modo: "semanas", largo: v as LargoSemanas, offset: 0 });
+                    }
+                  }}
+                  className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+                >
+                  <option value="mes">Un mes</option>
+                  <option value="10">10 semanas</option>
+                  <option value="13">3 meses</option>
+                  <option value="26">6 meses</option>
+                  <option value="resto">Resto del año</option>
+                  <option value="52">Año completo</option>
+                </select>
+                {/* Navegación: sin esto la ventana arrancaba siempre hoy y no se
+                    podía mirar el mes que se está liquidando. */}
+                <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => irVentana(-1)}
+                    title={rango.modo === "mes" ? "Mes anterior" : "Ventana anterior"}
+                    className="h-8 px-1.5 text-muted-foreground hover:bg-muted/50"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="px-2 text-xs font-medium text-foreground whitespace-nowrap tabular-nums">
+                    {rangoLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => irVentana(1)}
+                    title={rango.modo === "mes" ? "Mes siguiente" : "Ventana siguiente"}
+                    className="h-8 px-1.5 text-muted-foreground hover:bg-muted/50"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+                {!ventanaTieneHoy && (
+                  <button
+                    type="button"
+                    onClick={volverAHoy}
+                    className="h-8 px-2.5 rounded-lg border border-border bg-background text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Hoy
+                  </button>
+                )}
+              </>
             )}
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
@@ -711,8 +903,19 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
           <CronogramaAnual periodos={periodosFiltrados} anio={finPeriodoY} />
         ) : filasCrono.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-            Nadie tiene vacaciones en esta ventana para este filtro.
-            {canWrite && (
+            {soloEnCurso
+              ? "Nadie está de vacaciones hoy dentro de esta ventana."
+              : "Nadie tiene vacaciones en esta ventana para este filtro."}
+            {soloEnCurso && (
+              <div className="mt-1 text-[13px]">
+                Sacá el filtro{" "}
+                <button type="button" onClick={() => setSoloEnCurso(false)} className="font-medium text-primary hover:underline">
+                  “Solo de vacaciones hoy”
+                </button>{" "}
+                para ver todos los del período.
+              </div>
+            )}
+            {canWrite && !soloEnCurso && (
               <div className="mt-1 text-[13px]">
                 Para cargar una, usá <span className="font-medium text-foreground">“+ Cargar vacaciones”</span> (arriba) o el <span className="font-medium text-foreground">+</span> en la tabla de saldos.
               </div>
@@ -741,22 +944,25 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                   ))}
                 </tr>
                 <tr className="bg-muted/40">
-                  {semanas.map((s, i) => (
-                    <th
-                      key={s.start}
-                      className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
-                        i === 0 ? "bg-primary/[0.06]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
-                      } ${
-                        conteoPorSemana[i]! > umbral ? "text-[#EF4444]" : i === 0 ? "text-primary" : "text-muted-foreground/70"
-                      }`}
-                      title={`${conteoPorSemana[i]} de vacaciones esta semana`}
-                    >
-                      <div>{i === 0 ? `${s.label} · hoy` : s.label}</div>
-                      <div className={`text-[9px] font-bold ${conteoPorSemana[i]! > umbral ? "text-[#EF4444]" : "text-muted-foreground/50"}`}>
-                        {conteoPorSemana[i]}
-                      </div>
-                    </th>
-                  ))}
+                  {semanas.map((s, i) => {
+                    const tope = umbralPorSemana[i]!;
+                    const excede = conteoPorSemana[i]! > tope;
+                    const esHoy = i === idxSemanaHoy;
+                    return (
+                      <th
+                        key={s.start}
+                        className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
+                          esHoy ? "bg-primary/[0.06]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
+                        } ${excede ? "text-[#EF4444]" : esHoy ? "text-primary" : "text-muted-foreground/70"}`}
+                        title={`${conteoPorSemana[i]} de vacaciones esta semana (máximo de ${MES_LBL[mesDeSemana(s.start) - 1]}: ${tope})`}
+                      >
+                        <div>{esHoy ? `${s.label} · hoy` : s.label}</div>
+                        <div className={`text-[9px] font-bold ${excede ? "text-[#EF4444]" : "text-muted-foreground/50"}`}>
+                          {conteoPorSemana[i]}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -798,7 +1004,11 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                         <td
                           key={i}
                           className={`relative px-0.5 py-2 ${
-                            i === 0 ? "bg-primary/[0.04]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
+                            i === idxSemanaHoy
+                              ? "bg-primary/[0.04]"
+                              : iniciosMes.has(i)
+                                ? "border-l-2 border-border"
+                                : "border-l border-border/40"
                           } ${dropOk ? "bg-primary/5" : ""}`}
                           onDragOver={(e) => {
                             if (dropOk) e.preventDefault();
@@ -850,8 +1060,9 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                               </span>
                             )}
                           </button>
-                          {/* Línea de "hoy": marca vertical en la columna de la semana en curso. */}
-                          {i === 0 && (
+                          {/* Línea de "hoy": sólo si la ventana llega hasta hoy
+                              (mirando meses pasados no corresponde dibujarla). */}
+                          {i === idxSemanaHoy && (
                             <span
                               className="pointer-events-none absolute inset-y-0.5 w-0.5 bg-primary/70 z-[1]"
                               style={{ left: `${hoyLeftPct}%` }}
@@ -867,15 +1078,27 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
               </tbody>
             </table>
 
-            {/* Resumen por mes */}
+            {/* Resumen por mes. Ojo: cuenta sólo lo que cae dentro de la ventana
+                visible, así que en los extremos un mes puede aparecer recortado
+                (con "Un mes" el número es el del mes completo). */}
             {resumenMeses.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border text-[11px]">
                 <span className="font-semibold text-muted-foreground uppercase tracking-wide">Por mes:</span>
-                {resumenMeses.map((m) => (
-                  <span key={m.mes} className={m.personas > 5 ? "text-[#EF4444] font-medium" : "text-muted-foreground"}>
-                    {m.label} {m.personas} pers. · {m.dias} días{m.personas > 5 ? " ⚠️" : ""}
-                  </span>
-                ))}
+                {resumenMeses.map((m) => {
+                  const excede = m.personas > m.umbral;
+                  return (
+                    <span
+                      key={m.mes}
+                      className={excede ? "text-[#EF4444] font-medium" : "text-muted-foreground"}
+                      title={`${m.personas} persona(s) con vacaciones en ${m.label} dentro de la ventana · ${m.dias} días-persona · máximo del mes: ${m.umbral}`}
+                    >
+                      {m.label} {m.personas} pers. · {m.dias} días{excede ? " ⚠️" : ""}
+                    </span>
+                  );
+                })}
+                {rango.modo !== "mes" && (
+                  <span className="text-muted-foreground/60">· recortado a la ventana visible</span>
+                )}
               </div>
             )}
 
@@ -883,7 +1106,21 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
               <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#10B981]/80" /> de vacaciones (el largo de la barra son los días reales)</span>
               <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#F59E0B]/80" /> con viajes asignados en esas fechas</span>
               <span>· clic en un período: detalle{canWrite ? " · arrastralo para moverlo de semana · clic en una celda vacía: cargar" : ""}</span>
-              <span className="text-[#EF4444]">· el número rojo marca semanas con más de {umbral} ausentes (10% de la flota activa)</span>
+              <span className="text-[#EF4444]">
+                · el número rojo marca las semanas que pasan el máximo de ausentes
+                {canWrite ? "" : ` (${umbral})`}
+              </span>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={() => setUmbralOpen(true)}
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
+                  title="Cambiar el máximo de ausentes por semana (se puede definir uno distinto por mes)"
+                >
+                  <SlidersHorizontal size={11} /> máximo: {umbral} por semana
+                  {Object.keys(cfgUmbral.porMes).length > 0 && ` (${Object.keys(cfgUmbral.porMes).length} mes/es aparte)`}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1074,20 +1311,20 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
             </div>
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
-                onClick={() => setVistaTabla("resumen")}
+                onClick={() => cambiarVistaTabla("resumen")}
                 className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "resumen" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <Table2 size={13} /> Resumen
               </button>
               <button
-                onClick={() => setVistaTabla("tarjetas")}
+                onClick={() => cambiarVistaTabla("tarjetas")}
                 title="Tarjetas con medidor de uso por empleado"
                 className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "tarjetas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <LayoutGrid size={13} /> Tarjetas
               </button>
               <button
-                onClick={() => setVistaTabla("anios")}
+                onClick={() => cambiarVistaTabla("anios")}
                 title="Saldo y otorgados de cada año, como la planilla"
                 className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "anios" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
@@ -1276,6 +1513,28 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                         aniosColumnas.map((anio) => {
                           const a = s.saldos_anio.find((x) => x.anio === anio);
                           const vencido = anio < finPeriodoY - 1;
+                          // En edición se tipean los días OTORGADOS de ese año;
+                          // el saldo se recalcula solo al guardar.
+                          if (editing) {
+                            return (
+                              <td key={anio} className="px-3 py-2 text-right whitespace-nowrap">
+                                <input
+                                  value={editAnios[anio] ?? ""}
+                                  placeholder="—"
+                                  onChange={(e) =>
+                                    setEditAnios((p) => {
+                                      const next = { ...p };
+                                      if (e.target.value.trim() === "") delete next[anio];
+                                      else next[anio] = e.target.value;
+                                      return next;
+                                    })
+                                  }
+                                  title={`Días que le corresponden por ${anio}${a && a.usados > 0 ? ` · ${a.usados} ya tomados` : ""}`}
+                                  className="w-14 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm"
+                                />
+                              </td>
+                            );
+                          }
                           return (
                             <td
                               key={anio}
@@ -1336,9 +1595,13 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
                             ) : (
                               <>
                                 <button onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })} className="text-muted-foreground hover:text-primary" title="Cargar vacaciones"><Plus size={15} /></button>
-                                {vistaTabla === "resumen" && (
-                                  <button onClick={() => abrirEditSaldo(s)} className="text-muted-foreground hover:text-primary" title="Editar saldo"><Pencil size={13} /></button>
-                                )}
+                                <button
+                                  onClick={() => abrirEditSaldo(s)}
+                                  className="text-muted-foreground hover:text-primary"
+                                  title={vistaTabla === "anios" ? "Editar los días que corresponden de cada año" : "Editar saldo"}
+                                >
+                                  <Pencil size={13} />
+                                </button>
                               </>
                             )}
                           </div>
@@ -1397,6 +1660,18 @@ export default function VacacionesClient({ saldos, periodos, finPeriodoY, canWri
 
       {/* Importar planilla de Bárbara con vista previa */}
       <ImportarPlanillaDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={refrescar} />
+
+      {/* Máximo de ausentes por semana (base + por mes) */}
+      {canWrite && (
+        <UmbralDialog
+          key={`umbral-${umbralOpen}`}
+          open={umbralOpen}
+          onOpenChange={setUmbralOpen}
+          config={cfgUmbral}
+          choferesActivos={choferesActivos}
+          onSuccess={refrescar}
+        />
+      )}
 
       {/* Detalle de un período (clic en el cronograma) */}
       <Dialog open={!!detalle} onOpenChange={(v) => !v && setDetalle(null)}>

@@ -50,8 +50,13 @@ export async function exportarVacacionesXlsxAction(
       { header: `Saldo ${finPeriodoY - 1}`, width: 11, align: "c", numFmt: "#,##0" },
       { header: `Días ${finPeriodoY}`, width: 11, align: "c", numFmt: "#,##0" },
       { header: "Total", width: 9, align: "c", numFmt: "#,##0" },
-      { header: "Tomados", width: 10, align: "c", numFmt: "#,##0" },
-      { header: "Disponibles", width: 12, align: "c", numFmt: "#,##0" },
+      // Ojo: "Tomados" cuenta por FECHA (lo que salió este año) y "Disponibles"
+      // es el saldo que queda por año. Total − Tomados NO da Disponibles cuando
+      // alguien se tomó este año días imputados al año anterior; los nombres lo
+      // dicen para que nadie haga esa resta.
+      { header: `Tomados en ${finPeriodoY}`, width: 14, align: "c", numFmt: "#,##0" },
+      { header: "Disponibles (saldo)", width: 17, align: "c", numFmt: "#,##0" },
+      { header: "Vencidos", width: 10, align: "c", numFmt: "#,##0" },
       { header: "Vence saldo", width: 12, align: "c" },
       { header: "Vence período", width: 13, align: "c" },
       { header: "Próximo hito", width: 18, align: "l" },
@@ -69,6 +74,7 @@ export async function exportarVacacionesXlsxAction(
       s.total,
       s.tomados,
       s.disponibles,
+      s.dias_vencidos,
       s.vence_saldo ?? "—",
       s.vence_periodo,
       s.proximo_hito,
@@ -145,7 +151,9 @@ export async function exportarVacacionesXlsxAction(
       name: "Cronograma",
       opts: {
         title: "Vacaciones — Cronograma por semana",
-        subtitle: `Semanas del ${semanas[0]!.label} al ${semanas[semanas.length - 1]!.label}`,
+        // Con fecha completa: la ventana del cronograma ya puede ser un mes
+        // pasado, y "del 20 jul al 27 sep" sin año no dice de cuándo es.
+        subtitle: `Semanas del ${semanas[0]!.start} al ${semanas[semanas.length - 1]!.end}`,
         columns,
         rows,
       },

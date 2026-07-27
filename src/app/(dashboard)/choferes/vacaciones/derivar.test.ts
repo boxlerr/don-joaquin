@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { saldosPorAnio, anioParaImputar, diasPorAntiguedad, aniosCumplidos, semaforo } from "./derivar";
+import {
+  saldosPorAnio,
+  anioParaImputar,
+  diasPorAntiguedad,
+  aniosCumplidos,
+  semaforo,
+  resumenSaldos,
+} from "./derivar";
 
 // Casos tomados de la conciliación real con la planilla de Bárbara (21/07/2026):
 // los saldos por año del sistema tienen que reproducir su contabilidad.
@@ -57,6 +64,64 @@ describe("saldosPorAnio", () => {
   });
 });
 
+describe("resumenSaldos", () => {
+  // Casos reales de producción (27/07/2026). El legajo calculaba
+  // `corresponden + adeudados − tomados`, que descuenta de nuevo días ya
+  // imputados a otro año: 28 de 78 empleados mostraban disponibles de menos.
+  const armar = (otorg: [number, number][], usados: [number, number][]) =>
+    saldosPorAnio(
+      otorg.map(([anio, dias]) => ({ anio, dias })),
+      new Map(usados),
+    );
+
+  it("Heim: los 11 días imputados a 2025 no tocan los 14 del 2026", () => {
+    const r = resumenSaldos(armar([[2025, 11], [2026, 14]], [[2025, 11]]), 2026);
+    expect(r).toMatchObject({ corresponden: 14, adeudados: 0, disponibles: 14, diasVencidos: 0 });
+    // lo que mostraba el legajo: 14 + 0 − 11 tomados = 3
+  });
+
+  it("Cejas: 21 días de 2025 consumidos, el 2026 sigue entero", () => {
+    const r = resumenSaldos(armar([[2025, 21], [2026, 28]], [[2025, 21]]), 2026);
+    expect(r.disponibles).toBe(28); // el legajo mostraba 7
+  });
+
+  it("Cancela: consumo repartido entre 2025 y 2026", () => {
+    const r = resumenSaldos(armar([[2025, 7], [2026, 14]], [[2025, 7], [2026, 7]]), 2026);
+    expect(r).toMatchObject({ corresponden: 14, adeudados: 0, disponibles: 7 });
+  });
+
+  it("el saldo del año anterior es lo adeudado y suma a disponibles", () => {
+    const r = resumenSaldos(armar([[2025, 21], [2026, 28]], [[2025, 14]]), 2026);
+    expect(r).toMatchObject({ corresponden: 28, adeudados: 7, disponibles: 35, total: 35 });
+  });
+
+  it("lo anterior al año pasado ya venció: no suma a disponibles", () => {
+    const r = resumenSaldos(armar([[2024, 14], [2025, 21], [2026, 28]], [[2025, 21]]), 2026);
+    expect(r).toMatchObject({ adeudados: 0, disponibles: 28, diasVencidos: 14 });
+  });
+
+  it("un año cargado por adelantado no cuenta como disponible todavía", () => {
+    // Se puede dejar cargado el 2027, pero esos días no están disponibles en 2026.
+    const r = resumenSaldos(armar([[2025, 14], [2026, 14], [2027, 14]], [[2025, 14]]), 2026);
+    expect(r).toMatchObject({ corresponden: 14, adeudados: 0, disponibles: 14, total: 14 });
+  });
+
+  it("un año usado de más deja disponibles en negativo (no lo oculta)", () => {
+    const r = resumenSaldos(armar([[2026, 14]], [[2026, 21]]), 2026);
+    expect(r.disponibles).toBe(-7);
+  });
+
+  it("sin ninguna fila cargada, todo en cero", () => {
+    expect(resumenSaldos([], 2026)).toEqual({
+      corresponden: 0,
+      adeudados: 0,
+      disponibles: 0,
+      diasVencidos: 0,
+      total: 0,
+    });
+  });
+});
+
 describe("anioParaImputar", () => {
   const saldos = (v: [number, number][]) =>
     saldosPorAnio(
@@ -87,6 +152,17 @@ describe("anioParaImputar", () => {
 
   it("sin saldo en ningún año, usa el año de la fecha", () => {
     expect(anioParaImputar([], "2026-07-18")).toBe(2026);
+  });
+
+  it("no consume años ya vencidos (2024 mirado desde 2026)", () => {
+    // El saldo de 2024 venció el 31/12/2025: la vista global ya lo da por
+    // perdido, así que un período nuevo no puede gastarlo por lo bajo.
+    const s = saldos([[2024, 14], [2025, 7], [2026, 28]]);
+    expect(anioParaImputar(s, "2026-08-10")).toBe(2025);
+  });
+
+  it("si solo queda saldo vencido, imputa al año de la fecha", () => {
+    expect(anioParaImputar(saldos([[2024, 14]]), "2026-08-10")).toBe(2026);
   });
 });
 

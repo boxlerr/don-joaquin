@@ -164,11 +164,17 @@ export type Ausencia = {
 
 // Saldo de vacaciones por chofer, derivado de los días otorgados por año
 // (chofer_vacaciones_anios) menos los períodos imputados a cada año.
+// Todo se calcula con `resumenSaldos` (vacaciones/derivar.ts), la misma función
+// que usa la vista global: el mismo empleado no puede dar distinto en dos pantallas.
 export type VacacionesSaldo = {
   dias_correspondientes: number;
   dias_adeudados: number;
   dias_tomados: number;
+  // Saldo vigente (años Y e Y−1). NO es corresponden + adeudados − tomados:
+  // los días tomados ya están descontados del año al que se imputaron.
   dias_disponibles: number;
+  // Saldo de años que ya vencieron (anteriores a Y−1). Informativo.
+  dias_vencidos: number;
   anios: { anio: number; otorgados: number; usados: number; saldo: number; observaciones: string | null }[];
 };
 

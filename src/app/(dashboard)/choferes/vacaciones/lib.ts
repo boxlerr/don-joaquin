@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   derivarVacaciones,
   saldosPorAnio,
+  resumenSaldos,
   aniosCumplidos,
   diasPorAntiguedad,
   ROL_A_SECTOR,
@@ -10,6 +11,7 @@ import {
   type VacacionesSector,
   type Semaforo,
 } from "./derivar";
+import { UMBRAL_CLAVE, mergeUmbral, type UmbralConfig } from "./umbral";
 
 export type { VacacionesSector, SaldoAnio } from "./derivar";
 
@@ -57,9 +59,11 @@ export type VacacionesGlobal = {
   saldos: VacacionesSaldoChofer[];
   periodos: VacacionesPeriodo[];
   finPeriodoY: number;
-  // Máximo de ausentes por semana antes de marcarla en rojo: 10% de los
-  // choferes activos, nunca menos de 4 (antes era un 4 fijo).
-  umbralAusentes: number;
+  // Configuración del máximo de ausentes por semana (base + overrides por mes),
+  // editable desde la pantalla. Ver `umbral.ts`.
+  umbralConfig: UmbralConfig;
+  // Choferes activos: la base del modo "porcentaje de la flota".
+  choferesActivos: number;
 };
 
 function diasEntre(inicio: string, fin: string): number {
@@ -81,7 +85,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
   const inicioPeriodo = `${finPeriodoY}-01-01`;
   const hoy = ahora.toISOString().split("T")[0]!;
 
-  const [{ data: choferes }, { data: aniosRaw }, { data: ausencias }] = await Promise.all([
+  const [{ data: choferes }, { data: aniosRaw }, { data: ausencias }, { data: paramUmbral }] = await Promise.all([
     supabase
       .from("choferes")
       .select("id, nombre, apellido, rol, fecha_ingreso, es_demo")
@@ -98,7 +102,20 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
       .select("id, chofer_id, tipo, fecha_inicio, fecha_fin, estado, observaciones, anio_cargo")
       .eq("es_vacaciones", true)
       .is("deleted_at", null),
+    supabase.from("parametros_sistema").select("valor").eq("clave", UMBRAL_CLAVE).maybeSingle(),
   ]);
+
+  // Umbral de ausentes por semana: config guardada (una fila JSON) o defaults.
+  // Un JSON corrupto degrada al comportamiento histórico (10% con piso 4).
+  let umbralRaw: unknown = undefined;
+  if (paramUmbral?.valor) {
+    try {
+      umbralRaw = JSON.parse(paramUmbral.valor);
+    } catch {
+      umbralRaw = undefined;
+    }
+  }
+  const umbralConfig = mergeUmbral(umbralRaw);
 
   // Sin demo: la dotación real. (`es_demo` puede venir null en datos viejos.)
   const dotacion = (choferes ?? []).filter((c) => (c as { es_demo?: boolean | null }).es_demo !== true);
@@ -226,14 +243,9 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
       otorgadosPorChofer.get(c.id) ?? [],
       usadosPorChofer.get(c.id) ?? new Map(),
     );
-    const corresponden = saldosAnio.find((s) => s.anio === finPeriodoY)?.otorgados ?? 0;
     // El saldo del año X vence el 31/12 del año X+1: solo el año pasado sigue
     // vigente como "adeudado"; lo anterior ya venció (se muestra aparte).
-    const adeudados = saldosAnio.filter((s) => s.anio === finPeriodoY - 1).reduce((a, s) => a + s.saldo, 0);
-    const diasVencidos = saldosAnio
-      .filter((s) => s.anio < finPeriodoY - 1)
-      .reduce((a, s) => a + Math.max(0, s.saldo), 0);
-    const disponibles = saldosAnio.filter((s) => s.anio >= finPeriodoY - 1).reduce((a, s) => a + s.saldo, 0);
+    const { corresponden, adeudados, disponibles, diasVencidos } = resumenSaldos(saldosAnio, finPeriodoY);
     const tomados = tomadosPorChofer.get(c.id) ?? 0;
     const rol = (c as { rol: string | null }).rol;
     const ingreso = (c as { fecha_ingreso: string | null }).fecha_ingreso;
@@ -271,7 +283,6 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
   });
 
   const choferesActivos = dotacion.filter((c) => (ROL_A_SECTOR[(c as { rol: string | null }).rol ?? ""] ?? "Chofer") === "Chofer").length;
-  const umbralAusentes = Math.max(4, Math.round(choferesActivos * 0.1));
 
-  return { saldos, periodos, finPeriodoY, umbralAusentes };
+  return { saldos, periodos, finPeriodoY, umbralConfig, choferesActivos };
 }

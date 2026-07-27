@@ -4,12 +4,20 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Palmtree, Plus, Save } from "lucide-react";
+import { Palmtree, Plus, Save, Trash2, Pencil, X } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
-import { guardarSaldoVacacionesAction } from "./actions";
+import { guardarSaldosAnioAction, reimputarPeriodoAction } from "./actions";
 import type { Ausencia, VacacionesSaldo } from "./types";
 import { formatFecha } from "@/lib/utils";
-import { aniosCumplidos, hitoLabel, proximoHito, diasPorAntiguedad, venceSaldoLabel } from "../vacaciones/derivar";
+import {
+  aniosCumplidos,
+  hitoLabel,
+  proximoHito,
+  diasPorAntiguedad,
+  venceSaldoLabel,
+  saldosPorAnio,
+  resumenSaldos,
+} from "../vacaciones/derivar";
 
 interface Props {
   chofer_id: string;
@@ -20,6 +28,8 @@ interface Props {
   onRefresh: () => void;
 }
 
+type FilaAnio = { anio: string; dias: string; observaciones: string };
+
 export default function ChoferVacacionesTab({
   chofer_id,
   saldo,
@@ -28,36 +38,93 @@ export default function ChoferVacacionesTab({
   fecha_ingreso,
   onRefresh,
 }: Props) {
-  const [corresponden, setCorresponden] = useState(String(saldo.dias_correspondientes));
-  const [adeudados, setAdeudados] = useState(String(saldo.dias_adeudados));
+  const finPeriodoY = new Date().getFullYear();
+
+  // Edición de los días que corresponden año por año: es lo que permite
+  // arreglar a mano una carga inicial mal importada sin depender de un dev.
+  const [editando, setEditando] = useState(false);
+  const [filas, setFilas] = useState<FilaAnio[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Período cuyo año de imputación se está cambiando (id de la ausencia).
+  const [reimputando, setReimputando] = useState<string | null>(null);
 
   // Períodos de vacaciones ya tomados (ausencias marcadas como vacaciones).
   const periodos = ausencias.filter((a) => a.es_vacaciones);
 
-  const correspondenNum = Number(corresponden) || 0;
-  const adeudadosNum = Number(adeudados) || 0;
-  const disponibles = correspondenNum + adeudadosNum - saldo.dias_tomados;
+  // Mientras se editan los días, los totales se recalculan en vivo con el mismo
+  // derivador del servidor: lo que se ve antes de guardar es lo que va a quedar.
+  const filasNum = filas
+    .map((f) => ({ anio: Number(f.anio), dias: Number(f.dias) || 0 }))
+    .filter((f) => Number.isInteger(f.anio) && f.anio > 0);
+  const saldosVista = editando
+    ? saldosPorAnio(
+        filasNum.map((f) => ({ anio: f.anio, dias: f.dias })),
+        new Map(saldo.anios.map((a) => [a.anio, a.usados])),
+      )
+    : saldo.anios;
+  const resumen = editando
+    ? resumenSaldos(saldosVista, finPeriodoY)
+    : {
+        corresponden: saldo.dias_correspondientes,
+        adeudados: saldo.dias_adeudados,
+        disponibles: saldo.dias_disponibles,
+        diasVencidos: saldo.dias_vencidos,
+      };
 
   // Campos derivados de la antigüedad (mismos que la vista global de Vacaciones).
-  const finPeriodoY = new Date().getFullYear();
   const anios = fecha_ingreso ? aniosCumplidos(fecha_ingreso, finPeriodoY) : null;
   const hito = anios != null ? hitoLabel(anios) : "—";
   const proxHito = fecha_ingreso && anios != null ? proximoHito(fecha_ingreso, anios, finPeriodoY) : "—";
-  const venceSaldo = venceSaldoLabel(adeudadosNum, finPeriodoY);
-  const diasAntig = anios != null ? diasPorAntiguedad(anios) : correspondenNum;
-  const desfasaje = correspondenNum > 0 && anios != null && diasAntig !== correspondenNum;
+  const venceSaldo = venceSaldoLabel(resumen.adeudados, finPeriodoY);
+  const diasAntig = anios != null ? diasPorAntiguedad(anios) : resumen.corresponden;
+  const desfasaje = resumen.corresponden > 0 && anios != null && diasAntig !== resumen.corresponden;
+
+  // Años que se le pueden asignar a un período: los que ya tiene cargados más el
+  // año en curso y el anterior, para no quedar limitada a lo que existe hoy.
+  const aniosDisponibles = [
+    ...new Set([...saldo.anios.map((a) => a.anio), finPeriodoY, finPeriodoY - 1]),
+  ].sort((a, b) => b - a);
+
+  const abrirEdicion = () => {
+    setFilas(
+      (saldo.anios.length > 0
+        ? saldo.anios
+        : [{ anio: finPeriodoY, otorgados: diasAntig, usados: 0, saldo: 0, observaciones: null }]
+      ).map((a) => ({
+        anio: String(a.anio),
+        dias: String(a.otorgados),
+        observaciones: a.observaciones ?? "",
+      })),
+    );
+    setError(null);
+    setEditando(true);
+  };
 
   const guardar = async () => {
     setSaving(true);
     setError(null);
-    const res = await guardarSaldoVacacionesAction(chofer_id, {
-      dias_correspondientes: correspondenNum,
-      dias_adeudados: adeudadosNum,
-    });
+    const res = await guardarSaldosAnioAction(
+      chofer_id,
+      filas.map((f) => ({
+        anio: Number(f.anio),
+        dias: Number(f.dias) || 0,
+        observaciones: f.observaciones || null,
+      })),
+    );
     setSaving(false);
+    if (res.error) setError(res.error);
+    else {
+      setEditando(false);
+      onRefresh();
+    }
+  };
+
+  const cambiarImputacion = async (id: string, valor: string) => {
+    setReimputando(null);
+    setError(null);
+    const res = await reimputarPeriodoAction(id, chofer_id, valor === "hist" ? null : Number(valor));
     if (res.error) setError(res.error);
     else onRefresh();
   };
@@ -82,17 +149,31 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
-      {/* Resumen de saldo */}
+      {/* Resumen de saldo. "Disponibles" es el saldo vigente que queda por año
+          (Y e Y−1): NO se le vuelven a restar los tomados, porque esos días ya
+          están descontados del año al que se imputaron. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SaldoCard label="Corresponden (período)" value={correspondenNum} tone="muted" />
-        <SaldoCard label="Adeudados (anteriores)" value={adeudadosNum} tone="muted" />
-        <SaldoCard label="Tomados" value={saldo.dias_tomados} tone="warning" />
+        <SaldoCard label={`Corresponden (${finPeriodoY})`} value={resumen.corresponden} tone="muted" />
+        <SaldoCard label={`Adeudados (${finPeriodoY - 1})`} value={resumen.adeudados} tone="muted" />
+        <SaldoCard
+          label="Tomados"
+          value={saldo.dias_tomados}
+          tone="warning"
+          hint={`Días de vacaciones que arrancaron en ${finPeriodoY}, sin importar de qué año descuenten.`}
+        />
         <SaldoCard
           label="Disponibles"
-          value={disponibles}
-          tone={disponibles < 0 ? "error" : "success"}
+          value={resumen.disponibles}
+          tone={resumen.disponibles < 0 ? "error" : "success"}
+          hint={`Suma de lo que queda del ${finPeriodoY} y del ${finPeriodoY - 1}.`}
         />
       </div>
+      {resumen.diasVencidos > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Además tiene <span className="font-mono font-medium text-foreground">{resumen.diasVencidos}</span> día(s)
+          de años anteriores a {finPeriodoY - 1} que ya vencieron y no cuentan como disponibles.
+        </p>
+      )}
 
       {/* Antigüedad / hito / vencimientos (derivados del ingreso) */}
       <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-[8px] border border-border bg-muted/20 px-4 py-3 text-sm">
@@ -113,68 +194,153 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
-      {/* Desglose por año (otorgados − imputados = saldo) */}
-      {saldo.anios.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Por año</span>
-          {saldo.anios.map((a) => (
-            <span
-              key={a.anio}
-              title={a.observaciones ?? undefined}
-              className={`px-2 py-0.5 rounded-full border font-mono ${
-                a.saldo > 0
-                  ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
-                  : "bg-muted text-muted-foreground border-border"
-              }`}
-            >
-              {a.anio}: {a.saldo} de {a.otorgados}
-              {a.usados > 0 ? ` (usados ${a.usados})` : ""}
-            </span>
-          ))}
-        </div>
+      {error && (
+        <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-[6px]">{error}</div>
       )}
 
-      {/* Edición del saldo */}
-      {can_write && (
-        <div className="bg-card rounded-[8px] border border-border p-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Cargá los días que le corresponden del período y los adeudados de períodos
-            anteriores. Los <span className="font-medium">tomados</span> se calculan solos a
-            partir de las vacaciones cargadas.
-          </p>
-          {error && (
-            <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
-              {error}
+      {/* Días que corresponden, año por año. Editable: los otorgados de cada año
+          son la carga inicial de la planilla y a veces vienen mal. */}
+      <div className="bg-card rounded-[8px] border border-border overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border">
+          <h4 className="text-sm font-semibold text-foreground">Días por año</h4>
+          <span className="text-xs text-muted-foreground">otorgados − tomados de ese año = saldo</span>
+          {can_write && (
+            <div className="ml-auto flex items-center gap-1.5">
+              {editando ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditando(false);
+                      setError(null);
+                    }}
+                    disabled={saving}
+                    className="h-7 text-xs text-muted-foreground border-border"
+                  >
+                    <X size={13} className="mr-1" /> Cancelar
+                  </Button>
+                  <Button variant="brand" size="sm" onClick={guardar} disabled={saving} className="h-7 text-xs">
+                    <Save size={13} className="mr-1" />
+                    {saving ? "Guardando…" : "Guardar"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={abrirEdicion}
+                  className="h-7 text-xs text-muted-foreground border-border"
+                >
+                  <Pencil size={12} className="mr-1" /> Editar días
+                </Button>
+              )}
             </div>
           )}
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Días que corresponden</label>
-              <Input
-                type="number"
-                min={0}
-                value={corresponden}
-                onChange={(e) => setCorresponden(e.target.value)}
-                className="w-40"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Días adeudados</label>
-              <Input
-                type="number"
-                min={0}
-                value={adeudados}
-                onChange={(e) => setAdeudados(e.target.value)}
-                className="w-40"
-              />
-            </div>
-            <Button variant="brand" onClick={guardar} disabled={saving}>
-              <Save size={14} className="mr-1.5" />
-              {saving ? "Guardando..." : "Guardar saldo"}
-            </Button>
-          </div>
         </div>
-      )}
+
+        {editando ? (
+          <div className="p-4 space-y-2">
+            {filas.map((f, i) => {
+              const usados = saldo.anios.find((a) => a.anio === Number(f.anio))?.usados ?? 0;
+              return (
+                <div key={i} className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="number"
+                    value={f.anio}
+                    onChange={(e) =>
+                      setFilas((p) => p.map((x, j) => (j === i ? { ...x, anio: e.target.value } : x)))
+                    }
+                    className="w-24 font-mono"
+                    aria-label="Año"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={f.dias}
+                    onChange={(e) =>
+                      setFilas((p) => p.map((x, j) => (j === i ? { ...x, dias: e.target.value } : x)))
+                    }
+                    className="w-20 font-mono text-right"
+                    aria-label="Días que corresponden"
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap w-28">
+                    {usados > 0 ? `${usados} tomados` : "sin tomar"}
+                  </span>
+                  <Input
+                    value={f.observaciones}
+                    onChange={(e) =>
+                      setFilas((p) => p.map((x, j) => (j === i ? { ...x, observaciones: e.target.value } : x)))
+                    }
+                    placeholder="Observación (opcional)"
+                    className="flex-1 min-w-[10rem]"
+                    aria-label="Observación"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFilas((p) => p.filter((_, j) => j !== i))}
+                    title={usados > 0 ? "Tiene vacaciones imputadas: primero cambiá de qué año descuentan" : "Quitar el año"}
+                    className="text-muted-foreground hover:text-[#EF4444] shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setFilas((p) => {
+                  // Propone el año vigente que falte (el anterior primero), no el
+                  // siguiente: un año futuro no suma a los días disponibles y
+                  // sugerirlo por defecto sólo confunde.
+                  const cargados = new Set(p.map((x) => Number(x.anio)));
+                  const sugerido =
+                    [finPeriodoY - 1, finPeriodoY].find((y) => !cargados.has(y)) ??
+                    Math.min(...[...cargados].filter(Number.isFinite), finPeriodoY) - 1;
+                  return [...p, { anio: String(sugerido), dias: String(diasAntig), observaciones: "" }];
+                })
+              }
+              className="h-7 text-xs text-muted-foreground border-border"
+            >
+              <Plus size={12} className="mr-1" /> Agregar año
+            </Button>
+            <p className="text-xs text-muted-foreground pt-1">
+              Los <span className="font-medium">tomados</span> salen solos de las vacaciones cargadas. Un año
+              con vacaciones imputadas no se puede quitar: primero cambiá de qué año descuenta ese período,
+              más abajo.
+            </p>
+          </div>
+        ) : saldosVista.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-muted-foreground">Sin días cargados todavía.</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 text-xs">
+            {saldosVista.map((a) => {
+              const vencido = a.anio < finPeriodoY - 1;
+              return (
+                <span
+                  key={a.anio}
+                  title={
+                    (vencido ? `Venció el 31/12/${a.anio + 1}. ` : "") +
+                    (a.observaciones ?? "")
+                  }
+                  className={`px-2 py-0.5 rounded-[4px] border font-mono ${
+                    vencido
+                      ? "bg-muted text-muted-foreground/60 border-border line-through"
+                      : a.saldo > 0
+                        ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
+                        : "bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  {a.anio}: {a.saldo} de {a.otorgados}
+                  {a.usados > 0 ? ` (usados ${a.usados})` : ""}
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Listado de vacaciones tomadas */}
       <div>
@@ -207,20 +373,52 @@ export default function ChoferVacacionesTab({
                       En curso
                     </span>
                   )}
-                  {a.anio_cargo != null ? (
-                    <span
-                      className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
-                      title={`Descuenta del saldo ${a.anio_cargo}`}
-                    >
-                      Saldo {a.anio_cargo}
+                  {/* De qué año descuenta. Editable: la imputación automática
+                      (y el importador de la planilla) a veces le pegan al año
+                      equivocado y hasta ahora no había forma de corregirlo. */}
+                  {reimputando === a.id ? (
+                    <span className="inline-flex items-center gap-1">
+                      <select
+                        autoFocus
+                        defaultValue={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
+                        onChange={(e) => cambiarImputacion(a.id, e.target.value)}
+                        className="h-7 rounded-[4px] border border-border bg-background px-2 text-xs text-foreground"
+                      >
+                        {aniosDisponibles.map((y) => (
+                          <option key={y} value={y}>
+                            Descuenta del {y}
+                          </option>
+                        ))}
+                        <option value="hist">Histórico (no descuenta)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setReimputando(null)}
+                        title="Cancelar"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X size={13} />
+                      </button>
                     </span>
                   ) : (
-                    <span
-                      className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
-                      title="Histórico — ya está reflejado en el saldo, no descuenta de los días actuales"
+                    <button
+                      type="button"
+                      disabled={!can_write}
+                      onClick={() => can_write && setReimputando(a.id)}
+                      title={
+                        can_write
+                          ? "Cambiar de qué año descuenta este período"
+                          : a.anio_cargo != null
+                            ? `Descuenta del saldo ${a.anio_cargo}`
+                            : "Histórico — ya está reflejado en el saldo"
+                      }
+                      className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-[4px] bg-muted text-muted-foreground border border-border ${
+                        can_write ? "hover:border-primary/50 hover:text-foreground cursor-pointer" : ""
+                      }`}
                     >
-                      Histórico
-                    </span>
+                      {a.anio_cargo != null ? `Saldo ${a.anio_cargo}` : "Histórico"}
+                      {can_write && <Pencil size={9} className="inline ml-1 align-baseline" />}
+                    </button>
                   )}
                 </div>
                 {a.autorizado_por_nombre && (
@@ -233,8 +431,10 @@ export default function ChoferVacacionesTab({
           </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          Las vacaciones se cargan como una ausencia (también aparecen en Logística / Viajes).
-          Para editarlas o cancelarlas, usá la pestaña <span className="font-medium">Ausencias</span>.
+          Clic en <span className="font-medium">Saldo {finPeriodoY}</span> / <span className="font-medium">Histórico</span> para
+          cambiar de qué año descuenta el período. Las vacaciones se cargan como una ausencia (también
+          aparecen en Logística / Viajes). Para editar fechas o cancelarlas, usá la pestaña{" "}
+          <span className="font-medium">Ausencias</span>.
         </p>
       </div>
 
@@ -257,10 +457,12 @@ function SaldoCard({
   label,
   value,
   tone,
+  hint,
 }: {
   label: string;
   value: number;
   tone: "muted" | "success" | "warning" | "error";
+  hint?: string;
 }) {
   const toneClass =
     tone === "success"
@@ -271,7 +473,7 @@ function SaldoCard({
           ? "text-[#991B1B]"
           : "text-foreground";
   return (
-    <div className="rounded-[8px] border border-border bg-card p-3">
+    <div className="rounded-[8px] border border-border bg-card p-3" title={hint}>
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold ${toneClass}`}>{value}</div>
     </div>

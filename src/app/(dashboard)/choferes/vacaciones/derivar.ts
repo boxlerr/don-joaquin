@@ -82,13 +82,44 @@ export function saldosPorAnio(
 }
 
 /**
+ * Resumen del saldo a partir del desglose por año. ÚNICA fuente de verdad de
+ * estas cuatro magnitudes: la usan la vista global, el legajo y las alertas, así
+ * el mismo empleado no puede mostrar números distintos en dos pantallas.
+ *
+ * Regla: el saldo del año X vence el 31/12 del año X+1. Entonces, parado en el
+ * año Y, siguen vigentes Y (corresponden) e Y−1 (adeudados); lo anterior venció.
+ *
+ * OJO: "disponibles" NO es `corresponden + adeudados − tomados`. Los días
+ * tomados ya están descontados dentro del saldo del año al que se imputaron
+ * (`anio_cargo`); restarlos otra vez los cuenta dos veces.
+ */
+export function resumenSaldos(saldos: SaldoAnio[], finPeriodoY: number) {
+  const corresponden = saldos.find((s) => s.anio === finPeriodoY)?.otorgados ?? 0;
+  const adeudados = saldos.filter((s) => s.anio === finPeriodoY - 1).reduce((a, s) => a + s.saldo, 0);
+  // Sólo Y e Y−1. Un año futuro cargado por adelantado NO es día disponible
+  // todavía (se ve en el desglose por año, pero no suma acá).
+  const disponibles = saldos
+    .filter((s) => s.anio >= finPeriodoY - 1 && s.anio <= finPeriodoY)
+    .reduce((a, s) => a + s.saldo, 0);
+  const diasVencidos = saldos
+    .filter((s) => s.anio < finPeriodoY - 1)
+    .reduce((a, s) => a + Math.max(0, s.saldo), 0);
+  return { corresponden, adeudados, disponibles, diasVencidos, total: corresponden + adeudados };
+}
+
+/**
  * Año al que se imputa un período nuevo: el más viejo con saldo disponible
  * (sin pasarse del año calendario del período). Si no queda saldo en ningún
  * año, se imputa al año de la fecha de inicio.
+ *
+ * Sólo considera años todavía vigentes a la fecha del período (el año de la
+ * fecha y el anterior). Antes tomaba cualquier año con saldo, así que un período
+ * de hoy podía consumir días de un año ya vencido: días que las pantallas daban
+ * por perdidos desaparecían sin que se moviera ningún número visible.
  */
 export function anioParaImputar(saldos: SaldoAnio[], fechaInicioISO: string): number {
   const anioFecha = Number(fechaInicioISO.slice(0, 4));
-  const conSaldo = saldos.filter((s) => s.saldo > 0 && s.anio <= anioFecha);
+  const conSaldo = saldos.filter((s) => s.saldo > 0 && s.anio <= anioFecha && s.anio >= anioFecha - 1);
   return conSaldo.length > 0 ? conSaldo[0]!.anio : anioFecha;
 }
 

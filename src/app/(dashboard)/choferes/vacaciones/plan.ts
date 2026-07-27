@@ -36,11 +36,13 @@ export function planSugerido(opts: {
   semanas: PlanSemana[]; // desde la semana próxima hasta fin de año
   ocupacion: number[]; // cuántos están de vacaciones en cada semana (ya cargados)
   ocupadoPorChofer: Set<string>; // `${chofer_id}|${semana.start}` si ya tiene vacaciones esa semana
-  umbral: number; // máximo de ausentes por semana
+  /** Máximo de ausentes de cada semana (puede variar por mes: diciembre admite más). */
+  umbralPorSemana: number[];
 }): PlanResultado {
-  const { urgentes, semanas, umbral } = opts;
+  const { urgentes, semanas, umbralPorSemana } = opts;
   const ocupacion = [...opts.ocupacion];
   const ocupado = new Set(opts.ocupadoPorChofer);
+  const topeDe = (i: number) => umbralPorSemana[i] ?? umbralPorSemana[umbralPorSemana.length - 1] ?? 4;
 
   const items: PlanItem[] = [];
   const sinLugar: PlanResultado["sinLugar"] = [];
@@ -61,7 +63,7 @@ export function planSugerido(opts: {
         for (let i = 0; i + ancho <= semanas.length; i++) {
           let ok = true;
           for (let j = i; j < i + ancho; j++) {
-            if (ocupacion[j]! >= umbral || ocupado.has(`${u.chofer_id}|${semanas[j]!.start}`)) {
+            if (ocupacion[j]! >= topeDe(j) || ocupado.has(`${u.chofer_id}|${semanas[j]!.start}`)) {
               ok = false;
               break;
             }

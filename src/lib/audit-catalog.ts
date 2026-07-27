@@ -78,6 +78,8 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   extintor: "Extintor",
   gasto: "Gasto",
   rotacion_baja: "Baja de chofer",
+  chofer_ausencia: "Ausencia / vacaciones",
+  chofer_vacaciones_anio: "Saldo de vacaciones por año",
   planilla_diaria: "Planilla diaria",
   tarifa: "Tarifa",
   cliente_aumento: "Aumento de cliente",

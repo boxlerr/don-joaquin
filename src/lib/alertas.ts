@@ -441,21 +441,24 @@ export async function generarAlertas() {
     const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
     const diasHasta31 = Math.round((fin31.getTime() - hoyMid.getTime()) / 86400000);
     if (diasHasta31 >= 0 && diasHasta31 <= 120) {
-      // Saldo viejo = días otorgados de años anteriores − períodos imputados a
-      // esos años (chofer_vacaciones_anios + chofer_ausencias.anio_cargo).
+      // Saldo por vencer = días otorgados del AÑO PASADO − períodos imputados a
+      // ese año. Sólo el año anterior vence el 31/12 (el saldo del año X vence
+      // el 31/12 del X+1): antes esto sumaba todos los años previos y la alerta
+      // reclamaba días que el resto del sistema ya daba por vencidos.
+      const anioPrevio = anioActual - 1;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sbVac = supabase as any;
       const [{ data: aniosVac }, { data: periodosVac }] = await Promise.all([
         sbVac
           .from("chofer_vacaciones_anios")
           .select("chofer_id, anio, dias_correspondientes")
-          .lt("anio", anioActual),
+          .eq("anio", anioPrevio),
         sbVac
           .from("chofer_ausencias")
           .select("chofer_id, fecha_inicio, fecha_fin, anio_cargo")
           .eq("es_vacaciones", true)
           .is("deleted_at", null)
-          .lt("anio_cargo", anioActual),
+          .eq("anio_cargo", anioPrevio),
       ]);
       const adeudadosPorChofer = new Map<string, number>();
       for (const r of (aniosVac ?? []) as { chofer_id: string; dias_correspondientes: number }[]) {

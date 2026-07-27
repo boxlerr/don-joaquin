@@ -18,7 +18,7 @@ import { formatFecha } from "@/lib/utils";
 import { AlertTriangle, Loader2, MapPin } from "lucide-react";
 
 export type ChoferOpcion = { chofer_id: string; nombre: string; apellido: string };
-export type SugerenciaSemana = { inicio: string; fin: string; ocupados: number };
+export type SugerenciaSemana = { inicio: string; fin: string; ocupados: number; umbral?: number };
 
 interface Props {
   open: boolean;

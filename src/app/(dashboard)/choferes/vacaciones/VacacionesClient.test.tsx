@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import VacacionesClient, { agruparMeses } from "./VacacionesClient";
+import { guardarSaldoVacacionesAction, guardarSaldosAnioAction } from "../[slug]/actions";
 import type { VacacionesSaldoChofer, VacacionesPeriodo } from "./lib";
 
 vi.mock("next/navigation", () => ({
@@ -8,6 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("../[slug]/actions", () => ({
   guardarSaldoVacacionesAction: vi.fn(async () => ({ success: true })),
+  guardarSaldosAnioAction: vi.fn(async () => ({ success: true })),
   cancelarAusenciaAction: vi.fn(async () => ({ success: true })),
   crearAusenciaAction: vi.fn(async () => ({ success: true })),
   editarAusenciaAction: vi.fn(async () => ({ success: true })),
@@ -15,6 +17,7 @@ vi.mock("../[slug]/actions", () => ({
 }));
 vi.mock("./actions", () => ({
   recalcularDiasPorAntiguedadAction: vi.fn(async () => ({ success: true, actualizados: 0 })),
+  guardarUmbralConfigAction: vi.fn(async () => ({ success: true })),
 }));
 
 // Fechas relativas a hoy para que el período caiga en la ventana visible.
@@ -147,6 +150,143 @@ describe("VacacionesClient", () => {
     fireEvent.change(screen.getByPlaceholderText("Buscar empleado…"), { target: { value: "heim" } });
     expect(screen.getAllByText(/Heim, Jonatan/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Saenz Buruaga, Gaston/)).not.toBeInTheDocument();
+  });
+});
+
+// Casos del feedback del 27/07/2026: el cronograma arrancaba siempre en la
+// semana en curso (no se podía mirar el mes que se está liquidando) y mezclaba
+// a los que ya volvieron con los que están de vacaciones.
+describe("VacacionesClient — ventana y filtro del cronograma", () => {
+  const manana = new Date(hoy.getTime() + 86_400_000);
+  const en2dias = new Date(hoy.getTime() + 2 * 86_400_000);
+  // Alguien que aparece en la ventana pero HOY no está de vacaciones.
+  const periodoFuturo: VacacionesPeriodo = {
+    id: "p2",
+    chofer_id: "c2",
+    nombre: "Jonatan",
+    apellido: "Heim",
+    fecha_inicio: iso(manana),
+    fecha_fin: iso(en2dias),
+    dias: 2,
+    estado: "autorizada",
+    observaciones: null,
+    anio_cargo: finPeriodoY,
+    en_curso: false,
+    viajes_conflicto: 0,
+  };
+  // Un período del mes pasado: antes era invisible desde esta pantalla.
+  const mesPasado = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 10);
+  const mesPasadoFin = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 14);
+  const periodoViejo: VacacionesPeriodo = {
+    ...periodoFuturo,
+    id: "p3",
+    fecha_inicio: iso(mesPasado),
+    fecha_fin: iso(mesPasadoFin),
+    dias: 5,
+  };
+
+  it("“Solo de vacaciones hoy” deja fuera a los que ya volvieron o todavía no salieron", () => {
+    render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={[...periodos, periodoFuturo]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+      />,
+    );
+    // Sin filtro aparecen los dos en el cronograma.
+    expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(2);
+
+    fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
+    const filas = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
+    expect(filas).toHaveLength(1);
+    expect(filas[0]!).toHaveTextContent("Saenz Buruaga");
+  });
+
+  it("se puede navegar al mes anterior y ver lo que ya pasó", () => {
+    render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={[...periodos, periodoViejo]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+      />,
+    );
+    // Arranca en la semana en curso: el período del mes pasado no está.
+    expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(1);
+
+    // Modo "Un mes" + una vez para atrás.
+    fireEvent.change(screen.getByDisplayValue("10 semanas"), { target: { value: "mes" } });
+    fireEvent.click(screen.getByTitle("Mes anterior"));
+
+    const filas = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
+    expect(filas).toHaveLength(1);
+    expect(filas[0]!).toHaveTextContent("Heim");
+    // Y aparece el botón para volver, porque la ventana ya no contiene hoy.
+    expect(screen.getByText("Hoy")).toBeInTheDocument();
+  });
+
+  it("el filtro no queda aplicado (ni invisible) al pasar a la vista anual", () => {
+    render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={[...periodos, periodoFuturo]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+      />,
+    );
+    fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
+    expect(screen.getByText("Períodos en la ventana").parentElement!).toHaveTextContent("(1)");
+
+    // En la vista anual el botón del filtro no existe: no puede seguir filtrando.
+    fireEvent.click(screen.getByText("Año"));
+    expect(screen.queryByText("Solo de vacaciones hoy")).not.toBeInTheDocument();
+    expect(screen.getByText("Períodos en la ventana").parentElement!).toHaveTextContent("(2)");
+  });
+
+  it("el máximo de ausentes puede definirse por mes", () => {
+    const { rerender } = render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={periodos}
+        finPeriodoY={finPeriodoY}
+        canWrite
+        choferesActivos={60}
+      />,
+    );
+    // Modo auto: 10% de 60 = 6
+    expect(screen.getByText(/máximo: 6 por semana/)).toBeInTheDocument();
+
+    rerender(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={periodos}
+        finPeriodoY={finPeriodoY}
+        canWrite
+        choferesActivos={60}
+        umbralConfig={{ modo: "fijo", porcentaje: 10, minimo: 4, fijo: 3, porMes: { 12: 15 } }}
+      />,
+    );
+    expect(screen.getByText(/máximo: 3 por semana/)).toBeInTheDocument();
+    expect(screen.getByText(/1 mes\/es aparte/)).toBeInTheDocument();
+  });
+});
+
+describe("VacacionesClient — edición de saldo", () => {
+  it("cambiar de vista con una fila abierta cierra la edición en vez de guardar por el camino equivocado", () => {
+    vi.mocked(guardarSaldoVacacionesAction).mockClear();
+    vi.mocked(guardarSaldosAnioAction).mockClear();
+    render(<VacacionesClient saldos={saldos} periodos={periodos} finPeriodoY={finPeriodoY} canWrite />);
+
+    fireEvent.click(screen.getByText("Por año"));
+    fireEvent.click(screen.getAllByTitle(/Editar los días/)[0]!);
+    expect(screen.getByTitle("Guardar")).toBeInTheDocument();
+
+    // Antes la fila seguía abierta y el ✓ guardaba con la acción de la otra vista.
+    fireEvent.click(screen.getByText("Resumen"));
+    expect(screen.queryByTitle("Guardar")).not.toBeInTheDocument();
+    expect(guardarSaldoVacacionesAction).not.toHaveBeenCalled();
+    expect(guardarSaldosAnioAction).not.toHaveBeenCalled();
   });
 });
 

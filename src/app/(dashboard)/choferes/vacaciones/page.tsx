@@ -6,7 +6,7 @@ import VacacionesClient from "./VacacionesClient";
 export default async function VacacionesPage() {
   const user = await requireSeccion("choferes_vacaciones", "read");
   const canWrite = hasSeccion(user, "choferes_vacaciones", "write");
-  const { saldos, periodos, finPeriodoY, umbralAusentes } = await getVacacionesGlobal();
+  const { saldos, periodos, finPeriodoY, umbralConfig, choferesActivos } = await getVacacionesGlobal();
 
   return (
     <div className="p-8 space-y-6 w-full">
@@ -19,7 +19,8 @@ export default async function VacacionesPage() {
         periodos={periodos}
         finPeriodoY={finPeriodoY}
         canWrite={canWrite}
-        umbralAusentes={umbralAusentes}
+        umbralConfig={umbralConfig}
+        choferesActivos={choferesActivos}
       />
     </div>
   );
