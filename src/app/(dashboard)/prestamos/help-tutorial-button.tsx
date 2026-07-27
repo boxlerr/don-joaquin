@@ -13,9 +13,6 @@ import {
   Check,
   CheckCircle2,
   Pencil,
-  Trash2,
-  Lock,
-  Eye,
   ListChecks,
   ChevronDown,
 } from "lucide-react";
@@ -438,77 +435,6 @@ function MockProgreso() {
   );
 }
 
-// ===========================================================================
-// TAB 4 — Privacidad (confidencial y borrado)
-// ===========================================================================
-
-function MockPrivada() {
-  return (
-    <div className="space-y-2">
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
-        <Lock size={13} className="text-amber-600 mt-0.5 shrink-0" />
-        <div>
-          <div className="text-[11px] font-bold text-amber-900">Sección privada — solo dirección</div>
-          <div className="text-[10px] text-amber-800 mt-0.5">
-            Los préstamos de la casa no los ve el resto del equipo.
-          </div>
-        </div>
-      </div>
-      <div className="rounded-lg bg-[#F0F9FF] border border-[#BAE6FD] text-[10px] text-[#075985] px-2.5 py-2">
-        Se controla desde <b>Usuarios y Permisos</b>: marcando <b>Préstamos</b> como confidencial.
-      </div>
-    </div>
-  );
-}
-
-function MockLecturaEdicion() {
-  return (
-    <div className="space-y-2">
-      <div className="rounded-lg border border-border bg-card px-3 py-2 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-blue-50 text-blue-700 w-16 justify-center shrink-0">
-          <Eye size={9} /> Lectura
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          Ve el panel y los vencimientos, pero no toca nada.
-        </span>
-      </div>
-      <div className="rounded-lg border border-border bg-card px-3 py-2 flex items-center gap-2">
-        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-green-50 text-green-700 w-16 justify-center shrink-0">
-          <Pencil size={9} /> Edición
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          Carga préstamos, marca pagadas, corrige cuotas y borra.
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MockEliminar() {
-  return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
-          <Landmark size={11} className="text-primary" /> Santander
-        </span>
-        <span className="inline-flex size-6 items-center justify-center rounded-md bg-red-50 text-red-600">
-          <Trash2 size={12} />
-        </span>
-      </div>
-      <div className="px-3 py-2 bg-red-50 border-t border-red-100 flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] text-red-700 font-semibold flex items-center gap-1">
-          <AlertTriangle size={11} /> ¿Eliminar con todo su cronograma?
-        </span>
-        <span className="h-6 px-2 rounded bg-red-600 text-white text-[9px] font-bold inline-flex items-center">
-          Sí, eliminar
-        </span>
-        <span className="h-6 px-2 rounded border border-red-200 text-[9px] text-red-700 inline-flex items-center">
-          Cancelar
-        </span>
-      </div>
-    </div>
-  );
-}
 
 // ===========================================================================
 // Tabs
@@ -609,32 +535,6 @@ const TABS: TutorialTab[] = [
         description:
           "En la tabla cada préstamo muestra la barra de avance (43/48), la próxima cuota y cuánto falta pagar en total. Al saldar la última, la próxima dice “Cancelado”.",
         mockup: <MockProgreso />,
-      },
-    ],
-  },
-  {
-    id: "privacidad",
-    label: "Privacidad",
-    icon: <Lock size={14} />,
-    steps: [
-      {
-        title: "Sección privada",
-        description:
-          "Préstamos es confidencial: la ve solamente la dirección. Los préstamos de la casa quedan afuera del alcance del resto del equipo.",
-        mockup: <MockPrivada />,
-      },
-      {
-        title: "Lectura o edición",
-        description:
-          "Quien tiene solo lectura ve el panel y los vencimientos, pero no puede tocar nada. Con edición se carga, se marcan pagadas, se corrige y se borra.",
-        mockup: <MockLecturaEdicion />,
-      },
-      {
-        title: "Eliminar un préstamo",
-        description:
-          "El tacho borra un préstamo con todo su cronograma. Siempre pide confirmación antes: es definitivo, así que asegurate de que sea el correcto.",
-        mockup: <MockEliminar />,
-        hint: "¿Terminaste de pagarlo? No hace falta borrarlo: con todas las cuotas marcadas queda “Cancelado” y no molesta en los vencimientos.",
       },
     ],
   },

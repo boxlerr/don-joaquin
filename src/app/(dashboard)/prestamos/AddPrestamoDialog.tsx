@@ -35,6 +35,7 @@ export default function AddPrestamoDialog() {
   const [cuotasTotal, setCuotasTotal] = useState("");
   const [proximaNro, setProximaNro] = useState("1");
   const [proximaFecha, setProximaFecha] = useState("");
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   // El diálogo se monta en dos lugares (encabezado y tabla): ids únicos por
   // instancia para que las etiquetas nunca apunten al input equivocado.
   const uid = useId();
@@ -47,6 +48,7 @@ export default function AddPrestamoDialog() {
     setCuotasTotal("");
     setProximaNro("1");
     setProximaFecha("");
+    setMoneda("ARS");
     setError(null);
   };
 
@@ -63,6 +65,7 @@ export default function AddPrestamoDialog() {
         cuotas_total: parseInt(cuotasTotal) || 0,
         proxima_cuota_nro: parseInt(proximaNro) || 1,
         proxima_fecha: proximaFecha,
+        moneda,
       });
       if ("error" in res) {
         setError(res.error);
@@ -157,6 +160,32 @@ export default function AddPrestamoDialog() {
                 placeholder="Ej: 45"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-muted-foreground">Moneda</Label>
+            <div className="inline-flex overflow-hidden rounded-[6px] border border-border">
+              {(["ARS", "USD"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMoneda(m)}
+                  aria-pressed={moneda === m}
+                  className={`h-8 px-3 text-xs font-medium transition-colors ${
+                    moneda === m
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m === "ARS" ? "Pesos" : "Dólares"}
+                </button>
+              ))}
+            </div>
+            {moneda === "USD" && (
+              <p className="text-[11px] text-muted-foreground">
+                El importe de la cuota se guarda en dólares (ej. los Scania Credit).
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">

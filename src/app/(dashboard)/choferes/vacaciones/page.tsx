@@ -2,6 +2,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getVacacionesGlobal } from "./lib";
 import VacacionesClient from "./VacacionesClient";
+import HelpTutorialButton from "./help-tutorial-button";
 
 export default async function VacacionesPage() {
   const user = await requireSeccion("choferes_vacaciones", "read");
@@ -13,6 +14,7 @@ export default async function VacacionesPage() {
       <PageHeader
         title="Vacaciones"
         description="Cronograma, saldos y carga de vacaciones por empleado"
+        action={<HelpTutorialButton />}
       />
       <VacacionesClient
         saldos={saldos}

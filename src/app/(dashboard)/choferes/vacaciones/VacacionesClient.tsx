@@ -21,6 +21,7 @@ import {
   LayoutGrid,
   List,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   SlidersHorizontal,
   Plane,
@@ -42,6 +43,7 @@ import EditarPeriodoDialog from "./EditarPeriodoDialog";
 import UmbralDialog from "./UmbralDialog";
 import ImportarPlanillaDialog from "./import-planilla/ImportarPlanillaDialog";
 import CronogramaAnual from "./CronogramaAnual";
+import InitialsAvatar from "@/components/ui/InitialsAvatar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
   Dialog,
@@ -76,15 +78,6 @@ function fmtFecha(iso: string): string {
 function fmtIngreso(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-// Iniciales y un color estable por nombre para los avatares (vistas de tarjetas
-// y timeline). Sin dependencias: el hash es determinístico.
-function iniciales(nombre?: string, apellido?: string): string {
-  return ((nombre?.[0] ?? "") + (apellido?.[0] ?? "")).toUpperCase() || "—";
-}
-function colorAvatar(nombre?: string, apellido?: string): string {
-  const hue = ((nombre?.charCodeAt(0) ?? 0) * 7 + (apellido?.charCodeAt(0) ?? 0) * 13) % 360;
-  return `hsl(${hue} 42% 52%)`;
 }
 function diffDias(aISO: string, bISO: string): number {
   return Math.round((new Date(bISO + "T00:00:00").getTime() - new Date(aISO + "T00:00:00").getTime()) / 86_400_000);
@@ -195,6 +188,7 @@ export default function VacacionesClient({
   const [rango, setRango] = useState<RangoCrono>({ modo: "semanas", largo: "10", offset: 0 });
   const [vista, setVista] = useState<"semanas" | "anual">("semanas");
   const [umbralOpen, setUmbralOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios" | "tarjetas">("tarjetas");
   // Orden de "Saldos por empleado": con 78 personas, mirar de a uno no sirve.
   const [ordenSaldos, setOrdenSaldos] = useState<OrdenSaldos>("urgencia");
@@ -603,6 +597,10 @@ export default function VacacionesClient({
   // Columnas de la vista "Por año" (mismo formato que la planilla de Bárbara).
   const aniosColumnas = [...new Set(saldos.flatMap((s) => s.saldos_anio.map((a) => a.anio)))].sort();
   const sectorDe = new Map(saldos.map((s) => [s.chofer_id, s.sector]));
+  // Los períodos no traen la foto: se toma del saldo del mismo chofer.
+  const fotoPorChofer = new Map(
+    saldos.filter((s) => s.foto_url).map((s) => [s.chofer_id, s.foto_url as string]),
+  );
 
   // Posición del tramo de un período dentro de una semana (barras proporcionales
   // a los días reales, no bloques de semana entera).
@@ -644,22 +642,56 @@ export default function VacacionesClient({
           <option value="🟡">🟡 Atención</option>
           <option value="🟢">🟢 Ok</option>
         </select>
-        <Button
-          variant="outline"
-          onClick={exportar}
-          className="h-9 gap-1.5 text-muted-foreground border-border"
-          title="Descargar Excel (saldos, períodos y cronograma)"
-        >
-          <Download size={14} /> Excel
-        </Button>
-        <Button
-          variant="outline"
-          onClick={exportarPlanilla}
-          className="h-9 gap-1.5 text-muted-foreground border-border"
-          title="Descargar la planilla completa en el formato de siempre (resumen con semáforo, por sector y urgentes)"
-        >
-          <Download size={14} /> Planilla
-        </Button>
+        {/* Un solo botón de exportar, como el resto del sistema: adentro se
+            elige el formato en vez de tener dos botones sueltos. */}
+        <div className="relative">
+          <Button
+            variant="outline"
+            onClick={() => setExportOpen((v) => !v)}
+            aria-expanded={exportOpen}
+            className="h-9 gap-1.5 border-border text-muted-foreground"
+          >
+            <Download size={14} /> Exportar
+            <ChevronDown size={13} className={exportOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+          </Button>
+          {exportOpen && (
+            <>
+              <button
+                type="button"
+                aria-label="Cerrar"
+                onClick={() => setExportOpen(false)}
+                className="fixed inset-0 z-10 cursor-default"
+              />
+              <div className="absolute left-0 z-20 mt-1 w-[19rem] overflow-hidden rounded-[8px] border border-border bg-card shadow-md">
+                {[
+                  {
+                    titulo: "Planilla de vacaciones",
+                    sub: "El formato de siempre: resumen con semáforo, por sector y urgentes.",
+                    accion: exportarPlanilla,
+                  },
+                  {
+                    titulo: "Detalle completo",
+                    sub: "Saldos, períodos cargados y el cronograma de la ventana que estás viendo.",
+                    accion: exportar,
+                  },
+                ].map((op) => (
+                  <button
+                    key={op.titulo}
+                    type="button"
+                    onClick={() => {
+                      setExportOpen(false);
+                      op.accion();
+                    }}
+                    className="block w-full border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-muted/40"
+                  >
+                    <span className="block text-[13px] font-medium text-foreground">{op.titulo}</span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">{op.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         {canWrite && (
           <>
             <Button
@@ -928,7 +960,12 @@ export default function VacacionesClient({
         </div>
 
         {vista === "anual" ? (
-          <CronogramaAnual periodos={periodosFiltrados} anio={finPeriodoY} />
+          <CronogramaAnual
+            periodos={periodosFiltrados}
+            anio={finPeriodoY}
+            umbralConfig={cfgUmbral}
+            activos={choferesActivos}
+          />
         ) : filasCrono.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted-foreground">
             {soloEnCurso
@@ -1207,13 +1244,12 @@ export default function VacacionesClient({
                           const barra = p.viajes_conflicto > 0 ? "#F59E0B" : p.en_curso ? "#0088D1" : "#10B981";
                           return (
                             <li key={p.id} className={`group flex items-center gap-3 pl-4 pr-4 py-2.5 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}>
-                              <span
-                                className="shrink-0 grid place-items-center w-8 h-8 rounded-full text-[10px] font-bold text-white select-none"
-                                style={{ backgroundColor: colorAvatar(p.nombre, p.apellido) }}
-                                aria-hidden
-                              >
-                                {iniciales(p.nombre, p.apellido)}
-                              </span>
+                              <InitialsAvatar
+                                name={`${p.nombre} ${p.apellido}`}
+                                src={fotoPorChofer.get(p.chofer_id) ?? undefined}
+                                size={32}
+                                className="shrink-0 text-[11px]"
+                              />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                   <button
@@ -1414,9 +1450,17 @@ export default function VacacionesClient({
                             : "border-border hover:border-foreground/30 hover:bg-muted/20"
                         }`}
                       >
-                        <div className="flex items-baseline justify-between gap-3 px-3.5 pt-3">
-                          <span className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground group-hover:text-primary">
-                            {s.apellido}, {s.nombre}
+                        <div className="flex items-center justify-between gap-3 px-3.5 pt-3">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <InitialsAvatar
+                              name={`${s.nombre} ${s.apellido}`}
+                              src={s.foto_url ?? undefined}
+                              size={26}
+                              className="shrink-0 text-[10px]"
+                            />
+                            <span className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground group-hover:text-primary">
+                              {s.apellido}, {s.nombre}
+                            </span>
                           </span>
                           <span className="shrink-0 text-right leading-none">
                             <span
@@ -1480,13 +1524,24 @@ export default function VacacionesClient({
                         </div>
 
                         <div className="flex items-center justify-between gap-2 border-t border-border px-3.5 py-1.5 text-[11px] text-muted-foreground">
+                          {/* El "hito" es el escalón de antigüedad de la LCT
+                              (5/10/20 años): al cruzarlo le empiezan a
+                              corresponder más días. Se dice qué significa en vez
+                              de mostrar "≥20 años" suelto, que se leía como si
+                              fuera la antigüedad. */}
                           <span
                             className="truncate"
-                            title={`${s.anios} año${s.anios !== 1 ? "s" : ""} de antigüedad${s.hito !== "—" ? ` · tramo ${s.hito.replace("★ ", "")}` : ""} · ${s.proximo_hito}`}
+                            title={`${s.anios} año${s.anios !== 1 ? "s" : ""} de antigüedad · le corresponden ${s.dias_segun_antiguedad} días por año · ${s.proximo_hito === "Tramo máximo" ? "ya está en el tramo máximo de la LCT" : `próximo escalón: ${s.proximo_hito}`}`}
                           >
-                            Antigüedad: {s.anios} año{s.anios !== 1 ? "s" : ""}
+                            Antigüedad: {s.anios} año{s.anios !== 1 ? "s" : ""} ·{" "}
+                            {s.dias_segun_antiguedad} días/año
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
+                            {s.proximo_hito !== "Tramo máximo" && s.proximo_hito !== "—" && (
+                              <span className="hidden text-muted-foreground/70 sm:inline" title="Cuando cruza este escalón de antigüedad le corresponden más días por año">
+                                sube en {s.proximo_hito.replace(/ meses → \d+ años/, " meses")}
+                              </span>
+                            )}
                             {s.desfasaje && (
                               <span
                                 className="text-[#B45309]"

@@ -131,6 +131,8 @@ export async function addPrestamoAction(input: {
   proxima_cuota_nro: number; // 1 = préstamo nuevo
   proxima_fecha: string; // vencimiento de esa próxima cuota (YYYY-MM-DD)
   observaciones?: string | null;
+  /** ARS (default) o USD: los Scania Credit se pactan en dólares. */
+  moneda?: string | null;
 }): Promise<{ ok: true } | { error: string }> {
   const user = await requireSeccion("prestamos", "write");
 
@@ -162,6 +164,7 @@ export async function addPrestamoAction(input: {
       cuotas_total: input.cuotas_total,
       primer_vencimiento: primerVencimiento,
       observaciones: input.observaciones?.trim() || null,
+      moneda: input.moneda === "USD" ? "USD" : "ARS",
       created_by: user.id,
     })
     .select("id")
@@ -242,6 +245,88 @@ export async function setCuotaPagadaAction(
 }
 
 /** Corrección puntual de una cuota (fecha y/o importe) — la planilla manda. */
+/**
+ * Edición de la ficha del préstamo. Sirve sobre todo para completar los que
+ * entraron desde la planilla con datos a medias: al cargarle lo que faltaba, el
+ * aviso de "falta completar" se apaga solo.
+ */
+export async function updatePrestamoAction(
+  id: string,
+  input: {
+    banco?: string;
+    detalle?: string | null;
+    tasa?: number | null;
+    importe_cuota?: number;
+    moneda?: string | null;
+    datos_faltantes?: string | null;
+    observaciones?: string | null;
+  },
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireSeccion("prestamos", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("prestamos")
+    .select("banco, detalle, tasa, importe_cuota, moneda, datos_faltantes, observaciones, cuotas_total")
+    .eq("id", id)
+    .single();
+  if (!previo) return { error: "No se encontró el préstamo." };
+
+  const update: Record<string, unknown> = {};
+  if (input.banco !== undefined) {
+    const b = input.banco.trim();
+    if (!b) return { error: "Indicá el banco." };
+    update.banco = b;
+  }
+  if (input.detalle !== undefined) update.detalle = input.detalle?.trim() || null;
+  if (input.observaciones !== undefined) update.observaciones = input.observaciones?.trim() || null;
+  if (input.tasa !== undefined) {
+    if (input.tasa != null && (!Number.isFinite(input.tasa) || input.tasa < 0))
+      return { error: "La tasa tiene que ser un número mayor o igual a cero." };
+    update.tasa = input.tasa;
+  }
+  if (input.moneda !== undefined) update.moneda = input.moneda === "USD" ? "USD" : "ARS";
+  if (input.datos_faltantes !== undefined)
+    update.datos_faltantes = input.datos_faltantes?.trim() || null;
+  if (input.importe_cuota !== undefined) {
+    if (!Number.isFinite(input.importe_cuota) || input.importe_cuota < 0)
+      return { error: "El importe de la cuota tiene que ser mayor o igual a cero." };
+    update.importe_cuota = input.importe_cuota;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("prestamos").update(update).eq("id", id);
+  if (error) {
+    console.error("Error al editar préstamo:", error);
+    return { error: "No se pudo guardar el préstamo." };
+  }
+
+  // Cambiar el importe de la cuota lo aplica a las que faltan pagar: las ya
+  // pagadas quedan con lo que efectivamente se pagó.
+  if (input.importe_cuota !== undefined && input.importe_cuota !== Number(previo.importe_cuota)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)
+      .from("prestamo_cuotas")
+      .update({ importe: input.importe_cuota })
+      .eq("prestamo_id", id)
+      .eq("pagada", false);
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "prestamo",
+    entidadId: id,
+    valoresAnteriores: previo,
+    valoresNuevos: update,
+  });
+
+  revalidatePath("/prestamos");
+  return { ok: true };
+}
+
 export async function updateCuotaAction(
   cuotaId: string,
   input: { fecha_vencimiento?: string; importe?: number },

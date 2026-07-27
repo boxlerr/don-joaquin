@@ -45,6 +45,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import AddPrestamoDialog from "./AddPrestamoDialog";
+import EditPrestamoDialog from "./EditPrestamoDialog";
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
@@ -188,6 +189,8 @@ export default function PrestamosClient({
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState<OrdenPrestamo>("proxima");
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
+  const [editPrestamo, setEditPrestamo] = useState<PrestamoRow | null>(null);
+  const [editKey, setEditKey] = useState(0);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editCuota, setEditCuota] = useState<(CuotaRow & { banco: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -347,7 +350,11 @@ export default function PrestamosClient({
     return `${labelMes(meses[0]!.id)} – ${labelMes(meses[meses.length - 1]!.id)}`;
   }, [vista, dias, semanas, meses]);
 
-  const totalDeuda = prestamos.reduce((s, p) => s + p.restante, 0);
+  // Los préstamos a los que les falta información quedan fuera de los totales:
+  // tienen la cuota en cero y sumarlos daría una deuda más baja que la real.
+  const totalDeuda = prestamos
+    .filter((p) => !p.datos_faltantes && p.moneda !== "USD")
+    .reduce((s, p) => s + p.restante, 0);
 
   const bancos = [...new Set(prestamos.map((p) => p.banco))].sort((a, b) => a.localeCompare(b));
 
@@ -384,7 +391,9 @@ export default function PrestamosClient({
       }
     });
 
-  const deudaVisible = visibles.reduce((s, p) => s + p.restante, 0);
+  const deudaVisible = visibles
+    .filter((p) => !p.datos_faltantes && p.moneda !== "USD")
+    .reduce((s, p) => s + p.restante, 0);
   const incompletos = prestamos.filter((p) => p.datos_faltantes).length;
 
   const togglePagada = (cuotaId: string, pagada: boolean) => {
@@ -726,6 +735,17 @@ export default function PrestamosClient({
                 Falta pagar {ars(totalDeuda)}
               </span>
             )}
+            {incompletos > 0 && (
+              <button
+                type="button"
+                onClick={() => setFEstado("incompletos")}
+                title="Ver los préstamos a los que les falta información"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-600 hover:underline"
+              >
+                <AlertTriangle size={12} />
+                {incompletos} sin completar
+              </button>
+            )}
           </div>
           {canWrite && <AddPrestamoDialog />}
         </div>
@@ -853,8 +873,12 @@ export default function PrestamosClient({
                         <td className="px-4 py-3 text-muted-foreground">
                           {p.tasa != null ? `${p.tasa.toLocaleString("es-AR")}%` : "—"}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                          {ars(p.importe_cuota)}
+                        <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-foreground">
+                          {p.datos_faltantes && p.importe_cuota === 0
+                            ? "—"
+                            : p.moneda === "USD"
+                              ? `US$ ${p.importe_cuota.toLocaleString("es-AR")}`
+                              : ars(p.importe_cuota)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -875,19 +899,32 @@ export default function PrestamosClient({
                         <td className="px-4 py-3 text-muted-foreground">
                           {ultima ? fmtFecha(ultima) : "—"}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-foreground">
                           {p.restante > 0 ? ars(p.restante) : "—"}
                         </td>
                         {canWrite && (
                           <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDelId(p.id)}
-                              className="rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                              title="Eliminar préstamo"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            <div className="flex items-center justify-end gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditPrestamo(p);
+                                  setEditKey((k) => k + 1);
+                                }}
+                                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
+                                title="Editar banco, monto, cuota y tasa"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDelId(p.id)}
+                                className="rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                                title="Eliminar préstamo"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -971,6 +1008,13 @@ export default function PrestamosClient({
           </div>
         )}
       </div>
+
+      <EditPrestamoDialog
+        key={`edit-prestamo-${editKey}`}
+        prestamo={editPrestamo}
+        open={editPrestamo !== null}
+        onOpenChange={(v) => !v && setEditPrestamo(null)}
+      />
 
       {editCuota && (
         <EditarCuotaDialog

@@ -53,6 +53,8 @@ export type VacacionesSaldoChofer = {
   proximo_hito: string;
   semaforo: Semaforo;
   en_vacaciones_ahora: boolean;
+  /** Foto del legajo (URL firmada, 1 h). Null si todavía no le cargaron una. */
+  foto_url: string | null;
 };
 
 export type VacacionesGlobal = {
@@ -88,7 +90,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
   const [{ data: choferes }, { data: aniosRaw }, { data: ausencias }, { data: paramUmbral }] = await Promise.all([
     supabase
       .from("choferes")
-      .select("id, nombre, apellido, rol, fecha_ingreso, es_demo")
+      .select("id, nombre, apellido, rol, fecha_ingreso, es_demo, foto:documentos_archivos(bucket, path)")
       .eq("estado", "activo")
       .order("apellido"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -238,6 +240,34 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
     }
   }
 
+  // Fotos del legajo: se firman todas juntas (una sola llamada al storage) y
+  // duran una hora. Hoy casi nadie tiene foto cargada; en cuanto se suban al
+  // legajo aparecen acá solas.
+  const fotoPorChofer = new Map<string, string>();
+  {
+    const conFoto = dotacion
+      .map((c) => {
+        const f = (c as { foto?: { bucket: string; path: string } | { bucket: string; path: string }[] | null }).foto;
+        const obj = Array.isArray(f) ? f[0] : f;
+        return obj?.path ? { id: c.id, bucket: obj.bucket, path: obj.path } : null;
+      })
+      .filter((x): x is { id: string; bucket: string; path: string } => x !== null);
+    // Se agrupa por bucket porque createSignedUrls trabaja sobre uno solo.
+    const porBucket = new Map<string, { id: string; path: string }[]>();
+    for (const f of conFoto) {
+      const l = porBucket.get(f.bucket) ?? [];
+      l.push({ id: f.id, path: f.path });
+      porBucket.set(f.bucket, l);
+    }
+    for (const [bucket, files] of porBucket) {
+      const { data } = await supabase.storage.from(bucket).createSignedUrls(files.map((f) => f.path), 3600);
+      (data ?? []).forEach((row, i) => {
+        const chofer = files[i];
+        if (chofer && row.signedUrl) fotoPorChofer.set(chofer.id, row.signedUrl);
+      });
+    }
+  }
+
   const saldos: VacacionesSaldoChofer[] = dotacion.map((c) => {
     const saldosAnio = saldosPorAnio(
       otorgadosPorChofer.get(c.id) ?? [],
@@ -279,6 +309,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
       proximo_hito: d.proximo_hito,
       semaforo: d.semaforo,
       en_vacaciones_ahora: enVacacionesAhora.has(c.id),
+      foto_url: fotoPorChofer.get(c.id) ?? null,
     };
   });
 

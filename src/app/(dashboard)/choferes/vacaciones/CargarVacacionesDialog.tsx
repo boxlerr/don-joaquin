@@ -105,23 +105,31 @@ export default function CargarVacacionesDialog({
   };
 
   const ordenados = [...choferes].sort((a, b) => a.apellido.localeCompare(b.apellido));
+  const diasElegidos =
+    inicio && fin && fin >= inicio
+      ? Math.round(
+          (new Date(fin + "T00:00:00").getTime() - new Date(inicio + "T00:00:00").getTime()) / 86_400_000,
+        ) + 1
+      : 0;
   const mostrarSugerencias = !tocoFechas && (sugerencias?.length ?? 0) > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Cargar vacaciones</DialogTitle>
+          <DialogTitle className="text-lg text-foreground">
+            {choferFijo ? `${choferFijo.apellido}, ${choferFijo.nombre}` : "Cargar vacaciones"}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {choferFijo
-              ? `Para ${choferFijo.apellido}, ${choferFijo.nombre}.`
+              ? "Elegí el rango de días. Se descuenta del año más viejo con saldo."
               : "Elegí el empleado y el rango de días."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">{error}</div>
+            <div className="rounded-[6px] border-l-2 border-[#B91C1C] bg-transparent py-1.5 pl-3 text-sm text-[#B91C1C]">{error}</div>
           )}
 
           {!choferFijo && (
@@ -178,6 +186,14 @@ export default function CargarVacacionesDialog({
             </div>
           </div>
 
+          {/* Cuántos días salen del rango elegido: antes había que contarlos. */}
+          {diasElegidos > 0 && (
+            <p className="rounded-[6px] border border-border bg-muted/30 px-3 py-2 text-[13px] text-foreground">
+              <span className="font-semibold">{diasElegidos}</span> día{diasElegidos !== 1 ? "s" : ""} de
+              vacaciones, del {formatFecha(inicio)} al {formatFecha(fin)}.
+            </p>
+          )}
+
           {/* Sugerencias de semanas con menos gente */}
           {mostrarSugerencias && (
             <div className="space-y-1.5">
@@ -192,7 +208,7 @@ export default function CargarVacacionesDialog({
                       setFin(s.fin);
                       setTocoFechas(true);
                     }}
-                    className="text-xs px-2.5 py-1 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46] hover:bg-[#D1FAE5] transition-colors"
+                    className="rounded-[6px] border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:border-primary/50 hover:text-primary"
                   >
                     {fmtRango(s.inicio, s.fin)} · {s.ocupados} ausente{s.ocupados !== 1 ? "s" : ""}
                   </button>
@@ -224,8 +240,8 @@ export default function CargarVacacionesDialog({
               Buscando viajes en estas fechas…
             </div>
           ) : viajesRango.length > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
-              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-800">
+            <div className="space-y-2 rounded-[6px] border border-[#B45309]/40 p-3">
+              <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#B45309]">
                 <AlertTriangle size={14} />
                 Tiene {viajesRango.length} viaje{viajesRango.length !== 1 ? "s" : ""} en estas fechas
               </div>
