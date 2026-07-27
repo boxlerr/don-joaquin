@@ -130,8 +130,9 @@ function MockFormDatos() {
       <div className="p-3 space-y-2.5">
         <div className="grid grid-cols-2 gap-2">
           <MiniField label="Banco *" value="Galicia" icon={<Landmark size={10} />} required />
-          <MiniField label="Detalle" value="camión 2025" />
+          <MiniField label="Monto del préstamo" value="$ 150.000.000" />
         </div>
+        <MiniField label="Referencia" value="SUECA" />
         <div className="grid grid-cols-2 gap-2">
           <MiniField label="Importe de la cuota *" value="$ 4.500.000" required />
           <MiniField label="Tasa %" value="45" icon={<Percent size={10} />} />
@@ -337,7 +338,7 @@ function MockTablaExpand() {
       </div>
       <div className="flex items-center gap-2 px-3 py-2 bg-[#0088D1]/5 border-l-2 border-[#0088D1]">
         <span className="flex-1 flex items-center gap-1 text-[11px] font-medium text-foreground">
-          <ChevronDown size={12} className="text-primary" /> Galicia · camión 2025
+          <ChevronDown size={12} className="text-primary" /> Galicia · $150.000.000
         </span>
         <span className="w-14 flex items-center">
           <span className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
@@ -455,9 +456,9 @@ const TABS: TutorialTab[] = [
       {
         title: "Los datos del préstamo",
         description:
-          "Banco (obligatorio) y un detalle opcional para reconocerlo (ej: “camión 2025”). Después el importe de la cuota (obligatorio) y la tasa % si la tenés.",
+          "El banco se elige de la lista —ya están todos los que usamos— o se escribe uno nuevo y queda guardado para la próxima. Después el monto del préstamo, el importe de la cuota (obligatorio) y la tasa % si la tenés.",
         mockup: <MockFormDatos />,
-        hint: "El detalle es solo para vos: te ayuda a distinguir dos préstamos del mismo banco.",
+        hint: "“Referencia” es para cuando la planilla lo llama por un nombre en vez de un monto (SUECA, FORTE CAR): va ahí, no en el monto.",
       },
       {
         title: "Cuotas totales y por cuál va",

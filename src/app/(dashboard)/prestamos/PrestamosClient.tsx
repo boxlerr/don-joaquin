@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import AddPrestamoDialog from "./AddPrestamoDialog";
 import EditPrestamoDialog from "./EditPrestamoDialog";
+import { inicialesBanco, marcaBanco } from "./bancos";
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
@@ -139,28 +140,47 @@ function labelSemana(lunes: Date): string {
     : `${lunes.getDate()} ${MESES_CORTOS[lunes.getMonth()]} – ${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`;
 }
 
-/** Iniciales del banco para el badge (Nación → NA, Banco Galicia → BG). */
-function inicialesBanco(banco: string): string {
-  const palabras = banco.trim().split(/\s+/).filter((w) => w.toLowerCase() !== "banco");
-  if (palabras.length >= 2) return (palabras[0][0] + palabras[1][0]).toUpperCase();
-  return banco.replace(/^banco\s+/i, "").slice(0, 2).toUpperCase();
-}
-
-function BankBadge({ banco, size = 32 }: { banco: string; size?: number }) {
+/**
+ * Identificador visual del banco.
+ *
+ * Los logos de banco son wordmarks apaisados y de proporciones muy distintas
+ * entre sí (Santander es 5.7:1, Credicoop 2:1), así que el que manda es el
+ * ALTO: todos entran en una franja de la misma altura y cada uno usa el ancho
+ * que necesita, sin marco ni fondo. Si se ajustara por ancho, "Banco Nación"
+ * quedaría ilegible y el bloque gris de Credicoop se comería la fila.
+ *
+ * Sin logo, las iniciales con el color de la marca — no todas en el mismo azul,
+ * que era imposible distinguir de un vistazo.
+ */
+function BankBadge({ banco, alto = 20 }: { banco: string; alto?: number }) {
+  const { logo, color } = marcaBanco(banco);
   return (
     <span
-      className="inline-flex shrink-0 items-center justify-center rounded-lg font-semibold text-[#0088D1]"
-      style={{
-        width: size,
-        height: size,
-        fontSize: size * 0.34,
-        background: "rgba(0,136,209,0.12)",
-      }}
+      className="inline-flex shrink-0 items-center"
+      style={{ width: alto * 4.2, height: alto }}
+      title={banco}
     >
-      {inicialesBanco(banco)}
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- SVG local: no hay nada que optimizar
+        <img src={logo} alt="" className="max-h-full max-w-full object-contain object-left" />
+      ) : (
+        <span
+          className="flex items-center justify-center rounded-[4px] font-semibold"
+          style={{
+            width: alto,
+            height: alto,
+            color,
+            fontSize: alto * 0.48,
+            background: `${color}14`,
+          }}
+        >
+          {inicialesBanco(banco)}
+        </span>
+      )}
     </span>
   );
 }
+
 
 /** Criterios de orden del listado de préstamos. */
 type OrdenPrestamo = "proxima" | "cuota" | "deuda" | "tasa" | "cuotas" | "banco";
@@ -367,7 +387,8 @@ export default function PrestamosClient({
       if (fEstado === "cancelados" && p.proxima != null) return false;
       if (fEstado === "incompletos" && !p.datos_faltantes) return false;
       const q = busqueda.trim().toLowerCase();
-      if (q && !`${p.banco} ${p.detalle ?? ""}`.toLowerCase().includes(q)) return false;
+      if (q && !`${p.banco} ${p.detalle ?? ""} ${p.referencia ?? ""}`.toLowerCase().includes(q))
+        return false;
       return true;
     })
     .sort((a, b) => {
@@ -683,7 +704,7 @@ export default function PrestamosClient({
                 const vencida = c.fecha_vencimiento < hoy;
                 return (
                   <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <BankBadge banco={c.banco} size={30} />
+                    <BankBadge banco={c.banco} alto={18} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">
                         {c.banco}{" "}
@@ -747,7 +768,7 @@ export default function PrestamosClient({
               </button>
             )}
           </div>
-          {canWrite && <AddPrestamoDialog />}
+          {canWrite && <AddPrestamoDialog bancos={bancos} />}
         </div>
 
         {/* Filtros y orden: con 35 préstamos de 6 bancos, encontrar uno a ojo
@@ -845,29 +866,44 @@ export default function PrestamosClient({
                             ) : (
                               <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
                             )}
-                            <BankBadge banco={p.banco} size={30} />
-                            <span className="font-medium text-foreground">
-                              {p.banco}
-                              {p.detalle && (
-                                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                                  · {p.detalle}
+                            <BankBadge banco={p.banco} />
+                            <span className="min-w-0">
+                              <span className="flex items-center gap-1.5">
+                                <span className="font-medium text-foreground">
+                                  {p.banco}
+                                  {/* El monto va siempre: si no lo tenemos, un
+                                      guión, que se lee como "falta" y no como
+                                      "no aplica". */}
+                                  <span
+                                    className={`ml-1 text-xs font-normal ${p.detalle ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+                                  >
+                                    · {p.detalle || "—"}
+                                  </span>
                                 </span>
-                              )}
-                              {p.moneda === "USD" && (
-                                <span className="ml-1.5 rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                  USD
+                                {p.moneda === "USD" && (
+                                  <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    USD
+                                  </span>
+                                )}
+                                {p.datos_faltantes && (
+                                  <span
+                                    title={`Falta completar: ${p.datos_faltantes}`}
+                                    aria-label={`Préstamo incompleto, falta ${p.datos_faltantes}`}
+                                    className="inline-flex shrink-0 text-amber-500"
+                                  >
+                                    <AlertTriangle size={13} />
+                                  </span>
+                                )}
+                              </span>
+                              {/* Cómo lo llaman en la planilla (SUECA, FORTE
+                                  CAR): abajo y en chico, que no compita con la
+                                  plata. */}
+                              {p.referencia && (
+                                <span className="block truncate text-[11px] leading-tight text-muted-foreground/80">
+                                  {p.referencia}
                                 </span>
                               )}
                             </span>
-                            {p.datos_faltantes && (
-                              <span
-                                title={`Falta completar: ${p.datos_faltantes}`}
-                                aria-label={`Préstamo incompleto, falta ${p.datos_faltantes}`}
-                                className="inline-flex shrink-0 text-amber-500"
-                              >
-                                <AlertTriangle size={13} />
-                              </span>
-                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
@@ -1012,6 +1048,7 @@ export default function PrestamosClient({
       <EditPrestamoDialog
         key={`edit-prestamo-${editKey}`}
         prestamo={editPrestamo}
+        bancos={bancos}
         open={editPrestamo !== null}
         onOpenChange={(v) => !v && setEditPrestamo(null)}
       />

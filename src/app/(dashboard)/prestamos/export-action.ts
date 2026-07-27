@@ -34,7 +34,8 @@ export async function exportarPrestamosXlsxAction(): Promise<{
   // --- Hoja 1: resumen por préstamo ---------------------------------------
   const resumenCols: ProColumn[] = [
     { header: "Banco", width: 16, align: "l" },
-    { header: "Detalle", width: 16, align: "l" },
+    { header: "Monto", width: 16, align: "l" },
+    { header: "Referencia", width: 14, align: "l" },
     { header: "Tasa %", width: 10, align: "c", numFmt: "0.0" },
     { header: "Importe cuota", width: 16, align: "r", numFmt: '"$" #,##0.00' },
     { header: "Cuotas", width: 9, align: "c" },
@@ -43,6 +44,7 @@ export async function exportarPrestamosXlsxAction(): Promise<{
     { header: "Próxima cuota", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Última cuota", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Falta pagar", width: 16, align: "r", numFmt: '"$" #,##0.00' },
+    { header: "Falta cargar", width: 30, align: "l" },
   ];
 
   const resumenRows: CellValue[][] = prestamos.map((p) => {
@@ -50,6 +52,7 @@ export async function exportarPrestamosXlsxAction(): Promise<{
     return [
       p.banco,
       p.detalle || null,
+      p.referencia || null,
       p.tasa,
       p.importe_cuota,
       p.cuotas_total,
@@ -58,6 +61,7 @@ export async function exportarPrestamosXlsxAction(): Promise<{
       fechaCell(p.proxima?.fecha_vencimiento),
       fechaCell(ultima),
       p.restante,
+      p.datos_faltantes || null,
     ];
   });
 
@@ -72,13 +76,16 @@ export async function exportarPrestamosXlsxAction(): Promise<{
     null,
     null,
     null,
+    null,
     totalFalta,
+    null,
   ];
 
   // --- Hoja 2: cronograma completo ----------------------------------------
   const cuotaCols: ProColumn[] = [
     { header: "Banco", width: 16, align: "l" },
-    { header: "Detalle", width: 16, align: "l" },
+    { header: "Monto", width: 16, align: "l" },
+    { header: "Referencia", width: 14, align: "l" },
     { header: "Cuota", width: 9, align: "c" },
     { header: "Vencimiento", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Importe", width: 16, align: "r", numFmt: '"$" #,##0.00' },
@@ -89,6 +96,7 @@ export async function exportarPrestamosXlsxAction(): Promise<{
     p.cuotas.map((c) => [
       p.banco,
       p.detalle || null,
+      p.referencia || null,
       `${c.nro}/${p.cuotas_total}`,
       fechaCell(c.fecha_vencimiento),
       c.importe,

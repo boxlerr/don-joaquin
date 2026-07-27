@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { canonizarBanco } from "./bancos";
 
 // ---------------------------------------------------------------------------
 // Préstamos bancarios (audio Bárbara 02/07): la planilla de la mamá — por
@@ -24,7 +25,10 @@ export type CuotaRow = {
 export type PrestamoRow = {
   id: string;
   banco: string;
+  /** Monto original del préstamo, tal como figura en la planilla. */
   detalle: string | null;
+  /** Nombre con que se lo identifica (ej. "SUECA"). No es plata: eso es detalle. */
+  referencia: string | null;
   tasa: number | null;
   importe_cuota: number;
   cuotas_total: number;
@@ -54,6 +58,18 @@ function addMonths(fechaISO: string, meses: number): string {
   return `${base.getFullYear()}-${mm}-${dd}`;
 }
 
+/**
+ * Grafías de banco ya en uso. Sirve para que escribir "galicia" en el alta no
+ * cree un banco nuevo al lado de "Galicia".
+ */
+async function bancosExistentes(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+): Promise<string[]> {
+  const { data } = await supabase.from("prestamos").select("banco");
+  return [...new Set(((data ?? []) as { banco: string }[]).map((r) => r.banco))];
+}
+
 export async function getPrestamosAction(): Promise<PrestamoRow[]> {
   await requireSeccion("prestamos", "read");
   const supabase = createAdminClient();
@@ -61,7 +77,7 @@ export async function getPrestamosAction(): Promise<PrestamoRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: prestamos } = await (supabase as any)
     .from("prestamos")
-    .select("id, banco, detalle, tasa, importe_cuota, cuotas_total, estado, observaciones, moneda, datos_faltantes")
+    .select("id, banco, detalle, referencia, tasa, importe_cuota, cuotas_total, estado, observaciones, moneda, datos_faltantes")
     .order("banco");
 
   // Las cuotas se traen paginadas: Supabase devuelve como mucho 1000 filas por
@@ -125,6 +141,7 @@ export async function getPrestamosAction(): Promise<PrestamoRow[]> {
 export async function addPrestamoAction(input: {
   banco: string;
   detalle?: string | null;
+  referencia?: string | null;
   tasa?: number | null;
   importe_cuota: number;
   cuotas_total: number;
@@ -136,8 +153,8 @@ export async function addPrestamoAction(input: {
 }): Promise<{ ok: true } | { error: string }> {
   const user = await requireSeccion("prestamos", "write");
 
-  const banco = input.banco?.trim();
-  if (!banco) return { error: "Indicá el banco." };
+  const bancoEscrito = input.banco?.trim();
+  if (!bancoEscrito) return { error: "Indicá el banco." };
   if (!Number.isFinite(input.importe_cuota) || input.importe_cuota <= 0)
     return { error: "El importe de la cuota debe ser mayor a cero." };
   if (!Number.isInteger(input.cuotas_total) || input.cuotas_total <= 0)
@@ -149,6 +166,8 @@ export async function addPrestamoAction(input: {
     return { error: "Indicá la fecha de la próxima cuota." };
 
   const supabase = createAdminClient();
+  // Si ya existe ese banco con otra grafía, se usa la que ya está.
+  const banco = canonizarBanco(bancoEscrito, await bancosExistentes(supabase));
 
   // La cuota N vence en proxima_fecha; el resto se corre de a un mes.
   const primerVencimiento = addMonths(input.proxima_fecha, -(proximaNro - 1));
@@ -159,6 +178,7 @@ export async function addPrestamoAction(input: {
     .insert({
       banco,
       detalle: input.detalle?.trim() || null,
+      referencia: input.referencia?.trim() || null,
       tasa: input.tasa ?? null,
       importe_cuota: input.importe_cuota,
       cuotas_total: input.cuotas_total,
@@ -255,6 +275,7 @@ export async function updatePrestamoAction(
   input: {
     banco?: string;
     detalle?: string | null;
+    referencia?: string | null;
     tasa?: number | null;
     importe_cuota?: number;
     moneda?: string | null;
@@ -268,7 +289,7 @@ export async function updatePrestamoAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previo } = await (supabase as any)
     .from("prestamos")
-    .select("banco, detalle, tasa, importe_cuota, moneda, datos_faltantes, observaciones, cuotas_total")
+    .select("banco, detalle, referencia, tasa, importe_cuota, moneda, datos_faltantes, observaciones, cuotas_total")
     .eq("id", id)
     .single();
   if (!previo) return { error: "No se encontró el préstamo." };
@@ -277,9 +298,12 @@ export async function updatePrestamoAction(
   if (input.banco !== undefined) {
     const b = input.banco.trim();
     if (!b) return { error: "Indicá el banco." };
-    update.banco = b;
+    // Misma unificación de grafías que en el alta: escribir "galicia" en un
+    // préstamo que ya tenía otro banco lo manda a "Galicia", no crea uno nuevo.
+    update.banco = canonizarBanco(b, await bancosExistentes(supabase));
   }
   if (input.detalle !== undefined) update.detalle = input.detalle?.trim() || null;
+  if (input.referencia !== undefined) update.referencia = input.referencia?.trim() || null;
   if (input.observaciones !== undefined) update.observaciones = input.observaciones?.trim() || null;
   if (input.tasa !== undefined) {
     if (input.tasa != null && (!Number.isFinite(input.tasa) || input.tasa < 0))

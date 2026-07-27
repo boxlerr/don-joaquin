@@ -15,14 +15,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { addPrestamoAction } from "./actions";
+import { listaBancos } from "./bancos";
 
 /**
  * Alta de un préstamo con los mismos campos de la planilla de la mamá:
  * banco, importe de cuota, tasa, cantidad de cuotas y por cuál va. El
  * cronograma completo se genera solo (una cuota por mes, mismo día).
  */
-export default function AddPrestamoDialog() {
+export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,7 @@ export default function AddPrestamoDialog() {
 
   const [banco, setBanco] = useState("");
   const [detalle, setDetalle] = useState("");
+  const [referencia, setReferencia] = useState("");
   const [tasa, setTasa] = useState("");
   const [importeCuota, setImporteCuota] = useState("");
   const [cuotasTotal, setCuotasTotal] = useState("");
@@ -39,10 +42,14 @@ export default function AddPrestamoDialog() {
   // El diálogo se monta en dos lugares (encabezado y tabla): ids únicos por
   // instancia para que las etiquetas nunca apunten al input equivocado.
   const uid = useId();
+  // La lista se arma con los bancos que ya se usan; si escribe uno nuevo queda
+  // disponible para la próxima carga sin tener que mantener nada.
+  const opcionesBanco = listaBancos(bancos).map((b) => ({ id: b, label: b }));
 
   const reset = () => {
     setBanco("");
     setDetalle("");
+    setReferencia("");
     setTasa("");
     setImporteCuota("");
     setCuotasTotal("");
@@ -54,12 +61,17 @@ export default function AddPrestamoDialog() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!banco.trim()) {
+      setError("Elegí o escribí el banco.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const res = await addPrestamoAction({
         banco,
         detalle: detalle.trim() || null,
+        referencia: referencia.trim() || null,
         tasa: tasa.trim() === "" ? null : Number(tasa) || 0,
         importe_cuota: Number(importeCuota) || 0,
         cuotas_total: parseInt(cuotasTotal) || 0,
@@ -105,29 +117,41 @@ export default function AddPrestamoDialog() {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor={`${uid}-banco`} className="text-xs font-semibold text-muted-foreground">
-                Banco
-              </Label>
-              <Input
-                id={`${uid}-banco`}
-                value={banco}
-                onChange={(e) => setBanco(e.target.value)}
-                placeholder="Ej: Galicia"
-                required
-              />
-            </div>
+            <PlaceCombobox
+              label="Banco"
+              name={`${uid}-banco`}
+              value={banco}
+              onValueChange={setBanco}
+              options={opcionesBanco}
+              placeholder="Elegí o escribí uno nuevo"
+            />
             <div className="space-y-1">
               <Label htmlFor={`${uid}-detalle`} className="text-xs font-semibold text-muted-foreground">
-                Detalle <span className="font-normal text-muted-foreground/70">(opcional)</span>
+                Monto del préstamo{" "}
+                <span className="font-normal text-muted-foreground/70">(opcional)</span>
               </Label>
               <Input
                 id={`${uid}-detalle`}
                 value={detalle}
                 onChange={(e) => setDetalle(e.target.value)}
-                placeholder="Ej: préstamo camión 2025"
+                placeholder="Ej: $50.000.000"
               />
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor={`${uid}-referencia`} className="text-xs font-semibold text-muted-foreground">
+              Referencia{" "}
+              <span className="font-normal text-muted-foreground/70">
+                (opcional — cómo lo llaman en la planilla, ej. SUECA)
+              </span>
+            </Label>
+            <Input
+              id={`${uid}-referencia`}
+              value={referencia}
+              onChange={(e) => setReferencia(e.target.value)}
+              placeholder="Ej: SUECA, FORTE CAR"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

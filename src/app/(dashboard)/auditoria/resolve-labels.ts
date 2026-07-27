@@ -326,12 +326,19 @@ async function resolverPrestamos(supabase: SupabaseAdmin, ids: Ids, labels: Labe
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from("prestamos")
-    .select("id, banco, detalle")
+    .select("id, banco, detalle, referencia")
     .in("id", Array.from(ids));
-  for (const r of (data ?? []) as { id: string; banco: string; detalle: string | null }[]) {
+  for (const r of (data ?? []) as {
+    id: string;
+    banco: string;
+    detalle: string | null;
+    referencia: string | null;
+  }[]) {
     labels[`prestamo:${r.id}`] = {
       label: r.banco ?? "Préstamo",
-      detalle: r.detalle ?? null,
+      // El monto es lo que mejor distingue dos préstamos del mismo banco; los
+      // que no lo tienen cargado se distinguen por la referencia (ej. SUECA).
+      detalle: r.detalle ?? r.referencia ?? null,
     };
   }
 }
@@ -341,13 +348,18 @@ async function resolverPrestamoCuotas(supabase: SupabaseAdmin, ids: Ids, labels:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from("prestamo_cuotas")
-    .select("id, nro, prestamo:prestamos(banco, detalle)")
+    .select("id, nro, prestamo:prestamos(banco, detalle, referencia)")
     .in("id", Array.from(ids));
-  for (const r of (data ?? []) as { id: string; nro: number; prestamo: { banco: string; detalle: string | null } | { banco: string; detalle: string | null }[] | null }[]) {
+  type PrestamoRef = { banco: string; detalle: string | null; referencia: string | null };
+  for (const r of (data ?? []) as {
+    id: string;
+    nro: number;
+    prestamo: PrestamoRef | PrestamoRef[] | null;
+  }[]) {
     const p = uno(r.prestamo);
     labels[`prestamo_cuota:${r.id}`] = {
       label: `Cuota ${r.nro}`,
-      detalle: p ? [p.banco, p.detalle].filter(Boolean).join(" · ") || null : null,
+      detalle: p ? [p.banco, p.detalle ?? p.referencia].filter(Boolean).join(" · ") || null : null,
     };
   }
 }

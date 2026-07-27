@@ -17,21 +17,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle } from "lucide-react";
+import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { updatePrestamoAction, type PrestamoRow } from "./actions";
+import { listaBancos } from "./bancos";
 
 export default function EditPrestamoDialog({
   prestamo,
   open,
   onOpenChange,
+  bancos = [],
 }: {
   prestamo: PrestamoRow | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Bancos ya en uso, para el desplegable. */
+  bancos?: string[];
 }) {
   const router = useRouter();
   const [banco, setBanco] = useState(prestamo?.banco ?? "");
   const [detalle, setDetalle] = useState(prestamo?.detalle ?? "");
+  const [referencia, setReferencia] = useState(prestamo?.referencia ?? "");
   const [tasa, setTasa] = useState(prestamo?.tasa != null ? String(prestamo.tasa) : "");
   const [importe, setImporte] = useState(
     prestamo && prestamo.importe_cuota > 0 ? String(prestamo.importe_cuota) : "",
@@ -44,11 +49,16 @@ export default function EditPrestamoDialog({
   if (!prestamo) return null;
 
   const guardar = async () => {
+    if (!banco.trim()) {
+      setError("Elegí o escribí el banco.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await updatePrestamoAction(prestamo.id, {
       banco,
       detalle: detalle.trim() || null,
+      referencia: referencia.trim() || null,
       tasa: tasa.trim() === "" ? null : Number(tasa),
       importe_cuota: importe.trim() === "" ? 0 : Number(importe),
       moneda,
@@ -69,7 +79,7 @@ export default function EditPrestamoDialog({
         <DialogHeader>
           <DialogTitle className="text-lg text-foreground">
             {prestamo.banco}
-            {prestamo.detalle ? ` · ${prestamo.detalle}` : ""}
+            {prestamo.referencia ? ` · ${prestamo.referencia}` : prestamo.detalle ? ` · ${prestamo.detalle}` : ""}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Cuota {prestamo.pagadas + 1} de {prestamo.cuotas_total}. Cambiar el importe lo aplica a
@@ -82,21 +92,19 @@ export default function EditPrestamoDialog({
             <p className="border-l-2 border-[#B91C1C] pl-3 text-sm text-[#B91C1C]">{error}</p>
           )}
 
-          {prestamo.datos_faltantes && (
-            <p className="flex items-start gap-1.5 rounded-[6px] border border-[#B45309]/40 px-3 py-2 text-[12px] leading-snug text-[#B45309]">
-              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-              <span>Falta cargar: {prestamo.datos_faltantes}</span>
-            </p>
-          )}
-
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-muted-foreground">Banco</Label>
-              <Input value={banco} onChange={(e) => setBanco(e.target.value)} />
-            </div>
+            <PlaceCombobox
+              label="Banco"
+              name="banco"
+              value={banco}
+              onValueChange={setBanco}
+              options={listaBancos(bancos).map((b) => ({ id: b, label: b }))}
+              placeholder="Elegí o escribí uno nuevo"
+            />
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-muted-foreground">
-                Monto del préstamo
+                Monto del préstamo{" "}
+                <span className="font-normal text-muted-foreground/70">(dejalo vacío si no lo tenés)</span>
               </Label>
               <Input
                 value={detalle}
@@ -104,6 +112,22 @@ export default function EditPrestamoDialog({
                 placeholder="Ej: $50.000.000"
               />
             </div>
+          </div>
+
+          {/* La planilla a veces identifica al préstamo con un nombre en vez de
+              un monto (SUECA, FORTE CAR). Va acá y no en el monto. */}
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-muted-foreground">
+              Referencia{" "}
+              <span className="font-normal text-muted-foreground/70">
+                (opcional — cómo lo llaman en la planilla)
+              </span>
+            </Label>
+            <Input
+              value={referencia}
+              onChange={(e) => setReferencia(e.target.value)}
+              placeholder="Ej: SUECA, FORTE CAR, TARJ.PYME"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -163,10 +187,12 @@ export default function EditPrestamoDialog({
                 (vaciá el campo cuando esté completo)
               </span>
             </Label>
-            <Input
+            <textarea
               value={falta}
               onChange={(e) => setFalta(e.target.value)}
+              rows={2}
               placeholder="Ej: el importe de la cuota"
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
             />
           </div>
         </div>
