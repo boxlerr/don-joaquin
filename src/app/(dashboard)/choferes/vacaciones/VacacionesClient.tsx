@@ -142,6 +142,18 @@ type RangoCrono =
   | { modo: "mes"; anio: number; mes: number }
   | { modo: "semanas"; largo: LargoSemanas; offset: number };
 
+/** Criterios de orden de la lista de saldos. */
+type OrdenSaldos = "urgencia" | "disponibles" | "porVencer" | "apellido" | "antiguedad" | "tomados";
+
+const ORDEN_SALDOS_LABEL: Record<OrdenSaldos, string> = {
+  urgencia: "Urgencia",
+  disponibles: "Más días disponibles",
+  porVencer: "Más días por vencer",
+  antiguedad: "Más antigüedad",
+  tomados: "Menos días tomados",
+  apellido: "Apellido (A-Z)",
+};
+
 interface Props {
   saldos: VacacionesSaldoChofer[];
   periodos: VacacionesPeriodo[];
@@ -184,6 +196,8 @@ export default function VacacionesClient({
   const [vista, setVista] = useState<"semanas" | "anual">("semanas");
   const [umbralOpen, setUmbralOpen] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios" | "tarjetas">("tarjetas");
+  // Orden de "Saldos por empleado": con 78 personas, mirar de a uno no sirve.
+  const [ordenSaldos, setOrdenSaldos] = useState<OrdenSaldos>("urgencia");
   const [vistaPeriodos, setVistaPeriodos] = useState<"lista" | "timeline">("timeline");
   const [detalle, setDetalle] = useState<VacacionesPeriodo | null>(null);
   const [resaltado, setResaltado] = useState<string | null>(null);
@@ -546,9 +560,23 @@ export default function VacacionesClient({
     const filas = saldosFiltrados
       .filter((s) => s.sector === sec)
       .sort((a, b) => {
-        if ((a.adeudados > 0) !== (b.adeudados > 0)) return a.adeudados > 0 ? -1 : 1;
-        if (a.disponibles !== b.disponibles) return b.disponibles - a.disponibles;
-        return a.apellido.localeCompare(b.apellido);
+        switch (ordenSaldos) {
+          case "disponibles":
+            return b.disponibles - a.disponibles || a.apellido.localeCompare(b.apellido);
+          case "porVencer":
+            return b.adeudados - a.adeudados || a.apellido.localeCompare(b.apellido);
+          case "antiguedad":
+            return b.anios - a.anios || a.apellido.localeCompare(b.apellido);
+          case "tomados":
+            return a.tomados - b.tomados || a.apellido.localeCompare(b.apellido);
+          case "apellido":
+            return a.apellido.localeCompare(b.apellido);
+          default:
+            // Urgencia: primero los que tienen días por vencer, después por saldo.
+            if ((a.adeudados > 0) !== (b.adeudados > 0)) return a.adeudados > 0 ? -1 : 1;
+            if (a.disponibles !== b.disponibles) return b.disponibles - a.disponibles;
+            return a.apellido.localeCompare(b.apellido);
+        }
       });
     return {
       sector: sec,
@@ -1309,6 +1337,18 @@ export default function VacacionesClient({
                 className="h-8 w-36 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
               />
             </div>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              Ordenar
+              <select
+                value={ordenSaldos}
+                onChange={(e) => setOrdenSaldos(e.target.value as OrdenSaldos)}
+                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
+              >
+                {(Object.keys(ORDEN_SALDOS_LABEL) as OrdenSaldos[]).map((k) => (
+                  <option key={k} value={k}>{ORDEN_SALDOS_LABEL[k]}</option>
+                ))}
+              </select>
+            </label>
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
                 onClick={() => cambiarVistaTabla("resumen")}
@@ -1337,14 +1377,23 @@ export default function VacacionesClient({
           <div className="p-4 space-y-5">
             {saldosPorSector.map((g) => (
               <section key={g.sector}>
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-2 mb-2 border-b border-border">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground">
-                    {g.sector === "Chofer" ? "Choferes" : g.sector} · {g.filas.length}
+                {/* El título del área tiene que ganarle al resto del texto:
+                    antes era del mismo tamaño que los números y se perdía. */}
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-1 pb-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {g.sector === "Chofer" ? "Choferes" : g.sector}
+                    <span className="ml-1.5 text-[13px] font-normal text-muted-foreground">
+                      {g.filas.length}
+                    </span>
                   </h3>
-                  <span className="text-[11px] text-muted-foreground/80">
-                    saldo {finPeriodoY - 1}: <span className={`font-mono ${g.saldoViejo > 0 ? "text-[#EF4444]" : ""}`}>{g.saldoViejo}</span>
-                    {" · "}días {finPeriodoY}: <span className="font-mono">{g.diasAnio}</span>
-                    {" · "}disp.: <span className="font-mono text-[#10B981]">{g.disp}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {g.disp} días disponibles
+                    {g.saldoViejo > 0 && (
+                      <>
+                        {" · "}
+                        <span className="text-[#B91C1C]">{g.saldoViejo} vencen el 31/12</span>
+                      </>
+                    )}
                   </span>
                 </div>
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -1354,23 +1403,21 @@ export default function VacacionesClient({
                     const verde = Math.max(0, s.disponibles - s.adeudados);
                     const denom = amber + verde + rojo || 1;
                     return (
-                      <div
+                      <Link
                         key={s.chofer_id}
                         id={`saldo-${s.chofer_id}`}
+                        href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
+                        title={`Abrir las vacaciones de ${s.apellido}, ${s.nombre}`}
                         className={`group flex flex-col rounded-[6px] border bg-card transition-colors ${
                           resaltado === s.chofer_id
                             ? "border-primary/50 ring-1 ring-primary/20"
-                            : "border-border hover:border-foreground/20"
+                            : "border-border hover:border-foreground/30 hover:bg-muted/20"
                         }`}
                       >
                         <div className="flex items-baseline justify-between gap-3 px-3.5 pt-3">
-                          <Link
-                            href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
-                            title={`${s.apellido}, ${s.nombre}`}
-                            className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground hover:text-primary"
-                          >
+                          <span className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground group-hover:text-primary">
                             {s.apellido}, {s.nombre}
-                          </Link>
+                          </span>
                           <span className="shrink-0 text-right leading-none">
                             <span
                               className={`font-mono text-xl font-semibold tabular-nums ${
@@ -1433,8 +1480,11 @@ export default function VacacionesClient({
                         </div>
 
                         <div className="flex items-center justify-between gap-2 border-t border-border px-3.5 py-1.5 text-[11px] text-muted-foreground">
-                          <span className="truncate" title={s.hito !== "—" ? s.hito : s.proximo_hito}>
-                            {s.hito !== "—" ? s.hito.replace("★ ", "") : s.proximo_hito}
+                          <span
+                            className="truncate"
+                            title={`${s.anios} año${s.anios !== 1 ? "s" : ""} de antigüedad${s.hito !== "—" ? ` · tramo ${s.hito.replace("★ ", "")}` : ""} · ${s.proximo_hito}`}
+                          >
+                            Antigüedad: {s.anios} año{s.anios !== 1 ? "s" : ""}
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
                             {s.desfasaje && (
@@ -1448,7 +1498,13 @@ export default function VacacionesClient({
                             {canWrite && (
                               <button
                                 type="button"
-                                onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })}
+                                onClick={(e) => {
+                                  // La tarjeta entera navega al legajo: este botón
+                                  // hace otra cosa, así que corta el clic.
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido });
+                                }}
                                 title="Cargar vacaciones"
                                 className="opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
                               >
@@ -1457,7 +1513,7 @@ export default function VacacionesClient({
                             )}
                           </span>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>

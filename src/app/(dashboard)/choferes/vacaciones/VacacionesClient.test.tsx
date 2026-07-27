@@ -114,9 +114,10 @@ describe("VacacionesClient", () => {
     // Tarjetas (vista por defecto): pill "Vence 31/12" para quien tiene saldo viejo.
     expect(screen.getAllByText(new RegExp(`31/12/${finPeriodoY}`)).length).toBeGreaterThanOrEqual(1);
 
-    // Subtotales por sector en el encabezado del grupo (tarjetas).
-    expect(screen.getByText(/Choferes · 1/)).toBeInTheDocument();
-    expect(screen.getByText(/Taller · 1/)).toBeInTheDocument();
+    // Encabezado de cada sector: el título manda y el conteo va al lado.
+    const choferes = screen.getByRole("heading", { name: /Choferes/ });
+    expect(choferes).toHaveTextContent("1");
+    expect(screen.getByRole("heading", { name: /Taller/ })).toHaveTextContent("1");
   });
 
   it("la vista Resumen muestra la columna Vence con saldo y período", () => {
