@@ -1,18 +1,13 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import TarifasTabs, { type TabIdEntrada } from "./TarifasTabs";
-import {
-  getTarifaParams,
-  obtenerCircuitos,
-  obtenerClientesYRutas,
-  obtenerPuntosRuta,
-  obtenerTarifas,
-} from "./actions";
+import { obtenerCircuitos, obtenerClientesYRutas, obtenerPuntosRuta } from "./actions";
 import { obtenerAumentosClientes } from "./actions-aumentos";
 
 // Duplicada acá porque TarifasTabs es "use client" y sus valores no se pueden
-// usar del lado server (mismo patrón que /mantenimiento).
-const TABS_VALIDAS: TabIdEntrada[] = ["calculadora", "tarifas", "aumentos", "circuitos", "ajustes"];
+// usar del lado server (mismo patrón que /mantenimiento). Se aceptan los ids
+// viejos porque /metricas linkea con ?tab=aumentos.
+const TABS_VALIDAS: TabIdEntrada[] = ["tarifas", "circuitos", "aumentos", "calculadora", "ajustes"];
 
 export default async function TarifasPage({
   searchParams,
@@ -25,27 +20,18 @@ export default async function TarifasPage({
   const { tab, cliente } = await searchParams;
   const initialTab = TABS_VALIDAS.includes(tab as TabIdEntrada) ? (tab as TabIdEntrada) : undefined;
 
-  const [params, { clientes, rutas }, tarifas, circuitos, puntos, aumentos] =
-    await Promise.all([
-      getTarifaParams(),
-      obtenerClientesYRutas(),
-      obtenerTarifas(),
-      obtenerCircuitos(),
-      obtenerPuntosRuta(),
-      obtenerAumentosClientes(),
-    ]);
+  const [{ clientes }, circuitos, puntos, aumentos] = await Promise.all([
+    obtenerClientesYRutas(),
+    obtenerCircuitos(),
+    obtenerPuntosRuta(),
+    obtenerAumentosClientes(),
+  ]);
 
   return (
     <div className="p-8">
-      <PageHeader
-        title="Tarifas"
-        description="Calculadora de fletes, tarifas y aumentos por cliente, y circuitos"
-      />
+      <PageHeader title="Tarifas" description="Aumentos de tarifa por cliente y circuitos" />
       <TarifasTabs
-        params={params}
         clientes={clientes}
-        rutas={rutas}
-        tarifas={tarifas}
         circuitos={circuitos}
         puntos={puntos}
         aumentos={aumentos}

@@ -1,11 +1,13 @@
 "use client";
 
-// Un solo lugar por cliente: sus tarifas y sus aumentos juntos. Antes eran dos
-// pestañas separadas y había que acordarse en cuál estaba cada cosa; ahora se
-// elige "YPF" y se ve todo lo suyo.
+// Aumentos de tarifa por cliente: el % que el cliente informa (Loma mes a mes,
+// YPF un interanual por año). Es la misma tabla que alimenta "¿Los aumentos van
+// a la par?" en /metricas: cargar o borrar uno acá impacta directo en esa
+// comparación.
 //
-// Los aumentos son la misma tabla que alimenta "¿Los aumentos van a la par?" en
-// /metricas: cargar o borrar uno acá impacta directo en esa comparación.
+// Las "tarifas por cliente" (un valor pactado por ruta) se sacaron: la tabla
+// nunca tuvo una sola fila y el negocio factura por el importe que le liquida
+// el cliente, no por una tarifa propia.
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -13,28 +15,16 @@ import {
   Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
   Tooltip as RTooltip, XAxis, YAxis,
 } from "recharts";
-import {
-  CalendarClock, CheckCircle2, Hash, History, PauseCircle, Pencil, Plus,
-  Search, Sigma, Trash2, TrendingUp, XCircle,
-} from "lucide-react";
+import { CalendarClock, CheckCircle2, Hash, Plus, Search, Sigma, Trash2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import ModalNuevaTarifa from "./ModalNuevaTarifa";
-import TarifaHistorialDrawer from "./TarifaHistorialDrawer";
 import CargarAumentoDialog from "./CargarAumentoDialog";
-import {
-  cambiarEstadoTarifa,
-  obtenerTarifas,
-  type ClienteOption,
-  type RutaOption,
-  type TarifaConRelaciones,
-} from "./actions";
+import type { ClienteOption } from "./actions";
 import {
   eliminarAumentoClienteTarifasAction,
   obtenerAumentosClientes,
   type AumentoClienteHist,
 } from "./actions-aumentos";
-import { getModalidadMeta } from "./validaciones";
 
 const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const MESES_FULL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -58,21 +48,12 @@ const esInteranual = (a: AumentoClienteHist) =>
 const componer = (rows: AumentoClienteHist[]) =>
   (rows.reduce((acc, a) => acc * (1 + a.porcentaje / 100), 1) - 1) * 100;
 
-/** Clave para cruzar el nombre de la tarifa con el del aumento (texto libre). */
+/** Clave para agrupar por cliente (el nombre del aumento es texto libre). */
 const clave = (nombre: string) => nombre.trim().toUpperCase();
-
-function fmtFecha(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00").toLocaleDateString("es-AR");
-}
-function fmtValor(valor: number, moneda: string): string {
-  return `${moneda} ${valor.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 type ClienteFicha = {
   nombre: string;
   clienteId: string | null;
-  tarifas: TarifaConRelaciones[];
   aumentos: AumentoClienteHist[]; // ascendente por vigencia
   interanual: number | null;
   total: number | null;
@@ -80,10 +61,8 @@ type ClienteFicha = {
 };
 
 type Props = {
-  tarifasIniciales: TarifaConRelaciones[];
   aumentosIniciales: AumentoClienteHist[];
   clientes: ClienteOption[];
-  rutas: RutaOption[];
   canWrite?: boolean;
   canMetricas?: boolean;
   /** Cliente preseleccionado (link desde /metricas). */
@@ -91,15 +70,12 @@ type Props = {
 };
 
 export default function TabClientes({
-  tarifasIniciales,
   aumentosIniciales,
   clientes,
-  rutas,
   canWrite = false,
   canMetricas = false,
   initialCliente,
 }: Props) {
-  const [tarifas, setTarifas] = useState(tarifasIniciales);
   const [aumentos, setAumentos] = useState(aumentosIniciales);
   const [busqueda, setBusqueda] = useState("");
   const [seleccionado, setSeleccionado] = useState<string | null>(initialCliente ?? null);
@@ -107,14 +83,6 @@ export default function TabClientes({
   const [, startTransition] = useTransition();
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Diálogos
-  const [modalTarifa, setModalTarifa] = useState(false);
-  const [tarifaEditar, setTarifaEditar] = useState<TarifaConRelaciones | null>(null);
-  // Fuerza remonte del modal: su estado se arma en el mount, así que sin esto
-  // reabrirlo mostraba lo de la vez anterior.
-  const [tarifaKey, setTarifaKey] = useState(0);
-  const [historialId, setHistorialId] = useState<string | null>(null);
-  const [historialLabel, setHistorialLabel] = useState("");
   const [aumentoOpen, setAumentoOpen] = useState(false);
 
   // Rango del gráfico (vacío = todo el historial del cliente).
@@ -128,19 +96,18 @@ export default function TabClientes({
   const desde12m = addMonths(hoyMes, -12);
   const hasta12m = addMonths(hoyMes, 1);
 
-  // Una ficha por cliente, con tarifas y aumentos cruzados por nombre.
+  // Una ficha por cliente con todos sus aumentos.
   const fichas = useMemo<ClienteFicha[]>(() => {
     const porClave = new Map<string, ClienteFicha>();
     const tomar = (nombre: string): ClienteFicha => {
       const k = clave(nombre);
       let f = porClave.get(k);
       if (!f) {
-        f = { nombre, clienteId: null, tarifas: [], aumentos: [], interanual: null, total: null, ultimo: null };
+        f = { nombre, clienteId: null, aumentos: [], interanual: null, total: null, ultimo: null };
         porClave.set(k, f);
       }
       return f;
     };
-    for (const t of tarifas) tomar(t.cliente_nombre).tarifas.push(t);
     for (const a of aumentos) {
       const f = tomar(a.clienteNombre);
       f.aumentos.push(a);
@@ -158,7 +125,7 @@ export default function TabClientes({
       }
     }
     return out.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [tarifas, aumentos, desde12m, hasta12m]);
+  }, [aumentos, desde12m, hasta12m]);
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -210,16 +177,8 @@ export default function TabClientes({
 
   const refrescarTodo = () =>
     startTransition(async () => {
-      const [t, a] = await Promise.all([obtenerTarifas(), obtenerAumentosClientes()]);
-      setTarifas(t);
-      setAumentos(a);
+      setAumentos(await obtenerAumentosClientes());
     });
-
-  const abrirNuevaTarifa = (t: TarifaConRelaciones | null = null) => {
-    setTarifaEditar(t);
-    setTarifaKey((k) => k + 1);
-    setModalTarifa(true);
-  };
 
   const flash = (msg: string) => {
     setSavedFlash(msg);
@@ -227,29 +186,10 @@ export default function TabClientes({
     flashTimer.current = setTimeout(() => setSavedFlash(null), 2500);
   };
 
-  const onTarifaSaved = () => {
-    const editando = !!tarifaEditar;
-    setModalTarifa(false);
-    setTarifaEditar(null);
-    flash(editando ? "Tarifa actualizada" : "Tarifa creada");
-    refrescarTodo();
-  };
-
   const onAumentoSaved = () => {
     setAumentoOpen(false);
     flash("Aumento cargado");
     refrescarTodo();
-  };
-
-  const onToggleActiva = (t: TarifaConRelaciones) => {
-    startTransition(async () => {
-      const res = await cambiarEstadoTarifa(t.id, !t.activa);
-      if ("error" in res) {
-        alert(res.error);
-        return;
-      }
-      setTarifas((prev) => prev.map((x) => (x.id === t.id ? { ...x, activa: !t.activa } : x)));
-    });
   };
 
   const onEliminarAumento = async (a: AumentoClienteHist) => {
@@ -266,27 +206,14 @@ export default function TabClientes({
     return (
       <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center space-y-3">
         <p className="text-muted-foreground text-sm">
-          Todavía no hay ningún cliente con tarifas ni aumentos cargados.
+          Todavía no hay aumentos de clientes cargados. Cuando el cliente informe una suba de
+          tarifa (el % mensual de Loma, el interanual de YPF), cargala acá para llevar el historial.
         </p>
         {canWrite && (
-          <div className="flex items-center justify-center gap-2">
-            <Button type="button" variant="brand" size="sm" onClick={() => abrirNuevaTarifa()}>
-              <Plus size={13} /> Nueva tarifa
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAumentoOpen(true)}>
-              <Plus size={13} /> Cargar aumento
-            </Button>
-          </div>
+          <Button type="button" variant="brand" size="sm" onClick={() => setAumentoOpen(true)}>
+            <Plus size={13} /> Cargar aumento
+          </Button>
         )}
-        <ModalNuevaTarifa
-          key={`tarifa-${tarifaKey}`}
-          open={modalTarifa}
-          onClose={() => setModalTarifa(false)}
-          onSaved={onTarifaSaved}
-          clientes={clientes}
-          rutas={rutas}
-          tarifa={null}
-        />
         {aumentoOpen && (
           <CargarAumentoDialog open onClose={() => setAumentoOpen(false)} onSaved={onAumentoSaved} clientes={clientes} />
         )}
@@ -319,7 +246,7 @@ export default function TabClientes({
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Clientes */}
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden self-start">
-          <div className="space-y-2 border-b border-border p-2">
+          <div className="border-b border-border p-2">
             <div className="relative">
               <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
               <Input
@@ -330,19 +257,6 @@ export default function TabClientes({
                 className="h-8 pl-7 text-xs"
               />
             </div>
-            {/* Acá y no al lado de "Cargar aumento": pegados se confundían entre
-                sí, y una tarifa es del cliente, no un aumento. */}
-            {canWrite && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => abrirNuevaTarifa()}
-                className="h-8 w-full justify-center text-xs"
-              >
-                <Plus size={13} /> Nueva tarifa de cliente
-              </Button>
-            )}
           </div>
           <div className="max-h-[60vh] divide-y divide-border overflow-auto">
             {visibles.map((f) => {
@@ -365,8 +279,8 @@ export default function TabClientes({
                     </span>
                   </div>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {f.tarifas.length} tarifa{f.tarifas.length === 1 ? "" : "s"} ·{" "}
-                    {f.aumentos.length} aumento{f.aumentos.length === 1 ? "" : "s"}
+                    {f.aumentos.length} aumento{f.aumentos.length === 1 ? "" : "s"} · último{" "}
+                    {f.ultimo ? mesCorto(f.ultimo.vigenteDesde) : "—"}
                   </p>
                 </button>
               );
@@ -528,109 +442,6 @@ export default function TabClientes({
               )}
             </div>
 
-            {/* Tarifas del cliente */}
-            <div className="overflow-hidden rounded-[8px] border border-border bg-card shadow-sm">
-              <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-                <h3 className="text-sm font-semibold text-foreground">Tarifas</h3>
-                <span className="text-[11px] text-muted-foreground">
-                  {actual.tarifas.length} cargada{actual.tarifas.length === 1 ? "" : "s"}
-                </span>
-              </div>
-              {actual.tarifas.length === 0 ? (
-                <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-                  {actual.nombre} no tiene tarifas propias: los fletes se calculan con los valores base de la Calculadora.
-                </p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/40">
-                    <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      <th className="px-4 py-2.5">Ruta</th>
-                      <th className="px-4 py-2.5">Modalidad</th>
-                      <th className="px-4 py-2.5 text-right">Valor</th>
-                      <th className="px-4 py-2.5">Vigencia</th>
-                      <th className="px-4 py-2.5">Estado</th>
-                      <th className="px-4 py-2.5 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {actual.tarifas.map((t) => {
-                      const meta = getModalidadMeta(t.modalidad);
-                      return (
-                        <tr key={t.id} className="hover:bg-muted/40">
-                          <td className="px-4 py-3 text-foreground">
-                            {t.ruta_label ?? <span className="italic text-muted-foreground/70">Sin ruta específica</span>}
-                            {t.ruta_km !== null && <p className="text-[11px] text-muted-foreground/70">{t.ruta_km} km</p>}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="rounded bg-[#E1F5FE] px-2 py-0.5 text-xs font-medium text-[#004A99]">{meta.label}</span>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground/70">{meta.unidad}</p>
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono font-semibold text-foreground">
-                            {fmtValor(Number(t.valor), t.moneda)}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">
-                            <p>Desde: {fmtFecha(t.vigencia_desde)}</p>
-                            <p>Hasta: {fmtFecha(t.vigencia_hasta)}</p>
-                          </td>
-                          <td className="px-4 py-3">
-                            {t.activa ? (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-[#10B981]">
-                                <CheckCircle2 size={12} /> Activa
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/70">
-                                <XCircle size={12} /> Inactiva
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1">
-                              {canWrite && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    onClick={() => abrirNuevaTarifa(t)}
-                                    aria-label="Editar"
-                                  >
-                                    <Pencil size={12} />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    onClick={() => onToggleActiva(t)}
-                                    aria-label={t.activa ? "Desactivar" : "Activar"}
-                                    className={t.activa ? "text-[#FFB300]" : "text-[#10B981]"}
-                                  >
-                                    {t.activa ? <PauseCircle size={12} /> : <CheckCircle2 size={12} />}
-                                  </Button>
-                                </>
-                              )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => {
-                                  setHistorialId(t.id);
-                                  setHistorialLabel(`${t.cliente_nombre} · ${t.ruta_label ?? "Sin ruta específica"}`);
-                                }}
-                                aria-label="Ver historial"
-                                className="text-muted-foreground/70 hover:text-primary"
-                              >
-                                <History size={12} />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
             {/* Historial de aumentos */}
             <div className="overflow-hidden rounded-[8px] border border-border bg-card shadow-sm">
               <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
@@ -698,27 +509,6 @@ export default function TabClientes({
           </div>
         )}
       </div>
-
-      <ModalNuevaTarifa
-        key={`tarifa-${tarifaKey}`}
-        open={modalTarifa}
-        onClose={() => {
-          setModalTarifa(false);
-          setTarifaEditar(null);
-        }}
-        onSaved={onTarifaSaved}
-        clientes={clientes}
-        rutas={rutas}
-        tarifa={tarifaEditar}
-        defaultClienteId={actual?.clienteId ?? undefined}
-      />
-
-      <TarifaHistorialDrawer
-        open={historialId !== null}
-        onClose={() => setHistorialId(null)}
-        tarifaId={historialId}
-        tarifaLabel={historialLabel}
-      />
 
       {aumentoOpen && (
         <CargarAumentoDialog

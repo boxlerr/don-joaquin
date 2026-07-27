@@ -1,41 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { Calculator, Route, Users } from "lucide-react";
-import CalculadoraTarifasAvanzada from "./CalculadoraTarifasAvanzada";
+import { Route, TrendingUp } from "lucide-react";
 import HelpTutorialButton from "./help-tutorial-button";
 import TabClientes from "./TabClientes";
 import TabCircuitos from "./TabCircuitos";
-import type {
-  CircuitoConRelaciones,
-  ClienteOption,
-  PuntoRutaOption,
-  RutaOption,
-  TarifaConRelaciones,
-  TarifaParams,
-} from "./actions";
+import type { CircuitoConRelaciones, ClienteOption, PuntoRutaOption } from "./actions";
 import type { AumentoClienteHist } from "./actions-aumentos";
 
-// "aumentos" y "ajustes" ya no son pestañas propias: los aumentos viven dentro
-// de la ficha del cliente y los valores base pasaron a la Calculadora, que es
-// donde se usan. Se aceptan igual como entrada porque /metricas linkea con
-// ?tab=aumentos&cliente=X (ver ALIAS_TAB).
-export type TabId = "calculadora" | "tarifas" | "circuitos";
-export type TabIdEntrada = TabId | "aumentos" | "ajustes";
+// Quedaron dos secciones. Se sacaron la calculadora de fletes y las "tarifas por
+// cliente": la tabla `tarifas` nunca tuvo una fila y ningún viaje quedó atado a
+// una, porque el precio no se pacta acá — llega como importe ya liquidado por el
+// cliente (el Excel de Loma, la columna $ de la hoja de ruta). Lo que sí se
+// sigue es el % de aumento que informa cada cliente.
+export type TabId = "tarifas" | "circuitos";
+/** Se aceptan los ids viejos porque /metricas linkea con ?tab=aumentos. */
+export type TabIdEntrada = TabId | "aumentos" | "calculadora" | "ajustes";
 
 const ALIAS_TAB: Record<TabIdEntrada, TabId> = {
-  calculadora: "calculadora",
   tarifas: "tarifas",
   circuitos: "circuitos",
   aumentos: "tarifas",
-  ajustes: "calculadora",
+  calculadora: "tarifas",
+  ajustes: "tarifas",
 };
 
 type Props = {
-  params: TarifaParams;
   clientes: ClienteOption[];
-  rutas: RutaOption[];
-  tarifas: TarifaConRelaciones[];
   circuitos: CircuitoConRelaciones[];
   puntos: PuntoRutaOption[];
   aumentos: AumentoClienteHist[];
@@ -47,17 +38,13 @@ type Props = {
   initialCliente?: string;
 };
 
-const TABS: { id: TabId; label: string; icon: typeof Calculator }[] = [
-  { id: "calculadora", label: "Calculadora", icon: Calculator },
-  { id: "tarifas", label: "Clientes", icon: Users },
+const TABS: { id: TabId; label: string; icon: typeof Route }[] = [
+  { id: "tarifas", label: "Aumentos por cliente", icon: TrendingUp },
   { id: "circuitos", label: "Circuitos", icon: Route },
 ];
 
 export default function TarifasTabs({
-  params,
   clientes,
-  rutas,
-  tarifas,
   circuitos,
   puntos,
   aumentos,
@@ -66,7 +53,7 @@ export default function TarifasTabs({
   initialTab,
   initialCliente,
 }: Props) {
-  const [tab, setTabState] = useState<TabId>(initialTab ? ALIAS_TAB[initialTab] : "calculadora");
+  const [tab, setTabState] = useState<TabId>(initialTab ? ALIAS_TAB[initialTab] : "tarifas");
 
   // Tab en la URL: linkeable desde /metricas y sobrevive un refresh.
   const setTab = (t: TabId) => {
@@ -95,16 +82,12 @@ export default function TarifasTabs({
               aria-selected={active}
               onClick={() => setTab(t.id)}
               className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon size={14} />
               {t.label}
-              {active && (
-                <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />
-              )}
+              {active && <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#0088D1]" />}
             </button>
           );
         })}
@@ -113,21 +96,10 @@ export default function TarifasTabs({
         </div>
       </div>
 
-      {tab === "calculadora" && (
-        <CalculadoraTarifasAvanzada
-          params={params}
-          clientes={clientes}
-          rutas={rutas}
-          canWrite={canWrite}
-        />
-      )}
-
       {tab === "tarifas" && (
         <TabClientes
-          tarifasIniciales={tarifas}
           aumentosIniciales={aumentos}
           clientes={clientes}
-          rutas={rutas}
           initialCliente={initialCliente}
           canWrite={canWrite}
           canMetricas={canMetricas}
@@ -135,11 +107,7 @@ export default function TarifasTabs({
       )}
 
       {tab === "circuitos" && (
-        <TabCircuitos
-          circuitosIniciales={circuitos}
-          puntos={puntos}
-          canWrite={canWrite}
-        />
+        <TabCircuitos circuitosIniciales={circuitos} puntos={puntos} canWrite={canWrite} />
       )}
     </div>
   );

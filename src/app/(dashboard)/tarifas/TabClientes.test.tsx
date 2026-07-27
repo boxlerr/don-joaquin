@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import TabClientes from "./TabClientes";
 import type { AumentoClienteHist } from "./actions-aumentos";
-import type { TarifaConRelaciones } from "./actions";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.ComponentProps<"a">) => (
@@ -14,14 +13,7 @@ vi.mock("./actions-aumentos", () => ({
   obtenerAumentosClientes: vi.fn(async () => []),
   eliminarAumentoClienteTarifasAction: vi.fn(async () => ({ ok: true })),
 }));
-vi.mock("./actions", () => ({
-  obtenerTarifas: vi.fn(async () => []),
-  cambiarEstadoTarifa: vi.fn(async () => ({ ok: true })),
-  buscarTarifaAplicable: vi.fn(async () => null),
-}));
 vi.mock("./CargarAumentoDialog", () => ({ default: () => null }));
-vi.mock("./ModalNuevaTarifa", () => ({ default: () => null }));
-vi.mock("./TarifaHistorialDrawer", () => ({ default: () => null }));
 
 // Recharts no aporta nada en jsdom (mide el contenedor y no dibuja).
 vi.mock("recharts", () => {
@@ -73,61 +65,31 @@ const AUMENTOS: AumentoClienteHist[] = [
   }),
 ];
 
-const TARIFAS = [
-  {
-    id: "t-1",
-    cliente_nombre: "LOMA NEGRA",
-    ruta_label: "Olavarría → Campana",
-    ruta_km: 380,
-    modalidad: "por_tonelada",
-    valor: 12500,
-    moneda: "ARS",
-    vigencia_desde: "2026-01-01",
-    vigencia_hasta: null,
-    activa: true,
-    observaciones: null,
-  },
-] as unknown as TarifaConRelaciones[];
-
 const render1 = (props: Partial<React.ComponentProps<typeof TabClientes>> = {}) =>
   render(
-    <TabClientes
-      tarifasIniciales={TARIFAS}
-      aumentosIniciales={AUMENTOS}
-      clientes={CLIENTES}
-      rutas={[]}
-      canWrite
-      {...props}
-    />,
+    <TabClientes aumentosIniciales={AUMENTOS} clientes={CLIENTES} canWrite {...props} />,
   );
 
 describe("TabClientes", () => {
-  it("lista los clientes con sus tarifas y aumentos juntos", () => {
+  it("lista los clientes con su interanual y su último aumento", () => {
     render1({ initialCliente: "LOMA NEGRA" });
 
     const loma = screen.getByRole("button", { name: /LOMA NEGRA/ });
     expect(loma).toHaveTextContent("+21%"); // 1,10 × 1,10
-    expect(loma).toHaveTextContent("1 tarifa");
     expect(loma).toHaveTextContent("3 aumentos");
 
     const ypf = screen.getByRole("button", { name: /YPF/ });
     expect(ypf).toHaveTextContent("+40,2%");
-    expect(ypf).toHaveTextContent("0 tarifas");
     expect(ypf).toHaveTextContent("1 aumento");
   });
 
-  it("muestra tarifas y aumentos del cliente elegido en la misma pantalla", () => {
+  it("muestra el resumen y el historial del cliente elegido", () => {
     render1({ initialCliente: "LOMA NEGRA" });
 
     // Interanual: 1,10 × 1,10 = +21%. Total: × 1,50 viejo = +81,5%.
     expect(screen.getByText("Interanual (12m)").parentElement!.parentElement).toHaveTextContent("+21%");
     expect(screen.getByText("Acumulado total").parentElement!.parentElement).toHaveTextContent("+81,5%");
     expect(screen.getByText("Aumentos cargados").parentElement!.parentElement).toHaveTextContent("3");
-
-    // Las dos tablas conviven.
-    expect(screen.getByText("Tarifas")).toBeInTheDocument();
-    expect(screen.getByText("Olavarría → Campana")).toBeInTheDocument();
-    expect(screen.getByText("Aumentos")).toBeInTheDocument();
     expect(screen.getAllByLabelText("Eliminar aumento")).toHaveLength(3);
   });
 
@@ -140,8 +102,6 @@ describe("TabClientes", () => {
     expect(screen.getByText("solo interanual")).toBeInTheDocument();
     expect(screen.getByText("Evolución de aumentos")).toBeInTheDocument();
     expect(screen.queryByText(/Todavía no hay aumentos cargados/)).not.toBeInTheDocument();
-    // Y avisa que no tiene tarifas propias, en vez de esconder la sección.
-    expect(screen.getByText(/no tiene tarifas propias/)).toBeInTheDocument();
   });
 
   it("cambia de cliente al hacer click en la lista", () => {
@@ -157,24 +117,14 @@ describe("TabClientes", () => {
     expect(screen.getByRole("button", { name: "12m" })).toHaveClass("text-primary");
   });
 
-  it("las dos acciones de alta viven separadas y se llaman distinto", () => {
-    render1({ initialCliente: "LOMA NEGRA" });
-    // "Nueva tarifa de cliente" va con el buscador; "Cargar aumento" con el
-    // cliente elegido. Juntas se confundían entre sí.
-    expect(screen.getByRole("button", { name: /Nueva tarifa de cliente/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Cargar aumento/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^\+ ?Nueva tarifa$/ })).not.toBeInTheDocument();
-  });
-
   it("sin permiso de escritura no ofrece cargar ni eliminar", () => {
     render1({ initialCliente: "LOMA NEGRA", canWrite: false });
     expect(screen.queryByText("Cargar aumento")).not.toBeInTheDocument();
-    expect(screen.queryByText("Nueva tarifa de cliente")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Eliminar aumento")).not.toBeInTheDocument();
   });
 
-  it("estado vacío cuando no hay ni tarifas ni aumentos", () => {
-    render1({ tarifasIniciales: [], aumentosIniciales: [] });
-    expect(screen.getByText(/Todavía no hay ningún cliente/)).toBeInTheDocument();
+  it("estado vacío cuando todavía no hay aumentos", () => {
+    render1({ aumentosIniciales: [] });
+    expect(screen.getByText(/Todavía no hay aumentos de clientes/)).toBeInTheDocument();
   });
 });
