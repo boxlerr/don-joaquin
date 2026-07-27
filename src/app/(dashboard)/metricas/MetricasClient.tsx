@@ -19,6 +19,8 @@ import { METRICAS, KPIS, type MetricaId, metricaPorId } from "./components/metri
 import { compactMoney, money, numAr, mesLabel, mesCorto, delta, deltaPP } from "./components/format";
 import KpiCard from "./components/KpiCard";
 import CoberturaBanner from "./components/CoberturaBanner";
+import ProcedenciaPanel from "./components/ProcedenciaPanel";
+import { estadoDeKpis } from "./components/metricas-origen";
 import MetricaTable from "./components/MetricaTable";
 import MetricaChart from "./components/MetricaChart";
 import EvolucionChart from "./components/EvolucionChart";
@@ -77,6 +79,9 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
     if (q) rows = rows.filter((c) => normalizar(c.nombre).includes(q));
     return rows;
   }, [data.choferes, flota, busqueda]);
+
+  // Procedencia + estado de cada KPI (de qué sección sale y qué le falta).
+  const origenPorKpi = useMemo(() => estadoDeKpis(data), [data]);
 
   // Serie del sparkline por KPI (13 meses, general).
   const sparkPorKpi = useMemo(() => {
@@ -147,12 +152,15 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
               dCmp={dCmp}
               etiquetaCmp={data.comparacion ? mesCorto(data.comparacion.mes) : undefined}
               serie={sparkPorKpi[k.id]}
+              origen={origenPorKpi[k.id]}
               onClick={k.metrica ? () => setTab(k.metrica!) : undefined}
               activa={k.metrica === tab && k.id !== "km"}
             />
           );
         })}
       </div>
+
+      <ProcedenciaPanel data={data} />
 
       {/* Pestañas */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -278,10 +286,10 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
               <p className="text-sm font-medium text-foreground">
                 {defActiva.id === "sueldo" ? "Los sueldos no salen de los viajes." : "El km al 100% no se registra en la hoja de ruta."}
               </p>
-              <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              <p className="mx-auto mt-1 max-w-lg text-xs text-muted-foreground">
                 {defActiva.id === "sueldo"
-                  ? <>Se completa con la planilla del Drive, o cargando los sueldos del mes en <Link href="/sueldos-admin" className="text-primary hover:underline">Sueldos admin</Link>.</>
-                  : "Se completa cuando se importa la planilla KM AL 100% del Drive."}
+                  ? <>Los de choferes se liquidan fuera del sistema: para calcularlos acá falta la tabla de <span className="text-foreground">tarifas por concepto</span> (km, controles de descarga, sur, pozo). Los de administración y taller sí están cargados, en <Link href="/sueldos-admin" className="text-primary hover:underline">Sueldos admin</Link>.</>
+                  : <>No se registra por viaje en la hoja de ruta y hoy solo llega con la planilla del Drive. Además su <span className="text-foreground">definición sigue sin confirmar</span>: no es la resta de km totales menos vacíos.</>}
                 {" "}Mientras tanto podés ver la <button type="button" onClick={() => setVista("evolucion")} className="text-primary hover:underline">evolución histórica</button>.
               </p>
             </div>

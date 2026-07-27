@@ -3,6 +3,7 @@
 import ExportButton from "@/components/ExportButton";
 import { descargarXlsxBase64 } from "@/lib/excel/download-client";
 import { getAllViajesForExportAction } from "../actions";
+import type { FaltaDato } from "../types";
 import { exportarViajesXlsxAction } from "../export-action";
 
 interface ExportViajesButtonProps {
@@ -12,6 +13,7 @@ interface ExportViajesButtonProps {
   facturado?: boolean;
   esVacio?: boolean;
   incompleto?: boolean;
+  falta?: FaltaDato;
   search?: string;
   disabled?: boolean;
 }
@@ -23,11 +25,12 @@ export default function ExportViajesButton({
   facturado,
   esVacio,
   incompleto,
+  falta,
   search,
   disabled,
 }: ExportViajesButtonProps) {
   const hayFiltros = !!(
-    desde || hasta || search || typeof facturado === "boolean" || typeof esVacio === "boolean" || incompleto
+    desde || hasta || search || falta || typeof facturado === "boolean" || typeof esVacio === "boolean" || incompleto
   );
 
   const handleExport = async () => {
@@ -38,6 +41,7 @@ export default function ExportViajesButton({
       facturado,
       esVacio,
       incompleto,
+      falta,
       search,
     });
 

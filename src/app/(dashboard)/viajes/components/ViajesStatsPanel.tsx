@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { MapPin, X, Truck, Receipt, PackageX, CalendarRange, AlertTriangle, type LucideIcon } from "lucide-react";
 import ViajesTable, { type FiltroExterno } from "./ViajesTable";
+import { FALTA_LABEL, type FaltaDato } from "../types";
 import ViajeStatCard, { type ViajeCardTone } from "./ViajeStatCard";
 import PeriodoSelector from "../../choferes/ranking/PeriodoSelector";
 import type { RangoKey } from "../../choferes/ranking/lib";
@@ -22,6 +23,9 @@ interface Props {
   choferNombre?: string | null;
   /** Filtro preseleccionado desde la URL (key de tarjeta: sin_facturar, vacios). */
   filtroInicial?: string;
+  /** "Le falta este dato" (?falta=km|monto|tonelaje|chofer): llega desde /metricas
+   *  al hacer clic en la procedencia de un KPI incompleto. */
+  faltaInicial?: FaltaDato;
   /** Datos de formulario de gasto (resueltos en la página) que la tabla pasa al
    *  panel de gastos de cada fila. */
   gastoFormData: GastoFormData;
@@ -52,6 +56,7 @@ export default function ViajesStatsPanel({
   choferId,
   choferNombre,
   filtroInicial,
+  faltaInicial,
   gastoFormData,
   rango,
   desdePeriodo,
@@ -62,6 +67,8 @@ export default function ViajesStatsPanel({
   // los inputs de fecha de la tabla con ese rango (quedan editables para afinar).
   const tableDesde = rango === "total" ? "" : desdePeriodo;
   const tableHasta = rango === "total" ? "" : hastaPeriodo;
+  // El filtro "le falta X" viene de la URL pero se puede sacar sin recargar.
+  const [falta, setFalta] = useState<FaltaDato | undefined>(faltaInicial);
   // Tres tarjetas con identidad propia (se quitó el estado operativo — En curso /
   // Pendientes — que ya no se usa). Total · Sin remito · Vueltas en vacío.
   const cards: CardDef[] = [
@@ -230,6 +237,19 @@ export default function ViajesStatsPanel({
                 </button>
               </span>
             )}
+            {falta && (
+              <span className="inline-flex items-center gap-1.5 rounded-[6px] border border-amber-500/40 bg-amber-500/10 py-0.5 pl-2 pr-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                {FALTA_LABEL[falta]}
+                <button
+                  type="button"
+                  onClick={() => setFalta(undefined)}
+                  className="flex items-center transition-colors hover:opacity-70"
+                  aria-label="Quitar el filtro de dato faltante"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -237,6 +257,7 @@ export default function ViajesStatsPanel({
       <ViajesTable
         key={`${rango}-${desdePeriodo}-${hastaPeriodo}`}
         choferId={choferId}
+        falta={falta}
         filtroExterno={filtroExterno}
         onFiltroChange={setCurrent}
         gastoFormData={gastoFormData}

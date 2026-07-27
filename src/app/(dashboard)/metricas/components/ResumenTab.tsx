@@ -1,7 +1,14 @@
 "use client";
 
-// Pestaña Resumen: lo mejor/peor del mes de un vistazo, facturación vs costo
-// del estudio, aumentos de tarifa (contexto) y la comparativa por flota.
+// Pestaña Resumen: cómo fue el mes, de arriba hacia abajo y en orden de
+// importancia — los números del mes por flota, el mejor/peor por métrica, y
+// después los dos análisis (costo vs facturación y paridad de aumentos).
+//
+// Criterios de diseño (pedido de Julián 25/07): nada de texto de 10px —
+// lo usa gente de todas las edades— y sin huecos blancos: la grilla va con
+// `items-start` para que una tarjeta corta no se estire al alto de la larga,
+// y la tabla de aumentos mes a mes (13 filas, casi todas vacías) arranca
+// plegada para que las dos columnas queden parejas.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,12 +17,25 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Trophy, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Trophy, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import type { MetricasData, MetricaChofer } from "../actions";
 import { eliminarAumentoClienteAction } from "../actions";
 import { METRICAS } from "./metricas-def";
 import { money, numAr, pct, compactMoney, mesLabel, mesCorto } from "./format";
 import CargarAumentoDialog from "../CargarAumentoDialog";
+
+/** Encabezado de sección: título legible + una línea que explica qué se está viendo. */
+function TituloSeccion({ titulo, explica, accion }: { titulo: string; explica: string; accion?: React.ReactNode }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">{titulo}</h3>
+        <p className="mt-0.5 max-w-2xl text-[13px] leading-snug text-muted-foreground">{explica}</p>
+      </div>
+      {accion}
+    </div>
+  );
+}
 
 export default function ResumenTab({
   data, onChofer, esLive,
@@ -27,6 +47,7 @@ export default function ResumenTab({
 }) {
   const router = useRouter();
   const [aumentoOpen, setAumentoOpen] = useState(false);
+  const [verMesAMes, setVerMesAMes] = useState(false);
   const t = data.totales.general;
 
   // Destacados del mes: mejor y peor por métrica (con mínimo de km para no
@@ -43,7 +64,12 @@ export default function ResumenTab({
         .filter((r): r is { c: MetricaChofer; v: number } => r.v != null);
       if (conValor.length < 2) return null;
       conValor.sort((a, b) => (def.mejorMenos ? a.v - b.v : b.v - a.v));
-      return { def, mejor: conValor[0], peor: conValor[conValor.length - 1] };
+      const mejor = conValor[0];
+      const peor = conValor[conValor.length - 1];
+      // Si el mejor y el peor valen lo mismo (típico del mes en vivo, con todo
+      // en $0) no hay nada que destacar: mostrarlo confunde más que ayuda.
+      if (mejor.v === peor.v) return null;
+      return { def, mejor, peor };
     }).filter(Boolean) as { def: (typeof METRICAS)[number]; mejor: { c: MetricaChofer; v: number }; peor: { c: MetricaChofer; v: number } }[];
   }, [data.choferes, metricasDisponibles]);
 
@@ -59,8 +85,7 @@ export default function ResumenTab({
   // Aumentos mes a mes (matriz meses × clientes). Los meses sin dato se muestran
   // igual, para ir completándolos con el tiempo. Las entradas marcadas
   // "Interanual" (ej. YPF, que hoy solo trae el interanual, no el mes a mes) van
-  // a la fila de abajo y NO a una celda mensual, así el año queda visible y
-  // vacío para cargar cuando llegue el detalle.
+  // a la fila de abajo y NO a una celda mensual.
   const aumentosMes = useMemo(() => {
     const esInteranual = (a: (typeof data.aumentos)[number]) =>
       !!a.observaciones && a.observaciones.trim().toLowerCase().startsWith("interanual");
@@ -78,341 +103,441 @@ export default function ResumenTab({
     return { clientes: orden, meses, idx, interanual, interanualOnly };
   }, [data.aumentos, data.paridad, data.serieHistorica]);
 
+  const fmtPct = (n: number | null) =>
+    n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+
+  const filasFlota = (["escalables", "tolvas"] as const)
+    .map((f) => ({ f, tf: data.totales[f] }))
+    .filter((r) => r.tf != null);
+
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      {/* Mejores y peores del mes */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm xl:col-span-2">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Destacados del mes — {mesLabel(data.mes)}</h3>
+    <div className="space-y-4">
+      {/* ── 1. Los números del mes: es lo primero que se quiere ver ─────── */}
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <TituloSeccion
+          titulo={`Cómo viene ${mesLabel(data.mes)}`}
+          explica="Los totales del mes separados por flota. La última fila es el conjunto de la empresa."
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[680px] text-[15px]">
+            <thead>
+              <tr className="border-b border-border text-left text-[13px] text-muted-foreground">
+                <th className="py-2 pr-4 font-medium">Flota</th>
+                <th className="py-2 pr-4 text-right font-medium">Camiones</th>
+                <th className="py-2 pr-4 text-right font-medium">KM</th>
+                <th className="py-2 pr-4 text-right font-medium">Facturación</th>
+                <th className="py-2 pr-4 text-right font-medium">$ por km</th>
+                <th className="py-2 pr-4 text-right font-medium">% vacíos</th>
+                <th className="py-2 pr-4 text-right font-medium">% al 100%</th>
+                <th className="py-2 text-right font-medium">% sueldo/fact</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filasFlota.map(({ f, tf }) => (
+                <tr key={f}>
+                  <td className="py-2.5 pr-4 capitalize text-foreground">{f}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{tf!.camiones}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{numAr(tf!.km)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{compactMoney(tf!.facturacion)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{money(tf!.factPorKm, 2)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{pct(tf!.pctVacios)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{pct(tf!.pctKm100)}</td>
+                  <td className="py-2.5 text-right font-mono">{pct(tf!.pctSueldoFact)}</td>
+                </tr>
+              ))}
+              {t && (
+                <tr className="bg-muted/40 font-semibold text-foreground">
+                  <td className="py-2.5 pr-4">TOTAL</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{t.camiones}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{numAr(t.km)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{compactMoney(t.facturacion)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{money(t.factPorKm, 2)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{pct(t.pctVacios)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{pct(t.pctKm100)}</td>
+                  <td className="py-2.5 text-right font-mono">{pct(t.pctSueldoFact)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ── 2. Quién se destacó ──────────────────────────────────────────── */}
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <TituloSeccion
+          titulo="El mejor y el peor de cada métrica"
+          explica="Solo choferes con el mes completo. Tocá un nombre para ver su detalle."
+          accion={
+            <Link
+              href="/choferes/ranking"
+              className="shrink-0 text-[13px] font-medium text-primary hover:underline"
+            >
+              Ranking completo →
+            </Link>
+          }
+        />
         {destacados.length ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             {destacados.map(({ def, mejor, peor }) => (
-              <div key={def.id} className="rounded-md border border-border p-2.5">
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{def.tab}</p>
+              <div key={def.id} className="rounded-md border border-border p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{def.tab}</p>
                 <button
                   type="button"
                   onClick={() => onChofer(mejor.c)}
-                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-emerald-500/10"
+                  className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-emerald-500/10"
                   title={`Ver detalle de ${mejor.c.nombre}`}
                 >
-                  <Trophy size={11} className="shrink-0 text-emerald-500" />
-                  <span className="flex-1 truncate font-medium text-foreground">{mejor.c.nombre}</span>
-                  <span className="font-mono text-emerald-600 dark:text-emerald-400">{def.fmt(mejor.v)}</span>
+                  <Trophy size={13} className="shrink-0 text-emerald-500" />
+                  <span className="flex-1 truncate text-foreground">{mejor.c.nombre}</span>
+                  <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{def.fmt(mejor.v)}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onChofer(peor.c)}
-                  className="mt-0.5 flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-red-500/10"
+                  className="mt-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-red-500/10"
                   title={`Ver detalle de ${peor.c.nombre}`}
                 >
-                  <AlertTriangle size={11} className="shrink-0 text-red-400" />
-                  <span className="flex-1 truncate font-medium text-foreground">{peor.c.nombre}</span>
-                  <span className="font-mono text-red-500">{def.fmt(peor.v)}</span>
+                  <AlertTriangle size={13} className="shrink-0 text-red-400" />
+                  <span className="flex-1 truncate text-foreground">{peor.c.nombre}</span>
+                  <span className="font-mono font-semibold text-red-500">{def.fmt(peor.v)}</span>
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Se necesitan al menos 2 choferes con mes completo.</p>
-        )}
-        <p className="mt-2 text-[10px] text-muted-foreground">
-          Solo choferes con mes completo. Click en un nombre abre su detalle. El ranking formal con score está en{" "}
-          <Link href="/choferes/ranking" className="text-primary hover:underline">Ranking de choferes</Link>.
-        </p>
-      </div>
-
-      {/* Facturación vs costo por km (planilla COSTO VS KM) */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-1 text-sm font-semibold text-foreground">Facturación vs costo por km (estudio)</h3>
-        <p className="mb-3 text-[11px] text-muted-foreground">
-          De la planilla COSTO VS KM: si la línea azul cae abajo de la roja, el km se factura por debajo del costo.
-        </p>
-        {data.serieCosto.length ? (
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={data.serieCosto.map((r) => ({ ...r, label: mesCorto(r.mes) }))}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `$${numAr(v)}`} width={64} />
-              <Tooltip formatter={(v) => money(Number(v), 2)} contentStyle={{ fontSize: 11 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="factKm" name="Facturación $/km" stroke="#0088D1" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
-              <Line type="monotone" dataKey="costoKm" name="Costo estudio $/km" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} connectNulls />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground">Sin serie de costo cargada.</p>
-        )}
-        {costoActual?.costoKm != null && t?.factPorKm != null && (
-          <p className={`mt-2 text-xs ${t.factPorKm >= costoActual.costoKm ? "text-muted-foreground" : "text-red-500 font-medium"}`}>
-            {t.factPorKm >= costoActual.costoKm
-              ? `La facturación por km (${money(t.factPorKm, 2)}) cubre el costo del estudio (${money(costoActual.costoKm, 2)}).`
-              : `⚠️ El costo por km del estudio (${money(costoActual.costoKm, 2)}) está por encima de la facturación por km (${money(t.factPorKm, 2)}).`}
+          <p className="text-sm text-muted-foreground">
+            Todavía no hay con qué comparar: hacen falta al menos 2 choferes con el mes completo y valores distintos.
           </p>
         )}
-      </div>
+      </section>
 
-      {/* Aumentos: clientes vs sueldos (paridad interanual — pedido Bárbara 14/07) */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Aumentos: clientes vs sueldos (interanual)</h3>
-          {data.canWrite && (
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAumentoOpen(true)}>
-              <Plus size={13} /> Cargar aumento
-            </Button>
-          )}
-        </div>
-        <p className="mb-3 text-[11px] text-muted-foreground">
-          La referencia: que el promedio de aumentos a los clientes vaya <span className="font-semibold">a la par</span> de
-          lo que se le aumenta a la gente. Últimos 12 meses hasta {mesLabel(data.mes)}.
-        </p>
-
-        {(() => {
-          const p = data.paridad;
-          const sueldosDisp = [p.sueldoChoferes.pct, p.sueldoAdmin.pct].filter((n): n is number => n != null);
-          const sueldosProm = sueldosDisp.length ? sueldosDisp.reduce((s, n) => s + n, 0) / sueldosDisp.length : null;
-          const brecha = p.clientes.promedio != null && sueldosProm != null ? p.clientes.promedio - sueldosProm : null;
-          const fmtPct = (n: number | null) =>
-            n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
-          return (
-            <div className="mb-4 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-md border border-border p-2.5">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Clientes (prom.)</p>
-                  <p className={`font-mono text-lg font-bold ${p.clientes.promedio == null ? "text-muted-foreground/50" : "text-foreground"}`}>
-                    {fmtPct(p.clientes.promedio)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {p.clientes.porCliente.length
-                      ? `${p.clientes.porCliente.length} cliente${p.clientes.porCliente.length > 1 ? "s" : ""} con aumentos`
-                      : "sin aumentos cargados"}
-                  </p>
-                </div>
-                <div className="rounded-md border border-border p-2.5">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Sueldos choferes</p>
-                  <p className={`font-mono text-lg font-bold ${p.sueldoChoferes.pct == null ? "text-muted-foreground/50" : "text-foreground"}`}>
-                    {fmtPct(p.sueldoChoferes.pct)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {p.sueldoChoferes.mesBase ? `prom. por chofer vs ${mesLabel(p.sueldoChoferes.mesBase)}` : "falta el mismo mes del año pasado"}
-                  </p>
-                </div>
-                <div className="rounded-md border border-border p-2.5">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Admin y taller</p>
-                  <p className={`font-mono text-lg font-bold ${p.sueldoAdmin.pct == null ? "text-muted-foreground/50" : "text-foreground"}`}>
-                    {fmtPct(p.sueldoAdmin.pct)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {p.sueldoAdmin.mesBase
-                      ? `sueldo base vs ${mesLabel(p.sueldoAdmin.mesBase)}${p.sueldoAdmin.parcial ? " (serie incompleta)" : ""}`
-                      : "sin matriz de sueldos base"}
-                  </p>
-                </div>
-              </div>
-
-              {brecha != null ? (
-                <div className={`rounded-md px-3 py-2 text-xs font-medium ${
-                  Math.abs(brecha) <= 3
-                    ? "bg-emerald-500/10 text-emerald-700"
-                    : brecha < 0
-                      ? "bg-red-500/10 text-red-600"
-                      : "bg-sky-500/10 text-sky-700"
-                }`}>
-                  {Math.abs(brecha) <= 3
-                    ? `Van a la par: ${Math.abs(brecha).toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp de diferencia.`
-                    : brecha < 0
-                      ? `⚠️ Los sueldos suben ${Math.abs(brecha).toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp por encima de los aumentos a clientes.`
-                      : `Los aumentos a clientes van ${brecha.toLocaleString("es-AR", { maximumFractionDigits: 1 })} pp por encima de los sueldos.`}
-                </div>
-              ) : (
-                <div className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-                  {p.clientes.promedio == null
-                    ? "Falta cargar los aumentos de los clientes (YPF, Loma…). Cuando llegue la planilla con los aumentos, cargalos con el botón de arriba y la comparación se arma sola."
-                    : "Faltan datos de sueldos para comparar."}
-                </div>
-              )}
-
-              {p.clientes.porCliente.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {p.clientes.porCliente.map((c) => {
-                    const chip = (
-                      <>
-                        {c.nombre} <span className="font-mono text-amber-600">{fmtPct(c.acumulado)}</span>
-                        {c.cantidad > 1 ? ` (${c.cantidad} aumentos)` : ""}
-                      </>
-                    );
-                    return data.canTarifas ? (
-                      <Link
-                        key={c.nombre}
-                        href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c.nombre)}`}
-                        title={`Ver el historial de ${c.nombre} en Tarifas`}
-                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                      >
-                        {chip}
-                      </Link>
-                    ) : (
-                      <span key={c.nombre} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground">
-                        {chip}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[11px] text-muted-foreground">
-            Aumentos de tarifa mes a mes — la fila <span className="font-medium">Interanual</span> se compone y alimenta el card de arriba.
-          </p>
-          {data.canTarifas ? (
-            <Link href="/tarifas?tab=aumentos" className="shrink-0 text-[11px] text-primary hover:underline">
-              Ver historial en Tarifas →
-            </Link>
+      {/* ── 3. Los dos análisis, lado a lado. items-start = sin estirar ──── */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        {/* Facturación vs costo por km (planilla COSTO VS KM) */}
+        <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <TituloSeccion
+            titulo="¿El km se cobra más de lo que cuesta?"
+            explica="Si la línea azul (lo que se factura) cae por debajo de la roja (lo que cuesta según el estudio), se está trabajando a pérdida."
+          />
+          {data.serieCosto.length ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={data.serieCosto.map((r) => ({ ...r, label: mesCorto(r.mes) }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${numAr(v)}`} width={70} />
+                <Tooltip formatter={(v) => money(Number(v), 2)} contentStyle={{ fontSize: 13 }} />
+                <Legend wrapperStyle={{ fontSize: 13 }} />
+                <Line type="monotone" dataKey="factKm" name="Se factura $/km" stroke="#0088D1" strokeWidth={2.5} dot={{ r: 2.5 }} connectNulls />
+                <Line type="monotone" dataKey="costoKm" name="Cuesta $/km" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
           ) : (
-            <Link href="/clientes" className="shrink-0 text-[11px] text-primary hover:underline">Clientes</Link>
+            <p className="text-sm text-muted-foreground">Sin serie de costo cargada.</p>
           )}
-        </div>
-        {aumentosMes.clientes.length ? (
-          <>
-            <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[280px] border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Mes</th>
-                    {aumentosMes.clientes.map((c) => (
-                      <th key={c} className="px-2 py-1.5 text-right font-medium text-foreground">
-                        {data.canTarifas ? (
-                          <Link
-                            href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c)}`}
-                            title={`Ver el historial de ${c} en Tarifas`}
-                            className="hover:text-primary hover:underline"
-                          >
-                            {c}
-                          </Link>
-                        ) : (
-                          c
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {aumentosMes.meses.map((m) => (
-                    <tr key={m} className="border-b border-border/50 last:border-0">
-                      <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{mesCorto(m)}</td>
-                      {aumentosMes.clientes.map((c) => {
-                        const a = aumentosMes.idx.get(`${c}|${m.slice(0, 7)}`);
-                        return (
-                          <td key={c} className="px-2 py-1 text-right font-mono">
-                            {a ? (
-                              <span className="group inline-flex items-center justify-end gap-1">
-                                <span className="text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
-                                {data.canWrite && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
-                                    className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
-                                    title="Eliminar"
-                                  >
-                                    <Trash2 size={11} />
-                                  </button>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/25">·</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-border bg-muted/30 font-semibold">
-                    <td className="px-2 py-1.5 text-left text-muted-foreground">Interanual</td>
-                    {aumentosMes.clientes.map((c) => {
-                      const v = aumentosMes.interanual.get(c);
-                      const io = aumentosMes.interanualOnly.get(c);
-                      return (
-                        <td key={c} className="px-2 py-1.5 text-right font-mono text-amber-700 dark:text-amber-300">
-                          <span className="group inline-flex items-center justify-end gap-1">
-                            {v == null ? "—" : `+${numAr(v, 1)}%`}
-                            {io && data.canWrite && (
-                              <button
-                                type="button"
-                                onClick={() => handleEliminarAumento(io.id, io.clienteNombre)}
-                                className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
-                                title="Eliminar interanual"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            )}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            {aumentosMes.interanualOnly.size > 0 && (
-              <p className="mt-1.5 text-[10px] text-muted-foreground/80">
-                {Array.from(aumentosMes.interanualOnly.keys()).join(", ")}: por ahora solo el interanual (última fila). Cuando llegue el detalle mes a mes se completan las celdas de arriba.
+          {/* El veredicto compara las DOS líneas del gráfico (misma fila de la
+              misma planilla). Antes usaba el KPI general de arriba, que se
+              calcula distinto y no coincidía con el último punto del azul. */}
+          {costoActual?.costoKm != null && costoActual.factKm != null && (
+            <p
+              className={`mt-3 rounded-md border px-3 py-2 text-[13px] leading-snug ${
+                costoActual.factKm >= costoActual.costoKm
+                  ? "border-emerald-500/30 text-foreground"
+                  : "border-red-500/30 font-medium text-red-600 dark:text-red-400"
+              }`}
+            >
+              {costoActual.factKm >= costoActual.costoKm
+                ? `Bien: en ${mesLabel(data.mes)} cada km se factura ${money(costoActual.factKm, 2)} y cuesta ${money(costoActual.costoKm, 2)}.`
+                : `Atención: en ${mesLabel(data.mes)} cada km cuesta ${money(costoActual.costoKm, 2)} y se factura ${money(costoActual.factKm, 2)}. Son ${money(costoActual.costoKm - costoActual.factKm, 2)} de pérdida por km.`}
+            </p>
+          )}
+
+          {/* De dónde sale cada línea: es la pregunta que aparece siempre. */}
+          <div className="mt-3 space-y-2 rounded-md border border-border bg-muted/20 p-3 text-[13px] leading-snug">
+            <p className="font-semibold text-foreground">De dónde sale cada línea</p>
+            <p className="text-muted-foreground">
+              <span className="font-medium text-red-600 dark:text-red-400">Cuesta $/km</span> — columna
+              {" "}<span className="font-mono text-[12px]">ESTUDIO DE COSTO</span> de la planilla COSTO VS KM.
+              Lo calcula el estudio contable fuera del sistema y se carga un número por mes; no sale de los viajes.
+            </p>
+            <p className="text-muted-foreground">
+              <span className="font-medium text-[#0088D1]">Se factura $/km</span> — columna
+              {" "}<span className="font-mono text-[12px]">FACTURACION POR KM</span> de la misma planilla: el
+              promedio del $/km de cada chofer de <span className="font-medium text-foreground">escalables</span>,
+              sin contar a los que entraron o salieron a mitad de mes.
+            </p>
+            {t?.factPorKm != null && costoActual?.factKm != null &&
+              Math.abs(t.factPorKm - costoActual.factKm) > 1 && (
+              <p className="border-t border-border pt-2 text-muted-foreground">
+                No confundir con el KPI <span className="font-medium text-foreground">Facturación por km</span> de
+                arriba ({money(t.factPorKm, 2)}): ese es facturación total ÷ km totales e incluye las tolvas, que
+                facturan más por km. Por eso da distinto de los {money(costoActual.factKm, 2)} de este gráfico.
               </p>
             )}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground/70">Sin aumentos registrados en el período.</p>
-        )}
-      </div>
+          </div>
+        </section>
 
-      {/* Comparativa por flota */}
-      <div className="overflow-x-auto rounded-lg border border-border bg-card p-4 shadow-sm xl:col-span-2">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Por flota — {mesLabel(data.mes)}</h3>
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="py-2 pr-4 font-medium">Flota</th>
-              <th className="py-2 pr-4 text-right font-medium">Camiones</th>
-              <th className="py-2 pr-4 text-right font-medium">KM</th>
-              <th className="py-2 pr-4 text-right font-medium">Facturación</th>
-              <th className="py-2 pr-4 text-right font-medium">$/km</th>
-              <th className="py-2 pr-4 text-right font-medium">% vacíos</th>
-              <th className="py-2 pr-4 text-right font-medium">% al 100%</th>
-              <th className="py-2 text-right font-medium">% sueldo/fact</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {(["escalables", "tolvas"] as const).map((f) => {
-              const tf = data.totales[f];
-              if (!tf) return null;
-              return (
-                <tr key={f}>
-                  <td className="py-2 pr-4 capitalize text-foreground">{f}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{tf.camiones}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{numAr(tf.km)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{compactMoney(tf.facturacion)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{money(tf.factPorKm, 2)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{pct(tf.pctVacios)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{pct(tf.pctKm100)}</td>
-                  <td className="py-2 text-right font-mono">{pct(tf.pctSueldoFact)}</td>
-                </tr>
-              );
-            })}
-            {t && (
-              <tr className="bg-muted/40 font-semibold text-foreground">
-                <td className="py-2 pr-4">TOTAL</td>
-                <td className="py-2 pr-4 text-right font-mono">{t.camiones}</td>
-                <td className="py-2 pr-4 text-right font-mono">{numAr(t.km)}</td>
-                <td className="py-2 pr-4 text-right font-mono">{compactMoney(t.facturacion)}</td>
-                <td className="py-2 pr-4 text-right font-mono">{money(t.factPorKm, 2)}</td>
-                <td className="py-2 pr-4 text-right font-mono">{pct(t.pctVacios)}</td>
-                <td className="py-2 pr-4 text-right font-mono">{pct(t.pctKm100)}</td>
-                <td className="py-2 text-right font-mono">{pct(t.pctSueldoFact)}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {/* Aumentos: clientes vs sueldos (paridad interanual — pedido Bárbara 14/07) */}
+        <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <TituloSeccion
+            titulo="¿Los aumentos van a la par?"
+            explica={`Lo que se le aumentó a los clientes contra lo que se le aumentó a la gente, con la inflación de referencia. Últimos 12 meses hasta ${mesLabel(data.mes)}.`}
+            accion={
+              data.canWrite ? (
+                <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => setAumentoOpen(true)}>
+                  <Plus size={14} /> Cargar aumento
+                </Button>
+              ) : undefined
+            }
+          />
+
+          {(() => {
+            const p = data.paridad;
+            const sueldosDisp = [p.sueldoChoferes.pct, p.sueldoAdmin.pct].filter((n): n is number => n != null);
+            const sueldosProm = sueldosDisp.length ? sueldosDisp.reduce((s, n) => s + n, 0) / sueldosDisp.length : null;
+            const brecha = p.clientes.promedio != null && sueldosProm != null ? p.clientes.promedio - sueldosProm : null;
+            const nDec = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+
+            // Dos barras a la misma escala: lo que entra (aumentos a clientes)
+            // contra lo que sale (aumentos a la gente), con la inflación como
+            // tercera referencia. La escala la fija el mayor de los tres.
+            const filas = [
+              {
+                k: "A los clientes",
+                v: p.clientes.promedio,
+                color: "bg-sky-500",
+                pie: p.clientes.porCliente.length
+                  ? `${p.clientes.porCliente.length} cliente${p.clientes.porCliente.length > 1 ? "s" : ""}`
+                  : "sin aumentos cargados",
+              },
+              {
+                k: "A la gente",
+                v: sueldosProm,
+                color: "bg-amber-500",
+                pie:
+                  sueldosDisp.length === 2
+                    ? `choferes ${fmtPct(p.sueldoChoferes.pct)} · admin y taller ${fmtPct(p.sueldoAdmin.pct)}`
+                    : p.sueldoChoferes.pct != null
+                      ? `solo choferes (falta admin y taller)`
+                      : p.sueldoAdmin.pct != null
+                        ? `solo admin y taller (falta choferes)`
+                        : "sin datos de sueldos",
+              },
+              {
+                k: "Inflación",
+                v: p.inflacion.pct,
+                color: "bg-muted-foreground/50",
+                pie: p.inflacion.hastaMes
+                  ? p.inflacion.completa
+                    ? "IPC INDEC, mismos 12 meses"
+                    : `IPC INDEC hasta ${mesLabel(p.inflacion.hastaMes)} (falta publicar el resto)`
+                  : "sin dato de INDEC",
+              },
+            ];
+            const tope = Math.max(1, ...filas.map((f) => f.v ?? 0));
+
+            return (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  {filas.map((f) => (
+                    <div key={f.k} className="flex items-center gap-3">
+                      <span className="w-24 shrink-0 text-[12px] text-muted-foreground sm:w-28">{f.k}</span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-[3px] bg-muted">
+                        {f.v != null && f.v > 0 && (
+                          <span
+                            className={`block h-full rounded-[3px] ${f.color}`}
+                            style={{ width: `${Math.min(100, (f.v / tope) * 100)}%` }}
+                          />
+                        )}
+                      </span>
+                      <span
+                        className={`w-16 shrink-0 text-right font-mono text-[15px] font-bold ${f.v == null ? "text-muted-foreground/40" : "text-foreground"}`}
+                      >
+                        {fmtPct(f.v)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[12px] leading-snug text-muted-foreground">
+                  {filas.map((f) => `${f.k}: ${f.pie}`).join(" · ")}
+                </p>
+
+                {brecha != null ? (
+                  /* Sin fondo de color: el borde izquierdo y el número alcanzan.
+                     Y la cuenta escrita, para que el número no salga de la nada. */
+                  <p
+                    className={`border-l-2 pl-3 text-[13px] leading-snug ${
+                      Math.abs(brecha) <= 3
+                        ? "border-emerald-500"
+                        : brecha < 0
+                          ? "border-red-500"
+                          : "border-sky-500"
+                    }`}
+                  >
+                    <span className="font-medium text-foreground">
+                      {Math.abs(brecha) <= 3
+                        ? "Van a la par."
+                        : brecha < 0
+                          ? `A la gente le subiste ${nDec(Math.abs(brecha))} puntos más de lo que le aumentaste a los clientes.`
+                          : `A los clientes les aumentaste ${nDec(brecha)} puntos más de lo que le subiste a la gente.`}
+                    </span>{" "}
+                    <span className="text-muted-foreground">
+                      {fmtPct(p.clientes.promedio)} contra {fmtPct(sueldosProm)}: {nDec(Math.abs(brecha))} puntos de
+                      diferencia.
+                    </span>
+                  </p>
+                ) : (
+                  <p className="border-l-2 border-amber-500 pl-3 text-[13px] leading-snug text-muted-foreground">
+                    {p.clientes.promedio == null
+                      ? "Faltan los aumentos de los clientes (YPF, Loma…). Cargalos con el botón de arriba y la comparación se arma sola."
+                      : "Faltan datos de sueldos para poder comparar."}
+                  </p>
+                )}
+
+                {p.clientes.porCliente.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {p.clientes.porCliente.map((c) => {
+                      const chip = (
+                        <>
+                          {c.nombre} <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">{fmtPct(c.acumulado)}</span>
+                          {c.cantidad > 1 ? ` · ${c.cantidad} aumentos` : ""}
+                        </>
+                      );
+                      return data.canTarifas ? (
+                        <Link
+                          key={c.nombre}
+                          href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c.nombre)}`}
+                          title={`Ver el historial de ${c.nombre} en Tarifas`}
+                          className="rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                        >
+                          {chip}
+                        </Link>
+                      ) : (
+                        <span key={c.nombre} className="rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground">
+                          {chip}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* El detalle mes a mes arranca plegado: son 13 filas casi vacías que
+              estiraban esta tarjeta al doble que la de al lado. */}
+          {aumentosMes.clientes.length > 0 && (
+            <div className="mt-3 border-t border-border pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVerMesAMes(!verMesAMes)}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground hover:text-primary"
+                >
+                  {verMesAMes ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                  Ver el detalle mes a mes
+                </button>
+                <Link
+                  href={data.canTarifas ? "/tarifas?tab=aumentos" : "/clientes"}
+                  className="shrink-0 text-[13px] text-primary hover:underline"
+                >
+                  {data.canTarifas ? "Historial en Tarifas →" : "Clientes →"}
+                </Link>
+              </div>
+
+              {verMesAMes && (
+                <>
+                  <div className="mt-2.5 overflow-x-auto rounded-md border border-border">
+                    <table className="w-full min-w-[280px] border-collapse text-[13px]">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/40">
+                          <th className="px-2.5 py-2 text-left font-medium text-muted-foreground">Mes</th>
+                          {aumentosMes.clientes.map((c) => (
+                            <th key={c} className="px-2.5 py-2 text-right font-medium text-foreground">
+                              {data.canTarifas ? (
+                                <Link
+                                  href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c)}`}
+                                  title={`Ver el historial de ${c} en Tarifas`}
+                                  className="hover:text-primary hover:underline"
+                                >
+                                  {c}
+                                </Link>
+                              ) : (
+                                c
+                              )}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aumentosMes.meses.map((m) => (
+                          <tr key={m} className="border-b border-border/50 last:border-0">
+                            <td className="whitespace-nowrap px-2.5 py-1.5 text-muted-foreground">{mesCorto(m)}</td>
+                            {aumentosMes.clientes.map((c) => {
+                              const a = aumentosMes.idx.get(`${c}|${m.slice(0, 7)}`);
+                              return (
+                                <td key={c} className="px-2.5 py-1.5 text-right font-mono">
+                                  {a ? (
+                                    <span className="group inline-flex items-center justify-end gap-1">
+                                      <span className="text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
+                                      {data.canWrite && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
+                                          className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                          title="Eliminar"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/25">·</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-border bg-muted/30 font-semibold">
+                          <td className="px-2.5 py-2 text-left text-muted-foreground">Interanual</td>
+                          {aumentosMes.clientes.map((c) => {
+                            const v = aumentosMes.interanual.get(c);
+                            const io = aumentosMes.interanualOnly.get(c);
+                            return (
+                              <td key={c} className="px-2.5 py-2 text-right font-mono text-amber-700 dark:text-amber-300">
+                                <span className="group inline-flex items-center justify-end gap-1">
+                                  {v == null ? "—" : `+${numAr(v, 1)}%`}
+                                  {io && data.canWrite && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEliminarAumento(io.id, io.clienteNombre)}
+                                      className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                      title="Eliminar interanual"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {aumentosMes.interanualOnly.size > 0 && (
+                    <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
+                      {Array.from(aumentosMes.interanualOnly.keys()).join(", ")}: por ahora solo el interanual (última fila).
+                      Cuando llegue el detalle mes a mes se completan las celdas de arriba.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </section>
       </div>
 
       {data.canWrite && (

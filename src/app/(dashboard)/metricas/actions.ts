@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { choferSlug } from "@/lib/chofer-slug";
+import { getInflacion, inflacionAcumulada } from "@/lib/inflacion";
 
 // Tablas nuevas, aún no tipadas en database.ts.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -126,6 +127,13 @@ export type Paridad = {
   sueldoChoferes: { pct: number | null; mesBase: string | null };
   /** % de aumento del sueldo base de administración y taller (matriz de aumentos). */
   sueldoAdmin: { pct: number | null; mesBase: string | null; parcial: boolean };
+  /**
+   * Inflación (IPC INDEC) acumulada en la misma ventana de 12 meses, como tercera
+   * referencia. Vivía sólo en Sueldos → Aumentos, así que para comparar las tres
+   * cosas había que abrir dos pantallas. `hastaMes` es el último mes con dato
+   * publicado dentro de la ventana (INDEC publica con ~1 mes y medio de atraso).
+   */
+  inflacion: { pct: number | null; hastaMes: string | null; completa: boolean };
 };
 
 /** Mes de comparación elegido por el usuario (además de mes ant. e interanual). */
@@ -649,10 +657,29 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
     }
   }
 
+  // 4) Inflación de la misma ventana (mes interanual + 1 … mes visto), para
+  //    poder leer las tres cosas juntas. INDEC publica con atraso: si falta el
+  //    último mes se acumula hasta donde llega y se avisa que está incompleta.
+  let inflacionParidad: Paridad["inflacion"] = { pct: null, hastaMes: null, completa: false };
+  {
+    const { serie } = await getInflacion();
+    const desde = addMonths(mesInteranual, 1);
+    const disponibles = serie.filter((s) => s.mes >= desde && s.mes <= mes);
+    const hastaMes = disponibles.length ? disponibles[disponibles.length - 1]!.mes : null;
+    if (hastaMes) {
+      inflacionParidad = {
+        pct: inflacionAcumulada(serie, desde, hastaMes),
+        hastaMes,
+        completa: hastaMes === mes,
+      };
+    }
+  }
+
   const paridad: Paridad = {
     clientes: { promedio: clientesPromedio, porCliente: clientesDetalle },
     sueldoChoferes: { pct: sueldoChoferesPct, mesBase: sueldoChoferesPct != null ? mesInteranual : null },
     sueldoAdmin,
+    inflacion: inflacionParidad,
   };
 
   return {

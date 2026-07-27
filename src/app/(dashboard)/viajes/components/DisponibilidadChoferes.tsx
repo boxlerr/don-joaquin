@@ -9,14 +9,38 @@ interface Props {
   dias: number;
 }
 
-// Sección de disponibilidad: choferes no disponibles en los próximos días, para
-// planificar la semana sin depender de "lo que recordó" logística.
+/** "en 2 días" / "mañana" / "hoy", para decir cuándo se va sin hacer cuentas. */
+function cuando(dias: number): string {
+  if (dias <= 0) return "hoy";
+  if (dias === 1) return "mañana";
+  return `en ${dias} días`;
+}
+
+/**
+ * Estado de quien hoy no está, nombrando el motivo: "En vacaciones" dice más
+ * que "no está". `tipo` es texto libre en la base (hoy solo hay "vacaciones"),
+ * así que la preposición se elige por el tipo y hay fallback genérico.
+ */
+function estadoAusente(tipo: string): string {
+  const t = tipo.toLowerCase().trim();
+  if (t.startsWith("vacacion")) return "En vacaciones";
+  if (t.startsWith("licencia")) return `De ${t}`;
+  if (t.startsWith("permiso") || t.startsWith("franco")) return `De ${t}`;
+  return `No está hoy · ${t}`;
+}
+
+// Sección de disponibilidad: quién NO está hoy y quién se va en los próximos
+// días. La distinción importa para asignar viajes: a alguien que se va el lunes
+// todavía se le puede dar un viaje hoy.
 export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
-  const choferesDistintos = new Set(ausencias.map((a) => a.chofer_id)).size;
+  const ausentesHoy = new Set(ausencias.filter((a) => a.en_curso).map((a) => a.chofer_id)).size;
+  const porSalir = new Set(
+    ausencias.filter((a) => !a.en_curso).map((a) => a.chofer_id),
+  ).size;
 
   return (
     <div className="bg-card rounded-lg border border-border shadow-sm mb-6">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2.5">
           <span className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary">
             <CalendarOff size={15} />
@@ -25,11 +49,19 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
             Disponibilidad — próximos {dias} días
           </h2>
         </div>
-        {choferesDistintos > 0 && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            {choferesDistintos} chofer{choferesDistintos !== 1 ? "es" : ""} menos
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {ausentesHoy > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              {ausentesHoy} sin disponibilidad hoy
+            </span>
+          )}
+          {porSalir > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              {porSalir} {porSalir === 1 ? "se va" : "se van"} en los próximos días
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="p-5">
@@ -43,7 +75,9 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
               <Link
                 key={a.id}
                 href={`/choferes/${a.chofer_id}?tab=ausencias`}
-                className="group flex items-start gap-3 rounded-lg border border-border p-3 hover:border-primary/40 hover:bg-muted/30 hover:shadow-sm transition-all"
+                className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:border-primary/40 hover:bg-muted/30 hover:shadow-sm ${
+                  a.en_curso ? "border-amber-500/40" : "border-border"
+                }`}
               >
                 <InitialsAvatar name={a.chofer_nombre} size={40} className="mt-0.5 text-[13px]" />
 
@@ -52,17 +86,34 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                     {a.chofer_nombre}
                   </span>
 
-                  <p className="text-xs font-semibold text-foreground/70 mt-0.5 flex items-center gap-1.5">
-                    {a.en_curso && (
-                      <span
-                        className="size-1.5 rounded-full bg-amber-500 shrink-0"
-                        title="Actualmente ausente"
-                      />
-                    )}
-                    De {a.tipo.toLowerCase()}
-                  </p>
+                  {/* Lo primero es si está o no está HOY; el tipo de ausencia va después. */}
+                  {a.en_curso ? (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
+                      {estadoAusente(a.tipo)}
+                      <span className="font-normal text-muted-foreground">
+                        · vuelve el {formatFecha(a.fecha_regreso)}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-foreground/70">
+                      <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/40" />
+                      Disponible
+                      <span className="font-normal text-muted-foreground">
+                        · se va {cuando(a.dias_hasta_inicio)}
+                      </span>
+                    </p>
+                  )}
 
-                  <p className="text-[11px] text-foreground/70 font-semibold mt-1.5 tabular-nums">
+                  <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
+                    {/* El tipo solo se repite acá si arriba no se nombró (los que
+                        todavía están dicen "Disponible", no el motivo). */}
+                    {!a.en_curso && (
+                      <>
+                        <span className="capitalize">{a.tipo.toLowerCase()}</span>
+                        {" · "}
+                      </>
+                    )}
                     {formatFecha(a.fecha_inicio)}
                     {a.fecha_inicio !== a.fecha_fin && (
                       <>
@@ -73,8 +124,8 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                   </p>
 
                   {a.autorizado_por_nombre && (
-                    <p className="text-[11px] text-muted-foreground/80 mt-1.5 flex items-center gap-1">
-                      <ShieldCheck size={11} className="text-emerald-500 shrink-0" />
+                    <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/80">
+                      <ShieldCheck size={11} className="shrink-0 text-emerald-500" />
                       <span className="truncate">{a.autorizado_por_nombre}</span>
                     </p>
                   )}

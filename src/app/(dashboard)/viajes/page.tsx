@@ -10,6 +10,7 @@ import ImportsMenu from "./components/ImportsMenu";
 import HelpTutorialButton from "./help-tutorial-button";
 import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
 import { getViajeFormData, getAusenciasProximasAction } from "./actions";
+import { esFaltaDato } from "./types";
 import { resolverRango } from "../choferes/ranking/lib";
 import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
@@ -23,12 +24,14 @@ export default async function ViajesPage({
     rango?: string;
     desde?: string;
     hasta?: string;
+    /** ?falta=km|monto|tonelaje|chofer — llega desde /metricas. */
+    falta?: string;
   }>;
 }) {
   const user = await requireSeccion("viajes_listado", "read");
   const canWrite = hasSeccion(user, "viajes_listado", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
-  const { choferId, filtro, rango, desde, hasta } = await searchParams;
+  const { choferId, filtro, rango, desde, hasta, falta } = await searchParams;
   const supabase = createAdminClient();
 
   // Período elegido por el selector de fechas. Default "total" = todos los viajes
@@ -154,6 +157,7 @@ export default async function ViajesPage({
         choferId={choferId}
         choferNombre={choferNombre}
         filtroInicial={filtro}
+        faltaInicial={esFaltaDato(falta) ? falta : undefined}
         gastoFormData={gastoFormData}
         rango={periodo.rango}
         desdePeriodo={periodo.desde}

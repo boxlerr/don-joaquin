@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import type { ViajeBasico, PaginatedResult } from "./types";
+import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
@@ -91,10 +91,17 @@ export type GetViajesParams = {
   esVacio?: boolean;
   /** Solo viajes incompletos: les falta origen, destino o chofer. */
   incompleto?: boolean;
+  /**
+   * Solo viajes a los que les falta ESE dato puntual. Son los mismos criterios
+   * que cuenta /metricas para el modo en vivo (ver `liveDesdeViajes`), así que
+   * el número del KPI y el largo de esta lista tienen que coincidir.
+   */
+  falta?: FaltaDato;
   search?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
 };
+
 
 export async function getViajesAction(
   params: GetViajesParams = {}
@@ -108,6 +115,7 @@ export async function getViajesAction(
     facturado,
     esVacio,
     incompleto,
+    falta,
     search,
     orderBy = "fecha",
     orderDir = "desc",
@@ -166,6 +174,22 @@ export async function getViajesAction(
   // no por el fallback de observaciones (legado).
   if (incompleto) {
     query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
+  }
+
+  // "Le falta este dato": mismos criterios que usa /metricas para contar los
+  // huecos del mes en vivo. Los .or() encadenados se combinan con AND, que es
+  // justo lo que necesita "km" (ninguno de los dos km cargado).
+  if (falta === "km") {
+    query = query
+      .or("km_con_carga.is.null,km_con_carga.eq.0")
+      .or("km_vacios.is.null,km_vacios.eq.0");
+  } else if (falta === "monto") {
+    // Los vacíos no facturan: no cuentan como "sin monto".
+    query = query.eq("es_vacio", false).or("monto_flete.is.null,monto_flete.lte.0");
+  } else if (falta === "tonelaje") {
+    query = query.eq("es_vacio", false).or("tonelaje_real.is.null,tonelaje_real.lte.0");
+  } else if (falta === "chofer") {
+    query = query.is("chofer_id", null);
   }
 
   if (search) {
@@ -1165,12 +1189,13 @@ export type ExportViajesParams = {
   facturado?: boolean;
   esVacio?: boolean;
   incompleto?: boolean;
+  falta?: FaltaDato;
   search?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, facturado, esVacio, incompleto, search } = params ?? {};
+  const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search } = params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -1210,6 +1235,19 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
 
   if (incompleto) {
     query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
+  }
+
+  // Mismos criterios que el listado, para que exportar lo filtrado dé lo mismo.
+  if (falta === "km") {
+    query = query
+      .or("km_con_carga.is.null,km_con_carga.eq.0")
+      .or("km_vacios.is.null,km_vacios.eq.0");
+  } else if (falta === "monto") {
+    query = query.eq("es_vacio", false).or("monto_flete.is.null,monto_flete.lte.0");
+  } else if (falta === "tonelaje") {
+    query = query.eq("es_vacio", false).or("tonelaje_real.is.null,tonelaje_real.lte.0");
+  } else if (falta === "chofer") {
+    query = query.is("chofer_id", null);
   }
 
   if (search) {
@@ -2232,6 +2270,10 @@ export type AusenciaProxima = {
   autorizado_por_nombre: string | null;
   // true si la ausencia ya está en curso a la fecha de hoy.
   en_curso: boolean;
+  /** Días que faltan para que arranque. 0 si ya está en curso. */
+  dias_hasta_inicio: number;
+  /** Primer día que vuelve a estar disponible (el siguiente a fecha_fin). */
+  fecha_regreso: string;
 };
 
 export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaProxima[]> {
@@ -2268,9 +2310,17 @@ export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaPro
 
   const rows = (res.data ?? []) as Row[];
 
-  return rows.map((r) => {
+  // Días entre dos fechas ISO, en días de calendario (sin hora: las fechas de
+  // ausencia son `date`, no timestamp).
+  const diasEntre = (desdeISO: string, hastaISO: string) =>
+    Math.round((Date.parse(`${hastaISO}T00:00:00Z`) - Date.parse(`${desdeISO}T00:00:00Z`)) / 86_400_000);
+  const diaSiguiente = (iso: string) =>
+    new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+  const mapeadas = rows.map((r) => {
     const chofer = Array.isArray(r.choferes) ? r.choferes[0] : r.choferes;
     const aut = Array.isArray(r.autorizado) ? r.autorizado[0] : r.autorizado;
+    const enCurso = r.fecha_inicio <= hoyStr && r.fecha_fin >= hoyStr;
     return {
       id: r.id,
       chofer_id: r.chofer_id,
@@ -2279,7 +2329,16 @@ export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaPro
       fecha_inicio: r.fecha_inicio,
       fecha_fin: r.fecha_fin,
       autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
-      en_curso: r.fecha_inicio <= hoyStr && r.fecha_fin >= hoyStr,
+      en_curso: enCurso,
+      dias_hasta_inicio: enCurso ? 0 : Math.max(0, diasEntre(hoyStr, r.fecha_inicio)),
+      fecha_regreso: diaSiguiente(r.fecha_fin),
     };
   });
+
+  // Primero los que hoy no están, después los que se van, por fecha de salida.
+  return mapeadas.sort((a, b) =>
+    a.en_curso === b.en_curso
+      ? a.fecha_inicio.localeCompare(b.fecha_inicio)
+      : a.en_curso ? -1 : 1,
+  );
 }

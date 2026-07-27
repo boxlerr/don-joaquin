@@ -1,8 +1,11 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+// Variación vs otro mes. Texto plano con flecha: sin pastilla ni fondo de
+// color — en una grilla de 8 tarjetas, 16 píldoras pastel compiten con los
+// números y marean. El color va solo en la flecha y el número.
 
-/** Badge de variación: verde si mejora, rojo si empeora (según si subir es bueno). */
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+
 export default function DeltaBadge({ valor, subirEsBueno, etiqueta, puntos }: {
   valor: number | null;
   subirEsBueno: boolean;
@@ -12,24 +15,26 @@ export default function DeltaBadge({ valor, subirEsBueno, etiqueta, puntos }: {
 }) {
   if (valor == null) {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60" title={`Sin datos de ${etiqueta}`}>
-        <Minus size={10} /> {etiqueta}: s/d
+      <span className="text-[11px] text-muted-foreground/50 whitespace-nowrap" title={`Sin datos de ${etiqueta}`}>
+        {etiqueta} s/d
       </span>
     );
   }
   const mejora = subirEsBueno ? valor >= 0 : valor <= 0;
-  const Icon = valor >= 0 ? TrendingUp : TrendingDown;
+  const Icon = valor >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${
-        mejora ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
-      }`}
-      title={`vs ${etiqueta}`}
-    >
-      <Icon size={10} />
-      {valor >= 0 ? "+" : ""}
-      {valor.toLocaleString("es-AR", { maximumFractionDigits: 1 })}
-      {puntos ? " pp" : "%"} {etiqueta}
+    <span className="inline-flex items-baseline gap-1 text-[11px] whitespace-nowrap" title={`vs ${etiqueta}`}>
+      <span
+        className={`inline-flex items-center gap-0.5 font-medium tabular-nums ${
+          mejora ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+        }`}
+      >
+        <Icon size={11} className="shrink-0 self-center" />
+        {valor >= 0 ? "+" : ""}
+        {valor.toLocaleString("es-AR", { maximumFractionDigits: 1 })}
+        {puntos ? " pp" : "%"}
+      </span>
+      <span className="text-muted-foreground">{etiqueta}</span>
     </span>
   );
 }

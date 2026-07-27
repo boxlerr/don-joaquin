@@ -162,16 +162,6 @@ function DestacadoCard({
   );
 }
 
-function ParidadCard({ label, value, sub }: { label: string; value: string; sub: string }) {
-  return (
-    <div className="rounded-md border border-border p-1.5">
-      <p className="truncate text-[8px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-mono text-sm font-bold text-foreground">{value}</p>
-      <p className="truncate text-[8px] text-muted-foreground">{sub}</p>
-    </div>
-  );
-}
-
 function ExportRow({ label, on }: { label: string; on: boolean }) {
   return (
     <div className="flex items-center gap-2 text-[10px] text-foreground">
@@ -497,14 +487,25 @@ function MockCostoKm() {
 function MockParidad() {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold text-foreground">Aumentos: clientes vs sueldos (interanual)</p>
-      <div className="grid grid-cols-3 gap-1.5">
-        <ParidadCard label="Clientes (prom.)" value="+94,2%" sub="3 clientes" />
-        <ParidadCard label="Sueldos choferes" value="+97,5%" sub="vs may 2025" />
-        <ParidadCard label="Admin y taller" value="+91,0%" sub="sueldo base" />
+      <p className="text-[10px] font-semibold text-foreground">¿Los aumentos van a la par?</p>
+      <div className="space-y-1">
+        {[
+          { k: "A los clientes", v: "+94,2%", w: 96, c: "bg-sky-500" },
+          { k: "A la gente", v: "+97,5%", w: 100, c: "bg-amber-500" },
+          { k: "Inflación", v: "+89,1%", w: 91, c: "bg-muted-foreground/50" },
+        ].map((f) => (
+          <div key={f.k} className="flex items-center gap-1.5">
+            <span className="w-14 shrink-0 text-[8px] text-muted-foreground">{f.k}</span>
+            <span className="h-1.5 flex-1 overflow-hidden rounded-[2px] bg-muted">
+              <span className={`block h-full rounded-[2px] ${f.c}`} style={{ width: `${f.w}%` }} />
+            </span>
+            <span className="w-10 shrink-0 text-right font-mono text-[8px] font-bold text-foreground">{f.v}</span>
+          </div>
+        ))}
       </div>
-      <div className="rounded-md bg-emerald-500/10 px-2.5 py-1.5 text-[9px] font-medium text-emerald-700">
-        Van a la par: 3,3 pp de diferencia.
+      <div className="border-l-2 border-emerald-500 pl-1.5 text-[9px] leading-snug">
+        <span className="font-medium text-foreground">Van a la par.</span>{" "}
+        <span className="text-muted-foreground">+94,2% contra +97,5%: 3,3 puntos de diferencia.</span>
       </div>
       <div className="flex flex-wrap gap-1">
         <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-medium text-foreground">
@@ -725,11 +726,11 @@ const TABS: TutorialTab[] = [
         mockup: <MockCostoKm />,
       },
       {
-        title: "Aumentos: clientes vs sueldos",
+        title: "¿Los aumentos van a la par?",
         description:
-          "La referencia que pidió Bárbara: que los aumentos a clientes vayan a la par de lo que se le aumenta a la gente. Compara, interanual, el promedio de aumentos a clientes contra los sueldos de choferes y de admin/taller.",
+          "Lo que entra contra lo que sale, interanual: los aumentos que dan los clientes contra los que se le dan a la gente (choferes y admin/taller juntos), con la inflación del INDEC de referencia. Abajo se escribe la cuenta: los dos porcentajes y cuántos puntos de diferencia hay.",
         mockup: <MockParidad />,
-        hint: "La brecha se pinta verde si van a la par (≤ 3 pp), y roja si los sueldos se despegan por encima.",
+        hint: "Se marca en verde si van a la par (menos de 3 puntos de diferencia) y en rojo si los sueldos se despegaron por encima.",
       },
       {
         title: "Cargar un aumento",

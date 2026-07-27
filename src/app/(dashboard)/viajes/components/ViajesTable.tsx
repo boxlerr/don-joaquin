@@ -51,7 +51,7 @@ import {
   type ViajeOrderBy,
 } from "../actions";
 import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
-import type { ViajeBasico } from "../types";
+import type { ViajeBasico, FaltaDato } from "../types";
 import { formatFecha } from "@/lib/utils";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
@@ -104,6 +104,8 @@ export interface FiltroExterno {
 
 interface Props {
   choferId?: string;
+  /** Filtro "le falta este dato" que llega por URL desde /metricas. */
+  falta?: FaltaDato;
   filtroExterno?: FiltroExterno;
   onFiltroChange?: (f: {
     facturado: boolean | null;
@@ -643,7 +645,7 @@ function NotasEditables({
   );
 }
 
-export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta }: Props) {
+export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta }: Props) {
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -740,6 +742,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       facturado: facturadoFiltro ?? undefined,
       esVacio: esVacioFiltro ?? undefined,
       incompleto: incompletoFiltro ?? undefined,
+      falta,
       search: debouncedSearch || undefined,
       orderBy,
       orderDir,
@@ -760,7 +763,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
     return () => {
       cancelled = true;
     };
-  }, [choferId, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, falta, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -773,6 +776,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         facturado: facturadoFiltro ?? undefined,
         esVacio: esVacioFiltro ?? undefined,
         incompleto: incompletoFiltro ?? undefined,
+        falta,
         search: debouncedSearch || undefined,
         orderBy,
         orderDir,
@@ -787,7 +791,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
+    !!desde || !!hasta || !!search || !!falta || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
@@ -891,6 +895,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
         <div className="ml-auto">
           <ExportViajesButton
             choferId={choferId}
+            falta={falta}
             desde={desde || undefined}
             hasta={hasta || undefined}
             facturado={facturadoFiltro ?? undefined}
@@ -934,7 +939,9 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
       {/* container-type: el panel expandido usa 100cqw para quedar siempre
           dentro del ancho visible aunque la tabla scrollee horizontal. */}
       <div className="overflow-x-auto [container-type:inline-size]">
-      <Table>
+      {/* Línea divisoria tenue entre columnas: ayuda a seguir la fila sin
+          agregar peso visual (el panel expandido va con colSpan → sin borde). */}
+      <Table className="[&_tr>*:not(:last-child)]:border-r [&_tr>*:not(:last-child)]:border-border/40">
         <TableHeader className="bg-muted/40">
           <TableRow>
             {COLUMNS.map((col, i) => {
@@ -1025,25 +1032,25 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                       <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Con remito" />
                     ) : null}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-foreground">
                     {formatFecha(v.fecha_viaje)}
                   </TableCell>
-                  <TableCell className="text-sm font-medium text-foreground">
+                  <TableCell className="text-sm text-foreground">
                     <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
                       <IncompletoMark v={v} />
-                      <span className="truncate">{v.cliente ?? "—"}</span>
+                      <span className="truncate">{v.cliente ?? <span className="text-muted-foreground/50">—</span>}</span>
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
-                    {v.chofer ?? "—"}
+                  <TableCell className="text-sm text-foreground hidden lg:table-cell">
+                    {v.chofer ?? <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
-                    {v.origen ?? "—"}
+                  <TableCell className="text-sm text-foreground hidden sm:table-cell">
+                    {v.origen ?? <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
-                    {v.destino ?? "—"}
+                  <TableCell className="text-sm text-foreground hidden sm:table-cell">
+                    {v.destino ?? <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
+                  <TableCell className="text-sm text-foreground font-mono hidden sm:table-cell">
                     {v.es_vacio ? (
                       <span className="text-muted-foreground/50">—</span>
                     ) : (
@@ -1057,7 +1064,7 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                       <span className="text-muted-foreground/50">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground font-mono hidden sm:table-cell">
+                  <TableCell className="text-sm text-foreground font-mono hidden sm:table-cell">
                     {v.toneladas ?? 0} tn
                   </TableCell>
                   <TableCell className="text-sm font-mono hidden xl:table-cell">
@@ -1065,13 +1072,13 @@ export default function ViajesTable({ choferId, filtroExterno, onFiltroChange, g
                       // Igual que la planilla Excel del cliente: "VACIO" en rojo en el remito.
                       <span className="text-[#C00000] font-bold">VACIO</span>
                     ) : v.nro_remito && v.nro_remito.toUpperCase() !== "VACIO" ? (
-                      <span className="text-muted-foreground">{v.nro_remito}</span>
+                      <span className="text-foreground">{v.nro_remito}</span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground/50">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden xl:table-cell max-w-[12rem] truncate">
-                    {v.material ?? "—"}
+                  <TableCell className="text-sm text-foreground hidden xl:table-cell max-w-[12rem] truncate">
+                    {v.material ?? <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-right hidden lg:table-cell">
                     {v.monto_flete != null ? (

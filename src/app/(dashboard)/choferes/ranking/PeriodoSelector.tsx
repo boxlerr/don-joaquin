@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, Check } from "lucide-react";
+import { Calendar, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { RangoKey } from "./lib";
 
 interface Props {
@@ -19,6 +19,27 @@ const CHIPS: Array<{ key: RangoKey; label: string }> = [
   { key: "1y", label: "1 año" },
 ];
 
+const MESES_ABR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const MESES_FULL = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+const dosDig = (n: number) => String(n).padStart(2, "0");
+/** Primer y último día de un mes, en ISO local (sin pasar por UTC). */
+const rangoDelMes = (y: number, m: number) => ({
+  desde: `${y}-${dosDig(m + 1)}-01`,
+  hasta: `${y}-${dosDig(m + 1)}-${dosDig(new Date(y, m + 1, 0).getDate())}`,
+});
+
+/** Si el rango es exactamente un mes calendario, devuelve {y, m}. */
+function mesExacto(desde: string, hasta: string): { y: number; m: number } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) return null;
+  const [y, m] = desde.split("-").map(Number);
+  const r = rangoDelMes(y, m - 1);
+  return r.desde === desde && r.hasta === hasta ? { y, m: m - 1 } : null;
+}
+
 export default function PeriodoSelector({
   rangoActual,
   desdeActual,
@@ -28,9 +49,15 @@ export default function PeriodoSelector({
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [mesOpen, setMesOpen] = useState(false);
   const [desde, setDesde] = useState(desdeActual);
   const [hasta, setHasta] = useState(hastaActual);
   const popRef = useRef<HTMLDivElement>(null);
+  const mesRef = useRef<HTMLDivElement>(null);
+
+  // Si el período vigente es justo un mes, el botón lo muestra y lo marca.
+  const mesSel = rangoActual === "custom" ? mesExacto(desdeActual, hastaActual) : null;
+  const [yearView, setYearView] = useState(() => mesSel?.y ?? new Date().getFullYear());
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
@@ -39,15 +66,15 @@ export default function PeriodoSelector({
   }, [desdeActual, hastaActual]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !mesOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (popRef.current && !popRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (popRef.current && !popRef.current.contains(t)) setOpen(false);
+      if (mesRef.current && !mesRef.current.contains(t)) setMesOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  }, [open, mesOpen]);
 
   const irA = (rango: RangoKey, extra?: { desde: string; hasta: string }) => {
     const params = new URLSearchParams();
@@ -61,6 +88,7 @@ export default function PeriodoSelector({
 
   const onChipClick = (rango: RangoKey) => {
     setOpen(false);
+    setMesOpen(false);
     irA(rango);
   };
 
@@ -71,44 +99,108 @@ export default function PeriodoSelector({
     irA("custom", { desde, hasta });
   };
 
-  const customActivo = rangoActual === "custom";
+  const elegirMes = (y: number, m: number) => {
+    setMesOpen(false);
+    irA("custom", rangoDelMes(y, m));
+  };
+
+  const customActivo = rangoActual === "custom" && !mesSel;
   const customInvalido = !desde || !hasta || desde > hasta;
   const chips = incluirTotal
     ? [...CHIPS, { key: "total" as RangoKey, label: "Total" }]
     : CHIPS;
 
+  const chipClase = (activo: boolean) =>
+    `inline-flex items-center h-8 px-3 rounded-lg text-sm font-medium transition-colors ${
+      activo
+        ? "bg-primary text-primary-foreground"
+        : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+    }`;
+
+  const hoy = new Date();
+
   return (
-    <div className="flex items-center gap-1.5">
-      {chips.map((chip) => {
-        const activo = rangoActual === chip.key;
-        return (
-          <button
-            key={chip.key}
-            type="button"
-            onClick={() => onChipClick(chip.key)}
-            className={`inline-flex items-center h-8 px-3 rounded-lg text-sm font-medium transition-colors ${
-              activo
-                ? "bg-primary text-primary-foreground"
-                : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {chip.label}
-          </button>
-        );
-      })}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {chips.map((chip) => (
+        <button key={chip.key} type="button" onClick={() => onChipClick(chip.key)} className={chipClase(rangoActual === chip.key)}>
+          {chip.label}
+        </button>
+      ))}
+
+      {/* Elegir UN mes: es lo que más se usa y con dos date pickers costaba. */}
+      <div className="relative" ref={mesRef}>
+        <button
+          type="button"
+          onClick={() => { setMesOpen((v) => !v); setOpen(false); }}
+          className={`${chipClase(!!mesSel)} gap-1.5`}
+        >
+          <Calendar size={14} />
+          {mesSel ? `${MESES_FULL[mesSel.m]} ${mesSel.y}` : "Elegir mes"}
+        </button>
+
+        {mesOpen && (
+          <div className="absolute right-0 top-full z-30 mt-2 w-64 rounded-lg border border-border bg-card p-3 shadow-md">
+            <div className="mb-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setYearView((y) => y - 1)}
+                className="inline-flex size-7 items-center justify-center rounded-md border border-border text-foreground hover:bg-muted"
+                aria-label="Año anterior"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-sm font-semibold text-foreground">{yearView}</span>
+              <button
+                type="button"
+                onClick={() => setYearView((y) => y + 1)}
+                disabled={yearView >= hoy.getFullYear()}
+                className="inline-flex size-7 items-center justify-center rounded-md border border-border text-foreground hover:bg-muted disabled:opacity-40"
+                aria-label="Año siguiente"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              {MESES_ABR.map((abr, m) => {
+                const futuro = yearView > hoy.getFullYear() || (yearView === hoy.getFullYear() && m > hoy.getMonth());
+                const activo = mesSel?.y === yearView && mesSel.m === m;
+                return (
+                  <button
+                    key={abr}
+                    type="button"
+                    disabled={futuro}
+                    onClick={() => elegirMes(yearView, m)}
+                    className={`h-8 rounded-md text-sm font-medium capitalize transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                      activo
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {abr}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => elegirMes(hoy.getFullYear(), hoy.getMonth())}
+              className="mt-2 w-full rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Este mes
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="relative" ref={popRef}>
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-medium transition-colors ${
-            customActivo
-              ? "bg-primary text-primary-foreground"
-              : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
+          onClick={() => { setOpen((v) => !v); setMesOpen(false); }}
+          className={`${chipClase(customActivo)} gap-1.5`}
         >
-          <Calendar size={14} />
-          Custom
+          Otro rango
         </button>
 
         {open && (
@@ -117,9 +209,7 @@ export default function PeriodoSelector({
             className="absolute right-0 top-full mt-2 z-30 w-72 bg-card border border-border rounded-lg shadow-md p-3 space-y-2.5"
           >
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Desde
-              </label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Desde</label>
               <input
                 type="date"
                 value={desde}
@@ -130,9 +220,7 @@ export default function PeriodoSelector({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                Hasta
-              </label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Hasta</label>
               <input
                 type="date"
                 value={hasta}
