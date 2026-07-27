@@ -110,6 +110,9 @@ export default function TabClientes({
   // Diálogos
   const [modalTarifa, setModalTarifa] = useState(false);
   const [tarifaEditar, setTarifaEditar] = useState<TarifaConRelaciones | null>(null);
+  // Fuerza remonte del modal: su estado se arma en el mount, así que sin esto
+  // reabrirlo mostraba lo de la vez anterior.
+  const [tarifaKey, setTarifaKey] = useState(0);
   const [historialId, setHistorialId] = useState<string | null>(null);
   const [historialLabel, setHistorialLabel] = useState("");
   const [aumentoOpen, setAumentoOpen] = useState(false);
@@ -212,6 +215,12 @@ export default function TabClientes({
       setAumentos(a);
     });
 
+  const abrirNuevaTarifa = (t: TarifaConRelaciones | null = null) => {
+    setTarifaEditar(t);
+    setTarifaKey((k) => k + 1);
+    setModalTarifa(true);
+  };
+
   const flash = (msg: string) => {
     setSavedFlash(msg);
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -261,7 +270,7 @@ export default function TabClientes({
         </p>
         {canWrite && (
           <div className="flex items-center justify-center gap-2">
-            <Button type="button" variant="brand" size="sm" onClick={() => setModalTarifa(true)}>
+            <Button type="button" variant="brand" size="sm" onClick={() => abrirNuevaTarifa()}>
               <Plus size={13} /> Nueva tarifa
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setAumentoOpen(true)}>
@@ -270,6 +279,7 @@ export default function TabClientes({
           </div>
         )}
         <ModalNuevaTarifa
+          key={`tarifa-${tarifaKey}`}
           open={modalTarifa}
           onClose={() => setModalTarifa(false)}
           onSaved={onTarifaSaved}
@@ -309,7 +319,7 @@ export default function TabClientes({
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Clientes */}
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden self-start">
-          <div className="border-b border-border p-2">
+          <div className="space-y-2 border-b border-border p-2">
             <div className="relative">
               <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
               <Input
@@ -320,6 +330,19 @@ export default function TabClientes({
                 className="h-8 pl-7 text-xs"
               />
             </div>
+            {/* Acá y no al lado de "Cargar aumento": pegados se confundían entre
+                sí, y una tarifa es del cliente, no un aumento. */}
+            {canWrite && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => abrirNuevaTarifa()}
+                className="h-8 w-full justify-center text-xs"
+              >
+                <Plus size={13} /> Nueva tarifa de cliente
+              </Button>
+            )}
           </div>
           <div className="max-h-[60vh] divide-y divide-border overflow-auto">
             {visibles.map((f) => {
@@ -363,22 +386,9 @@ export default function TabClientes({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-foreground">{actual.nombre}</h2>
               {canWrite && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTarifaEditar(null);
-                      setModalTarifa(true);
-                    }}
-                  >
-                    <Plus size={13} /> Nueva tarifa
-                  </Button>
-                  <Button type="button" variant="brand" size="sm" onClick={() => setAumentoOpen(true)}>
-                    <Plus size={13} /> Cargar aumento
-                  </Button>
-                </div>
+                <Button type="button" variant="brand" size="sm" onClick={() => setAumentoOpen(true)}>
+                  <Plus size={13} /> Cargar aumento
+                </Button>
               )}
             </div>
 
@@ -581,10 +591,7 @@ export default function TabClientes({
                                     type="button"
                                     variant="ghost"
                                     size="icon-sm"
-                                    onClick={() => {
-                                      setTarifaEditar(t);
-                                      setModalTarifa(true);
-                                    }}
+                                    onClick={() => abrirNuevaTarifa(t)}
                                     aria-label="Editar"
                                   >
                                     <Pencil size={12} />
@@ -693,6 +700,7 @@ export default function TabClientes({
       </div>
 
       <ModalNuevaTarifa
+        key={`tarifa-${tarifaKey}`}
         open={modalTarifa}
         onClose={() => {
           setModalTarifa(false);
@@ -702,6 +710,7 @@ export default function TabClientes({
         clientes={clientes}
         rutas={rutas}
         tarifa={tarifaEditar}
+        defaultClienteId={actual?.clienteId ?? undefined}
       />
 
       <TarifaHistorialDrawer

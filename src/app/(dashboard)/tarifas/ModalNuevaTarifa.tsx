@@ -35,6 +35,8 @@ type Props = {
   clientes: ClienteOption[];
   rutas: RutaOption[];
   tarifa?: TarifaConRelaciones | null;
+  /** Cliente ya elegido en la pantalla: viene precargado al crear una tarifa. */
+  defaultClienteId?: string;
 };
 
 function hoyISO(): string {
@@ -48,10 +50,11 @@ export default function ModalNuevaTarifa({
   clientes,
   rutas,
   tarifa,
+  defaultClienteId,
 }: Props) {
   const editando = !!tarifa;
 
-  const [clienteId, setClienteId] = useState(tarifa?.cliente_id ?? "");
+  const [clienteId, setClienteId] = useState(tarifa?.cliente_id ?? defaultClienteId ?? "");
   const [rutaId, setRutaId] = useState<string>(tarifa?.ruta_id ?? "_sin_ruta");
   const [modalidad, setModalidad] = useState<TarifaModalidad>(
     (tarifa?.modalidad as TarifaModalidad) ?? "fija",
@@ -67,7 +70,7 @@ export default function ModalNuevaTarifa({
   const [isPending, startTransition] = useTransition();
 
   const reset = () => {
-    setClienteId(tarifa?.cliente_id ?? "");
+    setClienteId(tarifa?.cliente_id ?? defaultClienteId ?? "");
     setRutaId(tarifa?.ruta_id ?? "_sin_ruta");
     setModalidad((tarifa?.modalidad as TarifaModalidad) ?? "fija");
     setValor(tarifa ? String(tarifa.valor) : "");

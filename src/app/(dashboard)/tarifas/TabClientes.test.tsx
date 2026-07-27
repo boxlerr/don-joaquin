@@ -157,10 +157,19 @@ describe("TabClientes", () => {
     expect(screen.getByRole("button", { name: "12m" })).toHaveClass("text-primary");
   });
 
+  it("las dos acciones de alta viven separadas y se llaman distinto", () => {
+    render1({ initialCliente: "LOMA NEGRA" });
+    // "Nueva tarifa de cliente" va con el buscador; "Cargar aumento" con el
+    // cliente elegido. Juntas se confundían entre sí.
+    expect(screen.getByRole("button", { name: /Nueva tarifa de cliente/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cargar aumento/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^\+ ?Nueva tarifa$/ })).not.toBeInTheDocument();
+  });
+
   it("sin permiso de escritura no ofrece cargar ni eliminar", () => {
     render1({ initialCliente: "LOMA NEGRA", canWrite: false });
     expect(screen.queryByText("Cargar aumento")).not.toBeInTheDocument();
-    expect(screen.queryByText("Nueva tarifa")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nueva tarifa de cliente")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Eliminar aumento")).not.toBeInTheDocument();
   });
 
