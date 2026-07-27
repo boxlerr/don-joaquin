@@ -30,6 +30,10 @@ export type PrestamoRow = {
   cuotas_total: number;
   estado: string;
   observaciones: string | null;
+  /** ARS o USD: los Scania Credit vienen en dólares. */
+  moneda: string;
+  /** Qué falta cargar, en castellano. Null = el préstamo está completo. */
+  datos_faltantes: string | null;
   cuotas: CuotaRow[];
   pagadas: number;
   restante: number; // $ que falta pagar (cuotas no pagadas)
@@ -55,21 +59,32 @@ export async function getPrestamosAction(): Promise<PrestamoRow[]> {
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [{ data: prestamos }, { data: cuotas }] = await Promise.all([
+  const { data: prestamos } = await (supabase as any)
+    .from("prestamos")
+    .select("id, banco, detalle, tasa, importe_cuota, cuotas_total, estado, observaciones, moneda, datos_faltantes")
+    .order("banco");
+
+  // Las cuotas se traen paginadas: Supabase devuelve como mucho 1000 filas por
+  // consulta y un puñado de préstamos a 48 o 60 cuotas ya pasa ese tope. Sin
+  // esto, a los que caían fuera del corte no les llegaba ninguna cuota y la
+  // pantalla los mostraba como "Cancelado" aunque tuvieran cuotas por pagar.
+  const PAGINA = 1000;
+  const cuotas: (CuotaRow & { prestamo_id: string })[] = [];
+  for (let desde = 0; ; desde += PAGINA) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("prestamos")
-      .select("id, banco, detalle, tasa, importe_cuota, cuotas_total, estado, observaciones")
-      .order("banco"),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    const { data: pagina } = await (supabase as any)
       .from("prestamo_cuotas")
       .select("id, prestamo_id, nro, fecha_vencimiento, importe, pagada, pagada_en")
-      .order("nro"),
-  ]);
+      .order("prestamo_id")
+      .order("nro")
+      .range(desde, desde + PAGINA - 1);
+    const filas = (pagina ?? []) as (CuotaRow & { prestamo_id: string })[];
+    cuotas.push(...filas);
+    if (filas.length < PAGINA) break;
+  }
 
   const cuotasPorPrestamo = new Map<string, CuotaRow[]>();
-  for (const c of (cuotas ?? []) as (CuotaRow & { prestamo_id: string })[]) {
+  for (const c of cuotas) {
     const list = cuotasPorPrestamo.get(c.prestamo_id) ?? [];
     list.push({
       id: c.id,

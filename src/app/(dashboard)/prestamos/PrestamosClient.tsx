@@ -6,6 +6,7 @@ import {
   PiggyBank,
   CalendarClock,
   AlertTriangle,
+  Search,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
@@ -160,6 +161,18 @@ function BankBadge({ banco, size = 32 }: { banco: string; size?: number }) {
   );
 }
 
+/** Criterios de orden del listado de préstamos. */
+type OrdenPrestamo = "proxima" | "cuota" | "deuda" | "tasa" | "cuotas" | "banco";
+
+const ORDEN_LABEL: Record<OrdenPrestamo, string> = {
+  proxima: "Próxima cuota",
+  cuota: "Cuota (mayor)",
+  deuda: "Falta pagar (mayor)",
+  tasa: "Tasa (mayor)",
+  cuotas: "Cuotas restantes",
+  banco: "Banco (A-Z)",
+};
+
 export default function PrestamosClient({
   prestamos,
   canWrite,
@@ -169,6 +182,11 @@ export default function PrestamosClient({
 }) {
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Filtros y orden del listado: con 35 préstamos de 6 bancos, buscar a ojo no va.
+  const [fBanco, setFBanco] = useState("todos");
+  const [fEstado, setFEstado] = useState<"todos" | "activos" | "cancelados" | "incompletos">("todos");
+  const [busqueda, setBusqueda] = useState("");
+  const [orden, setOrden] = useState<OrdenPrestamo>("proxima");
   const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [editCuota, setEditCuota] = useState<(CuotaRow & { banco: string }) | null>(null);
@@ -330,6 +348,44 @@ export default function PrestamosClient({
   }, [vista, dias, semanas, meses]);
 
   const totalDeuda = prestamos.reduce((s, p) => s + p.restante, 0);
+
+  const bancos = [...new Set(prestamos.map((p) => p.banco))].sort((a, b) => a.localeCompare(b));
+
+  // Lo que se ve en la tabla: filtrado y ordenado. El total de arriba sigue
+  // siendo el de TODOS los préstamos, para no confundir un filtro con la deuda.
+  const visibles = prestamos
+    .filter((p) => {
+      if (fBanco !== "todos" && p.banco !== fBanco) return false;
+      if (fEstado === "activos" && p.proxima == null) return false;
+      if (fEstado === "cancelados" && p.proxima != null) return false;
+      if (fEstado === "incompletos" && !p.datos_faltantes) return false;
+      const q = busqueda.trim().toLowerCase();
+      if (q && !`${p.banco} ${p.detalle ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      switch (orden) {
+        case "cuota":
+          return b.importe_cuota - a.importe_cuota;
+        case "deuda":
+          return b.restante - a.restante;
+        case "tasa":
+          return (b.tasa ?? -1) - (a.tasa ?? -1);
+        case "cuotas":
+          return (b.cuotas_total - b.pagadas) - (a.cuotas_total - a.pagadas);
+        case "banco":
+          return a.banco.localeCompare(b.banco) || (a.detalle ?? "").localeCompare(b.detalle ?? "");
+        default: {
+          // Próxima cuota: los cancelados (sin próxima) al final.
+          const fa = a.proxima?.fecha_vencimiento ?? "9999";
+          const fb = b.proxima?.fecha_vencimiento ?? "9999";
+          return fa.localeCompare(fb);
+        }
+      }
+    });
+
+  const deudaVisible = visibles.reduce((s, p) => s + p.restante, 0);
+  const incompletos = prestamos.filter((p) => p.datos_faltantes).length;
 
   const togglePagada = (cuotaId: string, pagada: boolean) => {
     setSavingId(cuotaId);
@@ -673,6 +729,58 @@ export default function PrestamosClient({
           </div>
           {canWrite && <AddPrestamoDialog />}
         </div>
+
+        {/* Filtros y orden: con 35 préstamos de 6 bancos, encontrar uno a ojo
+            no va. El total de arriba sigue siendo el de todos. */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2.5">
+          <div className="relative">
+            <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar banco o monto…"
+              className="h-8 w-52 rounded-[6px] border border-border bg-background pl-7 pr-2 text-xs text-foreground"
+            />
+          </div>
+          <select
+            value={fBanco}
+            onChange={(e) => setFBanco(e.target.value)}
+            className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="todos">Todos los bancos</option>
+            {bancos.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+          <select
+            value={fEstado}
+            onChange={(e) => setFEstado(e.target.value as typeof fEstado)}
+            className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+          >
+            <option value="todos">Todos</option>
+            <option value="activos">Con cuotas por pagar</option>
+            <option value="cancelados">Cancelados</option>
+            {incompletos > 0 && <option value="incompletos">Falta completar ({incompletos})</option>}
+          </select>
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+            Ordenar por
+            <select
+              value={orden}
+              onChange={(e) => setOrden(e.target.value as OrdenPrestamo)}
+              className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+            >
+              {(Object.keys(ORDEN_LABEL) as OrdenPrestamo[]).map((k) => (
+                <option key={k} value={k}>{ORDEN_LABEL[k]}</option>
+              ))}
+            </select>
+          </label>
+          {visibles.length !== prestamos.length && (
+            <span className="text-[11px] text-muted-foreground">
+              {visibles.length} de {prestamos.length} · {ars(deudaVisible)}
+            </span>
+          )}
+        </div>
         {prestamos.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#0088D1]/10">
@@ -699,7 +807,7 @@ export default function PrestamosClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {prestamos.map((p) => {
+                {visibles.map((p) => {
                   const abierto = expandedId === p.id;
                   const ultima = p.cuotas[p.cuotas.length - 1]?.fecha_vencimiento ?? null;
                   const pct = Math.round((p.pagadas / p.cuotas_total) * 100);
@@ -725,7 +833,21 @@ export default function PrestamosClient({
                                   · {p.detalle}
                                 </span>
                               )}
+                              {p.moneda === "USD" && (
+                                <span className="ml-1.5 rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  USD
+                                </span>
+                              )}
                             </span>
+                            {p.datos_faltantes && (
+                              <span
+                                title={`Falta completar: ${p.datos_faltantes}`}
+                                aria-label={`Préstamo incompleto, falta ${p.datos_faltantes}`}
+                                className="inline-flex shrink-0 text-amber-500"
+                              >
+                                <AlertTriangle size={13} />
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
