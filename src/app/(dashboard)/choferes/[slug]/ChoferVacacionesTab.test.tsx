@@ -64,6 +64,25 @@ describe("ChoferVacacionesTab — saldo", () => {
     expect(screen.getByText("Tomados").parentElement!).toHaveTextContent("11");
   });
 
+  it("explica por escrito de dónde sale disponibles (caso Cancela)", () => {
+    // 2025: 7 otorgados, 7 usados → 0. 2026: 14 otorgados, 7 usados → 7.
+    // "Corresponden 14" al lado de "Disponibles 7" se leía como un error.
+    montar({
+      dias_correspondientes: 14,
+      dias_adeudados: 0,
+      dias_tomados: 14,
+      dias_disponibles: 7,
+      anios: [
+        { anio: Y - 1, otorgados: 7, usados: 7, saldo: 0, observaciones: null },
+        { anio: Y, otorgados: 14, usados: 7, saldo: 7, observaciones: null },
+      ],
+    });
+    const cuenta = screen.getByText(/le tocaban/);
+    expect(cuenta.textContent).toContain(`del ${Y - 1} le tocaban 7 y ya se tomó 7, quedan 0`);
+    expect(cuenta.textContent).toContain(`del ${Y} le tocaban 14 y ya se tomó 7, quedan 7`);
+    expect(cuenta.textContent).toContain("En total le quedan 7 días");
+  });
+
   it("muestra el desglose por año con lo usado de cada uno", () => {
     montar();
     expect(screen.getByText(`${Y - 1}: 0 de 11 (usados 11)`)).toBeInTheDocument();

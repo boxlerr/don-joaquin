@@ -81,6 +81,22 @@ export default function ChoferVacacionesTab({
   const diasAntig = anios != null ? diasPorAntiguedad(anios) : resumen.corresponden;
   const desfasaje = resumen.corresponden > 0 && anios != null && diasAntig !== resumen.corresponden;
 
+  // Explica de dónde sale "disponibles", año por año. Sin esto, ver
+  // "Corresponden 14" al lado de "Disponibles 7" parece un error del sistema.
+  const cuentaSaldo = (() => {
+    const vigentes = saldosVista.filter((a) => a.anio >= finPeriodoY - 1 && a.anio <= finPeriodoY);
+    if (vigentes.length === 0) return null;
+    const partes = vigentes.map((a) =>
+      a.usados > 0
+        ? `del ${a.anio} le tocaban ${a.otorgados} y ya se tomó ${a.usados}, quedan ${a.saldo}`
+        : `del ${a.anio} le tocan ${a.otorgados} y no se tomó ninguno`,
+    );
+    const total = vigentes.reduce((s, a) => s + a.saldo, 0);
+    return vigentes.length === 1
+      ? `${partes[0]!.charAt(0).toUpperCase()}${partes[0]!.slice(1)}.`
+      : `${partes.join("; ")}. En total le quedan ${total} día${total === 1 ? "" : "s"}.`;
+  })();
+
   // Años que se le pueden asignar a un período: los que ya tiene cargados más el
   // año en curso y el anterior, para no quedar limitada a lo que existe hoy.
   const aniosDisponibles = [
@@ -153,7 +169,12 @@ export default function ChoferVacacionesTab({
           (Y e Y−1): NO se le vuelven a restar los tomados, porque esos días ya
           están descontados del año al que se imputaron. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SaldoCard label={`Corresponden (${finPeriodoY})`} value={resumen.corresponden} tone="muted" />
+        <SaldoCard
+          label={`Corresponden (${finPeriodoY})`}
+          value={resumen.corresponden}
+          tone="muted"
+          hint={`Los días que le tocan por ${finPeriodoY} según su antigüedad. Es el total del año, no lo que le queda.`}
+        />
         <SaldoCard label={`Adeudados (${finPeriodoY - 1})`} value={resumen.adeudados} tone="muted" />
         <SaldoCard
           label="Tomados"
@@ -168,6 +189,14 @@ export default function ChoferVacacionesTab({
           hint={`Suma de lo que queda del ${finPeriodoY} y del ${finPeriodoY - 1}.`}
         />
       </div>
+      {/* La cuenta escrita. "Corresponden 14" al lado de "Disponibles 7" se lee
+          como una contradicción si no se ve de dónde sale cada número: son los
+          días del año contra lo que queda después de lo tomado. */}
+      {cuentaSaldo && (
+        <p className="border-l-2 border-primary/40 pl-3 text-[13px] leading-snug text-muted-foreground">
+          {cuentaSaldo}
+        </p>
+      )}
       {resumen.diasVencidos > 0 && (
         <p className="text-xs text-muted-foreground">
           Además tiene <span className="font-mono font-medium text-foreground">{resumen.diasVencidos}</span> día(s)
