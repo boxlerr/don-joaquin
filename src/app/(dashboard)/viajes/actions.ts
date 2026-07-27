@@ -760,6 +760,10 @@ const viajeSchema = z
 // con material distinto al de la ida).
 const VUELTA_MODO_VALUES = ["vacio", "cargado"] as const;
 
+/** Tope de tramos extra por salida: una vuelta larga rara vez pasa de esto y
+ *  evita que un form armado a mano inserte cientos de viajes de una. */
+const MAX_TRAMOS = 12;
+
 const vueltaSchema = z.object({
   modo: z.enum(VUELTA_MODO_VALUES),
   origen_nombre: z.string().optional().nullable(),
@@ -969,52 +973,56 @@ export async function createViajeAction(
     return { error: "Revisá los campos marcados.", fieldErrors };
   }
 
-  // Tramo de vuelta (opcional): permite cargar ida + vuelta en un solo submit.
-  // Se valida antes de tocar la base para no dejar una ida creada sin su vuelta.
-  const cargarVuelta = String(formData.get("cargar_vuelta") ?? "") === "1";
-  let vuelta: z.infer<typeof vueltaSchema> | null = null;
-  if (cargarVuelta) {
-    const vParsed = vueltaSchema.safeParse({
-      modo: String(formData.get("vuelta_modo") ?? "vacio"),
-      origen_nombre: emptyOrNull(formData.get("vuelta_origen_nombre")),
-      destino_nombre: emptyOrNull(formData.get("vuelta_destino_nombre")),
-      km_con_carga: parseNumber(formData.get("vuelta_km_con_carga")),
-      km_vacios: parseNumber(formData.get("vuelta_km_vacios")),
-      ruta_via: emptyOrNull(formData.get("vuelta_ruta_via")),
-      tonelaje_real: parseNumber(formData.get("vuelta_tonelaje_real")),
-      monto_flete: parseNumber(formData.get("vuelta_monto_flete")),
-      material: emptyOrNull(formData.get("vuelta_material")),
-      nro_viaje_ypf: emptyOrNull(formData.get("vuelta_nro_viaje_ypf")),
+  // Tramos siguientes (opcionales): la salida rara vez es ida y vuelta y listo.
+  // Nico (27/07): Olavarría→Cerrito, Cerrito→Ramallo vacío y Ramallo→Lomaser
+  // cargado — con un solo tramo de vuelta le quedaba un viaje sin registrar.
+  // Se validan TODOS antes de tocar la base: o entra la salida completa o no
+  // entra nada.
+  const tramosCount = Math.min(MAX_TRAMOS, Math.max(0, parseNumber(formData.get("tramos_count"))));
+  const tramos: z.infer<typeof vueltaSchema>[] = [];
+  for (let i = 0; i < tramosCount; i++) {
+    const campo = (n: string) => formData.get(`tramo_${i}_${n}`);
+    const tParsed = vueltaSchema.safeParse({
+      modo: String(campo("modo") ?? "vacio"),
+      origen_nombre: emptyOrNull(campo("origen_nombre")),
+      destino_nombre: emptyOrNull(campo("destino_nombre")),
+      km_con_carga: parseNumber(campo("km_con_carga")),
+      km_vacios: parseNumber(campo("km_vacios")),
+      ruta_via: emptyOrNull(campo("ruta_via")),
+      tonelaje_real: parseNumber(campo("tonelaje_real")),
+      monto_flete: parseNumber(campo("monto_flete")),
+      material: emptyOrNull(campo("material")),
+      nro_viaje_ypf: emptyOrNull(campo("nro_viaje_ypf")),
     });
-    if (!vParsed.success) {
+    if (!tParsed.success) {
       const fieldErrors: Record<string, string> = {};
-      for (const issue of vParsed.error.issues) {
+      for (const issue of tParsed.error.issues) {
         const key = issue.path[0];
-        if (typeof key === "string" && !fieldErrors[`vuelta_${key}`]) {
-          fieldErrors[`vuelta_${key}`] = issue.message;
+        if (typeof key === "string" && !fieldErrors[`tramo_${i}_${key}`]) {
+          fieldErrors[`tramo_${i}_${key}`] = issue.message;
         }
       }
-      return { error: "Revisá los datos del viaje de vuelta.", fieldErrors };
+      return { error: `Revisá los datos del tramo ${i + 2}.`, fieldErrors };
     }
-    vuelta = vParsed.data;
-    // Si vuelve vacío no hay flete, tonelaje ni material: lo forzamos acá para
-    // no confiar en lo que mande el form.
-    if (vuelta.modo === "vacio") {
-      vuelta.tonelaje_real = 0;
-      vuelta.monto_flete = 0;
-      vuelta.material = null;
+    const tramo = tParsed.data;
+    // Si va vacío no hay flete, tonelaje ni material: se fuerza acá para no
+    // confiar en lo que mande el form.
+    if (tramo.modo === "vacio") {
+      tramo.tonelaje_real = 0;
+      tramo.monto_flete = 0;
+      tramo.material = null;
     }
     if (
-      vuelta.origen_nombre &&
-      vuelta.destino_nombre &&
-      vuelta.origen_nombre.toLowerCase().trim() ===
-        vuelta.destino_nombre.toLowerCase().trim()
+      tramo.origen_nombre &&
+      tramo.destino_nombre &&
+      tramo.origen_nombre.toLowerCase().trim() === tramo.destino_nombre.toLowerCase().trim()
     ) {
       return {
-        error: "El origen y el destino de la vuelta deben ser distintos.",
-        fieldErrors: { vuelta_destino_nombre: "Origen y destino deben ser distintos." },
+        error: `El origen y el destino del tramo ${i + 2} deben ser distintos.`,
+        fieldErrors: { [`tramo_${i}_destino_nombre`]: "Origen y destino deben ser distintos." },
       };
     }
+    tramos.push(tramo);
   }
 
   const user = await requireArea("viajes", "write");
@@ -1070,21 +1078,24 @@ export async function createViajeAction(
     }
   }
 
-  // Origen/destino del tramo de vuelta (si se cargó).
-  let vueltaOrigenId: string | null = null;
-  let vueltaDestinoId: string | null = null;
-  if (vuelta) {
-    if (vuelta.origen_nombre && vuelta.origen_nombre !== "—") {
-      vueltaOrigenId = await getOrCreatePuntoRuta(supabase, vuelta.origen_nombre.trim());
-    }
-    if (vuelta.destino_nombre && vuelta.destino_nombre !== "—") {
-      vueltaDestinoId = await getOrCreatePuntoRuta(supabase, vuelta.destino_nombre.trim());
-    }
+  // Origen/destino de cada tramo extra.
+  const tramosPuntos: { origenId: string | null; destinoId: string | null }[] = [];
+  for (const t of tramos) {
+    tramosPuntos.push({
+      origenId:
+        t.origen_nombre && t.origen_nombre !== "—"
+          ? await getOrCreatePuntoRuta(supabase, t.origen_nombre.trim())
+          : null,
+      destinoId:
+        t.destino_nombre && t.destino_nombre !== "—"
+          ? await getOrCreatePuntoRuta(supabase, t.destino_nombre.trim())
+          : null,
+    });
   }
 
   let codigos: string[];
   try {
-    codigos = await generarCodigosViaje(supabase, vuelta ? 2 : 1);
+    codigos = await generarCodigosViaje(supabase, 1 + tramos.length);
   } catch (e) {
     console.error("Error generando código de viaje", e);
     return { error: "No se pudo generar el código del viaje." };
@@ -1126,10 +1137,10 @@ export async function createViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payloads: Record<string, any>[] = [idaData];
 
-  if (vuelta) {
-    const esVacioVuelta = vuelta.modo === "vacio";
+  tramos.forEach((t, i) => {
+    const esVacio = t.modo === "vacio";
     payloads.push({
-      codigo: codigos[1],
+      codigo: codigos[i + 1],
       fecha_viaje: parsed.data.fecha_viaje,
       estado: parsed.data.estado,
       cliente_id: parsed.data.cliente_id,
@@ -1137,23 +1148,24 @@ export async function createViajeAction(
       camion_id: parsed.data.camion_id,
       tipo_carga_id: realTipoCargaId,
       ruta_id: null,
-      origen_id: vueltaOrigenId,
-      destino_id: vueltaDestinoId,
-      km_con_carga: vuelta.km_con_carga,
-      km_vacios: vuelta.km_vacios,
-      ruta_via: vuelta.ruta_via ?? null,
-      tonelaje_real: vuelta.tonelaje_real,
-      monto_flete: vuelta.monto_flete,
+      origen_id: tramosPuntos[i]!.origenId,
+      destino_id: tramosPuntos[i]!.destinoId,
+      km_con_carga: t.km_con_carga,
+      km_vacios: t.km_vacios,
+      ruta_via: t.ruta_via ?? null,
+      tonelaje_real: t.tonelaje_real,
+      monto_flete: t.monto_flete,
       moneda: "ARS",
-      observaciones: `Vuelta de ${codigos[0]}${esVacioVuelta ? " · vuelve vacío" : ""}`,
-      nro_viaje_ypf: vuelta.nro_viaje_ypf ?? null,
-      material: vuelta.material || null,
-      es_vacio: esVacioVuelta,
-      facturado: viajeEstaFacturado(vuelta.monto_flete, esVacioVuelta),
-      cobrado: viajeEstaFacturado(vuelta.monto_flete, esVacioVuelta),
+      // Deja rastro de a qué salida pertenece y en qué orden va.
+      observaciones: `Tramo ${i + 2} de ${codigos[0]}${esVacio ? " · vacío" : ""}`,
+      nro_viaje_ypf: t.nro_viaje_ypf ?? null,
+      material: t.material || null,
+      es_vacio: esVacio,
+      facturado: viajeEstaFacturado(t.monto_flete, esVacio),
+      cobrado: viajeEstaFacturado(t.monto_flete, esVacio),
       created_by: user.id,
     });
-  }
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error } = await (supabase as any)

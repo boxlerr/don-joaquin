@@ -26,7 +26,6 @@ import {
   Route,
   CalendarOff,
   RotateCcw,
-  ArrowLeftRight,
   PackageX,
   PackageCheck,
   type LucideIcon,
@@ -46,6 +45,29 @@ const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
 };
 
 type ViaValue = "" | "ruta_5" | "ruta_22";
+
+/**
+ * Un tramo de la salida después del viaje principal. La vuelta clásica es el
+ * tramo 2, pero pueden seguir: Cerrito→Ramallo vacío y Ramallo→Lomaser cargado
+ * son dos tramos más que antes quedaban sin registrar.
+ */
+type Tramo = {
+  /** Identidad estable para la lista y para el estado de km por tramo. */
+  id: number;
+  modo: "vacio" | "cargado";
+  origen: string;
+  destino: string;
+  kmConCarga: string;
+  kmVacios: string;
+  via: ViaValue;
+  tonelaje: string;
+  monto: string;
+  material: string;
+  nroYpf: string;
+};
+
+/** Mismo tope que valida el servidor (`MAX_TRAMOS` en viajes/actions.ts). */
+const MAX_TRAMOS_UI = 12;
 
 /** Selector segmentado de vía: Sin marcar · Ruta 5 · Ruta 22. */
 function ViaSegmented({ value, onChange }: { value: ViaValue; onChange: (v: ViaValue) => void }) {
@@ -85,6 +107,7 @@ import {
   type CreateViajeState,
   type ViajeFormData,
 } from "../actions";
+import { proponerTramo } from "@/domain/viajes/tramos";
 
 export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
@@ -116,32 +139,23 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const kmDirty = useRef(false);
   // Mismo flag para el monto: si se editó a mano, la tarifa no lo pisa.
   const montoDirty = useRef(false);
-  // Mismo flag pero para los km de la vuelta.
-  const vKmDirty = useRef(false);
   // Secuencia de consultas de km al historial: una edición manual o una consulta
   // más nueva invalidan las respuestas en vuelo. Sin esto, una respuesta lenta
   // del server pisaba lo que el operador ya había corregido a mano (reunión
   // Nico 02/07: "tardaba en cargar y el km de la vuelta salía raro").
   const kmReqSeq = useRef(0);
-  const vKmReqSeq = useRef(0);
   // Aviso cuando los km se precargan desde el historial del par origen→destino.
   const [kmHistHint, setKmHistHint] = useState<string | null>(null);
   // Aviso cuando el monto se precarga desde la tarifa vigente del destino.
   const [importeHint, setImporteHint] = useState<string | null>(null);
-  // Viaje de vuelta (opcional): se carga junto con la ida en el mismo submit.
-  // El modo distingue si el camión vuelve vacío (sin flete) o cargado (puede
-  // traer un material distinto).
-  const [cargarVuelta, setCargarVuelta] = useState(false);
-  const [vueltaModo, setVueltaModo] = useState<"vacio" | "cargado">("vacio");
-  const [vOrigen, setVOrigen] = useState("");
-  const [vDestino, setVDestino] = useState("");
-  const [vKmConCarga, setVKmConCarga] = useState("0");
-  const [vKmVacios, setVKmVacios] = useState("0");
-  const [vRutaVia, setVRutaVia] = useState<"" | "ruta_5" | "ruta_22">("");
-  const [vTonelaje, setVTonelaje] = useState("0");
-  const [vMonto, setVMonto] = useState("0");
-  const [vMaterial, setVMaterial] = useState("");
-  const [vNroYpf, setVNroYpf] = useState("");
+  // Tramos siguientes de la salida, en orden. Una vuelta rara vez es "ida y
+  // vuelta y listo": Nico (27/07) carga Olavarría→Cerrito, después Cerrito→
+  // Ramallo vacío y Ramallo→Lomaser cargado. Antes solo entraba UN tramo de
+  // vuelta y el resto quedaba sin registrar.
+  const [tramos, setTramos] = useState<Tramo[]>([]);
+  const tramoIdSeq = useRef(0);
+  // Por tramo: si le tocaron los km a mano y la secuencia de consultas en vuelo.
+  const tramoKm = useRef(new Map<number, { dirty: boolean; seq: number }>());
   const router = useRouter();
 
   // Camión "habitual" del chofer seleccionado (puede no haber).
@@ -179,18 +193,8 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     setImporteHint(null);
     kmDirty.current = false;
     setKmHistHint(null);
-    setCargarVuelta(false);
-    setVueltaModo("vacio");
-    setVOrigen("");
-    setVDestino("");
-    setVKmConCarga("0");
-    setVKmVacios("0");
-    setVRutaVia("");
-    vKmDirty.current = false;
-    setVTonelaje("0");
-    setVMonto("0");
-    setVMaterial("");
-    setVNroYpf("");
+    setTramos([]);
+    tramoKm.current.clear();
   };
 
   useEffect(() => {
@@ -269,47 +273,125 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     }
   };
 
-  // Autocompletar los km de la VUELTA desde el historial del par (al elegir
+  // ── Tramos ────────────────────────────────────────────────────────────────
+  const estadoKm = (id: number) => {
+    let e = tramoKm.current.get(id);
+    if (!e) {
+      e = { dirty: false, seq: 0 };
+      tramoKm.current.set(id, e);
+    }
+    return e;
+  };
+
+  const setTramo = (id: number, patch: Partial<Tramo>) =>
+    setTramos((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+
+  // Autocompletar los km de un tramo desde el historial del par (al elegir
   // origen/destino del desplegable). Según el modo, completa el campo que
-  // corresponde; si para ese par no hay el dato exacto, usa el otro como
-  // estimación de la distancia de la ruta.
-  const applyVueltaKmHistorico = async (
+  // corresponde.
+  const applyTramoKm = async (
+    id: number,
     o: string,
     d: string,
     modo: "vacio" | "cargado",
-    via: "" | "ruta_5" | "ruta_22" = vRutaVia,
+    via: "" | "ruta_5" | "ruta_22",
   ) => {
     const oo = o.trim();
     const dd = d.trim();
     if (!oo || !dd || oo === "—" || dd === "—") return;
-    if (vKmDirty.current) return;
-    const seq = ++vKmReqSeq.current;
+    const est = estadoKm(id);
+    if (est.dirty) return;
+    const seq = ++est.seq;
     const res = await getKmHistoricoAction(oo, dd, via || null);
-    // Respuesta vieja: el operador editó, cambió el modo o disparó otra consulta.
-    if (seq !== vKmReqSeq.current || vKmDirty.current) return;
+    // Respuesta vieja: se editó, cambió el modo o salió otra consulta.
+    if (seq !== est.seq || est.dirty) return;
     if (!res) return;
+    setTramo(
+      id,
+      modo === "cargado"
+        ? { kmConCarga: String(res.distancia) }
+        : { kmVacios: String(res.distancia) },
+    );
+  };
+
+  // Marca los km de un tramo como editados a mano.
+  const setTramoKmManual = (t: Tramo, which: "con" | "vac", v: string) => {
+    const est = estadoKm(t.id);
+    est.dirty = true;
+    est.seq++;
+    setTramo(t.id, which === "con" ? { kmConCarga: v } : { kmVacios: v });
+  };
+
+  // Cambiar la vía recalcula los km desde el historial de esa vía.
+  const setTramoVia = (t: Tramo, via: "" | "ruta_5" | "ruta_22") => {
+    const est = estadoKm(t.id);
+    est.dirty = false;
+    est.seq++; // invalida consultas en vuelo de la vía anterior
+    setTramo(t.id, { via });
+    if (t.origen && t.destino) applyTramoKm(t.id, t.origen, t.destino, t.modo, via);
+  };
+
+  // Al cambiar de modo se mueve la distancia entre "con carga" y "vacíos" para
+  // no tener que recargarla a mano.
+  const setTramoModo = (t: Tramo, modo: "vacio" | "cargado") => {
+    const est = estadoKm(t.id);
+    est.dirty = false;
+    est.seq++; // una consulta en vuelo del modo anterior ya no aplica
     if (modo === "cargado") {
-      setVKmConCarga(String(res.distancia));
+      const dist = t.kmVacios !== "0" ? t.kmVacios : t.kmConCarga;
+      setTramo(t.id, { modo, kmConCarga: dist, kmVacios: "0" });
     } else {
-      setVKmVacios(String(res.distancia));
+      const dist = t.kmConCarga !== "0" ? t.kmConCarga : t.kmVacios;
+      setTramo(t.id, {
+        modo,
+        kmVacios: dist,
+        kmConCarga: "0",
+        tonelaje: "0",
+        monto: "0",
+        material: "",
+      });
     }
-    vKmDirty.current = false;
   };
 
-  // Cambiar la vía de la vuelta recalcula sus km desde el historial de esa vía.
-  const handleVRutaVia = (v: "" | "ruta_5" | "ruta_22") => {
-    setVRutaVia(v);
-    vKmDirty.current = false;
-    vKmReqSeq.current++; // invalida consultas en vuelo de la vía anterior
-    if (vOrigen && vDestino) applyVueltaKmHistorico(vOrigen, vDestino, vueltaModo, v);
+  // Agrega un tramo encadenado: arranca donde terminó el anterior. El primero
+  // además propone la vuelta (invierte la ida) con su distancia, que es el caso
+  // más común; los siguientes solo heredan el origen porque a dónde va después
+  // no hay forma de adivinarlo.
+  const agregarTramo = () => {
+    const ultimo = tramos[tramos.length - 1] ?? null;
+    const prop = proponerTramo(
+      { origen, destino, kmConCarga, kmVacios },
+      ultimo ? ultimo.destino : null,
+    );
+    const id = ++tramoIdSeq.current;
+    tramoKm.current.set(id, { dirty: false, seq: 0 });
+    setTramos((prev) => [
+      ...prev,
+      {
+        id,
+        modo: "vacio",
+        origen: prop.origen,
+        destino: prop.destino,
+        kmConCarga: "0",
+        kmVacios: prop.kmVacios,
+        via: "",
+        tonelaje: "0",
+        monto: "0",
+        material: "",
+        nroYpf: "",
+      },
+    ]);
+    // Al historial solo se le pregunta si no quedó una distancia mejor a mano:
+    // pisar la copia de la ida con una respuesta lenta hacía que el valor
+    // "cambiara solo" a algo viejo (reunión Nico 02/07).
+    if (prop.kmVacios === "0" && prop.origen && prop.destino) {
+      applyTramoKm(id, prop.origen, prop.destino, "vacio", "");
+    }
   };
 
-  // Marca los km de la vuelta como editados a mano.
-  const setVKmManual = (which: "con" | "vac", v: string) => {
-    vKmDirty.current = true;
-    vKmReqSeq.current++;
-    if (which === "con") setVKmConCarga(v);
-    else setVKmVacios(v);
+  const quitarTramo = (id: number) => {
+    tramoKm.current.delete(id);
+    setTramos((prev) => prev.filter((t) => t.id !== id));
   };
 
   // Fallback para cuando se escribe el lugar a mano (sin elegir del desplegable):
@@ -416,56 +498,6 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     const chofer = data.choferes.find((c) => c.id === choferId);
     if (chofer?.camionId) {
       setSelectedCamionId(chofer.camionId);
-    }
-  };
-
-  // Al activar la vuelta: prellenar origen/destino invertidos respecto de la ida
-  // y, por defecto (vuelve vacío), llevar la distancia de la ida a "km vacíos".
-  const handleToggleVuelta = (on: boolean) => {
-    setCargarVuelta(on);
-    if (on) {
-      setVOrigen(destino);
-      setVDestino(origen);
-      setVueltaModo("vacio");
-      setVRutaVia("");
-      setVKmConCarga("0");
-      const distIda = kmConCarga !== "0" ? kmConCarga : kmVacios;
-      setVKmVacios(distIda);
-      setVTonelaje("0");
-      setVMonto("0");
-      setVMaterial("");
-      setVNroYpf("");
-      vKmDirty.current = false;
-      vKmReqSeq.current++;
-      // La distancia de la ida recién cargada es la mejor precarga para la ruta
-      // invertida. Al historial solo se le pregunta cuando la ida no tiene km:
-      // pisar la copia de la ida con una respuesta lenta hacía que el valor
-      // "cambiara solo" a algo viejo (reunión Nico 02/07). Si la vuelta fue por
-      // otra ruta, el operador la corrige (o cambia el origen/destino, que sí
-      // vuelve a consultar).
-      if (distIda === "0" && destino && origen) {
-        applyVueltaKmHistorico(destino, origen, "vacio");
-      }
-    }
-  };
-
-  // Al cambiar de modo movemos la distancia entre "km con carga" y "km vacíos"
-  // para que no haya que recargarla a mano.
-  const handleVueltaModo = (modo: "vacio" | "cargado") => {
-    setVueltaModo(modo);
-    vKmDirty.current = false;
-    vKmReqSeq.current++; // una consulta en vuelo del modo anterior ya no aplica
-    if (modo === "cargado") {
-      const dist = vKmVacios !== "0" ? vKmVacios : kmConCarga;
-      setVKmConCarga(dist);
-      setVKmVacios("0");
-    } else {
-      const dist = vKmConCarga !== "0" ? vKmConCarga : kmConCarga;
-      setVKmVacios(dist);
-      setVKmConCarga("0");
-      setVTonelaje("0");
-      setVMonto("0");
-      setVMaterial("");
     }
   };
 
@@ -760,209 +792,199 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               />
             </div>
 
-            {/* Viaje de vuelta (opcional): carga ida + vuelta en un solo submit */}
-            <div
-              className={`rounded-xl border p-3.5 transition-colors ${
-                cargarVuelta
-                  ? "border-[#0088D1]/40 bg-[#0088D1]/5"
-                  : "border-border bg-muted/20"
-              }`}
-            >
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={cargarVuelta}
-                  onChange={(e) => handleToggleVuelta(e.target.checked)}
-                  className="mt-0.5 size-4 rounded accent-[#0088D1]"
-                />
+            {/* Tramos siguientes: la salida sigue después de la ida. Se
+                cargan todos en el mismo submit — o entran todos o no entra
+                ninguno. */}
+            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <span className="flex flex-col">
-                  <span className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
                     <RotateCcw size={15} className="text-primary" />
-                    Cargar viaje de vuelta
+                    Resto de la salida
                   </span>
-                  <span className="text-[11px] text-muted-foreground mt-0.5">
-                    En el mismo paso registrás el regreso del camión: vacío o con otra carga.
+                  <span className="mt-0.5 text-[11px] text-muted-foreground">
+                    Sumá los tramos que siguen: la vuelta vacía, otra carga en el camino, lo que sea.
+                    Cada tramo arranca donde terminó el anterior.
                   </span>
                 </span>
-              </label>
+                <button
+                  type="button"
+                  onClick={agregarTramo}
+                  disabled={tramos.length >= MAX_TRAMOS_UI}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/40 disabled:opacity-40"
+                >
+                  <Plus size={13} className="text-primary" />
+                  Agregar tramo
+                </button>
+              </div>
 
-              <input type="hidden" name="cargar_vuelta" value={cargarVuelta ? "1" : "0"} />
+              <input type="hidden" name="tramos_count" value={tramos.length} />
 
-              {cargarVuelta && (
-                <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <input type="hidden" name="vuelta_modo" value={vueltaModo} />
-
-                  {/* Modo: vuelve vacío / vuelve cargado — selector grande con icono */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      {
-                        v: "vacio",
-                        label: "Vuelve vacío",
-                        sub: "Sin flete ni carga",
-                        Icon: PackageX,
-                      },
-                      {
-                        v: "cargado",
-                        label: "Vuelve cargado",
-                        sub: "Trae otra carga",
-                        Icon: PackageCheck,
-                      },
-                    ] as const).map((opt) => {
-                      const active = vueltaModo === opt.v;
-                      return (
+              {tramos.length === 0 ? (
+                <p className="mt-3 text-[11px] text-muted-foreground/80">
+                  Sin tramos extra: se carga solo el viaje de arriba.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  {tramos.map((t, i) => (
+                    <div key={t.id} className="rounded-lg border border-[#0088D1]/40 bg-[#0088D1]/5 p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#0277BD]">Tramo {i + 2}</span>
                         <button
-                          key={opt.v}
                           type="button"
-                          onClick={() => handleVueltaModo(opt.v)}
-                          aria-pressed={active}
-                          className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                            active
-                              ? "border-[#0088D1] bg-[#0088D1]/10 ring-1 ring-[#0088D1]/30"
-                              : "border-border bg-card hover:bg-muted/40"
-                          }`}
+                          onClick={() => quitarTramo(t.id)}
+                          aria-label={`Quitar tramo ${i + 2}`}
+                          className="text-muted-foreground transition-colors hover:text-[#EF4444]"
                         >
-                          <opt.Icon
-                            size={18}
-                            className={active ? "text-[#0277BD]" : "text-muted-foreground"}
-                          />
-                          <span className="flex flex-col">
-                            <span
-                              className={`text-xs font-semibold ${
-                                active ? "text-[#0277BD]" : "text-foreground"
+                          <X size={14} />
+                        </button>
+                      </div>
+
+                      <input type="hidden" name={`tramo_${i}_modo`} value={t.modo} />
+
+                      {/* Va vacío / va cargado */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { v: "vacio", label: "Va vacío", sub: "Sin flete ni carga", Icon: PackageX },
+                          { v: "cargado", label: "Va cargado", sub: "Lleva otra carga", Icon: PackageCheck },
+                        ] as const).map((opt) => {
+                          const active = t.modo === opt.v;
+                          return (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              onClick={() => setTramoModo(t, opt.v)}
+                              aria-pressed={active}
+                              className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+                                active
+                                  ? "border-[#0088D1] bg-[#0088D1]/10 ring-1 ring-[#0088D1]/30"
+                                  : "border-border bg-card hover:bg-muted/40"
                               }`}
                             >
-                              {opt.label}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {opt.sub}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                              <opt.Icon size={16} className={active ? "text-[#0277BD]" : "text-muted-foreground"} />
+                              <span className="flex flex-col">
+                                <span className={`text-xs font-semibold ${active ? "text-[#0277BD]" : "text-foreground"}`}>
+                                  {opt.label}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">{opt.sub}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                  {/* Ruta de la vuelta — se invierte la ida por defecto, editable */}
-                  <div className="space-y-2">
-                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                      <ArrowLeftRight size={12} className="shrink-0 text-primary" />
-                      Por defecto invertimos la ruta de la ida. Ajustá si la vuelta es por otro lado.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <PlaceCombobox
-                        label="Origen (vuelta)"
-                        name="vuelta_origen_nombre"
-                        placeholder="Escribí o elegí un lugar..."
-                        icon={MapPin}
-                        options={data.puntos_ruta}
-                        value={vOrigen}
-                        onValueChange={setVOrigen}
-                        onSelect={(o) => applyVueltaKmHistorico(o, vDestino, vueltaModo)}
-                        error={state?.fieldErrors?.vuelta_origen_nombre}
-                      />
-                      <PlaceCombobox
-                        label="Destino (vuelta)"
-                        name="vuelta_destino_nombre"
-                        placeholder="Escribí o elegí un lugar..."
-                        icon={Flag}
-                        options={data.puntos_ruta}
-                        value={vDestino}
-                        onValueChange={setVDestino}
-                        onSelect={(d) => applyVueltaKmHistorico(vOrigen, d, vueltaModo)}
-                        error={state?.fieldErrors?.vuelta_destino_nombre}
-                      />
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <PlaceCombobox
+                          label="Origen"
+                          name={`tramo_${i}_origen_nombre`}
+                          placeholder="Escribí o elegí un lugar..."
+                          icon={MapPin}
+                          options={data.puntos_ruta}
+                          value={t.origen}
+                          onValueChange={(v) => setTramo(t.id, { origen: v })}
+                          onSelect={(o) => applyTramoKm(t.id, o, t.destino, t.modo, t.via)}
+                          error={state?.fieldErrors?.[`tramo_${i}_origen_nombre`]}
+                        />
+                        <PlaceCombobox
+                          label="Destino"
+                          name={`tramo_${i}_destino_nombre`}
+                          placeholder="Escribí o elegí un lugar..."
+                          icon={Flag}
+                          options={data.puntos_ruta}
+                          value={t.destino}
+                          onValueChange={(v) => setTramo(t.id, { destino: v })}
+                          onSelect={(d) => applyTramoKm(t.id, t.origen, d, t.modo, t.via)}
+                          error={state?.fieldErrors?.[`tramo_${i}_destino_nombre`]}
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Route size={13} className="text-primary" />
+                          ¿Por qué ruta va?
+                        </span>
+                        <ViaSegmented value={t.via} onChange={(v) => setTramoVia(t, v)} />
+                        <input type="hidden" name={`tramo_${i}_ruta_via`} value={t.via} />
+                      </div>
+
+                      {t.modo === "cargado" ? (
+                        <>
+                          {/* Una pata cargada no tiene km vacíos. */}
+                          <input type="hidden" name={`tramo_${i}_km_vacios`} value="0" />
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <InputFieldWithIcon
+                              label="Km con carga"
+                              name={`tramo_${i}_km_con_carga`}
+                              type="number"
+                              value={t.kmConCarga}
+                              onChange={(v) => setTramoKmManual(t, "con", v)}
+                              icon={Navigation}
+                              error={state?.fieldErrors?.[`tramo_${i}_km_con_carga`]}
+                            />
+                            <InputFieldWithIcon
+                              label="Tonelaje (tn)"
+                              name={`tramo_${i}_tonelaje_real`}
+                              type="number"
+                              value={t.tonelaje}
+                              onChange={(v) => setTramo(t.id, { tonelaje: v })}
+                              icon={Scale}
+                              error={state?.fieldErrors?.[`tramo_${i}_tonelaje_real`]}
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <InputFieldWithIcon
+                              label="Material"
+                              name={`tramo_${i}_material`}
+                              placeholder="Ej: Arena (opcional)"
+                              value={t.material}
+                              onChange={(v) => setTramo(t.id, { material: v })}
+                              icon={Package}
+                              error={state?.fieldErrors?.[`tramo_${i}_material`]}
+                            />
+                            <InputFieldWithIcon
+                              label="Monto de flete (ARS)"
+                              name={`tramo_${i}_monto_flete`}
+                              type="number"
+                              value={t.monto}
+                              onChange={(v) => setTramo(t.id, { monto: v })}
+                              icon={DollarSign}
+                              error={state?.fieldErrors?.[`tramo_${i}_monto_flete`]}
+                            />
+                            <InputFieldWithIcon
+                              label="Nº de viaje"
+                              name={`tramo_${i}_nro_viaje_ypf`}
+                              placeholder="Opcional"
+                              value={t.nroYpf}
+                              onChange={(v) => setTramo(t.id, { nroYpf: v })}
+                              icon={Hash}
+                              error={state?.fieldErrors?.[`tramo_${i}_nro_viaje_ypf`]}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <input type="hidden" name={`tramo_${i}_km_con_carga`} value="0" />
+                          <input type="hidden" name={`tramo_${i}_tonelaje_real`} value="0" />
+                          <input type="hidden" name={`tramo_${i}_monto_flete`} value="0" />
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <InputFieldWithIcon
+                              label="Km recorridos (vacío)"
+                              name={`tramo_${i}_km_vacios`}
+                              type="number"
+                              value={t.kmVacios}
+                              onChange={(v) => setTramoKmManual(t, "vac", v)}
+                              icon={Navigation}
+                              error={state?.fieldErrors?.[`tramo_${i}_km_vacios`]}
+                            />
+                          </div>
+                          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <PackageX size={12} className="shrink-0" />
+                            Un tramo vacío no factura ni suma tonelaje.
+                          </p>
+                        </>
+                      )}
                     </div>
-
-                    {/* Vía de la vuelta: puede ser distinta a la de la ida
-                        (ej. vuelven por la 22 para cargar combustible). */}
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                        <Route size={13} className="text-primary" />
-                        ¿Por qué ruta vuelve?
-                      </span>
-                      <ViaSegmented value={vRutaVia} onChange={handleVRutaVia} />
-                      <input type="hidden" name="vuelta_ruta_via" value={vRutaVia} />
-                    </div>
-                  </div>
-
-                  {vueltaModo === "cargado" ? (
-                    <>
-                      {/* Vuelve cargado: la pata es "con carga". Los km vacíos
-                          no aplican a una pata cargada. */}
-                      <input type="hidden" name="vuelta_km_vacios" value="0" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputFieldWithIcon
-                          label="Km con carga"
-                          name="vuelta_km_con_carga"
-                          type="number"
-                          value={vKmConCarga}
-                          onChange={(v) => setVKmManual("con", v)}
-                          icon={Navigation}
-                          error={state?.fieldErrors?.vuelta_km_con_carga}
-                        />
-                        <InputFieldWithIcon
-                          label="Tonelaje (tn)"
-                          name="vuelta_tonelaje_real"
-                          type="number"
-                          value={vTonelaje}
-                          onChange={setVTonelaje}
-                          icon={Scale}
-                          error={state?.fieldErrors?.vuelta_tonelaje_real}
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <InputFieldWithIcon
-                          label="Material (vuelta)"
-                          name="vuelta_material"
-                          placeholder="Ej: Arena (opcional)"
-                          value={vMaterial}
-                          onChange={setVMaterial}
-                          icon={Package}
-                          error={state?.fieldErrors?.vuelta_material}
-                        />
-                        <InputFieldWithIcon
-                          label="Monto de flete (ARS)"
-                          name="vuelta_monto_flete"
-                          type="number"
-                          value={vMonto}
-                          onChange={setVMonto}
-                          icon={DollarSign}
-                          error={state?.fieldErrors?.vuelta_monto_flete}
-                        />
-                        <InputFieldWithIcon
-                          label="Nº de viaje"
-                          name="vuelta_nro_viaje_ypf"
-                          placeholder="Opcional"
-                          value={vNroYpf}
-                          onChange={setVNroYpf}
-                          icon={Hash}
-                          error={state?.fieldErrors?.vuelta_nro_viaje_ypf}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Vuelve vacío: sin flete, tonelaje ni material */}
-                      <input type="hidden" name="vuelta_km_con_carga" value="0" />
-                      <input type="hidden" name="vuelta_tonelaje_real" value="0" />
-                      <input type="hidden" name="vuelta_monto_flete" value="0" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InputFieldWithIcon
-                          label="Km recorridos (vacío)"
-                          name="vuelta_km_vacios"
-                          type="number"
-                          value={vKmVacios}
-                          onChange={(v) => setVKmManual("vac", v)}
-                          icon={Navigation}
-                          error={state?.fieldErrors?.vuelta_km_vacios}
-                        />
-                      </div>
-                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <PackageX size={12} className="shrink-0" />
-                        La vuelta vacía no factura ni suma tonelaje.
-                      </p>
-                    </>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
