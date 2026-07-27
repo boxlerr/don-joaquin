@@ -969,7 +969,7 @@ export default function VacacionesClient({
                 {filasCrono.map((f) => {
                   const filaEnCurso = f.periodos.some((pp) => pp.en_curso);
                   return (
-                  <tr key={f.id} className={`border-t border-border hover:bg-muted/20 ${filaEnCurso ? "bg-[#ECFDF5]/60" : ""}`}>
+                  <tr key={f.id} className={`border-t border-border hover:bg-muted/20 ${filaEnCurso ? "bg-muted/30" : ""}`}>
                     <td className={`sticky left-0 z-10 px-4 py-2 text-sm whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)] ${filaEnCurso ? "bg-[#F0FDF4]" : "bg-card"}`}>
                       {filaEnCurso && (
                         <span className="relative inline-flex mr-1.5 w-1.5 h-1.5 align-middle" title="De vacaciones hoy">
@@ -1178,7 +1178,7 @@ export default function VacacionesClient({
                         {g.items.map((p) => {
                           const barra = p.viajes_conflicto > 0 ? "#F59E0B" : p.en_curso ? "#0088D1" : "#10B981";
                           return (
-                            <li key={p.id} className={`group flex items-center gap-3 pl-4 pr-4 py-2.5 hover:bg-muted/20 ${p.en_curso ? "bg-[#FFFBEB]/60" : ""}`}>
+                            <li key={p.id} className={`group flex items-center gap-3 pl-4 pr-4 py-2.5 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}>
                               <span
                                 className="shrink-0 grid place-items-center w-8 h-8 rounded-full text-[10px] font-bold text-white select-none"
                                 style={{ backgroundColor: colorAvatar(p.nombre, p.apellido) }}
@@ -1197,7 +1197,7 @@ export default function VacacionesClient({
                                     {p.apellido}, {p.nombre}
                                   </button>
                                   {p.en_curso && (
-                                    <span className="inline-flex items-center gap-1 shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
+                                    <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-medium text-foreground">
                                       <span className="relative flex w-1.5 h-1.5">
                                         <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
                                         <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
@@ -1218,14 +1218,14 @@ export default function VacacionesClient({
                                   {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
                                 </span>
                                 <span
-                                  className="text-xs font-mono px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0] whitespace-nowrap"
+                                  className="whitespace-nowrap rounded-[4px] border border-border px-2 py-0.5 font-mono text-xs text-foreground"
                                   title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
                                 >
                                   {p.dias}d{p.anio_cargo != null ? ` · ${p.anio_cargo}` : " · hist."}
                                 </span>
                                 {p.viajes_conflicto > 0 && (
                                   <span
-                                    className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A] whitespace-nowrap"
+                                    className="whitespace-nowrap rounded-[4px] border border-[#B45309]/40 px-2 py-0.5 text-xs text-[#B45309]"
                                     title={`${p.viajes_conflicto} viaje(s) asignados dentro del período — reasignarlos o mover las vacaciones`}
                                   >
                                     ⚠ {p.viajes_conflicto}
@@ -1265,20 +1265,20 @@ export default function VacacionesClient({
                   <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
                     {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
                     <span
-                      className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]"
+                      className="rounded-[4px] border border-border px-2 py-0.5 text-xs text-foreground"
                       title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
                     >
                       {p.dias} día{p.dias !== 1 ? "s" : ""}{p.anio_cargo != null ? ` · ${p.anio_cargo}` : ""}
                     </span>
                     {p.viajes_conflicto > 0 && (
                       <span
-                        className="text-xs px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                        className="rounded-[4px] border border-[#B45309]/40 px-2 py-0.5 text-xs text-[#B45309]"
                         title="El chofer tiene viajes asignados dentro del período: reasignarlos o mover las vacaciones"
                       >
                         ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""}
                       </span>
                     )}
-                    {p.en_curso && <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">En curso</span>}
+                    {p.en_curso && <span className="text-[11px] text-foreground">En curso</span>}
                     {canWrite && (
                       <>
                         <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
@@ -1349,8 +1349,6 @@ export default function VacacionesClient({
                 </div>
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {g.filas.map((s) => {
-                    const tint =
-                      s.semaforo === "🔴" ? "#EF4444" : s.semaforo === "🟠" ? "#F59E0B" : s.semaforo === "🟡" ? "#FFB300" : "#10B981";
                     const amber = Math.max(0, s.tomados);
                     const rojo = Math.max(0, s.adeudados);
                     const verde = Math.max(0, s.disponibles - s.adeudados);
@@ -1359,89 +1357,105 @@ export default function VacacionesClient({
                       <div
                         key={s.chofer_id}
                         id={`saldo-${s.chofer_id}`}
-                        className={`group relative flex flex-col rounded-[8px] border border-border bg-card shadow-sm overflow-hidden transition-shadow hover:shadow-md ${
-                          resaltado === s.chofer_id ? "ring-2 ring-inset ring-primary/50" : ""
+                        className={`group flex flex-col rounded-[6px] border bg-card transition-colors ${
+                          resaltado === s.chofer_id
+                            ? "border-primary/50 ring-1 ring-primary/20"
+                            : "border-border hover:border-foreground/20"
                         }`}
                       >
-                        <span className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: tint }} aria-hidden />
-                        <div className="flex items-start gap-2.5 pl-4 pr-3 pt-3">
-                          <span
-                            className="shrink-0 grid place-items-center w-9 h-9 rounded-full text-[11px] font-bold text-white select-none"
-                            style={{ backgroundColor: colorAvatar(s.nombre, s.apellido) }}
-                            aria-hidden
+                        <div className="flex items-baseline justify-between gap-3 px-3.5 pt-3">
+                          <Link
+                            href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
+                            title={`${s.apellido}, ${s.nombre}`}
+                            className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground hover:text-primary"
                           >
-                            {iniciales(s.nombre, s.apellido)}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={`/choferes/${choferSlug(s)}?tab=vacaciones`}
-                              title={`${s.apellido}, ${s.nombre}`}
-                              className="block truncate text-sm font-semibold text-foreground leading-tight hover:text-primary"
+                            {s.apellido}, {s.nombre}
+                          </Link>
+                          <span className="shrink-0 text-right leading-none">
+                            <span
+                              className={`font-mono text-xl font-semibold tabular-nums ${
+                                s.disponibles < 0
+                                  ? "text-[#B91C1C]"
+                                  : s.disponibles === 0
+                                    ? "text-muted-foreground"
+                                    : "text-foreground"
+                              }`}
                             >
-                              {s.apellido}, {s.nombre}
-                            </Link>
-                            <div className="mt-1 flex flex-wrap items-center gap-1">
-                              {s.en_vacaciones_ahora && (
-                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
-                                  Ahora
-                                </span>
-                              )}
-                              {s.adeudados > 0 && s.vence_saldo && (
-                                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
-                                  Vence {s.vence_saldo}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-right leading-none">
-                            <div className={`font-mono text-2xl font-bold ${s.disponibles < 0 ? "text-[#EF4444]" : s.disponibles === 0 ? "text-muted-foreground" : "text-[#10B981]"}`}>
                               {s.disponibles}
-                            </div>
-                            <div className="mt-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">disp.</div>
-                          </div>
-                        </div>
-                        <div className="pl-4 pr-3 mt-3">
-                          <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-muted">
-                            {amber > 0 && <div style={{ width: `${(amber / denom) * 100}%`, backgroundColor: "#F59E0B" }} title={`Tomados este año: ${amber}`} />}
-                            {verde > 0 && <div style={{ width: `${(verde / denom) * 100}%`, backgroundColor: "#10B981" }} title={`Disponible del ${finPeriodoY}: ${verde}`} />}
-                            {rojo > 0 && <div style={{ width: `${(rojo / denom) * 100}%`, minWidth: 6, backgroundColor: "#EF4444" }} title={`Por vencer del ${finPeriodoY - 1}: ${rojo}`} />}
-                          </div>
-                          <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
-                            <span className="inline-flex items-center gap-1 truncate">
-                              <span className="w-2 h-2 rounded-[2px] bg-[#F59E0B] shrink-0" />
-                              <span className="font-mono text-foreground">{s.tomados}</span> tom.
                             </span>
-                            <span className="inline-flex items-center justify-center gap-1 truncate">
-                              <span className="w-2 h-2 rounded-[2px] bg-[#10B981] shrink-0" />
-                              <span className="font-mono text-foreground">{s.corresponden}</span>
-                              <span className="text-muted-foreground/60">/{finPeriodoY}</span>
-                            </span>
-                            <span className={`inline-flex items-center justify-end gap-1 truncate ${s.adeudados > 0 ? "text-[#991B1B] font-semibold" : ""}`}>
-                              <span className="w-2 h-2 rounded-[2px] bg-[#EF4444] shrink-0" />
-                              <span className="font-mono">{s.adeudados}</span>
-                              <span className={s.adeudados > 0 ? "text-[#991B1B]/70" : "text-muted-foreground/60"}>/{finPeriodoY - 1}</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-2.5 pl-4 pr-2.5 py-2 border-t border-border flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-                          <span className="inline-flex items-center gap-1.5 shrink-0">
-                            <span aria-hidden>{s.semaforo}</span>
-                            <span className="font-mono">{s.anios} año{s.anios !== 1 ? "s" : ""}</span>
-                            {s.desfasaje && <span className="text-amber-500" title={`Por antigüedad le corresponderían ${s.dias_segun_antiguedad}`}>⚠</span>}
+                            <span className="ml-1 text-[10px] text-muted-foreground">días</span>
                           </span>
-                          <span className="truncate text-right flex-1" title={s.hito !== "—" ? s.hito : s.proximo_hito}>
-                            {s.hito !== "—" ? s.hito : s.proximo_hito}
-                          </span>
-                          {canWrite && (
-                            <button
-                              type="button"
-                              onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })}
-                              title="Cargar vacaciones"
-                              className="shrink-0 grid place-items-center w-6 h-6 rounded-full text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-muted transition"
-                            >
-                              <Plus size={13} />
-                            </button>
+                        </div>
+
+                        {/* Estado en texto con un punto de color, en vez de
+                            pastillas de fondo pastel. */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 pt-1.5 text-[11px] text-muted-foreground">
+                          {s.en_vacaciones_ahora && (
+                            <span className="inline-flex items-center gap-1.5 text-foreground">
+                              <span className="inline-block size-1.5 rounded-full bg-[#059669]" aria-hidden />
+                              De vacaciones
+                            </span>
                           )}
+                          {s.adeudados > 0 && s.vence_saldo && (
+                            <span className="inline-flex items-center gap-1.5 text-[#B91C1C]">
+                              <span className="inline-block size-1.5 rounded-full bg-[#B91C1C]" aria-hidden />
+                              {s.adeudados} vencen el {s.vence_saldo}
+                            </span>
+                          )}
+                          {!s.en_vacaciones_ahora && s.adeudados === 0 && (
+                            <span>{s.anios} año{s.anios !== 1 ? "s" : ""} de antigüedad</span>
+                          )}
+                        </div>
+
+                        <div className="px-3.5 pb-3 pt-2.5">
+                          <div className="flex h-1 w-full overflow-hidden rounded-[2px] bg-muted">
+                            {amber > 0 && (
+                              <div style={{ width: `${(amber / denom) * 100}%`, backgroundColor: "#94A3B8" }} title={`Tomados este año: ${amber}`} />
+                            )}
+                            {verde > 0 && (
+                              <div style={{ width: `${(verde / denom) * 100}%`, backgroundColor: "#059669" }} title={`Disponible del ${finPeriodoY}: ${verde}`} />
+                            )}
+                            {rojo > 0 && (
+                              <div style={{ width: `${(rojo / denom) * 100}%`, minWidth: 4, backgroundColor: "#B91C1C" }} title={`Por vencer del ${finPeriodoY - 1}: ${rojo}`} />
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
+                            <span>
+                              <span className="font-mono text-foreground">{s.corresponden}</span> del {finPeriodoY}
+                            </span>
+                            <span>
+                              <span className="font-mono text-foreground">{s.tomados}</span> tomados
+                            </span>
+                            <span className={s.adeudados > 0 ? "text-[#B91C1C]" : ""}>
+                              <span className="font-mono">{s.adeudados}</span> del {finPeriodoY - 1}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 border-t border-border px-3.5 py-1.5 text-[11px] text-muted-foreground">
+                          <span className="truncate" title={s.hito !== "—" ? s.hito : s.proximo_hito}>
+                            {s.hito !== "—" ? s.hito.replace("★ ", "") : s.proximo_hito}
+                          </span>
+                          <span className="flex shrink-0 items-center gap-2">
+                            {s.desfasaje && (
+                              <span
+                                className="text-[#B45309]"
+                                title={`Por antigüedad le corresponderían ${s.dias_segun_antiguedad} días`}
+                              >
+                                revisar días
+                              </span>
+                            )}
+                            {canWrite && (
+                              <button
+                                type="button"
+                                onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })}
+                                title="Cargar vacaciones"
+                                className="opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                              >
+                                <Plus size={13} />
+                              </button>
+                            )}
+                          </span>
                         </div>
                       </div>
                     );
@@ -1500,7 +1514,12 @@ export default function VacacionesClient({
                       <td className="px-3 py-2 whitespace-nowrap">
                         <Link href={`/choferes/${choferSlug(s)}?tab=vacaciones`} className="font-medium text-foreground hover:text-primary inline-flex items-center gap-1.5">
                           {s.apellido}, {s.nombre}
-                          {s.en_vacaciones_ahora && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">Ahora</span>}
+                          {s.en_vacaciones_ahora && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <span className="inline-block size-1.5 rounded-full bg-[#059669]" aria-hidden />
+                              de vacaciones
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtIngreso(s.fecha_ingreso)}</td>
