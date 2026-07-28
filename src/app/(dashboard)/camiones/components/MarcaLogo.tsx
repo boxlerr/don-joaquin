@@ -75,7 +75,9 @@ export default function MarcaLogo({
           src={logo}
           alt=""
           className="max-h-full max-w-full object-contain"
-          style={{ maxHeight: size * 0.55, maxWidth: size * 0.78 }}
+          // El de Scania es el logo completo (escudo + la palabra), así que
+          // necesita casi todo el círculo para que se lea.
+          style={{ maxHeight: size * 0.74, maxWidth: size * 0.86 }}
           loading="lazy"
         />
       </div>

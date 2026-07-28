@@ -158,3 +158,92 @@ export function rangoAnios(unidades: readonly UnidadBuscable[]): { min: number; 
   if (anios.length === 0) return null;
   return { min: Math.min(...anios), max: Math.max(...anios) };
 }
+
+/* ------------------------------------------------------------------ *
+ * Orden
+ * ------------------------------------------------------------------ */
+
+export type OrdenFlota =
+  | "patente"
+  | "marca"
+  | "anio_nuevo"
+  | "anio_viejo"
+  | "km"
+  | "capacidad"
+  | "chofer";
+
+export const ORDEN_LABEL: Record<OrdenFlota, string> = {
+  marca: "Marca y modelo",
+  patente: "Patente (A-Z)",
+  anio_nuevo: "Año (más nuevo)",
+  anio_viejo: "Año (más viejo)",
+  km: "Kilómetros (mayor)",
+  capacidad: "Capacidad (mayor)",
+  chofer: "Chofer (A-Z)",
+};
+
+/** Orden de los selectores, del más usado al menos. */
+export const ORDENES: OrdenFlota[] = [
+  "marca",
+  "patente",
+  "anio_nuevo",
+  "anio_viejo",
+  "km",
+  "capacidad",
+  "chofer",
+];
+
+export type UnidadOrdenable = UnidadBuscable & { km_actual?: number | null };
+
+const txt = (v: string | null | undefined) => (v ?? "").toString();
+
+/**
+ * Ordena la flota. La patente siempre desempata, así el orden es estable y la
+ * lista no se reacomoda sola entre renders.
+ *
+ * "Marca y modelo" agrupa: todos los Scania juntos, después los Iveco, y dentro
+ * de cada marca por modelo. Es lo que se pide cuando se mira la flota — antes
+ * quedaban mezclados porque el orden venía del alta.
+ */
+export function ordenarFlota<T extends UnidadOrdenable>(
+  unidades: readonly T[],
+  orden: OrdenFlota,
+): T[] {
+  const porPatente = (a: T, b: T) => a.patente.localeCompare(b.patente, "es");
+  // Sin dato va al final en todos los criterios: no es "cero", es "no sé".
+  const num = (v: number | null | undefined, desc: boolean) =>
+    v == null ? (desc ? -Infinity : Infinity) : v;
+
+  const copia = [...unidades];
+  switch (orden) {
+    case "marca":
+      return copia.sort(
+        (a, b) =>
+          txt(a.marca).localeCompare(txt(b.marca), "es") ||
+          txt(a.modelo).localeCompare(txt(b.modelo), "es") ||
+          porPatente(a, b),
+      );
+    case "anio_nuevo":
+      return copia.sort((a, b) => num(b.ano, true) - num(a.ano, true) || porPatente(a, b));
+    case "anio_viejo":
+      return copia.sort((a, b) => num(a.ano, false) - num(b.ano, false) || porPatente(a, b));
+    case "km":
+      return copia.sort((a, b) => num(b.km_actual, true) - num(a.km_actual, true) || porPatente(a, b));
+    case "capacidad":
+      return copia.sort(
+        (a, b) => num(b.capacidad_tn, true) - num(a.capacidad_tn, true) || porPatente(a, b),
+      );
+    case "chofer":
+      return copia.sort((a, b) => {
+        // Los que no tienen chofer, al final.
+        const ca = txt(a.chofer_nombre);
+        const cb = txt(b.chofer_nombre);
+        if (!ca && !cb) return porPatente(a, b);
+        if (!ca) return 1;
+        if (!cb) return -1;
+        return ca.localeCompare(cb, "es") || porPatente(a, b);
+      });
+    default:
+      return copia.sort(porPatente);
+  }
+}

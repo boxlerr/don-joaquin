@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Truck, Container, Search, Building2 } from "lucide-react";
+import { Truck, Container, Search, Building2, ArrowDownWideNarrow } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import {
@@ -29,7 +29,11 @@ import {
   opcionesDe,
   pasaFiltros,
   rangoAnios,
+  ordenarFlota,
+  ORDENES,
+  ORDEN_LABEL,
   type FiltrosFlota,
+  type OrdenFlota,
   type UnidadBuscable,
 } from "../filtros";
 
@@ -77,6 +81,7 @@ export default function CamionesTableClient({
   const [tercerizacion, setTercerizacion] = useState<TercerizacionFilter>("todas");
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FiltrosFlota>(FILTROS_VACIOS);
+  const [orden, setOrden] = useState<OrdenFlota>("marca");
 
   const searchParams = useSearchParams();
   const [selectedCamion, setSelectedCamion] = useState<Camion | null>(null);
@@ -123,16 +128,23 @@ export default function CamionesTableClient({
 
   const camionesFiltrados = useMemo(
     () =>
-      camionesBuscables.filter((c) => {
-        if (tercerizacion !== "todas" && c.tercerizacion_estado !== tercerizacion) return false;
-        return pasaFiltros(c, filtros) && coincide(c, busqueda);
-      }),
-    [camionesBuscables, tercerizacion, busqueda, filtros],
+      ordenarFlota(
+        camionesBuscables.filter((c) => {
+          if (tercerizacion !== "todas" && c.tercerizacion_estado !== tercerizacion) return false;
+          return pasaFiltros(c, filtros) && coincide(c, busqueda);
+        }),
+        orden,
+      ),
+    [camionesBuscables, tercerizacion, busqueda, filtros, orden],
   );
 
   const acopladosFiltrados = useMemo(
-    () => acopladosBuscables.filter((a) => pasaFiltros(a, filtros) && coincide(a, busqueda)),
-    [acopladosBuscables, busqueda, filtros],
+    () =>
+      ordenarFlota(
+        acopladosBuscables.filter((a) => pasaFiltros(a, filtros) && coincide(a, busqueda)),
+        orden,
+      ),
+    [acopladosBuscables, busqueda, filtros, orden],
   );
 
   // Las opciones salen de lo que hay cargado, así no se ofrece filtrar por algo
@@ -174,17 +186,20 @@ export default function CamionesTableClient({
 
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-5 gap-4 bg-card">
-        <div className="flex items-center gap-4">
+      {/* Dos filas: identidad arriba, controles abajo. En una sola fila los
+          controles no entraban y el título y el selector se partían en
+          varias líneas. */}
+      <div className="space-y-3 bg-card px-6 py-5">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#E1F5FE] rounded-lg text-primary">
+            <div className="rounded-lg bg-[#E1F5FE] p-2 text-primary">
               {esCamiones ? <Truck size={20} /> : <Container size={20} />}
             </div>
-            <div>
-              <h2 className="text-foreground text-lg font-bold">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-foreground">
                 {esCamiones ? "Chasis" : "Acoplados"}
               </h2>
-              <p className="text-muted-foreground text-xs font-medium">
+              <p className="whitespace-nowrap text-xs font-medium text-muted-foreground">
                 Mostrando {mostrados} de {total} unidades
                 {(busqueda.trim() !== "" || contarFiltros(filtros) > 0) && (
                   <button
@@ -202,12 +217,11 @@ export default function CamionesTableClient({
             </div>
           </div>
 
-          {/* Selector Camiones / Acoplados — anclado a la izquierda para que no se mueva */}
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+          <div className="flex shrink-0 items-center gap-1 rounded-lg bg-muted p-1">
             <button
               type="button"
               onClick={() => setVista("camiones")}
-              className={`px-3 h-8 text-sm font-medium rounded-md transition-all ${
+              className={`h-8 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${
                 esCamiones
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -218,7 +232,7 @@ export default function CamionesTableClient({
             <button
               type="button"
               onClick={() => setVista("acoplados")}
-              className={`px-3 h-8 text-sm font-medium rounded-md transition-all ${
+              className={`h-8 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${
                 !esCamiones
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -228,13 +242,13 @@ export default function CamionesTableClient({
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Filtro de tercerización (solo camiones) */}
+
+        <div className="flex flex-wrap items-center gap-2">
           {esCamiones && (
-            <div className="relative">
+            <div className="relative shrink-0">
               <Building2
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none"
+                className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70"
               />
               <Combobox
                 value={tercerizacion}
@@ -244,7 +258,7 @@ export default function CamionesTableClient({
                   label: `${f.label} (${conteoPorTerc[f.value]})`,
                 }))}
                 searchable={false}
-                triggerClassName="h-10 min-w-[220px] pl-9"
+                triggerClassName="h-10 min-w-[210px] pl-9"
               />
             </div>
           )}
@@ -259,15 +273,34 @@ export default function CamionesTableClient({
             anios={opciones.anios}
           />
 
+          {/* Sin orden explícito la lista salía como vinieron de la base y las
+              marcas quedaban mezcladas. Por defecto agrupa por marca. */}
+          <div className="relative shrink-0">
+            <ArrowDownWideNarrow
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70"
+            />
+            <Combobox
+              value={orden}
+              onValueChange={(v) => setOrden(v as OrdenFlota)}
+              options={ORDENES.map((o) => ({ id: o, label: ORDEN_LABEL[o] }))}
+              searchable={false}
+              triggerClassName="h-10 min-w-[190px] pl-9"
+            />
+          </div>
+
           {/* Búsqueda: mira todo lo que se ve en la fila, no sólo la patente. */}
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
+          <div className="relative min-w-[16rem] flex-1">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70"
+            />
             <Input
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Patente, marca, modelo, año, chofer…"
-              className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all"
+              className="h-10 w-full rounded-lg border-border pl-9 text-sm transition-all focus:border-[#0088D1] focus:ring-2 focus:ring-[#0088D1]/20"
             />
           </div>
         </div>
