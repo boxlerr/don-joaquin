@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Truck } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
+import MarcaLogo from "./MarcaLogo";
 import EstadoSwitch from "./EstadoSwitch";
 import {
   categoriaCapacidad,
@@ -65,19 +65,7 @@ export default function CamionRow({
     >
         <TableCell className="py-4 pl-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#E1F5FE] flex items-center justify-center shrink-0 overflow-hidden border border-[#B3E5FC]">
-              {camion.foto_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={camion.foto_url}
-                  alt={camion.patente}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <Truck size={18} className="text-primary" />
-              )}
-            </div>
+            <MarcaLogo marca={camion.marca} foto={camion.foto_url} patente={camion.patente} />
             <div className="flex flex-col gap-1">
               <span className="font-mono font-medium text-foreground">{camion.patente}</span>
               <div className="flex items-center gap-1">

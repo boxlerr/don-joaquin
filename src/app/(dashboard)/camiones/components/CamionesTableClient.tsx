@@ -13,12 +13,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
+import FiltrosFlotaPopover from "./FiltrosFlotaPopover";
 import CamionRow from "./CamionRow";
 import AcopladoRow from "./AcopladoRow";
 import CamionDetailSheet, { type TabId } from "./CamionDetailSheet";
 import AcopladoDetailSheet from "./AcopladoDetailSheet";
 import type { Camion, Acoplado } from "../types";
 import type { TipoServicio } from "../actions";
+import {
+  coincide,
+  contarFiltros,
+  etiquetaEstado,
+  etiquetaTipo,
+  FILTROS_VACIOS,
+  opcionesDe,
+  pasaFiltros,
+  rangoAnios,
+  type FiltrosFlota,
+  type UnidadBuscable,
+} from "../filtros";
 
 type TercerizacionFilter = "todas" | "interno" | "en_transicion" | "tercerizado";
 type Vista = "camiones" | "acoplados";
@@ -63,6 +76,7 @@ export default function CamionesTableClient({
   const [vista, setVista] = useState<Vista>("camiones");
   const [tercerizacion, setTercerizacion] = useState<TercerizacionFilter>("todas");
   const [busqueda, setBusqueda] = useState("");
+  const [filtros, setFiltros] = useState<FiltrosFlota>(FILTROS_VACIOS);
 
   const searchParams = useSearchParams();
   const [selectedCamion, setSelectedCamion] = useState<Camion | null>(null);
@@ -97,27 +111,47 @@ export default function CamionesTableClient({
     }
   };
 
-  const camionesFiltrados = useMemo(() => {
-    const q = busqueda.trim().toUpperCase();
-    return camiones.filter((c) => {
-      if (tercerizacion !== "todas" && c.tercerizacion_estado !== tercerizacion) return false;
-      if (
-        q &&
-        !c.patente.toUpperCase().includes(q) &&
-        !(c.chofer_nombre ?? "").toUpperCase().includes(q)
-      )
-        return false;
-      return true;
-    });
-  }, [camiones, tercerizacion, busqueda]);
+  /** La flota vista como algo buscable, con el tipo unificado entre chasis y acoplados. */
+  const camionesBuscables = useMemo<(Camion & UnidadBuscable)[]>(
+    () => camiones.map((c) => ({ ...c, tipo: c.tipo_camion })),
+    [camiones],
+  );
+  const acopladosBuscables = useMemo<(Acoplado & UnidadBuscable)[]>(
+    () => acoplados.map((a) => ({ ...a, chofer_nombre: a.chofer_nombre })),
+    [acoplados],
+  );
 
-  const acopladosFiltrados = useMemo(() => {
-    const q = busqueda.trim().toUpperCase();
-    return acoplados.filter((a) => {
-      if (q && !a.patente.toUpperCase().includes(q)) return false;
-      return true;
-    });
-  }, [acoplados, busqueda]);
+  const camionesFiltrados = useMemo(
+    () =>
+      camionesBuscables.filter((c) => {
+        if (tercerizacion !== "todas" && c.tercerizacion_estado !== tercerizacion) return false;
+        return pasaFiltros(c, filtros) && coincide(c, busqueda);
+      }),
+    [camionesBuscables, tercerizacion, busqueda, filtros],
+  );
+
+  const acopladosFiltrados = useMemo(
+    () => acopladosBuscables.filter((a) => pasaFiltros(a, filtros) && coincide(a, busqueda)),
+    [acopladosBuscables, busqueda, filtros],
+  );
+
+  // Las opciones salen de lo que hay cargado, así no se ofrece filtrar por algo
+  // que no existe. Se calculan sobre la vista activa.
+  const base = vista === "camiones" ? camionesBuscables : acopladosBuscables;
+  const opciones = useMemo(
+    () => ({
+      marcas: opcionesDe(base, (u) => u.marca),
+      tipos: opcionesDe(base, (u) => u.tipo, etiquetaTipo),
+      capacidades: opcionesDe(
+        base,
+        (u) => (u.capacidad_tn != null ? Number(u.capacidad_tn) : null),
+        (v) => `${v} tn`,
+      ),
+      estados: opcionesDe(base, (u) => u.estado, etiquetaEstado),
+      anios: rangoAnios(base),
+    }),
+    [base],
+  );
 
   const conteoPorTerc = useMemo(() => {
     const acc: Record<TercerizacionFilter, number> = {
@@ -152,6 +186,18 @@ export default function CamionesTableClient({
               </h2>
               <p className="text-muted-foreground text-xs font-medium">
                 Mostrando {mostrados} de {total} unidades
+                {(busqueda.trim() !== "" || contarFiltros(filtros) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusqueda("");
+                      setFiltros(FILTROS_VACIOS);
+                    }}
+                    className="ml-2 text-primary hover:underline"
+                  >
+                    ver todas
+                  </button>
+                )}
               </p>
             </div>
           </div>
@@ -203,14 +249,24 @@ export default function CamionesTableClient({
             </div>
           )}
 
-          {/* Búsqueda por patente */}
+          <FiltrosFlotaPopover
+            filtros={filtros}
+            onChange={setFiltros}
+            marcas={opciones.marcas}
+            tipos={opciones.tipos}
+            capacidades={opciones.capacidades}
+            estados={opciones.estados}
+            anios={opciones.anios}
+          />
+
+          {/* Búsqueda: mira todo lo que se ve en la fila, no sólo la patente. */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
             <Input
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar patente o chofer..."
+              placeholder="Patente, marca, modelo, año, chofer…"
               className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all"
             />
           </div>

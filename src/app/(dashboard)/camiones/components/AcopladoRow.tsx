@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Container } from "lucide-react";
+import { logoDeMarca } from "./MarcaLogo";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EstadoSwitch from "./EstadoSwitch";
@@ -11,6 +12,8 @@ import type { Acoplado } from "../types";
 
 export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado; onSelect?: (a: Acoplado) => void }) {
   const datosCompletos = !!acoplado.marca;
+  // Los acoplados casi nunca son de estas marcas, pero si lo son se ve igual.
+  const logoAcoplado = logoDeMarca(acoplado.marca);
   const router = useRouter();
   const [pendingEstado, setPendingEstado] = useState(false);
   const activo = acoplado.estado === "activo";
@@ -32,8 +35,18 @@ export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado
     >
       <TableCell className="py-4 pl-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#F1F5F9] flex items-center justify-center shrink-0 border border-border">
-            <Container size={18} className="text-muted-foreground" />
+          <div className="w-10 h-10 rounded-full bg-[#F1F5F9] flex items-center justify-center shrink-0 border border-border overflow-hidden">
+            {logoAcoplado ? (
+              // eslint-disable-next-line @next/next/no-img-element -- SVG local
+              <img
+                src={logoAcoplado}
+                alt=""
+                className="max-h-[22px] max-w-[31px] object-contain"
+                loading="lazy"
+              />
+            ) : (
+              <Container size={18} className="text-muted-foreground" />
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <span className="font-mono font-medium text-foreground">{acoplado.patente}</span>

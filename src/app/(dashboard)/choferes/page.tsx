@@ -70,21 +70,33 @@ export default async function ChoferesPage({
     // legajo (que lee camion_actual sin filtro), aunque el camión esté fuera de servicio.
     supabase
       .from("camiones")
-      .select("patente, chofer_actual_id")
+      // marca/modelo además de la patente: en el legajo se quiere ver qué
+      // maneja, y también se busca por eso ("iveco").
+      .select("patente, marca, modelo, chofer_actual_id")
       .not("chofer_actual_id", "is", null),
   ]);
 
-  // chofer_id -> patente del camión que tiene asignado (si tiene).
-  const camionPorChofer = new Map<string, string>();
+  // chofer_id -> camión que tiene asignado hoy (si tiene).
+  const camionPorChofer = new Map<
+    string,
+    { patente: string; marca: string | null; modelo: string | null }
+  >();
   for (const c of camionesAsignados ?? []) {
-    if (c.chofer_actual_id) camionPorChofer.set(c.chofer_actual_id, c.patente);
+    if (c.chofer_actual_id)
+      camionPorChofer.set(c.chofer_actual_id, {
+        patente: c.patente,
+        marca: c.marca,
+        modelo: c.modelo,
+      });
   }
 
   const choferesMapeados = choferes?.map((c) => ({
     ...c,
     dni: c.dni ?? "",
     foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
-    camion_patente: camionPorChofer.get(c.id) ?? null,
+    camion_patente: camionPorChofer.get(c.id)?.patente ?? null,
+    camion_marca: camionPorChofer.get(c.id)?.marca ?? null,
+    camion_modelo: camionPorChofer.get(c.id)?.modelo ?? null,
   }));
 
   // Desglose por rol — solo personal vigente (los egresados/baja salen del conteo:

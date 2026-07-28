@@ -32,6 +32,7 @@ import EgresarChoferDialog from "./EgresarChoferDialog";
 import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
+import { logoDeMarca } from "@/app/(dashboard)/camiones/components/MarcaLogo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila de chofer (DB) con muchos campos; los tipos generados no están disponibles acá
 export default function ChoferCard({ chofer }: { chofer: any }) {
@@ -66,6 +67,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   // El camión solo aplica a choferes (no administración/mantenimiento/fletero).
   const esChofer = !chofer.rol || chofer.rol === "chofer";
   const camionPatente: string | null = chofer.camion_patente ?? null;
+  const camionMarca: string | null = chofer.camion_marca ?? null;
   // Avisamos "sin camión" solo para choferes activos: un egresado/inactivo sin
   // camión es lo esperado y sería ruido.
   const sinCamion = esChofer && !esBaja && chofer.estado === "activo" && !camionPatente;
@@ -292,7 +294,23 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   className={`flex-shrink-0 ${sinCamion ? "text-amber-500" : "text-muted-foreground/70"}`}
                 />
                 {camionPatente ? (
-                  <span className="font-mono text-foreground/80">{camionPatente}</span>
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    {/* Qué maneja, no sólo la patente: es lo que se pregunta. */}
+                    {logoDeMarca(camionMarca) && (
+                      // eslint-disable-next-line @next/next/no-img-element -- SVG local
+                      <img
+                        src={logoDeMarca(camionMarca)!}
+                        alt=""
+                        title={camionMarca ?? undefined}
+                        className="h-3.5 max-w-[26px] shrink-0 object-contain"
+                        loading="lazy"
+                      />
+                    )}
+                    <span className="font-mono text-foreground/80">{camionPatente}</span>
+                    {camionMarca && camionMarca !== "Sin datos" && (
+                      <span className="truncate text-muted-foreground/80">· {camionMarca}</span>
+                    )}
+                  </span>
                 ) : sinCamion ? (
                   <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                     Sin camión asignado

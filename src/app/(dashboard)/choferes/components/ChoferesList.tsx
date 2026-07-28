@@ -51,6 +51,10 @@ type Chofer = {
   rol?: string | null;
   fecha_ingreso?: string | null;
   foto?: { bucket: string; path: string } | null;
+  /** Camión que tiene asignado hoy, para verlo y para buscarlo. */
+  camion_patente?: string | null;
+  camion_marca?: string | null;
+  camion_modelo?: string | null;
   [key: string]: unknown;
 };
 
@@ -111,8 +115,29 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
         return false;
       }
       if (!q) return true;
-      const haystack = normalize(`${c.apellido} ${c.nombre} ${c.dni} ${c.cuil ?? ""} ${c.telefono ?? ""}`);
-      return haystack.includes(q);
+      // Se busca por todo lo que está a la vista en la tarjeta, incluido el
+      // camión: escribir "iveco" tiene que traer a los que manejan un Iveco, y
+      // "azul" a los de esa localidad.
+      const haystack = normalize(
+        [
+          c.apellido,
+          c.nombre,
+          c.dni,
+          c.cuil,
+          c.telefono,
+          c.localidad,
+          c.camion_patente,
+          c.camion_marca,
+          c.camion_modelo,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      // Cada palabra tiene que estar: "iveco azul" angosta en vez de sumar.
+      return q
+        .split(/\s+/)
+        .filter(Boolean)
+        .every((t) => haystack.includes(t));
     });
   }, [choferes, estadoFilter, rolFilter, query]);
 
@@ -190,7 +215,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nombre, DNI, CUIL o teléfono..."
+            placeholder="Nombre, DNI, camión, marca, localidad…"
             className="w-64 text-sm"
           />
           {!sinFiltros && (
