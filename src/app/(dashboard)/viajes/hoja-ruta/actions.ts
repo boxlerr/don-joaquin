@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
+import { logAudit } from "@/lib/audit";
 
 // ============================================================================
 // Vista "Hoja de Ruta mensual por chofer" — estilo Excel del cliente.
@@ -294,30 +295,125 @@ export async function getPanelChoferAction(
 }
 
 /** Actualizar remito + monto de un viaje individual desde la grilla. */
-export async function actualizarRemitoYMontoAction(
+
+/**
+ * Resuelve un nombre de lugar a su id, creándolo si no existía. Es el mismo
+ * criterio que usa el alta de viajes: los destinos nuevos se dan de alta solos
+ * en vez de frenar la carga.
+ */
+async function getOrCreatePunto(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  nombre: string | null | undefined,
+): Promise<string | null | undefined> {
+  // undefined = no lo tocaron; null/"" = lo vaciaron a propósito.
+  if (nombre === undefined) return undefined;
+  const limpio = (nombre ?? "").trim();
+  if (!limpio) return null;
+
+  const { data } = await supabase.from("puntos_ruta").select("id").ilike("nombre", limpio).limit(1);
+  if (data && data.length > 0) return data[0].id as string;
+
+  const ins = await supabase
+    .from("puntos_ruta")
+    .insert({ nombre: limpio, estado: "activo", es_frontera: false, es_puerto: false })
+    .select("id")
+    .single();
+  return ins.error ? null : (ins.data.id as string);
+}
+
+/**
+ * Corrección del viaje desde la hoja de ruta.
+ *
+ * Lo pidió Nico: el destino cambia con el camión andando. "Ayer le di ese
+ * viaje, pero hoy a la mañana me pidieron que en lugar de ir a Planta Escobar
+ * vaya para Dársena F2" — el chofer todavía no había llegado, así que es el
+ * MISMO viaje con otro destino, no uno nuevo. (Cuando ya llegó y lo derivan,
+ * ahí sí carga un viaje aparte.)
+ *
+ * Antes desde acá sólo se podían tocar el remito y el monto, así que había que
+ * ir al listado a corregir un dato que se corrige todos los días.
+ */
+export async function actualizarViajeHojaRutaAction(
   viajeId: string,
-  data: { nro_remito?: string | null; monto_flete?: number | null },
+  data: {
+    origen_nombre?: string | null;
+    destino_nombre?: string | null;
+    km_con_carga?: number | null;
+    km_vacios?: number | null;
+    nro_remito?: string | null;
+    monto_flete?: number | null;
+  },
 ): Promise<{ ok?: boolean; error?: string }> {
-  await requireArea("viajes", "write");
+  const user = await requireArea("viajes", "write");
   const supabase = createAdminClient();
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("viajes")
+    .select(
+      `id, km_con_carga, km_vacios, nro_remito, monto_flete,
+       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
+    )
+    .eq("id", viajeId)
+    .single();
+  if (!previo) return { error: "El viaje ya no existe." };
+
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  const origenId = await getOrCreatePunto(supabase, data.origen_nombre);
+  if (origenId !== undefined) payload.origen_id = origenId;
+  const destinoId = await getOrCreatePunto(supabase, data.destino_nombre);
+  if (destinoId !== undefined) payload.destino_id = destinoId;
+
+  for (const campo of ["km_con_carga", "km_vacios"] as const) {
+    const v = data[campo];
+    if (v === undefined) continue;
+    if (v != null && (!Number.isFinite(v) || v < 0))
+      return { error: "Los kilómetros tienen que ser un número mayor o igual a cero." };
+    payload[campo] = v;
+  }
+
   if (data.nro_remito !== undefined) payload.nro_remito = data.nro_remito || null;
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
-    // Regla del cliente: tener valor = está facturado (el valor entra con el
-    // remito) y cobrado de una — no hay flujo de cobro aparte (03/07/2026).
+    // Misma regla que la edición de remito: tener valor = facturado y cobrado.
     payload.facturado = viajeEstaFacturado(data.monto_flete);
     payload.cobrado = payload.facturado;
   }
-  // Si ahora tiene remito + monto, marcar como cerrado
-  if (data.nro_remito && data.monto_flete != null) {
-    payload.estado = "cerrado";
-  }
+  if (data.nro_remito && data.monto_flete != null) payload.estado = "cerrado";
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("viajes").update(payload).eq("id", viajeId);
   if (error) return { error: error.message };
+
+  const uno = (v: unknown) => (Array.isArray(v) ? v[0] : v) as { nombre: string } | null;
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "viaje",
+    entidadId: viajeId,
+    valoresAnteriores: {
+      origen: uno(previo.origen)?.nombre ?? null,
+      destino: uno(previo.destino)?.nombre ?? null,
+      km_con_carga: previo.km_con_carga,
+      km_vacios: previo.km_vacios,
+      nro_remito: previo.nro_remito,
+      monto_flete: previo.monto_flete,
+    },
+    valoresNuevos: {
+      ...(data.origen_nombre !== undefined ? { origen: data.origen_nombre } : {}),
+      ...(data.destino_nombre !== undefined ? { destino: data.destino_nombre } : {}),
+      ...(data.km_con_carga !== undefined ? { km_con_carga: data.km_con_carga } : {}),
+      ...(data.km_vacios !== undefined ? { km_vacios: data.km_vacios } : {}),
+      ...(data.nro_remito !== undefined ? { nro_remito: data.nro_remito } : {}),
+      ...(data.monto_flete !== undefined ? { monto_flete: data.monto_flete } : {}),
+    },
+    metadata: { origen: "hoja_ruta" },
+  });
+
   revalidatePath("/viajes/hoja-ruta");
   revalidatePath("/viajes");
   return { ok: true };

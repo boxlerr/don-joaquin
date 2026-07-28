@@ -19,7 +19,7 @@ import MonthPicker from "@/components/ui/MonthPicker";
 import {
   getPanelChoferAction,
   listChoferesMesAction,
-  actualizarRemitoYMontoAction,
+  actualizarViajeHojaRutaAction,
   type HrChoferListItem,
   type HrPanelChofer,
   type HrViajeItem,
@@ -322,6 +322,14 @@ function PanelChofer({
   canWrite: boolean;
   onChanged: () => void;
 }) {
+  // Los lugares que ya aparecen en el mes, para sugerir al corregir un destino
+  // sin obligar a tipearlo entero. Igual acepta uno nuevo.
+  const lugares = [
+    ...new Set(
+      panel.viajes.flatMap((v) => [v.origen, v.destino]).filter((x): x is string => !!x),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "es"));
+
   return (
     <div className="p-4 sm:p-5 space-y-4">
       {/* Header */}
@@ -390,6 +398,7 @@ function PanelChofer({
                   viaje={v}
                   canWrite={canWrite}
                   onChanged={onChanged}
+                  lugares={lugares}
                 />
               ))}
             </tbody>
@@ -419,14 +428,23 @@ function FilaViaje({
   viaje,
   canWrite,
   onChanged,
+  lugares,
 }: {
   viaje: HrViajeItem;
   canWrite: boolean;
   onChanged: () => void;
+  /** Lugares ya cargados, para sugerir al corregir origen/destino. */
+  lugares: string[];
 }) {
   const [editando, setEditando] = useState(false);
   const [remito, setRemito] = useState(viaje.nro_remito ?? "");
   const [monto, setMonto] = useState(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
+  // El destino cambia con el camión andando: si todavía no llegó, es el MISMO
+  // viaje con otro destino. Por eso se edita acá y no hay que ir al listado.
+  const [origen, setOrigen] = useState(viaje.origen ?? "");
+  const [destino, setDestino] = useState(viaje.destino ?? "");
+  const [km, setKm] = useState(viaje.km_con_carga == null ? "" : String(viaje.km_con_carga));
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [borrando, setBorrando] = useState(false); // pidiendo confirmación
   const [eliminando, setEliminando] = useState(false);
@@ -437,12 +455,21 @@ function FilaViaje({
 
   const guardar = async () => {
     setGuardando(true);
+    setErrorGuardar(null);
     const m = monto.trim() === "" ? null : parseFloat(monto);
-    await actualizarRemitoYMontoAction(viaje.id, {
+    const k = km.trim() === "" ? null : parseFloat(km);
+    const res = await actualizarViajeHojaRutaAction(viaje.id, {
+      origen_nombre: origen.trim() || null,
+      destino_nombre: destino.trim() || null,
+      km_con_carga: k == null || Number.isNaN(k) ? null : k,
       nro_remito: remito.trim() || null,
       monto_flete: m == null || Number.isNaN(m) ? null : m,
     });
     setGuardando(false);
+    if (res.error) {
+      setErrorGuardar(res.error);
+      return;
+    }
     setEditando(false);
     onChanged();
   };
@@ -450,6 +477,10 @@ function FilaViaje({
   const cancelar = () => {
     setRemito(viaje.nro_remito ?? "");
     setMonto(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
+    setOrigen(viaje.origen ?? "");
+    setDestino(viaje.destino ?? "");
+    setKm(viaje.km_con_carga == null ? "" : String(viaje.km_con_carga));
+    setErrorGuardar(null);
     setEditando(false);
   };
 
@@ -471,9 +502,57 @@ function FilaViaje({
       <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap" title={fmtFechaLarga(viaje.fecha_viaje)}>
         {fmtFecha(viaje.fecha_viaje)}
       </td>
-      <td className="px-3 py-2">{viaje.origen ?? "—"}</td>
-      <td className="px-3 py-2">{viaje.destino ?? "—"}</td>
-      <td className="px-3 py-2 text-right font-mono">{fmtNum(viaje.km_con_carga)}</td>
+      <td className="px-3 py-2">
+        {editando ? (
+          <input
+            type="text"
+            list={`hr-lugares-${viaje.id}`}
+            value={origen}
+            onChange={(e) => setOrigen(e.target.value)}
+            placeholder="Sale de"
+            className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
+          />
+        ) : (
+          viaje.origen ?? "—"
+        )}
+      </td>
+      <td className="px-3 py-2">
+        {editando ? (
+          <>
+            <input
+              type="text"
+              list={`hr-lugares-${viaje.id}`}
+              value={destino}
+              onChange={(e) => setDestino(e.target.value)}
+              placeholder="Llega a"
+              className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
+            />
+            {/* Los lugares ya cargados, para no tipear de nuevo; igual acepta
+                uno nuevo y se da de alta solo. */}
+            <datalist id={`hr-lugares-${viaje.id}`}>
+              {lugares.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+          </>
+        ) : (
+          viaje.destino ?? "—"
+        )}
+      </td>
+      <td className="px-3 py-2 text-right font-mono">
+        {editando ? (
+          <input
+            type="number"
+            min="0"
+            value={km}
+            onChange={(e) => setKm(e.target.value)}
+            placeholder="0"
+            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+          />
+        ) : (
+          fmtNum(viaje.km_con_carga)
+        )}
+      </td>
       <td className="px-3 py-2 text-right font-mono">{viaje.tonelaje_real ? fmtNum(viaje.tonelaje_real, 2) : "—"}</td>
       <td className="px-3 py-2 font-mono text-[11px]">
         {editando ? (
@@ -565,7 +644,7 @@ function FilaViaje({
                   type="button"
                   onClick={() => setEditando(true)}
                   className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="Editar remito y monto"
+                  title="Editar el viaje: origen, destino, km, remito y monto"
                 >
                   <Edit3 size={11} />
                 </button>
@@ -583,6 +662,9 @@ function FilaViaje({
               </>
             )}
           </div>
+        )}
+        {errorGuardar && (
+          <p className="mt-0.5 max-w-[180px] text-[10px] text-red-600">{errorGuardar}</p>
         )}
         {errorBorrar && !borrando && (
           <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px]">{errorBorrar}</p>
