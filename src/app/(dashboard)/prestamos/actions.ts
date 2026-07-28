@@ -7,6 +7,8 @@ import { logAudit } from "@/lib/audit";
 import { canonizarBanco } from "./bancos";
 import { FALTANTES, siguePendiente, type Faltante } from "./faltantes";
 import { mergeTopes, TOPES_CLAVE, type TopesConfig } from "./topes";
+import { getCalendario } from "@/lib/feriados-server";
+import { corrimiento } from "@/lib/feriados";
 
 // ---------------------------------------------------------------------------
 // Préstamos bancarios (audio Bárbara 02/07): la planilla de la mamá — por
@@ -22,6 +24,19 @@ export type CuotaRow = {
   importe: number;
   pagada: boolean;
   pagada_en: string | null;
+  /**
+   * El día en que la cuota se paga de verdad. Si el vencimiento cae sábado,
+   * domingo o feriado, el banco no opera y se paga el hábil siguiente.
+   *
+   * La fecha guardada NO se toca: el préstamo entró el sábado y así queda. Pero
+   * los totales por día, semana y mes se agrupan por ACÁ, porque si no el lunes
+   * dice 30 millones cuando en realidad hay que pagar 79 — los 30 propios más
+   * los del sábado y los del viernes feriado. Ésa es la cuenta que había que
+   * hacer de memoria.
+   */
+  fecha_efectiva: string;
+  /** Por qué se corrió ("cae sábado", "Día del Bancario"). Null si no se corrió. */
+  motivo_corrimiento: string | null;
 };
 
 export type PrestamoRow = {
@@ -166,6 +181,7 @@ async function traerCuotas(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
 ): Promise<Map<string, CuotaRow[]>> {
+  const cal = await getCalendario();
   const PAGINA = 1000;
   const cuotas: (CuotaRow & { prestamo_id: string })[] = [];
   for (let desde = 0; ; desde += PAGINA) {
@@ -183,6 +199,7 @@ async function traerCuotas(
   const porPrestamo = new Map<string, CuotaRow[]>();
   for (const c of cuotas) {
     const list = porPrestamo.get(c.prestamo_id) ?? [];
+    const corr = corrimiento(c.fecha_vencimiento, cal);
     list.push({
       id: c.id,
       nro: c.nro,
@@ -190,6 +207,8 @@ async function traerCuotas(
       importe: Number(c.importe),
       pagada: c.pagada,
       pagada_en: c.pagada_en,
+      fecha_efectiva: corr.efectiva,
+      motivo_corrimiento: corr.dias > 0 ? corr.motivo : null,
     });
     porPrestamo.set(c.prestamo_id, list);
   }
@@ -690,6 +709,8 @@ export type CambioCuota = {
   id: string;
   fecha_vencimiento?: string;
   importe?: number;
+  /** Cuándo se pagó de verdad. "" o null para dejarlo sin fecha. */
+  pagada_en?: string | null;
 };
 
 /**
@@ -715,6 +736,8 @@ export async function actualizarCuotasAction(
       return { error: `Fecha inválida: ${c.fecha_vencimiento}` };
     if (c.importe != null && (!Number.isFinite(c.importe) || c.importe < 0))
       return { error: "Los importes tienen que ser números mayores o iguales a cero." };
+    if (c.pagada_en != null && c.pagada_en !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(c.pagada_en))
+      return { error: `Fecha de pago inválida: ${c.pagada_en}` };
   }
 
   const supabase = createAdminClient();
@@ -722,16 +745,20 @@ export async function actualizarCuotasAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previas } = await (supabase as any)
     .from("prestamo_cuotas")
-    .select("id, prestamo_id, nro, fecha_vencimiento, importe")
+    .select("id, prestamo_id, nro, fecha_vencimiento, importe, pagada_en")
     .in(
       "id",
       cambios.map((c) => c.id),
     );
-  const previaPorId = new Map(
-    ((previas ?? []) as { id: string; prestamo_id: string; nro: number; fecha_vencimiento: string; importe: number }[]).map(
-      (c) => [c.id, c],
-    ),
-  );
+  type Previa = {
+    id: string;
+    prestamo_id: string;
+    nro: number;
+    fecha_vencimiento: string;
+    importe: number;
+    pagada_en: string | null;
+  };
+  const previaPorId = new Map(((previas ?? []) as Previa[]).map((c) => [c.id, c]));
   const faltan = cambios.filter((c) => !previaPorId.has(c.id));
   if (faltan.length > 0) return { error: "Alguna de las cuotas ya no existe. Recargá la pantalla." };
 
@@ -742,6 +769,10 @@ export async function actualizarCuotasAction(
     if (c.fecha_vencimiento != null && c.fecha_vencimiento !== previa.fecha_vencimiento)
       update.fecha_vencimiento = c.fecha_vencimiento;
     if (c.importe != null && c.importe !== Number(previa.importe)) update.importe = c.importe;
+    if (c.pagada_en !== undefined) {
+      const nueva = c.pagada_en === "" ? null : c.pagada_en;
+      if (nueva !== previa.pagada_en) update.pagada_en = nueva;
+    }
     if (Object.keys(update).length === 0) continue;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -761,9 +792,10 @@ export async function actualizarCuotasAction(
       valoresAnteriores: {
         fecha_vencimiento: previa.fecha_vencimiento,
         importe: Number(previa.importe),
+        pagada_en: previa.pagada_en,
       },
       valoresNuevos: update,
-      metadata: { origen: "prestamos", flujo: "fechas_del_mes", prestamo_id: previa.prestamo_id, nro: previa.nro },
+      metadata: { origen: "prestamos", prestamo_id: previa.prestamo_id, nro: previa.nro },
     });
   }
 

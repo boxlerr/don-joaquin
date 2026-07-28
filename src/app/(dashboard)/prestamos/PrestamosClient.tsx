@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  History,
   CalendarCheck,
   BellRing,
   Repeat,
@@ -54,6 +55,7 @@ import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
 import TopesDialog from "./TopesDialog";
 import FechasDelMesDialog from "./FechasDelMesDialog";
+import HistorialPagosDialog from "./HistorialPagosDialog";
 import { excedeTope, hayAlgunTope, nivel, TOPES_DEFAULT, type TopesConfig } from "./topes";
 import {
   setCuotaPagadaAction,
@@ -219,6 +221,7 @@ export default function PrestamosClient({
 }) {
   const [topesOpen, setTopesOpen] = useState(false);
   const [fechasOpen, setFechasOpen] = useState(false);
+  const [historialOpen, setHistorialOpen] = useState(false);
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Filtros y orden del listado: con 35 préstamos de 6 bancos, buscar a ojo no va.
@@ -246,6 +249,13 @@ export default function PrestamosClient({
   };
 
   // Todas las cuotas impagas de préstamos activos, ordenadas por vencimiento.
+  /**
+   * Los totales por día, semana y mes se agrupan por la fecha EFECTIVA: el día
+   * en que el banco se puede pagar. La fecha del contrato no se toca —el
+   * préstamo entró el sábado y así queda— pero la plata se suma el lunes, que
+   * es cuando sale. Si no, el lunes muestra 30 millones cuando en realidad hay
+   * que pagar 79 entre lo del sábado, lo del viernes feriado y lo propio.
+   */
   const cuotasPendientes = useMemo(() => {
     return prestamos
       .filter((p) => p.estado === "activo")
@@ -254,7 +264,7 @@ export default function PrestamosClient({
           .filter((c) => !c.pagada)
           .map((c) => ({ ...c, banco: p.banco, tasa: p.tasa, cuotas_total: p.cuotas_total })),
       )
-      .sort((a, b) => a.fecha_vencimiento.localeCompare(b.fecha_vencimiento));
+      .sort((a, b) => a.fecha_efectiva.localeCompare(b.fecha_efectiva));
   }, [prestamos]);
 
   const vencidas = cuotasPendientes.filter((c) => c.fecha_vencimiento < hoy);
@@ -264,20 +274,19 @@ export default function PrestamosClient({
   const semanas = useMemo(() => {
     const inicio = lunesDe(hoy);
     inicio.setDate(inicio.getDate() + offset * 8 * 7);
-    const buckets: { lunes: Date; total: number; cuotas: number }[] = Array.from(
-      { length: 8 },
-      (_, i) => {
+    const buckets: { lunes: Date; total: number; cuotas: number; corridas: number }[] =
+      Array.from({ length: 8 }, (_, i) => {
         const lunes = new Date(inicio);
         lunes.setDate(lunes.getDate() + i * 7);
-        return { lunes, total: 0, cuotas: 0 };
-      },
-    );
+        return { lunes, total: 0, cuotas: 0, corridas: 0 };
+      });
     const idxPorKey = new Map(buckets.map((b, i) => [keySemana(b.lunes), i]));
     for (const c of cuotasPendientes) {
-      const idx = idxPorKey.get(keySemana(lunesDe(c.fecha_vencimiento)));
+      const idx = idxPorKey.get(keySemana(lunesDe(c.fecha_efectiva)));
       if (idx == null) continue;
       buckets[idx].total += c.importe;
       buckets[idx].cuotas += 1;
+      if (c.motivo_corrimiento) buckets[idx].corridas += 1;
     }
     return buckets;
   }, [cuotasPendientes, hoy, offset]);
@@ -293,6 +302,7 @@ export default function PrestamosClient({
         label: i === 0 && offset === 0 ? "Esta semana" : labelSemana(s.lunes),
         total: s.total,
         cuotas: s.cuotas,
+        corridas: s.corridas,
         isCurrent: i === 0 && offset === 0,
       })),
     [semanas, offset],
@@ -305,7 +315,7 @@ export default function PrestamosClient({
     return keySemana(fin);
   })();
   const cuotasSemana = cuotasPendientes.filter(
-    (c) => c.fecha_vencimiento >= hoy && c.fecha_vencimiento <= finDeSemana,
+    (c) => c.fecha_efectiva >= hoy && c.fecha_efectiva <= finDeSemana,
   );
   const totalSemana = cuotasSemana.reduce((s, c) => s + c.importe, 0);
   // Mes elegible (Bárbara: "el mes que viene, agosto, ¿cuánto tengo que
@@ -314,7 +324,7 @@ export default function PrestamosClient({
   // fija de 12.
   const mesActual = hoy.slice(0, 7);
   const mesesOpciones = useMemo(() => {
-    const todas = prestamos.flatMap((p) => p.cuotas.map((c) => c.fecha_vencimiento.slice(0, 7)));
+    const todas = prestamos.flatMap((p) => p.cuotas.map((c) => c.fecha_efectiva.slice(0, 7)));
     const conActual = [...todas, mesActual].sort();
     const desde = conActual[0]!;
     const hasta = conActual[conActual.length - 1]!;
@@ -330,13 +340,13 @@ export default function PrestamosClient({
     return out;
   }, [prestamos, mesActual]);
 
-  const cuotasMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === mesSel);
+  const cuotasMes = cuotasPendientes.filter((c) => c.fecha_efectiva.slice(0, 7) === mesSel);
   const totalMes = cuotasMes.reduce((s, c) => s + c.importe, 0);
   const esMesActual = mesSel === mesActual;
 
   // "Mañana tenés que pagar esto" — el pedido textual de Bárbara.
   const manana = addDiasISO(hoy, 1);
-  const cuotasManana = cuotasPendientes.filter((c) => c.fecha_vencimiento === manana);
+  const cuotasManana = cuotasPendientes.filter((c) => c.fecha_efectiva === manana);
   const totalManana = cuotasManana.reduce((s, c) => s + c.importe, 0);
 
   // Carga día a día: hoy + los próximos 13 (el "cuánto hay que pagar en el día"
@@ -346,13 +356,14 @@ export default function PrestamosClient({
     const manana = addDiasISO(hoy, 1);
     return Array.from({ length: 14 }, (_, i) => {
       const iso = addDiasISO(base, i);
-      const delDia = cuotasPendientes.filter((c) => c.fecha_vencimiento === iso);
+      const delDia = cuotasPendientes.filter((c) => c.fecha_efectiva === iso);
       const esHoy = iso === hoy;
       return {
         iso,
         label: esHoy ? "Hoy" : iso === manana ? "Mañana" : labelDia(iso),
         total: delDia.reduce((s, c) => s + c.importe, 0),
         cuotas: delDia.length,
+        corridas: delDia.filter((c) => c.motivo_corrimiento).length,
         isToday: esHoy,
       };
     });
@@ -366,12 +377,13 @@ export default function PrestamosClient({
     return Array.from({ length: 12 }, (_, i) => {
       const d = new Date(y0, m0 + offset * 12 + i, 1);
       const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const delMes = cuotasPendientes.filter((c) => c.fecha_vencimiento.slice(0, 7) === id);
+      const delMes = cuotasPendientes.filter((c) => c.fecha_efectiva.slice(0, 7) === id);
       return {
         id,
         label: `${MESES_CORTOS[d.getMonth()]}${d.getMonth() === 0 || i === 0 ? ` ${String(d.getFullYear()).slice(2)}` : ""}`,
         total: delMes.reduce((s, c) => s + c.importe, 0),
         cuotas: delMes.length,
+        corridas: delMes.filter((c) => c.motivo_corrimiento).length,
         isCurrent: id === mesActual,
       };
     });
@@ -437,8 +449,8 @@ export default function PrestamosClient({
           return a.banco.localeCompare(b.banco) || (a.detalle ?? "").localeCompare(b.detalle ?? "");
         default: {
           // Próxima cuota: los cancelados (sin próxima) al final.
-          const fa = a.proxima?.fecha_vencimiento ?? "9999";
-          const fb = b.proxima?.fecha_vencimiento ?? "9999";
+          const fa = a.proxima?.fecha_efectiva ?? "9999";
+          const fb = b.proxima?.fecha_efectiva ?? "9999";
           return fa.localeCompare(fb);
         }
       }
@@ -799,6 +811,12 @@ export default function PrestamosClient({
                       >
                         {vencida ? "Venció el " : "Vence el "}
                         {fmtFecha(c.fecha_vencimiento)}
+                        {c.motivo_corrimiento && (
+                          <span className="text-[#B45309]">
+                            {" · "}
+                            {c.motivo_corrimiento}, se paga el {fmtFecha(c.fecha_efectiva)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -849,6 +867,17 @@ export default function PrestamosClient({
               </button>
             )}
           </div>
+          {/* Mirar para atrás: lo que ya se pagó, mes a mes. Estaba guardado
+              pero no se veía sin abrir préstamo por préstamo. */}
+          <button
+            type="button"
+            onClick={() => setHistorialOpen(true)}
+            title="Ver todo lo que ya se pagó, mes a mes"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <History size={15} className="text-primary" />
+            Pagos hechos
+          </button>
           {canWrite && (
             <>
               {/* El ritual de principio de mes: corregir de una las fechas que
@@ -1084,7 +1113,23 @@ export default function PrestamosClient({
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {p.proxima ? fmtFecha(p.proxima.fecha_vencimiento) : "Cancelado ✅"}
+                          {p.proxima ? (
+                            <>
+                              {fmtFecha(p.proxima.fecha_vencimiento)}
+                              {/* La fecha del contrato queda como está; abajo,
+                                  el día en que la plata sale de verdad. */}
+                              {p.proxima.motivo_corrimiento && (
+                                <span
+                                  className="block text-[11px] leading-tight text-[#B45309]"
+                                  title={`${p.proxima.motivo_corrimiento}: el banco no opera, así que se paga el ${fmtFecha(p.proxima.fecha_efectiva)}. Los totales por día, semana y mes lo cuentan ese día.`}
+                                >
+                                  se paga el {fmtFecha(p.proxima.fecha_efectiva)}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            "Cancelado ✅"
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {ultima ? fmtFecha(ultima) : "—"}
@@ -1218,6 +1263,14 @@ export default function PrestamosClient({
         )}
       </div>
 
+      <HistorialPagosDialog
+        key={`historial-${historialOpen}`}
+        prestamos={prestamos}
+        canWrite={canWrite}
+        open={historialOpen}
+        onOpenChange={setHistorialOpen}
+      />
+
       <FechasDelMesDialog
         key={`fechas-${fechasOpen}`}
         prestamos={prestamos}
@@ -1282,7 +1335,9 @@ function ChartTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: { payload: { label: string; total: number; cuotas: number } }[];
+  payload?: {
+    payload: { label: string; total: number; cuotas: number; corridas?: number };
+  }[];
 }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -1293,6 +1348,12 @@ function ChartTooltip({
       <p className="text-muted-foreground">
         {d.cuotas} cuota{d.cuotas !== 1 ? "s" : ""}
       </p>
+      {/* De dónde sale la diferencia con las fechas que figuran en la tabla. */}
+      {d.corridas ? (
+        <p className="mt-1 border-t border-border pt-1 text-[#B45309]">
+          Incluye {d.corridas} que vencía{d.corridas !== 1 ? "n" : ""} en día no hábil
+        </p>
+      ) : null}
     </div>
   );
 }
