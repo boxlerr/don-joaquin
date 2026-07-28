@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  CalendarCheck,
   BellRing,
   Repeat,
   Pencil,
@@ -52,6 +53,7 @@ import { inicialesBanco, marcaBanco } from "./bancos";
 import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
 import TopesDialog from "./TopesDialog";
+import FechasDelMesDialog from "./FechasDelMesDialog";
 import { excedeTope, hayAlgunTope, nivel, PERIODO_LABEL, TOPES_DEFAULT, type TopesConfig } from "./topes";
 import {
   setCuotaPagadaAction,
@@ -216,6 +218,7 @@ export default function PrestamosClient({
   topes?: TopesConfig;
 }) {
   const [topesOpen, setTopesOpen] = useState(false);
+  const [fechasOpen, setFechasOpen] = useState(false);
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Filtros y orden del listado: con 35 préstamos de 6 bancos, buscar a ojo no va.
@@ -862,7 +865,22 @@ export default function PrestamosClient({
               </button>
             )}
           </div>
-          {canWrite && <AddPrestamoDialog bancos={bancos} />}
+          {canWrite && (
+            <>
+              {/* El ritual de principio de mes: corregir de una las fechas que
+                  pasó el banco, en vez de abrir préstamo por préstamo. */}
+              <button
+                type="button"
+                onClick={() => setFechasOpen(true)}
+                title="Corregir de una vez las fechas y los importes que vencen este mes"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                <CalendarCheck size={15} className="text-primary" />
+                Fechas del mes
+              </button>
+              <AddPrestamoDialog bancos={bancos} />
+            </>
+          )}
         </div>
 
         {/* Filtros y orden: con 35 préstamos de 6 bancos, encontrar uno a ojo
@@ -1231,6 +1249,14 @@ export default function PrestamosClient({
           </div>
         )}
       </div>
+
+      <FechasDelMesDialog
+        key={`fechas-${fechasOpen}`}
+        prestamos={prestamos}
+        open={fechasOpen}
+        onOpenChange={setFechasOpen}
+        mesInicial={mesActual}
+      />
 
       <TopesDialog key={`topes-${topesOpen}`} topes={topes} open={topesOpen} onOpenChange={setTopesOpen} />
 

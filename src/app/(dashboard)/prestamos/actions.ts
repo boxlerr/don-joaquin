@@ -697,3 +697,92 @@ export async function guardarTopesAction(
   revalidatePath("/prestamos");
   return { ok: true };
 }
+
+/* ------------------------------------------------------------------ *
+ * Corrección de fechas del mes
+ * ------------------------------------------------------------------ */
+
+export type CambioCuota = {
+  id: string;
+  fecha_vencimiento?: string;
+  importe?: number;
+};
+
+/**
+ * Guarda de una vez las correcciones del mes.
+ *
+ * Es el flujo real de quien usa la sección: "a principio de mes corrijo todas
+ * las fechas que tengo, como hago con las planillas". Hacerlo cuota por cuota
+ * —abrir el préstamo, buscar la fila, editar, guardar— eran cincuenta idas y
+ * vueltas, y por eso el cronograma quedaba desactualizado.
+ *
+ * Se valida TODO antes de escribir nada: o entra el mes entero o no entra nada,
+ * para no dejar la planilla a medio corregir.
+ */
+export async function actualizarCuotasAction(
+  cambios: CambioCuota[],
+): Promise<{ ok: true; guardados: number } | { error: string }> {
+  const user = await requireSeccion("prestamos", "write");
+  if (cambios.length === 0) return { ok: true, guardados: 0 };
+
+  for (const c of cambios) {
+    if (!c.id) return { error: "Falta identificar una de las cuotas." };
+    if (c.fecha_vencimiento != null && !/^\d{4}-\d{2}-\d{2}$/.test(c.fecha_vencimiento))
+      return { error: `Fecha inválida: ${c.fecha_vencimiento}` };
+    if (c.importe != null && (!Number.isFinite(c.importe) || c.importe < 0))
+      return { error: "Los importes tienen que ser números mayores o iguales a cero." };
+  }
+
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previas } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, prestamo_id, nro, fecha_vencimiento, importe")
+    .in(
+      "id",
+      cambios.map((c) => c.id),
+    );
+  const previaPorId = new Map(
+    ((previas ?? []) as { id: string; prestamo_id: string; nro: number; fecha_vencimiento: string; importe: number }[]).map(
+      (c) => [c.id, c],
+    ),
+  );
+  const faltan = cambios.filter((c) => !previaPorId.has(c.id));
+  if (faltan.length > 0) return { error: "Alguna de las cuotas ya no existe. Recargá la pantalla." };
+
+  let guardados = 0;
+  for (const c of cambios) {
+    const previa = previaPorId.get(c.id)!;
+    const update: Record<string, unknown> = {};
+    if (c.fecha_vencimiento != null && c.fecha_vencimiento !== previa.fecha_vencimiento)
+      update.fecha_vencimiento = c.fecha_vencimiento;
+    if (c.importe != null && c.importe !== Number(previa.importe)) update.importe = c.importe;
+    if (Object.keys(update).length === 0) continue;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("prestamo_cuotas").update(update).eq("id", c.id);
+    if (error) {
+      console.error("Error al corregir la cuota:", error);
+      return { error: "No se pudieron guardar todos los cambios. Revisá y probá de nuevo." };
+    }
+    guardados++;
+
+    await logAudit({
+      client: supabase,
+      usuarioId: user.id,
+      accion: "actualizar",
+      entidadTipo: "prestamo_cuota",
+      entidadId: c.id,
+      valoresAnteriores: {
+        fecha_vencimiento: previa.fecha_vencimiento,
+        importe: Number(previa.importe),
+      },
+      valoresNuevos: update,
+      metadata: { origen: "prestamos", flujo: "fechas_del_mes", prestamo_id: previa.prestamo_id, nro: previa.nro },
+    });
+  }
+
+  revalidatePath("/prestamos");
+  return { ok: true, guardados };
+}
