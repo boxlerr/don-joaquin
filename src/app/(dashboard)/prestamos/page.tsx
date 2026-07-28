@@ -1,6 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
-import { getPrestamosAction } from "./actions";
+import { getPrestamosAction, getTopesAction } from "./actions";
 import PrestamosClient from "./PrestamosClient";
 import HelpTutorialButton from "./help-tutorial-button";
 import ExportPrestamosButton from "./export-prestamos-button";
@@ -16,7 +16,7 @@ export default async function PrestamosPage() {
   const user = await requireSeccion("prestamos", "read");
   const canWrite = hasSeccion(user, "prestamos", "write");
 
-  const prestamos = await getPrestamosAction();
+  const [prestamos, topes] = await Promise.all([getPrestamosAction(), getTopesAction()]);
   // Las grafías de banco que ya se usan: alimentan el desplegable del alta y de
   // la edición, y evitan que se dupliquen por mayúsculas o acentos.
   const bancos = [...new Set(prestamos.map((p) => p.banco))];
@@ -37,7 +37,7 @@ export default async function PrestamosPage() {
         }
       />
 
-      <PrestamosClient prestamos={prestamos} canWrite={canWrite} />
+      <PrestamosClient prestamos={prestamos} canWrite={canWrite} topes={topes} />
     </div>
   );
 }

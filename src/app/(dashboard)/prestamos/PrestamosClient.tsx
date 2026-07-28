@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  BellRing,
   Repeat,
   Pencil,
   Landmark,
@@ -50,6 +51,8 @@ import EditPrestamoDialog from "./EditPrestamoDialog";
 import { inicialesBanco, marcaBanco } from "./bancos";
 import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
+import TopesDialog from "./TopesDialog";
+import { excedeTope, hayAlgunTope, nivel, PERIODO_LABEL, TOPES_DEFAULT, type TopesConfig } from "./topes";
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
@@ -100,6 +103,7 @@ const MESES = [
 const DIAS_CORTOS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 
 /** Paleta del módulo — variedad sin caer en arcoíris (pedido de Bárbara). */
+const ROJO_TOPE = "#DC2626";
 const VIOLETA = "#7C3AED";
 const AMBAR = "#F59E0B";
 const TEAL = "#0D9488";
@@ -204,10 +208,14 @@ const ORDEN_LABEL: Record<OrdenPrestamo, string> = {
 export default function PrestamosClient({
   prestamos,
   canWrite,
+  topes = TOPES_DEFAULT,
 }: {
   prestamos: PrestamoRow[];
   canWrite: boolean;
+  /** A partir de cuánta plata por día/semana/mes hay que avisar en rojo. */
+  topes?: TopesConfig;
 }) {
+  const [topesOpen, setTopesOpen] = useState(false);
   const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Filtros y orden del listado: con 35 préstamos de 6 bancos, buscar a ojo no va.
@@ -270,6 +278,10 @@ export default function PrestamosClient({
     }
     return buckets;
   }, [cuotasPendientes, hoy, offset]);
+
+  // Períodos que se pasan del tope, para el aviso de arriba del gráfico. Se
+  // calcula sobre los mismos datos que dibuja cada vista.
+  const topeVista = vista === "dia" ? topes.dia : vista === "semana" ? topes.semana : topes.mes;
 
   const chartData = useMemo(
     () =>
@@ -361,6 +373,19 @@ export default function PrestamosClient({
     });
   }, [cuotasPendientes, mesActual, offset]);
   const hayCargaMensual = meses.some((m) => m.total > 0);
+
+  const excedidos = useMemo(() => {
+    const filas =
+      vista === "dia"
+        ? dias.map((d) => ({ label: d.label, total: d.total }))
+        : vista === "semana"
+          ? chartData.map((c) => ({ label: c.label, total: c.total }))
+          : meses.map((m) => ({ label: m.label, total: m.total }));
+    return filas
+      .map((f) => ({ ...f, e: excedeTope(f.total, topeVista) }))
+      .filter((f): f is typeof f & { e: NonNullable<typeof f.e> } => f.e != null)
+      .map((f) => ({ label: f.label, total: f.total, porcentaje: f.e.porcentaje }));
+  }, [vista, dias, chartData, meses, topeVista]);
 
   /** Rango que está mostrando el gráfico (reemplaza la bajada fija). */
   const rangoLabel = useMemo(() => {
@@ -572,6 +597,21 @@ export default function PrestamosClient({
                 );
               })}
             </div>
+            {canWrite && (
+              <button
+                type="button"
+                onClick={() => setTopesOpen(true)}
+                title="A partir de cuánta plata por día, semana o mes querés que te avise"
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+                  hayAlgunTope(topes)
+                    ? "border-border text-muted-foreground hover:text-foreground"
+                    : "border-dashed border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <BellRing size={12} />
+                {hayAlgunTope(topes) ? "Topes" : "Poner un tope"}
+              </button>
+            )}
           </div>
           {/* Navegación de la ventana: se puede ir a períodos anteriores y
               posteriores, no sólo mirar hacia adelante. */}
@@ -604,6 +644,26 @@ export default function PrestamosClient({
             )}
           </div>
 
+          {/* La alarma: cuánto se pasa y cuándo. El dato ya estaba en las
+              barras, pero había que mirarlo y darse cuenta; el tope lo dice. */}
+          {topeVista != null && excedidos.length > 0 && (
+            <div className="mb-3 flex items-start gap-2 rounded-[6px] border border-[#DC2626]/40 px-3 py-2">
+              <BellRing size={14} className="mt-0.5 shrink-0 text-[#DC2626]" />
+              <p className="text-[12px] leading-snug text-foreground">
+                <span className="font-semibold text-[#DC2626]">
+                  {excedidos.length === 1 ? "Ojo con " : `Ojo con ${excedidos.length} períodos: `}
+                </span>
+                {excedidos
+                  .map((e) => `${e.label} — ${ars(e.total)}, ${formatoVariacion(e.porcentaje)} sobre el tope`)
+                  .join(" · ")}
+                {". "}
+                <span className="text-muted-foreground">
+                  El tope {PERIODO_LABEL[vista]} está en {ars(topeVista)}.
+                </span>
+              </p>
+            </div>
+          )}
+
           {vista === "dia" &&
             (hayCargaDiaria ? (
               <ResponsiveContainer width="100%" height={288}>
@@ -619,9 +679,16 @@ export default function PrestamosClient({
                   <YAxis hide />
                   <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
                   <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
-                    {dias.map((d, i) => (
-                      <Cell key={i} fill={d.isToday ? AMBAR : VIOLETA} fillOpacity={d.isToday ? 1 : 0.55} />
-                    ))}
+                    {dias.map((d, i) => {
+                      const pasa = nivel(d.total, topes.dia) === "excedido";
+                      return (
+                        <Cell
+                          key={i}
+                          fill={pasa ? ROJO_TOPE : d.isToday ? AMBAR : VIOLETA}
+                          fillOpacity={pasa ? 0.9 : d.isToday ? 1 : 0.55}
+                        />
+                      );
+                    })}
                     <LabelList dataKey="total" content={<MoneyLabel vertical />} />
                   </Bar>
                 </BarChart>
@@ -653,9 +720,16 @@ export default function PrestamosClient({
                   />
                   <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
                   <Bar dataKey="total" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
-                    {chartData.map((d, i) => (
-                      <Cell key={i} fill={BRAND} fillOpacity={d.isCurrent ? 1 : 0.42} />
-                    ))}
+                    {chartData.map((d, i) => {
+                      const pasa = nivel(d.total, topes.semana) === "excedido";
+                      return (
+                        <Cell
+                          key={i}
+                          fill={pasa ? ROJO_TOPE : BRAND}
+                          fillOpacity={pasa ? 0.9 : d.isCurrent ? 1 : 0.42}
+                        />
+                      );
+                    })}
                     <LabelList dataKey="total" content={<MoneyLabel />} />
                   </Bar>
                 </BarChart>
@@ -681,9 +755,16 @@ export default function PrestamosClient({
                   <YAxis hide />
                   <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
                   <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
-                    {meses.map((m, i) => (
-                      <Cell key={i} fill={TEAL} fillOpacity={m.isCurrent ? 1 : 0.5} />
-                    ))}
+                    {meses.map((m, i) => {
+                      const pasa = nivel(m.total, topes.mes) === "excedido";
+                      return (
+                        <Cell
+                          key={i}
+                          fill={pasa ? ROJO_TOPE : TEAL}
+                          fillOpacity={pasa ? 0.9 : m.isCurrent ? 1 : 0.5}
+                        />
+                      );
+                    })}
                     <LabelList dataKey="total" content={<MoneyLabel vertical />} />
                   </Bar>
                 </BarChart>
@@ -725,6 +806,12 @@ export default function PrestamosClient({
                       >
                         {vencida ? "Venció el " : "Vence el "}
                         {fmtFecha(c.fecha_vencimiento)}
+                        {c.fecha_efectiva && (
+                          <span className="text-[#B45309]">
+                            {" · "}
+                            {c.motivo_corrimiento}, se paga el {fmtFecha(c.fecha_efectiva)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -995,7 +1082,23 @@ export default function PrestamosClient({
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {p.proxima ? fmtFecha(p.proxima.fecha_vencimiento) : "Cancelado ✅"}
+                          {p.proxima ? (
+                            <>
+                              {fmtFecha(p.proxima.fecha_vencimiento)}
+                              {/* Si cae sábado, domingo o feriado el banco no
+                                  opera: se paga el hábil siguiente. */}
+                              {p.proxima.fecha_efectiva && (
+                                <span
+                                  className="block text-[11px] leading-tight text-[#B45309]"
+                                  title={`${p.proxima.motivo_corrimiento} — el banco no opera, así que se paga el ${fmtFecha(p.proxima.fecha_efectiva)}`}
+                                >
+                                  se paga el {fmtFecha(p.proxima.fecha_efectiva)}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            "Cancelado ✅"
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {ultima ? fmtFecha(ultima) : "—"}
@@ -1128,6 +1231,8 @@ export default function PrestamosClient({
           </div>
         )}
       </div>
+
+      <TopesDialog key={`topes-${topesOpen}`} topes={topes} open={topesOpen} onOpenChange={setTopesOpen} />
 
       <EditPrestamoDialog
         key={`edit-prestamo-${editKey}`}
