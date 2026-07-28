@@ -1,6 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { alertaHref, type AlertaItem, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
+import type { CurrentUser } from "@/lib/auth";
+import { visiblePara } from "@/lib/alertas-visibilidad";
 
 /**
  * Capa de estado leído/descartado POR USUARIO.
@@ -59,17 +61,24 @@ function noLeida(l: LecturaRow | undefined): boolean {
  * todavía NO marcó como leídas ni descartó. Es la definición canónica de "no leída"
  * que comparten el badge del layout, el endpoint y `marcarTodasVistas`.
  */
-export async function getPendientesNoLeidasIds(usuarioId: string): Promise<string[]> {
+export async function getPendientesNoLeidasIds(usuario: CurrentUser): Promise<string[]> {
   const supabase = createAdminClient();
   const [{ data: alertas }, lecturas] = await Promise.all([
     supabase
       .from("alertas")
-      .select("id")
+      // tipo y entidad_tipo hacen falta para descartar las de secciones
+      // confidenciales: si el badge las cuenta y la lista no las muestra,
+      // queda un contador que nunca baja.
+      .select("id, tipo, entidad_tipo")
       .eq("estado", "pendiente")
       .not("tipo", "in", `(${DOC_LIVE.join(",")})`),
-    getLecturasMap(supabase, usuarioId),
+    getLecturasMap(supabase, usuario.id),
   ]);
-  return (alertas ?? []).map((a: { id: string }) => a.id).filter((id: string) => noLeida(lecturas.get(id)));
+  const puedeVer = visiblePara(usuario);
+  return ((alertas ?? []) as { id: string; tipo: string; entidad_tipo: string | null }[])
+    .filter(puedeVer)
+    .map((a) => a.id)
+    .filter((id) => noLeida(lecturas.get(id)));
 }
 
 /** IDs de alertas que el usuario ya ocultó (leídas o descartadas). */
@@ -90,7 +99,7 @@ export async function getOcultasPorUsuario(usuarioId: string): Promise<Set<strin
  * pueda marcar como "ya avisadas" todas en el primer load y no toastear viejas.
  */
 export async function getResumenUsuario(
-  usuarioId: string,
+  usuario: CurrentUser,
   limit = 8,
 ): Promise<{ count: number; items: ResumenItem[]; allIds: string[] }> {
   const supabase = createAdminClient();
@@ -101,7 +110,7 @@ export async function getResumenUsuario(
       .eq("estado", "pendiente")
       .not("tipo", "in", `(${DOC_LIVE.join(",")})`)
       .order("fecha_disparo", { ascending: false }),
-    getLecturasMap(supabase, usuarioId),
+    getLecturasMap(supabase, usuario.id),
   ]);
 
   type Row = {
@@ -115,7 +124,12 @@ export async function getResumenUsuario(
     entidad_id: string | null;
   };
 
-  const noLeidas: Row[] = (alertas ?? []).filter((a: Row) => noLeida(lecturas.get(a.id)));
+  // El título y el mensaje viajan al cliente, y los de préstamos traen montos:
+  // se descartan acá, no en la pantalla.
+  const puedeVer = visiblePara(usuario);
+  const noLeidas: Row[] = (alertas ?? []).filter(
+    (a: Row) => puedeVer(a) && noLeida(lecturas.get(a.id)),
+  );
 
   const ordenadas = [...noLeidas].sort((a, b) => {
     const s = SEV_ORDER[a.severidad] - SEV_ORDER[b.severidad];

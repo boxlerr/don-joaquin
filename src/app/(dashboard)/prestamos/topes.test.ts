@@ -26,9 +26,11 @@ describe("mergeTopes", () => {
 });
 
 describe("hayAlgunTope", () => {
-  it("distingue configurado de vacío", () => {
+  it("sólo cuenta el mensual: es el único que se controla", () => {
     expect(hayAlgunTope(TOPES_DEFAULT)).toBe(false);
-    expect(hayAlgunTope({ dia: null, semana: 1, mes: null })).toBe(true);
+    expect(hayAlgunTope({ dia: null, semana: null, mes: 300_000_000 })).toBe(true);
+    // Una config vieja con día o semana pero sin mes no controla nada.
+    expect(hayAlgunTope({ dia: 5, semana: 1, mes: null })).toBe(false);
   });
 });
 

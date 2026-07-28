@@ -1,8 +1,8 @@
 "use client";
 
-// Dónde poner la raya. Los tres topes son opcionales y se editan cuando cambia
-// el mes: es lo que pidió el padre de Bárbara — "que superado ese número me
-// aparezca advertencia, ojo que noviembre lo tenés complicadísimo".
+// Dónde poner la raya. Un solo número, el del mes: es la unidad en que se toma
+// la decisión de plata. Es lo que pidió el padre de Bárbara — "que superado ese
+// número me aparezca advertencia, ojo que noviembre lo tenés complicadísimo".
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,9 +21,7 @@ import { guardarTopesAction } from "./actions";
 import { PERIODOS, PERIODO_LABEL, type TopesConfig } from "./topes";
 
 const AYUDA: Record<string, string> = {
-  dia: "Un solo día con demasiados vencimientos juntos.",
-  semana: "La semana que se viene. Ej: 300.000.000.",
-  mes: "El mes completo, para ver con tiempo los que vienen pesados.",
+  mes: "Lo que hay que pagar en el mes completo. Ej: 300.000.000.",
 };
 
 function ars(n: number): string {
@@ -41,8 +39,6 @@ export default function TopesDialog({
 }) {
   const router = useRouter();
   const [valores, setValores] = useState<Record<string, string>>({
-    dia: topes.dia != null ? String(topes.dia) : "",
-    semana: topes.semana != null ? String(topes.semana) : "",
     mes: topes.mes != null ? String(topes.mes) : "",
   });
   const [loading, setLoading] = useState(false);
@@ -52,8 +48,10 @@ export default function TopesDialog({
     setLoading(true);
     setError(null);
     const res = await guardarTopesAction({
-      dia: valores.dia!.trim() === "" ? null : Number(valores.dia),
-      semana: valores.semana!.trim() === "" ? null : Number(valores.semana),
+      // Se conservan los valores viejos de día y semana por si alguna vez se
+      // vuelven a usar; hoy la pantalla sólo edita el mensual.
+      dia: topes.dia,
+      semana: topes.semana,
       mes: valores.mes!.trim() === "" ? null : Number(valores.mes),
     });
     setLoading(false);
@@ -69,10 +67,10 @@ export default function TopesDialog({
     <Dialog open={open} onOpenChange={(v) => !loading && onOpenChange(v)}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle className="text-lg text-foreground">Avisarme cuando se pase de</DialogTitle>
+          <DialogTitle className="text-lg text-foreground">Tope mensual</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Cuando lo que hay que pagar en un período supere el número, la pantalla lo marca en
-            rojo. Los tres son opcionales: dejá vacío el que no quieras controlar.
+            Cuando lo que hay que pagar en un mes supere este número, el mes se marca en rojo en
+            el gráfico y llega una notificación. Dejalo vacío para no controlar nada.
           </DialogDescription>
         </DialogHeader>
 
@@ -86,7 +84,7 @@ export default function TopesDialog({
             return (
               <div key={p} className="space-y-1">
                 <Label className="text-xs font-semibold text-muted-foreground">
-                  Total {PERIODO_LABEL[p]}
+                  Tope {PERIODO_LABEL[p]}
                 </Label>
                 <Input
                   type="number"

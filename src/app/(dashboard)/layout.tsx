@@ -23,7 +23,7 @@ const getLayoutData = cache(async () => {
   // Contador POR USUARIO: alertas pendientes que ESTE usuario no leyó (misma
   // definición que /api/alertas, así el badge llega a 0 al marcar todo).
   const alertasCount =
-    currentUser && !bloqueoHorario ? (await getResumenUsuario(currentUser.id)).count : 0;
+    currentUser && !bloqueoHorario ? (await getResumenUsuario(currentUser)).count : 0;
 
   let sidebarUser: SidebarUser | null = null;
   if (currentUser) {

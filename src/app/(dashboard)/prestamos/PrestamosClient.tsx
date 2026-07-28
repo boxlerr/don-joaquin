@@ -54,7 +54,7 @@ import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
 import TopesDialog from "./TopesDialog";
 import FechasDelMesDialog from "./FechasDelMesDialog";
-import { excedeTope, hayAlgunTope, nivel, PERIODO_LABEL, TOPES_DEFAULT, type TopesConfig } from "./topes";
+import { excedeTope, hayAlgunTope, nivel, TOPES_DEFAULT, type TopesConfig } from "./topes";
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
@@ -284,7 +284,8 @@ export default function PrestamosClient({
 
   // Períodos que se pasan del tope, para el aviso de arriba del gráfico. Se
   // calcula sobre los mismos datos que dibuja cada vista.
-  const topeVista = vista === "dia" ? topes.dia : vista === "semana" ? topes.semana : topes.mes;
+  // El tope es sólo mensual: la decisión de plata se toma por mes.
+  const topeVista = vista === "mes" ? topes.mes : null;
 
   const chartData = useMemo(
     () =>
@@ -378,17 +379,13 @@ export default function PrestamosClient({
   const hayCargaMensual = meses.some((m) => m.total > 0);
 
   const excedidos = useMemo(() => {
-    const filas =
-      vista === "dia"
-        ? dias.map((d) => ({ label: d.label, total: d.total }))
-        : vista === "semana"
-          ? chartData.map((c) => ({ label: c.label, total: c.total }))
-          : meses.map((m) => ({ label: m.label, total: m.total }));
-    return filas
+    if (vista !== "mes") return [];
+    return meses
+      .map((m) => ({ label: m.label, total: m.total }))
       .map((f) => ({ ...f, e: excedeTope(f.total, topeVista) }))
       .filter((f): f is typeof f & { e: NonNullable<typeof f.e> } => f.e != null)
       .map((f) => ({ label: f.label, total: f.total, porcentaje: f.e.porcentaje }));
-  }, [vista, dias, chartData, meses, topeVista]);
+  }, [vista, meses, topeVista]);
 
   /** Rango que está mostrando el gráfico (reemplaza la bajada fija). */
   const rangoLabel = useMemo(() => {
@@ -573,9 +570,15 @@ export default function PrestamosClient({
                 <CalendarRange size={16} style={{ color: TEAL }} />
               )}
               <h2 className="text-sm font-semibold text-foreground">
-                Cuánto hay que pagar por {vista === "dia" ? "día" : vista === "semana" ? "semana" : "mes"}
+                Cuánto hay que pagar por{" "}
+                {/* Ancho fijo: si no, al cambiar de escala el título cambia de
+                    largo y arrastra a todo lo que tiene al lado. */}
+                <span className="inline-block min-w-[3.6rem]">
+                  {vista === "dia" ? "día" : vista === "semana" ? "semana" : "mes"}
+                </span>
               </h2>
             </div>
+            <div className="flex items-center gap-2">
             <div
               role="group"
               aria-label="Escala del gráfico"
@@ -612,9 +615,10 @@ export default function PrestamosClient({
                 }`}
               >
                 <BellRing size={12} />
-                {hayAlgunTope(topes) ? "Topes" : "Poner un tope"}
+                {hayAlgunTope(topes) ? "Tope mensual" : "Poner un tope"}
               </button>
             )}
+            </div>
           </div>
           {/* Navegación de la ventana: se puede ir a períodos anteriores y
               posteriores, no sólo mirar hacia adelante. */}
@@ -661,7 +665,7 @@ export default function PrestamosClient({
                   .join(" · ")}
                 {". "}
                 <span className="text-muted-foreground">
-                  El tope {PERIODO_LABEL[vista]} está en {ars(topeVista)}.
+                  El tope mensual está en {ars(topeVista)}.
                 </span>
               </p>
             </div>
@@ -682,16 +686,9 @@ export default function PrestamosClient({
                   <YAxis hide />
                   <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
                   <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false} minPointSize={2}>
-                    {dias.map((d, i) => {
-                      const pasa = nivel(d.total, topes.dia) === "excedido";
-                      return (
-                        <Cell
-                          key={i}
-                          fill={pasa ? ROJO_TOPE : d.isToday ? AMBAR : VIOLETA}
-                          fillOpacity={pasa ? 0.9 : d.isToday ? 1 : 0.55}
-                        />
-                      );
-                    })}
+                    {dias.map((d, i) => (
+                      <Cell key={i} fill={d.isToday ? AMBAR : VIOLETA} fillOpacity={d.isToday ? 1 : 0.55} />
+                    ))}
                     <LabelList dataKey="total" content={<MoneyLabel vertical />} />
                   </Bar>
                 </BarChart>
@@ -723,16 +720,9 @@ export default function PrestamosClient({
                   />
                   <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.35 }} content={<ChartTooltip />} />
                   <Bar dataKey="total" radius={[0, 4, 4, 0]} isAnimationActive={false} minPointSize={2}>
-                    {chartData.map((d, i) => {
-                      const pasa = nivel(d.total, topes.semana) === "excedido";
-                      return (
-                        <Cell
-                          key={i}
-                          fill={pasa ? ROJO_TOPE : BRAND}
-                          fillOpacity={pasa ? 0.9 : d.isCurrent ? 1 : 0.42}
-                        />
-                      );
-                    })}
+                    {chartData.map((d, i) => (
+                      <Cell key={i} fill={BRAND} fillOpacity={d.isCurrent ? 1 : 0.42} />
+                    ))}
                     <LabelList dataKey="total" content={<MoneyLabel />} />
                   </Bar>
                 </BarChart>
@@ -809,12 +799,6 @@ export default function PrestamosClient({
                       >
                         {vencida ? "Venció el " : "Vence el "}
                         {fmtFecha(c.fecha_vencimiento)}
-                        {c.fecha_efectiva && (
-                          <span className="text-[#B45309]">
-                            {" · "}
-                            {c.motivo_corrimiento}, se paga el {fmtFecha(c.fecha_efectiva)}
-                          </span>
-                        )}
                       </p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
@@ -1100,23 +1084,7 @@ export default function PrestamosClient({
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {p.proxima ? (
-                            <>
-                              {fmtFecha(p.proxima.fecha_vencimiento)}
-                              {/* Si cae sábado, domingo o feriado el banco no
-                                  opera: se paga el hábil siguiente. */}
-                              {p.proxima.fecha_efectiva && (
-                                <span
-                                  className="block text-[11px] leading-tight text-[#B45309]"
-                                  title={`${p.proxima.motivo_corrimiento} — el banco no opera, así que se paga el ${fmtFecha(p.proxima.fecha_efectiva)}`}
-                                >
-                                  se paga el {fmtFecha(p.proxima.fecha_efectiva)}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            "Cancelado ✅"
-                          )}
+                          {p.proxima ? fmtFecha(p.proxima.fecha_vencimiento) : "Cancelado ✅"}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {ultima ? fmtFecha(ultima) : "—"}

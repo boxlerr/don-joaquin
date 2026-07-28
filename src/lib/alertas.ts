@@ -1026,6 +1026,77 @@ export async function generarAlertas() {
     }
   }
 
+  // Tope mensual de préstamos: avisa apenas lo que hay que pagar en un mes se
+  // pasa del número que fijaron. Es el pedido del padre de Bárbara — "ojo que
+  // noviembre lo tenés complicadísimo" — y la gracia es enterarse con meses de
+  // anticipación, no el día 1. Mira los próximos 6 meses.
+  try {
+    const { data: paramTope } = await supabase
+      .from("parametros_sistema")
+      .select("valor")
+      .eq("clave", "prestamos_topes")
+      .maybeSingle();
+
+    let topeMes: number | null = null;
+    if (paramTope?.valor) {
+      try {
+        const raw = JSON.parse(paramTope.valor as string) as { mes?: unknown };
+        const n = Number(raw?.mes);
+        topeMes = Number.isFinite(n) && n > 0 ? n : null;
+      } catch {
+        topeMes = null;
+      }
+    }
+
+    if (topeMes != null) {
+      const finVentana = new Date(hoy.getFullYear(), hoy.getMonth() + 6, 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: cuotasTope } = await (supabase as any)
+        .from("prestamo_cuotas")
+        .select("fecha_vencimiento, importe")
+        .eq("pagada", false)
+        .gte("fecha_vencimiento", hoyStr)
+        .lte("fecha_vencimiento", finVentana.toISOString().split("T")[0]!);
+
+      const porMes = new Map<string, number>();
+      for (const c of (cuotasTope ?? []) as { fecha_vencimiento: string; importe: number }[]) {
+        const mes = c.fecha_vencimiento.slice(0, 7);
+        porMes.set(mes, (porMes.get(mes) ?? 0) + Number(c.importe));
+      }
+
+      const MESES_NOMBRE = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+      ];
+      for (const [mes, total] of [...porMes].sort()) {
+        if (total <= topeMes) continue;
+        // Se dispara una vez por mes excedido; si después baja y vuelve a
+        // subir, la clave sigue siendo la misma y no repite.
+        const key = `otro:${mes}:prestamos_tope_mensual:${mes}-01`;
+        if (existentesSet.has(key)) continue;
+
+        const [y, m] = mes.split("-").map(Number);
+        const nombreMes = `${MESES_NOMBRE[m! - 1]} de ${y}`;
+        const exceso = total - topeMes;
+        const pct = Math.round((exceso / topeMes) * 100);
+        const plata = (n: number) => `$ ${Math.round(n).toLocaleString("es-AR")}`;
+
+        nuevasAlertas.push({
+          tipo: "otro",
+          severidad: "advertencia",
+          titulo: `Préstamos: ${nombreMes} se pasa del tope`,
+          mensaje: `En ${nombreMes} hay que pagar ${plata(total)} de cuotas de préstamos: ${plata(exceso)} más que el tope de ${plata(topeMes)} (${pct}% por encima).`,
+          entidad_id: null,
+          entidad_tipo: "prestamos_tope_mensual",
+          fecha_disparo: new Date().toISOString(),
+          fecha_vencimiento: `${mes}-01`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] tope mensual de préstamos:", e);
+  }
+
   if (nuevasAlertas.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await supabase.from("alertas").insert(nuevasAlertas as any);

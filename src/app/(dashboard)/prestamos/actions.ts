@@ -6,8 +6,6 @@ import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { canonizarBanco } from "./bancos";
 import { FALTANTES, siguePendiente, type Faltante } from "./faltantes";
-import { getCalendario } from "@/lib/feriados-server";
-import { corrimiento } from "@/lib/feriados";
 import { mergeTopes, TOPES_CLAVE, type TopesConfig } from "./topes";
 
 // ---------------------------------------------------------------------------
@@ -24,14 +22,6 @@ export type CuotaRow = {
   importe: number;
   pagada: boolean;
   pagada_en: string | null;
-  /**
-   * Cuándo se puede pagar de verdad: si el vencimiento cae sábado, domingo o
-   * feriado, el banco no opera y la cuota se paga el primer día hábil
-   * siguiente. Null cuando no hay corrimiento.
-   */
-  fecha_efectiva?: string | null;
-  /** Por qué se corrió ("cae sábado", "Día del Bancario"…). */
-  motivo_corrimiento?: string | null;
 };
 
 export type PrestamoRow = {
@@ -176,7 +166,6 @@ async function traerCuotas(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
 ): Promise<Map<string, CuotaRow[]>> {
-  const cal = await getCalendario();
   const PAGINA = 1000;
   const cuotas: (CuotaRow & { prestamo_id: string })[] = [];
   for (let desde = 0; ; desde += PAGINA) {
@@ -194,9 +183,6 @@ async function traerCuotas(
   const porPrestamo = new Map<string, CuotaRow[]>();
   for (const c of cuotas) {
     const list = porPrestamo.get(c.prestamo_id) ?? [];
-    // El vencimiento que figura en el contrato puede caer un día en que el
-    // banco no atiende; entonces se paga el hábil siguiente.
-    const corr = corrimiento(c.fecha_vencimiento, cal);
     list.push({
       id: c.id,
       nro: c.nro,
@@ -204,8 +190,6 @@ async function traerCuotas(
       importe: Number(c.importe),
       pagada: c.pagada,
       pagada_en: c.pagada_en,
-      fecha_efectiva: corr.dias > 0 ? corr.efectiva : null,
-      motivo_corrimiento: corr.motivo,
     });
     porPrestamo.set(c.prestamo_id, list);
   }

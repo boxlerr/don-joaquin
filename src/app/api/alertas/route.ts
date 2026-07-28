@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth";
 import { getResumenUsuario } from "@/lib/alertas-lecturas";
 
 export const dynamic = "force-dynamic";
@@ -18,16 +18,16 @@ export const dynamic = "force-dynamic";
  * el contador es coherente y llega a 0 al marcar todo.
  */
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getCurrentUser deriva el usuario de la cookie y trae sus permisos por
+  // sección: hacen falta para no mandarle alertas confidenciales a quien no
+  // puede verlas (las de préstamos llevan montos en el mensaje).
+  const user = await getCurrentUser();
 
   if (!user) {
     return NextResponse.json({ error: "no_auth" }, { status: 401 });
   }
 
-  const { count, items, allIds } = await getResumenUsuario(user.id, 8);
+  const { count, items, allIds } = await getResumenUsuario(user, 8);
 
   const mode = request.nextUrl.searchParams.get("mode");
   if (mode === "resumen") {

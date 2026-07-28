@@ -64,8 +64,13 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "insumo_precio_desactualizado") {
     return "/mantenimiento?tab=insumos";
   }
-  // Cuota de préstamo por vencer / vencida → módulo de préstamos.
-  if (alerta.tipo === "otro" && alerta.entidad_tipo?.startsWith("prestamo_cuota")) {
+  // Cuota de préstamo por vencer / vencida, y el aviso de tope mensual
+  // superado → módulo de préstamos.
+  if (
+    alerta.tipo === "otro" &&
+    (alerta.entidad_tipo?.startsWith("prestamo_cuota") ||
+      alerta.entidad_tipo === "prestamos_tope_mensual")
+  ) {
     return "/prestamos";
   }
   // Ausencia programada → legajo del chofer, tab Ausencias.
@@ -158,3 +163,4 @@ export function chipLabelFromDias(dias: number): string {
   if (dias === 0) return "Vence hoy";
   return `${dias}d`;
 }
+

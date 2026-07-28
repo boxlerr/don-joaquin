@@ -12,10 +12,9 @@
  * Acá está todo el mes en una lista: se corrigen las fechas (y los importes, que
  * en los de tasa variable también cambian) y se guarda una sola vez.
  *
- * El aviso de "cae sábado" está, pero como ayuda, no como decisión: la mayoría
- * de los préstamos no caen en fin de semana porque el banco ya lo planifica.
- * Donde de verdad sirve es en los feriados y los puentes, que son los que "salen
- * de la galera" y nadie tiene en la cabeza.
+ * A propósito NO sugiere ni corre fechas solo. El banco ya planifica los fines
+ * de semana, y quien usa esto lo dijo claro: "no me quiero recostar sobre eso".
+ * La fecha la pone ella.
  */
 
 import { useMemo, useState } from "react";
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, CalendarCheck, ChevronLeft, ChevronRight, Wand2 } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { actualizarCuotasAction, type PrestamoRow } from "./actions";
 
 const MESES = [
@@ -63,9 +62,6 @@ type Fila = {
   fechaOriginal: string;
   importeOriginal: number;
   moneda: string;
-  /** Cuándo se puede pagar de verdad, si el vencimiento cae en día inhábil. */
-  efectiva: string | null;
-  motivo: string | null;
 };
 
 export default function FechasDelMesDialog({
@@ -101,8 +97,6 @@ export default function FechasDelMesDialog({
           fechaOriginal: c.fecha_vencimiento,
           importeOriginal: c.importe,
           moneda: p.moneda,
-          efectiva: c.fecha_efectiva ?? null,
-          motivo: c.motivo_corrimiento ?? null,
         });
       }
     }
@@ -149,26 +143,6 @@ export default function FechasDelMesDialog({
     setImportes({});
     onOpenChange(false);
     router.refresh();
-  };
-
-  /**
-   * Las que todavía tienen la fecha que proyectó el sistema y caen en un día en
-   * que el banco no opera. Son varias por mes porque el cronograma se arma
-   * sumando meses al día original; el banco, en cambio, ya las agendó al hábil
-   * siguiente. Correrlas de a una era la mitad del trabajo del mes.
-   */
-  const aCorrer = useMemo(
-    () => filas.filter((f) => f.efectiva && valorFecha(f) === f.fechaOriginal),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filas, fechas],
-  );
-
-  const correrTodas = () => {
-    setFechas((v) => {
-      const next = { ...v };
-      for (const f of aCorrer) next[f.cuotaId] = f.efectiva!;
-      return next;
-    });
   };
 
   const cambiarMes = (delta: number) => {
@@ -227,28 +201,6 @@ export default function FechasDelMesDialog({
           <p className="border-l-2 border-[#B91C1C] pl-3 text-sm text-[#B91C1C]">{error}</p>
         )}
 
-        {aCorrer.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-[6px] border border-[#B45309]/40 px-3 py-2">
-            <p className="text-[12px] leading-snug text-foreground">
-              <span className="font-medium text-[#B45309]">
-                {aCorrer.length} {aCorrer.length === 1 ? "cuota cae" : "cuotas caen"} en un día en
-                que el banco no opera.
-              </span>{" "}
-              <span className="text-muted-foreground">
-                Es la fecha que proyectó el sistema; el banco suele agendarlas al hábil siguiente.
-              </span>
-            </p>
-            <button
-              type="button"
-              onClick={correrTodas}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-[6px] border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <Wand2 size={12} className="text-primary" />
-              Correr {aCorrer.length === 1 ? "esa" : "las"} al día hábil
-            </button>
-          </div>
-        )}
-
         {filas.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No hay cuotas por pagar en {labelMes(mes)}.
@@ -268,9 +220,6 @@ export default function FechasDelMesDialog({
                 {filas.map((f) => {
                   const fecha = valorFecha(f);
                   const tocada = fecha !== f.fechaOriginal;
-                  // El aviso vale para la fecha ORIGINAL; si ya la corrigió a
-                  // mano, no tiene sentido seguir sugiriendo.
-                  const avisar = !tocada && f.efectiva;
                   return (
                     <tr key={f.cuotaId} className="align-top">
                       <td className="py-2.5 pr-3">
@@ -293,18 +242,6 @@ export default function FechasDelMesDialog({
                           }
                           className={`h-8 w-[9.5rem] ${tocada ? "border-primary/60" : ""}`}
                         />
-                        {avisar && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFechas((v) => ({ ...v, [f.cuotaId]: f.efectiva! }))
-                            }
-                            title={`${f.motivo} — el banco no opera ese día`}
-                            className="mt-1 inline-flex items-center gap-1 text-[11px] text-[#B45309] hover:underline"
-                          >
-                            {f.motivo} <ArrowRight size={10} /> {fmtFecha(f.efectiva!)}
-                          </button>
-                        )}
                         {tocada && (
                           <span className="mt-1 block text-[11px] text-muted-foreground">
                             antes {fmtFecha(f.fechaOriginal)}

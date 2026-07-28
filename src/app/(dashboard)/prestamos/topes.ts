@@ -1,13 +1,16 @@
 /**
- * Topes de pago para préstamos: a partir de cuánta plata en un día, una semana
- * o un mes hay que encender la alarma.
+ * Tope de pago mensual para préstamos: a partir de cuánta plata en el mes hay
+ * que encender la alarma.
  *
- * Pedido del padre de Bárbara: "poner alertas o alarmas en rojo — che, fijate
- * que la semana que viene los préstamos superan los 300 millones", "ojo que el
- * mes de noviembre lo tenés complicadísimo". No es que el dato no estuviera: es
- * que había que mirarlo y darse cuenta. El tope lo pone el número por vos.
+ * Pedido del padre de Bárbara: "che, fijate que la semana que viene los
+ * préstamos superan los 300 millones", "ojo que el mes de noviembre lo tenés
+ * complicadísimo". No es que el dato no estuviera: es que había que mirarlo y
+ * darse cuenta. El tope lo pone el número por vos.
  *
- * Cada tope es opcional: si está en null, ese período no avisa nada.
+ * Es MENSUAL y nada más: por día y por semana se probaron y no aportaban — la
+ * decisión de plata se toma por mes. El tipo mantiene `dia` y `semana` porque ya
+ * hay configuraciones guardadas con esas claves y no vale la pena migrarlas,
+ * pero la pantalla sólo edita y usa el mensual.
  */
 
 export const TOPES_CLAVE = "prestamos_topes";
@@ -28,7 +31,8 @@ export const PERIODO_LABEL: Record<Periodo, string> = {
   mes: "por mes",
 };
 
-export const PERIODOS: Periodo[] = ["dia", "semana", "mes"];
+/** Lo único que se edita y se controla hoy. */
+export const PERIODOS: Periodo[] = ["mes"];
 
 function limpiar(v: unknown): number | null {
   const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
@@ -45,7 +49,7 @@ export function mergeTopes(raw: unknown): TopesConfig {
 }
 
 export function hayAlgunTope(t: TopesConfig): boolean {
-  return PERIODOS.some((p) => t[p] != null);
+  return t.mes != null;
 }
 
 export type Exceso = {

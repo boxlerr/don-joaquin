@@ -62,7 +62,7 @@ export async function marcarAlertasVistas(alertaIds: string[]) {
 
 export async function marcarTodasVistas() {
   const user = await requireUser();
-  const ids = await getPendientesNoLeidasIds(user.id);
+  const ids = await getPendientesNoLeidasIds(user);
   if (ids.length === 0) return;
 
   const supabase = createAdminClient();

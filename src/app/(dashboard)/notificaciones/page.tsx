@@ -11,6 +11,7 @@ import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
 import HelpTutorialButton from "./help-tutorial-button";
 import { diasRestantes, type AlertaItem } from "./utils";
+import { visiblePara } from "@/lib/alertas-visibilidad";
 
 export default async function NotificacionesPage() {
   const user = await requireUser();
@@ -37,7 +38,7 @@ export default async function NotificacionesPage() {
     // Historial de leídas POR USUARIO (lo que ESTE usuario marcó leído y no borró).
     getHistorialLeidas(user.id),
     // IDs de pendientes que ESTE usuario aún no leyó (para particionar más abajo).
-    getPendientesNoLeidasIds(user.id),
+    getPendientesNoLeidasIds(user),
     supabase
       .from("tipos_documento")
       .select("id, nombre, aplica_a, dias_alerta_vencimiento, obligatorio")
@@ -50,11 +51,17 @@ export default async function NotificacionesPage() {
       .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
   ]);
 
+  // Las alertas de secciones confidenciales sólo las ve quien tiene permiso:
+  // las de préstamos traen montos y esta pantalla sólo pide estar logueado.
+  const puedeVer = visiblePara(user);
+
   // Sólo las pendientes que ESTE usuario no leyó (estado leído es per-user).
   const noLeidasSet = new Set(pendientesNoLeidasIds);
-  const alertas = ((alertasRaw ?? []) as AlertaItem[]).filter((a) => noLeidasSet.has(a.id));
+  const alertas = ((alertasRaw ?? []) as AlertaItem[]).filter(
+    (a) => noLeidasSet.has(a.id) && puedeVer(a),
+  );
 
-  const leidas = leidasUsuario;
+  const leidas = leidasUsuario.filter(puedeVer);
 
   const tipos = (tiposDoc ?? []) as {
     id: string;
