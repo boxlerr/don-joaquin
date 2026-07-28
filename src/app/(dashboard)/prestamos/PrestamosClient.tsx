@@ -152,6 +152,10 @@ function labelSemana(lunes: Date): string {
  * que necesita, sin marco ni fondo. Si se ajustara por ancho, "Banco Nación"
  * quedaría ilegible y el bloque gris de Credicoop se comería la fila.
  *
+ * Dentro de esa franja el logo va CENTRADO: los angostos (Credicoop, BBVA) no
+ * llenan el ancho, y pegados a la izquierda quedaban corridos respecto de los
+ * que sí lo llenan (Santander, Nación).
+ *
  * Sin logo, las iniciales con el color de la marca — no todas en el mismo azul,
  * que era imposible distinguir de un vistazo.
  */
@@ -159,13 +163,13 @@ function BankBadge({ banco, alto = 20 }: { banco: string; alto?: number }) {
   const { logo, color } = marcaBanco(banco);
   return (
     <span
-      className="inline-flex shrink-0 items-center"
+      className="inline-flex shrink-0 items-center justify-center"
       style={{ width: alto * 4.2, height: alto }}
       title={banco}
     >
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element -- SVG local: no hay nada que optimizar
-        <img src={logo} alt="" className="max-h-full max-w-full object-contain object-left" />
+        <img src={logo} alt="" className="max-h-full max-w-full object-contain" />
       ) : (
         <span
           className="flex items-center justify-center rounded-[4px] font-semibold"
