@@ -892,15 +892,32 @@ export default function PrestamosClient({
                                     USD
                                   </span>
                                 )}
-                                {tieneFaltantes(p) && (
-                                  <span
-                                    title={`Falta completar: ${textoFaltantes(p)}`}
-                                    aria-label={`Préstamo incompleto, falta ${textoFaltantes(p)}`}
-                                    className="inline-flex shrink-0 text-amber-500"
-                                  >
-                                    <AlertTriangle size={13} />
-                                  </span>
-                                )}
+                                {/* El triángulo dice que falta un dato, así que
+                                    al tocarlo se abre la ficha para cargarlo. */}
+                                {tieneFaltantes(p) &&
+                                  (canWrite ? (
+                                    <button
+                                      type="button"
+                                      title={`Falta ${textoFaltantes(p)} — clic para completarlo`}
+                                      aria-label={`Préstamo incompleto, falta ${textoFaltantes(p)}. Abrir para completar.`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditPrestamo(p);
+                                        setEditKey((k) => k + 1);
+                                      }}
+                                      className="-m-1 inline-flex shrink-0 cursor-pointer rounded p-1 text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50"
+                                    >
+                                      <AlertTriangle size={13} />
+                                    </button>
+                                  ) : (
+                                    <span
+                                      title={`Falta ${textoFaltantes(p)}`}
+                                      aria-label={`Préstamo incompleto, falta ${textoFaltantes(p)}`}
+                                      className="inline-flex shrink-0 text-amber-500"
+                                    >
+                                      <AlertTriangle size={13} />
+                                    </span>
+                                  ))}
                               </span>
                               {/* Cómo lo llaman en la planilla (SUECA, FORTE
                                   CAR): abajo y en chico, que no compita con la

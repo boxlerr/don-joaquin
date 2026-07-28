@@ -79,18 +79,35 @@ function faltantesDe(v: ViajeBasico): string[] {
   return out;
 }
 
-/** Marcador ⚠ ámbar (con tooltip de qué falta) para viajes incompletos. */
-function IncompletoMark({ v }: { v: ViajeBasico }) {
+/**
+ * Marcador ⚠ ámbar para viajes incompletos. Es un botón: el triángulo dice que
+ * falta algo, así que lo natural es que al tocarlo se abra el viaje para
+ * cargarlo, en vez de tener que ir a buscar el botón de editar.
+ */
+function IncompletoMark({ v, onCompletar }: { v: ViajeBasico; onCompletar?: (v: ViajeBasico) => void }) {
   const faltas = faltantesDe(v);
   if (faltas.length === 0) return null;
+  const texto = `Falta ${faltas.join(", ")}`;
+  if (!onCompletar) {
+    return (
+      <span title={texto} aria-label={`Viaje incompleto. ${texto}`} className="inline-flex shrink-0 text-amber-500">
+        <AlertTriangle size={13} />
+      </span>
+    );
+  }
   return (
-    <span
-      title={`Incompleto — falta: ${faltas.join(", ")}`}
-      className="inline-flex shrink-0 text-amber-500"
-      aria-label={`Viaje incompleto, falta ${faltas.join(", ")}`}
+    <button
+      type="button"
+      title={`${texto} — clic para completarlo`}
+      aria-label={`Viaje incompleto. ${texto}. Abrir para completar.`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onCompletar(v);
+      }}
+      className="-m-1 inline-flex shrink-0 cursor-pointer rounded p-1 text-amber-500 transition-colors hover:bg-amber-50 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50"
     >
       <AlertTriangle size={13} />
-    </span>
+    </button>
   );
 }
 
@@ -1037,7 +1054,12 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                   </TableCell>
                   <TableCell className="text-sm text-foreground">
                     <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
-                      <IncompletoMark v={v} />
+                      <IncompletoMark
+                        v={v}
+                        onCompletar={(viaje) =>
+                          viaje.facturado ? setConfirmEditViaje(viaje) : setEditingViaje(viaje)
+                        }
+                      />
                       <span className="truncate">{v.cliente ?? <span className="text-muted-foreground/50">—</span>}</span>
                     </span>
                   </TableCell>
