@@ -2,7 +2,15 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { requireArea, requireSeccion } from "@/lib/auth";
+import {
+  hasSeccion,
+  requireArea,
+  requireSeccion,
+  type CurrentUser,
+} from "@/lib/auth";
+import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
+import { clausulaVisibilidad } from "./visibilidad";
+import { desdeVentanaCajaChica } from "./ventana";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
@@ -10,20 +18,58 @@ import { computeRendicion } from "../viajes/flujo-logic";
 const MOVIMIENTOS_PAGE_SIZE = 20;
 
 /**
- * Las dos cajas físicas (audios Bárbara 30/06): la "diaria" es la operativa
- * multiusuario; la "grande" es privada de dirección (subsección caja_grande).
+ * Las dos cajas físicas (audios Bárbara 30/06): la "diaria" es la caja chica
+ * operativa; la "grande" es la de dirección (subsección caja_grande).
  * La columna `caja` es nueva (migración 20260701) y no está en los tipos
  * generados, por eso las queries que la tocan usan `(supabase as any)`.
  */
 export type CajaId = "diaria" | "grande";
 
+/** Qué se está mirando: una caja, o las dos juntas (vista general de dirección). */
+export type CajaFiltro = CajaId | "todas";
+
 /**
- * Saldo/historial son confidenciales: la caja diaria exige la subsección
- * caja_saldo y la grande caja_grande (los admin tienen ambas siempre).
+ * Las dos pantallas de caja, que es lo que define qué se ve (ya no el rol):
+ *
+ * · "chica"   → la operativa. Igual para todos, así dirección comprueba qué
+ *   está viendo el personal: últimos 30 días y sin los movimientos ocultos.
+ * · "general" → la de dirección (exige caja_grande). Historial completo de las
+ *   dos cajas, con lo privado incluido.
  */
-async function requireVerCaja(caja: CajaId) {
-  if (caja === "grande") await requireSeccion("caja_grande", "read");
-  else await requireSeccion("caja_saldo", "read");
+export type CajaVista = "chica" | "general";
+
+async function requireVerCaja(vista: CajaVista): Promise<CurrentUser> {
+  if (vista === "general") return requireSeccion("caja_grande", "read");
+  return requireArea("caja", "read");
+}
+
+/** En la caja chica no se mira más atrás que la ventana; en la general, todo. */
+function acotarDesde(desde: string | undefined, vista: CajaVista): string | undefined {
+  if (vista === "general") return desde;
+  const limite = desdeVentanaCajaChica();
+  return !desde || desde < limite ? limite : desde;
+}
+
+/**
+ * Cláusula `or` que deja fuera de la caja chica lo privado. En la vista general
+ * no se filtra nada: ahí se ve todo, incluido lo que la chica no muestra.
+ */
+async function filtroVisibilidad(vista: CajaVista): Promise<string | null> {
+  if (vista === "general") return null;
+  const direccion = await getUsuariosConSeccion("caja_saldo", "read");
+  return clausulaVisibilidad(direccion);
+}
+
+/**
+ * Qué guardar en `privado` al cargar un movimiento.
+ *
+ * Solo dirección decide: si no marca nada, se guarda privado (así un descuido
+ * no expone un retiro). Lo que carga el operativo queda sin decidir (null) —
+ * es visible para todos por la regla por autor.
+ */
+function resolverPrivado(user: CurrentUser, privado?: boolean): boolean | null {
+  if (!hasSeccion(user, "caja_saldo", "read")) return null;
+  return privado ?? true;
 }
 
 async function logCajaAudit(
@@ -56,43 +102,56 @@ export type CajaMovimientoRow = {
   medio: string;
   vinculado_a: string | null;
   usuario: string | null;
+  /** true = oculto al operativo · false = visible · null = sin decidir. */
+  privado: boolean | null;
+  /** De qué caja es. Se muestra en la vista general, que mezcla las dos. */
+  caja: CajaId;
 };
 
 export type CajaResumen = {
   ingresos: number;
   egresos: number;
   movimientos: number;
+  /** Saldo histórico de la caja (o de las dos, en la vista general). */
   saldoTotal: number;
-  /** Suma de fletes facturados del período (por fecha de viaje). Solo caja diaria:
-   *  el valor entra con el remito, así que esto ES el ingreso por viajes. */
-  fletesFacturados: number;
+  /** Suma de fletes facturados del período (por fecha de viaje). Solo en la
+   *  vista general: el valor entra con el remito, así que esto ES el ingreso por
+   *  viajes, y es información comercial que la caja chica no muestra. */
+  fletesFacturados: number | null;
 };
 
+/**
+ * Totales del período. Ojo: NO aplica el filtro de privacidad, tampoco en la
+ * caja chica. Contra estos números se arquea la plata del cajón, así que tienen
+ * que ser los reales. Lo que se oculta es el detalle (la tabla), no el total.
+ */
 export async function getCajaResumenAction(params: {
   desde?: string;
   hasta?: string;
-  caja?: CajaId;
+  vista?: CajaVista;
+  caja?: CajaFiltro;
 }): Promise<CajaResumen | { error: string }> {
-  const caja = params.caja ?? "diaria";
-  await requireVerCaja(caja);
+  const vista = params.vista ?? "chica";
+  await requireVerCaja(vista);
   const supabase = createAdminClient();
+  // La caja chica es siempre la diaria; el filtro por caja es de la general.
+  const caja: CajaFiltro = vista === "chica" ? "diaria" : params.caja ?? "todas";
+  const desde = acotarDesde(params.desde, vista);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rangoQuery = (supabase as any)
-    .from("caja_movimientos")
-    .select("tipo, monto")
-    .eq("caja", caja);
-  if (params.desde) rangoQuery = rangoQuery.gte("fecha", params.desde);
+  let rangoQuery = (supabase as any).from("caja_movimientos").select("tipo, monto");
+  if (caja !== "todas") rangoQuery = rangoQuery.eq("caja", caja);
+  if (desde) rangoQuery = rangoQuery.gte("fecha", desde);
   if (params.hasta) rangoQuery = rangoQuery.lte("fecha", params.hasta);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let saldoQuery = (supabase as any).from("caja_movimientos").select("tipo, monto");
+  if (caja !== "todas") saldoQuery = saldoQuery.eq("caja", caja);
 
   const [
     { data: rango, error: rangoError },
     { data: todos, error: todosError },
-  ] = await Promise.all([
-    rangoQuery,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any).from("caja_movimientos").select("tipo, monto").eq("caja", caja),
-  ]);
+  ] = await Promise.all([rangoQuery, saldoQuery]);
 
   if (rangoError || todosError) {
     console.error("Error al obtener resumen de caja:", rangoError ?? todosError);
@@ -104,7 +163,7 @@ export async function getCajaResumenAction(params: {
   // viajes del mes. Solo caja diaria (concepto operativo). Paginado: el API REST
   // corta en 1000 filas.
   let fletesFacturados = 0;
-  if (caja === "diaria") {
+  if (vista === "general" && caja !== "grande") {
     for (let from = 0; ; from += 1000) {
       let fq = supabase
         .from("viajes")
@@ -114,7 +173,7 @@ export async function getCajaResumenAction(params: {
         .neq("estado", "cancelado")
         .order("id", { ascending: true })
         .range(from, from + 999);
-      if (params.desde) fq = fq.gte("fecha_viaje", params.desde);
+      if (desde) fq = fq.gte("fecha_viaje", desde);
       if (params.hasta) fq = fq.lte("fecha_viaje", params.hasta);
       const { data: fletes, error: fletesError } = await fq;
       if (fletesError) {
@@ -138,7 +197,13 @@ export async function getCajaResumenAction(params: {
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
-  return { ingresos, egresos, movimientos: rango?.length ?? 0, saldoTotal, fletesFacturados };
+  return {
+    ingresos,
+    egresos,
+    movimientos: rango?.length ?? 0,
+    saldoTotal,
+    fletesFacturados: vista === "general" ? fletesFacturados : null,
+  };
 }
 
 export type GetCajaMovimientosParams = {
@@ -148,7 +213,8 @@ export type GetCajaMovimientosParams = {
   categoria?: string;
   search?: string;
   page?: number;
-  caja?: CajaId;
+  vista?: CajaVista;
+  caja?: CajaFiltro;
 };
 
 export type GetCajaMovimientosResult =
@@ -158,9 +224,13 @@ export type GetCajaMovimientosResult =
 export async function getCajaMovimientosAction(
   params: GetCajaMovimientosParams = {}
 ): Promise<GetCajaMovimientosResult> {
-  const { desde, hasta, tipoGastoId, categoria, search, page = 0, caja = "diaria" } = params;
-  await requireVerCaja(caja);
+  const { hasta, tipoGastoId, categoria, search, page = 0 } = params;
+  const vista = params.vista ?? "chica";
+  await requireVerCaja(vista);
   const supabase = createAdminClient();
+  const caja: CajaFiltro = vista === "chica" ? "diaria" : params.caja ?? "todas";
+  const visibilidad = await filtroVisibilidad(vista);
+  const desde = acotarDesde(params.desde, vista);
   const from = page * MOVIMIENTOS_PAGE_SIZE;
   const to = from + MOVIMIENTOS_PAGE_SIZE - 1;
 
@@ -181,19 +251,20 @@ export async function getCajaMovimientosAction(
   let query = (supabase as any)
     .from("caja_movimientos")
     .select(
-      "id, fecha, tipo, categoria, concepto, monto, medio, cliente_id, chofer_id, viaje_id, gasto_id, created_by",
+      "id, fecha, tipo, categoria, concepto, monto, medio, cliente_id, chofer_id, viaje_id, gasto_id, created_by, privado, caja",
       { count: "exact" }
     )
-    .eq("caja", caja)
     .order("fecha", { ascending: false })
     .order("created_at", { ascending: false })
     .range(from, to);
 
+  if (caja !== "todas") query = query.eq("caja", caja);
   if (desde) query = query.gte("fecha", desde);
   if (hasta) query = query.lte("fecha", hasta);
   if (categoria) query = query.eq("categoria", categoria as never);
   if (gastoIdsFiltro) query = query.in("gasto_id", gastoIdsFiltro);
   if (search) query = query.ilike("concepto", `%${search}%`);
+  if (visibilidad) query = query.or(visibilidad);
 
   const { data, count, error } = await query;
 
@@ -215,6 +286,8 @@ export async function getCajaMovimientosAction(
     viaje_id: string | null;
     gasto_id: string | null;
     created_by: string | null;
+    privado: boolean | null;
+    caja: CajaId | null;
   };
   const rows: MovRow[] = data ?? [];
   const clienteIds = [...new Set(rows.map((r) => r.cliente_id).filter(Boolean) as string[])];
@@ -291,6 +364,8 @@ export async function getCajaMovimientosAction(
       medio: m.medio,
       vinculado_a: vinculado,
       usuario,
+      privado: m.privado,
+      caja: m.caja ?? "diaria",
     };
   });
 
@@ -301,56 +376,44 @@ export async function getCajaMovimientosAction(
   };
 }
 
-export type MisMovimientoRow = {
-  id: string;
-  fecha: string;
-  tipo: "ingreso" | "egreso";
-  categoria: string;
-  concepto: string;
-  monto: number;
-  medio: string;
-};
-
 /**
- * Modo operador (operar ≠ ver): quien carga movimientos sin tener caja_saldo
- * ve los movimientos de la caja diaria de AYER y HOY — sin totales ni saldo.
- * Bárbara (audios 02/07): "ellos deberían poder ver el día anterior para
- * guiarse y anotar lo que entra y lo que sale"; el historial completo y los
- * retiros sensibles no (esos viven en la caja grande o más atrás en el tiempo).
+ * Cambia la privacidad de un movimiento ya cargado. Solo dirección: es quien
+ * decide qué ve el personal operativo, y sirve para corregir una marca puesta
+ * al apuro. Queda en auditoría como cualquier cambio sobre la caja.
  */
-export async function getMisMovimientosRecientesAction(): Promise<
-  MisMovimientoRow[] | { error: string }
-> {
-  await requireArea("caja", "write");
+export async function setMovimientoPrivadoAction(data: { id: string; privado: boolean }) {
+  const user = await requireSeccion("caja_saldo", "write");
   const supabase = createAdminClient();
 
-  // Ayer a las 00:00 en adelante (fecha es date, alcanza con el día).
-  const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("caja_movimientos")
+    .select("privado")
+    .eq("id", data.id)
+    .single();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { error } = await (supabase as any)
     .from("caja_movimientos")
-    .select("id, fecha, tipo, categoria, concepto, monto, medio")
-    .eq("caja", "diaria")
-    .gte("fecha", ayer)
-    .order("fecha", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(60);
+    .update({ privado: data.privado })
+    .eq("id", data.id);
 
   if (error) {
-    console.error("Error al obtener movimientos del operador:", error);
-    return { error: "No se pudieron cargar los movimientos." };
+    console.error("Error al cambiar la privacidad del movimiento:", error);
+    return { error: "No se pudo cambiar la visibilidad del movimiento." };
   }
 
-  return ((data ?? []) as MisMovimientoRow[]).map((m) => ({
-    id: m.id,
-    fecha: m.fecha,
-    tipo: m.tipo,
-    categoria: m.categoria,
-    concepto: m.concepto,
-    monto: Number(m.monto),
-    medio: m.medio,
-  }));
+  await logCajaAudit(
+    supabase,
+    data.id,
+    "actualizar",
+    { privado: previo?.privado ?? null },
+    { privado: data.privado },
+    user.id,
+  );
+
+  revalidatePath("/caja");
+  return { success: true };
 }
 
 export async function addIngresoAction(data: {
@@ -360,6 +423,8 @@ export async function addIngresoAction(data: {
   categoria: "cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro";
   fecha: string;
   caja?: CajaId;
+  /** Solo dirección lo define: si no lo manda, el movimiento queda privado. */
+  privado?: boolean;
 }) {
 
   const user = await requireArea("caja", "write");
@@ -377,6 +442,7 @@ export async function addIngresoAction(data: {
     fecha: data.fecha,
     moneda: "ARS",
     caja,
+    privado: resolverPrivado(user, data.privado),
     created_by: user.id,
   };
 
@@ -408,6 +474,8 @@ export async function addEgresoAction(data: {
   tipo_gasto_id?: string | null;
   fecha: string;
   caja?: CajaId;
+  /** Solo dirección lo define: si no lo manda, el movimiento queda privado. */
+  privado?: boolean;
 }) {
 
   const user = await requireArea("caja", "write");
@@ -460,6 +528,7 @@ export async function addEgresoAction(data: {
     fecha: data.fecha,
     moneda: "ARS",
     caja,
+    privado: resolverPrivado(user, data.privado),
     created_by: user.id,
   };
 

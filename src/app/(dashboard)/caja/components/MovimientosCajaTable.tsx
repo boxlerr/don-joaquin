@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
+import { useState, useEffect, useMemo, useTransition, useRef } from "react";
 import {
   Table,
   TableHeader,
@@ -21,11 +21,13 @@ import {
   SelectLabel,
 } from "@/components/ui/select";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Wallet, X, Loader2 } from "lucide-react";
+import { Wallet, X, Loader2, EyeOff, Eye } from "lucide-react";
 import {
   getCajaMovimientosAction,
-  type CajaId,
+  setMovimientoPrivadoAction,
+  type CajaFiltro,
   type CajaMovimientoRow,
+  type CajaVista,
 } from "../actions";
 
 const CATEGORIA_LABEL: Record<string, string> = {
@@ -77,8 +79,16 @@ interface Props {
   desde: string;
   hasta: string;
   onRangeChange: (desde: string, hasta: string) => void;
-  /** Caja activa: diaria (operativa) o grande (privada de dirección). */
-  caja?: CajaId;
+  /** Caja chica (filtrada, igual para todos) o vista general de dirección. */
+  vista?: CajaVista;
+  /** Dentro de la vista general: qué caja mostrar, o las dos juntas. */
+  caja?: CajaFiltro;
+  /** Primer día consultable: la caja chica es una ventana móvil. */
+  minDate?: string;
+  /** En la vista general conviene ver de qué caja es cada movimiento. */
+  mostrarColumnaCaja?: boolean;
+  /** Dirección: puede mostrar u ocultar un movimiento al personal operativo. */
+  puedeMarcarPrivado?: boolean;
 }
 
 export default function MovimientosCajaTable({
@@ -86,7 +96,11 @@ export default function MovimientosCajaTable({
   desde,
   hasta,
   onRangeChange,
+  vista = "chica",
   caja = "diaria",
+  minDate,
+  mostrarColumnaCaja = false,
+  puedeMarcarPrivado = false,
 }: Props) {
   const [rows, setRows] = useState<CajaMovimientoRow[]>([]);
   const [page, setPage] = useState(0);
@@ -115,11 +129,52 @@ export default function MovimientosCajaTable({
     return () => window.removeEventListener("caja:refresh", handler);
   }, []);
 
-  const parsedFiltro = tipoFiltro.startsWith("cat:")
-    ? { categoria: tipoFiltro.slice(4), tipoGastoId: undefined as string | undefined }
-    : tipoFiltro.startsWith("tg:")
-    ? { categoria: undefined as string | undefined, tipoGastoId: tipoFiltro.slice(3) }
-    : { categoria: undefined as string | undefined, tipoGastoId: undefined as string | undefined };
+  const parsedFiltro = useMemo(
+    () =>
+      tipoFiltro.startsWith("cat:")
+        ? { categoria: tipoFiltro.slice(4), tipoGastoId: undefined as string | undefined }
+        : tipoFiltro.startsWith("tg:")
+          ? { categoria: undefined as string | undefined, tipoGastoId: tipoFiltro.slice(3) }
+          : { categoria: undefined as string | undefined, tipoGastoId: undefined as string | undefined },
+    [tipoFiltro],
+  );
+
+  // Los filtros vigentes, para que la recarga silenciosa no dependa de ellos en
+  // su lista de dependencias (si no, se dispararía con cada tecla del buscador).
+  const consultaRef = useRef({ desde, hasta, parsedFiltro, debouncedSearch, vista, caja, page });
+  useEffect(() => {
+    consultaRef.current = { desde, hasta, parsedFiltro, debouncedSearch, vista, caja, page };
+  });
+
+  /**
+   * Recarga silenciosa: trae lo que cambió en otras sesiones —por ejemplo, un
+   * movimiento que dirección acaba de ocultar— sin spinner y sin reiniciar la
+   * paginación. Si el usuario cargó más páginas se saltea, para no borrarle lo
+   * que está mirando; ese caso se resuelve solo en la próxima carga.
+   */
+  useEffect(() => {
+    const handler = () => {
+      const q = consultaRef.current;
+      if (q.page !== 0) return;
+      getCajaMovimientosAction({
+        desde: q.desde || undefined,
+        hasta: q.hasta || undefined,
+        categoria: q.parsedFiltro.categoria,
+        tipoGastoId: q.parsedFiltro.tipoGastoId,
+        search: q.debouncedSearch || undefined,
+        page: 0,
+        vista: q.vista,
+        caja: q.caja,
+      }).then((result) => {
+        if ("data" in result) {
+          setRows(result.data);
+          setHasMore(result.hasMore);
+        }
+      });
+    };
+    window.addEventListener("caja:sync", handler);
+    return () => window.removeEventListener("caja:sync", handler);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +189,7 @@ export default function MovimientosCajaTable({
       tipoGastoId: parsedFiltro.tipoGastoId,
       search: debouncedSearch || undefined,
       page: 0,
+      vista,
       caja,
     }).then((result) => {
       if (cancelled) return;
@@ -150,7 +206,7 @@ export default function MovimientosCajaTable({
     return () => {
       cancelled = true;
     };
-  }, [desde, hasta, tipoFiltro, debouncedSearch, refreshTick, caja]);
+  }, [desde, hasta, tipoFiltro, parsedFiltro, debouncedSearch, refreshTick, vista, caja]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -162,6 +218,7 @@ export default function MovimientosCajaTable({
         tipoGastoId: parsedFiltro.tipoGastoId,
         search: debouncedSearch || undefined,
         page: nextPage,
+        vista,
         caja,
       });
       if ("data" in result) {
@@ -172,6 +229,33 @@ export default function MovimientosCajaTable({
     });
   };
 
+  const [cambiandoPrivacidad, setCambiandoPrivacidad] = useState<string | null>(null);
+  const esVistaChica = vista === "chica";
+
+  /**
+   * Ocultar/mostrar un movimiento. En la caja chica —que solo lista lo visible—
+   * ocultar hace desaparecer la fila al instante; para reponerlo hay que ir a la
+   * caja general. En la general la fila se queda y el ícono refleja el estado.
+   * Emite `caja:sync` para que las demás sesiones se actualicen sin refrescar.
+   */
+  const togglePrivado = async (m: CajaMovimientoRow) => {
+    const nuevo = esVistaChica ? true : !(m.privado ?? true);
+    setCambiandoPrivacidad(m.id);
+    const res = await setMovimientoPrivadoAction({ id: m.id, privado: nuevo });
+    setCambiandoPrivacidad(null);
+    if ("error" in res && res.error) {
+      setError(res.error);
+      return;
+    }
+    setRows((prev) =>
+      esVistaChica
+        ? prev.filter((r) => r.id !== m.id)
+        : prev.map((r) => (r.id === m.id ? { ...r, privado: nuevo } : r)),
+    );
+    window.dispatchEvent(new CustomEvent("caja:sync"));
+  };
+
+  const colSpan = 7 + (mostrarColumnaCaja ? 1 : 0) + (puedeMarcarPrivado ? 1 : 0);
   const hayFiltros = !!desde || !!hasta || !!tipoFiltro || !!search;
 
   const limpiarFiltros = () => {
@@ -186,13 +270,18 @@ export default function MovimientosCajaTable({
         <div className="flex items-center gap-2">
           <Wallet size={16} className="text-primary" />
           <h2 className="text-foreground text-sm font-semibold">
-            {caja === "grande" ? "Movimientos de Caja Grande" : "Movimientos de Caja"}
+            {caja === "grande"
+              ? "Movimientos de Caja General"
+              : caja === "todas"
+                ? "Movimientos de todas las cajas"
+                : "Movimientos de Caja Chica"}
           </h2>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Input
             type="date"
             value={desde}
+            min={minDate}
             onChange={(e) => onRangeChange(e.target.value, hasta)}
             className="text-sm w-auto"
             aria-label="Fecha desde"
@@ -200,6 +289,7 @@ export default function MovimientosCajaTable({
           <Input
             type="date"
             value={hasta}
+            min={minDate}
             onChange={(e) => onRangeChange(desde, e.target.value)}
             className="text-sm w-auto"
             aria-label="Fecha hasta"
@@ -279,12 +369,14 @@ export default function MovimientosCajaTable({
           <TableRow>
             {[
               "Fecha",
+              ...(mostrarColumnaCaja ? ["Caja"] : []),
               "Concepto",
               "Tipo",
               "Vinculado a",
               "Medio de pago",
               "Monto",
               "Usuario",
+              ...(puedeMarcarPrivado ? [esVistaChica ? "Ocultar" : "Visible"] : []),
             ].map((col) => (
               <TableHead
                 key={col}
@@ -298,14 +390,14 @@ export default function MovimientosCajaTable({
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground/70 text-sm">
+              <TableCell colSpan={colSpan} className="text-center py-8 text-muted-foreground/70 text-sm">
                 <Loader2 className="inline-block animate-spin mr-2" size={14} />
                 Cargando movimientos...
               </TableCell>
             </TableRow>
           ) : error ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-[#EF4444] text-sm">
+              <TableCell colSpan={colSpan} className="text-center py-8 text-[#EF4444] text-sm">
                 {error}
               </TableCell>
             </TableRow>
@@ -319,6 +411,19 @@ export default function MovimientosCajaTable({
                   <TableCell className="text-sm text-muted-foreground">
                     {formatFecha(m.fecha)}
                   </TableCell>
+                  {mostrarColumnaCaja && (
+                    <TableCell>
+                      <span
+                        className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+                          m.caja === "grande"
+                            ? "bg-[#E1F5FE] text-[#004A99]"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {m.caja === "grande" ? "General" : "Chica"}
+                      </span>
+                    </TableCell>
+                  )}
                   <TableCell className="text-sm text-foreground font-medium">
                     {m.concepto}
                   </TableCell>
@@ -341,6 +446,37 @@ export default function MovimientosCajaTable({
                   <TableCell className="text-sm text-muted-foreground">
                     {m.usuario ?? "—"}
                   </TableCell>
+                  {puedeMarcarPrivado && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => togglePrivado(m)}
+                        disabled={cambiandoPrivacidad === m.id}
+                        title={
+                          esVistaChica
+                            ? "Ocultar de la caja chica. Queda solo en la caja general."
+                            : m.privado === true
+                              ? "Oculto en la caja chica. Tocá para mostrarlo."
+                              : m.privado === false
+                                ? "Visible en la caja chica. Tocá para ocultarlo."
+                                : "Se oculta si lo cargó dirección. Tocá para mostrarlo."
+                        }
+                        className={`inline-flex items-center gap-1 text-xs rounded px-1.5 py-1 transition-colors disabled:opacity-50 ${
+                          !esVistaChica && m.privado !== true
+                            ? "text-[#10B981] hover:bg-[#10B981]/10"
+                            : "text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {cambiandoPrivacidad === m.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : esVistaChica || m.privado === true ? (
+                          <EyeOff size={14} />
+                        ) : (
+                          <Eye size={14} />
+                        )}
+                      </button>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })

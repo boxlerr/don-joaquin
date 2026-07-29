@@ -1,16 +1,12 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { Button } from "@/components/ui/button";
-import { ArrowUpRight, ArrowDownRight, EyeOff, Lock, Receipt } from "lucide-react";
+import { Lock } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea, hasSeccion } from "@/lib/auth";
-import { getLegajoEstado } from "@/lib/chofer-validation";
-import AddIngresoDialog from "./components/AddIngresoDialog";
-import AddEgresoDialog from "./components/AddEgresoDialog";
-import AddViaticoDialog from "./components/AddViaticoDialog";
+import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import CajaViewCompleta from "./components/CajaViewCompleta";
 import CajaTabs from "./CajaTabs";
-import MisMovimientosRecientes from "./components/MisMovimientosRecientes";
-import HelpTutorialButton from "./help-tutorial-button";
+import { desdeVentanaCajaChica } from "./ventana";
+import { filtrarMovimientosVisibles } from "./visibilidad";
 
 export default async function CajaPage({
   searchParams,
@@ -20,21 +16,23 @@ export default async function CajaPage({
   const user = await requireArea("caja", "read");
   const { caja: cajaParam } = await searchParams;
 
-  // Operar ≠ ver (pedido de Bárbara): cargar movimientos viene del área, pero
-  // el saldo/historial (caja_saldo) y la caja grande (caja_grande) son
-  // subsecciones confidenciales que se otorgan aparte. Admin tiene todo.
+  // Cargar movimientos viene del área; la caja general (caja_grande) es una
+  // subsección confidencial que se otorga aparte. Admin tiene todo.
   const puedeOperar = hasArea(user, "caja", "write");
   const puedeVerSaldo = hasSeccion(user, "caja_saldo", "read");
+  // Marcar qué se muestra en la caja chica es potestad de dirección.
+  const puedeMarcarPrivado = puedeVerSaldo;
   const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
   const puedeOperarGrande = hasSeccion(user, "caja_grande", "write");
   // Gastos ahora es una solapa de Caja (antes sección propia del sidebar). El
   // permiso sigue siendo el mismo de siempre: la subsección "gastos".
   const puedeVerGastos = hasSeccion(user, "gastos", "read");
 
-  // La caja activa viaja en la URL (?caja=grande) para que las tres solapas
-  // —diaria, grande y gastos— sean enlaces del mismo nivel.
+  // La solapa activa viaja en la URL (?caja=grande) para que las tres —chica,
+  // general y gastos— sean enlaces del mismo nivel.
   const cajaActiva: "diaria" | "grande" =
     cajaParam === "grande" && puedeVerGrande ? "grande" : "diaria";
+  const esVistaChica = cajaActiva === "diaria";
 
   // Sin saldo ni carga: solo el aviso de acceso restringido.
   if (!puedeVerSaldo && !puedeOperar) {
@@ -58,33 +56,30 @@ export default async function CajaPage({
 
   const supabase = createAdminClient();
 
-  const [{ data: tiposGasto }, { data: choferesRaw }, { data: fechasMovs }, { data: viaticosRaw }] =
+  const [{ data: tiposGasto }, { data: fechasMovs }, { data: viaticosRaw }, direccion] =
     await Promise.all([
-      supabase
-        .from("tipos_gasto")
-        .select("id, nombre, categoria")
-        .eq("estado", "activo")
-        .order("categoria")
-        .order("nombre"),
-      supabase
-        .from("choferes")
-        .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
-        .eq("estado", "activo")
-        .order("apellido"),
-      // Fechas y viáticos pendientes solo hacen falta para la vista completa.
-      puedeVerSaldo
-        ? supabase.from("caja_movimientos").select("fecha")
-        : Promise.resolve({ data: [] as { fecha: string }[] }),
-      puedeVerSaldo
-        ? supabase
-            .from("viaticos")
-            .select(
-              "id, fecha_entrega, monto_entregado, observaciones, chofer:choferes!chofer_id(nombre, apellido)",
-            )
-            .eq("estado", "pendiente_rendicion")
-            .order("fecha_entrega", { ascending: true })
-        : Promise.resolve({ data: [] }),
-    ]);
+    supabase
+      .from("tipos_gasto")
+      .select("id, nombre, categoria")
+      .eq("estado", "activo")
+      .order("categoria")
+      .order("nombre"),
+    // Fechas de los movimientos: alimentan el calendario (qué días tienen
+    // movimientos) y el mes inicial del período.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("caja_movimientos").select("fecha, caja, created_by"),
+    // Los viáticos pendientes son parte del saldo: solo la vista completa.
+    puedeVerSaldo
+      ? supabase
+          .from("viaticos")
+          .select(
+            "id, fecha_entrega, monto_entregado, observaciones, chofer:choferes!chofer_id(nombre, apellido)",
+          )
+          .eq("estado", "pendiente_rendicion")
+          .order("fecha_entrega", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    esVistaChica ? getUsuariosConSeccion("caja_saldo", "read") : Promise.resolve(new Set<string>()),
+  ]);
 
   type ChoferRef = { nombre: string | null; apellido: string | null };
   const viaticosPendientes = (viaticosRaw ?? []).map((v) => {
@@ -98,85 +93,42 @@ export default async function CajaPage({
     };
   });
 
-  const choferes = (choferesRaw ?? []).map((c) => {
-    const estado = getLegajoEstado(c);
-    return {
-      id: c.id,
-      nombre: c.nombre,
-      apellido: c.apellido,
-      disabled: !estado.completo,
-      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
-    };
-  });
+  // Las marcas del calendario tienen que respetar lo mismo que la tabla: en la
+  // caja chica, solo los días con movimientos visibles de la propia caja.
+  type FechaMov = { fecha: string; caja: string | null; created_by: string | null };
+  const movsCalendario = esVistaChica
+    ? filtrarMovimientosVisibles(
+        ((fechasMovs ?? []) as FechaMov[]).filter((m) => (m.caja ?? "diaria") === "diaria"),
+        direccion,
+      )
+    : ((fechasMovs ?? []) as FechaMov[]);
 
-  const mesesConDatos = [
-    ...new Set((fechasMovs ?? []).map((m) => String(m.fecha).slice(0, 7))),
-  ]
-    .sort()
-    .reverse();
+  // La caja chica es una ventana móvil: el historial largo vive en la general.
+  const ventanaDesde = esVistaChica ? desdeVentanaCajaChica() : undefined;
 
-  // Modo operador: puede cargar movimientos de la caja diaria pero el saldo y
-  // el historial completo son privados. Ve ayer y hoy para guiarse (pedido 02/07).
-  if (!puedeVerSaldo) {
-    return (
-      <div className="p-8">
-        <PageHeader
-          title="Caja General"
-          description="Carga de movimientos de la caja diaria"
-          action={
-            <div className="flex items-center gap-2">
-              <HelpTutorialButton />
-              <AddViaticoDialog choferes={choferes}>
-                <Button variant="outline" size="sm">
-                  <Receipt size={14} />
-                  Registrar viático
-                </Button>
-              </AddViaticoDialog>
-              <AddIngresoDialog>
-                <Button variant="success" size="sm">
-                  <ArrowUpRight size={14} />
-                  Ingreso
-                </Button>
-              </AddIngresoDialog>
-              <AddEgresoDialog tiposGasto={tiposGasto || []}>
-                <Button variant="danger" size="sm">
-                  <ArrowDownRight size={14} />
-                  Egreso
-                </Button>
-              </AddEgresoDialog>
-            </div>
-          }
-        />
+  const fechasConDatos = [
+    ...new Set(
+      movsCalendario
+        .map((m) => String(m.fecha).slice(0, 10))
+        .filter((f) => !ventanaDesde || f >= ventanaDesde),
+    ),
+  ];
+  const mesesConDatos = [...new Set(fechasConDatos.map((f) => f.slice(0, 7)))].sort().reverse();
 
-        <CajaTabs activa={cajaActiva} showGrande={puedeVerGrande} showGastos={puedeVerGastos} />
-
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-6">
-          <EyeOff size={16} className="text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-700">
-            Podés cargar movimientos de la caja; el saldo y el historial completo son privados.
-            Abajo se muestran los movimientos de ayer y de hoy, para guiarte.
-          </p>
-        </div>
-
-        <MisMovimientosRecientes />
-      </div>
-    );
-  }
-
-  // Vista completa (caja_saldo): dashboard + tabla + viáticos, con el switcher
-  // de caja grande si corresponde.
   return (
     <div className="p-8">
       <CajaViewCompleta
         tiposGasto={tiposGasto || []}
-        choferes={choferes}
         mesesConDatos={mesesConDatos}
+        fechasConDatos={fechasConDatos}
         viaticos={viaticosPendientes}
         puedeOperar={puedeOperar}
         puedeVerGrande={puedeVerGrande}
         puedeOperarGrande={puedeOperarGrande}
         caja={cajaActiva}
         showGastos={puedeVerGastos}
+        puedeMarcarPrivado={puedeMarcarPrivado}
+        ventanaDesde={ventanaDesde}
       />
     </div>
   );

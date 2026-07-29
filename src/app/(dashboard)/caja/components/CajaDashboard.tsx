@@ -4,9 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
+import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import { Combobox } from "@/components/ui/combobox";
 import MovimientosCajaTable from "./MovimientosCajaTable";
-import { getCajaResumenAction, type CajaId, type CajaResumen } from "../actions";
+import {
+  getCajaResumenAction,
+  type CajaFiltro,
+  type CajaResumen,
+  type CajaVista,
+} from "../actions";
+import { VENTANA_CAJA_CHICA_DIAS } from "../ventana";
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -14,6 +21,16 @@ function formatARS(n: number): string {
     maximumFractionDigits: 2,
   });
 }
+
+/**
+ * Qué se está mirando. El día suelto viene del calendario; el mes es el período
+ * por defecto; "custom" lo activa el rango manual de la tabla.
+ */
+type Periodo =
+  | { tipo: "mes"; mes: string }
+  | { tipo: "dia"; dia: string }
+  | { tipo: "todos" }
+  | { tipo: "custom"; desde: string; hasta: string };
 
 /** "2026-05" → { desde: "2026-05-01", hasta: "2026-05-31" } */
 function mesRange(mes: string): { desde: string; hasta: string } {
@@ -25,6 +42,19 @@ function mesRange(mes: string): { desde: string; hasta: string } {
   };
 }
 
+function rangoDe(periodo: Periodo): { desde: string; hasta: string } {
+  switch (periodo.tipo) {
+    case "mes":
+      return mesRange(periodo.mes);
+    case "dia":
+      return { desde: periodo.dia, hasta: periodo.dia };
+    case "custom":
+      return { desde: periodo.desde, hasta: periodo.hasta };
+    case "todos":
+      return { desde: "", hasta: "" };
+  }
+}
+
 function mesLabel(mes: string): string {
   const [y, m] = mes.split("-").map(Number);
   const label = new Date(y, m - 1, 1).toLocaleDateString("es-AR", {
@@ -34,9 +64,33 @@ function mesLabel(mes: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function mesActual(): string {
+function diaLabel(dia: string): string {
+  const [y, m, d] = dia.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function periodoLabelDe(periodo: Periodo): string {
+  switch (periodo.tipo) {
+    case "mes":
+      return mesLabel(periodo.mes);
+    case "dia":
+      return diaLabel(periodo.dia);
+    case "custom":
+      return "Rango personalizado";
+    case "todos":
+      return "Todos los movimientos";
+  }
+}
+
+function hoyISO(): string {
   const hoy = new Date();
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(
+    hoy.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+function mesActual(): string {
+  return hoyISO().slice(0, 7);
 }
 
 function sumarMeses(mes: string, delta: number): string {
@@ -45,32 +99,67 @@ function sumarMeses(mes: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function sumarDias(dia: string, delta: number): string {
+  const [y, m, d] = dia.split("-").map(Number);
+  const fecha = new Date(y, m - 1, d + delta);
+  return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(
+    fecha.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 interface Props {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
   /** Meses con movimientos ("YYYY-MM"), ordenados descendente. */
   mesesConDatos: string[];
-  /** Caja activa: la diaria (operativa) o la grande (privada de dirección). */
-  caja?: CajaId;
+  /** Días con movimientos ("YYYY-MM-DD"), para marcarlos en el calendario. */
+  fechasConDatos?: string[];
+  /**
+   * Qué pantalla es: la caja chica (operativa, igual para todos los roles) o la
+   * general de dirección, que arranca con las dos cajas juntas y suma el
+   * selector para separarlas.
+   */
+  vista?: CajaVista;
+  /** Dirección puede cambiar la privacidad de un movimiento desde la tabla. */
+  puedeMarcarPrivado?: boolean;
+  /** Primer día visible ("YYYY-MM-DD"). La caja chica es una ventana móvil. */
+  ventanaDesde?: string;
 }
 
-export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diaria" }: Props) {
-  // "YYYY-MM" | "todos" | "custom" (rango manual desde la tabla)
-  const [mes, setMes] = useState<string>(() => {
+const CAJA_LABEL: Record<CajaFiltro, string> = {
+  todas: "Todas las cajas",
+  diaria: "Caja chica",
+  grande: "Caja general",
+};
+
+export default function CajaDashboard({
+  tiposGasto,
+  mesesConDatos,
+  fechasConDatos = [],
+  vista = "chica",
+  puedeMarcarPrivado = false,
+  ventanaDesde,
+}: Props) {
+  const esGeneral = vista === "general";
+  const [cajaFiltro, setCajaFiltro] = useState<CajaFiltro>(esGeneral ? "todas" : "diaria");
+  const [periodo, setPeriodo] = useState<Periodo>(() => {
     const actual = mesActual();
-    if (mesesConDatos.includes(actual)) return actual;
-    return mesesConDatos[0] ?? actual;
+    return { tipo: "mes", mes: mesesConDatos.includes(actual) ? actual : mesesConDatos[0] ?? actual };
   });
-  const [rango, setRango] = useState<{ desde: string; hasta: string }>(() =>
-    mes === "todos" || mes === "custom" ? { desde: "", hasta: "" } : mesRange(mes),
-  );
+  const rango = rangoDe(periodo);
 
   const [resumen, setResumen] = useState<CajaResumen | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  // `caja:refresh` = el propio usuario cargó algo · `caja:sync` = puede haber
+  // cambiado en otra sesión. Los dos recalculan los totales.
   useEffect(() => {
     const handler = () => setRefreshTick((t) => t + 1);
     window.addEventListener("caja:refresh", handler);
-    return () => window.removeEventListener("caja:refresh", handler);
+    window.addEventListener("caja:sync", handler);
+    return () => {
+      window.removeEventListener("caja:refresh", handler);
+      window.removeEventListener("caja:sync", handler);
+    };
   }, []);
 
   useEffect(() => {
@@ -78,7 +167,8 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
     getCajaResumenAction({
       desde: rango.desde || undefined,
       hasta: rango.hasta || undefined,
-      caja,
+      vista,
+      caja: cajaFiltro,
     }).then((result) => {
       if (cancelled) return;
       if (!("error" in result)) setResumen(result);
@@ -86,43 +176,41 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
     return () => {
       cancelled = true;
     };
-  }, [rango, refreshTick, caja]);
+  }, [rango.desde, rango.hasta, refreshTick, cajaFiltro, vista]);
 
-  const seleccionarMes = (nuevo: string) => {
-    setMes(nuevo);
-    setRango(nuevo === "todos" ? { desde: "", hasta: "" } : mesRange(nuevo));
+  // Las flechas mueven el período que se esté mirando: día a día si hay un día
+  // elegido, mes a mes si no. No se puede salir de la ventana de la caja chica.
+  const navegar = (delta: number) => {
+    if (periodo.tipo === "dia") {
+      const dia = sumarDias(periodo.dia, delta);
+      if (ventanaDesde && dia < ventanaDesde) return;
+      setPeriodo({ tipo: "dia", dia });
+      return;
+    }
+    const base = periodo.tipo === "mes" ? periodo.mes : mesActual();
+    const mes = periodo.tipo === "mes" ? sumarMeses(base, delta) : base;
+    if (ventanaDesde && mesRange(mes).hasta < ventanaDesde) return;
+    setPeriodo({ tipo: "mes", mes });
   };
 
-  const navegarMes = (delta: number) => {
-    const base = mes === "todos" || mes === "custom" ? mesActual() : mes;
-    seleccionarMes(mes === "todos" || mes === "custom" ? base : sumarMeses(base, delta));
-  };
-
-  // El rango manual de la tabla pisa el mes seleccionado (modo "custom")
+  // El rango manual de la tabla pisa el período elegido (modo "custom").
   const onRangeChange = (desde: string, hasta: string) => {
-    setRango({ desde, hasta });
-    if (!desde && !hasta) setMes("todos");
-    else setMes("custom");
+    if (!desde && !hasta) setPeriodo({ tipo: "todos" });
+    else setPeriodo({ tipo: "custom", desde, hasta });
   };
 
-  const opcionesMes = useMemo(() => {
-    const meses = mesesConDatos.includes(mes) || mes === "todos" || mes === "custom"
-      ? mesesConDatos
-      : [mes, ...mesesConDatos].sort().reverse();
-    const opts = meses.map((m) => ({ id: m, label: mesLabel(m) }));
-    opts.push({ id: "todos", label: "Todos los movimientos" });
-    if (mes === "custom") opts.push({ id: "custom", label: "Rango personalizado" });
-    return opts;
-  }, [mesesConDatos, mes]);
+  const diasConDatos = useMemo(() => new Set(fechasConDatos), [fechasConDatos]);
+  const periodoLabel = periodoLabelDe(periodo);
+  const hoy = hoyISO();
 
-  const periodoLabel =
-    mes === "todos"
-      ? "Todos los movimientos"
-      : mes === "custom"
-        ? "Rango personalizado"
-        : mesLabel(mes);
+  // Cuántas cards quedan: la facturación solo está en la caja chica de dirección.
+  const cardsGrid =
+    esGeneral && cajaFiltro === "diaria" ? "lg:grid-cols-5" : "lg:grid-cols-4";
 
-  const esMesActual = mes === mesActual();
+  // Sin futuro: la caja no se carga hacia adelante.
+  const enElPresente =
+    (periodo.tipo === "mes" && periodo.mes === mesActual()) ||
+    (periodo.tipo === "dia" && periodo.dia === hoy);
 
   return (
     <>
@@ -131,50 +219,120 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
           <Button
             variant="outline"
             size="icon-sm"
-            onClick={() => navegarMes(-1)}
-            aria-label="Mes anterior"
+            onClick={() => navegar(-1)}
+            aria-label={periodo.tipo === "dia" ? "Día anterior" : "Mes anterior"}
           >
             <ChevronLeft size={15} />
           </Button>
-          <Combobox
-            value={mes}
-            onValueChange={(v) => v && seleccionarMes(v)}
-            options={opcionesMes}
-            searchable={false}
-            triggerClassName="h-8 w-56 font-medium"
-            aria-label="Seleccionar mes"
+
+          <CalendarioPopover
+            value={periodo.tipo === "dia" ? periodo.dia : null}
+            onSelect={(fecha) => setPeriodo({ tipo: "dia", dia: fecha })}
+            triggerLabel={periodoLabel}
+            triggerClassName="w-56 justify-start"
+            ariaLabel="Elegir día o período"
+            maxDate={hoy}
+            minDate={ventanaDesde}
+            hoy={hoy}
+            mesInicial={periodo.tipo === "mes" ? periodo.mes : undefined}
+            marca={(fecha) =>
+              diasConDatos.has(fecha)
+                ? {
+                    className:
+                      "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60",
+                    title: "Hay movimientos este día",
+                  }
+                : undefined
+            }
+            pie={(cerrar) => (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      const mes =
+                        periodo.tipo === "dia" ? periodo.dia.slice(0, 7) : mesActual();
+                      setPeriodo({ tipo: "mes", mes });
+                      cerrar();
+                    }}
+                  >
+                    Todo el mes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      setPeriodo({ tipo: "todos" });
+                      cerrar();
+                    }}
+                  >
+                    Todo
+                  </Button>
+                </div>
+                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
+                  días con movimientos
+                </span>
+              </div>
+            )}
           />
+
           <Button
             variant="outline"
             size="icon-sm"
-            onClick={() => navegarMes(1)}
-            disabled={mes !== "todos" && mes !== "custom" && esMesActual}
-            aria-label="Mes siguiente"
+            onClick={() => navegar(1)}
+            disabled={enElPresente}
+            aria-label={periodo.tipo === "dia" ? "Día siguiente" : "Mes siguiente"}
           >
             <ChevronRight size={15} />
           </Button>
-          {!esMesActual && (
+          {!enElPresente && (
             <Button
               variant="ghost"
               size="sm"
               className="h-8 text-xs text-muted-foreground"
-              onClick={() => seleccionarMes(mesActual())}
+              onClick={() => setPeriodo({ tipo: "mes", mes: mesActual() })}
             >
               <CalendarDays size={13} />
               Mes actual
             </Button>
           )}
+
+          {/* Vista general: las dos cajas juntas, con la opción de separarlas. */}
+          {esGeneral && (
+            <Combobox
+              value={cajaFiltro}
+              onValueChange={(v) => v && setCajaFiltro(v as CajaFiltro)}
+              options={(["todas", "diaria", "grande"] as CajaFiltro[]).map((id) => ({
+                id,
+                label: CAJA_LABEL[id],
+              }))}
+              searchable={false}
+              triggerClassName="h-8 w-44 font-medium"
+              aria-label="Filtrar por caja"
+            />
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           Mostrando: <span className="font-semibold text-foreground">{periodoLabel}</span>
+          {ventanaDesde && (
+            <span className="ml-2 text-muted-foreground/80">
+              · últimos {VENTANA_CAJA_CHICA_DIAS} días
+            </span>
+          )}
         </p>
       </div>
 
-      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 ${caja === "diaria" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 ${cardsGrid}`}>
+        {/* El saldo es el real, sin descontar lo privado: es contra este número
+            que se arquea la plata de la caja. */}
         <StatCard
           label="Saldo actual"
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
-          sub={caja === "grande" ? "Caja grande (histórico)" : "Caja diaria (histórico)"}
+          sub={`${CAJA_LABEL[cajaFiltro]} (histórico)`}
           color="brand"
         />
         <StatCard
@@ -184,11 +342,16 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
           color="success"
         />
         {/* El valor del flete entra con el remito → la facturación del período ES
-            el ingreso por viajes. Solo en la diaria (concepto operativo). */}
-        {caja === "diaria" && (
+            el ingreso por viajes. Solo fuera de la caja general y para quien ve
+            el saldo: es información comercial, no operativa. */}
+        {esGeneral && cajaFiltro === "diaria" && (
           <StatCard
             label="Fletes facturados"
-            value={resumen ? `$ ${formatARS(resumen.fletesFacturados)}` : "—"}
+            value={
+              resumen?.fletesFacturados != null
+                ? `$ ${formatARS(resumen.fletesFacturados)}`
+                : "—"
+            }
             sub={`Ingresos por viajes · ${periodoLabel}`}
             color="success"
             href="/viajes"
@@ -213,7 +376,11 @@ export default function CajaDashboard({ tiposGasto, mesesConDatos, caja = "diari
         desde={rango.desde}
         hasta={rango.hasta}
         onRangeChange={onRangeChange}
-        caja={caja}
+        vista={vista}
+        caja={cajaFiltro}
+        minDate={ventanaDesde}
+        mostrarColumnaCaja={cajaFiltro === "todas"}
+        puedeMarcarPrivado={puedeMarcarPrivado}
       />
     </>
   );

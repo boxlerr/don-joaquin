@@ -4,11 +4,11 @@ import { Wallet, Landmark, Receipt, type LucideIcon } from "lucide-react";
 export type CajaTabId = "diaria" | "grande" | "gastos";
 
 /**
- * Solapas de Caja, todas al mismo nivel: Caja diaria · Caja grande · Gastos.
+ * Solapas de Caja, todas al mismo nivel: Caja chica · Caja general · Gastos.
  *
- * Antes había dos filas anidadas (Movimientos | Gastos, y adentro Caja diaria |
- * Caja grande), que escondía que Gastos es una caja más y no un hermano de
- * "Movimientos". Las tres son rutas, así que se navega con enlaces y la activa
+ * "Caja chica" es la operativa, acotada al último mes; "Caja general" es la
+ * vista de dirección, que unifica el historial completo de las dos cajas
+ * (pedido 29/07). Las tres son rutas, así que se navega con enlaces y la activa
  * llega por prop desde el server (sin hooks de cliente).
  */
 export default function CajaTabs({
@@ -17,15 +17,15 @@ export default function CajaTabs({
   showGastos,
 }: {
   activa: CajaTabId;
-  /** Caja grande es subsección confidencial: sólo si la tiene. */
+  /** La vista general es subsección confidencial (caja_grande): sólo si la tiene. */
   showGrande: boolean;
   /** Gastos depende de la subsección "gastos". */
   showGastos: boolean;
 }) {
   const tabs: { id: CajaTabId; label: string; href: string; icon: LucideIcon }[] = [
-    { id: "diaria", label: "Caja diaria", href: "/caja", icon: Wallet },
+    { id: "diaria", label: "Caja chica", href: "/caja", icon: Wallet },
     ...(showGrande
-      ? [{ id: "grande" as const, label: "Caja grande", href: "/caja?caja=grande", icon: Landmark }]
+      ? [{ id: "grande" as const, label: "Caja general", href: "/caja?caja=grande", icon: Landmark }]
       : []),
     ...(showGastos
       ? [{ id: "gastos" as const, label: "Gastos", href: "/caja/gastos", icon: Receipt }]

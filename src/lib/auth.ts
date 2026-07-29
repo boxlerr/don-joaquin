@@ -4,50 +4,21 @@ import { createClient } from "@/lib/supabase/server";
 import { SECCIONES, SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
 
 // ---------------------------------------------------------------------------
-// Tipos de permisos por área
+// Tipos de permisos por área (definidos en permisos-nivel.ts, sin server-only,
+// para que la lógica pura de permisos sea testeable; se re-exportan acá porque
+// el resto del código los importa históricamente desde auth).
 // ---------------------------------------------------------------------------
 
-export type AreaCodigo =
-  | "principal"
-  | "logistica"
-  | "viajes"
-  | "flota"
-  | "mantenimiento"
-  | "combustible"
-  | "seguridad"
-  | "comercial"
-  | "finanzas"
-  | "caja"
-  | "rrhh"
-  | "compliance"
-  | "sistema";
+import {
+  NIVEL_RANK,
+  AREAS_VACIAS,
+  type AreaCodigo,
+  type AreaNivel,
+  type PermisosArea,
+} from "@/lib/permisos-nivel";
 
-export type AreaNivel = "none" | "read" | "write" | "admin";
-
-const NIVEL_RANK: Record<AreaNivel, number> = {
-  none: 0,
-  read: 1,
-  write: 2,
-  admin: 3,
-};
-
-export type PermisosArea = Record<AreaCodigo, AreaNivel>;
-
-const AREAS_VACIAS: PermisosArea = {
-  principal: "none",
-  logistica: "none",
-  viajes: "none",
-  flota: "none",
-  mantenimiento: "none",
-  combustible: "none",
-  seguridad: "none",
-  comercial: "none",
-  finanzas: "none",
-  caja: "none",
-  rrhh: "none",
-  compliance: "none",
-  sistema: "none",
-};
+export { NIVEL_RANK };
+export type { AreaCodigo, AreaNivel, PermisosArea };
 
 // ---------------------------------------------------------------------------
 // Usuario actual

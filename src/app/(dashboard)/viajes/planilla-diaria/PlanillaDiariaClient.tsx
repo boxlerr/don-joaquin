@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import ImprimirPlanillaButton from "./ImprimirPlanillaButton";
 import CambiosDrawer from "./CambiosDrawer";
 import {
@@ -13,8 +14,6 @@ import {
   RotateCcw,
   History,
   CalendarClock,
-  ChevronLeft,
-  ChevronRight,
   ArrowRight,
   Repeat2,
 } from "lucide-react";
@@ -82,10 +81,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; mensaje: string } | null>(null);
 
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [cambiosOpen, setCambiosOpen] = useState(false);
   const [soloCambios, setSoloCambios] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(() => new Date(data.fecha + "T00:00:00"));
 
   const fechasGuardadas = useMemo(
     () => new Set(data.fechas_guardadas ?? []),
@@ -107,65 +104,6 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   const filasConCambio = useMemo(() => filas.filter(tieneCambio), [filas]);
   const filasVisibles = soloCambios ? filasConCambio : filas;
-
-  const calendarCells = useMemo(() => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-
-    const startDay = new Date(year, month, 1).getDay(); // 0 is Sunday
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const prevDaysInMonth = new Date(year, month, 0).getDate();
-
-    const cells: { dateStr: string; dayNum: number; isCurrentMonth: boolean }[] = [];
-
-    // Padding anterior
-    for (let i = startDay - 1; i >= 0; i--) {
-      const d = prevDaysInMonth - i;
-      const m = month === 0 ? 11 : month - 1;
-      const y = month === 0 ? year - 1 : year;
-      cells.push({
-        dateStr: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-        dayNum: d,
-        isCurrentMonth: false,
-      });
-    }
-
-    // Días del mes actual
-    for (let d = 1; d <= daysInMonth; d++) {
-      cells.push({
-        dateStr: `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-        dayNum: d,
-        isCurrentMonth: true,
-      });
-    }
-
-    // Padding posterior
-    const remaining = 42 - cells.length;
-    for (let d = 1; d <= remaining; d++) {
-      const m = month === 11 ? 0 : month + 1;
-      const y = month === 11 ? year + 1 : year;
-      cells.push({
-        dateStr: `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-        dayNum: d,
-        isCurrentMonth: false,
-      });
-    }
-
-    return cells;
-  }, [currentMonth]);
-
-  const MESES = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-  ];
-
-  const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  };
-
-  const prevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  };
 
   // Qué chofer(es) tienen cada camión hoy — para marcar ocupado/libre en el selector.
   const ocupadoPor = useMemo(() => {
@@ -270,122 +208,43 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
       {/* Barra superior: fecha + atajos */}
       <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex flex-wrap items-end gap-4">
-        <div className="space-y-1 relative">
+        <div className="space-y-1">
           <label className="text-xs font-semibold text-muted-foreground block">Fecha</label>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(!pickerOpen)}
-            className="h-9 px-3 text-sm rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] flex items-center gap-2 font-medium min-w-[130px] hover:bg-muted/30 transition-colors"
-          >
-            <CalendarClock size={15} className="text-[#0088D1]" />
-            {fmtFecha(data.fecha)}
-          </button>
-
-          {pickerOpen && (
-            <>
-              {/* Backdrop para cerrar al hacer clic afuera */}
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setPickerOpen(false)} 
-              />
-              
-              <div className="absolute top-[62px] left-0 z-50 bg-card border border-border shadow-lg rounded-[8px] p-4 w-[280px]">
-                {/* Cabecera */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-sm text-foreground">
-                    {MESES[currentMonth.getMonth()]} de {currentMonth.getFullYear()}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={prevMonth}
-                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={nextMonth}
-                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Días de la semana */}
-                <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold text-muted-foreground mb-1">
-                  {["DO", "LU", "MA", "MI", "JU", "VI", "SA"].map((d) => (
-                    <div key={d}>{d}</div>
-                  ))}
-                </div>
-
-                {/* Grilla de días */}
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarCells.map((cell) => {
-                    const isSelected = cell.dateStr === data.fecha;
-                    const isToday = cell.dateStr === data.hoy;
-                    const guardada = fechasGuardadas.has(cell.dateStr);
-                    const conCambios = fechasConCambios.has(cell.dateStr);
-                    const isFuture = cell.dateStr > data.hoy;
-
-                    let btnClass = "h-8 w-8 text-xs rounded-full flex items-center justify-center transition-colors relative ";
-                    if (!cell.isCurrentMonth) {
-                      btnClass += "text-muted-foreground/30 ";
-                    } else if (isFuture) {
-                      btnClass += "text-muted-foreground/30 cursor-not-allowed ";
-                    } else {
-                      btnClass += "text-foreground hover:bg-muted/60 ";
+          <CalendarioPopover
+            value={data.fecha}
+            onSelect={cambiarFecha}
+            triggerLabel={fmtFecha(data.fecha)}
+            ariaLabel="Elegir fecha de la planilla"
+            maxDate={data.hoy}
+            hoy={data.hoy}
+            marca={(fecha) =>
+              fechasConCambios.has(fecha)
+                ? {
+                    className:
+                      "bg-amber-50 text-amber-700 hover:bg-amber-100/80 font-semibold border border-amber-300/70",
+                    title: "Planilla guardada · hubo cambios de camión",
+                  }
+                : fechasGuardadas.has(fecha)
+                  ? {
+                      className:
+                        "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60",
+                      title: "Planilla guardada",
                     }
-
-                    if (isSelected) {
-                      btnClass += "bg-[#0088D1] text-white hover:bg-[#0088D1] font-bold ";
-                    } else if (conCambios && cell.isCurrentMonth && !isFuture) {
-                      btnClass += "bg-amber-50 text-amber-700 hover:bg-amber-100/80 font-semibold border border-amber-300/70 ";
-                    } else if (guardada && cell.isCurrentMonth && !isFuture) {
-                      btnClass += "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60 ";
-                    }
-
-                    return (
-                      <button
-                        key={cell.dateStr}
-                        type="button"
-                        disabled={isFuture}
-                        onClick={() => {
-                          cambiarFecha(cell.dateStr);
-                          setPickerOpen(false);
-                        }}
-                        className={btnClass}
-                        title={
-                          conCambios
-                            ? "Planilla guardada · hubo cambios de camión"
-                            : guardada
-                              ? "Planilla guardada"
-                              : undefined
-                        }
-                      >
-                        {cell.dayNum}
-                        {isToday && !isSelected && (
-                          <span className="absolute bottom-1 size-1 bg-[#0088D1] rounded-full" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-border flex flex-col gap-1 text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
-                    planilla guardada
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-2.5 rounded-full bg-amber-50 border border-amber-300/70" />
-                    hubo cambio de camión
-                  </span>
-                </div>
+                  : undefined
+            }
+            pie={() => (
+              <div className="flex flex-col gap-1 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
+                  planilla guardada
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-full bg-amber-50 border border-amber-300/70" />
+                  hubo cambio de camión
+                </span>
               </div>
-            </>
-          )}
+            )}
+          />
         </div>
 
         <div className="flex items-center gap-2">

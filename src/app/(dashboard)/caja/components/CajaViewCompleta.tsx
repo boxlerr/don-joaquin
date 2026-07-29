@@ -1,38 +1,29 @@
 "use client";
 
-import {
-  ArrowUpRight,
-  ArrowDownRight,
-  ArrowRightLeft,
-  Receipt,
-} from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, ArrowRightLeft } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import AddIngresoDialog from "./AddIngresoDialog";
 import AddEgresoDialog from "./AddEgresoDialog";
-import AddViaticoDialog from "./AddViaticoDialog";
 import ImportMovimientosDialog from "./ImportMovimientosDialog";
 import TransferirCajaDialog from "./TransferirCajaDialog";
 import CajaDashboard from "./CajaDashboard";
+import SincronizadorCaja from "./SincronizadorCaja";
 import ViaticosPendientesPanel from "./ViaticosPendientesPanel";
 import HelpTutorialButton from "../help-tutorial-button";
 import CajaTabs from "../CajaTabs";
 import type { ViaticoPendiente } from "./RendirViaticoDialog";
 import type { CajaId } from "../actions";
 
-type ChoferOption = {
-  id: string;
-  nombre: string;
-  apellido: string;
-  disabled?: boolean;
-  motivo?: string;
-};
+/** Ingreso y Egreso son las acciones del día: más grandes que el resto del header. */
+const BOTON_CARGA = "h-10 px-4 text-sm font-semibold";
 
 type Props = {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
-  choferes: ChoferOption[];
   /** Meses con movimientos ("YYYY-MM"), ordenados descendente. */
   mesesConDatos: string[];
+  /** Días con movimientos ("YYYY-MM-DD"), para marcarlos en el calendario. */
+  fechasConDatos: string[];
   viaticos: ViaticoPendiente[];
   /** Puede cargar movimientos en la caja diaria (área caja ≥ write). */
   puedeOperar: boolean;
@@ -42,54 +33,65 @@ type Props = {
   puedeOperarGrande: boolean;
   /** Ve la solapa Gastos (subsección "gastos" ≥ read). */
   showGastos: boolean;
-  /** Caja activa, definida por la URL (?caja=grande). */
+  /** Solapa activa, definida por la URL (?caja=grande). */
   caja: CajaId;
+  /** Dirección (caja_saldo): decide qué se muestra en la caja chica. */
+  puedeMarcarPrivado?: boolean;
+  /** Primer día visible ("YYYY-MM-DD") cuando la caja chica es una ventana. */
+  ventanaDesde?: string;
 };
 
 /**
- * Vista completa de la caja (requiere caja_saldo). Si además tiene caja_grande,
- * aparece el switcher de cajas: la caja activa filtra dashboard + tabla y
- * cambia los botones de carga del header para apuntar a la caja correcta.
+ * Vista de la caja. La caja chica es la operativa: mismas cards, filtros y
+ * movimientos para todos los roles —así dirección comprueba qué ve el personal—
+ * acotada al último mes y sin los movimientos privados. Dirección (caja_saldo)
+ * ve además el botón para ocultar/mostrar cada fila. La caja general (solapa
+ * caja_grande) unifica el historial completo de las dos cajas, con lo privado
+ * incluido y un selector para separarlas.
  */
 export default function CajaViewCompleta({
   tiposGasto,
-  choferes,
   mesesConDatos,
+  fechasConDatos,
   viaticos,
   puedeOperar,
   puedeVerGrande,
   puedeOperarGrande,
   showGastos,
   caja,
+  puedeMarcarPrivado = false,
+  ventanaDesde,
 }: Props) {
   const esGrande = caja === "grande";
 
   return (
     <>
+      {/* Mantiene la caja al día con lo que pasa en otras sesiones. */}
+      <SincronizadorCaja />
+
       <PageHeader
-        title="Caja General"
-        description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
+        title={esGrande ? "Caja General" : "Caja Chica"}
+        description={
+          esGrande
+            ? "Historial completo de las dos cajas, con los movimientos privados"
+            : "Últimos 30 días — se ve igual para todos los roles"
+        }
         action={
           <div className="flex items-center gap-2">
             <HelpTutorialButton />
             {!esGrande && puedeOperar && (
               <>
-                <ImportMovimientosDialog />
-                <AddViaticoDialog choferes={choferes}>
-                  <Button variant="outline" size="sm">
-                    <Receipt size={14} />
-                    Registrar viático
-                  </Button>
-                </AddViaticoDialog>
-                <AddIngresoDialog>
-                  <Button variant="success" size="sm">
-                    <ArrowUpRight size={14} />
+                {/* La importación masiva es de dirección: revisa el histórico. */}
+                {puedeMarcarPrivado && <ImportMovimientosDialog />}
+                <AddIngresoDialog puedeMarcarPrivado={puedeMarcarPrivado}>
+                  <Button variant="success" size="lg" className={BOTON_CARGA}>
+                    <ArrowUpRight size={16} />
                     Ingreso
                   </Button>
                 </AddIngresoDialog>
-                <AddEgresoDialog tiposGasto={tiposGasto}>
-                  <Button variant="danger" size="sm">
-                    <ArrowDownRight size={14} />
+                <AddEgresoDialog tiposGasto={tiposGasto} puedeMarcarPrivado={puedeMarcarPrivado}>
+                  <Button variant="danger" size="lg" className={BOTON_CARGA}>
+                    <ArrowDownRight size={16} />
                     Egreso
                   </Button>
                 </AddEgresoDialog>
@@ -104,14 +106,14 @@ export default function CajaViewCompleta({
                   </Button>
                 </TransferirCajaDialog>
                 <AddIngresoDialog caja="grande">
-                  <Button variant="success" size="sm">
-                    <ArrowUpRight size={14} />
+                  <Button variant="success" size="lg" className={BOTON_CARGA}>
+                    <ArrowUpRight size={16} />
                     Ingreso
                   </Button>
                 </AddIngresoDialog>
                 <AddEgresoDialog caja="grande" tiposGasto={tiposGasto}>
-                  <Button variant="danger" size="sm">
-                    <ArrowDownRight size={14} />
+                  <Button variant="danger" size="lg" className={BOTON_CARGA}>
+                    <ArrowDownRight size={16} />
                     Egreso
                   </Button>
                 </AddEgresoDialog>
@@ -121,14 +123,23 @@ export default function CajaViewCompleta({
         }
       />
 
-      {/* Una sola fila: Caja diaria · Caja grande · Gastos (mismo nivel). */}
+      {/* Una sola fila: Caja chica · Caja general · Gastos (mismo nivel). */}
       <CajaTabs activa={caja} showGrande={puedeVerGrande} showGastos={showGastos} />
 
-      {/* key: al cambiar de caja se resetea el mes/rango y recarga el resumen. */}
-      <CajaDashboard key={caja} tiposGasto={tiposGasto} mesesConDatos={mesesConDatos} caja={caja} />
+      {/* key: al cambiar de solapa se resetea el período y recarga el resumen. */}
+      <CajaDashboard
+        key={caja}
+        tiposGasto={tiposGasto}
+        mesesConDatos={mesesConDatos}
+        fechasConDatos={fechasConDatos}
+        vista={esGrande ? "general" : "chica"}
+        puedeMarcarPrivado={puedeMarcarPrivado}
+        ventanaDesde={ventanaDesde}
+      />
 
-      {/* Los viáticos son operativos: viven en la caja diaria. */}
-      {!esGrande && <ViaticosPendientesPanel viaticos={viaticos} canWrite={puedeOperar} />}
+      {/* Los viáticos pendientes de rendir son parte del saldo: van en la vista
+          de dirección, no en la caja chica. */}
+      {esGrande && <ViaticosPendientesPanel viaticos={viaticos} canWrite={puedeOperar} />}
     </>
   );
 }

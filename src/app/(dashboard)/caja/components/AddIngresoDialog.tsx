@@ -35,10 +35,13 @@ const MEDIO_LABEL: Record<string, string> = {
 export default function AddIngresoDialog({
   children,
   caja = "diaria",
+  puedeMarcarPrivado = false,
 }: {
   children: React.ReactNode;
   /** A qué caja va el ingreso: diaria (default) o grande (privada de dirección). */
   caja?: CajaId;
+  /** Dirección (caja_saldo) decide si el operativo ve este movimiento. */
+  puedeMarcarPrivado?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -50,6 +53,9 @@ export default function AddIngresoDialog({
   const [medio, setMedio] = useState<"efectivo" | "transferencia" | "cheque" | "otro">("efectivo");
   const [categoria, setCategoria] = useState<"cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro">("cobro_cliente");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  // Por defecto privado: si dirección carga y no piensa en esto, el movimiento
+  // no se le muestra al operativo.
+  const [privado, setPrivado] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +70,7 @@ export default function AddIngresoDialog({
         categoria,
         fecha,
         caja,
+        privado,
       });
       if (res.error) {
         setError(res.error);
@@ -71,6 +78,7 @@ export default function AddIngresoDialog({
         setOpen(false);
         setConcepto("");
         setMonto("");
+        setPrivado(true);
         window.dispatchEvent(new CustomEvent("caja:refresh"));
         router.refresh();
       }
@@ -174,6 +182,32 @@ export default function AddIngresoDialog({
               </Select>
             </div>
           </div>
+
+          {/* Solo dirección decide qué ve el personal operativo. */}
+          {puedeMarcarPrivado && caja === "diaria" && (
+            <label
+              className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
+                privado ? "border-[#0088D1] bg-[#E1F5FE]" : "border-border hover:border-[#CBD5E1]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={privado}
+                onChange={(e) => setPrivado(e.target.checked)}
+                className="size-4 accent-[#0088D1] mt-0.5"
+              />
+              <span className="space-y-0.5">
+                <span className="block text-sm font-medium text-foreground">
+                  Movimiento privado
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {privado
+                    ? "No se muestra en la caja del personal operativo."
+                    : "Se muestra en la caja del personal operativo."}
+                </span>
+              </span>
+            </label>
+          )}
 
           <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
             <Button 

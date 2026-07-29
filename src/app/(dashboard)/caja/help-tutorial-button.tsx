@@ -9,7 +9,6 @@ import {
   Calendar,
   DollarSign,
   Tag,
-  User,
 } from "lucide-react";
 import HelpTutorialDialog, {
   MockField,
@@ -48,22 +47,16 @@ const TABS: TutorialTab[] = [
     ],
   },
   {
-    id: "viaticos",
-    label: "Viáticos e importación",
+    id: "importacion",
+    label: "Importación",
     icon: <Receipt size={14} />,
     steps: [
-      {
-        title: "Registrá un viático",
-        description:
-          'El botón "Registrar viático" carga un adelanto/viático a un chofer. Queda asociado a su cuenta corriente además de impactar en la caja.',
-        mockup: <MockViatico />,
-      },
       {
         title: "Importá movimientos masivos",
         description:
           'Con "Importar" subís un Excel/CSV con varios movimientos de una sola vez. Vas a ver una vista previa antes de confirmar; nada se guarda hasta que aceptás.',
         mockup: <MockImport />,
-        hint: "Las acciones de carga (viático, ingreso, egreso, importar) solo aparecen con permiso de edición sobre Finanzas.",
+        hint: "Las acciones de carga (ingreso, egreso, importar) solo aparecen con permiso de edición sobre Finanzas.",
       },
     ],
   },
@@ -125,29 +118,6 @@ function MockEgreso() {
           <MockField label="Monto *" value="$ 80.000" icon={<DollarSign size={11} />} required />
         </div>
         <MockField label="Tipo de gasto *" value="Insumos oficina" icon={<Tag size={11} />} required />
-      </div>
-    </div>
-  );
-}
-
-function MockViatico() {
-  return (
-    <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-[420px] mx-auto overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
-        <span className="size-7 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
-          <Receipt size={14} />
-        </span>
-        <div className="text-foreground text-xs font-bold uppercase tracking-wider">Registrar viático</div>
-      </div>
-      <div className="p-4 space-y-3">
-        <MockField label="Chofer *" value="Pérez, Juan" icon={<User size={11} />} required />
-        <div className="grid grid-cols-2 gap-3">
-          <MockField label="Fecha *" value="20/05/2026" required />
-          <MockField label="Monto *" value="$ 35.000" required />
-        </div>
-        <div className="bg-[#E1F5FE] text-[#004A99] text-[11px] px-3 py-1.5 rounded-md">
-          Impacta en la caja y en la cuenta corriente del chofer.
-        </div>
       </div>
     </div>
   );
