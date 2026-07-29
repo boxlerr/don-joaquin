@@ -15,6 +15,7 @@ import {
   fmtDiaLargo,
   fmtRangoFechas,
   diaSiguiente,
+  fmtRangoCorto,
 } from "./derivar";
 
 // Casos tomados de la conciliación real con la planilla de Bárbara (21/07/2026):
@@ -290,5 +291,23 @@ describe("diaSiguiente", () => {
   it("contempla el 29 de febrero de los años bisiestos", () => {
     expect(diaSiguiente("2028-02-28")).toBe("2028-02-29");
     expect(diaSiguiente("2027-02-28")).toBe("2027-03-01");
+  });
+});
+
+describe("fmtRangoCorto", () => {
+  it("no repite el mes cuando empieza y termina en el mismo", () => {
+    expect(fmtRangoCorto("2026-08-17", "2026-08-23")).toBe("17 – 23 ago 2026");
+  });
+
+  it("nombra los dos meses cuando cruza de mes", () => {
+    expect(fmtRangoCorto("2026-07-27", "2026-08-02")).toBe("27 jul – 2 ago 2026");
+  });
+
+  it("repite el año sólo cuando cruza de año", () => {
+    expect(fmtRangoCorto("2025-12-29", "2026-01-04")).toBe("29 dic 2025 – 4 ene 2026");
+  });
+
+  it("siempre lleva el año: en diez años de historia es lo que desambigua", () => {
+    expect(fmtRangoCorto("2019-03-04", "2019-03-10")).toContain("2019");
   });
 });

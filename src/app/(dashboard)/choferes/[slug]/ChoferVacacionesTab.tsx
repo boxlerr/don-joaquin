@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { Palmtree, Plus, Save, Trash2, Pencil, X, CalendarDays } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { Palmtree, Plus, Save, Trash2, Pencil, X, ChevronRight } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
 import {
   guardarSaldosAnioAction,
@@ -16,6 +17,10 @@ import {
 import type { Ausencia, VacacionesSaldo } from "./types";
 import { formatFecha } from "@/lib/utils";
 import {
+  fmtRangoCorto,
+  fmtRangoFechas,
+  fmtDiaLargo,
+  diaSiguiente,
   aniosCumplidos,
   hitoLabel,
   proximoHito,
@@ -65,8 +70,39 @@ export default function ChoferVacacionesTab({
   const [cancelando, setCancelando] = useState<Ausencia | null>(null);
   const [cancelandoLoading, setCancelandoLoading] = useState(false);
 
+  // Qué grupos de año quedaron abiertos o cerrados a mano.
+  const [plegados, setPlegados] = useState<Record<string, boolean>>({});
+
   // Períodos de vacaciones ya tomados (ausencias marcadas como vacaciones).
   const periodos = ausencias.filter((a) => a.es_vacaciones);
+
+  // Períodos agrupados por el año del que descuentan, del más nuevo al más viejo.
+  // Los que no descuentan de ningún año (histórico) van al final, porque son los
+  // que menos se consultan.
+  const gruposPeriodos = (() => {
+    const porAnio = new Map<string, typeof periodos>();
+    for (const p of periodos) {
+      const clave = p.anio_cargo != null ? String(p.anio_cargo) : "hist";
+      const lista = porAnio.get(clave) ?? [];
+      lista.push(p);
+      porAnio.set(clave, lista);
+    }
+    return [...porAnio.entries()]
+      .sort(([a], [b]) => {
+        if (a === "hist") return 1;
+        if (b === "hist") return -1;
+        return Number(b) - Number(a);
+      })
+      .map(([clave, items]) => ({
+        clave,
+        titulo: clave === "hist" ? "No descuentan de ningún año" : `Del saldo ${clave}`,
+        items: [...items].sort((x, y) => (x.fecha_inicio < y.fecha_inicio ? 1 : -1)),
+        dias: items.reduce((acc, p) => acc + p.dias, 0),
+        // Sólo el año en curso y el anterior arrancan abiertos: son los que se
+        // están liquidando. Lo viejo se pide cuando se necesita.
+        abiertoPorDefecto: clave !== "hist" && Number(clave) >= finPeriodoY - 1,
+      }));
+  })();
 
   // Mientras se editan los días, los totales se recalculan en vivo con el mismo
   // derivador del servidor: lo que se ve antes de guardar es lo que va a quedar.
@@ -243,11 +279,10 @@ export default function ChoferVacacionesTab({
         {can_write && (
           <Button
             variant="outline"
-            size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
             onClick={() => setDialogOpen(true)}
           >
-            <Plus size={13} className="mr-1.5 text-primary" />
+            <Plus size={15} className="mr-2 text-primary" />
             Cargar vacaciones
           </Button>
         )}
@@ -505,9 +540,15 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
-      {/* Listado de vacaciones tomadas */}
+      {/* Vacaciones cargadas, agrupadas por el año del que descuentan.
+          Antes era una lista plana de tarjetas con borde: con tres períodos se
+          leía, pero un legajo de diez años junta doscientos y se vuelve un muro.
+          Agrupar por año hace dos cosas: da unidades de ~20 filas en vez de una
+          de 200, y deja auditar el bloque "Días por año" de arriba —el subtotal
+          de cada grupo tiene que ser lo que ahí figura como tomado. Los años que
+          no son el actual ni el anterior arrancan plegados. */}
       <div>
-        <h4 className="text-sm font-semibold text-foreground mb-2">
+        <h4 className="mb-2 text-sm font-semibold text-foreground">
           Vacaciones cargadas
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
             {periodos.length} período{periodos.length !== 1 ? "s" : ""}
@@ -516,157 +557,200 @@ export default function ChoferVacacionesTab({
         {periodos.length === 0 ? (
           <EmptyState icon={Palmtree} message="Sin vacaciones cargadas" />
         ) : (
-          <div className="space-y-2">
-            {periodos.map((a) => (
-              <div
-                key={a.id}
-                className="bg-card rounded-[8px] border border-border p-3 flex items-center justify-between gap-3 flex-wrap"
-              >
-                <div className="flex items-center gap-2 flex-wrap">
-                  {editandoFechas === a.id ? (
-                    <span className="inline-flex items-center gap-1.5 flex-wrap">
-                      <Input
-                        type="date"
-                        value={fechas.inicio}
-                        onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
-                        className="h-7 w-[8.75rem] text-xs"
-                        aria-label="Desde"
-                      />
-                      <span className="text-muted-foreground">→</span>
-                      <Input
-                        type="date"
-                        value={fechas.fin}
-                        min={fechas.inicio || undefined}
-                        onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
-                        className="h-7 w-[8.75rem] text-xs"
-                        aria-label="Hasta"
-                      />
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {diasEntre(fechas.inicio, fechas.fin)} día
-                        {diasEntre(fechas.inicio, fechas.fin) !== 1 ? "s" : ""}
-                      </span>
-                      <Button
-                        variant="brand"
-                        size="sm"
-                        onClick={() => guardarFechas(a)}
-                        disabled={guardandoFechas}
-                        className="h-7 text-xs"
-                      >
-                        <Save size={12} className="mr-1" />
-                        {guardandoFechas ? "Guardando…" : "Guardar"}
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setEditandoFechas(null)}
-                        disabled={guardandoFechas}
-                        title="Cancelar la edición"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={13} />
-                      </button>
+          <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+            {gruposPeriodos.map((g) => {
+              const abierto = plegados[g.clave] ?? g.abiertoPorDefecto;
+              return (
+                <section key={g.clave}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlegados((p) => ({ ...p, [g.clave]: !(p[g.clave] ?? g.abiertoPorDefecto) }))
+                    }
+                    className="flex w-full items-baseline gap-2 border-b border-border bg-muted/60 px-3.5 py-2 text-left hover:bg-muted"
+                  >
+                    <ChevronRight
+                      size={13}
+                      className={`shrink-0 self-center text-muted-foreground transition-transform ${abierto ? "rotate-90" : ""}`}
+                      aria-hidden
+                    />
+                    <span className="text-[13px] font-semibold text-foreground">{g.titulo}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {g.items.length} período{g.items.length !== 1 ? "s" : ""} ·{" "}
+                      {g.dias} día{g.dias !== 1 ? "s" : ""}
                     </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={!can_write}
-                        onClick={() => can_write && abrirFechas(a)}
-                        title={can_write ? "Corregir las fechas de este período" : undefined}
-                        className={`text-sm text-foreground text-left ${
-                          can_write ? "hover:text-primary cursor-pointer" : "cursor-default"
-                        }`}
-                      >
-                        {formatFecha(a.fecha_inicio)}
-                        <span className="text-muted-foreground mx-1.5">→</span>
-                        {formatFecha(a.fecha_fin)}
-                        {can_write && (
-                          <CalendarDays size={11} className="inline ml-1.5 align-baseline text-muted-foreground" />
-                        )}
-                      </button>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
-                        {a.dias} día{a.dias !== 1 ? "s" : ""}
-                      </span>
-                    </>
+                  </button>
+
+                  {abierto && (
+                    <ul className="divide-y divide-border">
+                      {g.items.map((a) => (
+                        <li key={a.id} className="group px-3.5 py-2.5">
+                          {editandoFechas === a.id ? (
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <Input
+                                type="date"
+                                value={fechas.inicio}
+                                onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
+                                className="h-7 w-[8.75rem] text-xs"
+                                aria-label="Desde"
+                              />
+                              <span className="text-muted-foreground">→</span>
+                              <Input
+                                type="date"
+                                value={fechas.fin}
+                                min={fechas.inicio || undefined}
+                                onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
+                                className="h-7 w-[8.75rem] text-xs"
+                                aria-label="Hasta"
+                              />
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                {diasEntre(fechas.inicio, fechas.fin)} día
+                                {diasEntre(fechas.inicio, fechas.fin) !== 1 ? "s" : ""}
+                              </span>
+                              <Button
+                                variant="brand"
+                                size="sm"
+                                onClick={() => guardarFechas(a)}
+                                disabled={guardandoFechas}
+                                className="h-7 text-xs"
+                              >
+                                <Save size={12} className="mr-1" />
+                                {guardandoFechas ? "Guardando…" : "Guardar"}
+                              </Button>
+                              <button
+                                type="button"
+                                onClick={() => setEditandoFechas(null)}
+                                disabled={guardandoFechas}
+                                title="Cancelar la edición"
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X size={13} />
+                              </button>
+                            </span>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {/* La fecha manda y va en columna de ancho fijo: así
+                                  la lista se escanea hacia abajo en vez de leerse
+                                  renglón por renglón. */}
+                              <button
+                                type="button"
+                                disabled={!can_write}
+                                onClick={() => can_write && abrirFechas(a)}
+                                title={can_write ? "Corregir las fechas" : undefined}
+                                className={`w-[12.5rem] shrink-0 text-left text-sm font-semibold tabular-nums text-foreground ${
+                                  can_write ? "cursor-pointer hover:text-primary hover:underline" : "cursor-default"
+                                }`}
+                              >
+                                {fmtRangoCorto(a.fecha_inicio, a.fecha_fin)}
+                              </button>
+                              <span className="w-[4.5rem] shrink-0 text-sm tabular-nums text-muted-foreground">
+                                <span className="font-semibold text-foreground">{a.dias}</span> día
+                                {a.dias !== 1 ? "s" : ""}
+                              </span>
+                              <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+                                {a.en_curso && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-[#059669]">
+                                    <span className="inline-block size-1.5 rounded-full bg-[#10B981]" aria-hidden />
+                                    Está de vacaciones · vuelve el{" "}
+                                    <span className="font-medium text-foreground">
+                                      {fmtDiaLargo(diaSiguiente(a.fecha_fin), `${finPeriodoY}-01-01`)}
+                                    </span>
+                                  </span>
+                                )}
+                                {!a.en_curso && a.autorizado_por_nombre && (
+                                  <span>autorizó {a.autorizado_por_nombre}</span>
+                                )}
+                              </span>
+                              {reimputando === a.id ? (
+                                <span className="inline-flex shrink-0 items-center gap-1">
+                                  <Select
+                                    value={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
+                                    onValueChange={(v) => v && cambiarImputacion(a.id, v)}
+                                  >
+                                    <SelectTrigger className="h-7 w-[12rem] text-xs">
+                                      <span>
+                                        {a.anio_cargo != null
+                                          ? `Descuenta del ${a.anio_cargo}`
+                                          : "Histórico (no descuenta)"}
+                                      </span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {aniosDisponibles.map((y) => {
+                                        // Cuánto queda en ese año SI se mueve el
+                                        // período para allá: se le devuelven los
+                                        // días al año que lo tiene hoy.
+                                        const fila = saldo.anios.find((x) => x.anio === y);
+                                        const propio = a.anio_cargo === y;
+                                        const queda = fila ? fila.saldo : null;
+                                        return (
+                                          <SelectItem key={y} value={String(y)}>
+                                            Descuenta del {y}
+                                            {queda != null && (
+                                              <span className="text-muted-foreground">
+                                                {" · "}
+                                                {propio
+                                                  ? `hoy sale de acá, quedan ${Math.max(0, queda)}`
+                                                  : queda - a.dias < 0
+                                                    ? `no le alcanza: quedan ${Math.max(0, queda)} de ${fila!.otorgados}`
+                                                    : `le quedan ${queda} de ${fila!.otorgados}`}
+                                              </span>
+                                            )}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                      <SelectItem value="hist">
+                                        Histórico
+                                        <span className="text-muted-foreground">
+                                          {" · "}no toca ningún saldo
+                                        </span>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <button
+                                    type="button"
+                                    onClick={() => setReimputando(null)}
+                                    title="Cancelar"
+                                    className="text-muted-foreground hover:text-foreground"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </span>
+                              ) : (
+                                can_write && (
+                                  <span className="flex shrink-0 items-center gap-2.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={() => setReimputando(a.id)}
+                                      title="Cambiar de qué año descuenta este período"
+                                      className="text-[13px] text-muted-foreground hover:text-primary"
+                                    >
+                                      cambiar año
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelando(a)}
+                                      title="Cancelar este período (los días vuelven al saldo)"
+                                      className="text-muted-foreground hover:text-[#EF4444]"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  {a.en_curso && editandoFechas !== a.id && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">
-                      En curso
-                    </span>
-                  )}
-                  {/* De qué año descuenta. Editable: la imputación automática
-                      (y el importador de la planilla) a veces le pegan al año
-                      equivocado y hasta ahora no había forma de corregirlo. */}
-                  {editandoFechas === a.id ? null : reimputando === a.id ? (
-                    <span className="inline-flex items-center gap-1">
-                      <select
-                        autoFocus
-                        defaultValue={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
-                        onChange={(e) => cambiarImputacion(a.id, e.target.value)}
-                        className="h-7 rounded-[4px] border border-border bg-background px-2 text-xs text-foreground"
-                      >
-                        {aniosDisponibles.map((y) => (
-                          <option key={y} value={y}>
-                            Descuenta del {y}
-                          </option>
-                        ))}
-                        <option value="hist">Histórico (no descuenta)</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setReimputando(null)}
-                        title="Cancelar"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={13} />
-                      </button>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={!can_write}
-                      onClick={() => can_write && setReimputando(a.id)}
-                      title={
-                        can_write
-                          ? "Cambiar de qué año descuenta este período"
-                          : a.anio_cargo != null
-                            ? `Descuenta del saldo ${a.anio_cargo}`
-                            : "Histórico — ya está reflejado en el saldo"
-                      }
-                      className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-[4px] bg-muted text-muted-foreground border border-border ${
-                        can_write ? "hover:border-primary/50 hover:text-foreground cursor-pointer" : ""
-                      }`}
-                    >
-                      {a.anio_cargo != null ? `Saldo ${a.anio_cargo}` : "Histórico"}
-                      {can_write && <Pencil size={9} className="inline ml-1 align-baseline" />}
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 ml-auto">
-                  {a.autorizado_por_nombre && (
-                    <span className="text-xs text-muted-foreground">
-                      Autorizó: {a.autorizado_por_nombre}
-                    </span>
-                  )}
-                  {can_write && editandoFechas !== a.id && (
-                    <button
-                      type="button"
-                      onClick={() => setCancelando(a)}
-                      title="Cancelar este período (los días vuelven al saldo)"
-                      className="text-muted-foreground hover:text-[#EF4444] shrink-0"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+                </section>
+              );
+            })}
           </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          Clic en las <span className="font-medium">fechas</span> para corregirlas, y en{" "}
-          <span className="font-medium">Saldo {finPeriodoY}</span> /{" "}
-          <span className="font-medium">Histórico</span> para cambiar de qué año descuenta el período.
-          Las vacaciones se cargan como una ausencia (también aparecen en Logística / Viajes).
+          Clic en las <span className="font-medium">fechas</span> para corregirlas. Cada grupo suma lo
+          que se tomó de ese año, así se puede cotejar con <span className="font-medium">Días por año</span>.
         </p>
       </div>
 
@@ -726,9 +810,19 @@ function SaldoCard({
           ? "text-[#991B1B]"
           : "text-foreground";
   return (
-    <div className="rounded-[8px] border border-border bg-card p-3" title={hint}>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-bold ${toneClass}`}>{value}</div>
+    // Centrada y con el rótulo destacado: era un título en gris de 11px arriba de
+    // un número pegado a la izquierda, y no se leía como una unidad.
+    <div
+      className="rounded-[8px] border border-border bg-muted/30 px-4 py-3 text-center"
+      title={hint}
+    >
+      <div className="text-[12px] font-semibold uppercase tracking-wide text-primary">{label}</div>
+      <div className={`mt-1 text-[32px] font-bold leading-none tabular-nums ${toneClass}`}>
+        {value}
+      </div>
+      <div className="mt-0.5 text-[11px] text-muted-foreground">
+        día{value !== 1 ? "s" : ""}
+      </div>
     </div>
   );
 }

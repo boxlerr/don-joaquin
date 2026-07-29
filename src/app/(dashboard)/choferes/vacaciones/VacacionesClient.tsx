@@ -1337,16 +1337,27 @@ export default function VacacionesClient({
                         return (
                           <li
                             key={p.id}
-                            className={`group flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
+                            className={`group relative flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
                           >
+                            {/* Toda la fila abre el legajo. El link va estirado por
+                                debajo y los controles (fechas, cruz) quedan por
+                                encima con su propio z-index, así cada clic hace lo
+                                que parece que hace. */}
+                            {!editando && (
+                              <Link
+                                href={`/choferes/${choferSlug(p)}?tab=vacaciones`}
+                                aria-label={`Abrir el legajo de ${p.apellido}, ${p.nombre}`}
+                                className="absolute inset-0 z-0"
+                              />
+                            )}
                             <AvatarPersona
                               name={`${p.nombre} ${p.apellido}`}
                               src={fotoPorChofer.get(p.chofer_id) ?? undefined}
                               size={36}
                               rol={sectorDe.get(p.chofer_id)}
-                              className="shrink-0"
+                              className="pointer-events-none relative z-10 shrink-0"
                             />
-                            <div className="min-w-0 flex-1">
+                            <div className="pointer-events-none relative z-10 min-w-0 flex-1">
                               <div className="flex flex-wrap items-baseline gap-x-2">
                                 {/* El nombre abre el legajo, que es donde se
                                     manejan las vacaciones en detalle: el saldo año
@@ -1354,13 +1365,9 @@ export default function VacacionesClient({
                                     los días. Antes sólo saltaba a la tabla de abajo,
                                     que muestra menos de lo que hace falta para
                                     decidir. */}
-                                <Link
-                                  href={`/choferes/${choferSlug(p)}?tab=vacaciones`}
-                                  title={`Abrir el legajo de ${p.apellido}, ${p.nombre}`}
-                                  className="text-[15px] font-semibold text-foreground hover:text-primary hover:underline"
-                                >
+                                <span className="pointer-events-none text-[15px] font-semibold text-foreground group-hover:text-primary">
                                   {p.apellido}, {p.nombre}
-                                </Link>
+                                </span>
                                 {p.en_curso && (
                                   <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-medium text-[#059669]">
                                     <span className="relative flex w-1.5 h-1.5">
@@ -1374,7 +1381,7 @@ export default function VacacionesClient({
                               {/* La pregunta operativa no es cuándo termina la
                                   licencia, es cuándo lo tenés de vuelta. */}
                               {editando ? (
-                                <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                <span className="pointer-events-auto mt-1.5 flex flex-wrap items-center gap-1.5">
                                   <Input
                                     type="date"
                                     value={fechasP.inicio}
@@ -1419,9 +1426,17 @@ export default function VacacionesClient({
                                   <button
                                     type="button"
                                     disabled={!canWrite}
-                                    onClick={() => canWrite && abrirFechasP(p)}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (canWrite) abrirFechasP(p);
+                                    }}
                                     title={canWrite ? "Corregir las fechas" : undefined}
-                                    className={canWrite ? "hover:text-primary" : "cursor-default"}
+                                    className={
+                                      canWrite
+                                        ? "pointer-events-auto hover:text-primary hover:underline"
+                                        : "cursor-default"
+                                    }
                                   >
                                     {fmtRangoFechas(p.fecha_inicio, p.fecha_fin, `${finPeriodoY}-01-01`)}
                                   </button>
@@ -1435,8 +1450,8 @@ export default function VacacionesClient({
                                 <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground/80">{nota}</p>
                               )}
                             </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <span className="whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
+                            <div className="pointer-events-none relative z-10 flex shrink-0 items-center gap-2">
+                              <span className="pointer-events-none whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
                                 <span className="font-semibold text-foreground">{p.dias}</span> días
                                 {p.anio_cargo != null ? ` · descuenta del ${p.anio_cargo}` : " · no descuenta"}
                               </span>
@@ -1450,8 +1465,13 @@ export default function VacacionesClient({
                               )}
                               {canWrite && !editando && (
                                 <button
-                                  onClick={() => setCancelar(p)}
-                                  className="text-muted-foreground hover:text-[#EF4444] opacity-0 group-hover:opacity-100 transition"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setCancelar(p);
+                                  }}
+                                  className="pointer-events-auto text-muted-foreground hover:text-[#EF4444] opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
                                   title="Cancelar este período"
                                 >
                                   <X size={14} />

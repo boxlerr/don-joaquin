@@ -8,6 +8,7 @@ import { CalendarOff, Plus, Pencil, Trash2, ShieldCheck } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
 import AusenciasHelpButton from "./AusenciasHelpButton";
 import { cancelarAusenciaAction } from "./actions";
+import { notaVisible } from "../vacaciones/derivar";
 import type { Ausencia } from "./types";
 import { formatFecha } from "@/lib/utils";
 
@@ -97,17 +98,28 @@ export default function ChoferAusenciasTab({
                       <span className="text-muted-foreground mx-1.5">→</span>
                       {formatFecha(a.fecha_fin)}
                     </span>
-                    {a.en_curso ? (
-                      <StatusBadge label="En curso" tone="warning" />
-                    ) : futura ? (
-                      <StatusBadge label="Programada" tone="info" />
-                    ) : finalizada ? (
-                      <StatusBadge label="Finalizada" tone="neutral" />
-                    ) : null}
-                    <StatusBadge
-                      label={`${a.dias} día${a.dias !== 1 ? "s" : ""}`}
-                      tone="info"
-                    />
+                    {/* Estado y días en texto con un punto de color, no en
+                        pastillas de fondo pastel. */}
+                    {(a.en_curso || futura || finalizada) && (
+                      <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                        <span
+                          className="inline-block size-1.5 rounded-full"
+                          style={{
+                            backgroundColor: a.en_curso
+                              ? "#D97706"
+                              : futura
+                                ? "#0088D1"
+                                : "#94A3B8",
+                          }}
+                          aria-hidden
+                        />
+                        {a.en_curso ? "En curso" : futura ? "Programada" : "Finalizada"}
+                      </span>
+                    )}
+                    <span className="text-[13px] tabular-nums text-muted-foreground">
+                      <span className="font-semibold text-foreground">{a.dias}</span> día
+                      {a.dias !== 1 ? "s" : ""}
+                    </span>
                   </div>
                   {can_write && (
                     <div className="flex items-center gap-3 flex-shrink-0">
@@ -136,9 +148,12 @@ export default function ChoferAusenciasTab({
                     Autorizó: <span className="text-foreground/80">{a.autorizado_por_nombre}</span>
                   </p>
                 )}
-                {a.observaciones && (
-                  <p className="text-xs text-muted-foreground whitespace-pre-wrap border-t border-[#F1F5F9] pt-2">
-                    {a.observaciones}
+                {/* Sólo las notas que escribió una persona. El "Import cronograma
+                    (VACACIONES 2, …)" que dejó la importación aparecía como si fuera
+                    una observación del legajo. */}
+                {notaVisible(a.observaciones) && (
+                  <p className="whitespace-pre-wrap border-t border-[#F1F5F9] pt-2 text-xs text-muted-foreground">
+                    {notaVisible(a.observaciones)}
                   </p>
                 )}
               </div>

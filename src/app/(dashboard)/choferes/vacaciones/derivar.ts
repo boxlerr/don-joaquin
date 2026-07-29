@@ -241,6 +241,22 @@ function partesISO(iso: string) {
  * trabajar: la pregunta que se hace quien arma la semana no es "cuándo termina
  * la licencia" sino "cuándo lo tengo de nuevo".
  */
+/**
+ * Rango compacto para listas largas. Siempre lleva el año: en un legajo con diez
+ * años de historia, "del 17 al 23 de agosto" no dice de qué agosto habla. No
+ * repite mes ni año cuando coinciden, así la columna se escanea de arriba abajo.
+ *   "17 – 23 ago 2026" · "27 jul – 2 ago 2026" · "29 dic 2025 – 4 ene 2026"
+ */
+export function fmtRangoCorto(inicioISO: string, finISO: string): string {
+  const a = partesISO(inicioISO);
+  const b = partesISO(finISO);
+  const mesA = MES_CORTO[a.m - 1]!.toLowerCase();
+  const mesB = MES_CORTO[b.m - 1]!.toLowerCase();
+  if (a.y === b.y && a.m === b.m) return `${a.d} – ${b.d} ${mesA} ${a.y}`;
+  if (a.y === b.y) return `${a.d} ${mesA} – ${b.d} ${mesB} ${a.y}`;
+  return `${a.d} ${mesA} ${a.y} – ${b.d} ${mesB} ${b.y}`;
+}
+
 export function diaSiguiente(iso: string): string {
   const { y, m, d } = partesISO(iso);
   const t = new Date(Date.UTC(y, m - 1, d + 1));

@@ -166,19 +166,19 @@ describe("ChoferVacacionesTab — edición", () => {
 
   it("deja cambiar de qué año descuenta un período", () => {
     montar();
-    fireEvent.click(screen.getByText(`Saldo ${Y - 1}`));
-    const select = screen.getByRole("combobox");
-    expect(select).toBeInTheDocument();
-    // Ofrece los años cargados y la opción de marcarlo como histórico.
-    expect(screen.getByRole("option", { name: `Descuenta del ${Y}` })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Histórico (no descuenta)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Cambiar de qué año descuenta este período"));
+    // Se abre el desplegable estilado del sistema, con el año actual del período
+    // como valor. (Las opciones sólo existen en el DOM al desplegarlo, y eso no se
+    // puede accionar sin user-event.)
+    expect(screen.getByText(`Descuenta del ${Y - 1}`)).toBeInTheDocument();
+    expect(screen.getByTitle("Cancelar")).toBeInTheDocument();
   });
 
   it("sin permiso de escritura no ofrece editar nada", () => {
     montar(undefined, false);
     expect(screen.queryByText("Editar días")).not.toBeInTheDocument();
-    expect(screen.getByText(`Saldo ${Y - 1}`)).toBeDisabled();
-    expect(screen.queryByTitle("Corregir las fechas de este período")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Cambiar de qué año descuenta este período")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Corregir las fechas")).not.toBeInTheDocument();
   });
 });
 
@@ -188,7 +188,7 @@ describe("ChoferVacacionesTab — edición", () => {
 describe("ChoferVacacionesTab — corregir fechas del período", () => {
   it("abre los campos de fecha y recalcula los días antes de guardar", () => {
     montar();
-    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+    fireEvent.click(screen.getByTitle("Corregir las fechas"));
 
     const desde = screen.getByLabelText("Desde") as HTMLInputElement;
     const hasta = screen.getByLabelText("Hasta") as HTMLInputElement;
@@ -203,7 +203,7 @@ describe("ChoferVacacionesTab — corregir fechas del período", () => {
 
   it("guarda las fechas nuevas sin cambiar de qué año descuenta", async () => {
     montar();
-    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+    fireEvent.click(screen.getByTitle("Corregir las fechas"));
     fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: `${Y}-07-26` } });
     fireEvent.click(screen.getByText("Guardar"));
 
@@ -224,7 +224,7 @@ describe("ChoferVacacionesTab — corregir fechas del período", () => {
 
   it("no deja guardar un período que termina antes de empezar", async () => {
     montar();
-    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+    fireEvent.click(screen.getByTitle("Corregir las fechas"));
     fireEvent.change(screen.getByLabelText("Desde"), { target: { value: `${Y}-08-10` } });
     fireEvent.click(screen.getByText("Guardar"));
 
