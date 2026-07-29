@@ -27,6 +27,7 @@ import {
 } from "./actions";
 import { deleteViajeAction } from "../actions";
 import EditViajeDialog from "../components/EditViajeDialog";
+import { aCambio, borradorDe, borradorSucio, type Borrador } from "./borradores";
 import type { ViajeBasico } from "../types";
 
 // Helpers ---------------------------------------------------------------------
@@ -316,31 +317,6 @@ export default function HojaRutaMensualClient({
 // Panel chofer (estilo sheet del Excel)
 // ===========================================================================
 
-/** Lo que se está tipeando en una fila. Todo string: sale de inputs. */
-type Borrador = {
-  origen: string;
-  destino: string;
-  km: string;
-  remito: string;
-  monto: string;
-};
-
-function borradorDe(v: HrViajeItem): Borrador {
-  return {
-    origen: v.origen ?? "",
-    destino: v.destino ?? "",
-    km: v.km_con_carga == null ? "" : String(v.km_con_carga),
-    remito: v.nro_remito ?? "",
-    monto: v.monto_flete == null ? "" : String(v.monto_flete),
-  };
-}
-
-function borradorSucio(v: HrViajeItem, b: Borrador): boolean {
-  const o = borradorDe(v);
-  const claves: (keyof Borrador)[] = ["origen", "destino", "km", "remito", "monto"];
-  return claves.some((k) => b[k].trim() !== o[k].trim());
-}
-
 /**
  * La fila de la hoja de ruta con la forma que espera el modal de detalle. El
  * modal vuelve a leer el viaje del server apenas abre, así que lo que va acá es
@@ -374,22 +350,6 @@ function aViajeBasico(v: HrViajeItem, chofer: string): ViajeBasico {
   };
 }
 
-/** El borrador tal como lo espera el server. */
-function aCambio(id: string, b: Borrador) {
-  const num = (s: string) => {
-    if (s.trim() === "") return null;
-    const n = parseFloat(s);
-    return Number.isNaN(n) ? null : n;
-  };
-  return {
-    id,
-    origen_nombre: b.origen.trim() || null,
-    destino_nombre: b.destino.trim() || null,
-    km_con_carga: num(b.km),
-    nro_remito: b.remito.trim() || null,
-    monto_flete: num(b.monto),
-  };
-}
 
 function PanelChofer({
   panel,
@@ -424,7 +384,7 @@ function PanelChofer({
   const guardarLote = async (viajes: HrViajeItem[]) => {
     const cambios = viajes
       .filter((v) => borradores[v.id] && borradorSucio(v, borradores[v.id]!))
-      .map((v) => aCambio(v.id, borradores[v.id]!));
+      .map((v) => aCambio(v, borradores[v.id]!));
     if (cambios.length === 0) {
       limpiar();
       return;
@@ -435,6 +395,12 @@ function PanelChofer({
     setGuardando(false);
     if ("error" in res) {
       setErrorGuardar(res.error);
+      // Si entró parte del lote hay que recargar igual: dejar la tabla con los
+      // valores viejos hace creer que no se guardó nada.
+      if (res.guardados > 0) {
+        setBorradores({});
+        onChanged();
+      }
       return;
     }
     limpiar();
@@ -674,7 +640,7 @@ function FilaViaje({
 
   const esVacio = viaje.es_vacio;
   const esPendiente = !esVacio && viaje.monto_flete == null;
-  const { origen, destino, km, remito, monto } = borrador;
+  const { origen, destino, km, kmVacios, toneladas, remito, monto } = borrador;
 
   const eliminar = async () => {
     setEliminando(true);
@@ -745,7 +711,23 @@ function FilaViaje({
           fmtNum(viaje.km_con_carga)
         )}
       </td>
-      <td className="px-3 py-2 text-right font-mono">{viaje.tonelaje_real ? fmtNum(viaje.tonelaje_real, 2) : "—"}</td>
+      <td className="px-3 py-2 text-right font-mono">
+        {editando ? (
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={toneladas}
+            onChange={(e) => onBorrador({ toneladas: e.target.value })}
+            placeholder="0,00"
+            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+          />
+        ) : viaje.tonelaje_real ? (
+          fmtNum(viaje.tonelaje_real, 2)
+        ) : (
+          "—"
+        )}
+      </td>
       <td className="px-3 py-2 font-mono text-[11px]">
         {editando ? (
           <input
@@ -766,7 +748,20 @@ function FilaViaje({
       <td className="px-3 py-2 text-[11px]">
         {viaje.material ?? viaje.cliente ?? "—"}
       </td>
-      <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtNum(viaje.km_vacios)}</td>
+      <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+        {editando ? (
+          <input
+            type="number"
+            min="0"
+            value={kmVacios}
+            onChange={(e) => onBorrador({ kmVacios: e.target.value })}
+            placeholder="0"
+            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+          />
+        ) : (
+          fmtNum(viaje.km_vacios)
+        )}
+      </td>
       <td className="px-3 py-2 text-right font-mono">
         {editando ? (
           <input

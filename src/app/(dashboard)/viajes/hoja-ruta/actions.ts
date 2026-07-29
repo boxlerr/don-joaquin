@@ -341,6 +341,7 @@ export async function actualizarViajeHojaRutaAction(
     destino_nombre?: string | null;
     km_con_carga?: number | null;
     km_vacios?: number | null;
+    tonelaje_real?: number | null;
     nro_remito?: string | null;
     monto_flete?: number | null;
   },
@@ -352,7 +353,7 @@ export async function actualizarViajeHojaRutaAction(
   const { data: previo } = await (supabase as any)
     .from("viajes")
     .select(
-      `id, km_con_carga, km_vacios, nro_remito, monto_flete,
+      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -367,11 +368,16 @@ export async function actualizarViajeHojaRutaAction(
   const destinoId = await getOrCreatePunto(supabase, data.destino_nombre);
   if (destinoId !== undefined) payload.destino_id = destinoId;
 
-  for (const campo of ["km_con_carga", "km_vacios"] as const) {
+  for (const campo of ["km_con_carga", "km_vacios", "tonelaje_real"] as const) {
     const v = data[campo];
     if (v === undefined) continue;
     if (v != null && (!Number.isFinite(v) || v < 0))
-      return { error: "Los kilómetros tienen que ser un número mayor o igual a cero." };
+      return {
+        error:
+          campo === "tonelaje_real"
+            ? "Las toneladas tienen que ser un número mayor o igual a cero."
+            : "Los kilómetros tienen que ser un número mayor o igual a cero.",
+      };
     payload[campo] = v;
   }
 
@@ -400,6 +406,7 @@ export async function actualizarViajeHojaRutaAction(
       destino: uno(previo.destino)?.nombre ?? null,
       km_con_carga: previo.km_con_carga,
       km_vacios: previo.km_vacios,
+      tonelaje_real: previo.tonelaje_real,
       nro_remito: previo.nro_remito,
       monto_flete: previo.monto_flete,
     },
@@ -408,6 +415,7 @@ export async function actualizarViajeHojaRutaAction(
       ...(data.destino_nombre !== undefined ? { destino: data.destino_nombre } : {}),
       ...(data.km_con_carga !== undefined ? { km_con_carga: data.km_con_carga } : {}),
       ...(data.km_vacios !== undefined ? { km_vacios: data.km_vacios } : {}),
+      ...(data.tonelaje_real !== undefined ? { tonelaje_real: data.tonelaje_real } : {}),
       ...(data.nro_remito !== undefined ? { nro_remito: data.nro_remito } : {}),
       ...(data.monto_flete !== undefined ? { monto_flete: data.monto_flete } : {}),
     },
@@ -424,6 +432,8 @@ export type CambioViajeHr = {
   origen_nombre?: string | null;
   destino_nombre?: string | null;
   km_con_carga?: number | null;
+  km_vacios?: number | null;
+  tonelaje_real?: number | null;
   nro_remito?: string | null;
   monto_flete?: number | null;
 };
@@ -432,32 +442,50 @@ export type CambioViajeHr = {
  * Guarda varias filas de la hoja de ruta de una vez.
  *
  * Corregir de a una era abrir, editar, guardar y cerrar por cada viaje, y en un
- * mes de 100 viajes eso es la mayor parte del trabajo. Se valida TODO antes de
- * escribir nada: o entra el lote entero o no entra ninguno, para no dejar la
- * hoja a medio corregir.
+ * mes de 100 viajes eso es la mayor parte del trabajo.
+ *
+ * Lo verificable se valida antes de escribir. Lo que NO se puede prometer es
+ * atomicidad: cada fila es un UPDATE aparte contra PostgREST, sin transacción,
+ * así que si la número 12 falla las once anteriores ya quedaron guardadas. Por
+ * eso el error viaja junto con cuántas entraron, y la pantalla recarga igual:
+ * decir "no se guardó nada" cuando sí se guardó la mitad es peor que el error.
  */
 export async function actualizarViajesHojaRutaAction(
   cambios: CambioViajeHr[],
-): Promise<{ ok: true; guardados: number } | { error: string }> {
+): Promise<{ ok: true; guardados: number } | { error: string; guardados: number }> {
   await requireArea("viajes", "write");
   if (cambios.length === 0) return { ok: true, guardados: 0 };
+  let guardados = 0;
 
   for (const c of cambios) {
-    if (!c.id) return { error: "Falta identificar uno de los viajes." };
-    for (const campo of ["km_con_carga"] as const) {
+    if (!c.id) return { error: "Falta identificar uno de los viajes.", guardados };
+    for (const campo of ["km_con_carga", "km_vacios", "tonelaje_real"] as const) {
       const v = c[campo];
       if (v != null && (!Number.isFinite(v) || v < 0))
-        return { error: "Los kilómetros tienen que ser un número mayor o igual a cero." };
+        return {
+          error:
+            campo === "tonelaje_real"
+              ? "Las toneladas tienen que ser un número mayor o igual a cero."
+              : "Los kilómetros tienen que ser un número mayor o igual a cero.",
+          guardados,
+        };
     }
     if (c.monto_flete != null && (!Number.isFinite(c.monto_flete) || c.monto_flete < 0))
-      return { error: "Los importes tienen que ser mayores o iguales a cero." };
+      return { error: "Los importes tienen que ser mayores o iguales a cero.", guardados };
   }
 
-  let guardados = 0;
   for (const c of cambios) {
     const { id, ...resto } = c;
     const res = await actualizarViajeHojaRutaAction(id, resto);
-    if (res.error) return { error: res.error };
+    if (res.error) {
+      return {
+        error:
+          guardados > 0
+            ? `Se guardaron ${guardados} de ${cambios.length} y falló el siguiente: ${res.error}`
+            : res.error,
+        guardados,
+      };
+    }
     guardados++;
   }
   return { ok: true, guardados };
