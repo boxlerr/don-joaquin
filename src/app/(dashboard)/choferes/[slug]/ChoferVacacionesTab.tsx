@@ -4,9 +4,15 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Palmtree, Plus, Save, Trash2, Pencil, X } from "lucide-react";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Palmtree, Plus, Save, Trash2, Pencil, X, CalendarDays } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
-import { guardarSaldosAnioAction, reimputarPeriodoAction } from "./actions";
+import {
+  guardarSaldosAnioAction,
+  reimputarPeriodoAction,
+  editarAusenciaAction,
+  cancelarAusenciaAction,
+} from "./actions";
 import type { Ausencia, VacacionesSaldo } from "./types";
 import { formatFecha } from "@/lib/utils";
 import {
@@ -49,6 +55,15 @@ export default function ChoferVacacionesTab({
   const [dialogOpen, setDialogOpen] = useState(false);
   // Período cuyo año de imputación se está cambiando (id de la ausencia).
   const [reimputando, setReimputando] = useState<string | null>(null);
+  // Período cuyas fechas se están corrigiendo acá mismo. Hasta ahora, para
+  // arreglar un día mal cargado había que irse a la pestaña Ausencias: la
+  // corrección más frecuente quedaba lejos justo de donde se ve el error.
+  const [editandoFechas, setEditandoFechas] = useState<string | null>(null);
+  const [fechas, setFechas] = useState({ inicio: "", fin: "" });
+  const [guardandoFechas, setGuardandoFechas] = useState(false);
+  // Período que se está por cancelar (los días vuelven al saldo del año).
+  const [cancelando, setCancelando] = useState<Ausencia | null>(null);
+  const [cancelandoLoading, setCancelandoLoading] = useState(false);
 
   // Períodos de vacaciones ya tomados (ausencias marcadas como vacaciones).
   const periodos = ausencias.filter((a) => a.es_vacaciones);
@@ -143,6 +158,66 @@ export default function ChoferVacacionesTab({
     const res = await reimputarPeriodoAction(id, chofer_id, valor === "hist" ? null : Number(valor));
     if (res.error) setError(res.error);
     else onRefresh();
+  };
+
+  // Mismo cálculo inclusivo que hace el servidor: del 30/03 al 05/04 son 7 días,
+  // no 6. Se recalcula mientras se tipea para que el número de días que va a
+  // quedar se vea antes de guardar.
+  const diasEntre = (inicio: string, fin: string) => {
+    if (!inicio || !fin) return 0;
+    const ini = new Date(inicio + "T00:00:00").getTime();
+    const f = new Date(fin + "T00:00:00").getTime();
+    if (Number.isNaN(ini) || Number.isNaN(f) || f < ini) return 0;
+    return Math.max(1, Math.round((f - ini) / 86_400_000) + 1);
+  };
+
+  const abrirFechas = (a: Ausencia) => {
+    setReimputando(null);
+    setEditandoFechas(a.id);
+    setFechas({ inicio: a.fecha_inicio, fin: a.fecha_fin });
+    setError(null);
+  };
+
+  const guardarFechas = async (a: Ausencia) => {
+    if (!fechas.inicio || !fechas.fin) {
+      setError("Faltan las fechas del período.");
+      return;
+    }
+    if (fechas.fin < fechas.inicio) {
+      setError("La fecha de fin no puede ser anterior al inicio.");
+      return;
+    }
+    setGuardandoFechas(true);
+    setError(null);
+    // `anio_cargo` va sin definir a propósito: mover las fechas no tiene por qué
+    // cambiar de qué año descuenta el período. Eso se decide con el otro botón.
+    const res = await editarAusenciaAction(a.id, chofer_id, {
+      tipo: a.tipo,
+      fecha_inicio: fechas.inicio,
+      fecha_fin: fechas.fin,
+      observaciones: a.observaciones,
+      es_vacaciones: true,
+      justificada: a.justificada,
+    });
+    setGuardandoFechas(false);
+    if (res.error) setError(res.error);
+    else {
+      setEditandoFechas(null);
+      onRefresh();
+    }
+  };
+
+  const confirmarCancelacion = async () => {
+    if (!cancelando) return;
+    setCancelandoLoading(true);
+    setError(null);
+    const res = await cancelarAusenciaAction(cancelando.id, chofer_id);
+    setCancelandoLoading(false);
+    if (res.error) setError(res.error);
+    else {
+      setCancelando(null);
+      onRefresh();
+    }
   };
 
   return (
@@ -389,15 +464,72 @@ export default function ChoferVacacionesTab({
                 className="bg-card rounded-[8px] border border-border p-3 flex items-center justify-between gap-3 flex-wrap"
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-foreground">
-                    {formatFecha(a.fecha_inicio)}
-                    <span className="text-muted-foreground mx-1.5">→</span>
-                    {formatFecha(a.fecha_fin)}
-                  </span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
-                    {a.dias} día{a.dias !== 1 ? "s" : ""}
-                  </span>
-                  {a.en_curso && (
+                  {editandoFechas === a.id ? (
+                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                      <Input
+                        type="date"
+                        value={fechas.inicio}
+                        onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
+                        className="h-7 w-[8.75rem] text-xs"
+                        aria-label="Desde"
+                      />
+                      <span className="text-muted-foreground">→</span>
+                      <Input
+                        type="date"
+                        value={fechas.fin}
+                        min={fechas.inicio || undefined}
+                        onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
+                        className="h-7 w-[8.75rem] text-xs"
+                        aria-label="Hasta"
+                      />
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {diasEntre(fechas.inicio, fechas.fin)} día
+                        {diasEntre(fechas.inicio, fechas.fin) !== 1 ? "s" : ""}
+                      </span>
+                      <Button
+                        variant="brand"
+                        size="sm"
+                        onClick={() => guardarFechas(a)}
+                        disabled={guardandoFechas}
+                        className="h-7 text-xs"
+                      >
+                        <Save size={12} className="mr-1" />
+                        {guardandoFechas ? "Guardando…" : "Guardar"}
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoFechas(null)}
+                        disabled={guardandoFechas}
+                        title="Cancelar la edición"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={!can_write}
+                        onClick={() => can_write && abrirFechas(a)}
+                        title={can_write ? "Corregir las fechas de este período" : undefined}
+                        className={`text-sm text-foreground text-left ${
+                          can_write ? "hover:text-primary cursor-pointer" : "cursor-default"
+                        }`}
+                      >
+                        {formatFecha(a.fecha_inicio)}
+                        <span className="text-muted-foreground mx-1.5">→</span>
+                        {formatFecha(a.fecha_fin)}
+                        {can_write && (
+                          <CalendarDays size={11} className="inline ml-1.5 align-baseline text-muted-foreground" />
+                        )}
+                      </button>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
+                        {a.dias} día{a.dias !== 1 ? "s" : ""}
+                      </span>
+                    </>
+                  )}
+                  {a.en_curso && editandoFechas !== a.id && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">
                       En curso
                     </span>
@@ -405,7 +537,7 @@ export default function ChoferVacacionesTab({
                   {/* De qué año descuenta. Editable: la imputación automática
                       (y el importador de la planilla) a veces le pegan al año
                       equivocado y hasta ahora no había forma de corregirlo. */}
-                  {reimputando === a.id ? (
+                  {editandoFechas === a.id ? null : reimputando === a.id ? (
                     <span className="inline-flex items-center gap-1">
                       <select
                         autoFocus
@@ -450,20 +582,32 @@ export default function ChoferVacacionesTab({
                     </button>
                   )}
                 </div>
-                {a.autorizado_por_nombre && (
-                  <span className="text-xs text-muted-foreground">
-                    Autorizó: {a.autorizado_por_nombre}
-                  </span>
-                )}
+                <div className="flex items-center gap-3 ml-auto">
+                  {a.autorizado_por_nombre && (
+                    <span className="text-xs text-muted-foreground">
+                      Autorizó: {a.autorizado_por_nombre}
+                    </span>
+                  )}
+                  {can_write && editandoFechas !== a.id && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelando(a)}
+                      title="Cancelar este período (los días vuelven al saldo)"
+                      className="text-muted-foreground hover:text-[#EF4444] shrink-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          Clic en <span className="font-medium">Saldo {finPeriodoY}</span> / <span className="font-medium">Histórico</span> para
-          cambiar de qué año descuenta el período. Las vacaciones se cargan como una ausencia (también
-          aparecen en Logística / Viajes). Para editar fechas o cancelarlas, usá la pestaña{" "}
-          <span className="font-medium">Ausencias</span>.
+          Clic en las <span className="font-medium">fechas</span> para corregirlas, y en{" "}
+          <span className="font-medium">Saldo {finPeriodoY}</span> /{" "}
+          <span className="font-medium">Histórico</span> para cambiar de qué año descuenta el período.
+          Las vacaciones se cargan como una ausencia (también aparecen en Logística / Viajes).
         </p>
       </div>
 
@@ -477,6 +621,27 @@ export default function ChoferVacacionesTab({
           setDialogOpen(false);
           onRefresh();
         }}
+      />
+
+      <ConfirmDialog
+        open={cancelando != null}
+        onOpenChange={(o) => !o && setCancelando(null)}
+        title="Cancelar período de vacaciones"
+        description={
+          cancelando ? (
+            <>
+              Del {formatFecha(cancelando.fecha_inicio)} al {formatFecha(cancelando.fecha_fin)} (
+              {cancelando.dias} día{cancelando.dias !== 1 ? "s" : ""}).{" "}
+              {cancelando.anio_cargo != null
+                ? `Los días vuelven al saldo ${cancelando.anio_cargo}.`
+                : "Era un período histórico, así que el saldo no se mueve."}
+            </>
+          ) : null
+        }
+        confirmLabel="Cancelar período"
+        cancelLabel="Volver"
+        loading={cancelandoLoading}
+        onConfirm={confirmarCancelacion}
       />
     </div>
   );

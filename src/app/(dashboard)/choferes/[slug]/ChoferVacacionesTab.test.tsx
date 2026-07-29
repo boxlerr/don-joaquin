@@ -1,14 +1,24 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ChoferVacacionesTab from "./ChoferVacacionesTab";
 import type { Ausencia, VacacionesSaldo } from "./types";
+
+const editarAusenciaAction = vi.fn(async () => ({ success: true }));
+const cancelarAusenciaAction = vi.fn(async () => ({ success: true }));
 
 vi.mock("./actions", () => ({
   guardarSaldosAnioAction: vi.fn(async () => ({ success: true })),
   reimputarPeriodoAction: vi.fn(async () => ({ success: true })),
   crearAusenciaAction: vi.fn(async () => ({ success: true })),
   getViajesChoferEnRangoAction: vi.fn(async () => []),
+  editarAusenciaAction: (...args: unknown[]) => editarAusenciaAction(...(args as [])),
+  cancelarAusenciaAction: (...args: unknown[]) => cancelarAusenciaAction(...(args as [])),
 }));
+
+beforeEach(() => {
+  editarAusenciaAction.mockClear();
+  cancelarAusenciaAction.mockClear();
+});
 
 const Y = new Date().getFullYear();
 
@@ -131,5 +141,64 @@ describe("ChoferVacacionesTab — edición", () => {
     montar(undefined, false);
     expect(screen.queryByText("Editar días")).not.toBeInTheDocument();
     expect(screen.getByText(`Saldo ${Y - 1}`)).toBeDisabled();
+    expect(screen.queryByTitle("Corregir las fechas de este período")).not.toBeInTheDocument();
+  });
+});
+
+// Pedido de Bárbara (29/07/2026): las fechas de un período mal cargado sólo se
+// podían tocar desde la pestaña Ausencias, así que el error se veía en un lado y
+// se arreglaba en otro. Ahora se corrigen en la misma lista donde se leen.
+describe("ChoferVacacionesTab — corregir fechas del período", () => {
+  it("abre los campos de fecha y recalcula los días antes de guardar", () => {
+    montar();
+    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+
+    const desde = screen.getByLabelText("Desde") as HTMLInputElement;
+    const hasta = screen.getByLabelText("Hasta") as HTMLInputElement;
+    expect(desde.value).toBe(`${Y}-07-20`);
+    expect(hasta.value).toBe(`${Y}-07-30`);
+
+    // Del 30/03 al 05/04 son 7 días: el conteo es inclusivo, igual que el server.
+    fireEvent.change(desde, { target: { value: `${Y}-03-30` } });
+    fireEvent.change(hasta, { target: { value: `${Y}-04-05` } });
+    expect(screen.getByText("7 días")).toBeInTheDocument();
+  });
+
+  it("guarda las fechas nuevas sin cambiar de qué año descuenta", async () => {
+    montar();
+    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: `${Y}-07-26` } });
+    fireEvent.click(screen.getByText("Guardar"));
+
+    await vi.waitFor(() => expect(editarAusenciaAction).toHaveBeenCalled());
+    const [id, choferId, data] = editarAusenciaAction.mock.calls.at(-1) as unknown as [
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(id).toBe("a1");
+    expect(choferId).toBe("c1");
+    expect(data.fecha_inicio).toBe(`${Y}-07-20`);
+    expect(data.fecha_fin).toBe(`${Y}-07-26`);
+    expect(data.es_vacaciones).toBe(true);
+    // Mover fechas no reimputa: el año de cargo se conserva solo.
+    expect(data.anio_cargo).toBeUndefined();
+  });
+
+  it("no deja guardar un período que termina antes de empezar", async () => {
+    montar();
+    fireEvent.click(screen.getByTitle("Corregir las fechas de este período"));
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: `${Y}-08-10` } });
+    fireEvent.click(screen.getByText("Guardar"));
+
+    expect(screen.getByText("La fecha de fin no puede ser anterior al inicio.")).toBeInTheDocument();
+    expect(editarAusenciaAction).not.toHaveBeenCalled();
+  });
+
+  it("pide confirmación antes de cancelar un período y avisa a qué saldo vuelven los días", () => {
+    montar();
+    fireEvent.click(screen.getByTitle("Cancelar este período (los días vuelven al saldo)"));
+    expect(screen.getByText("Cancelar período de vacaciones")).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`vuelven al saldo ${Y - 1}`))).toBeInTheDocument();
   });
 });
