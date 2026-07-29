@@ -21,6 +21,8 @@ interface Props {
   stats: Stats;
   choferId?: string;
   choferNombre?: string | null;
+  /** Búsqueda inicial (?q=): llega desde "A dónde fueron" con el destino puesto. */
+  initialBusqueda?: string;
   /** Filtro preseleccionado desde la URL (key de tarjeta: sin_facturar, vacios). */
   filtroInicial?: string;
   /** "Le falta este dato" (?falta=km|monto|tonelaje|chofer): llega desde /metricas
@@ -52,6 +54,7 @@ interface CardDef {
 }
 
 export default function ViajesStatsPanel({
+  initialBusqueda,
   stats,
   choferId,
   choferNombre,
@@ -263,6 +266,7 @@ export default function ViajesStatsPanel({
         gastoFormData={gastoFormData}
         initialDesde={tableDesde}
         initialHasta={tableHasta}
+        initialBusqueda={initialBusqueda}
       />
     </>
   );

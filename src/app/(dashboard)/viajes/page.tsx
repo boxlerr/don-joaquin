@@ -26,12 +26,14 @@ export default async function ViajesPage({
     hasta?: string;
     /** ?falta=km|monto|tonelaje|chofer — llega desde /metricas. */
     falta?: string;
+    /** ?q=RAMALLO — llega desde "A dónde fueron" con el destino ya buscado. */
+    q?: string;
   }>;
 }) {
   const user = await requireSeccion("viajes_listado", "read");
   const canWrite = hasSeccion(user, "viajes_listado", "write");
   const canRegistrarGasto = hasArea(user, "finanzas", "write");
-  const { choferId, filtro, rango, desde, hasta, falta } = await searchParams;
+  const { choferId, filtro, rango, desde, hasta, falta, q } = await searchParams;
   const supabase = createAdminClient();
 
   // Período elegido por el selector de fechas. Default "total" = todos los viajes
@@ -155,6 +157,7 @@ export default async function ViajesPage({
           incompletos: incompletos.count ?? 0,
         }}
         choferId={choferId}
+        initialBusqueda={q}
         choferNombre={choferNombre}
         filtroInicial={filtro}
         faltaInicial={esFaltaDato(falta) ? falta : undefined}

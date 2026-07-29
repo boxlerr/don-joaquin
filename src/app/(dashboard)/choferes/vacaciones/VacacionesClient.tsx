@@ -13,7 +13,6 @@ import {
   Pencil,
   Check,
   X,
-  AlertTriangle,
   Download,
   Info,
   ExternalLink,
@@ -136,12 +135,20 @@ type RangoCrono =
   | { modo: "semanas"; largo: LargoSemanas; offset: number };
 
 /** Criterios de orden de la lista de saldos. */
-type OrdenSaldos = "urgencia" | "disponibles" | "porVencer" | "apellido" | "antiguedad" | "tomados";
+type OrdenSaldos =
+  | "urgencia"
+  | "disponibles"
+  | "porVencer"
+  | "faltanLey"
+  | "apellido"
+  | "antiguedad"
+  | "tomados";
 
 const ORDEN_SALDOS_LABEL: Record<OrdenSaldos, string> = {
   urgencia: "Urgencia",
   disponibles: "Más días disponibles",
   porVencer: "Más días por vencer",
+  faltanLey: "Menos días que la ley",
   antiguedad: "Más antigüedad",
   tomados: "Menos días tomados",
   apellido: "Apellido (A-Z)",
@@ -197,6 +204,8 @@ export default function VacacionesClient({
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [planAbierto, setPlanAbierto] = useState(false);
   const [confirmPlan, setConfirmPlan] = useState(false);
+  // Recalcular escribe sobre toda la dotación: se confirma antes, como el plan.
+  const [confirmRecalculo, setConfirmRecalculo] = useState(false);
   const [planCargando, setPlanCargando] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   // Drag & drop de períodos entre semanas (misma fila).
@@ -328,10 +337,16 @@ export default function VacacionesClient({
   };
 
   const recalcular = async () => {
+    setConfirmRecalculo(false);
     const res = await recalcularDiasPorAntiguedadAction();
     if (res?.error) alert(res.error);
     else {
-      alert(`Listo. ${res?.actualizados ?? 0} empleado(s) actualizados según su antigüedad.`);
+      // La segunda oración es el blindaje hecho visible: Bárbara ve que el
+      // proceso automático se frenó solo delante de lo que cargó una persona.
+      const resp = res?.respetados
+        ? ` ${res.respetados} quedaron como estaban porque los cargó una persona.`
+        : "";
+      alert(`Listo. ${res?.actualizados ?? 0} empleado(s) actualizados por antigüedad.${resp}`);
       refrescar();
     }
   };
@@ -477,7 +492,12 @@ export default function VacacionesClient({
 
   const enVacacionesAhora = saldos.filter((s) => s.en_vacaciones_ahora);
   const urgentes = saldos.filter((s) => s.adeudados > 0);
-  const desfasados = saldos.filter((s) => s.desfasaje).length;
+  // Dos poblaciones distintas que antes iban juntas en un solo cartel: a quien
+  // le FALTAN días se le está debiendo (accionable, urgente), y a quien le
+  // SOBRAN probablemente le quedó arrastre de años anteriores (revisable).
+  const faltanLey = saldos.filter((s) => s.faltan_ley > 0);
+  const diasFaltanLey = faltanLey.reduce((a, s) => a + s.faltan_ley, 0);
+  const masQueLey = saldos.filter((s) => s.desfasaje && s.faltan_ley === 0);
   // Línea vertical de "hoy". La ventana ya no arranca necesariamente esta semana,
   // así que hay que ubicar en qué columna cae (o no dibujarla).
   const idxSemanaHoy = semanas.findIndex((s) => s.start <= hoyISO && s.end >= hoyISO);
@@ -559,6 +579,8 @@ export default function VacacionesClient({
             return b.disponibles - a.disponibles || a.apellido.localeCompare(b.apellido);
           case "porVencer":
             return b.adeudados - a.adeudados || a.apellido.localeCompare(b.apellido);
+          case "faltanLey":
+            return b.faltan_ley - a.faltan_ley || a.apellido.localeCompare(b.apellido);
           case "antiguedad":
             return b.anios - a.anios || a.apellido.localeCompare(b.apellido);
           case "tomados":
@@ -705,15 +727,24 @@ export default function VacacionesClient({
             <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
               <Plus size={15} /> Cargar vacaciones
             </Button>
-            <Button
-              variant="outline"
-              onClick={recalcular}
-              disabled={pending}
-              className="h-9 gap-1.5 text-muted-foreground border-border"
-              title="Ajustar los días que corresponden según la antigüedad actual"
-            >
-              <RefreshCw size={14} /> Recalcular antigüedad
-            </Button>
+            <div className="flex flex-col gap-1">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmRecalculo(true)}
+                disabled={pending}
+                className="h-9 gap-1.5 text-muted-foreground border-border"
+                title="Ajustar los días que corresponden según la antigüedad actual"
+              >
+                <RefreshCw size={14} /> Recalcular antigüedad
+              </Button>
+              {/* Responde por escrito la pregunta de Bárbara ("¿eso se va a ir
+                  actualizando solo?"): el botón no es la única forma de que
+                  pase, es sólo un adelanto de lo que el sistema hace en enero. */}
+              <span className="text-xs text-muted-foreground max-w-[15rem]">
+                Cada 1 de enero el sistema crea la fila del año nuevo con los días que corresponden. Este
+                botón sólo adelanta ese ajuste.
+              </span>
+            </div>
           </>
         )}
       </div>
@@ -770,11 +801,36 @@ export default function VacacionesClient({
         </div>
       </TooltipProvider>
 
-      {desfasados > 0 && canWrite && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
-          <AlertTriangle size={15} />
-          {desfasados} empleado(s) tienen los días cargados desfasados de su antigüedad actual. Usá
-          “Recalcular antigüedad” para ajustarlos.
+      {/* Dos avisos y no uno. El cartel viejo contaba juntos a los que tienen
+          MENOS días que la ley (grave: se les debe) y a los que tienen de más
+          por arrastre legítimo, así que gritaba lobo sobre 14 personas y los 5
+          casos reales quedaban tapados. Y ya no dice "usá Recalcular
+          antigüedad": ese botón sólo escribe el año en curso y no arregla
+          ninguno de los casos graves, que son todos del año pasado. */}
+      {canWrite && (faltanLey.length > 0 || masQueLey.length > 0) && (
+        <div className="space-y-1.5">
+          {faltanLey.length > 0 && (
+            <p className="border-l-2 border-[#991B1B]/40 pl-3 text-sm text-[#991B1B]">
+              {faltanLey.length} empleado(s) tienen menos días cargados de los que marca la ley —{" "}
+              {diasFaltanLey} días en total.{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setOrdenSaldos("faltanLey");
+                  irA("card-saldos");
+                }}
+                className="underline"
+              >
+                Ver quiénes
+              </button>
+            </p>
+          )}
+          {masQueLey.length > 0 && (
+            <p className="border-l-2 border-border pl-3 text-sm text-muted-foreground">
+              {masQueLey.length} empleado(s) tienen más días que la ley. Puede ser arrastre de años
+              anteriores; revisalo cuando puedas.
+            </p>
+          )}
         </div>
       )}
 
@@ -1786,6 +1842,17 @@ export default function VacacionesClient({
         destructive={false}
         loading={planCargando}
         onConfirm={aplicarPlan}
+      />
+
+      {/* Confirmar el recálculo por antigüedad (escribe sobre toda la dotación) */}
+      <ConfirmDialog
+        open={confirmRecalculo}
+        onOpenChange={setConfirmRecalculo}
+        title="Recalcular días por antigüedad"
+        description={`Ajusta los días del ${finPeriodoY} a lo que marca la ley por antigüedad. No toca los años anteriores ni las filas que cargó una persona.`}
+        confirmLabel="Recalcular"
+        destructive={false}
+        onConfirm={recalcular}
       />
 
       {/* Importar planilla de Bárbara con vista previa */}

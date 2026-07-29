@@ -3,9 +3,13 @@ import {
   saldosPorAnio,
   anioParaImputar,
   diasPorAntiguedad,
+  diasPorAntiguedadEnAnio,
   aniosCumplidos,
   semaforo,
   resumenSaldos,
+  chequeoLey,
+  explicarAntiguedad,
+  aniosEnRojo,
 } from "./derivar";
 
 // Casos tomados de la conciliación real con la planilla de Bárbara (21/07/2026):
@@ -186,5 +190,103 @@ describe("semáforo", () => {
     expect(semaforo(0, 30)).toBe("🟠");
     expect(semaforo(0, 21)).toBe("🟡");
     expect(semaforo(0, 14)).toBe("🟢");
+  });
+});
+
+// Los 5 casos graves que dejó la conciliación del 22/07/2026: gente a la que
+// legalmente se le deben días y que ninguna pantalla marcaba, porque el
+// `desfasaje` de derivarVacaciones sólo mira el año EN CURSO y todos son de 2025.
+describe("chequeoLey", () => {
+  // El 2026 se carga con lo que marca la ley para aislar el caso al 2025: si no,
+  // el chequeo (que mira los dos años vigentes) también lo reportaría.
+  const anio2025 = (otorgados: number, ingreso: string) =>
+    saldosPorAnio(
+      [
+        { anio: 2025, dias: otorgados },
+        { anio: 2026, dias: diasPorAntiguedadEnAnio(ingreso, 2026) },
+      ],
+      new Map(),
+    );
+
+  it.each([
+    ["Trejo", "2009-12-14", 16, 28, 12],
+    ["Cancela", "2022-03-14", 7, 14, 7],
+    ["Pucheta", "2016-12-16", 14, 21, 7],
+    ["Joaquín Jeremías", "2016-08-01", 14, 21, 7],
+    ["Quiroga", "2019-07-01", 15, 21, 6],
+  ])("%s: tiene %s y le corresponden %s", (_n, ingreso, otorgados, ley, faltan) => {
+    const r = chequeoLey(anio2025(otorgados as number, ingreso as string), ingreso as string, 2026);
+    expect(r).toEqual([{ anio: 2025, otorgados, ley, faltan }]);
+  });
+
+  it("no confunde 'le faltan' con 'le sobran' (arrastre legítimo)", () => {
+    // Novillo: 35 cargados en 2025 donde la ley da 21. Tiene días DE MÁS.
+    expect(chequeoLey(anio2025(35, "2020-09-21"), "2020-09-21", 2026)).toEqual([]);
+  });
+
+  it("ignora los años ya vencidos: no se pueden arreglar y sólo hacen ruido", () => {
+    const s = saldosPorAnio(
+      [
+        { anio: 2023, dias: 0 },
+        { anio: 2025, dias: 21 },
+        { anio: 2026, dias: 28 },
+      ],
+      new Map(),
+    );
+    expect(chequeoLey(s, "2010-01-02", 2026).map((x) => x.anio)).toEqual([2025]);
+  });
+
+  it("sin fecha de ingreso no inventa nada", () => {
+    expect(chequeoLey(anio2025(0, "2020-01-01"), null, 2026)).toEqual([]);
+  });
+
+  it("no reclama años anteriores al ingreso", () => {
+    // Entró en 2026: el 2025 no le corresponde y no tiene que aparecer.
+    const s = saldosPorAnio([{ anio: 2026, dias: 14 }], new Map());
+    expect(chequeoLey(s, "2026-02-01", 2026)).toEqual([]);
+  });
+});
+
+describe("diasPorAntiguedadEnAnio", () => {
+  it("mide la antigüedad al 31/12 del año de la fila, no al de hoy", () => {
+    // Cruza los 5 años en 2025: agregar el 2024 en el editor proponía los días
+    // del año en curso, o sea 21 donde iban 14.
+    expect(diasPorAntiguedadEnAnio("2020-03-01", 2024)).toBe(14);
+    expect(diasPorAntiguedadEnAnio("2020-03-01", 2026)).toBe(21);
+  });
+});
+
+describe("explicarAntiguedad", () => {
+  it("avisa el año en que le cambian los días (Alveira pasa de 21 a 28)", () => {
+    const frase = explicarAntiguedad("2017-07-03", 2026);
+    expect(frase).toContain("Ingresó el 03/07/2017");
+    expect(frase).toContain("Al 31/12/2026 cumple 9 años → 21 días");
+    expect(frase).toContain("Al 31/12/2027 cumple 10 y pasa a 28");
+  });
+
+  it("cuando no cambia, dice que el año nuevo se abre solo", () => {
+    // Cancela en 2025: 3 años al cierre y 4 al siguiente, los dos de 14 días.
+    expect(explicarAntiguedad("2022-03-14", 2025)).toContain(
+      "El 1 de enero el sistema le abre el 2026 solo",
+    );
+  });
+
+  it("en el tramo máximo aclara que ya no cambia más", () => {
+    expect(explicarAntiguedad("2000-05-10", 2026)).toContain("Ya está en el tramo más alto");
+  });
+
+  it("sin fecha de ingreso lo dice en lugar de calcular cualquier cosa", () => {
+    expect(explicarAntiguedad(null, 2026)).toContain("No tiene fecha de ingreso cargada");
+  });
+});
+
+describe("aniosEnRojo", () => {
+  it("marca los años con más días imputados que otorgados", () => {
+    const s = saldosPorAnio([{ anio: 2025, dias: 3 }, { anio: 2026, dias: 14 }], new Map([[2025, 18]]));
+    expect(aniosEnRojo(s)).toEqual([{ anio: 2025, otorgados: 3, usados: 18 }]);
+  });
+
+  it("un año justo en cero no está en rojo", () => {
+    expect(aniosEnRojo(saldosPorAnio([{ anio: 2025, dias: 14 }], new Map([[2025, 14]])))).toEqual([]);
   });
 });

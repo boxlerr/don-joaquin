@@ -135,6 +135,8 @@ interface Props {
   /** Rango de fechas inicial sembrado desde el selector de período de la página
    *  (queda editable en los inputs de fecha del listado). */
   initialDesde?: string;
+  /** Búsqueda inicial, para llegar desde otra pantalla con el filtro puesto. */
+  initialBusqueda?: string;
   initialHasta?: string;
 }
 
@@ -662,7 +664,7 @@ function NotasEditables({
   );
 }
 
-export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta }: Props) {
+export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta, initialBusqueda }: Props) {
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -702,7 +704,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [facturarOpen, setFacturarOpen] = useState(false);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialBusqueda ?? "");
   const [desde, setDesde] = useState(initialDesde ?? "");
   const [hasta, setHasta] = useState(initialHasta ?? "");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);

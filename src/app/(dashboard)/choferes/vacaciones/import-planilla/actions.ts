@@ -2,7 +2,7 @@
 
 import * as XLSX from "xlsx";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { requireSeccion } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "../../audit";
 import { saldosPorAnio, anioParaImputar } from "../derivar";
@@ -36,6 +36,11 @@ export type ImportSaldoCambio = {
   saldo_planilla: number;
   saldo_actual: number;
   otorgados_nuevo: number; // lo que hay que guardar para que el saldo derive al de la planilla
+  // El preview compara SALDOS pero lo que se escribe son OTORGADOS, que es otro
+  // número: ahí adentro se escondió el caso Trejo (28 → 16). Estos dos campos
+  // permiten mostrar el antes→después de lo que realmente se va a guardar.
+  otorgados_actual: number;
+  origen_actual: string;
 };
 
 export type ImportPreview = {
@@ -72,7 +77,7 @@ async function estadoActual(
       .from("choferes")
       .select("id, nombre, apellido, estado, es_demo")
       .or("es_demo.is.null,es_demo.eq.false"),
-    sb.from("chofer_vacaciones_anios").select("chofer_id, anio, dias_correspondientes"),
+    sb.from("chofer_vacaciones_anios").select("chofer_id, anio, dias_correspondientes, origen"),
     sb
       .from("chofer_ausencias")
       .select("id, chofer_id, fecha_inicio, fecha_fin, anio_cargo")
@@ -81,7 +86,12 @@ async function estadoActual(
   ]);
   return {
     choferes: (choferes ?? []) as { id: string; nombre: string; apellido: string; estado: string }[],
-    anios: (anios ?? []) as { chofer_id: string; anio: number; dias_correspondientes: number }[],
+    anios: (anios ?? []) as {
+      chofer_id: string;
+      anio: number;
+      dias_correspondientes: number;
+      origen: string | null;
+    }[],
     periodos: (periodos ?? []) as {
       id: string;
       chofer_id: string;
@@ -93,7 +103,11 @@ async function estadoActual(
 }
 
 export async function previewImportarPlanillaAction(base64: string): Promise<ImportPreview | { error: string }> {
-  await requireArea("logistica", "write");
+  // Mismo gate que TODAS las demás escrituras de vacaciones. Antes pedía
+  // requireArea("logistica","write"), así que alguien sin permiso sobre la
+  // subsección Vacaciones podía reescribir los saldos de la dotación entera
+  // desde acá — y es justo la escritura que peor auditaba.
+  await requireSeccion("choferes_vacaciones", "write");
   if (!base64 || base64.length > 15_000_000) return { error: "Archivo inválido o demasiado grande." };
 
   let wb: XLSX.WorkBook;
@@ -158,10 +172,14 @@ export async function previewImportarPlanillaAction(base64: string): Promise<Imp
 
   // ── estado actual del sistema ──────────────────────────────────────────────
   const otorgadosPor = new Map<string, Map<number, number>>();
+  const origenPor = new Map<string, Map<number, string>>();
   for (const a of anios) {
     const m = otorgadosPor.get(a.chofer_id) ?? new Map<number, number>();
     m.set(a.anio, a.dias_correspondientes ?? 0);
     otorgadosPor.set(a.chofer_id, m);
+    const o = origenPor.get(a.chofer_id) ?? new Map<number, string>();
+    o.set(a.anio, a.origen ?? "antiguedad");
+    origenPor.set(a.chofer_id, o);
   }
   const usadosPor = new Map<string, Map<number, number>>();
   for (const p of periodos) {
@@ -225,6 +243,8 @@ export async function previewImportarPlanillaAction(base64: string): Promise<Imp
         saldo_planilla: v,
         saldo_actual: saldoActual,
         otorgados_nuevo: v + usados,
+        otorgados_actual: otorgados,
+        origen_actual: origenPor.get(empleado.id)?.get(anio) ?? "antiguedad",
       });
     }
     const viejos = [...porAnio.entries()].filter(([a, v]) => a < anioActual - 1 && v > 0);
@@ -248,7 +268,7 @@ export async function aplicarImportarPlanillaAction(data: {
   periodos: { chofer_id: string; fecha_inicio: string; fecha_fin: string }[];
   saldos: { chofer_id: string; anio: number; dias_correspondientes: number }[];
 }) {
-  const user = await requireArea("logistica", "write");
+  const user = await requireSeccion("choferes_vacaciones", "write");
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
@@ -258,18 +278,39 @@ export async function aplicarImportarPlanillaAction(data: {
 
   // 1) Saldos primero (así los períodos nuevos se imputan sobre lo actualizado).
   let saldosAplicados = 0;
+  let respetados = 0;
   for (const s of (data.saldos ?? []).slice(0, 300)) {
     const dias = Math.trunc(Number(s.dias_correspondientes));
     if (!Number.isFinite(dias) || dias < 0 || !Number.isInteger(s.anio)) {
       errores.push("Saldo inválido");
       continue;
     }
+    // Se relee la fila destino en vez de confiar en lo que mandó el cliente: la
+    // regla "lo que cargó una persona no lo pisa un automático" tiene que valer
+    // aunque alguien llame la action a mano.
+    const { data: destino } = await sb
+      .from("chofer_vacaciones_anios")
+      .select("dias_correspondientes, origen")
+      .eq("chofer_id", s.chofer_id)
+      .eq("anio", s.anio)
+      .maybeSingle();
+    if (destino?.origen === "humano") {
+      respetados++;
+      continue;
+    }
+    const previoDias: number | null = destino?.dias_correspondientes ?? null;
+    const previoOrigen: string | null = destino?.origen ?? null;
+
     const { error } = await sb.from("chofer_vacaciones_anios").upsert(
       {
         chofer_id: s.chofer_id,
         anio: s.anio,
         dias_correspondientes: dias,
-        observaciones: `Importado de planilla (${hoyStr})`,
+        // La procedencia va en `origen`. Antes se machacaba la observación con
+        // "Importado de planilla (fecha)", pisando lo que hubiera escrito una
+        // persona para justificar ese número.
+        observaciones: null,
+        origen: "planilla",
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       },
@@ -280,12 +321,16 @@ export async function aplicarImportarPlanillaAction(data: {
       continue;
     }
     saldosAplicados++;
+    // Con el valor ANTERIOR. Antes iba `null` aunque el upsert pisaba: es la
+    // firma exacta del caso Trejo — quedaba la constancia de que se importó 16 y
+    // ninguna de que había 28, así que no se podía ni revertir ni explicar.
     await logChoferAudit(
       s.chofer_id,
       "vacaciones_saldo_editado",
-      null,
+      { anio: s.anio, dias_correspondientes: previoDias, origen: previoOrigen },
       { anio: s.anio, dias_correspondientes: dias, origen: "import_planilla" },
       user.id,
+      { tipo: "chofer_vacaciones_anio", id: `${s.chofer_id}:${s.anio}` },
     );
   }
 
@@ -334,35 +379,44 @@ export async function aplicarImportarPlanillaAction(data: {
       })),
       usados,
     );
-    const { error } = await sb.from("chofer_ausencias").insert({
-      chofer_id: p.chofer_id,
-      tipo: "Vacaciones",
-      fecha_inicio: p.fecha_inicio,
-      fecha_fin: p.fecha_fin,
-      estado: "autorizada",
-      autorizado_por: user.id,
-      observaciones: `Importado de planilla (${hoyStr})`,
-      es_vacaciones: true,
-      justificada: true,
-      anio_cargo: anioParaImputar(saldos, p.fecha_inicio),
-      created_by: user.id,
-    });
+    const { data: creada, error } = await sb
+      .from("chofer_ausencias")
+      .insert({
+        chofer_id: p.chofer_id,
+        tipo: "Vacaciones",
+        fecha_inicio: p.fecha_inicio,
+        fecha_fin: p.fecha_fin,
+        estado: "autorizada",
+        autorizado_por: user.id,
+        observaciones: `Importado de planilla (${hoyStr})`,
+        es_vacaciones: true,
+        justificada: true,
+        anio_cargo: anioParaImputar(saldos, p.fecha_inicio),
+        origen: "planilla",
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
     if (error) {
       errores.push("No se pudo crear un período");
       continue;
     }
     periodosCreados++;
+    // Con el id del período. Antes el alta quedaba a nombre del chofer mientras
+    // las ediciones y cancelaciones posteriores del MISMO período se auditaban
+    // como chofer_ausencia: la cadena de vida arrancaba huérfana.
     await logChoferAudit(
       p.chofer_id,
       "ausencia_creada",
       null,
       { tipo: "Vacaciones", fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin, origen: "import_planilla" },
       user.id,
+      creada?.id ? { tipo: "chofer_ausencia", id: creada.id as string } : undefined,
     );
   }
 
   revalidatePath("/choferes/vacaciones");
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
-  return { success: true, periodosCreados, saldosAplicados, errores };
+  return { success: true, periodosCreados, saldosAplicados, respetados, errores };
 }

@@ -9,6 +9,24 @@
 -- triggers → RLS. Si los triggers se crearan antes de los backfills, los
 -- propios backfills explotarían contra la guarda de updated_at.
 
+-- ── 0) audit_log.entidad_id: uuid → text ──────────────────────────────────────
+-- Hallazgo al escribir esta migración, y explica por qué la trazabilidad de los
+-- saldos por año no existía aunque el código la registrara: la columna era uuid,
+-- y el id de un saldo es `<chofer_id>:<anio>`. Cada uno de esos inserts fallaba
+-- con "invalid input syntax for type uuid" y `logAudit` se traga el error a
+-- propósito (la auditoría no debe romper la operación de negocio), así que se
+-- perdían en silencio. Por eso en audit_log no hay una sola fila de
+-- chofer_vacaciones_anio: no era que no se registrara, era que no entraba.
+--
+-- uuid → text no pierde nada (todo uuid es un texto válido), ningún FK apunta a
+-- esta columna y los filtros por id siguen funcionando igual. Los índices que la
+-- usen los reconstruye el propio ALTER.
+alter table public.audit_log
+  alter column entidad_id type text using entidad_id::text;
+
+comment on column public.audit_log.entidad_id is
+  'Id del recurso afectado. Es TEXT y no uuid porque algunas entidades son compuestas: el saldo de vacaciones de un año se identifica como <chofer_id>:<anio>.';
+
 -- ── 1) Columnas ───────────────────────────────────────────────────────────────
 
 alter table public.chofer_vacaciones_anios
@@ -132,26 +150,36 @@ security definer
 set search_path to 'public', 'pg_temp'
 as $$
 declare
+  v_old jsonb;
+  v_new jsonb;
+  v_fila jsonb;
   v_entidad text;
   v_id text;
   v_chofer uuid;
   v_usuario uuid;
 begin
+  -- NEW no existe en un DELETE y OLD no existe en un INSERT: tocarlos directo
+  -- revienta el trigger ("record new is not assigned yet") y con él la
+  -- operación entera. Se trabaja sobre jsonb, que sí admite estar en null.
+  if tg_op <> 'DELETE' then v_new := to_jsonb(new); end if;
+  if tg_op <> 'INSERT' then v_old := to_jsonb(old); end if;
+  v_fila := coalesce(v_new, v_old);
+
   if tg_table_name = 'chofer_vacaciones_anios' then
     v_entidad := 'chofer_vacaciones_anio';
-    v_chofer := coalesce(new.chofer_id, old.chofer_id);
-    v_id := v_chofer::text || ':' || coalesce(new.anio, old.anio)::text;
-    v_usuario := coalesce(new.updated_by, old.updated_by);
+    v_chofer := (v_fila ->> 'chofer_id')::uuid;
+    v_id := (v_fila ->> 'chofer_id') || ':' || (v_fila ->> 'anio');
+    v_usuario := nullif(v_fila ->> 'updated_by', '')::uuid;
   else
     -- Las ausencias comunes (licencias, permisos de Logística) no son asunto de
     -- vacaciones: sin este corte el log se llena de ruido y deja de leerse.
-    if coalesce(new.es_vacaciones, old.es_vacaciones, false) is not true then
-      return coalesce(new, old);
+    if coalesce((v_fila ->> 'es_vacaciones')::boolean, false) is not true then
+      return null; -- AFTER trigger: el valor de retorno se ignora
     end if;
     v_entidad := 'chofer_ausencia';
-    v_chofer := coalesce(new.chofer_id, old.chofer_id);
-    v_id := coalesce(new.id, old.id)::text;
-    v_usuario := coalesce(new.created_by, new.autorizado_por, old.created_by, old.autorizado_por);
+    v_chofer := (v_fila ->> 'chofer_id')::uuid;
+    v_id := v_fila ->> 'id';
+    v_usuario := nullif(coalesce(v_fila ->> 'created_by', v_fila ->> 'autorizado_por'), '')::uuid;
   end if;
 
   -- usuario_id null = nadie firmó, o sea una escritura por fuera de la app. Esa
@@ -163,12 +191,12 @@ begin
     v_entidad,
     v_id,
     v_usuario,
-    case when tg_op = 'INSERT' then null else to_jsonb(old) end,
-    case when tg_op = 'DELETE' then null else to_jsonb(new) end,
+    v_old,
+    v_new,
     jsonb_build_object('fuente', 'trigger_db', 'chofer_id', v_chofer, 'tabla', tg_table_name)
   );
 
-  return coalesce(new, old);
+  return null; -- AFTER trigger: el valor de retorno se ignora
 end $$;
 
 -- security definer porque audit_log tiene INSERT revocado a authenticated desde

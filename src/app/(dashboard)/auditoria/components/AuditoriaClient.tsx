@@ -40,6 +40,8 @@ type Filters = {
   usuario_id: string;
   entidad_tipos: string[];
   accion: string;
+  /** Esconder lo que registra el trigger de base (duplica a la server action). */
+  ocultar_db: boolean;
 };
 
 // Tabs por ÁREA (grupos del sidebar): cada uno junta los tipos de entidad que
@@ -90,6 +92,9 @@ export default function AuditoriaClient({
     usuario_id: "",
     entidad_tipos: [],
     accion: "",
+    // Encendido por defecto: lo normal es querer leer QUÉ hizo la gente, no el
+    // doble registro crudo de la base. Se apaga para auditar de verdad.
+    ocultar_db: true,
   });
   const [q, setQ] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
@@ -106,6 +111,7 @@ export default function AuditoriaClient({
     usuario_id: f.usuario_id || undefined,
     entidad_tipos: f.entidad_tipos.length > 0 ? f.entidad_tipos : undefined,
     accion: f.accion || undefined,
+    ocultar_db: f.ocultar_db,
   });
 
   const claveFiltros = (f: Filters) =>
@@ -157,7 +163,7 @@ export default function AuditoriaClient({
 
   const handleFilterChange = <K extends Exclude<keyof Filters, "entidad_tipos">>(
     key: K,
-    value: string,
+    value: Filters[K],
   ) => {
     aplicarFiltros({ ...filters, [key]: value });
   };
@@ -183,7 +189,14 @@ export default function AuditoriaClient({
 
   const clearFilters = () => {
     setQ("");
-    aplicarFiltros({ desde: "", hasta: "", usuario_id: "", entidad_tipos: [], accion: "" });
+    aplicarFiltros({
+      desde: "",
+      hasta: "",
+      usuario_id: "",
+      entidad_tipos: [],
+      accion: "",
+      ocultar_db: true,
+    });
   };
 
   // Salto directo a una página (input editable en el pie).
@@ -342,6 +355,19 @@ export default function AuditoriaClient({
             />
           </div>
         </div>
+
+        <label
+          className="flex items-center gap-2 py-1.5 text-sm text-muted-foreground cursor-pointer"
+          title="Cada cambio de vacaciones queda registrado dos veces: por la pantalla que lo hizo (con la intención y el usuario) y por la base (con el antes y el después crudos). Destildá para ver también los de la base."
+        >
+          <input
+            type="checkbox"
+            checked={filters.ocultar_db}
+            onChange={(e) => handleFilterChange("ocultar_db", e.target.checked)}
+            className="accent-[var(--primary)]"
+          />
+          Ocultar los registros de base
+        </label>
 
         {hasFilters && (
           <button

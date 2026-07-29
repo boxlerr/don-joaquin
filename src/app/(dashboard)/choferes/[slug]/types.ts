@@ -1,4 +1,5 @@
 import { Database } from "@/types/database";
+import type { OrigenDias } from "../vacaciones/derivar";
 
 export type ChoferBasico = Pick<
   Database["public"]["Tables"]["choferes"]["Row"],
@@ -159,6 +160,9 @@ export type Ausencia = {
   // Año de vacaciones al que se imputa el período. null = histórico: ya estaba
   // reflejado en la carga inicial de saldos y no vuelve a descontar.
   anio_cargo: number | null;
+  // De dónde salió el período (humano / planilla). Opcional por lo mismo que en
+  // los saldos: sin dato se muestra "sin registrar", no "lo puso el sistema".
+  origen?: "humano" | "planilla";
   created_at: string;
 };
 
@@ -175,7 +179,17 @@ export type VacacionesSaldo = {
   dias_disponibles: number;
   // Saldo de años que ya vencieron (anteriores a Y−1). Informativo.
   dias_vencidos: number;
-  anios: { anio: number; otorgados: number; usados: number; saldo: number; observaciones: string | null }[];
+  // `origen` es opcional a propósito. Cuando falta, la UI muestra "sin
+  // registrar" y NUNCA "lo puso el sistema": atribuirle a la máquina un dato
+  // humano por un campo faltante sería reintroducir el problema por otra puerta.
+  anios: {
+    anio: number;
+    otorgados: number;
+    usados: number;
+    saldo: number;
+    observaciones: string | null;
+    origen?: OrigenDias;
+  }[];
 };
 
 export type CamionHistorialItem = {

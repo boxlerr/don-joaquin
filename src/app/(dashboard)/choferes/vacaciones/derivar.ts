@@ -2,7 +2,19 @@
 // vencimientos, próximo hito y semáforo). Funciones PURAS, sin acceso a DB ni
 // "server-only": las usan la página global, el tab del legajo y las alertas.
 
+import { formatFecha } from "@/lib/utils";
+
 export type VacacionesSector = "Chofer" | "Oficina" | "Taller";
+
+/**
+ * De dónde salió el número de días de un año. Vive en la columna `origen` de
+ * `chofer_vacaciones_anios`, aparte de `observaciones` (que es el "por qué" que
+ * escribe una persona). Hasta la migración del 29/07 las dos cosas compartían la
+ * misma columna de texto y no había forma de distinguir un dato humano de uno de
+ * máquina: por eso Alveira, editado a mano, seguía mostrando el cartel de la
+ * conciliación automática.
+ */
+export type OrigenDias = "humano" | "planilla" | "antiguedad" | "conciliacion";
 
 export const ROL_A_SECTOR: Record<string, VacacionesSector> = {
   administrativo: "Oficina",
@@ -59,10 +71,12 @@ export type SaldoAnio = {
   usados: number;
   saldo: number;
   observaciones: string | null;
+  /** Procedencia del número. Opcional: puede faltar en datos viejos o en tests. */
+  origen?: OrigenDias;
 };
 
 export function saldosPorAnio(
-  otorgados: { anio: number; dias: number; observaciones?: string | null }[],
+  otorgados: { anio: number; dias: number; observaciones?: string | null; origen?: OrigenDias }[],
   usadosPorAnio: Map<number, number>,
 ): SaldoAnio[] {
   const anios = new Set<number>([...otorgados.map((o) => o.anio), ...usadosPorAnio.keys()]);
@@ -77,8 +91,80 @@ export function saldosPorAnio(
         usados,
         saldo: (o?.dias ?? 0) - usados,
         observaciones: o?.observaciones ?? null,
+        origen: o?.origen,
       };
     });
+}
+
+/**
+ * Días que corresponden por un año concreto: la antigüedad se mide al 31/12 DE
+ * ESE AÑO, no al de hoy. Hasta ahora el editor del legajo proponía siempre los
+ * días del año en curso, así que agregar el 2024 sugería los días del 2026.
+ */
+export function diasPorAntiguedadEnAnio(ingresoISO: string, anio: number): number {
+  return diasPorAntiguedad(aniosCumplidos(ingresoISO, anio));
+}
+
+/**
+ * Años en los que hay menos días cargados de los que marca la ley.
+ *
+ * `desfasaje` (más abajo, en derivarVacaciones) compara SÓLO el año en curso,
+ * así que los casos graves —que son todos del año pasado: Trejo, Cancela,
+ * Pucheta, Jeremías, Quiroga— no los ve nadie, y en cambio marca a los que
+ * tienen días DE MÁS por arrastre legítimo. Esto separa las dos cosas: acá sólo
+ * lo que se le DEBE a alguien.
+ *
+ * Se limita a los años vigentes (Y e Y−1) a propósito: un año ya vencido no se
+ * puede arreglar y sólo haría ruido.
+ */
+export function chequeoLey(
+  saldos: SaldoAnio[],
+  ingresoISO: string | null,
+  finPeriodoY: number,
+): { anio: number; otorgados: number; ley: number; faltan: number }[] {
+  if (!ingresoISO) return [];
+  const anioIngreso = Number(ingresoISO.slice(0, 4));
+  const out: { anio: number; otorgados: number; ley: number; faltan: number }[] = [];
+  for (const anio of [finPeriodoY - 1, finPeriodoY]) {
+    if (!Number.isFinite(anioIngreso) || anio < anioIngreso) continue;
+    const otorgados = saldos.find((s) => s.anio === anio)?.otorgados ?? 0;
+    const ley = diasPorAntiguedadEnAnio(ingresoISO, anio);
+    if (otorgados < ley) out.push({ anio, otorgados, ley, faltan: ley - otorgados });
+  }
+  return out;
+}
+
+/**
+ * La frase que explica, en castellano, de dónde salen los días y qué va a pasar
+ * el 1 de enero. Responde la pregunta de Bárbara del 29/07 ("¿eso se va a ir
+ * actualizando solo? es re importante"): el comportamiento ya existía en lib.ts,
+ * lo que faltaba era que se viera sin tener que preguntar.
+ */
+export function explicarAntiguedad(ingresoISO: string | null, finPeriodoY: number): string {
+  if (!ingresoISO)
+    return "No tiene fecha de ingreso cargada, así que el sistema no puede calcular los días que le corresponden por ley.";
+  const aAlCierre = aniosCumplidos(ingresoISO, finPeriodoY);
+  const diasHoy = diasPorAntiguedad(aAlCierre);
+  const aSiguiente = aniosCumplidos(ingresoISO, finPeriodoY + 1);
+  const diasSig = diasPorAntiguedad(aSiguiente);
+  const ingreso = formatFecha(ingresoISO);
+  const base =
+    diasSig === diasHoy
+      ? `Ingresó el ${ingreso}. Al 31/12/${finPeriodoY} cumple ${aAlCierre} año${aAlCierre === 1 ? "" : "s"}, así que por ley le corresponden ${diasHoy} días. El 1 de enero el sistema le abre el ${finPeriodoY + 1} solo.`
+      : `Ingresó el ${ingreso}. Al 31/12/${finPeriodoY} cumple ${aAlCierre} año${aAlCierre === 1 ? "" : "s"} → ${diasHoy} días. Al 31/12/${finPeriodoY + 1} cumple ${aSiguiente} y pasa a ${diasSig}: el sistema lo carga solo cuando arranque ese año.`;
+  return diasHoy === 35 ? `${base} Ya está en el tramo más alto: no cambia más.` : base;
+}
+
+/**
+ * Años con más días imputados que otorgados. Una sola definición para la
+ * tarjeta de adeudados, el editor y la validación del servidor: si cada uno la
+ * calculara por su lado, la pantalla podría dejar guardar algo que el servidor
+ * rechaza (o al revés).
+ */
+export function aniosEnRojo(saldos: SaldoAnio[]): { anio: number; otorgados: number; usados: number }[] {
+  return saldos
+    .filter((s) => s.usados > s.otorgados)
+    .map((s) => ({ anio: s.anio, otorgados: s.otorgados, usados: s.usados }));
 }
 
 /**

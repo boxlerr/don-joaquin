@@ -6,10 +6,12 @@
  * Esto es exactamente eso, pero en el sistema: los viajes entran sin chofer y
  * después se asignan.
  *
- * El archivo viene en Excel; él lo llamó "PDF" de memoria, así que se aceptan
- * los dos y se detecta el formato solo. Del Excel se lee con certeza; del PDF
- * se reconocen las filas por el patrón del número de transporte, y si no se
- * reconoce nada se dice, en vez de importar cualquier cosa.
+ * El archivo es un Excel. Nico lo llamó "PDF" de memoria pero confirmó que
+ * siempre le llega en Excel, así que se lee sólo ése — y si alguien sube un PDF
+ * se lo dice con todas las letras en vez de intentar adivinar el layout.
+ *
+ * Cada etapa es un viaje suelto: así lo pidió. El número de orden queda igual
+ * guardado, para poder ver después qué dos viajes eran del mismo circuito.
  */
 
 /** Una etapa del archivo: una fila. */
@@ -209,59 +211,6 @@ export function parsearFilasExcel(filas: FilaCruda[]): {
 }
 
 /* ------------------------------------------------------------------ *
- * PDF
- * ------------------------------------------------------------------ */
-
-/**
- * Texto de un PDF → programación.
- *
- * No hay un PDF de muestra, así que esto no adivina un layout: busca líneas que
- * tengan un número de transporte (nueve dígitos que arrancan en 21) y saca de
- * ahí lo que pueda reconocer con seguridad — la fecha y el centro. Lo demás
- * queda en null para que se complete en la pantalla.
- *
- * Es a propósito conservador: importar un viaje con el destino equivocado es
- * peor que pedirle a alguien que lo complete.
- */
-export function parsearTextoPdf(texto: string): FilaProgramacion[] {
-  const out: FilaProgramacion[] = [];
-  const vistos = new Set<string>();
-
-  for (const linea of texto.split(/\r?\n/)) {
-    const l = limpiar(linea);
-    if (!l) continue;
-
-    const transporte = l.match(/\b(21\d{7})\b/);
-    if (!transporte) continue;
-    const nroTransporte = transporte[1]!;
-    if (vistos.has(nroTransporte)) continue;
-    vistos.add(nroTransporte);
-
-    const fecha = l.match(/\b(\d{4}-\d{2}-\d{2})\b/) ?? l.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
-    const centro = l.match(/\bA\d{3}\b/);
-    const orden = l.match(/\b(61\d{8})\b/);
-
-    out.push({
-      ordenFlete: orden?.[1] ?? "",
-      etapa: 1,
-      nroTransporte,
-      nroCorto: corto(nroTransporte),
-      transPrevio: null,
-      transPosterior: null,
-      fecha: fecha ? aFechaISO(fecha[1]) : null,
-      centro: centro?.[0] ?? null,
-      claseViaje: null,
-      destino: null,
-      poblacion: null,
-      material: null,
-      toneladas: null,
-    });
-  }
-
-  return out;
-}
-
-/* ------------------------------------------------------------------ *
  * Agrupado en circuitos
  * ------------------------------------------------------------------ */
 
@@ -271,9 +220,9 @@ export type Circuito = {
 };
 
 /**
- * Las etapas de un mismo flete van juntas: es el "circuito" que Nico anota como
- * un par (61753 con 61773). Ordenadas por etapa, y los sueltos quedan como un
- * circuito de una sola.
+ * Las etapas de un mismo flete, juntas. Cada una se importa como un viaje
+ * aparte, pero agruparlas sirve para MOSTRAR el par en la pantalla de preview:
+ * es como Nico los tiene en la cabeza (61753 con 61773).
  */
 export function agruparEnCircuitos(filas: readonly FilaProgramacion[]): Circuito[] {
   const mapa = new Map<string, FilaProgramacion[]>();

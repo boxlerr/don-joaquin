@@ -63,8 +63,63 @@ export async function resolverEntidadLabels(
     resolverSiniestros(supabase, idsPorTipo.siniestro, labels),
     resolverGastos(supabase, idsPorTipo.gasto, labels),
     resolverRotacionBajas(supabase, idsPorTipo.rotacion_baja, labels),
+    resolverVacacionesAnio(supabase, idsPorTipo.chofer_vacaciones_anio, labels),
+    resolverAusencias(supabase, idsPorTipo.chofer_ausencia, labels),
   ]);
   return labels;
+}
+
+/**
+ * Saldo de vacaciones de un año. El `entidad_id` tiene la forma
+ * `${chofer_id}:${anio}`, así que hay que partirlo para poder resolver la
+ * persona. Sin esto todo el rastro de vacaciones —el que deja el trigger nuevo y
+ * el de las server actions— sale en pantalla con el "recurso afectado" vacío, y
+ * una trazabilidad ilegible es lo mismo que no tenerla.
+ */
+async function resolverVacacionesAnio(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  const partes = Array.from(ids).map((id) => {
+    const [choferId, anio] = id.split(":");
+    return { id, choferId: choferId ?? "", anio: anio ?? "" };
+  });
+  const choferIds = [...new Set(partes.map((p) => p.choferId).filter(Boolean))];
+  const { data } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido")
+    .in("id", choferIds);
+  const porId = new Map((data ?? []).map((c) => [c.id, `${c.apellido}, ${c.nombre}`]));
+  for (const p of partes) {
+    labels[`chofer_vacaciones_anio:${p.id}`] = {
+      label: porId.get(p.choferId) ?? null,
+      detalle: p.anio ? `Vacaciones ${p.anio}` : null,
+    };
+  }
+}
+
+/** Período de ausencia / vacaciones: quién y de cuándo a cuándo. */
+async function resolverAusencias(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {
+  if (!ids?.size) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("chofer_ausencias")
+    .select("id, fecha_inicio, fecha_fin, chofer:choferes(nombre, apellido)")
+    .in("id", Array.from(ids));
+  type ChoferRef = { nombre: string; apellido: string };
+  for (const r of (data ?? []) as {
+    id: string;
+    fecha_inicio: string | null;
+    fecha_fin: string | null;
+    chofer: ChoferRef | ChoferRef[] | null;
+  }[]) {
+    const c = uno(r.chofer);
+    labels[`chofer_ausencia:${r.id}`] = {
+      label: c ? `${c.apellido}, ${c.nombre}` : null,
+      detalle:
+        r.fecha_inicio && r.fecha_fin
+          ? `${formatFecha(r.fecha_inicio)} → ${formatFecha(r.fecha_fin)}`
+          : null,
+    };
+  }
 }
 
 async function resolverSiniestros(supabase: SupabaseAdmin, ids: Ids, labels: Labels) {

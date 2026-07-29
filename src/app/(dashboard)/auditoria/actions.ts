@@ -34,6 +34,14 @@ export type GetAuditLogsParams = {
   page?: number;
   /** Contar el total (query cara). Solo hace falta al cambiar filtros, no al paginar. */
   withCount?: boolean;
+  /**
+   * Esconder los registros que escribe el trigger de base (`metadata.fuente =
+   * 'trigger_db'`). Las escrituras que pasan por la app dejan DOS entradas: la
+   * de la server action, que tiene la intención y el usuario real, y la del
+   * trigger, que tiene el antes/después crudo y cubre lo que NO pasa por la app.
+   * Las dos hacen falta, pero verlas juntas ahoga el panel.
+   */
+  ocultar_db?: boolean;
 };
 
 export type AuditLogsResult = {
@@ -47,7 +55,16 @@ export async function getGlobalAuditLogsAction(
 ): Promise<AuditLogsResult | { error: string }> {
   await requireArea("sistema", "read");
 
-  const { desde, hasta, usuario_id, entidad_tipos, accion, page = 0, withCount = true } = params;
+  const {
+    desde,
+    hasta,
+    usuario_id,
+    entidad_tipos,
+    accion,
+    page = 0,
+    withCount = true,
+    ocultar_db = false,
+  } = params;
   const supabase = createAdminClient();
   const rangeFrom = page * AUDIT_PAGE_SIZE;
   const rangeTo = rangeFrom + AUDIT_PAGE_SIZE - 1;
@@ -73,6 +90,11 @@ export async function getGlobalAuditLogsAction(
   if (entidad_tipos && entidad_tipos.length > 0) {
     query = query.in("entidad_tipo", entidad_tipos);
   }
+  // Se filtra por el prefijo de la acción y no por `metadata->>'fuente'`: son
+  // exactamente las mismas filas (el trigger escribe las dos cosas en el mismo
+  // INSERT) y `accion` es una columna NOT NULL, así que el filtro no puede
+  // dejar afuera por accidente registros con metadata vacío.
+  if (ocultar_db) query = query.not("accion", "like", "vacaciones_db_%");
 
   const { data, count, error } = await query;
 
