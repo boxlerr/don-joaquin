@@ -418,3 +418,47 @@ export async function actualizarViajeHojaRutaAction(
   revalidatePath("/viajes");
   return { ok: true };
 }
+
+export type CambioViajeHr = {
+  id: string;
+  origen_nombre?: string | null;
+  destino_nombre?: string | null;
+  km_con_carga?: number | null;
+  nro_remito?: string | null;
+  monto_flete?: number | null;
+};
+
+/**
+ * Guarda varias filas de la hoja de ruta de una vez.
+ *
+ * Corregir de a una era abrir, editar, guardar y cerrar por cada viaje, y en un
+ * mes de 100 viajes eso es la mayor parte del trabajo. Se valida TODO antes de
+ * escribir nada: o entra el lote entero o no entra ninguno, para no dejar la
+ * hoja a medio corregir.
+ */
+export async function actualizarViajesHojaRutaAction(
+  cambios: CambioViajeHr[],
+): Promise<{ ok: true; guardados: number } | { error: string }> {
+  await requireArea("viajes", "write");
+  if (cambios.length === 0) return { ok: true, guardados: 0 };
+
+  for (const c of cambios) {
+    if (!c.id) return { error: "Falta identificar uno de los viajes." };
+    for (const campo of ["km_con_carga"] as const) {
+      const v = c[campo];
+      if (v != null && (!Number.isFinite(v) || v < 0))
+        return { error: "Los kilómetros tienen que ser un número mayor o igual a cero." };
+    }
+    if (c.monto_flete != null && (!Number.isFinite(c.monto_flete) || c.monto_flete < 0))
+      return { error: "Los importes tienen que ser mayores o iguales a cero." };
+  }
+
+  let guardados = 0;
+  for (const c of cambios) {
+    const { id, ...resto } = c;
+    const res = await actualizarViajeHojaRutaAction(id, resto);
+    if (res.error) return { error: res.error };
+    guardados++;
+  }
+  return { ok: true, guardados };
+}

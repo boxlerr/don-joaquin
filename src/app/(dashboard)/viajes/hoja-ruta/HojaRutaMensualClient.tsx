@@ -9,6 +9,7 @@ import {
   Truck,
   Receipt,
   AlertTriangle,
+  Maximize2,
   Edit3,
   Check,
   X,
@@ -19,12 +20,14 @@ import MonthPicker from "@/components/ui/MonthPicker";
 import {
   getPanelChoferAction,
   listChoferesMesAction,
-  actualizarViajeHojaRutaAction,
+  actualizarViajesHojaRutaAction,
   type HrChoferListItem,
   type HrPanelChofer,
   type HrViajeItem,
 } from "./actions";
 import { deleteViajeAction } from "../actions";
+import EditViajeDialog from "../components/EditViajeDialog";
+import type { ViajeBasico } from "../types";
 
 // Helpers ---------------------------------------------------------------------
 
@@ -313,6 +316,81 @@ export default function HojaRutaMensualClient({
 // Panel chofer (estilo sheet del Excel)
 // ===========================================================================
 
+/** Lo que se está tipeando en una fila. Todo string: sale de inputs. */
+type Borrador = {
+  origen: string;
+  destino: string;
+  km: string;
+  remito: string;
+  monto: string;
+};
+
+function borradorDe(v: HrViajeItem): Borrador {
+  return {
+    origen: v.origen ?? "",
+    destino: v.destino ?? "",
+    km: v.km_con_carga == null ? "" : String(v.km_con_carga),
+    remito: v.nro_remito ?? "",
+    monto: v.monto_flete == null ? "" : String(v.monto_flete),
+  };
+}
+
+function borradorSucio(v: HrViajeItem, b: Borrador): boolean {
+  const o = borradorDe(v);
+  const claves: (keyof Borrador)[] = ["origen", "destino", "km", "remito", "monto"];
+  return claves.some((k) => b[k].trim() !== o[k].trim());
+}
+
+/**
+ * La fila de la hoja de ruta con la forma que espera el modal de detalle. El
+ * modal vuelve a leer el viaje del server apenas abre, así que lo que va acá es
+ * el punto de partida, no la verdad.
+ */
+function aViajeBasico(v: HrViajeItem, chofer: string): ViajeBasico {
+  return {
+    id: v.id,
+    codigo: v.codigo,
+    fecha_viaje: v.fecha_viaje,
+    origen: v.origen,
+    destino: v.destino,
+    cliente: v.cliente,
+    toneladas: v.tonelaje_real,
+    km_totales: (v.km_con_carga ?? 0) + (v.km_vacios ?? 0),
+    km_con_carga: v.km_con_carga,
+    km_vacios: v.km_vacios,
+    estado: v.estado,
+    facturado: v.facturado,
+    cobrado: v.facturado,
+    fecha_cobro: null,
+    chofer,
+    camion: null,
+    monto_flete: v.monto_flete,
+    moneda: "ARS",
+    observaciones: v.observaciones,
+    nro_viaje_ypf: v.nro_viaje_ypf,
+    nro_remito: v.nro_remito,
+    material: v.material,
+    es_vacio: v.es_vacio,
+  };
+}
+
+/** El borrador tal como lo espera el server. */
+function aCambio(id: string, b: Borrador) {
+  const num = (s: string) => {
+    if (s.trim() === "") return null;
+    const n = parseFloat(s);
+    return Number.isNaN(n) ? null : n;
+  };
+  return {
+    id,
+    origen_nombre: b.origen.trim() || null,
+    destino_nombre: b.destino.trim() || null,
+    km_con_carga: num(b.km),
+    nro_remito: b.remito.trim() || null,
+    monto_flete: num(b.monto),
+  };
+}
+
 function PanelChofer({
   panel,
   canWrite,
@@ -322,6 +400,47 @@ function PanelChofer({
   canWrite: boolean;
   onChanged: () => void;
 }) {
+  // Edición: una fila sola (el lápiz) o toda la hoja a la vez. Los borradores
+  // viven acá y no en cada fila, porque "guardar todo" necesita verlos juntos.
+  const [modoTodos, setModoTodos] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [borradores, setBorradores] = useState<Record<string, Borrador>>({});
+  const [guardando, setGuardando] = useState(false);
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
+  // Para lo que no entra en la fila: cliente, tipo de carga, ruta, tonelaje,
+  // vía… El modal de detalle es el mismo del listado.
+  const [detalle, setDetalle] = useState<HrViajeItem | null>(null);
+
+  const borradorPara = (v: HrViajeItem) => borradores[v.id] ?? borradorDe(v);
+  const sucios = panel.viajes.filter((v) => borradores[v.id] && borradorSucio(v, borradores[v.id]!));
+
+  const limpiar = () => {
+    setModoTodos(false);
+    setEditandoId(null);
+    setBorradores({});
+    setErrorGuardar(null);
+  };
+
+  const guardarLote = async (viajes: HrViajeItem[]) => {
+    const cambios = viajes
+      .filter((v) => borradores[v.id] && borradorSucio(v, borradores[v.id]!))
+      .map((v) => aCambio(v.id, borradores[v.id]!));
+    if (cambios.length === 0) {
+      limpiar();
+      return;
+    }
+    setGuardando(true);
+    setErrorGuardar(null);
+    const res = await actualizarViajesHojaRutaAction(cambios);
+    setGuardando(false);
+    if ("error" in res) {
+      setErrorGuardar(res.error);
+      return;
+    }
+    limpiar();
+    onChanged();
+  };
+
   // Los lugares que ya aparecen en el mes, para sugerir al corregir un destino
   // sin obligar a tipearlo entero. Igual acepta uno nuevo.
   const lugares = [
@@ -375,6 +494,72 @@ function PanelChofer({
           Este chofer no tiene viajes cargados en este mes.
         </div>
       ) : (
+        <>
+        {/* Corregir de a una era abrir, editar, guardar y cerrar por cada
+            viaje. Con 100 viajes en el mes eso es la mayor parte del trabajo. */}
+        {canWrite && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {modoTodos ? (
+              <>
+                <p className="text-[12px] text-muted-foreground">
+                  Editando toda la hoja.{" "}
+                  {sucios.length > 0 ? (
+                    <span className="font-medium text-primary">
+                      {sucios.length} viaje{sucios.length !== 1 ? "s" : ""} sin guardar
+                    </span>
+                  ) : (
+                    "Corregí lo que haga falta y guardá una vez."
+                  )}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={limpiar}
+                    disabled={guardando}
+                    className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => guardarLote(panel.viajes)}
+                    disabled={guardando || sucios.length === 0}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    {guardando ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Check size={12} />
+                    )}
+                    {guardando
+                      ? "Guardando…"
+                      : sucios.length === 0
+                        ? "Sin cambios"
+                        : `Guardar ${sucios.length}`}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditandoId(null);
+                  setModoTodos(true);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
+                title="Abrir todas las filas para corregirlas de una vez"
+              >
+                <Edit3 size={12} className="text-primary" />
+                Editar toda la hoja
+              </button>
+            )}
+          </div>
+        )}
+
+        {errorGuardar && (
+          <p className="border-l-2 border-red-600 pl-3 text-[12px] text-red-600">{errorGuardar}</p>
+        )}
+
         <div className="overflow-x-auto border border-border rounded-[8px]">
           <table className="w-full text-xs">
             <thead className="bg-[#0F172A] text-white">
@@ -399,6 +584,20 @@ function PanelChofer({
                   canWrite={canWrite}
                   onChanged={onChanged}
                   lugares={lugares}
+                  editando={modoTodos || editandoId === v.id}
+                  modoTodos={modoTodos}
+                  onEditar={() => setEditandoId(v.id)}
+                  onCancelar={limpiar}
+                  onGuardar={() => guardarLote([v])}
+                  guardando={guardando}
+                  borrador={borradorPara(v)}
+                  onDetalle={() => setDetalle(v)}
+                  onBorrador={(patch) =>
+                    setBorradores((prev) => ({
+                      ...prev,
+                      [v.id]: { ...borradorPara(v), ...patch },
+                    }))
+                  }
                 />
               ))}
             </tbody>
@@ -415,6 +614,20 @@ function PanelChofer({
             </tfoot>
           </table>
         </div>
+        </>
+      )}
+
+      {detalle && (
+        <EditViajeDialog
+          viaje={aViajeBasico(detalle, `${panel.apellido}, ${panel.nombre}`)}
+          open
+          onOpenChange={(v) => !v && setDetalle(null)}
+          onSuccess={() => {
+            setDetalle(null);
+            limpiar();
+            onChanged();
+          }}
+        />
       )}
     </div>
   );
@@ -429,60 +642,39 @@ function FilaViaje({
   canWrite,
   onChanged,
   lugares,
+  editando,
+  modoTodos,
+  onEditar,
+  onDetalle,
+  onCancelar,
+  onGuardar,
+  guardando,
+  borrador,
+  onBorrador,
 }: {
   viaje: HrViajeItem;
   canWrite: boolean;
   onChanged: () => void;
   /** Lugares ya cargados, para sugerir al corregir origen/destino. */
   lugares: string[];
+  editando: boolean;
+  /** true cuando se está editando la hoja entera: manda la barra de arriba. */
+  modoTodos: boolean;
+  onEditar: () => void;
+  onDetalle: () => void;
+  onCancelar: () => void;
+  onGuardar: () => void;
+  guardando: boolean;
+  borrador: Borrador;
+  onBorrador: (patch: Partial<Borrador>) => void;
 }) {
-  const [editando, setEditando] = useState(false);
-  const [remito, setRemito] = useState(viaje.nro_remito ?? "");
-  const [monto, setMonto] = useState(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
-  // El destino cambia con el camión andando: si todavía no llegó, es el MISMO
-  // viaje con otro destino. Por eso se edita acá y no hay que ir al listado.
-  const [origen, setOrigen] = useState(viaje.origen ?? "");
-  const [destino, setDestino] = useState(viaje.destino ?? "");
-  const [km, setKm] = useState(viaje.km_con_carga == null ? "" : String(viaje.km_con_carga));
-  const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
-  const [guardando, setGuardando] = useState(false);
   const [borrando, setBorrando] = useState(false); // pidiendo confirmación
   const [eliminando, setEliminando] = useState(false);
   const [errorBorrar, setErrorBorrar] = useState<string | null>(null);
 
   const esVacio = viaje.es_vacio;
   const esPendiente = !esVacio && viaje.monto_flete == null;
-
-  const guardar = async () => {
-    setGuardando(true);
-    setErrorGuardar(null);
-    const m = monto.trim() === "" ? null : parseFloat(monto);
-    const k = km.trim() === "" ? null : parseFloat(km);
-    const res = await actualizarViajeHojaRutaAction(viaje.id, {
-      origen_nombre: origen.trim() || null,
-      destino_nombre: destino.trim() || null,
-      km_con_carga: k == null || Number.isNaN(k) ? null : k,
-      nro_remito: remito.trim() || null,
-      monto_flete: m == null || Number.isNaN(m) ? null : m,
-    });
-    setGuardando(false);
-    if (res.error) {
-      setErrorGuardar(res.error);
-      return;
-    }
-    setEditando(false);
-    onChanged();
-  };
-
-  const cancelar = () => {
-    setRemito(viaje.nro_remito ?? "");
-    setMonto(viaje.monto_flete == null ? "" : String(viaje.monto_flete));
-    setOrigen(viaje.origen ?? "");
-    setDestino(viaje.destino ?? "");
-    setKm(viaje.km_con_carga == null ? "" : String(viaje.km_con_carga));
-    setErrorGuardar(null);
-    setEditando(false);
-  };
+  const { origen, destino, km, remito, monto } = borrador;
 
   const eliminar = async () => {
     setEliminando(true);
@@ -508,7 +700,7 @@ function FilaViaje({
             type="text"
             list={`hr-lugares-${viaje.id}`}
             value={origen}
-            onChange={(e) => setOrigen(e.target.value)}
+            onChange={(e) => onBorrador({ origen: e.target.value })}
             placeholder="Sale de"
             className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
           />
@@ -523,7 +715,7 @@ function FilaViaje({
               type="text"
               list={`hr-lugares-${viaje.id}`}
               value={destino}
-              onChange={(e) => setDestino(e.target.value)}
+              onChange={(e) => onBorrador({ destino: e.target.value })}
               placeholder="Llega a"
               className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
             />
@@ -545,7 +737,7 @@ function FilaViaje({
             type="number"
             min="0"
             value={km}
-            onChange={(e) => setKm(e.target.value)}
+            onChange={(e) => onBorrador({ km: e.target.value })}
             placeholder="0"
             className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
           />
@@ -559,7 +751,7 @@ function FilaViaje({
           <input
             type="text"
             value={remito}
-            onChange={(e) => setRemito(e.target.value)}
+            onChange={(e) => onBorrador({ remito: e.target.value })}
             placeholder="Nº remito"
             className="w-24 h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none"
           />
@@ -580,7 +772,7 @@ function FilaViaje({
           <input
             type="number"
             value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            onChange={(e) => onBorrador({ monto: e.target.value })}
             placeholder="0.00"
             step="0.01"
             className="w-28 h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none text-right"
@@ -592,11 +784,11 @@ function FilaViaje({
         )}
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
-        {editando ? (
+        {editando && !modoTodos ? (
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={guardar}
+              onClick={onGuardar}
               disabled={guardando}
               className="inline-flex items-center justify-center size-6 rounded text-[#10B981] hover:bg-[#ECFDF5]"
               title="Guardar"
@@ -605,7 +797,7 @@ function FilaViaje({
             </button>
             <button
               type="button"
-              onClick={cancelar}
+              onClick={onCancelar}
               disabled={guardando}
               className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted"
               title="Cancelar"
@@ -640,14 +832,26 @@ function FilaViaje({
             <EstadoBadge viaje={viaje} />
             {canWrite && (
               <>
+                {/* Todo lo que no entra en la fila: cliente, tipo de carga,
+                    ruta, tonelaje, vía. */}
                 <button
                   type="button"
-                  onClick={() => setEditando(true)}
+                  onClick={onDetalle}
+                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title="Abrir el viaje completo"
+                >
+                  <Maximize2 size={11} />
+                </button>
+                {!modoTodos && (
+                <button
+                  type="button"
+                  onClick={onEditar}
                   className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   title="Editar el viaje: origen, destino, km, remito y monto"
                 >
                   <Edit3 size={11} />
                 </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -662,9 +866,6 @@ function FilaViaje({
               </>
             )}
           </div>
-        )}
-        {errorGuardar && (
-          <p className="mt-0.5 max-w-[180px] text-[10px] text-red-600">{errorGuardar}</p>
         )}
         {errorBorrar && !borrando && (
           <p className="text-[10px] text-red-600 mt-0.5 max-w-[180px]">{errorBorrar}</p>
