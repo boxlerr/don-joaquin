@@ -79,7 +79,7 @@ type Fila = {
   destino: { nombre: string } | { nombre: string }[] | null;
   chofer: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
   camion: { patente: string } | { patente: string }[] | null;
-  cliente: { nombre: string } | { nombre: string }[] | null;
+  cliente: { razon_social: string } | { razon_social: string }[] | null;
 };
 
 const uno = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
@@ -96,7 +96,7 @@ export async function getResumenDestinosAction(
   const filas: Fila[] = [];
   for (let desdeFila = 0; ; desdeFila += 1000) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from("viajes")
       .select(
         `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, nro_remito,
@@ -105,13 +105,20 @@ export async function getResumenDestinosAction(
          destino:puntos_ruta!viajes_destino_id_fkey(nombre),
          chofer:choferes(nombre, apellido),
          camion:camiones(patente),
-         cliente:clientes(nombre)`,
+         cliente:clientes(razon_social)`,
       )
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
       .neq("estado", "cancelado")
       .order("fecha_viaje", { ascending: false })
       .range(desdeFila, desdeFila + 999);
+    if (error) {
+      // Sin esto, una consulta rota devolvía null y la pantalla decía "no hay
+      // viajes en este período" — que es lo peor que puede pasar: un error que
+      // se lee como un dato.
+      console.error("[resumen destinos] no se pudieron leer los viajes:", error);
+      throw new Error("No se pudieron leer los viajes. Probá de nuevo en un momento.");
+    }
     const pagina = (data ?? []) as Fila[];
     filas.push(...pagina);
     if (pagina.length < 1000) break;
@@ -131,7 +138,7 @@ export async function getResumenDestinosAction(
     remito: f.nro_remito,
     monto: f.monto_flete == null ? null : Number(f.monto_flete),
     esVacio: !!f.es_vacio,
-    cliente: uno(f.cliente)?.nombre ?? null,
+    cliente: uno(f.cliente)?.razon_social ?? null,
     material: f.material,
   });
 
@@ -231,12 +238,16 @@ export async function getMesesConViajesAction(): Promise<string[]> {
   const meses = new Set<string>();
   for (let desde = 0; ; desde += 1000) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from("viajes")
       .select("fecha_viaje")
       .neq("estado", "cancelado")
       .order("fecha_viaje", { ascending: false })
       .range(desde, desde + 999);
+    if (error) {
+      console.error("[resumen destinos] no se pudieron leer los meses:", error);
+      break;
+    }
     const pagina = (data ?? []) as { fecha_viaje: string }[];
     for (const r of pagina) meses.add(r.fecha_viaje.slice(0, 7));
     if (pagina.length < 1000) break;
