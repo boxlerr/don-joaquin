@@ -52,13 +52,6 @@ export const ACCION_LABELS: Record<string, string> = {
   ausencia_cancelada: "Ausencia cancelada",
   vacaciones_saldo_creado: "Saldo de vacaciones creado",
   vacaciones_saldo_editado: "Saldo de vacaciones editado",
-  // Segunda capa de auditoría: la escribe un trigger de la base, así que cubre
-  // también lo que NO pasa por la app (scripts, SQL suelto, service role).
-  vacaciones_db_insert: "Vacaciones — alta (registro de base)",
-  vacaciones_db_update: "Vacaciones — cambio (registro de base)",
-  vacaciones_db_delete: "Vacaciones — borrado (registro de base)",
-  vacaciones_saldo_protegido: "Vacaciones — dato humano protegido de un proceso automático",
-  vacaciones_observacion_migrada: "Vacaciones — observación archivada en la migración",
   prestamo_creado: "Préstamo creado",
   prestamo_saldo_actualizado: "Saldo de préstamo actualizado",
   prestamo_eliminado: "Préstamo eliminado",

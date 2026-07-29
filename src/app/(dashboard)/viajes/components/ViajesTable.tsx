@@ -56,7 +56,7 @@ import { formatFecha } from "@/lib/utils";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
 import ViajeAdjuntosStrip from "./ViajeAdjuntosStrip";
-import InitialsAvatar from "@/components/ui/InitialsAvatar";
+import AvatarPersona from "@/components/ui/AvatarPersona";
 import { esFacturable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
@@ -288,7 +288,7 @@ function ViajeDetalleHeader({
             {det?.creadoPor && (
               <>
                 <span aria-hidden>·</span>
-                <InitialsAvatar name={det.creadoPor} size={17} />
+                <AvatarPersona name={det.creadoPor} size={20} />
                 <span className="font-semibold text-foreground/80">{det.creadoPor}</span>
               </>
             )}
@@ -411,7 +411,7 @@ function ChoferCard({
     <div className="rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
         {nombre ? (
-          <InitialsAvatar name={nombre} size={34} />
+          <AvatarPersona name={nombre} rol="chofer" size={38} />
         ) : (
           <span className="flex items-center justify-center size-[34px] rounded-full bg-muted text-muted-foreground/60 shrink-0">
             <User size={16} />

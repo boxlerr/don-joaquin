@@ -14,7 +14,6 @@ import {
   resumenSaldos,
   diasPorAntiguedad,
   aniosCumplidos,
-  type OrigenDias,
 } from "../vacaciones/derivar";
 import {
   crearUrlSubidaAdjunto,
@@ -276,7 +275,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
-    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, anio_cargo, origen, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, anio_cargo, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
     .eq("chofer_id", chofer_id)
     .is("deleted_at", null)
     .order("fecha_inicio", { ascending: false })) as {
@@ -291,7 +290,6 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           es_vacaciones: boolean | null;
           justificada: boolean | null;
           anio_cargo: number | null;
-          origen: "humano" | "planilla" | null;
           created_at: string;
           autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
         }[]
@@ -303,17 +301,10 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: vacacionesAniosRaw } = (await (supabase as any)
     .from("chofer_vacaciones_anios")
-    .select("anio, dias_correspondientes, observaciones, origen")
+    .select("anio, dias_correspondientes, observaciones")
     .eq("chofer_id", chofer_id)
     .order("anio")) as {
-    data:
-      | {
-          anio: number;
-          dias_correspondientes: number;
-          observaciones: string | null;
-          origen: OrigenDias | null;
-        }[]
-      | null;
+    data: { anio: number; dias_correspondientes: number; observaciones: string | null }[] | null;
   };
 
   // Camiones que el chofer manejó en el mes: historial que solapa el período + el actual.
@@ -882,7 +873,6 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         es_vacaciones: a.es_vacaciones ?? false,
         justificada: a.justificada ?? true,
         anio_cargo: a.anio_cargo ?? null,
-        origen: a.origen ?? undefined,
         created_at: a.created_at,
       };
     }),
@@ -914,7 +904,6 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         anio: r.anio,
         dias: r.dias_correspondientes ?? 0,
         observaciones: r.observaciones,
-        origen: r.origen ?? undefined,
       }));
       const ingresoChofer = typeof chofer.fecha_ingreso === "string" ? chofer.fecha_ingreso : null;
       // Sólo para quien está en la dotación real: a un egresado (o a un chofer
@@ -929,10 +918,6 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           anio: anioActual,
           dias: diasPorAntiguedad(aniosCumplidos(ingresoChofer, anioActual)),
           observaciones: null,
-          // Es exactamente lo que el alta automática va a escribir cuando alguien
-          // abra la vista global: se muestra con esa procedencia y no como un
-          // dato sin origen.
-          origen: "antiguedad" as OrigenDias,
         });
       }
       const saldosAnio = saldosPorAnio(otorgados, usadosPorAnio);
@@ -1277,9 +1262,7 @@ async function saldosAnioChofer(
   const [{ data: anios }, { data: periodos }] = await Promise.all([
     sb
       .from("chofer_vacaciones_anios")
-      // `origen` viaja hasta la UI y hasta la validación: es lo que distingue un
-      // día que cargó una persona de uno que puso un proceso automático.
-      .select("anio, dias_correspondientes, observaciones, origen")
+      .select("anio, dias_correspondientes, observaciones")
       .eq("chofer_id", chofer_id)
       .order("anio"),
     sb
@@ -1296,18 +1279,10 @@ async function saldosAnioChofer(
     usados.set(p.anio_cargo, (usados.get(p.anio_cargo) ?? 0) + diasPeriodo(p.fecha_inicio, p.fecha_fin));
   }
   return saldosPorAnio(
-    (
-      (anios ?? []) as {
-        anio: number;
-        dias_correspondientes: number;
-        observaciones: string | null;
-        origen?: OrigenDias | null;
-      }[]
-    ).map((r) => ({
+    ((anios ?? []) as { anio: number; dias_correspondientes: number; observaciones: string | null }[]).map((r) => ({
       anio: r.anio,
       dias: r.dias_correspondientes ?? 0,
       observaciones: r.observaciones,
-      origen: r.origen ?? undefined,
     })),
     usados,
   );
@@ -1621,16 +1596,12 @@ export async function guardarSaldoVacacionesAction(
   const otorgadosPrevio = adeudados + usadosPrevio;
 
   const nowIso = new Date().toISOString();
-  // `origen: "humano"` acá es lo que blinda la fila: a partir de este guardado,
-  // ningún importador ni recálculo automático la puede pisar. La procedencia ya
-  // no se escribe en `observaciones` (queda para el porqué de la persona).
   const filas: Record<string, unknown>[] = [
     {
       chofer_id,
       anio: anioActual,
       dias_correspondientes: corresponden,
-      observaciones: data.observaciones?.trim() || null,
-      origen: "humano",
+      observaciones: data.observaciones?.trim() || "Editado manualmente",
       updated_by: user.id,
       updated_at: nowIso,
     },
@@ -1641,8 +1612,7 @@ export async function guardarSaldoVacacionesAction(
       chofer_id,
       anio: anioPrevio,
       dias_correspondientes: otorgadosPrevio,
-      observaciones: null,
-      origen: "humano",
+      observaciones: "Editado manualmente",
       updated_by: user.id,
       updated_at: nowIso,
     });
@@ -1653,28 +1623,17 @@ export async function guardarSaldoVacacionesAction(
     .upsert(filas, { onConflict: "chofer_id,anio" });
   if (error) return { error: "No se pudo guardar el saldo de vacaciones." };
 
-  // Una entrada POR AÑO escrito, con la entidad del año. Antes escribía dos
-  // filas y dejaba una sola entrada sin `entidad`, así que quedaba a nombre del
-  // chofer y el historial de un año no se podía reconstruir filtrando.
-  const previoPorAnio: Record<number, number> = {
-    [anioPrevio]: saldos.find((s) => s.anio === anioPrevio)?.otorgados ?? 0,
-    [anioActual]: previo.dias_correspondientes,
-  };
-  const nuevoPorAnio: Record<number, number> = {
-    [anioPrevio]: otorgadosPrevio,
-    [anioActual]: corresponden,
-  };
-  for (const fila of filas) {
-    const anio = fila.anio as number;
-    await logChoferAudit(
-      chofer_id,
-      "vacaciones_saldo_editado",
-      { anio, dias_correspondientes: previoPorAnio[anio] ?? null },
-      { anio, dias_correspondientes: nuevoPorAnio[anio] ?? null, observaciones: fila.observaciones ?? null },
-      user.id,
-      { tipo: "chofer_vacaciones_anio", id: `${chofer_id}:${anio}` },
-    );
-  }
+  await logChoferAudit(
+    chofer_id,
+    "vacaciones_saldo_editado",
+    { ...previo, anios: { [anioPrevio]: saldos.find((s) => s.anio === anioPrevio)?.otorgados ?? 0, [anioActual]: previo.dias_correspondientes } },
+    {
+      dias_correspondientes: corresponden,
+      dias_adeudados: adeudados,
+      anios: { [anioPrevio]: otorgadosPrevio, [anioActual]: corresponden },
+    },
+    user.id,
+  );
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/choferes/vacaciones");
@@ -1716,24 +1675,6 @@ export async function guardarSaldosAnioAction(
 
   const previos = await saldosAnioChofer(sb, chofer_id);
   const previo = Object.fromEntries(previos.map((s) => [s.anio, s.otorgados]));
-  const previoObs = Object.fromEntries(previos.map((s) => [s.anio, s.observaciones ?? null]));
-
-  // Freno anti-negativo, del lado del servidor (la pantalla avisa antes, pero el
-  // dato no puede depender de eso). Bárbara escribió 3 —"le quedan 3 sin
-  // tomar"— en un año con 18 días imputados y el saldo quedó en −15.
-  //
-  // La regla no es "nunca menos que lo imputado": se puede BAJAR hasta lo
-  // imputado, y se puede SUBIR un año que ya venía en negativo. Si no, los 6
-  // casos rotos de hoy quedarían intrabajables.
-  for (const f of limpias) {
-    const usados = previos.find((s) => s.anio === f.anio)?.usados ?? 0;
-    const previoDias = previo[f.anio] ?? 0;
-    if (f.dias < usados && f.dias < previoDias) {
-      return {
-        error: `No podés dejar el ${f.anio} en ${f.dias} días: hay ${usados} días de vacaciones ya imputados a ese año. Si esos días van a otro año, cambiá primero de qué año descuenta el período, más abajo.`,
-      };
-    }
-  }
 
   // Sólo se borran años que existen como fila. `saldosAnioChofer` además
   // devuelve años que sólo aparecen como imputación (sin fila otorgada), y esos
@@ -1765,14 +1706,7 @@ export async function guardarSaldosAnioAction(
         chofer_id,
         anio: f.anio,
         dias_correspondientes: f.dias,
-        // La procedencia vive en `origen`; `observaciones` queda para el porqué
-        // que escribe una persona (null si no escribió nada). Antes acá caía un
-        // "Editado manualmente" de relleno y la UI lo devolvía tal cual al
-        // volver a guardar: por eso Alveira, editado a mano el 29/07, seguía
-        // mostrando "Conciliado con planilla Bárbara 21/07/2026". Un dato humano
-        // disfrazado de dato de máquina.
-        observaciones: f.observaciones,
-        origen: "humano",
+        observaciones: f.observaciones ?? "Editado manualmente",
         updated_by: user.id,
         updated_at: nowIso,
       })),
@@ -1790,12 +1724,8 @@ export async function guardarSaldosAnioAction(
   }
 
   // Una entrada por año tocado: en /auditoría hay que poder ver QUÉ año cambió,
-  // no sólo que "se editó el saldo de fulano". También cuenta como "tocado"
-  // cambiar SÓLO la justificación: es justo la trazabilidad que pide Bárbara
-  // ("quiero que esté bien detallado abajo") y antes se guardaba sin rastro.
-  const tocados = limpias.filter(
-    (f) => previo[f.anio] !== f.dias || (previoObs[f.anio] ?? null) !== f.observaciones,
-  );
+  // no sólo que "se editó el saldo de fulano".
+  const tocados = limpias.filter((f) => previo[f.anio] !== f.dias);
   for (const f of tocados) {
     await logChoferAudit(
       chofer_id,
@@ -1870,66 +1800,6 @@ export async function reimputarPeriodoAction(
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/choferes/vacaciones");
   return { success: true };
-}
-
-export type MovimientoAnio = {
-  fecha: string;
-  usuario_nombre: string | null;
-  dias_antes: number | null;
-  dias_despues: number | null;
-  /** 'app' = pasó por una server action; 'db' = lo registró el trigger de base. */
-  fuente: "app" | "db";
-};
-
-/**
- * Movimientos de los días de UN año, para mostrarlos en el legajo.
- *
- * Es el "ante cualquier reclamo yo tengo que tener todas las pruebas": el rastro
- * ya vive en audit_log, pero estaba sólo en /auditoría, que Bárbara no usa. Si
- * viene vacío también es información honesta: lo anterior al 29/07/2026 nunca
- * se registró (la conciliación del 22/07 no dejó una sola fila).
- */
-export async function historialAnioAction(
-  chofer_id: string,
-  anio: number,
-): Promise<MovimientoAnio[]> {
-  await requireSeccion("choferes_vacaciones", "read");
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any;
-    const { data } = await sb
-      .from("audit_log")
-      .select("created_at, valores_anteriores, valores_nuevos, metadata, usuario:usuario_id(nombre, apellido)")
-      .eq("entidad_tipo", "chofer_vacaciones_anio")
-      .eq("entidad_id", `${chofer_id}:${anio}`)
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    const dias = (v: unknown): number | null => {
-      const d = (v as { dias_correspondientes?: unknown } | null)?.dias_correspondientes;
-      return typeof d === "number" ? d : null;
-    };
-    return ((data ?? []) as {
-      created_at: string;
-      valores_anteriores: unknown;
-      valores_nuevos: unknown;
-      metadata: { fuente?: string } | null;
-      usuario: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
-    }[]).map((r) => {
-      const u = Array.isArray(r.usuario) ? r.usuario[0] : r.usuario;
-      return {
-        fecha: r.created_at,
-        usuario_nombre: u ? `${u.nombre}${u.apellido ? " " + u.apellido : ""}` : null,
-        dias_antes: dias(r.valores_anteriores),
-        dias_despues: dias(r.valores_nuevos),
-        fuente: r.metadata?.fuente === "trigger_db" ? ("db" as const) : ("app" as const),
-      };
-    });
-  } catch {
-    // El historial es un complemento: si falla, la pantalla tiene que seguir
-    // mostrando el saldo igual.
-    return [];
-  }
 }
 
 // Viajes del chofer dentro de un rango de fechas. Read protegida por la página

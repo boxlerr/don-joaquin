@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SiluetaPersona } from "@/components/ui/AvatarPersona";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Combobox } from "@/components/ui/combobox";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -108,7 +109,6 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     }
   };
 
-  const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
 
   const estadoTone: "success" | "warning" | "neutral" | "error" =
     chofer.estado === "activo"
@@ -160,7 +160,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               {fotoUrl ? (
                 <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
-                <span className="text-primary text-xl font-bold">{initials}</span>
+                // Mientras no haya foto, la silueta del área. Las iniciales no
+                // decían nada teniendo el nombre al lado.
+                <SiluetaPersona rol={chofer.rol} className="text-primary" />
               )}
 
               <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">

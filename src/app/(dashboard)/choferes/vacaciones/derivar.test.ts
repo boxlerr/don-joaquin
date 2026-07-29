@@ -3,13 +3,18 @@ import {
   saldosPorAnio,
   anioParaImputar,
   diasPorAntiguedad,
-  diasPorAntiguedadEnAnio,
   aniosCumplidos,
   semaforo,
   resumenSaldos,
-  chequeoLey,
-  explicarAntiguedad,
-  aniosEnRojo,
+  subeADiasEn,
+  ventanaGoce,
+  yaSePuedeTomar,
+  esNotaDeProceso,
+  notaVisible,
+  vinoDeImportacion,
+  fmtDiaLargo,
+  fmtRangoFechas,
+  diaSiguiente,
 } from "./derivar";
 
 // Casos tomados de la conciliación real con la planilla de Bárbara (21/07/2026):
@@ -193,100 +198,97 @@ describe("semáforo", () => {
   });
 });
 
-// Los 5 casos graves que dejó la conciliación del 22/07/2026: gente a la que
-// legalmente se le deben días y que ninguna pantalla marcaba, porque el
-// `desfasaje` de derivarVacaciones sólo mira el año EN CURSO y todos son de 2025.
-describe("chequeoLey", () => {
-  // El 2026 se carga con lo que marca la ley para aislar el caso al 2025: si no,
-  // el chequeo (que mira los dos años vigentes) también lo reportaría.
-  const anio2025 = (otorgados: number, ingreso: string) =>
-    saldosPorAnio(
-      [
-        { anio: 2025, dias: otorgados },
-        { anio: 2026, dias: diasPorAntiguedadEnAnio(ingreso, 2026) },
-      ],
-      new Map(),
-    );
-
-  it.each([
-    ["Trejo", "2009-12-14", 16, 28, 12],
-    ["Cancela", "2022-03-14", 7, 14, 7],
-    ["Pucheta", "2016-12-16", 14, 21, 7],
-    ["Joaquín Jeremías", "2016-08-01", 14, 21, 7],
-    ["Quiroga", "2019-07-01", 15, 21, 6],
-  ])("%s: tiene %s y le corresponden %s", (_n, ingreso, otorgados, ley, faltan) => {
-    const r = chequeoLey(anio2025(otorgados as number, ingreso as string), ingreso as string, 2026);
-    expect(r).toEqual([{ anio: 2025, otorgados, ley, faltan }]);
+// Reemplazo del "sube en 37 meses" que se rechazó: hay que decir el AÑO concreto
+// y a cuántos días pasa.
+describe("subeADiasEn", () => {
+  it("el año del escalón es el de ingreso más los años del escalón", () => {
+    expect(subeADiasEn("2013-07-01", 12)).toEqual({ anio: 2033, dias: 35 }); // 2013+20
+    expect(subeADiasEn("2022-11-30", 3)).toEqual({ anio: 2027, dias: 21 }); // 2022+5
+    expect(subeADiasEn("2016-10-03", 9)).toEqual({ anio: 2026, dias: 28 }); // 2016+10
   });
 
-  it("no confunde 'le faltan' con 'le sobran' (arrastre legítimo)", () => {
-    // Novillo: 35 cargados en 2025 donde la ley da 21. Tiene días DE MÁS.
-    expect(chequeoLey(anio2025(35, "2020-09-21"), "2020-09-21", 2026)).toEqual([]);
+  it("NO depende del mes de ingreso: la antigüedad se mide al 31/12", () => {
+    // Si dependiera del mes, "en marzo de 2033 pasa a 35" sería una fecha falsa:
+    // los 35 días valen para TODO el período 2033.
+    expect(subeADiasEn("2013-01-01", 12)?.anio).toBe(2033);
+    expect(subeADiasEn("2013-12-31", 12)?.anio).toBe(2033);
   });
 
-  it("ignora los años ya vencidos: no se pueden arreglar y sólo hacen ruido", () => {
-    const s = saldosPorAnio(
-      [
-        { anio: 2023, dias: 0 },
-        { anio: 2025, dias: 21 },
-        { anio: 2026, dias: 28 },
-      ],
-      new Map(),
-    );
-    expect(chequeoLey(s, "2010-01-02", 2026).map((x) => x.anio)).toEqual([2025]);
-  });
-
-  it("sin fecha de ingreso no inventa nada", () => {
-    expect(chequeoLey(anio2025(0, "2020-01-01"), null, 2026)).toEqual([]);
-  });
-
-  it("no reclama años anteriores al ingreso", () => {
-    // Entró en 2026: el 2025 no le corresponde y no tiene que aparecer.
-    const s = saldosPorAnio([{ anio: 2026, dias: 14 }], new Map());
-    expect(chequeoLey(s, "2026-02-01", 2026)).toEqual([]);
+  it("en el tramo máximo o sin ingreso no hay próximo escalón", () => {
+    expect(subeADiasEn("2000-05-10", 21)).toBeNull();
+    expect(subeADiasEn(null, 3)).toBeNull();
+    expect(subeADiasEn("no-es-fecha", 3)).toBeNull();
   });
 });
 
-describe("diasPorAntiguedadEnAnio", () => {
-  it("mide la antigüedad al 31/12 del año de la fila, no al de hoy", () => {
-    // Cruza los 5 años en 2025: agregar el 2024 en el editor proponía los días
-    // del año en curso, o sea 21 donde iban 14.
-    expect(diasPorAntiguedadEnAnio("2020-03-01", 2024)).toBe(14);
-    expect(diasPorAntiguedadEnAnio("2020-03-01", 2026)).toBe(21);
+describe("ventanaGoce / yaSePuedeTomar (LCT art. 154)", () => {
+  it("la ventana va del 1/10 del año al 30/4 del siguiente", () => {
+    expect(ventanaGoce(2026)).toEqual({ desde: "2026-10-01", hasta: "2027-04-30" });
+  });
+
+  it('"los de 2026 son a partir de octubre" (lo que subrayó Bárbara)', () => {
+    expect(yaSePuedeTomar(2026, "2026-07-29")).toBe(false);
+    expect(yaSePuedeTomar(2026, "2026-10-01")).toBe(true);
+    expect(yaSePuedeTomar(2025, "2026-07-29")).toBe(true);
   });
 });
 
-describe("explicarAntiguedad", () => {
-  it("avisa el año en que le cambian los días (Alveira pasa de 21 a 28)", () => {
-    const frase = explicarAntiguedad("2017-07-03", 2026);
-    expect(frase).toContain("Ingresó el 03/07/2017");
-    expect(frase).toContain("Al 31/12/2026 cumple 9 años → 21 días");
-    expect(frase).toContain("Al 31/12/2027 cumple 10 y pasa a 28");
+describe("notaVisible / vinoDeImportacion / esNotaDeProceso", () => {
+  it("la metadata del importador no se muestra como si fuera una nota humana", () => {
+    const imp = "Import cronograma (VACACIONES 2, 21/07/2026)";
+    expect(notaVisible(imp)).toBeNull();
+    expect(esNotaDeProceso(imp)).toBe(true);
+    expect(vinoDeImportacion(imp)).toBe(true);
+
+    const planilla = "Importado de planilla (21/07/2026)";
+    expect(notaVisible(planilla)).toBeNull();
+    expect(vinoDeImportacion(planilla)).toBe(true);
   });
 
-  it("cuando no cambia, dice que el año nuevo se abre solo", () => {
-    // Cancela en 2025: 3 años al cierre y 4 al siguiente, los dos de 14 días.
-    expect(explicarAntiguedad("2022-03-14", 2025)).toContain(
-      "El 1 de enero el sistema le abre el 2026 solo",
+  it("el alta automática es proceso pero NO vino de la planilla", () => {
+    // La escribe lib.ts cuando falta la fila del año en curso.
+    const alta = "Alta automática del período 2026 (días por antigüedad)";
+    expect(notaVisible(alta)).toBeNull();
+    expect(esNotaDeProceso(alta)).toBe(true);
+    expect(vinoDeImportacion(alta)).toBe(false);
+  });
+
+  it("una nota escrita por una persona se conserva", () => {
+    expect(notaVisible("adelanta una semana por casamiento")).toBe("adelanta una semana por casamiento");
+    expect(notaVisible(null)).toBeNull();
+    expect(notaVisible("   ")).toBeNull();
+  });
+});
+
+describe("fmtRangoFechas / fmtDiaLargo", () => {
+  const hoy = "2026-07-29";
+
+  it("mismo mes, mes distinto y cruce de año", () => {
+    expect(fmtRangoFechas("2026-07-07", "2026-07-20", hoy)).toBe("del 7 al 20 de julio");
+    expect(fmtRangoFechas("2026-07-28", "2026-08-04", hoy)).toBe("del 28 de julio al 4 de agosto");
+    expect(fmtRangoFechas("2026-12-28", "2027-01-10", hoy)).toBe(
+      "del 28 de diciembre de 2026 al 10 de enero de 2027",
     );
   });
 
-  it("en el tramo máximo aclara que ya no cambia más", () => {
-    expect(explicarAntiguedad("2000-05-10", 2026)).toContain("Ya está en el tramo más alto");
-  });
-
-  it("sin fecha de ingreso lo dice en lugar de calcular cualquier cosa", () => {
-    expect(explicarAntiguedad(null, 2026)).toContain("No tiene fecha de ingreso cargada");
+  it("un día en prosa, con el año sólo cuando no es el de hoy", () => {
+    expect(fmtDiaLargo("2026-07-21", hoy)).toBe("martes 21 de julio");
+    expect(fmtDiaLargo("2027-01-04", hoy)).toBe("lunes 4 de enero de 2027");
   });
 });
 
-describe("aniosEnRojo", () => {
-  it("marca los años con más días imputados que otorgados", () => {
-    const s = saldosPorAnio([{ anio: 2025, dias: 3 }, { anio: 2026, dias: 14 }], new Map([[2025, 18]]));
-    expect(aniosEnRojo(s)).toEqual([{ anio: 2025, otorgados: 3, usados: 18 }]);
+describe("diaSiguiente", () => {
+  it("devuelve el día en que vuelve a trabajar", () => {
+    expect(diaSiguiente("2026-08-02")).toBe("2026-08-03");
   });
 
-  it("un año justo en cero no está en rojo", () => {
-    expect(aniosEnRojo(saldosPorAnio([{ anio: 2025, dias: 14 }], new Map([[2025, 14]])))).toEqual([]);
+  it("cruza fin de mes y fin de año", () => {
+    expect(diaSiguiente("2026-01-31")).toBe("2026-02-01");
+    expect(diaSiguiente("2026-12-31")).toBe("2027-01-01");
+  });
+
+  it("contempla el 29 de febrero de los años bisiestos", () => {
+    expect(diaSiguiente("2028-02-28")).toBe("2028-02-29");
+    expect(diaSiguiente("2027-02-28")).toBe("2027-03-01");
   });
 });

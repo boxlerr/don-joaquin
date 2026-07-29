@@ -2,19 +2,7 @@
 // vencimientos, próximo hito y semáforo). Funciones PURAS, sin acceso a DB ni
 // "server-only": las usan la página global, el tab del legajo y las alertas.
 
-import { formatFecha } from "@/lib/utils";
-
 export type VacacionesSector = "Chofer" | "Oficina" | "Taller";
-
-/**
- * De dónde salió el número de días de un año. Vive en la columna `origen` de
- * `chofer_vacaciones_anios`, aparte de `observaciones` (que es el "por qué" que
- * escribe una persona). Hasta la migración del 29/07 las dos cosas compartían la
- * misma columna de texto y no había forma de distinguir un dato humano de uno de
- * máquina: por eso Alveira, editado a mano, seguía mostrando el cartel de la
- * conciliación automática.
- */
-export type OrigenDias = "humano" | "planilla" | "antiguedad" | "conciliacion";
 
 export const ROL_A_SECTOR: Record<string, VacacionesSector> = {
   administrativo: "Oficina",
@@ -71,12 +59,10 @@ export type SaldoAnio = {
   usados: number;
   saldo: number;
   observaciones: string | null;
-  /** Procedencia del número. Opcional: puede faltar en datos viejos o en tests. */
-  origen?: OrigenDias;
 };
 
 export function saldosPorAnio(
-  otorgados: { anio: number; dias: number; observaciones?: string | null; origen?: OrigenDias }[],
+  otorgados: { anio: number; dias: number; observaciones?: string | null }[],
   usadosPorAnio: Map<number, number>,
 ): SaldoAnio[] {
   const anios = new Set<number>([...otorgados.map((o) => o.anio), ...usadosPorAnio.keys()]);
@@ -91,80 +77,8 @@ export function saldosPorAnio(
         usados,
         saldo: (o?.dias ?? 0) - usados,
         observaciones: o?.observaciones ?? null,
-        origen: o?.origen,
       };
     });
-}
-
-/**
- * Días que corresponden por un año concreto: la antigüedad se mide al 31/12 DE
- * ESE AÑO, no al de hoy. Hasta ahora el editor del legajo proponía siempre los
- * días del año en curso, así que agregar el 2024 sugería los días del 2026.
- */
-export function diasPorAntiguedadEnAnio(ingresoISO: string, anio: number): number {
-  return diasPorAntiguedad(aniosCumplidos(ingresoISO, anio));
-}
-
-/**
- * Años en los que hay menos días cargados de los que marca la ley.
- *
- * `desfasaje` (más abajo, en derivarVacaciones) compara SÓLO el año en curso,
- * así que los casos graves —que son todos del año pasado: Trejo, Cancela,
- * Pucheta, Jeremías, Quiroga— no los ve nadie, y en cambio marca a los que
- * tienen días DE MÁS por arrastre legítimo. Esto separa las dos cosas: acá sólo
- * lo que se le DEBE a alguien.
- *
- * Se limita a los años vigentes (Y e Y−1) a propósito: un año ya vencido no se
- * puede arreglar y sólo haría ruido.
- */
-export function chequeoLey(
-  saldos: SaldoAnio[],
-  ingresoISO: string | null,
-  finPeriodoY: number,
-): { anio: number; otorgados: number; ley: number; faltan: number }[] {
-  if (!ingresoISO) return [];
-  const anioIngreso = Number(ingresoISO.slice(0, 4));
-  const out: { anio: number; otorgados: number; ley: number; faltan: number }[] = [];
-  for (const anio of [finPeriodoY - 1, finPeriodoY]) {
-    if (!Number.isFinite(anioIngreso) || anio < anioIngreso) continue;
-    const otorgados = saldos.find((s) => s.anio === anio)?.otorgados ?? 0;
-    const ley = diasPorAntiguedadEnAnio(ingresoISO, anio);
-    if (otorgados < ley) out.push({ anio, otorgados, ley, faltan: ley - otorgados });
-  }
-  return out;
-}
-
-/**
- * La frase que explica, en castellano, de dónde salen los días y qué va a pasar
- * el 1 de enero. Responde la pregunta de Bárbara del 29/07 ("¿eso se va a ir
- * actualizando solo? es re importante"): el comportamiento ya existía en lib.ts,
- * lo que faltaba era que se viera sin tener que preguntar.
- */
-export function explicarAntiguedad(ingresoISO: string | null, finPeriodoY: number): string {
-  if (!ingresoISO)
-    return "No tiene fecha de ingreso cargada, así que el sistema no puede calcular los días que le corresponden por ley.";
-  const aAlCierre = aniosCumplidos(ingresoISO, finPeriodoY);
-  const diasHoy = diasPorAntiguedad(aAlCierre);
-  const aSiguiente = aniosCumplidos(ingresoISO, finPeriodoY + 1);
-  const diasSig = diasPorAntiguedad(aSiguiente);
-  const ingreso = formatFecha(ingresoISO);
-  const base =
-    diasSig === diasHoy
-      ? `Ingresó el ${ingreso}. Al 31/12/${finPeriodoY} cumple ${aAlCierre} año${aAlCierre === 1 ? "" : "s"}, así que por ley le corresponden ${diasHoy} días. El 1 de enero el sistema le abre el ${finPeriodoY + 1} solo.`
-      : `Ingresó el ${ingreso}. Al 31/12/${finPeriodoY} cumple ${aAlCierre} año${aAlCierre === 1 ? "" : "s"} → ${diasHoy} días. Al 31/12/${finPeriodoY + 1} cumple ${aSiguiente} y pasa a ${diasSig}: el sistema lo carga solo cuando arranque ese año.`;
-  return diasHoy === 35 ? `${base} Ya está en el tramo más alto: no cambia más.` : base;
-}
-
-/**
- * Años con más días imputados que otorgados. Una sola definición para la
- * tarjeta de adeudados, el editor y la validación del servidor: si cada uno la
- * calculara por su lado, la pantalla podría dejar guardar algo que el servidor
- * rechaza (o al revés).
- */
-export function aniosEnRojo(saldos: SaldoAnio[]): { anio: number; otorgados: number; usados: number }[] {
-  return saldos
-    .filter((s) => s.usados > s.otorgados)
-    .map((s) => ({ anio: s.anio, otorgados: s.otorgados, usados: s.usados }));
 }
 
 /**
@@ -224,6 +138,137 @@ export function venceSaldoLabel(adeudados: number, finPeriodoY: number): string 
 
 export function vencePeriodoLabel(finPeriodoY: number): string {
   return `${MES_CORTO[9]} ${finPeriodoY + 1}`; // Oct del año siguiente
+}
+
+// ── Textos y fechas para la UI ────────────────────────────────────────────────
+// Todo lo de acá abajo existe para que las pantallas no tengan que armar frases
+// a mano (que es cómo terminaron diciendo lo mismo de siete formas distintas).
+// `hitoLabel`, `proximoHito` y `vencePeriodoLabel` siguen vivos porque los
+// consumen los dos exports a Excel (el "formato de siempre" que archiva Bárbara),
+// pero la UI usa estas funciones nuevas.
+
+/**
+ * Próximo escalón de antigüedad, dicho en AÑO y en DÍAS: "desde 2029 le van a
+ * corresponder 35 días por año".
+ *
+ * NO devuelve mes a propósito. `aniosCumplidos` mide la antigüedad al 31/12 del
+ * año del período (refM=12, refD=31 ⇒ anios = refY − year(ingreso) siempre), así
+ * que el escalón vale para TODO el período `year(ingreso) + escalón`: decir "en
+ * marzo de 2029 pasa a 35 días" sería falso, los 35 valen para el 2029 completo.
+ *
+ * Reemplaza a `proximoHito` en la UI ("37 meses → 20 años": nadie planifica en
+ * meses sueltos).
+ */
+export function subeADiasEn(
+  ingresoISO: string | null,
+  anios: number,
+): { anio: number; dias: number } | null {
+  const sig = ESCALONES_HITO.find((e) => e > anios);
+  if (sig == null || !ingresoISO) return null;
+  const y = Number(ingresoISO.slice(0, 4));
+  if (!Number.isFinite(y)) return null;
+  return { anio: y + sig, dias: diasPorAntiguedad(sig) };
+}
+
+/** Ventana legal para gozar el período de un año (LCT art. 154): 1/10 → 30/4. */
+export function ventanaGoce(anio: number): { desde: string; hasta: string } {
+  return { desde: `${anio}-10-01`, hasta: `${anio + 1}-04-30` };
+}
+
+/** ¿Ya se abrió la ventana del art. 154 para el período de ese año? */
+export function yaSePuedeTomar(anio: number, hoyISO: string): boolean {
+  return hoyISO >= ventanaGoce(anio).desde;
+}
+
+/**
+ * ¿Ese texto de `observaciones` lo escribió un proceso y no una persona?
+ *
+ * No hay columna de origen en `chofer_ausencias` ni en `chofer_vacaciones_anios`,
+ * así que lo único que queda es heurística sobre el texto libre. Se usa para
+ * ESCONDER el ruido de importación ("Import cronograma (VACACIONES 2, …)" abajo
+ * del nombre de una persona, como si fuera una nota humana), nunca para afirmar
+ * cómo se cargó algo que en realidad no sabemos.
+ */
+export function esNotaDeProceso(obs: string | null): boolean {
+  if (!obs) return false;
+  return /^\s*\[?import/i.test(obs) || /^\s*alta autom/i.test(obs);
+}
+
+/** La observación sólo si la escribió una persona; si no, null. */
+export function notaVisible(obs: string | null): string | null {
+  if (!obs || esNotaDeProceso(obs)) return null;
+  return obs.trim() || null;
+}
+
+/**
+ * Sólo la importación de planilla habilita la frase "al importar la planilla".
+ * `esNotaDeProceso` es más amplia (incluye el "Alta automática…" que escribe
+ * lib.ts) y sirve nada más que para filtrar.
+ */
+export function vinoDeImportacion(obs: string | null): boolean {
+  return /^\s*\[?import/i.test(obs ?? "");
+}
+
+const DIA_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MES_LARGO = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+function partesISO(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return { y: y ?? 0, m: m ?? 1, d: d ?? 1 };
+}
+
+/**
+ * Un día en prosa: "lunes 21 de julio". El año se agrega sólo si no es el de hoy
+ * ("lunes 4 de enero de 2027"), que es el caso frecuente por la ventana de goce.
+ * Un solo formato para "vuelve el…", "se va el…" y "volvió el…" en las tres
+ * pantallas: antes cada bloque escribía la fecha a su manera.
+ */
+/**
+ * El día siguiente a una fecha ISO. Es el día en que la persona vuelve a
+ * trabajar: la pregunta que se hace quien arma la semana no es "cuándo termina
+ * la licencia" sino "cuándo lo tengo de nuevo".
+ */
+export function diaSiguiente(iso: string): string {
+  const { y, m, d } = partesISO(iso);
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
+  return t.toISOString().slice(0, 10);
+}
+
+export function fmtDiaLargo(iso: string, hoyISO: string): string {
+  const { y, m, d } = partesISO(iso);
+  const dow = DIA_SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+  const base = `${dow} ${d} de ${MES_LARGO[m - 1]}`;
+  return y !== partesISO(hoyISO).y ? `${base} de ${y}` : base;
+}
+
+/**
+ * Rango en prosa: "del 7 al 20 de julio", "del 28 de julio al 4 de agosto",
+ * "del 28 de diciembre de 2026 al 10 de enero de 2027". Reemplaza al
+ * "07 jul → 20 jul" de la vista global, que es formato de planilla.
+ */
+export function fmtRangoFechas(inicioISO: string, finISO: string, hoyISO: string): string {
+  const a = partesISO(inicioISO);
+  const b = partesISO(finISO);
+  const anioHoy = partesISO(hoyISO).y;
+  const cruzaAnio = a.y !== b.y || a.y !== anioHoy || b.y !== anioHoy;
+  if (cruzaAnio) {
+    return `del ${a.d} de ${MES_LARGO[a.m - 1]} de ${a.y} al ${b.d} de ${MES_LARGO[b.m - 1]} de ${b.y}`;
+  }
+  if (a.m === b.m) return `del ${a.d} al ${b.d} de ${MES_LARGO[a.m - 1]}`;
+  return `del ${a.d} de ${MES_LARGO[a.m - 1]} al ${b.d} de ${MES_LARGO[b.m - 1]}`;
 }
 
 /** Conjunto completo de campos derivados para un empleado. */

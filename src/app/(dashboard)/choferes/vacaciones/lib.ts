@@ -6,12 +6,10 @@ import {
   resumenSaldos,
   aniosCumplidos,
   diasPorAntiguedad,
-  chequeoLey,
   ROL_A_SECTOR,
   type SaldoAnio,
   type VacacionesSector,
   type Semaforo,
-  type OrigenDias,
 } from "./derivar";
 import { UMBRAL_CLAVE, mergeUmbral, type UmbralConfig } from "./umbral";
 
@@ -50,14 +48,6 @@ export type VacacionesSaldoChofer = {
   saldos_anio: SaldoAnio[]; // desglose por año (otorgados / usados / saldo)
   dias_segun_antiguedad: number;
   desfasaje: boolean; // los días cargados no coinciden con la antigüedad actual
-  /**
-   * Días que le FALTAN contra la ley en los años vigentes (Y e Y−1). `desfasaje`
-   * mezcla en un solo booleano a quien tiene días de menos (grave: se le debe) y
-   * a quien tiene de más (arrastre, probablemente legítimo), y además sólo mira
-   * el año en curso — así que los 5 casos graves, todos del año pasado, no los
-   * veía nadie. Esto separa lo urgente de lo revisable.
-   */
-  faltan_ley: number;
   vence_saldo: string | null;
   vence_periodo: string;
   proximo_hito: string;
@@ -106,7 +96,7 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("chofer_vacaciones_anios")
-      .select("chofer_id, anio, dias_correspondientes, observaciones, origen")
+      .select("chofer_id, anio, dias_correspondientes, observaciones")
       .order("anio"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
@@ -132,24 +122,15 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
   // Sin demo: la dotación real. (`es_demo` puede venir null en datos viejos.)
   const dotacion = (choferes ?? []).filter((c) => (c as { es_demo?: boolean | null }).es_demo !== true);
 
-  const otorgadosPorChofer = new Map<
-    string,
-    { anio: number; dias: number; observaciones: string | null; origen?: OrigenDias }[]
-  >();
+  const otorgadosPorChofer = new Map<string, { anio: number; dias: number; observaciones: string | null }[]>();
   for (const r of (aniosRaw ?? []) as {
     chofer_id: string;
     anio: number;
     dias_correspondientes: number;
     observaciones: string | null;
-    origen: OrigenDias | null;
   }[]) {
     const lista = otorgadosPorChofer.get(r.chofer_id) ?? [];
-    lista.push({
-      anio: r.anio,
-      dias: r.dias_correspondientes ?? 0,
-      observaciones: r.observaciones,
-      origen: r.origen ?? undefined,
-    });
+    lista.push({ anio: r.anio, dias: r.dias_correspondientes ?? 0, observaciones: r.observaciones });
     otorgadosPorChofer.set(r.chofer_id, lista);
   }
 
@@ -168,33 +149,17 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
         chofer_id: c.id,
         anio: finPeriodoY,
         dias_correspondientes: diasPorAntiguedad(aniosCumplidos(ingreso, finPeriodoY)),
-        // La procedencia vive en `origen`; la observación queda libre para lo
-        // que escriba una persona.
-        observaciones: null,
-        origen: "antiguedad" as OrigenDias,
+        observaciones: `Alta automática del período ${finPeriodoY} (días por antigüedad)`,
       };
     });
   if (faltantesAnio.length > 0) {
-    // `ignoreDuplicates: true` es "on conflict do nothing": si la fila del año ya
-    // existe NO se toca. Es alta, no sobrescritura — el único write de esta tabla
-    // que nunca pisó nada, y por eso se conserva tal cual.
-    //
-    // La auditoría de este alta la deja el trigger de base, con `usuario_id`
-    // null. Eso es lo honesto: no lo cargó nadie. Ponerle el usuario que abrió
-    // la pantalla sería repetir el error ya documentado del F931, donde
-    // `created_by` terminó apuntando a quien miró y no a quien cargó.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any)
       .from("chofer_vacaciones_anios")
       .upsert(faltantesAnio, { onConflict: "chofer_id,anio", ignoreDuplicates: true });
     for (const f of faltantesAnio) {
       const lista = otorgadosPorChofer.get(f.chofer_id) ?? [];
-      lista.push({
-        anio: f.anio,
-        dias: f.dias_correspondientes,
-        observaciones: f.observaciones,
-        origen: f.origen,
-      });
+      lista.push({ anio: f.anio, dias: f.dias_correspondientes, observaciones: f.observaciones });
       otorgadosPorChofer.set(f.chofer_id, lista);
     }
   }
@@ -314,7 +279,6 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
     const tomados = tomadosPorChofer.get(c.id) ?? 0;
     const rol = (c as { rol: string | null }).rol;
     const ingreso = (c as { fecha_ingreso: string | null }).fecha_ingreso;
-    const faltanLey = chequeoLey(saldosAnio, ingreso, finPeriodoY).reduce((a, x) => a + x.faltan, 0);
     const d = derivarVacaciones({
       rol,
       fecha_ingreso: ingreso,
@@ -340,7 +304,6 @@ export async function getVacacionesGlobal(): Promise<VacacionesGlobal> {
       saldos_anio: saldosAnio,
       dias_segun_antiguedad: d.diasSegunAntiguedad,
       desfasaje: d.desfasaje,
-      faltan_ley: faltanLey,
       vence_saldo: d.vence_saldo,
       vence_periodo: d.vence_periodo,
       proximo_hito: d.proximo_hito,

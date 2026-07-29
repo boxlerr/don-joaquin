@@ -71,13 +71,8 @@ export default function ImportarPlanillaDialog({
         setError(res.error);
       } else {
         setPreview(res);
-        // Los períodos son ALTAS y no pisan nada: vienen tildados.
         setPeriodosSel(new Set(res.periodos.map((_, i) => i)));
-        // Los saldos PISAN lo que ya está cargado, así que arrancan
-        // destildados. Hasta ahora venían todos marcados y un click en "Aplicar"
-        // reescribía los días de la dotación entera — literalmente el escenario
-        // que teme Bárbara ("cuando me manden todos los choferes juntos").
-        setSaldosSel(new Set());
+        setSaldosSel(new Set(res.saldos.map((_, i) => i)));
       }
     } catch {
       setError("No se pudo procesar el archivo.");
@@ -99,11 +94,7 @@ export default function ImportarPlanillaDialog({
     });
     setAplicando(false);
     const err = res?.errores?.length ? ` · ${res.errores.length} con problemas` : "";
-    // Que se vea cuántos NO se tocaron: es la regla de blindaje hecha visible.
-    const resp = res?.respetados ? ` ${res.respetados} no se tocaron porque los cargó una persona.` : "";
-    alert(
-      `Planilla importada: ${res?.periodosCreados ?? 0} período(s) y ${res?.saldosAplicados ?? 0} saldo(s)${err}.${resp}`,
-    );
+    alert(`Planilla importada: ${res?.periodosCreados ?? 0} período(s) y ${res?.saldosAplicados ?? 0} saldo(s)${err}.`);
     onOpenChange(false);
     reset();
     onSuccess();
@@ -217,45 +208,24 @@ export default function ImportarPlanillaDialog({
                 <h3 className="font-semibold text-foreground mb-1.5">
                   Saldos distintos a la planilla ({preview.saldos.length})
                 </h3>
-                <p className="mb-1.5 text-xs text-muted-foreground">
-                  Los saldos pisan lo que ya está cargado. Tildá sólo los que quieras reemplazar.
-                </p>
                 <ul className="divide-y divide-border rounded-[8px] border border-border overflow-hidden">
-                  {preview.saldos.map((s, i) => {
-                    const humano = s.origen_actual === "humano";
-                    return (
-                      <li
-                        key={i}
-                        className={`flex items-center gap-2.5 px-3 py-2 bg-card ${
-                          humano ? "opacity-60" : "hover:bg-muted/20"
-                        }`}
-                      >
-                        {humano ? (
-                          <span className="w-[13px] shrink-0" />
-                        ) : (
-                          <input
-                            type="checkbox"
-                            checked={saldosSel.has(i)}
-                            onChange={() => toggle(saldosSel, i, setSaldosSel)}
-                            className="accent-[var(--primary)]"
-                          />
-                        )}
-                        <span className="font-medium text-foreground">{s.empleado}</span>
-                        {humano ? (
-                          <span className="text-xs text-muted-foreground">
-                            Lo cargó una persona — el importador no lo pisa.
-                          </span>
-                        ) : (
-                          <span className="ml-auto font-mono whitespace-nowrap text-xs">
-                            Días del {s.anio}:{" "}
-                            <span className="text-muted-foreground">{s.otorgados_actual}</span>
-                            <span className="text-muted-foreground/60"> → </span>
-                            <span className="font-semibold text-foreground">{s.otorgados_nuevo}</span>
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
+                  {preview.saldos.map((s, i) => (
+                    <li key={i} className="flex items-center gap-2.5 px-3 py-2 bg-card hover:bg-muted/20">
+                      <input
+                        type="checkbox"
+                        checked={saldosSel.has(i)}
+                        onChange={() => toggle(saldosSel, i, setSaldosSel)}
+                        className="accent-[var(--primary)]"
+                      />
+                      <span className="font-medium text-foreground">{s.empleado}</span>
+                      <span className="text-xs text-muted-foreground">saldo {s.anio}</span>
+                      <span className="ml-auto font-mono whitespace-nowrap">
+                        <span className="text-muted-foreground">{s.saldo_actual}</span>
+                        <span className="text-muted-foreground/60"> → </span>
+                        <span className="font-semibold text-foreground">{s.saldo_planilla}</span>
+                      </span>
+                    </li>
+                  ))}
                 </ul>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Al aplicar, se ajustan los días otorgados del año para que el saldo quede igual al de la planilla
@@ -297,7 +267,7 @@ export default function ImportarPlanillaDialog({
           {preview && !sinCambios && (
             <Button variant="brand" onClick={aplicar} disabled={aplicando || nadaSeleccionado}>
               {aplicando && <Loader2 size={14} className="animate-spin mr-1.5" />}
-              Aplicar los {periodosSel.size + saldosSel.size} marcados
+              Aplicar seleccionados ({periodosSel.size + saldosSel.size})
             </Button>
           )}
         </DialogFooter>

@@ -13,6 +13,7 @@ import {
   Pencil,
   Check,
   X,
+  AlertTriangle,
   Download,
   Info,
   ExternalLink,
@@ -24,6 +25,9 @@ import {
   ChevronRight,
   SlidersHorizontal,
   Plane,
+  Truck,
+  Briefcase,
+  Wrench,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
@@ -37,13 +41,27 @@ import {
 import { recalcularDiasPorAntiguedadAction } from "./actions";
 import { planSugerido } from "./plan";
 import { umbralBase, umbralDeMes, umbralDeSemana, mesDeSemana, type UmbralConfig } from "./umbral";
+
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+/** Ícono por área, para distinguir de un vistazo de qué legajo es cada tarjeta. */
+const ICONO_SECTOR = { Chofer: Truck, Oficina: Briefcase, Taller: Wrench } as const;
 import CargarVacacionesDialog, { type ChoferOpcion, type SugerenciaSemana } from "./CargarVacacionesDialog";
 import EditarPeriodoDialog from "./EditarPeriodoDialog";
 import UmbralDialog from "./UmbralDialog";
 import ImportarPlanillaDialog from "./import-planilla/ImportarPlanillaDialog";
 import CronogramaAnual from "./CronogramaAnual";
-import InitialsAvatar from "@/components/ui/InitialsAvatar";
+import AvatarPersona from "@/components/ui/AvatarPersona";
+import {
+  subeADiasEn,
+  notaVisible,
+  fmtRangoFechas,
+  fmtDiaLargo,
+  diaSiguiente,
+} from "./derivar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -135,20 +153,36 @@ type RangoCrono =
   | { modo: "semanas"; largo: LargoSemanas; offset: number };
 
 /** Criterios de orden de la lista de saldos. */
-type OrdenSaldos =
-  | "urgencia"
-  | "disponibles"
-  | "porVencer"
-  | "faltanLey"
-  | "apellido"
-  | "antiguedad"
-  | "tomados";
+type OrdenSaldos = "urgencia" | "disponibles" | "porVencer" | "apellido" | "antiguedad" | "tomados";
+
+const SECTOR_LABEL = {
+  Todos: "Todos los sectores",
+  Chofer: "Choferes",
+  Oficina: "Oficina",
+  Taller: "Taller",
+} as const;
+
+const SEMAFORO_LABEL = {
+  Todos: "Todos los estados",
+  "🔴": "🔴 Urgentes",
+  "🟠": "🟠 Mucho acumulado",
+  "🟡": "🟡 Atención",
+  "🟢": "🟢 Al día",
+} as const;
+
+const RANGO_LABEL = {
+  mes: "Un mes",
+  "10": "10 semanas",
+  "13": "3 meses",
+  "26": "6 meses",
+  resto: "Resto del año",
+  "52": "Año completo",
+} as const;
 
 const ORDEN_SALDOS_LABEL: Record<OrdenSaldos, string> = {
   urgencia: "Urgencia",
   disponibles: "Más días disponibles",
   porVencer: "Más días por vencer",
-  faltanLey: "Menos días que la ley",
   antiguedad: "Más antigüedad",
   tomados: "Menos días tomados",
   apellido: "Apellido (A-Z)",
@@ -204,8 +238,6 @@ export default function VacacionesClient({
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [planAbierto, setPlanAbierto] = useState(false);
   const [confirmPlan, setConfirmPlan] = useState(false);
-  // Recalcular escribe sobre toda la dotación: se confirma antes, como el plan.
-  const [confirmRecalculo, setConfirmRecalculo] = useState(false);
   const [planCargando, setPlanCargando] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   // Drag & drop de períodos entre semanas (misma fila).
@@ -219,6 +251,13 @@ export default function VacacionesClient({
   const [addKey, setAddKey] = useState(0); // fuerza remonte con estado fresco
   const [editPeriodo, setEditPeriodo] = useState<VacacionesPeriodo | null>(null);
   const [editKey, setEditKey] = useState(0);
+  // Corregir las fechas en la misma fila. Antes abría un modal: para mover un
+  // período un día había que abrir, editar, guardar y cerrar.
+  const [editFechas, setEditFechas] = useState<string | null>(null);
+  const [fechasP, setFechasP] = useState({ inicio: "", fin: "" });
+  const [guardandoP, setGuardandoP] = useState(false);
+  const [errorP, setErrorP] = useState<string | null>(null);
+
   const [cancelar, setCancelar] = useState<VacacionesPeriodo | null>(null);
   const [editSaldo, setEditSaldo] = useState<string | null>(null); // chofer_id en edición
   const [editCorr, setEditCorr] = useState("");
@@ -243,6 +282,43 @@ export default function VacacionesClient({
 
   // Salta a la fila del empleado en "Saldos por empleado" y la resalta un rato.
   // Si los filtros la ocultan, primero los limpia.
+  // Mismo conteo inclusivo que el servidor: del 30/07 al 02/08 son 4 días.
+  const diasDe = (inicio: string, fin: string) => {
+    if (!inicio || !fin || fin < inicio) return 0;
+    const a = new Date(inicio + "T00:00:00").getTime();
+    const b = new Date(fin + "T00:00:00").getTime();
+    return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
+  };
+
+  const abrirFechasP = (p: VacacionesPeriodo) => {
+    setEditFechas(p.id);
+    setFechasP({ inicio: p.fecha_inicio, fin: p.fecha_fin });
+    setErrorP(null);
+  };
+
+  const guardarFechasP = async (p: VacacionesPeriodo) => {
+    if (!fechasP.inicio || !fechasP.fin) return setErrorP("Faltan las fechas.");
+    if (fechasP.fin < fechasP.inicio)
+      return setErrorP("La fecha de fin no puede ser anterior al inicio.");
+    setGuardandoP(true);
+    setErrorP(null);
+    // `anio_cargo` sin definir: mover las fechas no cambia de qué año descuenta.
+    const res = await editarAusenciaAction(p.id, p.chofer_id, {
+      tipo: p.tipo,
+      fecha_inicio: fechasP.inicio,
+      fecha_fin: fechasP.fin,
+      observaciones: p.observaciones,
+      es_vacaciones: true,
+      justificada: true,
+    });
+    setGuardandoP(false);
+    if (res.error) setErrorP(res.error);
+    else {
+      setEditFechas(null);
+      router.refresh();
+    }
+  };
+
   const verEnTabla = (choferId: string) => {
     const visible = saldos.some(
       (s) =>
@@ -337,16 +413,10 @@ export default function VacacionesClient({
   };
 
   const recalcular = async () => {
-    setConfirmRecalculo(false);
     const res = await recalcularDiasPorAntiguedadAction();
     if (res?.error) alert(res.error);
     else {
-      // La segunda oración es el blindaje hecho visible: Bárbara ve que el
-      // proceso automático se frenó solo delante de lo que cargó una persona.
-      const resp = res?.respetados
-        ? ` ${res.respetados} quedaron como estaban porque los cargó una persona.`
-        : "";
-      alert(`Listo. ${res?.actualizados ?? 0} empleado(s) actualizados por antigüedad.${resp}`);
+      alert(`Listo. ${res?.actualizados ?? 0} empleado(s) actualizados según su antigüedad.`);
       refrescar();
     }
   };
@@ -492,12 +562,7 @@ export default function VacacionesClient({
 
   const enVacacionesAhora = saldos.filter((s) => s.en_vacaciones_ahora);
   const urgentes = saldos.filter((s) => s.adeudados > 0);
-  // Dos poblaciones distintas que antes iban juntas en un solo cartel: a quien
-  // le FALTAN días se le está debiendo (accionable, urgente), y a quien le
-  // SOBRAN probablemente le quedó arrastre de años anteriores (revisable).
-  const faltanLey = saldos.filter((s) => s.faltan_ley > 0);
-  const diasFaltanLey = faltanLey.reduce((a, s) => a + s.faltan_ley, 0);
-  const masQueLey = saldos.filter((s) => s.desfasaje && s.faltan_ley === 0);
+  const desfasados = saldos.filter((s) => s.desfasaje).length;
   // Línea vertical de "hoy". La ventana ya no arranca necesariamente esta semana,
   // así que hay que ubicar en qué columna cae (o no dibujarla).
   const idxSemanaHoy = semanas.findIndex((s) => s.start <= hoyISO && s.end >= hoyISO);
@@ -579,8 +644,6 @@ export default function VacacionesClient({
             return b.disponibles - a.disponibles || a.apellido.localeCompare(b.apellido);
           case "porVencer":
             return b.adeudados - a.adeudados || a.apellido.localeCompare(b.apellido);
-          case "faltanLey":
-            return b.faltan_ley - a.faltan_ley || a.apellido.localeCompare(b.apellido);
           case "antiguedad":
             return b.anios - a.anios || a.apellido.localeCompare(b.apellido);
           case "tomados":
@@ -643,27 +706,32 @@ export default function VacacionesClient({
     <div className="space-y-6">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={fSector}
-          onChange={(e) => setFSector(e.target.value as typeof fSector)}
-          className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
-        >
-          <option value="Todos">Todos los sectores</option>
-          <option value="Chofer">Choferes</option>
-          <option value="Oficina">Oficina</option>
-          <option value="Taller">Taller</option>
-        </select>
-        <select
-          value={fSemaforo}
-          onChange={(e) => setFSemaforo(e.target.value as typeof fSemaforo)}
-          className="h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
-        >
-          <option value="Todos">Todos</option>
-          <option value="🔴">🔴 Urgentes</option>
-          <option value="🟠">🟠 Mucho acum.</option>
-          <option value="🟡">🟡 Atención</option>
-          <option value="🟢">🟢 Ok</option>
-        </select>
+        {/* Selects estilados y no nativos: el desplegable del sistema operativo
+            no respeta la tipografía ni los colores del sistema. */}
+        <Select value={fSector} onValueChange={(v) => v && setFSector(v as typeof fSector)}>
+          <SelectTrigger className="h-9 w-[11rem] text-sm">
+            <span>{SECTOR_LABEL[fSector]}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((k) => (
+              <SelectItem key={k} value={k}>
+                {SECTOR_LABEL[k]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={fSemaforo} onValueChange={(v) => v && setFSemaforo(v as typeof fSemaforo)}>
+          <SelectTrigger className="h-9 w-[11rem] text-sm">
+            <span>{SEMAFORO_LABEL[fSemaforo]}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SEMAFORO_LABEL) as (keyof typeof SEMAFORO_LABEL)[]).map((k) => (
+              <SelectItem key={k} value={k}>
+                {SEMAFORO_LABEL[k]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {/* Un solo botón de exportar, como el resto del sistema: adentro se
             elige el formato en vez de tener dos botones sueltos. */}
         <div className="relative">
@@ -727,24 +795,15 @@ export default function VacacionesClient({
             <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
               <Plus size={15} /> Cargar vacaciones
             </Button>
-            <div className="flex flex-col gap-1">
-              <Button
-                variant="outline"
-                onClick={() => setConfirmRecalculo(true)}
-                disabled={pending}
-                className="h-9 gap-1.5 text-muted-foreground border-border"
-                title="Ajustar los días que corresponden según la antigüedad actual"
-              >
-                <RefreshCw size={14} /> Recalcular antigüedad
-              </Button>
-              {/* Responde por escrito la pregunta de Bárbara ("¿eso se va a ir
-                  actualizando solo?"): el botón no es la única forma de que
-                  pase, es sólo un adelanto de lo que el sistema hace en enero. */}
-              <span className="text-xs text-muted-foreground max-w-[15rem]">
-                Cada 1 de enero el sistema crea la fila del año nuevo con los días que corresponden. Este
-                botón sólo adelanta ese ajuste.
-              </span>
-            </div>
+            <Button
+              variant="outline"
+              onClick={recalcular}
+              disabled={pending}
+              className="h-9 gap-1.5 text-muted-foreground border-border"
+              title="Ajustar los días que corresponden según la antigüedad actual"
+            >
+              <RefreshCw size={14} /> Recalcular antigüedad
+            </Button>
           </>
         )}
       </div>
@@ -801,36 +860,11 @@ export default function VacacionesClient({
         </div>
       </TooltipProvider>
 
-      {/* Dos avisos y no uno. El cartel viejo contaba juntos a los que tienen
-          MENOS días que la ley (grave: se les debe) y a los que tienen de más
-          por arrastre legítimo, así que gritaba lobo sobre 14 personas y los 5
-          casos reales quedaban tapados. Y ya no dice "usá Recalcular
-          antigüedad": ese botón sólo escribe el año en curso y no arregla
-          ninguno de los casos graves, que son todos del año pasado. */}
-      {canWrite && (faltanLey.length > 0 || masQueLey.length > 0) && (
-        <div className="space-y-1.5">
-          {faltanLey.length > 0 && (
-            <p className="border-l-2 border-[#991B1B]/40 pl-3 text-sm text-[#991B1B]">
-              {faltanLey.length} empleado(s) tienen menos días cargados de los que marca la ley —{" "}
-              {diasFaltanLey} días en total.{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setOrdenSaldos("faltanLey");
-                  irA("card-saldos");
-                }}
-                className="underline"
-              >
-                Ver quiénes
-              </button>
-            </p>
-          )}
-          {masQueLey.length > 0 && (
-            <p className="border-l-2 border-border pl-3 text-sm text-muted-foreground">
-              {masQueLey.length} empleado(s) tienen más días que la ley. Puede ser arrastre de años
-              anteriores; revisalo cuando puedas.
-            </p>
-          )}
+      {desfasados > 0 && canWrite && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
+          <AlertTriangle size={15} />
+          {desfasados} empleado(s) tienen los días cargados desfasados de su antigüedad actual. Usá
+          “Recalcular antigüedad” para ajustarlos.
         </div>
       )}
 
@@ -944,10 +978,10 @@ export default function VacacionesClient({
                   <Plane size={13} /> Solo de vacaciones hoy
                   <span className="font-mono">{enVacacionesAhora.length}</span>
                 </button>
-                <select
+                <Select
                   value={rango.modo === "mes" ? "mes" : rango.largo}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onValueChange={(v) => {
+                    if (!v) return;
                     if (v === "mes") {
                       const hoy = new Date();
                       setRango({ modo: "mes", anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 });
@@ -955,15 +989,18 @@ export default function VacacionesClient({
                       setRango({ modo: "semanas", largo: v as LargoSemanas, offset: 0 });
                     }
                   }}
-                  className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
                 >
-                  <option value="mes">Un mes</option>
-                  <option value="10">10 semanas</option>
-                  <option value="13">3 meses</option>
-                  <option value="26">6 meses</option>
-                  <option value="resto">Resto del año</option>
-                  <option value="52">Año completo</option>
-                </select>
+                  <SelectTrigger className="h-8 w-[8.5rem] text-xs">
+                    <span>{RANGO_LABEL[rango.modo === "mes" ? "mes" : rango.largo]}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(RANGO_LABEL) as (keyof typeof RANGO_LABEL)[]).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {RANGO_LABEL[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {/* Navegación: sin esto la ventana arrancaba siempre hoy y no se
                     podía mirar el mes que se está liquidando. */}
                 <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
@@ -1247,173 +1284,192 @@ export default function VacacionesClient({
         )}
       </div>
 
-      {/* Próximos períodos */}
+      {/* Quién se va. Antes se llamaba "Períodos en la ventana": "ventana" era
+          jerga nuestra (el rango de semanas que se está mirando arriba) y nadie
+          sabía qué quería decir. Ahora el título dice para qué sirve y el rango
+          va escrito abajo. También se fue el conmutador Timeline/Lista: las dos
+          vistas mostraban lo mismo, sólo que una peor. */}
       {periodosVentanaFiltrados.length > 0 && (
         <div id="card-periodos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
-            <CalendarRange size={16} className="text-primary" />
-            <h2 className="text-sm font-bold text-foreground">Períodos en la ventana</h2>
-            <span className="text-xs text-muted-foreground">({periodosVentanaFiltrados.length})</span>
-            <div className="ml-auto inline-flex rounded-lg border border-border overflow-hidden">
-              <button
-                onClick={() => setVistaPeriodos("timeline")}
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaPeriodos === "timeline" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
-              >
-                <CalendarRange size={13} /> Timeline
-              </button>
-              <button
-                onClick={() => setVistaPeriodos("lista")}
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaPeriodos === "lista" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
-              >
-                <List size={13} /> Lista
-              </button>
-            </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-4 border-b border-border">
+            <CalendarRange size={16} className="text-primary self-center" />
+            <h2 className="text-sm font-bold text-foreground">Quién se va de vacaciones</h2>
+            <span className="text-xs text-muted-foreground">
+              {periodosVentanaFiltrados.length} período
+              {periodosVentanaFiltrados.length !== 1 ? "s" : ""} en las semanas que estás viendo
+            </span>
           </div>
 
-          {vistaPeriodos === "timeline" ? (
-            <div className="max-h-[70vh] overflow-auto">
-              {(() => {
-                // Agrupa por mes de inicio; el orden cronológico ya viene dado.
-                const grupos: { key: string; label: string; items: typeof periodosVentanaFiltrados }[] = [];
-                for (const p of periodosVentanaFiltrados) {
-                  const d = new Date(p.fecha_inicio + "T00:00:00");
-                  const key = `${d.getFullYear()}-${d.getMonth()}`;
-                  let g = grupos[grupos.length - 1];
-                  if (!g || g.key !== key) {
-                    g = { key, label: `${MES_LBL[d.getMonth()]} ${d.getFullYear()}`, items: [] };
-                    grupos.push(g);
-                  }
-                  g.items.push(p);
+          {errorP && (
+            <div className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-600">{errorP}</div>
+          )}
+
+          <div className="max-h-[70vh] overflow-auto">
+            {(() => {
+              // Agrupa por mes de inicio; el orden cronológico ya viene dado.
+              const grupos: { key: string; label: string; items: typeof periodosVentanaFiltrados }[] = [];
+              for (const p of periodosVentanaFiltrados) {
+                const d = new Date(p.fecha_inicio + "T00:00:00");
+                const key = `${d.getFullYear()}-${d.getMonth()}`;
+                let g = grupos[grupos.length - 1];
+                if (!g || g.key !== key) {
+                  g = { key, label: `${MES_LBL[d.getMonth()]} ${d.getFullYear()}`, items: [] };
+                  grupos.push(g);
                 }
-                return grupos.map((g) => {
-                  const totalDias = g.items.reduce((a, p) => a + p.dias, 0);
-                  return (
-                    <section key={g.key}>
-                      <div className="sticky top-0 z-10 flex items-center gap-2 px-5 py-1.5 bg-muted/90 backdrop-blur-sm border-b border-border">
-                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{g.label}</h3>
-                        <span className="text-[10px] font-mono text-muted-foreground/70">
-                          {g.items.length} período{g.items.length !== 1 ? "s" : ""} · {totalDias} día{totalDias !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                      <ul className="divide-y divide-border">
-                        {g.items.map((p) => {
-                          const barra = p.viajes_conflicto > 0 ? "#F59E0B" : p.en_curso ? "#0088D1" : "#10B981";
-                          return (
-                            <li key={p.id} className={`group flex items-center gap-3 pl-4 pr-4 py-2.5 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}>
-                              <InitialsAvatar
-                                name={`${p.nombre} ${p.apellido}`}
-                                src={fotoPorChofer.get(p.chofer_id) ?? undefined}
-                                size={32}
-                                className="shrink-0 text-[11px]"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
+                g.items.push(p);
+              }
+              return grupos.map((g) => {
+                const totalDias = g.items.reduce((a, p) => a + p.dias, 0);
+                const gente = new Set(g.items.map((p) => p.chofer_id)).size;
+                return (
+                  <section key={g.key}>
+                    <div className="sticky top-0 z-10 flex flex-wrap items-baseline gap-x-2 px-5 py-1.5 bg-muted/90 backdrop-blur-sm border-b border-border">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground">{g.label}</h3>
+                      <span className="text-[11px] text-muted-foreground">
+                        {gente} {gente === 1 ? "persona" : "personas"} · {totalDias} día
+                        {totalDias !== 1 ? "s" : ""} sin trabajar
+                      </span>
+                    </div>
+                    <ul className="divide-y divide-border">
+                      {g.items.map((p) => {
+                        const nota = notaVisible(p.observaciones);
+                        const editando = editFechas === p.id;
+                        return (
+                          <li
+                            key={p.id}
+                            className={`group flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
+                          >
+                            <AvatarPersona
+                              name={`${p.nombre} ${p.apellido}`}
+                              src={fotoPorChofer.get(p.chofer_id) ?? undefined}
+                              size={36}
+                              rol={sectorDe.get(p.chofer_id)}
+                              className="shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline gap-x-2">
+                                {/* El nombre abre el legajo, que es donde se
+                                    manejan las vacaciones en detalle: el saldo año
+                                    por año, todos sus períodos y la corrección de
+                                    los días. Antes sólo saltaba a la tabla de abajo,
+                                    que muestra menos de lo que hace falta para
+                                    decidir. */}
+                                <Link
+                                  href={`/choferes/${choferSlug(p)}?tab=vacaciones`}
+                                  title={`Abrir el legajo de ${p.apellido}, ${p.nombre}`}
+                                  className="text-[15px] font-semibold text-foreground hover:text-primary hover:underline"
+                                >
+                                  {p.apellido}, {p.nombre}
+                                </Link>
+                                {p.en_curso && (
+                                  <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-medium text-[#059669]">
+                                    <span className="relative flex w-1.5 h-1.5">
+                                      <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
+                                      <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
+                                    </span>
+                                    Está de vacaciones
+                                  </span>
+                                )}
+                              </div>
+                              {/* La pregunta operativa no es cuándo termina la
+                                  licencia, es cuándo lo tenés de vuelta. */}
+                              {editando ? (
+                                <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                  <Input
+                                    type="date"
+                                    value={fechasP.inicio}
+                                    onChange={(e) => setFechasP((v) => ({ ...v, inicio: e.target.value }))}
+                                    className="h-7 w-[8.75rem] text-xs"
+                                    aria-label="Desde"
+                                  />
+                                  <span className="text-muted-foreground">→</span>
+                                  <Input
+                                    type="date"
+                                    value={fechasP.fin}
+                                    min={fechasP.inicio || undefined}
+                                    onChange={(e) => setFechasP((v) => ({ ...v, fin: e.target.value }))}
+                                    className="h-7 w-[8.75rem] text-xs"
+                                    aria-label="Hasta"
+                                  />
+                                  <span className="text-xs text-muted-foreground tabular-nums">
+                                    {diasDe(fechasP.inicio, fechasP.fin)} días
+                                  </span>
+                                  <Button
+                                    variant="brand"
+                                    size="sm"
+                                    onClick={() => guardarFechasP(p)}
+                                    disabled={guardandoP}
+                                    className="h-7 text-xs"
+                                  >
+                                    <Check size={12} className="mr-1" />
+                                    {guardandoP ? "Guardando…" : "Guardar"}
+                                  </Button>
                                   <button
                                     type="button"
-                                    onClick={() => verEnTabla(p.chofer_id)}
-                                    title="Ver su saldo en la tabla"
-                                    className="truncate text-sm font-medium text-foreground hover:text-primary"
+                                    onClick={() => setEditFechas(null)}
+                                    disabled={guardandoP}
+                                    title="Cancelar la edición"
+                                    className="text-muted-foreground hover:text-foreground"
                                   >
-                                    {p.apellido}, {p.nombre}
+                                    <X size={13} />
                                   </button>
-                                  {p.en_curso && (
-                                    <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] font-medium text-foreground">
-                                      <span className="relative flex w-1.5 h-1.5">
-                                        <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
-                                        <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
-                                      </span>
-                                      En curso
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="mt-1 flex items-center gap-2">
-                                  <span className="h-1.5 rounded-full overflow-hidden bg-muted shrink-0" style={{ width: 120 }}>
-                                    <span className="block h-full rounded-full" style={{ width: `${Math.min(100, (p.dias / 21) * 100)}%`, backgroundColor: barra }} />
-                                  </span>
-                                  {p.observaciones && <span className="truncate text-[11px] italic text-muted-foreground/80">{p.observaciones}</span>}
-                                </div>
-                              </div>
-                              <div className="shrink-0 flex items-center gap-2 text-right">
-                                <span className="font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                                  {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
                                 </span>
-                                <span
-                                  className="whitespace-nowrap rounded-[4px] border border-border px-2 py-0.5 font-mono text-xs text-foreground"
-                                  title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
-                                >
-                                  {p.dias}d{p.anio_cargo != null ? ` · ${p.anio_cargo}` : " · hist."}
-                                </span>
-                                {p.viajes_conflicto > 0 && (
-                                  <span
-                                    className="whitespace-nowrap rounded-[4px] border border-[#B45309]/40 px-2 py-0.5 text-xs text-[#B45309]"
-                                    title={`${p.viajes_conflicto} viaje(s) asignados dentro del período — reasignarlos o mover las vacaciones`}
+                              ) : (
+                                <p className="mt-0.5 text-[13px] text-muted-foreground">
+                                  <button
+                                    type="button"
+                                    disabled={!canWrite}
+                                    onClick={() => canWrite && abrirFechasP(p)}
+                                    title={canWrite ? "Corregir las fechas" : undefined}
+                                    className={canWrite ? "hover:text-primary" : "cursor-default"}
                                   >
-                                    ⚠ {p.viajes_conflicto}
+                                    {fmtRangoFechas(p.fecha_inicio, p.fecha_fin, `${finPeriodoY}-01-01`)}
+                                  </button>
+                                  {" · vuelve el "}
+                                  <span className="font-medium text-foreground">
+                                    {fmtDiaLargo(diaSiguiente(p.fecha_fin), `${finPeriodoY}-01-01`)}
                                   </span>
-                                )}
-                                {canWrite && (
-                                  <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                                    <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
-                                    <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
-                                  </span>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </section>
-                  );
-                });
-              })()}
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {periodosVentanaFiltrados.map((p) => (
-                <li key={p.id} className="flex items-start justify-between gap-3 px-5 py-2.5 hover:bg-muted/20">
-                  <div className="min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => verEnTabla(p.chofer_id)}
-                      title="Ver su saldo en la tabla de abajo"
-                      className="text-sm font-medium text-foreground hover:text-primary"
-                    >
-                      {p.apellido}, {p.nombre}
-                    </button>
-                    {p.observaciones && <p className="text-xs text-muted-foreground italic mt-0.5 truncate">{p.observaciones}</p>}
-                  </div>
-                  <span className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-                    {fmtFecha(p.fecha_inicio)} → {fmtFecha(p.fecha_fin)}
-                    <span
-                      className="rounded-[4px] border border-border px-2 py-0.5 text-xs text-foreground"
-                      title={p.anio_cargo != null ? `Descuenta del saldo ${p.anio_cargo}` : "Histórico: ya reflejado en el saldo, no descuenta"}
-                    >
-                      {p.dias} día{p.dias !== 1 ? "s" : ""}{p.anio_cargo != null ? ` · ${p.anio_cargo}` : ""}
-                    </span>
-                    {p.viajes_conflicto > 0 && (
-                      <span
-                        className="rounded-[4px] border border-[#B45309]/40 px-2 py-0.5 text-xs text-[#B45309]"
-                        title="El chofer tiene viajes asignados dentro del período: reasignarlos o mover las vacaciones"
-                      >
-                        ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                    {p.en_curso && <span className="text-[11px] text-foreground">En curso</span>}
-                    {canWrite && (
-                      <>
-                        <button onClick={() => abrirEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar fechas"><Pencil size={13} /></button>
-                        <button onClick={() => setCancelar(p)} className="text-muted-foreground hover:text-[#EF4444]" title="Cancelar período"><X size={14} /></button>
-                      </>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                                </p>
+                              )}
+                              {nota && (
+                                <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground/80">{nota}</p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
+                                <span className="font-semibold text-foreground">{p.dias}</span> días
+                                {p.anio_cargo != null ? ` · descuenta del ${p.anio_cargo}` : " · no descuenta"}
+                              </span>
+                              {p.viajes_conflicto > 0 && (
+                                <span
+                                  className="whitespace-nowrap text-[11px] text-[#B45309]"
+                                  title="Tiene viajes asignados dentro de estas fechas: hay que reasignarlos o mover las vacaciones"
+                                >
+                                  ⚠ {p.viajes_conflicto} viaje{p.viajes_conflicto !== 1 ? "s" : ""} encima
+                                </span>
+                              )}
+                              {canWrite && !editando && (
+                                <button
+                                  onClick={() => setCancelar(p)}
+                                  className="text-muted-foreground hover:text-[#EF4444] opacity-0 group-hover:opacity-100 transition"
+                                  title="Cancelar este período"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                );
+              });
+            })()}
+          </div>
         </div>
       )}
 
-      {/* Saldos por sector */}
       <div id="card-saldos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
           <Palmtree size={16} className="text-primary" />
@@ -1431,15 +1487,18 @@ export default function VacacionesClient({
             </div>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               Ordenar
-              <select
-                value={ordenSaldos}
-                onChange={(e) => setOrdenSaldos(e.target.value as OrdenSaldos)}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-xs text-foreground"
-              >
-                {(Object.keys(ORDEN_SALDOS_LABEL) as OrdenSaldos[]).map((k) => (
-                  <option key={k} value={k}>{ORDEN_SALDOS_LABEL[k]}</option>
-                ))}
-              </select>
+              <Select value={ordenSaldos} onValueChange={(v) => v && setOrdenSaldos(v as OrdenSaldos)}>
+                <SelectTrigger className="h-8 w-[12rem] text-xs">
+                  <span>{ORDEN_SALDOS_LABEL[ordenSaldos]}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ORDEN_SALDOS_LABEL) as OrdenSaldos[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {ORDEN_SALDOS_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </label>
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
@@ -1472,9 +1531,13 @@ export default function VacacionesClient({
                 {/* El título del área tiene que ganarle al resto del texto:
                     antes era del mismo tamaño que los números y se perdía. */}
                 <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-1 pb-2">
-                  <h3 className="text-sm font-semibold text-foreground">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    {(() => {
+                      const Icono = ICONO_SECTOR[g.sector];
+                      return <Icono size={15} className="text-muted-foreground" aria-hidden />;
+                    })()}
                     {g.sector === "Chofer" ? "Choferes" : g.sector}
-                    <span className="ml-1.5 text-[13px] font-normal text-muted-foreground">
+                    <span className="text-[13px] font-normal text-muted-foreground">
                       {g.filas.length}
                     </span>
                   </h3>
@@ -1488,12 +1551,10 @@ export default function VacacionesClient({
                     )}
                   </span>
                 </div>
-                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {/* De a 3 y no de a 4: las tarjetas necesitan ancho para que el
+                    nombre entre completo y las barras se lean. */}
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   {g.filas.map((s) => {
-                    const amber = Math.max(0, s.tomados);
-                    const rojo = Math.max(0, s.adeudados);
-                    const verde = Math.max(0, s.disponibles - s.adeudados);
-                    const denom = amber + verde + rojo || 1;
                     return (
                       <Link
                         key={s.chofer_id}
@@ -1508,13 +1569,23 @@ export default function VacacionesClient({
                       >
                         <div className="flex items-center justify-between gap-3 px-3.5 pt-3">
                           <span className="flex min-w-0 items-center gap-2">
-                            <InitialsAvatar
+                            {/* Sin foto, el avatar muestra la silueta del área en
+                                vez de las iniciales: en una grilla de 77, dos letras
+                                al lado del nombre no aportaban y se confundían entre
+                                sí. El color sigue siendo el de cada persona. */}
+                            <AvatarPersona
                               name={`${s.nombre} ${s.apellido}`}
                               src={s.foto_url ?? undefined}
-                              size={26}
-                              className="shrink-0 text-[10px]"
+                              size={40}
+                              rol={s.sector}
+                              title={`${s.apellido}, ${s.nombre} · ${s.sector}`}
+                              className="shrink-0"
                             />
-                            <span className="min-w-0 truncate text-[13px] font-medium leading-tight text-foreground group-hover:text-primary">
+                            {/* El nombre distingue una tarjeta de otra en una grilla
+                                de 63: va como título. Y en dos líneas antes que
+                                cortarlo ("Gallastegui, Cristian D…" obligaba a pasar
+                                el mouse para saber de quién era). */}
+                            <span className="min-w-0 text-[15px] font-semibold leading-snug text-foreground group-hover:text-primary line-clamp-2">
                               {s.apellido}, {s.nombre}
                             </span>
                           </span>
@@ -1543,61 +1614,119 @@ export default function VacacionesClient({
                               De vacaciones
                             </span>
                           )}
-                          {s.adeudados > 0 && s.vence_saldo && (
-                            <span className="inline-flex items-center gap-1.5 text-[#B91C1C]">
-                              <span className="inline-block size-1.5 rounded-full bg-[#B91C1C]" aria-hidden />
-                              {s.adeudados} vencen el {s.vence_saldo}
-                            </span>
-                          )}
-                          {!s.en_vacaciones_ahora && s.adeudados === 0 && (
-                            <span>{s.anios} año{s.anios !== 1 ? "s" : ""} de antigüedad</span>
-                          )}
+                          {/* Lo que vence pasó al desglose por año de abajo, donde
+                              no se repite, y la antigüedad ya está en el pie. */}
                         </div>
 
-                        <div className="px-3.5 pb-3 pt-2.5">
-                          <div className="flex h-1 w-full overflow-hidden rounded-[2px] bg-muted">
-                            {amber > 0 && (
-                              <div style={{ width: `${(amber / denom) * 100}%`, backgroundColor: "#94A3B8" }} title={`Tomados este año: ${amber}`} />
-                            )}
-                            {verde > 0 && (
-                              <div style={{ width: `${(verde / denom) * 100}%`, backgroundColor: "#059669" }} title={`Disponible del ${finPeriodoY}: ${verde}`} />
-                            )}
-                            {rojo > 0 && (
-                              <div style={{ width: `${(rojo / denom) * 100}%`, minWidth: 4, backgroundColor: "#B91C1C" }} title={`Por vencer del ${finPeriodoY - 1}: ${rojo}`} />
-                            )}
-                          </div>
-                          <div className="mt-2 flex items-center justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
-                            <span>
-                              <span className="font-mono text-foreground">{s.corresponden}</span> del {finPeriodoY}
-                            </span>
-                            <span>
-                              <span className="font-mono text-foreground">{s.tomados}</span> tomados
-                            </span>
-                            <span className={s.adeudados > 0 ? "text-[#B91C1C]" : ""}>
-                              <span className="font-mono">{s.adeudados}</span> del {finPeriodoY - 1}
-                            </span>
-                          </div>
+                        {/* Antes: una barra de tres colores y, abajo, tres números
+                            que eran su leyenda. Había que mapear color con número de
+                            memoria y nadie entendía qué medía cada tramo. Ahora es un
+                            año por línea, con barra de un solo color que se llena con
+                            lo que le QUEDA (si se llenara con lo tomado, un año
+                            agotado quedaría con la barra entera y se leería al
+                            revés). Los "tomados" se fueron: Bárbara dijo que no le
+                            importa cuántos días ya se tomó. */}
+                        <div className="space-y-2.5 px-3.5 pb-3 pt-2.5">
+                          {s.saldos_anio
+                            .filter((a) => a.anio >= finPeriodoY - 1 && a.anio <= finPeriodoY)
+                            .map((a) => {
+                              const porVencer = a.anio === finPeriodoY - 1;
+                              const queda = Math.max(0, a.saldo);
+                              const pct =
+                                a.otorgados > 0 ? Math.min(100, (queda / a.otorgados) * 100) : 0;
+                              return (
+                                <div key={a.anio}>
+                                  <div className="flex items-baseline justify-between gap-2">
+                                    <span className="text-[13px] font-semibold text-foreground">
+                                      {a.anio}
+                                      {porVencer && queda > 0 && s.vence_saldo && (
+                                        <span className="ml-1.5 text-[11px] font-normal text-[#B91C1C]">
+                                          vencen el {s.vence_saldo}
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="flex items-baseline gap-1 tabular-nums">
+                                      <span
+                                        className={`text-lg font-semibold leading-none ${
+                                          queda === 0
+                                            ? "text-muted-foreground"
+                                            : porVencer
+                                              ? "text-[#B91C1C]"
+                                              : "text-foreground"
+                                        }`}
+                                      >
+                                        {queda}
+                                      </span>
+                                      <span className="text-[11px] text-muted-foreground">
+                                        de {a.otorgados}
+                                      </span>
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="mt-1.5 h-2 w-full overflow-hidden rounded-[3px] bg-muted"
+                                    title={
+                                      queda > 0
+                                        ? `Le quedan ${queda} de los ${a.otorgados} del ${a.anio}`
+                                        : `No le queda ninguno de los ${a.otorgados} del ${a.anio}`
+                                    }
+                                  >
+                                    <div
+                                      className="h-full rounded-[3px]"
+                                      style={{
+                                        width: `${pct}%`,
+                                        backgroundColor: porVencer ? "#B91C1C" : "#059669",
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
                         </div>
 
-                        <div className="flex items-center justify-between gap-2 border-t border-border px-3.5 py-1.5 text-[11px] text-muted-foreground">
+                        {/* Envuelve en vez de truncar: con el hito al lado, la antigüedad
+                            quedaba cortada en "28 días al …". */}
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-border px-3.5 py-1.5 text-[11px] text-muted-foreground">
                           {/* El "hito" es el escalón de antigüedad de la LCT
                               (5/10/20 años): al cruzarlo le empiezan a
                               corresponder más días. Se dice qué significa en vez
                               de mostrar "≥20 años" suelto, que se leía como si
                               fuera la antigüedad. */}
+                          {/* "Antigüedad: 20 años · 35 días/año" ponía dos números
+                              con unidades distintas pegados y se leían como lo mismo.
+                              Ahora cada uno dice de qué es. */}
                           <span
-                            className="truncate"
-                            title={`${s.anios} año${s.anios !== 1 ? "s" : ""} de antigüedad · le corresponden ${s.dias_segun_antiguedad} días por año · ${s.proximo_hito === "Tramo máximo" ? "ya está en el tramo máximo de la LCT" : `próximo escalón: ${s.proximo_hito}`}`}
+                            className="min-w-0"
+                            title={`${s.anios} año${s.anios !== 1 ? "s" : ""} de antigüedad · le corresponden ${s.dias_segun_antiguedad} días de vacaciones por año`}
                           >
-                            Antigüedad: {s.anios} año{s.anios !== 1 ? "s" : ""} ·{" "}
-                            {s.dias_segun_antiguedad} días/año
+                            {s.anios} año{s.anios !== 1 ? "s" : ""} de antigüedad · Corresponden:{" "}
+                            <span className="font-semibold text-foreground">
+                              {s.dias_segun_antiguedad}
+                            </span>{" "}
+                            días al año
                           </span>
                           <span className="flex shrink-0 items-center gap-2">
-                            {s.proximo_hito !== "Tramo máximo" && s.proximo_hito !== "—" && (
-                              <span className="hidden text-muted-foreground/70 sm:inline" title="Cuando cruza este escalón de antigüedad le corresponden más días por año">
-                                sube en {s.proximo_hito.replace(/ meses → \d+ años/, " meses")}
-                              </span>
-                            )}
+                            {/* "sube en 37 meses" no decía qué subía ni por qué, y
+                                nadie piensa en 37 meses. Ahora dice el año concreto y
+                                a cuántos días pasa: es el escalón de antigüedad de la
+                                LCT (5/10/20 años). */}
+                            {(() => {
+                              const sube = subeADiasEn(s.fecha_ingreso, s.anios);
+                              if (!sube || !s.fecha_ingreso) return null;
+                              // Los años que cumple en ese escalón salen de la propia
+                              // cuenta: el año al que sube menos el año de ingreso.
+                              const cumple = sube.anio - Number(s.fecha_ingreso.slice(0, 4));
+                              return (
+                                <span
+                                  className="text-muted-foreground"
+                                  title={`Los días por año los fija la antigüedad (LCT art. 150): al cumplir ${cumple} años pasa de ${s.dias_segun_antiguedad} a ${sube.dias} días. Cuando llega a 35 ya está en el máximo y este aviso desaparece.`}
+                                >
+                                  En {MESES[Number(s.fecha_ingreso.slice(5, 7)) - 1]} de{" "}
+                                  {sube.anio} cumple {cumple} años y pasa a{" "}
+                                  <span className="font-semibold text-foreground">{sube.dias}</span>{" "}
+                                  días
+                                </span>
+                              );
+                            })()}
                             {s.desfasaje && (
                               <span
                                 className="text-[#B45309]"
@@ -1842,17 +1971,6 @@ export default function VacacionesClient({
         destructive={false}
         loading={planCargando}
         onConfirm={aplicarPlan}
-      />
-
-      {/* Confirmar el recálculo por antigüedad (escribe sobre toda la dotación) */}
-      <ConfirmDialog
-        open={confirmRecalculo}
-        onOpenChange={setConfirmRecalculo}
-        title="Recalcular días por antigüedad"
-        description={`Ajusta los días del ${finPeriodoY} a lo que marca la ley por antigüedad. No toca los años anteriores ni las filas que cargó una persona.`}
-        confirmLabel="Recalcular"
-        destructive={false}
-        onConfirm={recalcular}
       />
 
       {/* Importar planilla de Bárbara con vista previa */}

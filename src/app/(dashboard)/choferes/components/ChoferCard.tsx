@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { formatFecha } from "@/lib/utils";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { SiluetaPersona } from "@/components/ui/AvatarPersona";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,6 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
     ? supabase.storage.from(chofer.foto.bucket).getPublicUrl(chofer.foto.path).data.publicUrl
     : null;
 
-  const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
   const esBaja = chofer.estado === "baja";
   // Fecha de egreso a mostrar: la real si está cargada; si no (bajas cargadas en
   // masa), la fecha en que se registró la baja (updated_at), marcada como
@@ -199,7 +199,9 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     decoding="async"
                   />
                 ) : (
-                  <span className="text-primary text-xl font-bold">{initials}</span>
+                  // Mientras no haya foto, la silueta del área. Las iniciales no
+                  // decían nada teniendo el nombre al lado.
+                  <SiluetaPersona rol={chofer.rol} className="text-primary" />
                 )}
 
                 <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
