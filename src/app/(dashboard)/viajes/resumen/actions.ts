@@ -58,7 +58,7 @@ export type ChoferEnDestino = {
   llegoEl: string;
   /** De dónde venía en ese último viaje: "fue a Lomaser después de Ramallo". */
   vinoDe: string | null;
-  /** Sus viajes del período, del último al primero. */
+  /** Sus viajes del período en orden cronológico: el último abajo. */
   detalle: ViajeDelResumen[];
 };
 
@@ -268,8 +268,14 @@ export async function getResumenDestinosAction(
   // caería toda la pantalla por un adorno.
   const fotoPorChofer = await firmarFotos(supabase, [...porChofer.keys()]);
 
-  const masNuevoPrimero = (a: ViajeDelResumen, b: ViajeDelResumen) =>
-    b.fecha.localeCompare(a.fecha) || (b.codigo ?? "").localeCompare(a.codigo ?? "");
+  /**
+   * Orden de lectura: del primero al último.
+   *
+   * El último viaje queda ABAJO, que es el que dice dónde terminó — se lee la
+   * cadena de arriba hacia abajo como en la hoja de ruta, no al revés.
+   */
+  const cronologico = (a: ViajeDelResumen, b: ViajeDelResumen) =>
+    a.fecha.localeCompare(b.fecha) || (a.codigo ?? "").localeCompare(b.codigo ?? "");
 
   const porDestino = new Map<string, DestinoResumen>();
   const vacio = (destino: string): DestinoResumen => ({
@@ -289,7 +295,7 @@ export async function getResumenDestinosAction(
     porDestino.set(destino, d);
 
     const ch = uno(acum.ultimo.chofer);
-    const detalle = acum.viajes.map((f) => aViaje(f, nombreDestino(f))).sort(masNuevoPrimero);
+    const detalle = acum.viajes.map((f) => aViaje(f, nombreDestino(f))).sort(cronologico);
     const km = detalle.reduce((s, v) => s + v.km, 0);
     const toneladas = detalle.reduce((s, v) => s + (v.toneladas ?? 0), 0);
 
@@ -319,7 +325,7 @@ export async function getResumenDestinosAction(
     const d = porDestino.get(destino) ?? vacio(destino);
     porDestino.set(destino, d);
     d.sinChofer = viajes.length;
-    d.sinChoferDetalle = viajes.sort(masNuevoPrimero);
+    d.sinChoferDetalle = viajes.sort(cronologico);
   }
 
   const destinos = [...porDestino.values()]

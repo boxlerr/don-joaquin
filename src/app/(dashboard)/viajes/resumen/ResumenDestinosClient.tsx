@@ -254,6 +254,7 @@ function FilaViaje({
   choferes,
   pidiendoChoferes,
   hrefViaje,
+  esDondeQuedo,
   onPedirChoferes,
   onGuardado,
 }: {
@@ -263,6 +264,8 @@ function FilaViaje({
   pidiendoChoferes: boolean;
   /** El listado abierto en ESTE viaje. */
   hrefViaje: string;
+  /** Es el último viaje del chofer: acá quedó. */
+  esDondeQuedo: boolean;
   onPedirChoferes: (fecha: string) => void;
   onGuardado: () => void;
 }) {
@@ -422,7 +425,21 @@ function FilaViaje({
           {fmtFecha(viaje.fecha)}
         </td>
         <td className="px-2 py-2 font-medium">{viaje.origen ?? "—"}</td>
-        <td className="px-2 py-2 font-semibold text-foreground">{viaje.destino}</td>
+        {/* El último "hasta" va resaltado: es donde terminó el recorrido y donde
+            quedó el chofer. */}
+        <td className="px-2 py-2">
+          {esDondeQuedo ? (
+            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-primary/40 bg-primary/[0.07] px-1.5 py-0.5 font-bold text-primary">
+              <MapPin size={11} />
+              {viaje.destino}
+              <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                quedó acá
+              </span>
+            </span>
+          ) : (
+            <span className="font-semibold text-foreground">{viaje.destino}</span>
+          )}
+        </td>
         <td className="px-2 py-2 font-mono text-[11.5px] font-semibold">
           {viaje.remito ?? <span className="font-sans font-normal text-muted-foreground/60">—</span>}
         </td>
@@ -530,6 +547,7 @@ function FilaViaje({
 function TablaViajes({
   viajes,
   href,
+  marcarDondeQuedo = false,
   hrefDeViaje,
   canWrite,
   choferesPorFecha,
@@ -540,6 +558,11 @@ function TablaViajes({
   viajes: ViajeDelResumen[];
   /** El listado con TODOS estos viajes filtrados. */
   href: string;
+  /**
+   * Marcar la última fila como "quedó acá". Sólo tiene sentido en los viajes de
+   * un chofer: en los que no tienen chofer no hay nadie que haya quedado.
+   */
+  marcarDondeQuedo?: boolean;
   /** El listado abierto en un viaje puntual. */
   hrefDeViaje: (v: ViajeDelResumen) => string;
   canWrite: boolean;
@@ -566,10 +589,11 @@ function TablaViajes({
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {viajes.map((v) => (
+          {viajes.map((v, i) => (
             <FilaViaje
               key={v.id}
               viaje={v}
+              esDondeQuedo={marcarDondeQuedo && i === viajes.length - 1}
               canWrite={canWrite}
               choferes={choferesPorFecha[v.fecha]}
               pidiendoChoferes={pidiendoFecha === v.fecha}
@@ -607,8 +631,16 @@ export default function ResumenDestinosClient({
   const [meses, setMeses] = useState<string[]>([]);
   const [buscarDestino, setBuscarDestino] = useState("");
   const [buscarChofer, setBuscarChofer] = useState("");
-  const [destinoAbierto, setDestinoAbierto] = useState<string | null>(null);
-  const [choferAbierto, setChoferAbierto] = useState<string | null>(null);
+  // Varios abiertos a la vez: con uno solo, abrir un chofer cerraba el anterior
+  // y comparar dos era imposible.
+  const [destinosAbiertos, setDestinosAbiertos] = useState<Set<string>>(new Set());
+  const [choferesAbiertos, setChoferesAbiertos] = useState<Set<string>>(new Set());
+  const alternar = (set: Set<string>, clave: string) => {
+    const proximo = new Set(set);
+    if (proximo.has(clave)) proximo.delete(clave);
+    else proximo.add(clave);
+    return proximo;
+  };
   // La lista de choferes se pide por fecha (el camión de cada uno depende de la
   // planilla de ese día) y sólo cuando alguien va a asignar.
   const [choferesPorFecha, setChoferesPorFecha] = useState<Record<string, ChoferParaAsignar[]>>({});
@@ -932,7 +964,7 @@ export default function ResumenDestinosClient({
       ) : (
         <div className="space-y-1.5">
           {destinos.map((d) => {
-            const abierto = destinoAbierto === d.destino;
+            const abierto = destinosAbiertos.has(d.destino);
             return (
               <div
                 key={d.destino}
@@ -945,7 +977,7 @@ export default function ResumenDestinosClient({
                 >
                   <button
                     type="button"
-                    onClick={() => setDestinoAbierto(abierto ? null : d.destino)}
+                    onClick={() => setDestinosAbiertos((p) => alternar(p, d.destino))}
                     className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
@@ -960,11 +992,7 @@ export default function ResumenDestinosClient({
                       <span className="truncate text-[16px] font-bold tracking-tight text-foreground">
                         {d.destino}
                       </span>
-                      {d.choferes.length > 0 && (
-                        <span className="shrink-0 rounded-[4px] border border-[#059669]/40 bg-[#059669]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#047857]">
-                          {d.choferes.length} {d.choferes.length !== 1 ? "quedaron" : "quedó"} acá
-                        </span>
-                      )}
+
                       {d.sinChofer > 0 && (
                         <span className="shrink-0 rounded-[4px] border border-[#B45309]/40 px-1.5 py-0.5 text-[11px] font-medium text-[#B45309]">
                           {d.sinChofer} sin asignar
@@ -996,7 +1024,7 @@ export default function ResumenDestinosClient({
                           {d.choferes.length}
                         </span>
                         <span className="text-[11.5px] font-medium">
-                          chofer{d.choferes.length !== 1 ? "es" : ""}
+                          {d.choferes.length !== 1 ? "choferes acá" : "chofer acá"}
                         </span>
                       </span>
                     </span>
@@ -1020,7 +1048,7 @@ export default function ResumenDestinosClient({
 
                     {d.choferes.map((c) => {
                       const clave = `${d.destino}|${c.chofer_id}`;
-                      const verViajes = choferAbierto === clave;
+                      const verViajes = choferesAbiertos.has(clave);
                       return (
                         <div key={clave} className="border-b border-border last:border-0">
                           <div
@@ -1028,7 +1056,7 @@ export default function ResumenDestinosClient({
                           >
                             <button
                               type="button"
-                              onClick={() => setChoferAbierto(verViajes ? null : clave)}
+                              onClick={() => setChoferesAbiertos((p) => alternar(p, clave))}
                               className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
                             >
                               <span className="flex min-w-0 items-center gap-2">
@@ -1120,6 +1148,7 @@ export default function ResumenDestinosClient({
                           {verViajes && (
                             <TablaViajes
                               viajes={c.detalle}
+                              marcarDondeQuedo
                               href={hrefListado({
                                 destino: d.destino,
                                 choferId: c.chofer_id ?? undefined,
