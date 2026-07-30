@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
+import { coincideEnAlguno } from "@/lib/texto";
 import {
   ChevronDown,
   ChevronUp,
@@ -71,17 +72,13 @@ export default function ClientesList({
   const [editing, setEditing] = useState<ClienteEditable | null>(null);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return clientes.filter((c) => {
       if (estadoFiltro === "activos" && c.estado !== "activo") return false;
       if (estadoFiltro === "inactivos" && c.estado !== "inactivo") return false;
       if (letter !== "#" && firstLetter(c.razon_social) !== letter) return false;
-      if (!q) return true;
-      return (
-        c.razon_social.toLowerCase().includes(q) ||
-        (c.nombre_comercial ?? "").toLowerCase().includes(q) ||
-        (c.cuit ?? "").toLowerCase().includes(q) ||
-        (c.localidad ?? "").toLowerCase().includes(q)
+      return coincideEnAlguno(
+        [c.razon_social, c.nombre_comercial, c.cuit, c.localidad],
+        search,
       );
     });
   }, [clientes, letter, search, estadoFiltro]);

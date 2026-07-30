@@ -9,6 +9,7 @@ import {
   type CurrentUser,
 } from "@/lib/auth";
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
+import { normalizarTexto } from "@/lib/texto";
 import { clausulaVisibilidad } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { revalidatePath } from "next/cache";
@@ -217,6 +218,9 @@ export type GetCajaMovimientosParams = {
   caja?: CajaFiltro;
 };
 
+// Se apaga solo si la base todavía no tiene la columna normalizada.
+let buscarSinAcentos = true;
+
 export type GetCajaMovimientosResult =
   | { data: CajaMovimientoRow[]; hasMore: boolean; count: number }
   | { error: string };
@@ -263,12 +267,29 @@ export async function getCajaMovimientosAction(
   if (hasta) query = query.lte("fecha", hasta);
   if (categoria) query = query.eq("categoria", categoria as never);
   if (gastoIdsFiltro) query = query.in("gasto_id", gastoIdsFiltro);
-  if (search) query = query.ilike("concepto", `%${search}%`);
+  // La búsqueda ignora acentos: se compara contra concepto_norm, la columna
+  // generada que guarda el concepto en minúsculas y sin tildes (migración
+  // 20260730_busqueda_sin_acentos). Si esa migración todavía no corrió, se cae
+  // a la columna original (búsqueda sensible a acentos, como era antes).
+  if (search) {
+    query = buscarSinAcentos
+      ? query.ilike("concepto_norm", `%${normalizarTexto(search)}%`)
+      : query.ilike("concepto", `%${search}%`);
+  }
   if (visibilidad) query = query.or(visibilidad);
 
   const { data, count, error } = await query;
 
   if (error) {
+    // 42703 = la columna no existe: falta correr la migración de búsqueda sin
+    // acentos. Se apaga para lo que queda del proceso y se reintenta una vez.
+    if (error.code === "42703" && buscarSinAcentos) {
+      buscarSinAcentos = false;
+      console.warn(
+        "Falta la migración 20260730_busqueda_sin_acentos: la búsqueda de caja vuelve a ser sensible a acentos."
+      );
+      return getCajaMovimientosAction(params);
+    }
     console.error("Error al obtener movimientos de caja:", error);
     return { error: "No se pudieron cargar los movimientos." };
   }

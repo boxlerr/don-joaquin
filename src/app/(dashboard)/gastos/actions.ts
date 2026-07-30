@@ -5,8 +5,12 @@ import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { logAudit } from "@/lib/audit";
+import { normalizarTexto } from "@/lib/texto";
 
 const GASTOS_PAGE_SIZE = 25;
+
+// Se apaga solo si la base todavía no tiene la columna normalizada.
+let buscarSinAcentos = true;
 
 export type GastoMedioPago =
   | "efectivo_caja"
@@ -86,10 +90,27 @@ export async function getGastosAction(
   if (sinAsignar) {
     query = query.is("viaje_id", null).is("camion_id", null).is("chofer_id", null);
   }
-  if (search) query = query.ilike("descripcion", `%${search}%`);
+  // La búsqueda ignora acentos: se compara contra descripcion_norm, la columna
+  // generada que guarda la descripción en minúsculas y sin tildes (migración
+  // 20260730_busqueda_sin_acentos). Si esa migración todavía no corrió, se cae
+  // a la columna original (búsqueda sensible a acentos, como era antes).
+  if (search) {
+    query = buscarSinAcentos
+      ? query.ilike("descripcion_norm", `%${normalizarTexto(search)}%`)
+      : query.ilike("descripcion", `%${search}%`);
+  }
 
   const { data, count, error } = await query;
   if (error) {
+    // 42703 = la columna no existe: falta correr la migración de búsqueda sin
+    // acentos. Se apaga para lo que queda del proceso y se reintenta una vez.
+    if (error.code === "42703" && buscarSinAcentos) {
+      buscarSinAcentos = false;
+      console.warn(
+        "Falta la migración 20260730_busqueda_sin_acentos: la búsqueda de gastos vuelve a ser sensible a acentos."
+      );
+      return getGastosAction(params);
+    }
     console.error("Error al obtener gastos:", error);
     return { error: "No se pudieron cargar los gastos." };
   }

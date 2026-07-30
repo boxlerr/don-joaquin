@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Loader2, Route, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { coincideBusqueda } from "@/lib/texto";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -53,10 +54,9 @@ export default function ImportarCircuitosDialog({
 
   const filtrados = useMemo(() => {
     if (!sugeridos) return [];
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return sugeridos;
+    if (!busqueda.trim()) return sugeridos;
     return sugeridos.filter((s) =>
-      `${s.origenLabel} ${s.destinoLabel}`.toLowerCase().includes(q),
+      coincideBusqueda(`${s.origenLabel} ${s.destinoLabel}`, busqueda),
     );
   }, [sugeridos, busqueda]);
 

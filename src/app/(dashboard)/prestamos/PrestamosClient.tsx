@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
+import { coincideBusqueda } from "@/lib/texto";
 import {
   Dialog,
   DialogContent,
@@ -430,8 +431,8 @@ export default function PrestamosClient({
       if (fEstado === "activos" && p.proxima == null) return false;
       if (fEstado === "cancelados" && p.proxima != null) return false;
       if (fEstado === "incompletos" && !tieneFaltantes(p)) return false;
-      const q = busqueda.trim().toLowerCase();
-      if (q && !`${p.banco} ${p.detalle ?? ""} ${p.referencia ?? ""}`.toLowerCase().includes(q))
+      // Sin acentos: "nacion" tiene que encontrar "Nación".
+      if (!coincideBusqueda(`${p.banco} ${p.detalle ?? ""} ${p.referencia ?? ""}`, busqueda))
         return false;
       return true;
     })

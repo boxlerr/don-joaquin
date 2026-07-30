@@ -8,6 +8,8 @@
  * Iveco de 2024, no la unión de las dos cosas.
  */
 
+import { normalizarTexto } from "@/lib/texto";
+
 export type UnidadBuscable = {
   patente: string;
   marca?: string | null;
@@ -20,12 +22,15 @@ export type UnidadBuscable = {
   acoplados_vinculados?: string[] | null;
 };
 
-/** Sin acentos, sin mayúsculas y sin guiones: "Mercedés-Benz" y "mercedes benz" son lo mismo. */
+/**
+ * Sin acentos, sin mayúsculas y sin guiones: "Mercedés-Benz" y "mercedes benz"
+ * son lo mismo. Los acentos y las mayúsculas los saca el helper compartido; acá
+ * se suma lo propio de la flota: los separadores (guion, guion bajo, punto,
+ * barra) pasan a espacio, así "AB-123-CD" o "chasis_rigido" se pueden buscar
+ * por palabra suelta.
+ */
 export function normalizar(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
+  return normalizarTexto(s)
     .replace(/[-_./]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

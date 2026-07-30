@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import AddInsumoDialog from "./AddInsumoDialog";
 import { updateInsumoAction, setInsumoEstadoAction, type InsumoRow } from "../actions";
+import { coincideEnAlguno } from "@/lib/texto";
 
 // Input de edición inline (celda de la tabla).
 const cellInput = "w-full bg-card border border-primary/50 rounded-md px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/25";
@@ -25,10 +26,6 @@ function fmtMoneda(n: number | null): string {
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
   return formatFecha(iso);
-}
-/** Normaliza para buscar sin importar acentos ni mayúsculas. */
-function norm(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 type SortKey = "nombre" | "marca" | "precio" | "fecha";
@@ -58,8 +55,8 @@ export default function InsumosPanel({
   const filtrados = useMemo(() => {
     let arr = insumos;
     if (q.trim()) {
-      const nq = norm(q.trim());
-      arr = arr.filter((i) => norm(i.nombre).includes(nq) || (i.marca ? norm(i.marca).includes(nq) : false));
+      // Ignora acentos y mayúsculas: "cardan" encuentra "Cardán".
+      arr = arr.filter((i) => coincideEnAlguno([i.nombre, i.marca], q));
     }
     // Los inactivos SIEMPRE van al fondo; dentro de cada grupo, el orden elegido
     // (o el del servidor si no hay orden).

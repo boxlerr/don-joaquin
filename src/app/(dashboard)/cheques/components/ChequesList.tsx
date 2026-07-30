@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { FileText, MoreVertical } from "lucide-react";
+import { coincideEnAlguno } from "@/lib/texto";
 import ChequeTransitionDialog, {
   type Transicion,
 } from "./ChequeTransitionDialog";
@@ -144,7 +145,6 @@ export default function ChequesList({
   }, [bancos]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const matchEstado = TABS[tabIndex].match;
     return cheques.filter((c) => {
       if (!matchEstado(c.estado)) return false;
@@ -152,12 +152,10 @@ export default function ChequesList({
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
       }
-      if (!q) return true;
-      return (
-        (c.numero ?? "").toLowerCase().includes(q) ||
-        c.librador_nombre.toLowerCase().includes(q) ||
-        (c.concepto ?? "").toLowerCase().includes(q) ||
-        (c.cliente?.razon_social ?? "").toLowerCase().includes(q)
+      // Sin acentos: "benitez" tiene que encontrar "Benítez".
+      return coincideEnAlguno(
+        [c.numero, c.librador_nombre, c.concepto, c.cliente?.razon_social],
+        search,
       );
     });
   }, [cheques, tabIndex, bancoId, search, bancosByNombre]);

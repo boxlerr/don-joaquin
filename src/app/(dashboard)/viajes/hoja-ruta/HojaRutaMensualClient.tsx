@@ -31,6 +31,7 @@ import { deleteViajeAction } from "../actions";
 import EditViajeDialog from "../components/EditViajeDialog";
 import { aCambio, borradorDe, borradorSucio, type Borrador } from "./borradores";
 import type { ViajeBasico } from "../types";
+import { coincideBusqueda } from "@/lib/texto";
 
 // Helpers ---------------------------------------------------------------------
 
@@ -134,13 +135,11 @@ export default function HojaRutaMensualClient({
 
   // Filtrar la lista de choferes del sidebar
   const choferesFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return choferesMes.filter((c) => {
       if (soloConViajes && c.viajes === 0) return false;
       if (soloPendientes && c.pendientesFacturar === 0) return false;
-      if (!q) return true;
-      const hs = `${c.apellido} ${c.nombre}`.toLowerCase();
-      return hs.includes(q);
+      // Sin acentos: "benitez" tiene que encontrar a "Benítez".
+      return coincideBusqueda(`${c.apellido} ${c.nombre}`, busqueda);
     });
   }, [choferesMes, busqueda, soloConViajes, soloPendientes]);
 

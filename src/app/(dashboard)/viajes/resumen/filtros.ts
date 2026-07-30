@@ -1,3 +1,4 @@
+import { coincideBusqueda, normalizarTexto } from "@/lib/texto";
 import type { DestinoResumen } from "./actions";
 
 /**
@@ -11,11 +12,7 @@ import type { DestinoResumen } from "./actions";
 
 /** Sin acentos ni mayúsculas, para que "escobar" encuentre "(ESCOBAR) MAPEI". */
 export function normalizar(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  return normalizarTexto(s);
 }
 
 export type FiltrosResumen = { destino?: string; chofer?: string };
@@ -30,15 +27,18 @@ export function filtrarDestinos(
   destinos: readonly DestinoResumen[],
   filtros: FiltrosResumen = {},
 ): DestinoResumen[] {
-  const qd = normalizar(filtros.destino ?? "");
-  const qc = normalizar(filtros.chofer ?? "");
+  const qd = filtros.destino ?? "";
+  const qc = filtros.chofer ?? "";
+  const buscaChofer = !!normalizar(qc);
 
   return destinos
-    .filter((d) => !qd || normalizar(d.destino).includes(qd))
+    .filter((d) => coincideBusqueda(d.destino, qd))
     .map((d) =>
-      qc ? { ...d, choferes: d.choferes.filter((c) => normalizar(c.chofer).includes(qc)) } : d,
+      buscaChofer
+        ? { ...d, choferes: d.choferes.filter((c) => coincideBusqueda(c.chofer, qc)) }
+        : d,
     )
-    .filter((d) => !qc || d.choferes.length > 0);
+    .filter((d) => !buscaChofer || d.choferes.length > 0);
 }
 
 /** Si hay algo escrito en alguna de las dos búsquedas. */

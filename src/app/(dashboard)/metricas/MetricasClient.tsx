@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
+import { coincideBusqueda } from "@/lib/texto";
 import {
   BarChart3, Search, Table2, ChartBarBig, ChartLine, ExternalLink,
 } from "lucide-react";
@@ -39,9 +40,6 @@ const TABS: { id: TabId; label: string }[] = [
   ...METRICAS.map((m) => ({ id: m.id as TabId, label: m.tab })),
   { id: "evolucion", label: "Evolución" },
 ];
-
-const normalizar = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function MetricasClient({ data }: { data: MetricasData }) {
   const searchParams = useSearchParams();
@@ -75,8 +73,8 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
   const choferesFiltrados = useMemo(() => {
     let rows = data.choferes;
     if (flota !== "todas") rows = rows.filter((c) => c.flota === flota);
-    const q = normalizar(busqueda.trim());
-    if (q) rows = rows.filter((c) => normalizar(c.nombre).includes(q));
+    // La búsqueda por nombre ignora acentos ("agustin" encuentra "Agustín").
+    if (busqueda.trim()) rows = rows.filter((c) => coincideBusqueda(c.nombre, busqueda));
     return rows;
   }, [data.choferes, flota, busqueda]);
 

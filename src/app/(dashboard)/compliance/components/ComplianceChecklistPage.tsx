@@ -36,6 +36,7 @@ import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
+import { coincideBusqueda } from "@/lib/texto";
 import { exportarComplianceChecklistXlsx } from "../export";
 
 interface Props {
@@ -255,13 +256,13 @@ export default function ComplianceChecklistPage({
   }, [rows]);
 
   const rowsPorNivel = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busqueda.trim();
     const m: Record<ComplianceNivel, ComplianceEstadoRow[]> = { empresa: [], unidad: [], chofer: [] };
     for (const r of rows) {
       if (soloPendientes && !esPendiente(r.estado)) continue;
       if (q) {
-        const text = `${r.chofer_nombre ?? ""} ${r.camion_patente ?? ""} ${r.requisito_nombre}`.toLowerCase();
-        if (!text.includes(q)) continue;
+        const text = `${r.chofer_nombre ?? ""} ${r.camion_patente ?? ""} ${r.requisito_nombre}`;
+        if (!coincideBusqueda(text, q)) continue;
       }
       m[r.nivel].push(r);
     }

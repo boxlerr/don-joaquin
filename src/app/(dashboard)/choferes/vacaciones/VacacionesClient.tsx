@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
+import { coincideBusqueda } from "@/lib/texto";
 import {
   guardarSaldoVacacionesAction,
   guardarSaldosAnioAction,
@@ -325,7 +326,7 @@ export default function VacacionesClient({
         s.chofer_id === choferId &&
         (fSector === "Todos" || s.sector === fSector) &&
         (fSemaforo === "Todos" || s.semaforo === fSemaforo) &&
-        (!busqueda.trim() || `${s.apellido} ${s.nombre}`.toLowerCase().includes(busqueda.toLowerCase())),
+        coincideBusqueda(`${s.apellido} ${s.nombre}`, busqueda),
     );
     if (!visible) {
       setFSector("Todos");
@@ -530,10 +531,7 @@ export default function VacacionesClient({
   const coincide = (s: VacacionesSaldoChofer) => {
     if (fSector !== "Todos" && s.sector !== fSector) return false;
     if (fSemaforo !== "Todos" && s.semaforo !== fSemaforo) return false;
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      if (!`${s.apellido} ${s.nombre}`.toLowerCase().includes(q)) return false;
-    }
+    if (!coincideBusqueda(`${s.apellido} ${s.nombre}`, busqueda)) return false;
     return true;
   };
   const saldosFiltrados = saldos.filter(coincide);
