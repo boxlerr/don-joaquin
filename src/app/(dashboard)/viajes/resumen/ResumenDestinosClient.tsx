@@ -396,7 +396,11 @@ function FilaViaje({
       {/* Toda la fila abre ese viaje en el listado; el lápiz no, que edita acá. */}
       <tr
         className="group cursor-pointer text-foreground transition-colors hover:bg-card"
+        tabIndex={0}
         onClick={() => router.push(hrefViaje)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") router.push(hrefViaje);
+        }}
         title="Abrir este viaje en el listado"
       >
         <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap">
