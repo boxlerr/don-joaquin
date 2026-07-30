@@ -1208,23 +1208,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                             )}
 
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {/* Editar primero y con borde: es lo que más se
+                                    usa acá y como botón chico de texto plano no
+                                    se encontraba. */}
                                 <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] dark:hover:bg-sky-950/40 text-[11px] gap-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAuditTrailViajeId(v.id);
-                                    setAuditTrailOpen(true);
-                                  }}
-                                >
-                                  <Clock size={12} /> Historial
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1.5 border-border px-3 text-[12px] font-medium text-foreground hover:bg-muted"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (v.facturado) {
@@ -1234,7 +1225,19 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                                     }
                                   }}
                                 >
-                                  <Pencil size={12} /> Editar
+                                  <Pencil size={14} /> Editar viaje
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-8 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAuditTrailViajeId(v.id);
+                                    setAuditTrailOpen(true);
+                                  }}
+                                >
+                                  <Clock size={12} /> Historial
                                 </Button>
                               </div>
                               {deletingId === v.id ? (
