@@ -734,11 +734,12 @@ export default function ResumenDestinosClient({
               placeholder="Otro mes…"
               searchPlaceholder="Buscar mes…"
               aria-label="Elegir un mes"
-              className="w-[11rem]"
               triggerClassName={
+                // El ancho va acá: el Root de base-ui no pinta nada, así que un
+                // className afuera no lo limitaba y el selector se comía la fila.
                 rango === "personalizado"
-                  ? "h-8 border-primary/50 bg-primary/5 text-xs font-medium text-primary"
-                  : "h-8 text-xs"
+                  ? "h-9 w-[11.5rem] rounded-[6px] border-primary/50 bg-primary/5 text-[12.5px] font-semibold text-primary"
+                  : "h-9 w-[11.5rem] rounded-[6px] text-[12.5px] font-medium"
               }
             />
           )}

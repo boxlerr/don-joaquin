@@ -165,6 +165,32 @@ describe("ViajesTable", () => {
     expect(document.querySelector('[data-viaje-id="2"]')?.className).not.toContain("bg-primary");
   });
 
+  // El link de "A dónde fueron" trae destino + sinVacios. Este par se rompió una
+  // vez: el filtro de las tarjetas reescribía esVacio en el primer render y el
+  // listado mostraba 8 viajes donde el resumen decía 4.
+  it("?destino= y ?sinVacios= llegan a la consulta", async () => {
+    urlActual = new URLSearchParams({ destino: "LOMASER", sinVacios: "1" });
+    mockGetViajes.mockResolvedValue({ data: SAMPLE_VIAJES, hasMore: false, count: 2 });
+    render(<ViajesTable gastoFormData={EMPTY_GASTO_FORM_DATA} />);
+    await waitFor(() => {
+      expect(mockGetViajes).toHaveBeenCalledWith(
+        expect.objectContaining({ destino: "LOMASER", esVacio: false }),
+      );
+    });
+    // Y el filtro se ve, para que nadie crea que está viendo todo.
+    expect(screen.getByText(/Destino: LOMASER/)).toBeInTheDocument();
+    expect(screen.getByText(/sin vueltas vac/i)).toBeInTheDocument();
+  });
+
+  it("sin esos params no se filtra por destino ni por vacíos", async () => {
+    mockGetViajes.mockResolvedValue({ data: SAMPLE_VIAJES, hasMore: false, count: 2 });
+    render(<ViajesTable gastoFormData={EMPTY_GASTO_FORM_DATA} />);
+    await waitFor(() => expect(mockGetViajes).toHaveBeenCalled());
+    const args = mockGetViajes.mock.calls[0]![0];
+    expect(args.destino).toBeUndefined();
+    expect(args.esVacio).toBeUndefined();
+  });
+
   it("passes choferId to getViajesAction", async () => {
     mockGetViajes.mockResolvedValue({ data: [], hasMore: false, count: 0 });
     render(<ViajesTable choferId="abc-123" gastoFormData={EMPTY_GASTO_FORM_DATA} />);
