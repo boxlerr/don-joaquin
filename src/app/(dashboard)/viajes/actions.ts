@@ -39,7 +39,7 @@ async function buildSearchOrFilter(
   // Las comas y paréntesis rompen el parser de filtros `.or()` de PostgREST.
   const sanitized = search.replace(/[(),]/g, " ").trim();
   const term = `%${sanitized}%`;
-  const [choferes, camiones, clientes] = await Promise.all([
+  const [choferes, camiones, clientes, lugares] = await Promise.all([
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("choferes")
@@ -55,6 +55,14 @@ async function buildSearchOrFilter(
       .from("clientes")
       .select("id")
       .ilike("razon_social", term),
+    // Lugares. Faltaban: buscar "LOMASER" o "Ramallo" en el listado no traía
+    // nada, aunque la columna Destino lo mostrara en pantalla — y los links de
+    // "A dónde fueron" caían acá, así que llevaban a una lista vacía.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", term),
   ]);
 
   const parts: string[] = [`codigo.ilike.${term}`, `nro_viaje_ypf.ilike.${term}`];
@@ -67,6 +75,12 @@ async function buildSearchOrFilter(
 
   const clienteIds: string[] = (clientes.data ?? []).map((r: { id: string }) => r.id);
   if (clienteIds.length) parts.push(`cliente_id.in.(${clienteIds.join(",")})`);
+
+  const lugarIds: string[] = (lugares.data ?? []).map((r: { id: string }) => r.id);
+  if (lugarIds.length) {
+    parts.push(`origen_id.in.(${lugarIds.join(",")})`);
+    parts.push(`destino_id.in.(${lugarIds.join(",")})`);
+  }
 
   return parts.join(",");
 }
@@ -98,6 +112,12 @@ export type GetViajesParams = {
    */
   falta?: FaltaDato;
   search?: string;
+  /**
+   * Sólo los viajes que fueron a ESE destino, por nombre exacto. Lo usa el link
+   * de "A dónde fueron": el buscador libre traería también los que salieron de
+   * ahí, y el resumen agrupa por destino, no por lugar mencionado.
+   */
+  destino?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
 };
@@ -117,6 +137,7 @@ export async function getViajesAction(
     incompleto,
     falta,
     search,
+    destino,
     orderBy = "fecha",
     orderDir = "desc",
   } = params;
@@ -195,6 +216,22 @@ export async function getViajesAction(
   if (search) {
     const orFilter = await buildSearchOrFilter(supabase, search);
     query = query.or(orFilter);
+  }
+
+  if (destino?.trim()) {
+    // Puede haber más de un punto con el mismo nombre (LOMASER / Lomaser), así
+    // que entran todos los que coincidan.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: puntos } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", destino.trim());
+    const ids = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
+    // Sin coincidencias el filtro tiene que dar vacío, no ignorarse: si no,
+    // mostraría TODOS los viajes como si el filtro no existiera.
+    query = ids.length
+      ? query.in("destino_id", ids)
+      : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
   }
 
   const { data, count, error } = await query;
@@ -1203,11 +1240,13 @@ export type ExportViajesParams = {
   incompleto?: boolean;
   falta?: FaltaDato;
   search?: string;
+  destino?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search } = params ?? {};
+  const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search, destino } =
+    params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -1265,6 +1304,19 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   if (search) {
     const orFilter = await buildSearchOrFilter(supabase, search);
     query = query.or(orFilter);
+  }
+
+  // Exportar lo filtrado tiene que dar lo mismo que muestra la pantalla.
+  if (destino?.trim()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: puntos } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", destino.trim());
+    const ids = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
+    query = ids.length
+      ? query.in("destino_id", ids)
+      : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
   }
 
   const { data, error } = await query;

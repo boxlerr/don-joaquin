@@ -122,10 +122,10 @@ function normalizar(s: string): string {
 /**
  * Una cifra del período.
  *
- * Antes era una etiqueta en mayúsculas gritadas y un número suelto, todas
- * iguales: había que leer las cinco para entender cuál era cuál. Ahora cada una
- * tiene su ícono, la unidad al lado del número (no metida en el título) y una
- * línea de contexto abajo — y la que se puede accionar se ve accionable.
+ * Estaba todo del mismo peso y del mismo blanco, así que la pantalla se leía
+ * como un párrafo: había que recorrer las cinco tarjetas para saber cuál era
+ * cuál. Ahora el ícono va en su recuadro, el número pesa de verdad y la unidad
+ * y el contexto quedan en segundo plano, que es el orden en que se lee.
  */
 function Metrica({
   label,
@@ -144,44 +144,59 @@ function Metrica({
   tono?: "warning";
   href?: string;
 }) {
+  const alerta = tono === "warning";
   const cuerpo = (
     <>
-      <span className="flex items-center gap-1.5">
-        <Icono
-          size={13}
-          className={tono === "warning" ? "text-[#B45309]" : "text-muted-foreground/70"}
-        />
-        <span className="text-[12px] font-medium text-muted-foreground">{label}</span>
-      </span>
-      <span className="mt-2 flex items-baseline gap-1">
+      <span className="flex items-center gap-2">
         <span
-          className={`text-[26px] font-semibold leading-none tracking-tight tabular-nums ${
-            tono === "warning" ? "text-[#B45309]" : "text-foreground"
+          className={`flex size-7 shrink-0 items-center justify-center rounded-[6px] border ${
+            alerta
+              ? "border-[#B45309]/30 bg-[#B45309]/10 text-[#B45309]"
+              : "border-border bg-muted text-primary"
+          }`}
+        >
+          <Icono size={14} />
+        </span>
+        <span
+          className={`text-[12px] font-semibold uppercase tracking-wide ${
+            alerta ? "text-[#B45309]" : "text-muted-foreground"
+          }`}
+        >
+          {label}
+        </span>
+      </span>
+      <span className="mt-2.5 flex items-baseline gap-1.5">
+        <span
+          className={`text-[30px] font-bold leading-none tracking-tight tabular-nums ${
+            alerta ? "text-[#B45309]" : "text-foreground"
           }`}
         >
           {valor}
         </span>
-        {unidad && <span className="text-[12px] text-muted-foreground">{unidad}</span>}
+        {unidad && (
+          <span className="text-[13px] font-semibold text-muted-foreground">{unidad}</span>
+        )}
       </span>
-      <span className="mt-1.5 block truncate text-[11px] text-muted-foreground">
+      <span className="mt-1.5 block truncate text-[11.5px] font-medium text-muted-foreground">
         {pie ?? "\u00a0"}
       </span>
     </>
   );
 
-  const base = "block rounded-[8px] border bg-card px-4 py-3.5 transition-colors";
+  const base =
+    "block rounded-[8px] border bg-card px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-all";
   if (!href) {
     return <div className={`${base} border-border`}>{cuerpo}</div>;
   }
   return (
     <Link
       href={href}
-      className={`${base} group border-[#B45309]/40 hover:border-[#B45309] hover:bg-[#B45309]/[0.04]`}
+      className={`${base} group border-[#B45309]/50 hover:-translate-y-px hover:border-[#B45309] hover:shadow-md`}
     >
       {cuerpo}
-      <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-[#B45309]">
+      <span className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#B45309]">
         Asignarles chofer
-        <ArrowUpRight size={11} className="transition-transform group-hover:translate-x-0.5" />
+        <ArrowUpRight size={12} className="transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
   );
@@ -403,38 +418,44 @@ function FilaViaje({
         }}
         title="Abrir este viaje en el listado"
       >
-        <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap">
+        <td className="py-2 pl-3 pr-3 font-mono text-[11.5px] font-semibold whitespace-nowrap text-foreground">
           {fmtFecha(viaje.fecha)}
         </td>
-        <td className="px-2 py-1.5">{viaje.origen ?? "—"}</td>
-        <td className="px-2 py-1.5 font-mono text-[11px]">{viaje.remito ?? "—"}</td>
-        <td className="max-w-[16rem] px-2 py-1.5">
+        <td className="px-2 py-2 font-medium">{viaje.origen ?? "—"}</td>
+        <td className="px-2 py-2 font-mono text-[11.5px] font-semibold">
+          {viaje.remito ?? <span className="font-sans font-normal text-muted-foreground/60">—</span>}
+        </td>
+        <td className="max-w-[16rem] px-2 py-2">
           {/* El material es el material. Antes, cuando estaba vacío, se mostraba
               el cliente en su lugar y parecía que el viaje llevaba "LOMA NEGRA
               CIASA". */}
           {viaje.material ? (
-            <span className="block truncate text-foreground">{viaje.material}</span>
+            <span className="block truncate font-semibold text-foreground">{viaje.material}</span>
           ) : (
-            <span className="text-muted-foreground/60">sin cargar</span>
+            <span className="font-medium text-muted-foreground/60">sin cargar</span>
           )}
           {viaje.cliente && (
-            <span className="block truncate text-[10px] text-muted-foreground">
+            <span className="block truncate text-[10.5px] text-muted-foreground">
               {viaje.cliente}
             </span>
           )}
         </td>
-        <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(viaje.km)}</td>
-        <td className="px-2 py-1.5 text-right tabular-nums">
-          {viaje.toneladas ? fmtNum(viaje.toneladas, 1) : "—"}
-        </td>
-        <td className="py-1.5 pl-2 text-right tabular-nums">
-          {viaje.monto != null ? (
-            ars(viaje.monto)
+        <td className="px-2 py-2 text-right font-semibold tabular-nums">{fmtNum(viaje.km)}</td>
+        <td className="px-2 py-2 text-right font-semibold tabular-nums">
+          {viaje.toneladas ? (
+            fmtNum(viaje.toneladas, 1)
           ) : (
-            <span className="text-[#B45309]">sin importe</span>
+            <span className="font-normal text-muted-foreground/60">—</span>
           )}
         </td>
-        <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+        <td className="py-2 pl-2 text-right tabular-nums">
+          {viaje.monto != null && viaje.monto > 0 ? (
+            <span className="font-bold text-foreground">{ars(viaje.monto)}</span>
+          ) : (
+            <span className="font-semibold text-[#B45309]">sin importe</span>
+          )}
+        </td>
+        <td className="py-2 pl-2 pr-3 text-right whitespace-nowrap">
           <span className="inline-flex items-center gap-1">
             <ArrowUpRight
               size={12}
@@ -527,21 +548,22 @@ function TablaViajes({
   onGuardado: () => void;
 }) {
   return (
-    <div className="bg-muted/20 px-4 py-2">
-      <table className="w-full text-[12px]">
+    <div className="border-t border-border bg-muted/30 px-4 pb-3 pt-2">
+      <div className="overflow-hidden rounded-[6px] border border-border bg-card">
+      <table className="w-full text-[12.5px]">
         <thead>
-          <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            <th className="py-1 pr-3 text-left font-medium">Fecha</th>
-            <th className="px-2 py-1 text-left font-medium">Desde</th>
-            <th className="px-2 py-1 text-left font-medium">Remito</th>
-            <th className="px-2 py-1 text-left font-medium">Material</th>
-            <th className="px-2 py-1 text-right font-medium">KM</th>
-            <th className="px-2 py-1 text-right font-medium">Tn</th>
-            <th className="py-1 pl-2 text-right font-medium">Importe</th>
-            <th className="py-1 pl-2" />
+          <tr className="border-y border-border bg-muted text-[10.5px] uppercase tracking-wide text-muted-foreground">
+            <th className="py-2 pl-3 pr-3 text-left font-bold">Fecha</th>
+            <th className="px-2 py-2 text-left font-bold">Desde</th>
+            <th className="px-2 py-2 text-left font-bold">Remito</th>
+            <th className="px-2 py-2 text-left font-bold">Material</th>
+            <th className="px-2 py-2 text-right font-bold">KM</th>
+            <th className="px-2 py-2 text-right font-bold">Tn</th>
+            <th className="py-2 pl-2 text-right font-bold">Importe</th>
+            <th className="py-2 pl-2 pr-3" />
           </tr>
         </thead>
-        <tbody className="divide-y divide-border/50">
+        <tbody className="divide-y divide-border">
           {viajes.map((v) => (
             <FilaViaje
               key={v.id}
@@ -556,9 +578,10 @@ function TablaViajes({
           ))}
         </tbody>
       </table>
+      </div>
       <Link
         href={href}
-        className="mt-2 inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/50 hover:text-primary"
+        className="mt-2.5 inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-3 py-2 text-[12px] font-semibold text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/50 hover:text-primary"
       >
         Ver {viajes.length === 1 ? "este viaje" : `estos ${viajes.length} viajes`} en el listado
         <ArrowUpRight size={11} className="text-primary" />
@@ -636,7 +659,7 @@ export default function ResumenDestinosClient({
 
   /** El listado con las mismas fechas y, si hace falta, el destino ya buscado. */
   const hrefListado = (extra?: {
-    q?: string;
+    destino?: string;
     choferId?: string;
     faltaChofer?: boolean;
     viajeId?: string;
@@ -644,7 +667,14 @@ export default function ResumenDestinosClient({
     // "custom" es la clave que entiende el listado (resolverRango); con otra
     // cosa cae al default de 3 meses y el link llevaría a otro período.
     const p = new URLSearchParams({ rango: "custom", desde: datos.desde, hasta: datos.hasta });
-    if (extra?.q) p.set("q", extra.q);
+    // Por destino exacto, no por el buscador libre: éste traería también los
+    // viajes que SALIERON de ese lugar, y acá se agrupa por a dónde fueron.
+    if (extra?.destino) {
+      p.set("destino", extra.destino);
+      // El resumen no cuenta los retornos vacíos, así que el listado tampoco:
+      // si no, el link mostraba 8 viajes donde acá dice 4.
+      p.set("sinVacios", "1");
+    }
     if (extra?.choferId) p.set("choferId", extra.choferId);
     // Los importados de la programación entran sin chofer: el listado los junta
     // con ?falta=chofer, que es la pantalla donde se les asigna.
@@ -684,10 +714,10 @@ export default function ResumenDestinosClient({
                 type="button"
                 onClick={() => elegirRango(r.id)}
                 aria-pressed={rango === r.id}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-[5px] px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   rango === r.id
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "border border-border bg-card text-foreground shadow-sm"
+                    : "border border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {r.label}
@@ -735,7 +765,7 @@ export default function ResumenDestinosClient({
             value={buscarDestino}
             onChange={(e) => setBuscarDestino(e.target.value)}
             placeholder="Buscar destino…"
-            className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            className="h-10 w-full rounded-[6px] border border-border bg-card pl-9 pr-3 text-sm font-medium text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none placeholder:font-normal focus:border-primary"
           />
         </div>
         <div className="relative min-w-[13rem] flex-1">
@@ -748,7 +778,7 @@ export default function ResumenDestinosClient({
             value={buscarChofer}
             onChange={(e) => setBuscarChofer(e.target.value)}
             placeholder="Buscar chofer…"
-            className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-3 text-sm text-foreground outline-none focus:border-primary"
+            className="h-10 w-full rounded-[6px] border border-border bg-card pl-9 pr-3 text-sm font-medium text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] outline-none placeholder:font-normal focus:border-primary"
           />
         </div>
         {hayFiltro && (
@@ -758,14 +788,14 @@ export default function ResumenDestinosClient({
               setBuscarDestino("");
               setBuscarChofer("");
             }}
-            className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex h-10 items-center gap-1 rounded-[6px] border border-border px-3 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X size={12} /> Limpiar
           </button>
         )}
         <Link
           href={hrefListado()}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-border bg-card px-3.5 text-xs font-semibold text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/50 hover:text-primary"
         >
           Ver todos en el listado <ArrowUpRight size={12} className="text-primary" />
         </Link>
@@ -820,7 +850,7 @@ export default function ResumenDestinosClient({
       </div>
 
       {destinos.length === 0 ? (
-        <div className="rounded-[8px] border border-dashed border-border py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-[8px] border border-dashed border-border bg-muted/30 py-14 text-center text-sm font-medium text-muted-foreground">
           {hayFiltro
             ? "Ningún destino coincide con lo que buscaste."
             : "No hay viajes cargados en este período."}
@@ -830,12 +860,19 @@ export default function ResumenDestinosClient({
           {destinos.map((d) => {
             const abierto = destinoAbierto === d.destino;
             return (
-              <div key={d.destino} className="overflow-hidden rounded-[8px] border border-border bg-card">
-                <div className="flex items-center gap-2 pr-3">
+              <div
+                key={d.destino}
+                className={`overflow-hidden rounded-[8px] border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-shadow ${
+                  abierto ? "border-primary/40 shadow-md" : "border-border hover:shadow-md"
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-2 pr-3 ${abierto ? "bg-muted" : "bg-card"}`}
+                >
                   <button
                     type="button"
                     onClick={() => setDestinoAbierto(abierto ? null : d.destino)}
-                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       {abierto ? (
@@ -843,11 +880,13 @@ export default function ResumenDestinosClient({
                       ) : (
                         <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
                       )}
-                      <MapPin size={14} className="shrink-0 text-primary" />
-                      <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-border bg-muted text-primary">
+                        <MapPin size={14} />
+                      </span>
+                      <span className="truncate text-[16px] font-bold tracking-tight text-foreground">
                         {d.destino}
                       </span>
-                      <span className="shrink-0 text-[12px] text-muted-foreground">
+                      <span className="shrink-0 rounded-[4px] border border-border bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                         {d.choferes.length} chofer{d.choferes.length !== 1 ? "es" : ""}
                       </span>
                       {d.sinChofer > 0 && (
@@ -856,20 +895,30 @@ export default function ResumenDestinosClient({
                         </span>
                       )}
                     </span>
-                    <span className="flex shrink-0 items-center gap-4 text-[12px] tabular-nums text-muted-foreground">
-                      {d.toneladas > 0 && <span>{fmtNum(d.toneladas, 1)} tn</span>}
-                      {d.km > 0 && <span>{fmtNum(d.km)} km</span>}
+                    <span className="flex shrink-0 items-center gap-4 text-[12.5px] tabular-nums text-muted-foreground">
+                      {d.toneladas > 0 && (
+                        <span>
+                          <b className="font-semibold text-foreground">{fmtNum(d.toneladas, 1)}</b> tn
+                        </span>
+                      )}
+                      {d.km > 0 && (
+                        <span>
+                          <b className="font-semibold text-foreground">{fmtNum(d.km)}</b> km
+                        </span>
+                      )}
                       {/* El número solo no decía de qué era. */}
                       <span className="flex items-baseline gap-1">
-                        <span className="text-[17px] font-semibold leading-none tracking-tight text-foreground">
+                        <span className="text-[20px] font-bold leading-none tracking-tight text-primary">
                           {d.viajes}
                         </span>
-                        <span className="text-[11px]">viaje{d.viajes !== 1 ? "s" : ""}</span>
+                        <span className="text-[11.5px] font-medium">
+                          viaje{d.viajes !== 1 ? "s" : ""}
+                        </span>
                       </span>
                     </span>
                   </button>
                   <Link
-                    href={hrefListado({ q: d.destino })}
+                    href={hrefListado({ destino: d.destino })}
                     title={`Ver los viajes a ${d.destino} en el listado`}
                     className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
                   >
@@ -889,12 +938,14 @@ export default function ResumenDestinosClient({
                       const clave = `${d.destino}|${c.chofer_id}`;
                       const verViajes = choferAbierto === clave;
                       return (
-                        <div key={clave} className="border-b border-border/60 last:border-0">
-                          <div className="flex items-center gap-2 pr-3">
+                        <div key={clave} className="border-b border-border last:border-0">
+                          <div
+                            className={`flex items-center gap-2 pr-3 ${verViajes ? "bg-muted/60" : ""}`}
+                          >
                             <button
                               type="button"
                               onClick={() => setChoferAbierto(verViajes ? null : clave)}
-                              className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
+                              className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
                             >
                               <span className="flex min-w-0 items-center gap-2">
                                 {verViajes ? (
@@ -910,7 +961,7 @@ export default function ResumenDestinosClient({
                                   src={c.fotoUrl}
                                   size={26}
                                 />
-                                <span className="truncate text-[13px] font-medium text-foreground">
+                                <span className="truncate text-[14px] font-semibold text-foreground">
                                   {c.chofer}
                                 </span>
                                 {c.camion && (
@@ -920,21 +971,36 @@ export default function ResumenDestinosClient({
                                       patente={c.camion}
                                       size={22}
                                     />
-                                    <span className="font-mono text-[11px] text-muted-foreground">
+                                    <span className="font-mono text-[11.5px] font-semibold text-muted-foreground">
                                       {c.camion}
                                     </span>
                                   </span>
                                 )}
                               </span>
-                              <span className="flex shrink-0 items-center gap-4 text-[12px] text-muted-foreground">
+                              <span className="flex shrink-0 items-center gap-4 text-[12.5px] text-muted-foreground">
                                 {c.toneladas > 0 && (
-                                  <span className="tabular-nums">{fmtNum(c.toneladas, 1)} tn</span>
+                                  <span className="tabular-nums">
+                                    <b className="font-semibold text-foreground">
+                                      {fmtNum(c.toneladas, 1)}
+                                    </b>{" "}
+                                    tn
+                                  </span>
                                 )}
-                                {c.km > 0 && <span className="tabular-nums">{fmtNum(c.km)} km</span>}
+                                {c.km > 0 && (
+                                  <span className="tabular-nums">
+                                    <b className="font-semibold text-foreground">{fmtNum(c.km)}</b> km
+                                  </span>
+                                )}
                                 <span className="tabular-nums">
-                                  {c.viajes} viaje{c.viajes !== 1 ? "s" : ""}
+                                  <b className="font-semibold text-foreground">{c.viajes}</b> viaje
+                                  {c.viajes !== 1 ? "s" : ""}
                                 </span>
-                                <span>último el {fmtFecha(c.ultimo)}</span>
+                                <span className="whitespace-nowrap">
+                                  último el{" "}
+                                  <b className="font-semibold text-foreground">
+                                    {fmtFecha(c.ultimo)}
+                                  </b>
+                                </span>
                               </span>
                             </button>
                             {/* El avatar y el nombre son de una persona con
@@ -950,7 +1016,7 @@ export default function ResumenDestinosClient({
                             )}
                             <Link
                               href={hrefListado({
-                                q: d.destino,
+                                destino: d.destino,
                                 choferId: c.chofer_id ?? undefined,
                               })}
                               title={`Ver en el listado los viajes de ${c.chofer} a ${d.destino}`}
@@ -963,12 +1029,12 @@ export default function ResumenDestinosClient({
                             <TablaViajes
                               viajes={c.detalle}
                               href={hrefListado({
-                                q: d.destino,
+                                destino: d.destino,
                                 choferId: c.chofer_id ?? undefined,
                               })}
                               hrefDeViaje={(v) =>
                                 hrefListado({
-                                  q: d.destino,
+                                  destino: d.destino,
                                   choferId: c.chofer_id ?? undefined,
                                   viajeId: v.id,
                                 })
@@ -985,14 +1051,15 @@ export default function ResumenDestinosClient({
                     })}
 
                     {d.sinChofer > 0 && (
-                      <div className="border-t border-[#B45309]/30 bg-[#B45309]/5">
-                        <p className="px-4 py-2 text-[12px] font-medium text-[#B45309]">
+                      <div className="border-t-2 border-[#B45309]/40 bg-[#B45309]/[0.07]">
+                        <p className="flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-[#B45309]">
+                          <UserRound size={14} />
                           {d.sinChofer} viaje{d.sinChofer !== 1 ? "s" : ""} sin chofer asignado
                         </p>
                         <TablaViajes
                           viajes={d.sinChoferDetalle}
-                          href={hrefListado({ q: d.destino, faltaChofer: true })}
-                          hrefDeViaje={(v) => hrefListado({ q: d.destino, viajeId: v.id })}
+                          href={hrefListado({ destino: d.destino, faltaChofer: true })}
+                          hrefDeViaje={(v) => hrefListado({ destino: d.destino, viajeId: v.id })}
                           canWrite={canWrite}
                           choferesPorFecha={choferesPorFecha}
                           pidiendoFecha={pidiendoFecha}

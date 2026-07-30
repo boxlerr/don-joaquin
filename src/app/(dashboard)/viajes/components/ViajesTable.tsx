@@ -679,7 +679,12 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   // ?viaje=<id> — se llega desde "A dónde fueron" clickeando un viaje puntual.
   // La fila se abre y se le hace scroll: si no, el link caía en una lista larga
   // y había que buscar a mano el viaje que se acaba de clickear.
-  const viajePedido = useSearchParams().get("viaje");
+  const params = useSearchParams();
+  const viajePedido = params.get("viaje");
+  // ?destino=LOMASER — llega desde "A dónde fueron". Filtra por destino exacto,
+  // no por el buscador libre (que también traería los que SALIERON de ahí).
+  const destinoUrl = params.get("destino")?.trim() || "";
+  const [destino, setDestino] = useState(destinoUrl);
   const yaSalte = useRef<string | null>(null);
   useEffect(() => {
     if (!viajePedido || yaSalte.current === viajePedido) return;
@@ -730,7 +735,13 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   const [desde, setDesde] = useState(initialDesde ?? "");
   const [hasta, setHasta] = useState(initialHasta ?? "");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
-  const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
+  // ?sinVacios=1 — lo pone el link de "A dónde fueron", que no cuenta los
+  // retornos vacíos: sin esto el listado mostraba 8 donde el resumen decía 4.
+  const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("sinVacios")
+      ? false
+      : null,
+  );
   const [incompletoFiltro, setIncompletoFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
@@ -785,6 +796,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
       incompleto: incompletoFiltro ?? undefined,
       falta,
       search: debouncedSearch || undefined,
+      destino: destino || undefined,
       orderBy,
       orderDir,
     }).then((result) => {
@@ -804,7 +816,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
     return () => {
       cancelled = true;
     };
-  }, [choferId, falta, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, falta, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, destino, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -819,6 +831,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
         incompleto: incompletoFiltro ?? undefined,
         falta,
         search: debouncedSearch || undefined,
+        destino: destino || undefined,
         orderBy,
         orderDir,
       });
@@ -832,12 +845,13 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || !!falta || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
+    !!desde || !!hasta || !!search || !!falta || !!destino || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
     setSearch("");
+    setDestino("");
     setFacturadoFiltro(null);
     setEsVacioFiltro(null);
     setIncompletoFiltro(null);
@@ -915,12 +929,30 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
         />
         <Input
           type="text"
-          placeholder="Buscar por código, chofer, camión..."
+          placeholder="Buscar por código, chofer, camión, cliente o lugar…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="text-sm flex-1 min-w-[11rem]"
-          aria-label="Buscar viaje por código"
+          aria-label="Buscar viaje por código, chofer, camión, cliente o lugar"
         />
+        {destino && (
+          <button
+            type="button"
+            onClick={() => {
+              setDestino("");
+              setEsVacioFiltro(null);
+            }}
+            title="Quitar el filtro de destino"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[6px] border border-primary/40 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
+          >
+            <MapPin size={12} />
+            Destino: {destino}
+            {esVacioFiltro === false && (
+              <span className="font-normal opacity-80">· sin vueltas vacías</span>
+            )}
+            <X size={12} />
+          </button>
+        )}
         {hayFiltros && (
           <Button
             variant="ghost"
@@ -943,6 +975,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             esVacio={esVacioFiltro ?? undefined}
             incompleto={incompletoFiltro ?? undefined}
             search={debouncedSearch || undefined}
+            destino={destino || undefined}
             disabled={loading || rows.length === 0}
           />
         </div>
