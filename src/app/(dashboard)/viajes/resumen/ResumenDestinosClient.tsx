@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -20,15 +21,19 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Gauge,
   Loader2,
   MapPin,
   Pencil,
+  Route as RouteIcon,
   Search,
-  Truck,
   UserRound,
+  Users,
   X,
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import AvatarPersona from "@/components/ui/AvatarPersona";
+import MarcaLogo from "../../camiones/components/MarcaLogo";
 import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
 import {
   asignarChoferViajeAction,
@@ -112,18 +117,71 @@ function normalizar(s: string): string {
     .trim();
 }
 
-function Kpi({ label, value, tone }: { label: string; value: string; tone?: "warning" }) {
+/**
+ * Una cifra del período.
+ *
+ * Antes era una etiqueta en mayúsculas gritadas y un número suelto, todas
+ * iguales: había que leer las cinco para entender cuál era cuál. Ahora cada una
+ * tiene su ícono, la unidad al lado del número (no metida en el título) y una
+ * línea de contexto abajo — y la que se puede accionar se ve accionable.
+ */
+function Metrica({
+  label,
+  valor,
+  unidad,
+  icono: Icono,
+  pie,
+  tono,
+  href,
+}: {
+  label: string;
+  valor: string;
+  unidad?: string;
+  icono: LucideIcon;
+  pie?: string;
+  tono?: "warning";
+  href?: string;
+}) {
+  const cuerpo = (
+    <>
+      <span className="flex items-center gap-1.5">
+        <Icono
+          size={13}
+          className={tono === "warning" ? "text-[#B45309]" : "text-muted-foreground/70"}
+        />
+        <span className="text-[12px] font-medium text-muted-foreground">{label}</span>
+      </span>
+      <span className="mt-2 flex items-baseline gap-1">
+        <span
+          className={`text-[26px] font-semibold leading-none tracking-tight tabular-nums ${
+            tono === "warning" ? "text-[#B45309]" : "text-foreground"
+          }`}
+        >
+          {valor}
+        </span>
+        {unidad && <span className="text-[12px] text-muted-foreground">{unidad}</span>}
+      </span>
+      <span className="mt-1.5 block truncate text-[11px] text-muted-foreground">
+        {pie ?? "\u00a0"}
+      </span>
+    </>
+  );
+
+  const base = "block rounded-[8px] border bg-card px-4 py-3.5 transition-colors";
+  if (!href) {
+    return <div className={`${base} border-border`}>{cuerpo}</div>;
+  }
   return (
-    <div className="rounded-[8px] border border-border bg-card px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={`mt-0.5 text-xl font-bold tabular-nums ${tone === "warning" ? "text-[#B45309]" : "text-foreground"}`}
-      >
-        {value}
-      </p>
-    </div>
+    <Link
+      href={href}
+      className={`${base} group border-[#B45309]/40 hover:border-[#B45309] hover:bg-[#B45309]/[0.04]`}
+    >
+      {cuerpo}
+      <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-[#B45309]">
+        Asignarles chofer
+        <ArrowUpRight size={11} className="transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </Link>
   );
 }
 
@@ -650,18 +708,52 @@ export default function ResumenDestinosClient({
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Kpi label="Viajes" value={fmtNum(datos.totales.viajes)} />
-        <Kpi label="Destinos" value={fmtNum(datos.totales.destinos)} />
-        <Kpi label="Choferes" value={fmtNum(datos.totales.choferes)} />
-        <Kpi label="KM" value={fmtNum(datos.totales.km)} />
-        {datos.totales.sinChofer > 0 ? (
-          <Link href={hrefListado({ faltaChofer: true })} title="Asignarles el chofer">
-            <Kpi label="Sin chofer · asignar" value={fmtNum(datos.totales.sinChofer)} tone="warning" />
-          </Link>
-        ) : (
-          <Kpi label="Sin chofer" value={fmtNum(datos.totales.sinChofer)} />
-        )}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Metrica
+          label="Viajes"
+          valor={fmtNum(datos.totales.viajes)}
+          icono={RouteIcon}
+          pie={
+            datos.totales.viajes === 0
+              ? "nada cargado todavía"
+              : `${fmtNum(datos.totales.viajes / Math.max(datos.totales.destinos, 1), 1)} por destino`
+          }
+        />
+        <Metrica
+          label="Destinos"
+          valor={fmtNum(datos.totales.destinos)}
+          icono={MapPin}
+          pie={destinos[0] ? `más movimiento: ${destinos[0].destino}` : undefined}
+        />
+        <Metrica
+          label="Choferes"
+          valor={fmtNum(datos.totales.choferes)}
+          icono={Users}
+          pie={
+            datos.totales.choferes > 0
+              ? `${fmtNum(datos.totales.viajes / datos.totales.choferes, 1)} viajes cada uno`
+              : undefined
+          }
+        />
+        <Metrica
+          label="Recorrido"
+          valor={fmtNum(datos.totales.km)}
+          unidad="km"
+          icono={Gauge}
+          pie={
+            datos.totales.viajes > 0
+              ? `${fmtNum(datos.totales.km / datos.totales.viajes)} km por viaje`
+              : undefined
+          }
+        />
+        <Metrica
+          label="Sin chofer"
+          valor={fmtNum(datos.totales.sinChofer)}
+          icono={UserRound}
+          tono={datos.totales.sinChofer > 0 ? "warning" : undefined}
+          pie={datos.totales.sinChofer === 0 ? "todos asignados" : "esperando quién los haga"}
+          href={datos.totales.sinChofer > 0 ? hrefListado({ faltaChofer: true }) : undefined}
+        />
       </div>
 
       {destinos.length === 0 ? (
@@ -689,7 +781,9 @@ export default function ResumenDestinosClient({
                         <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
                       )}
                       <MapPin size={14} className="shrink-0 text-primary" />
-                      <span className="truncate font-semibold text-foreground">{d.destino}</span>
+                      <span className="truncate text-[15px] font-semibold tracking-tight text-foreground">
+                        {d.destino}
+                      </span>
                       <span className="shrink-0 text-[12px] text-muted-foreground">
                         {d.choferes.length} chofer{d.choferes.length !== 1 ? "es" : ""}
                       </span>
@@ -702,7 +796,13 @@ export default function ResumenDestinosClient({
                     <span className="flex shrink-0 items-center gap-4 text-[12px] tabular-nums text-muted-foreground">
                       {d.toneladas > 0 && <span>{fmtNum(d.toneladas, 1)} tn</span>}
                       {d.km > 0 && <span>{fmtNum(d.km)} km</span>}
-                      <span className="text-base font-bold text-foreground">{d.viajes}</span>
+                      {/* El número solo no decía de qué era. */}
+                      <span className="flex items-baseline gap-1">
+                        <span className="text-[17px] font-semibold leading-none tracking-tight text-foreground">
+                          {d.viajes}
+                        </span>
+                        <span className="text-[11px]">viaje{d.viajes !== 1 ? "s" : ""}</span>
+                      </span>
                     </span>
                   </button>
                   <Link
@@ -739,14 +839,27 @@ export default function ResumenDestinosClient({
                                 ) : (
                                   <ChevronRight size={12} className="shrink-0 text-muted-foreground" />
                                 )}
-                                <UserRound size={13} className="shrink-0 text-muted-foreground" />
+                                {/* La cara y la marca se reconocen de un vistazo;
+                                    el ícono genérico repetido no distinguía nada. */}
+                                <AvatarPersona
+                                  name={c.chofer}
+                                  rol={c.rol}
+                                  src={c.fotoUrl}
+                                  size={26}
+                                />
                                 <span className="truncate text-[13px] font-medium text-foreground">
                                   {c.chofer}
                                 </span>
                                 {c.camion && (
-                                  <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
-                                    <Truck size={11} />
-                                    {c.camion}
+                                  <span className="inline-flex shrink-0 items-center gap-1.5">
+                                    <MarcaLogo
+                                      marca={c.camionMarca}
+                                      patente={c.camion}
+                                      size={22}
+                                    />
+                                    <span className="font-mono text-[11px] text-muted-foreground">
+                                      {c.camion}
+                                    </span>
                                   </span>
                                 )}
                               </span>

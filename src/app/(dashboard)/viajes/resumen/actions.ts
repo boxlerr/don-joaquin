@@ -41,7 +41,13 @@ export type ViajeDelResumen = {
 export type ChoferEnDestino = {
   chofer_id: string | null;
   chofer: string;
+  /** Para el avatar: la silueta cambia según el área. */
+  rol: string | null;
+  /** Foto del legajo, firmada. null cuando todavía no subieron ninguna. */
+  fotoUrl: string | null;
   camion: string | null;
+  /** Marca del camión, para mostrar el logo en vez de un camioncito genérico. */
+  camionMarca: string | null;
   viajes: number;
   km: number;
   toneladas: number;
@@ -81,12 +87,61 @@ type Fila = {
   chofer_id: string | null;
   origen: { nombre: string } | { nombre: string }[] | null;
   destino: { nombre: string } | { nombre: string }[] | null;
-  chofer: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
-  camion: { patente: string } | { patente: string }[] | null;
+  chofer:
+    | { nombre: string; apellido: string; rol: string | null }
+    | { nombre: string; apellido: string; rol: string | null }[]
+    | null;
+  camion: { patente: string; marca: string | null } | { patente: string; marca: string | null }[] | null;
   cliente: { razon_social: string } | { razon_social: string }[] | null;
 };
 
 const uno = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+/**
+ * URLs firmadas de las fotos del legajo, todas en una sola llamada por bucket.
+ * Hoy casi nadie tiene foto cargada; en cuanto se suban aparecen solas.
+ */
+async function firmarFotos(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  choferIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (choferIds.length === 0) return out;
+
+  const { data, error } = await supabase
+    .from("choferes")
+    .select("id, foto:documentos_archivos(bucket, path)")
+    .in("id", choferIds);
+  if (error) {
+    // Una foto que no carga no puede tirar abajo el resumen.
+    console.error("[resumen destinos] no se pudieron leer las fotos:", error);
+    return out;
+  }
+
+  const porBucket = new Map<string, { id: string; path: string }[]>();
+  for (const c of (data ?? []) as {
+    id: string;
+    foto: { bucket: string; path: string } | { bucket: string; path: string }[] | null;
+  }[]) {
+    const f = uno(c.foto);
+    if (!f?.path) continue;
+    const lista = porBucket.get(f.bucket) ?? [];
+    lista.push({ id: c.id, path: f.path });
+    porBucket.set(f.bucket, lista);
+  }
+
+  for (const [bucket, files] of porBucket) {
+    const { data: urls } = await supabase.storage
+      .from(bucket)
+      .createSignedUrls(files.map((f) => f.path), 3600);
+    ((urls ?? []) as { signedUrl: string | null }[]).forEach((row, i) => {
+      const f = files[i];
+      if (f && row.signedUrl) out.set(f.id, row.signedUrl);
+    });
+  }
+  return out;
+}
 
 export async function getResumenDestinosAction(
   desde: string,
@@ -107,8 +162,8 @@ export async function getResumenDestinosAction(
          monto_flete, material, es_vacio, chofer_id,
          origen:puntos_ruta!viajes_origen_id_fkey(nombre),
          destino:puntos_ruta!viajes_destino_id_fkey(nombre),
-         chofer:choferes(nombre, apellido),
-         camion:camiones(patente),
+         chofer:choferes(nombre, apellido, rol),
+         camion:camiones(patente, marca),
          cliente:clientes(razon_social)`,
       )
       .gte("fecha_viaje", desde)
@@ -192,7 +247,10 @@ export async function getResumenDestinosAction(
       mapa.set(f.chofer_id, {
         chofer_id: f.chofer_id,
         chofer: nombre,
+        rol: ch?.rol ?? null,
+        fotoUrl: null, // se completa abajo, firmando todas juntas
         camion: uno(f.camion)?.patente ?? null,
+        camionMarca: uno(f.camion)?.marca ?? null,
         viajes: 1,
         km: viaje.km,
         toneladas: viaje.toneladas ?? 0,
@@ -202,12 +260,24 @@ export async function getResumenDestinosAction(
     }
   }
 
+  // Fotos del legajo de los choferes que aparecen. Va en su propia consulta y no
+  // embebida en la de viajes: si el embed fallara, ahora tiraría error y se
+  // caería toda la pantalla por un adorno.
+  const fotoPorChofer = await firmarFotos(
+    supabase,
+    [...new Set(utiles.map((f) => f.chofer_id).filter((v): v is string => !!v))],
+  );
+
   const destinos = [...porDestino.values()]
     .map((d) => ({
       ...d,
       sinChoferDetalle: d.sinChoferDetalle.sort((a, b) => b.fecha.localeCompare(a.fecha)),
       choferes: [...(porDestinoChofer.get(d.destino)?.values() ?? [])]
-        .map((c) => ({ ...c, detalle: c.detalle.sort((a, b) => b.fecha.localeCompare(a.fecha)) }))
+        .map((c) => ({
+          ...c,
+          fotoUrl: c.chofer_id ? (fotoPorChofer.get(c.chofer_id) ?? null) : null,
+          detalle: c.detalle.sort((a, b) => b.fecha.localeCompare(a.fecha)),
+        }))
         .sort((a, b) => b.ultimo.localeCompare(a.ultimo) || b.viajes - a.viajes),
     }))
     // El destino con más movimiento primero: es a donde hay que mirar.

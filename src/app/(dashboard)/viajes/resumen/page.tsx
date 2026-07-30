@@ -25,7 +25,7 @@ export default async function ResumenViajesPage() {
     <div className="w-full space-y-6 p-8">
       <PageHeader
         title="A dónde fueron"
-        description="Los viajes agrupados por destino, con qué chofer fue a cada uno"
+        description="Cada destino, quién fue y con qué unidad — se abre hasta el viaje y se corrige acá mismo"
       />
       <ResumenDestinosClient inicial={inicial} hoy={hoy} canWrite={canWrite} />
     </div>
