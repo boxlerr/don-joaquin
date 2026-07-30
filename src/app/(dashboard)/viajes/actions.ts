@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { normalizarTexto } from "@/lib/texto";
+import { coincideEnAlguno } from "@/lib/texto";
 import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
@@ -34,35 +34,35 @@ function extractMaterialFromObs(obs: string | null): string | null {
 }
 
 /**
- * Busca ids en una tabla auxiliar del buscador de viajes.
+ * Busca ids en una tabla auxiliar del buscador de viajes, ignorando acentos.
  *
- * Compara contra las columnas normalizadas (sin acentos) que crea la migración
- * 20260730_busqueda_sin_acentos. Si esa migración todavía no corrió, la consulta
- * falla con 42703 y se reintenta contra las columnas originales: la búsqueda
- * vuelve a ser sensible a acentos, como era antes, pero no se rompe.
+ * El ILIKE de Postgres no ignora los acentos: buscar "agustin" no encontraba a
+ * "Agustín". Como estas tablas son chicas (choferes, camiones, clientes y
+ * lugares: decenas o pocos cientos de filas), en vez de pedirle a la base que
+ * normalice se traen las filas y se filtran acá con el mismo helper que usa el
+ * resto del sistema. Sin migración ni columnas nuevas.
+ *
+ * Sólo se piden el id y las columnas por las que se busca, así que lo que viaja
+ * es mínimo. Los viajes en sí, que son muchos, se siguen filtrando en la base
+ * por los ids que devuelve esto.
  */
 async function buscarIdsPorTexto(
   supabase: ReturnType<typeof createAdminClient>,
-  tabla: string,
+  tabla: "choferes" | "camiones" | "clientes" | "puntos_ruta",
   columnas: readonly string[],
-  termNorm: string,
-  termCrudo: string,
+  search: string,
 ): Promise<string[]> {
-  const filtro = (cols: readonly string[], term: string) =>
-    cols.map((c) => `${c}.ilike.${term}`).join(",");
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const consultar = (f: string) => (supabase as any).from(tabla).select("id").or(f);
-
-  let { data, error } = await consultar(filtro(columnas.map((c) => `${c}_norm`), termNorm));
-  if (error?.code === "42703") {
-    ({ data, error } = await consultar(filtro(columnas, termCrudo)));
-  }
+  const { data, error } = await (supabase as any)
+    .from(tabla)
+    .select(["id", ...columnas].join(","));
   if (error) {
     console.error(`Error buscando en ${tabla}:`, error);
     return [];
   }
-  return (data ?? []).map((r: { id: string }) => r.id);
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .filter((fila) => coincideEnAlguno(columnas.map((c) => fila[c]), search))
+    .map((fila) => fila.id as string);
 }
 
 async function buildSearchOrFilter(
@@ -72,27 +72,14 @@ async function buildSearchOrFilter(
   // Las comas y paréntesis rompen el parser de filtros `.or()` de PostgREST.
   const sanitized = search.replace(/[(),]/g, " ").trim();
   const term = `%${sanitized}%`;
-  // El mismo texto, normalizado igual que las columnas *_norm: así "agustin"
-  // encuentra a "Agustín" y "munoz" a "Muñoz".
-  const termNorm = `%${normalizarTexto(sanitized)}%`;
   const [choferIds, camionIds, clienteIds, lugarIds] = await Promise.all([
-    buscarIdsPorTexto(supabase, "choferes", ["nombre", "apellido"], termNorm, term),
-    // La patente no lleva acentos: se busca siempre contra la columna original.
-    buscarIdsPorTexto(supabase, "camiones", ["marca", "modelo"], termNorm, term).then(
-      async (ids) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data } = await (supabase as any)
-          .from("camiones")
-          .select("id")
-          .ilike("patente", term);
-        return [...new Set([...ids, ...(data ?? []).map((r: { id: string }) => r.id)])];
-      },
-    ),
-    buscarIdsPorTexto(supabase, "clientes", ["razon_social"], termNorm, term),
+    buscarIdsPorTexto(supabase, "choferes", ["nombre", "apellido"], sanitized),
+    buscarIdsPorTexto(supabase, "camiones", ["patente", "marca", "modelo"], sanitized),
+    buscarIdsPorTexto(supabase, "clientes", ["razon_social"], sanitized),
     // Lugares. Faltaban: buscar "LOMASER" o "Ramallo" en el listado no traía
     // nada, aunque la columna Destino lo mostrara en pantalla — y los links de
     // "A dónde fueron" caían acá, así que llevaban a una lista vacía.
-    buscarIdsPorTexto(supabase, "puntos_ruta", ["nombre"], termNorm, term),
+    buscarIdsPorTexto(supabase, "puntos_ruta", ["nombre"], sanitized),
   ]);
 
   // Códigos: no llevan acentos, van contra la columna original.

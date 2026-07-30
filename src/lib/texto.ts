@@ -5,9 +5,10 @@
  * tablas) tiene que pasar por acá: así "agustin" encuentra "Agustín",
  * "benitez" encuentra "Benítez" y "munoz" encuentra "Muñoz".
  *
- * IMPORTANTE: Caja, Gastos y Viajes buscan contra la base, no acá, porque
- * paginan en el servidor. Del lado de Postgres el equivalente es la función
- * public.sin_acentos() (migración 20260730_busqueda_sin_acentos). Las dos tienen
+ * IMPORTANTE: Caja y Gastos buscan contra la base, no acá, porque paginan en el
+ * servidor sobre tablas grandes. Del lado de Postgres el equivalente es la
+ * función public.sin_acentos() (migración 20260730_busqueda_sin_acentos, que es
+ * opcional: sin ella sólo esas dos pantallas quedan con acentos). Las dos tienen
  * que dar EXACTAMENTE el mismo resultado: si no, el usuario escribe algo que
  * existe y la pantalla le dice que no hay nada. Por eso la tabla de caracteres
  * de abajo es una sola y la migración usa una copia literal de estas dos

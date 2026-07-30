@@ -1,8 +1,13 @@
--- Búsqueda sin acentos en las pantallas que filtran contra la base.
+-- Búsqueda sin acentos en Caja y Gastos.
 --
--- El resto del sistema filtra en el cliente y ya ignora acentos (src/lib/texto.ts).
--- Caja, Gastos y Viajes no pueden: paginan en el servidor y devuelven el total con
--- count exact, así que el filtro tiene que resolverse acá.
+-- OPCIONAL: sin esta migración el sistema funciona; lo único que queda sensible a
+-- acentos es el buscador de estas dos pantallas. Todo el resto, Viajes incluido,
+-- ya ignora los acentos sin tocar la base.
+--
+-- Por qué estas dos son distintas: buscan por texto libre (concepto y descripción)
+-- sobre tablas grandes que paginan en el servidor y devuelven el total con count
+-- exact. No se pueden traer las filas y filtrarlas en el servidor como se hace con
+-- choferes, camiones, clientes y lugares, que son tablas chicas.
 --
 -- La idea: guardar en una columna generada el texto normalizado (sin acentos, en
 -- minúsculas y con los espacios colapsados). Del lado de la app se normaliza lo que
@@ -75,17 +80,8 @@ begin
 
   for t in
     select * from (values
-      -- Caja y Gastos: el buscador de cada listado.
-      ('caja_movimientos', 'concepto',      'concepto_norm'),
-      ('gastos',           'descripcion',   'descripcion_norm'),
-      -- Viajes: el buscador ("código, chofer, camión, cliente o lugar") resuelve
-      -- contra estas tablas para juntar los ids y después filtrar los viajes.
-      ('choferes',         'nombre',        'nombre_norm'),
-      ('choferes',         'apellido',      'apellido_norm'),
-      ('camiones',         'marca',         'marca_norm'),
-      ('camiones',         'modelo',        'modelo_norm'),
-      ('clientes',         'razon_social',  'razon_social_norm'),
-      ('puntos_ruta',      'nombre',        'nombre_norm')
+      ('caja_movimientos', 'concepto',    'concepto_norm'),
+      ('gastos',           'descripcion', 'descripcion_norm')
     ) as v(tabla, origen, destino)
   loop
     execute format('alter table public.%I drop column if exists %I', t.tabla, t.destino);
