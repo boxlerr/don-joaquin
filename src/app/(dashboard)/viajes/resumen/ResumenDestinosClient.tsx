@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   CalendarRange,
@@ -22,6 +23,7 @@ import {
   ChevronDown,
   ChevronRight,
   Gauge,
+  IdCard,
   Loader2,
   MapPin,
   Pencil,
@@ -186,11 +188,19 @@ function Metrica({
 }
 
 /** Lo que se puede corregir de un viaje sin salir de acá. */
-type Borrador = { origen: string; remito: string; km: string; toneladas: string; monto: string };
+type Borrador = {
+  origen: string;
+  remito: string;
+  material: string;
+  km: string;
+  toneladas: string;
+  monto: string;
+};
 
 const borradorDe = (v: ViajeDelResumen): Borrador => ({
   origen: v.origen ?? "",
   remito: v.remito ?? "",
+  material: v.material ?? "",
   km: v.km ? String(v.km) : "",
   toneladas: v.toneladas != null ? String(v.toneladas) : "",
   monto: v.monto != null ? String(v.monto) : "",
@@ -214,6 +224,7 @@ function cambiosDe(v: ViajeDelResumen, b: Borrador) {
   const c: Parameters<typeof actualizarViajeHojaRutaAction>[1] = {};
   if (b.origen.trim() !== o.origen.trim()) c.origen_nombre = b.origen.trim() || null;
   if (b.remito.trim() !== o.remito.trim()) c.nro_remito = b.remito.trim() || null;
+  if (b.material.trim() !== o.material.trim()) c.material = b.material.trim() || null;
   // km_con_carga es NOT NULL en la base: vaciar la celda es cero, no nulo.
   if (b.km.trim() !== o.km.trim()) c.km_con_carga = numero(b.km) ?? 0;
   if (b.toneladas.trim() !== o.toneladas.trim()) c.tonelaje_real = numero(b.toneladas);
@@ -230,6 +241,7 @@ function FilaViaje({
   canWrite,
   choferes,
   pidiendoChoferes,
+  hrefViaje,
   onPedirChoferes,
   onGuardado,
 }: {
@@ -237,9 +249,12 @@ function FilaViaje({
   canWrite: boolean;
   choferes: ChoferParaAsignar[] | undefined;
   pidiendoChoferes: boolean;
+  /** El listado abierto en ESTE viaje. */
+  hrefViaje: string;
   onPedirChoferes: (fecha: string) => void;
   onGuardado: () => void;
 }) {
+  const router = useRouter();
   const [editando, setEditando] = useState(false);
   const [b, setB] = useState<Borrador>(() => borradorDe(viaje));
   const [guardando, setGuardando] = useState(false);
@@ -310,8 +325,13 @@ function FilaViaje({
               className={`${CELDA_INPUT} font-mono`}
             />
           </td>
-          <td className="px-2 py-1.5 text-[11px] text-muted-foreground">
-            {viaje.material ?? viaje.cliente ?? "—"}
+          <td className="px-2 py-1.5">
+            <input
+              value={b.material}
+              onChange={(e) => setB({ ...b, material: e.target.value })}
+              placeholder="qué llevaba"
+              className={CELDA_INPUT}
+            />
           </td>
           <td className="px-2 py-1.5">
             <input
@@ -373,14 +393,31 @@ function FilaViaje({
 
   return (
     <>
-      <tr className="text-foreground">
+      {/* Toda la fila abre ese viaje en el listado; el lápiz no, que edita acá. */}
+      <tr
+        className="group cursor-pointer text-foreground transition-colors hover:bg-card"
+        onClick={() => router.push(hrefViaje)}
+        title="Abrir este viaje en el listado"
+      >
         <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap">
           {fmtFecha(viaje.fecha)}
         </td>
         <td className="px-2 py-1.5">{viaje.origen ?? "—"}</td>
         <td className="px-2 py-1.5 font-mono text-[11px]">{viaje.remito ?? "—"}</td>
-        <td className="max-w-[16rem] truncate px-2 py-1.5 text-muted-foreground">
-          {viaje.material ?? viaje.cliente ?? "—"}
+        <td className="max-w-[16rem] px-2 py-1.5">
+          {/* El material es el material. Antes, cuando estaba vacío, se mostraba
+              el cliente en su lugar y parecía que el viaje llevaba "LOMA NEGRA
+              CIASA". */}
+          {viaje.material ? (
+            <span className="block truncate text-foreground">{viaje.material}</span>
+          ) : (
+            <span className="text-muted-foreground/60">sin cargar</span>
+          )}
+          {viaje.cliente && (
+            <span className="block truncate text-[10px] text-muted-foreground">
+              {viaje.cliente}
+            </span>
+          )}
         </td>
         <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(viaje.km)}</td>
         <td className="px-2 py-1.5 text-right tabular-nums">
@@ -393,17 +430,26 @@ function FilaViaje({
             <span className="text-[#B45309]">sin importe</span>
           )}
         </td>
-        <td className="py-1.5 pl-2 text-right">
-          {canWrite && (
-            <button
-              type="button"
-              onClick={abrir}
-              title="Corregir este viaje"
-              className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
-            >
-              <Pencil size={12} />
-            </button>
-          )}
+        <td className="py-1.5 pl-2 text-right whitespace-nowrap">
+          <span className="inline-flex items-center gap-1">
+            <ArrowUpRight
+              size={12}
+              className="text-muted-foreground/0 transition-colors group-hover:text-primary"
+            />
+            {canWrite && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  abrir();
+                }}
+                title="Corregir este viaje acá"
+                className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+              >
+                <Pencil size={12} />
+              </button>
+            )}
+          </span>
         </td>
       </tr>
 
@@ -458,6 +504,7 @@ function FilaViaje({
 function TablaViajes({
   viajes,
   href,
+  hrefDeViaje,
   canWrite,
   choferesPorFecha,
   pidiendoFecha,
@@ -465,7 +512,10 @@ function TablaViajes({
   onGuardado,
 }: {
   viajes: ViajeDelResumen[];
+  /** El listado con TODOS estos viajes filtrados. */
   href: string;
+  /** El listado abierto en un viaje puntual. */
+  hrefDeViaje: (v: ViajeDelResumen) => string;
   canWrite: boolean;
   choferesPorFecha: Record<string, ChoferParaAsignar[]>;
   pidiendoFecha: string | null;
@@ -495,6 +545,7 @@ function TablaViajes({
               canWrite={canWrite}
               choferes={choferesPorFecha[v.fecha]}
               pidiendoChoferes={pidiendoFecha === v.fecha}
+              hrefViaje={hrefDeViaje(v)}
               onPedirChoferes={onPedirChoferes}
               onGuardado={onGuardado}
             />
@@ -503,9 +554,10 @@ function TablaViajes({
       </table>
       <Link
         href={href}
-        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+        className="mt-2 inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-2.5 py-1.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary/50 hover:text-primary"
       >
-        Abrir en el listado <ArrowUpRight size={11} />
+        Ver {viajes.length === 1 ? "este viaje" : `estos ${viajes.length} viajes`} en el listado
+        <ArrowUpRight size={11} className="text-primary" />
       </Link>
     </div>
   );
@@ -579,7 +631,12 @@ export default function ResumenDestinosClient({
   };
 
   /** El listado con las mismas fechas y, si hace falta, el destino ya buscado. */
-  const hrefListado = (extra?: { q?: string; choferId?: string; faltaChofer?: boolean }) => {
+  const hrefListado = (extra?: {
+    q?: string;
+    choferId?: string;
+    faltaChofer?: boolean;
+    viajeId?: string;
+  }) => {
     // "custom" es la clave que entiende el listado (resolverRango); con otra
     // cosa cae al default de 3 meses y el link llevaría a otro período.
     const p = new URLSearchParams({ rango: "custom", desde: datos.desde, hasta: datos.hasta });
@@ -588,6 +645,8 @@ export default function ResumenDestinosClient({
     // Los importados de la programación entran sin chofer: el listado los junta
     // con ?falta=chofer, que es la pantalla donde se les asigna.
     if (extra?.faltaChofer) p.set("falta", "chofer");
+    // El listado abre esa fila desplegada y hace scroll hasta ella.
+    if (extra?.viajeId) p.set("viaje", extra.viajeId);
     return `/viajes?${p.toString()}`;
   };
 
@@ -874,9 +933,23 @@ export default function ResumenDestinosClient({
                                 <span>último el {fmtFecha(c.ultimo)}</span>
                               </span>
                             </button>
+                            {/* El avatar y el nombre son de una persona con
+                                legajo: desde acá se llega a él. */}
+                            {c.chofer_id && (
+                              <Link
+                                href={`/choferes/${c.chofer_id}`}
+                                title={`Abrir el legajo de ${c.chofer}`}
+                                className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                              >
+                                <IdCard size={14} />
+                              </Link>
+                            )}
                             <Link
-                              href={hrefListado({ choferId: c.chofer_id ?? undefined })}
-                              title={`Ver los viajes de ${c.chofer} en el listado`}
+                              href={hrefListado({
+                                q: d.destino,
+                                choferId: c.chofer_id ?? undefined,
+                              })}
+                              title={`Ver en el listado los viajes de ${c.chofer} a ${d.destino}`}
                               className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
                             >
                               <ArrowUpRight size={13} />
@@ -885,7 +958,17 @@ export default function ResumenDestinosClient({
                           {verViajes && (
                             <TablaViajes
                               viajes={c.detalle}
-                              href={hrefListado({ choferId: c.chofer_id ?? undefined })}
+                              href={hrefListado({
+                                q: d.destino,
+                                choferId: c.chofer_id ?? undefined,
+                              })}
+                              hrefDeViaje={(v) =>
+                                hrefListado({
+                                  q: d.destino,
+                                  choferId: c.chofer_id ?? undefined,
+                                  viajeId: v.id,
+                                })
+                              }
                               canWrite={canWrite}
                               choferesPorFecha={choferesPorFecha}
                               pidiendoFecha={pidiendoFecha}
@@ -905,6 +988,7 @@ export default function ResumenDestinosClient({
                         <TablaViajes
                           viajes={d.sinChoferDetalle}
                           href={hrefListado({ q: d.destino, faltaChofer: true })}
+                          hrefDeViaje={(v) => hrefListado({ q: d.destino, viajeId: v.id })}
                           canWrite={canWrite}
                           choferesPorFecha={choferesPorFecha}
                           pidiendoFecha={pidiendoFecha}

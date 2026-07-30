@@ -28,21 +28,21 @@ import {
 const CLIENTE_LOMA = "LOMA NEGRA CIASA";
 
 /**
- * Cómo leer la columna `Centro` (A111 / A109), que es lo único ambiguo del
- * archivo:
+ * Origen y destino de cada etapa.
  *
- * - "destino": cada fila dice A DÓNDE va esa etapa, y el origen de una es el
- *   destino de la anterior. Es lo que sugiere el archivo de muestra, donde
- *   `Centro` y `Destinat.mcía.` coinciden.
- * - "origen": el Centro es la planta de DONDE SALE y el destinatario es a dónde
- *   va. Es lo que sugiere la hoja escrita a mano de Nico, donde el mismo (111)
- *   aparece con cuatro destinos distintos.
+ * El `Centro` (A111 / A109) entra tal cual como origen y el destinatario como
+ * destino. No se interpreta: nadie de la oficina puede afirmar hoy si el Centro
+ * es la planta de salida o de llegada, y adivinar significaría cargar viajes
+ * dados vuelta sin que se note. Entra el código como está y quien recibe el
+ * viaje lo corrige — que es el mismo criterio que el resto del sistema: lo que
+ * carga una persona no lo pisa un proceso automático.
  *
- * Las dos lecturas no pueden ser ciertas a la vez y equivocarse importa: los
- * viajes entrarían dados vuelta. Así que en vez de adivinar, se elige en la
- * pantalla y el preview muestra el resultado antes de crear nada.
+ * Ojo: esto da de alta dos puntos de ruta con el código de la planta ("A111",
+ * "A109") hasta que alguien los reemplace por el lugar de verdad.
  */
-export type LecturaCentro = "destino" | "origen";
+function recorridoDe(f: FilaProgramacion): { origen: string | null; destino: string | null } {
+  return { origen: f.centro, destino: f.destino ?? f.poblacion };
+}
 
 export type ViajeAImportar = {
   nroTransporte: string;
@@ -85,41 +85,12 @@ async function leerExcel(bytes: Uint8Array): Promise<FilaCruda[]> {
   return filas;
 }
 
-/** El recorrido de cada etapa según cómo se lea el Centro. */
-function resolverRecorrido(
-  filas: readonly FilaProgramacion[],
-  lectura: LecturaCentro,
-): Map<string, { origen: string | null; destino: string | null }> {
-  const out = new Map<string, { origen: string | null; destino: string | null }>();
-
-  if (lectura === "origen") {
-    // El Centro es la planta de salida; el destinatario, a dónde va.
-    for (const f of filas) {
-      out.set(f.nroTransporte, { origen: f.centro, destino: f.destino ?? f.poblacion });
-    }
-    return out;
-  }
-
-  // Cada fila es un destino: el origen de una etapa es el destino de la
-  // anterior dentro del mismo circuito, y la primera queda sin origen.
-  for (const c of agruparEnCircuitos(filas)) {
-    c.etapas.forEach((e, i) => {
-      out.set(e.nroTransporte, {
-        origen: i === 0 ? null : (c.etapas[i - 1]!.destino ?? null),
-        destino: e.destino,
-      });
-    });
-  }
-  return out;
-}
-
 /**
  * Qué se crearía con este archivo. No escribe nada.
  */
 export async function previewProgramacionAction(
   base64: string,
   nombreArchivo: string,
-  lectura: LecturaCentro = "destino",
 ): Promise<PreviewProgramacion | { error: string }> {
   await requireSeccion("viajes_listado", "write");
 
@@ -167,10 +138,8 @@ export async function previewProgramacionAction(
       .filter((v): v is string => !!v),
   );
 
-  const recorrido = resolverRecorrido(filas, lectura);
-
   const viajes: ViajeAImportar[] = filas.map((f) => {
-    const r = recorrido.get(f.nroTransporte) ?? { origen: null, destino: null };
+    const r = recorridoDe(f);
     const yaExiste = yaCargados.has(f.nroTransporte);
     // Sin fecha no se puede crear: fecha_viaje es obligatoria.
     const problema = !f.fecha ? "no tiene fecha de entrega" : null;
@@ -268,11 +237,10 @@ export type ResultadoImport = {
 export async function importarProgramacionAction(
   base64: string,
   nombreArchivo: string,
-  lectura: LecturaCentro = "destino",
 ): Promise<ResultadoImport | { error: string }> {
   const user = await requireSeccion("viajes_listado", "write");
 
-  const preview = await previewProgramacionAction(base64, nombreArchivo, lectura);
+  const preview = await previewProgramacionAction(base64, nombreArchivo);
   if ("error" in preview) return preview;
 
   const aCrear = preview.viajes.filter((v) => !v.yaExiste && !v.problema);
@@ -344,7 +312,6 @@ export async function importarProgramacionAction(
       valoresNuevos: {
         archivo: nombreArchivo,
         creados,
-        lectura_centro: lectura,
         transportes: aCrear.slice(0, 50).map((v) => v.nroCorto),
       },
       metadata: { origen: "import_programacion" },

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useTransition, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Table,
   TableHeader,
@@ -674,6 +675,27 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   const [isPending, startTransition] = useTransition();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // ?viaje=<id> — se llega desde "A dónde fueron" clickeando un viaje puntual.
+  // La fila se abre y se le hace scroll: si no, el link caía en una lista larga
+  // y había que buscar a mano el viaje que se acaba de clickear.
+  const viajePedido = useSearchParams().get("viaje");
+  const yaSalte = useRef<string | null>(null);
+  useEffect(() => {
+    if (!viajePedido || yaSalte.current === viajePedido) return;
+    if (!rows.some((r) => r.id === viajePedido)) return;
+    yaSalte.current = viajePedido;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abrir la fila que pidió la URL
+    setExpandedId(viajePedido);
+    requestAnimationFrame(() => {
+      const fila = document.querySelector(`[data-viaje-id="${viajePedido}"]`);
+      // scrollIntoView no existe en todos los entornos (jsdom, por ejemplo): que
+      // falte no puede impedir que la fila quede abierta.
+      if (fila instanceof HTMLElement && typeof fila.scrollIntoView === "function") {
+        fila.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+  }, [viajePedido, rows]);
   // Detalle rico (chofer, camión, quién/cuándo lo cargó), traído al expandir.
   const [detalles, setDetalles] = useState<
     Record<string, ViajeDetalle | "loading" | "error">
@@ -1031,7 +1053,10 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             rows.map((v) => (
               <React.Fragment key={v.id}>
                 <TableRow
-                  className="hover:bg-muted/40 transition-colors cursor-pointer"
+                  data-viaje-id={v.id}
+                  className={`transition-colors cursor-pointer ${
+                    viajePedido === v.id ? "bg-primary/[0.06]" : "hover:bg-muted/40"
+                  }`}
                   tabIndex={0}
                   onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
                   onKeyDown={(e) => {

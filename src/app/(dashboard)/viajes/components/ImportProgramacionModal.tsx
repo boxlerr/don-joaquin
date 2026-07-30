@@ -33,7 +33,6 @@ import {
 import {
   importarProgramacionAction,
   previewProgramacionAction,
-  type LecturaCentro,
   type PreviewProgramacion,
 } from "../import-programacion/actions";
 
@@ -42,21 +41,6 @@ function fmtFecha(iso: string | null): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
-
-const LECTURAS: { id: LecturaCentro; titulo: string; detalle: string }[] = [
-  {
-    id: "destino",
-    titulo: "Cada fila dice a dónde VA",
-    detalle:
-      "El origen de una etapa es el destino de la anterior. Es lo que sugiere el archivo, donde Centro y Destinatario coinciden.",
-  },
-  {
-    id: "origen",
-    titulo: "El Centro es de dónde SALE",
-    detalle:
-      "A111/A109 es la planta de salida y el destinatario es a dónde va. Es lo que sugiere tu hoja escrita a mano.",
-  },
-];
 
 export default function ImportProgramacionModal({
   open,
@@ -67,7 +51,6 @@ export default function ImportProgramacionModal({
 }) {
   const router = useRouter();
   const [archivo, setArchivo] = useState<{ nombre: string; base64: string } | null>(null);
-  const [lectura, setLectura] = useState<LecturaCentro>("destino");
   const [preview, setPreview] = useState<PreviewProgramacion | null>(null);
   const [cargando, setCargando] = useState(false);
   const [importando, setImportando] = useState(false);
@@ -81,13 +64,10 @@ export default function ImportProgramacionModal({
     setResultado(null);
   };
 
-  const pedirPreview = async (
-    a: { nombre: string; base64: string },
-    l: LecturaCentro,
-  ) => {
+  const pedirPreview = async (a: { nombre: string; base64: string }) => {
     setCargando(true);
     setError(null);
-    const res = await previewProgramacionAction(a.base64, a.nombre, l);
+    const res = await previewProgramacionAction(a.base64, a.nombre);
     setCargando(false);
     if ("error" in res) {
       setPreview(null);
@@ -102,19 +82,14 @@ export default function ImportProgramacionModal({
     const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const a = { nombre: file.name, base64 };
     setArchivo(a);
-    await pedirPreview(a, lectura);
-  };
-
-  const cambiarLectura = async (l: LecturaCentro) => {
-    setLectura(l);
-    if (archivo) await pedirPreview(archivo, l);
+    await pedirPreview(a);
   };
 
   const importar = async () => {
     if (!archivo) return;
     setImportando(true);
     setError(null);
-    const res = await importarProgramacionAction(archivo.base64, archivo.nombre, lectura);
+    const res = await importarProgramacionAction(archivo.base64, archivo.nombre);
     setImportando(false);
     if ("error" in res) {
       setError(res.error);
@@ -200,37 +175,14 @@ export default function ImportProgramacionModal({
 
               {preview && (
                 <>
-                  {/* Lo único ambiguo del archivo. En vez de adivinar, se elige
-                      acá y el preview de abajo muestra el resultado. */}
-                  <div className="space-y-1.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Cómo leer la columna Centro (A111 / A109)
-                    </p>
-                    <div className="grid gap-1.5 sm:grid-cols-2">
-                      {LECTURAS.map((l) => (
-                        <button
-                          key={l.id}
-                          type="button"
-                          onClick={() => void cambiarLectura(l.id)}
-                          aria-pressed={lectura === l.id}
-                          className={`rounded-[6px] border px-2.5 py-2 text-left transition-colors ${
-                            lectura === l.id
-                              ? "border-primary/60 bg-primary/5"
-                              : "border-border hover:bg-muted/50"
-                          }`}
-                        >
-                          <span
-                            className={`block text-[12px] font-medium ${lectura === l.id ? "text-primary" : "text-foreground"}`}
-                          >
-                            {l.titulo}
-                          </span>
-                          <span className="block text-[11px] leading-snug text-muted-foreground">
-                            {l.detalle}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Se carga el Centro tal cual (A111 / A109) y el
+                      destinatario como destino. Que se lea antes de crear, no
+                      después de importar 12 viajes al revés. */}
+                  <p className="rounded-[6px] border border-border px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
+                    <b className="text-foreground">Desde</b> es el código de planta del archivo
+                    (A111 / A109) y <b className="text-foreground">hasta</b> es el destinatario.
+                    Entran así y se corrigen después desde el listado o desde “A dónde fueron”.
+                  </p>
 
                   <div className="flex flex-wrap gap-2 text-[12px]">
                     <span className="rounded-[6px] border border-border px-2 py-1">

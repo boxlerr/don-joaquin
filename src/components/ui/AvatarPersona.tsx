@@ -47,6 +47,36 @@ const PALETTE = [
   "#475569", // slate
 ];
 
+/**
+ * Identidad de la persona, sin importar cómo escribió el nombre cada pantalla.
+ *
+ * El color salía de hashear el string tal cual llegaba, y cada pantalla lo arma
+ * distinto: Vacaciones manda "Miguel Angel Pittana" y el listado de viajes
+ * "Pittana, Miguel Angel". Mismo chofer, dos hashes, dos colores — el avatar
+ * parecía de otra persona según dónde se lo mirara.
+ *
+ * Así que la clave se canoniza: sin acentos, sin puntuación, en minúsculas y con
+ * las palabras ordenadas. Cualquier orden del mismo nombre cae en el mismo
+ * color, que es lo único que hace que el avatar sea DE la persona y no de la
+ * pantalla.
+ */
+export function claveIdentidad(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+/** El color de una persona. Estable en todo el sistema. */
+export function colorDePersona(nombre: string): string {
+  return PALETTE[hashNombre(claveIdentidad(nombre)) % PALETTE.length]!;
+}
+
 /** Hash simple y estable (djb2) para elegir el color por nombre. */
 function hashNombre(s: string): number {
   let h = 5381;
@@ -98,7 +128,7 @@ export default function AvatarPersona({
   title,
   className = "",
 }: Props) {
-  const color = PALETTE[hashNombre(name) % PALETTE.length];
+  const color = colorDePersona(name);
 
   if (src) {
     return (

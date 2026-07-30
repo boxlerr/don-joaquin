@@ -344,6 +344,7 @@ export async function actualizarViajeHojaRutaAction(
     tonelaje_real?: number | null;
     nro_remito?: string | null;
     monto_flete?: number | null;
+    material?: string | null;
   },
 ): Promise<{ ok?: boolean; error?: string }> {
   const user = await requireArea("viajes", "write");
@@ -353,7 +354,7 @@ export async function actualizarViajeHojaRutaAction(
   const { data: previo } = await (supabase as any)
     .from("viajes")
     .select(
-      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete,
+      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete, material,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -382,6 +383,8 @@ export async function actualizarViajeHojaRutaAction(
   }
 
   if (data.nro_remito !== undefined) payload.nro_remito = data.nro_remito || null;
+  // Qué llevaba: lo escribe quien recibe el remito, así que se corrige acá.
+  if (data.material !== undefined) payload.material = data.material || null;
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
     // Misma regla que la edición de remito: tener valor = facturado y cobrado.
@@ -409,6 +412,7 @@ export async function actualizarViajeHojaRutaAction(
       tonelaje_real: previo.tonelaje_real,
       nro_remito: previo.nro_remito,
       monto_flete: previo.monto_flete,
+      material: previo.material,
     },
     valoresNuevos: {
       ...(data.origen_nombre !== undefined ? { origen: data.origen_nombre } : {}),
@@ -418,6 +422,7 @@ export async function actualizarViajeHojaRutaAction(
       ...(data.tonelaje_real !== undefined ? { tonelaje_real: data.tonelaje_real } : {}),
       ...(data.nro_remito !== undefined ? { nro_remito: data.nro_remito } : {}),
       ...(data.monto_flete !== undefined ? { monto_flete: data.monto_flete } : {}),
+      ...(data.material !== undefined ? { material: data.material } : {}),
     },
     metadata: { origen: "hoja_ruta" },
   });
@@ -436,6 +441,7 @@ export type CambioViajeHr = {
   tonelaje_real?: number | null;
   nro_remito?: string | null;
   monto_flete?: number | null;
+  material?: string | null;
 };
 
 /**
