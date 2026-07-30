@@ -206,6 +206,36 @@ export async function previewProgramacionAction(
   };
 }
 
+/**
+ * `count` códigos de viaje seguidos (`V-AAAA-NNNNN`).
+ *
+ * La columna `codigo` es NOT NULL y la base no la genera: sin esto el importador
+ * fallaba en todas las filas. Misma numeración que el alta manual, así que los
+ * viajes importados quedan en la misma serie que los cargados a mano.
+ */
+async function generarCodigos(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  count: number,
+): Promise<string[]> {
+  const prefijo = `V-${new Date().getFullYear()}-`;
+  const { data, error } = await supabase
+    .from("viajes")
+    .select("codigo")
+    .like("codigo", `${prefijo}%`)
+    .order("codigo", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  let proximo = 1;
+  const ultimo = (data ?? [])[0]?.codigo as string | undefined;
+  if (ultimo) {
+    const n = parseInt(ultimo.slice(prefijo.length), 10);
+    if (Number.isFinite(n)) proximo = n + 1;
+  }
+  return Array.from({ length: count }, (_, i) => `${prefijo}${String(proximo + i).padStart(5, "0")}`);
+}
+
 /** Punto de ruta por nombre, creándolo si no existía. */
 async function getOrCreatePunto(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -272,13 +302,15 @@ export async function importarProgramacionAction(
   const puntoPorNombre = new Map<string, string | null>();
   for (const n of nombres) puntoPorNombre.set(n, await getOrCreatePunto(supabase, n));
 
+  const codigos = await generarCodigos(supabase, aCrear.length);
+
   const errores: string[] = [];
   let creados = 0;
 
-  for (const v of aCrear) {
+  for (const [i, v] of aCrear.entries()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).from("viajes").insert({
-      // El código lo genera la base; acá va lo que trae el archivo.
+      codigo: codigos[i],
       fecha_viaje: v.fecha,
       cliente_id: cliente.id,
       tipo_carga_id: tipoCarga.id,

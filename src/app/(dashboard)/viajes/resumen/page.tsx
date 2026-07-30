@@ -1,5 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
-import { requireSeccion } from "@/lib/auth";
+import { hasSeccion, requireSeccion } from "@/lib/auth";
 import { getResumenDestinosAction } from "./actions";
 import ResumenDestinosClient from "./ResumenDestinosClient";
 
@@ -15,9 +15,11 @@ function hoyISO(): string {
  * "¿a quién mandé a Lomaser?".
  */
 export default async function ResumenViajesPage() {
-  await requireSeccion("viajes_listado", "read");
+  const user = await requireSeccion("viajes_listado", "read");
   const hoy = hoyISO();
   const inicial = await getResumenDestinosAction(hoy, hoy);
+  // Quien sólo puede mirar ve los mismos datos, sin los campos editables.
+  const canWrite = hasSeccion(user, "viajes_listado", "write");
 
   return (
     <div className="w-full space-y-6 p-8">
@@ -25,7 +27,7 @@ export default async function ResumenViajesPage() {
         title="A dónde fueron"
         description="Los viajes agrupados por destino, con qué chofer fue a cada uno"
       />
-      <ResumenDestinosClient inicial={inicial} hoy={hoy} />
+      <ResumenDestinosClient inicial={inicial} hoy={hoy} canWrite={canWrite} />
     </div>
   );
 }

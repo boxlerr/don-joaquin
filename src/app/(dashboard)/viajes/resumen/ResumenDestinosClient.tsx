@@ -17,17 +17,25 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   CalendarRange,
+  Check,
   ChevronDown,
   ChevronRight,
+  Loader2,
   MapPin,
+  Pencil,
   Search,
   Truck,
   UserRound,
   X,
 } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
+import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
 import {
+  asignarChoferViajeAction,
+  getChoferesParaAsignarAction,
   getMesesConViajesAction,
   getResumenDestinosAction,
+  type ChoferParaAsignar,
   type ResumenDestinos,
   type ViajeDelResumen,
 } from "./actions";
@@ -119,8 +127,293 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: "war
   );
 }
 
+/** Lo que se puede corregir de un viaje sin salir de acá. */
+type Borrador = { origen: string; remito: string; km: string; toneladas: string; monto: string };
+
+const borradorDe = (v: ViajeDelResumen): Borrador => ({
+  origen: v.origen ?? "",
+  remito: v.remito ?? "",
+  km: v.km ? String(v.km) : "",
+  toneladas: v.toneladas != null ? String(v.toneladas) : "",
+  monto: v.monto != null ? String(v.monto) : "",
+});
+
+const numero = (s: string): number | null => {
+  if (s.trim() === "") return null;
+  const n = parseFloat(s.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Sólo los campos que cambiaron.
+ *
+ * Mandar los siete siempre reescribía el importe con el valor que estaba en
+ * pantalla al abrir: corregir un remito podía pisar una certificación. Si no se
+ * tocó, no viaja.
+ */
+function cambiosDe(v: ViajeDelResumen, b: Borrador) {
+  const o = borradorDe(v);
+  const c: Parameters<typeof actualizarViajeHojaRutaAction>[1] = {};
+  if (b.origen.trim() !== o.origen.trim()) c.origen_nombre = b.origen.trim() || null;
+  if (b.remito.trim() !== o.remito.trim()) c.nro_remito = b.remito.trim() || null;
+  // km_con_carga es NOT NULL en la base: vaciar la celda es cero, no nulo.
+  if (b.km.trim() !== o.km.trim()) c.km_con_carga = numero(b.km) ?? 0;
+  if (b.toneladas.trim() !== o.toneladas.trim()) c.tonelaje_real = numero(b.toneladas);
+  if (b.monto.trim() !== o.monto.trim()) c.monto_flete = numero(b.monto);
+  return c;
+}
+
+const CELDA_INPUT =
+  "h-7 w-full rounded-[4px] border border-border bg-card px-1.5 text-[12px] text-foreground outline-none focus:border-primary";
+
+/** Una fila del detalle: se lee, y con el lápiz se edita en el lugar. */
+function FilaViaje({
+  viaje,
+  canWrite,
+  choferes,
+  pidiendoChoferes,
+  onPedirChoferes,
+  onGuardado,
+}: {
+  viaje: ViajeDelResumen;
+  canWrite: boolean;
+  choferes: ChoferParaAsignar[] | undefined;
+  pidiendoChoferes: boolean;
+  onPedirChoferes: (fecha: string) => void;
+  onGuardado: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [b, setB] = useState<Borrador>(() => borradorDe(viaje));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [choferId, setChoferId] = useState("");
+
+  const abrir = () => {
+    setB(borradorDe(viaje));
+    setError(null);
+    setEditando(true);
+  };
+
+  const guardar = async () => {
+    const cambios = cambiosDe(viaje, b);
+    if (Object.keys(cambios).length === 0) {
+      setEditando(false);
+      return;
+    }
+    setGuardando(true);
+    setError(null);
+    const res = await actualizarViajeHojaRutaAction(viaje.id, cambios);
+    setGuardando(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setEditando(false);
+    onGuardado();
+  };
+
+  const asignar = async (id: string) => {
+    setChoferId(id);
+    if (!id) return;
+    setGuardando(true);
+    setError(null);
+    const res = await asignarChoferViajeAction(viaje.id, id);
+    setGuardando(false);
+    if ("error" in res) {
+      setError(res.error);
+      setChoferId("");
+      return;
+    }
+    onGuardado();
+  };
+
+  const sinChofer = viaje.sinChofer;
+
+  if (editando) {
+    return (
+      <>
+        <tr className="bg-primary/[0.04] align-middle">
+          <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap text-muted-foreground">
+            {fmtFecha(viaje.fecha)}
+          </td>
+          <td className="px-2 py-1.5">
+            <input
+              value={b.origen}
+              onChange={(e) => setB({ ...b, origen: e.target.value })}
+              placeholder="desde"
+              className={CELDA_INPUT}
+            />
+          </td>
+          <td className="px-2 py-1.5">
+            <input
+              value={b.remito}
+              onChange={(e) => setB({ ...b, remito: e.target.value })}
+              placeholder="remito"
+              className={`${CELDA_INPUT} font-mono`}
+            />
+          </td>
+          <td className="px-2 py-1.5 text-[11px] text-muted-foreground">
+            {viaje.material ?? viaje.cliente ?? "—"}
+          </td>
+          <td className="px-2 py-1.5">
+            <input
+              value={b.km}
+              onChange={(e) => setB({ ...b, km: e.target.value })}
+              inputMode="decimal"
+              className={`${CELDA_INPUT} text-right tabular-nums`}
+            />
+          </td>
+          <td className="px-2 py-1.5">
+            <input
+              value={b.toneladas}
+              onChange={(e) => setB({ ...b, toneladas: e.target.value })}
+              inputMode="decimal"
+              className={`${CELDA_INPUT} text-right tabular-nums`}
+            />
+          </td>
+          <td className="py-1.5 pl-2">
+            <input
+              value={b.monto}
+              onChange={(e) => setB({ ...b, monto: e.target.value })}
+              inputMode="decimal"
+              className={`${CELDA_INPUT} text-right tabular-nums`}
+            />
+          </td>
+          <td className="py-1.5 pl-2">
+            <span className="flex items-center justify-end gap-1">
+              <button
+                type="button"
+                onClick={guardar}
+                disabled={guardando}
+                title="Guardar"
+                className="rounded-[4px] border border-primary/50 p-1 text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+              >
+                {guardando ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditando(false)}
+                disabled={guardando}
+                title="Cancelar"
+                className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          </td>
+        </tr>
+        {error && (
+          <tr>
+            <td colSpan={8} className="pb-1.5 pl-2 text-[11px] text-[#B91C1C]">
+              {error}
+            </td>
+          </tr>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <tr className="text-foreground">
+        <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap">
+          {fmtFecha(viaje.fecha)}
+        </td>
+        <td className="px-2 py-1.5">{viaje.origen ?? "—"}</td>
+        <td className="px-2 py-1.5 font-mono text-[11px]">{viaje.remito ?? "—"}</td>
+        <td className="max-w-[16rem] truncate px-2 py-1.5 text-muted-foreground">
+          {viaje.material ?? viaje.cliente ?? "—"}
+        </td>
+        <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(viaje.km)}</td>
+        <td className="px-2 py-1.5 text-right tabular-nums">
+          {viaje.toneladas ? fmtNum(viaje.toneladas, 1) : "—"}
+        </td>
+        <td className="py-1.5 pl-2 text-right tabular-nums">
+          {viaje.monto != null ? (
+            ars(viaje.monto)
+          ) : (
+            <span className="text-[#B45309]">sin importe</span>
+          )}
+        </td>
+        <td className="py-1.5 pl-2 text-right">
+          {canWrite && (
+            <button
+              type="button"
+              onClick={abrir}
+              title="Corregir este viaje"
+              className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+        </td>
+      </tr>
+
+      {/* Ponerle el chofer: el paso que el Excel de Loma no trae. */}
+      {sinChofer && canWrite && (
+        <tr>
+          <td colSpan={8} className="pb-2 pl-2">
+            {choferes ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">Va con:</span>
+                <Combobox
+                  options={choferes.map((c) => ({
+                    id: c.id,
+                    label: c.nombre,
+                    note: c.patente ?? undefined,
+                  }))}
+                  value={choferId}
+                  onValueChange={asignar}
+                  placeholder="elegir chofer…"
+                  searchPlaceholder="Buscar chofer…"
+                  disabled={guardando}
+                  triggerClassName="h-7 text-[12px]"
+                  className="min-w-[15rem]"
+                  aria-label="Asignarle un chofer a este viaje"
+                />
+                {guardando && <Loader2 size={12} className="animate-spin text-primary" />}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onPedirChoferes(viaje.fecha)}
+                disabled={pidiendoChoferes}
+                className="inline-flex items-center gap-1 rounded-[4px] border border-[#B45309]/40 px-2 py-1 text-[11px] font-medium text-[#B45309] transition-colors hover:bg-[#B45309]/10 disabled:opacity-60"
+              >
+                {pidiendoChoferes ? (
+                  <Loader2 size={11} className="animate-spin" />
+                ) : (
+                  <UserRound size={11} />
+                )}
+                Asignarle un chofer
+              </button>
+            )}
+            {error && <span className="ml-2 text-[11px] text-[#B91C1C]">{error}</span>}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 /** Los viajes de un chofer a ese destino: lo que antes había que ir a buscar. */
-function TablaViajes({ viajes, href }: { viajes: ViajeDelResumen[]; href: string }) {
+function TablaViajes({
+  viajes,
+  href,
+  canWrite,
+  choferesPorFecha,
+  pidiendoFecha,
+  onPedirChoferes,
+  onGuardado,
+}: {
+  viajes: ViajeDelResumen[];
+  href: string;
+  canWrite: boolean;
+  choferesPorFecha: Record<string, ChoferParaAsignar[]>;
+  pidiendoFecha: string | null;
+  onPedirChoferes: (fecha: string) => void;
+  onGuardado: () => void;
+}) {
   return (
     <div className="bg-muted/20 px-4 py-2">
       <table className="w-full text-[12px]">
@@ -133,27 +426,20 @@ function TablaViajes({ viajes, href }: { viajes: ViajeDelResumen[]; href: string
             <th className="px-2 py-1 text-right font-medium">KM</th>
             <th className="px-2 py-1 text-right font-medium">Tn</th>
             <th className="py-1 pl-2 text-right font-medium">Importe</th>
+            <th className="py-1 pl-2" />
           </tr>
         </thead>
         <tbody className="divide-y divide-border/50">
           {viajes.map((v) => (
-            <tr key={v.id} className="text-foreground">
-              <td className="py-1.5 pr-3 font-mono text-[11px] whitespace-nowrap">
-                {fmtFecha(v.fecha)}
-              </td>
-              <td className="px-2 py-1.5">{v.origen ?? "—"}</td>
-              <td className="px-2 py-1.5 font-mono text-[11px]">{v.remito ?? "—"}</td>
-              <td className="max-w-[16rem] truncate px-2 py-1.5 text-muted-foreground">
-                {v.material ?? v.cliente ?? "—"}
-              </td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(v.km)}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">
-                {v.toneladas ? fmtNum(v.toneladas, 1) : "—"}
-              </td>
-              <td className="py-1.5 pl-2 text-right tabular-nums">
-                {v.monto != null ? ars(v.monto) : <span className="text-[#B45309]">sin importe</span>}
-              </td>
-            </tr>
+            <FilaViaje
+              key={v.id}
+              viaje={v}
+              canWrite={canWrite}
+              choferes={choferesPorFecha[v.fecha]}
+              pidiendoChoferes={pidiendoFecha === v.fecha}
+              onPedirChoferes={onPedirChoferes}
+              onGuardado={onGuardado}
+            />
           ))}
         </tbody>
       </table>
@@ -161,7 +447,7 @@ function TablaViajes({ viajes, href }: { viajes: ViajeDelResumen[]; href: string
         href={href}
         className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
       >
-        Abrir en el listado para editarlos <ArrowUpRight size={11} />
+        Abrir en el listado <ArrowUpRight size={11} />
       </Link>
     </div>
   );
@@ -170,9 +456,11 @@ function TablaViajes({ viajes, href }: { viajes: ViajeDelResumen[]; href: string
 export default function ResumenDestinosClient({
   inicial,
   hoy,
+  canWrite,
 }: {
   inicial: ResumenDestinos;
   hoy: string;
+  canWrite: boolean;
 }) {
   const [datos, setDatos] = useState(inicial);
   const [rango, setRango] = useState<RangoId>("hoy");
@@ -182,6 +470,10 @@ export default function ResumenDestinosClient({
   const [buscarChofer, setBuscarChofer] = useState("");
   const [destinoAbierto, setDestinoAbierto] = useState<string | null>(null);
   const [choferAbierto, setChoferAbierto] = useState<string | null>(null);
+  // La lista de choferes se pide por fecha (el camión de cada uno depende de la
+  // planilla de ese día) y sólo cuando alguien va a asignar.
+  const [choferesPorFecha, setChoferesPorFecha] = useState<Record<string, ChoferParaAsignar[]>>({});
+  const [pidiendoFecha, setPidiendoFecha] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
   // Los meses con viajes se piden una vez: alimentan el selector histórico.
@@ -199,6 +491,20 @@ export default function ResumenDestinosClient({
     startTransition(async () => {
       setDatos(await getResumenDestinosAction(desde, hasta));
     });
+  };
+
+  /** Releer el rango que está en pantalla, después de editar algo. */
+  const recargar = () => cargar(datos.desde, datos.hasta);
+
+  const pedirChoferes = async (fecha: string) => {
+    if (choferesPorFecha[fecha]) return;
+    setPidiendoFecha(fecha);
+    try {
+      const lista = await getChoferesParaAsignarAction(fecha);
+      setChoferesPorFecha((prev) => ({ ...prev, [fecha]: lista }));
+    } finally {
+      setPidiendoFecha(null);
+    }
   };
 
   const elegirRango = (id: Exclude<RangoId, "personalizado">) => {
@@ -270,23 +576,20 @@ export default function ResumenDestinosClient({
 
           {/* Cualquier mes hacia atrás: el histórico ya está, faltaba pedirlo. */}
           {meses.length > 0 && (
-            <select
+            <Combobox
+              options={meses.map((m) => ({ id: m, label: labelMes(m) }))}
               value={rango === "personalizado" ? mes : ""}
-              onChange={(e) => e.target.value && elegirMes(e.target.value)}
-              className={`h-8 rounded-lg border px-2 text-xs transition-colors ${
-                rango === "personalizado"
-                  ? "border-primary/50 bg-primary/5 font-medium text-primary"
-                  : "border-border bg-card text-muted-foreground"
-              }`}
+              onValueChange={(v) => v && elegirMes(v)}
+              placeholder="Otro mes…"
+              searchPlaceholder="Buscar mes…"
               aria-label="Elegir un mes"
-            >
-              <option value="">Otro mes…</option>
-              {meses.map((m) => (
-                <option key={m} value={m}>
-                  {labelMes(m)}
-                </option>
-              ))}
-            </select>
+              className="w-[11rem]"
+              triggerClassName={
+                rango === "personalizado"
+                  ? "h-8 border-primary/50 bg-primary/5 text-xs font-medium text-primary"
+                  : "h-8 text-xs"
+              }
+            />
           )}
         </div>
 
@@ -470,6 +773,11 @@ export default function ResumenDestinosClient({
                             <TablaViajes
                               viajes={c.detalle}
                               href={hrefListado({ choferId: c.chofer_id ?? undefined })}
+                              canWrite={canWrite}
+                              choferesPorFecha={choferesPorFecha}
+                              pidiendoFecha={pidiendoFecha}
+                              onPedirChoferes={pedirChoferes}
+                              onGuardado={recargar}
                             />
                           )}
                         </div>
@@ -484,6 +792,11 @@ export default function ResumenDestinosClient({
                         <TablaViajes
                           viajes={d.sinChoferDetalle}
                           href={hrefListado({ q: d.destino, faltaChofer: true })}
+                          canWrite={canWrite}
+                          choferesPorFecha={choferesPorFecha}
+                          pidiendoFecha={pidiendoFecha}
+                          onPedirChoferes={pedirChoferes}
+                          onGuardado={recargar}
                         />
                       </div>
                     )}

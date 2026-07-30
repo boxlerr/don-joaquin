@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 /**
  * "¿A dónde mandé gente?" — el pedido de Nico:
@@ -32,6 +34,8 @@ export type ViajeDelResumen = {
   esVacio: boolean;
   cliente: string | null;
   material: string | null;
+  /** Todavía no tiene chofer: se le puede asignar desde el mismo resumen. */
+  sinChofer: boolean;
 };
 
 export type ChoferEnDestino = {
@@ -128,6 +132,7 @@ export async function getResumenDestinosAction(
   const utiles = opciones?.incluirVacios ? filas : filas.filter((f) => !f.es_vacio);
 
   const aViaje = (f: Fila, destino: string): ViajeDelResumen => ({
+    sinChofer: !f.chofer_id,
     id: f.id,
     fecha: f.fecha_viaje,
     origen: uno(f.origen)?.nombre ?? null,
@@ -224,6 +229,122 @@ export async function getResumenDestinosAction(
       km: destinos.reduce((s, d) => s + d.km, 0),
     },
   };
+}
+
+export type ChoferParaAsignar = {
+  id: string;
+  nombre: string;
+  /** El camión que le corresponde ese día (planilla diaria o el habitual). */
+  camionId: string | null;
+  patente: string | null;
+};
+
+/**
+ * Los choferes que se le pueden poner a un viaje de esa fecha, con la unidad que
+ * manejaban ese día.
+ *
+ * El camión no se elige a mano: sale de la planilla diaria de la fecha del viaje
+ * y, si ese día no hay planilla, del camión habitual. Es la misma prioridad que
+ * usa la carga de viajes — si la planilla cambió, acá cambia también.
+ */
+export async function getChoferesParaAsignarAction(fecha: string): Promise<ChoferParaAsignar[]> {
+  await requireSeccion("viajes_listado", "read");
+  const supabase = createAdminClient();
+
+  const [choferes, camiones, planilla] = await Promise.all([
+    supabase
+      .from("choferes")
+      .select("id, nombre, apellido")
+      .eq("estado", "activo")
+      .order("apellido", { ascending: true }),
+    supabase.from("camiones").select("id, patente, chofer_actual_id").eq("estado", "activo"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from("asignacion_diaria").select("chofer_id, camion_id").eq("fecha", fecha),
+  ]);
+  if (choferes.error) {
+    console.error("[resumen destinos] no se pudieron leer los choferes:", choferes.error);
+    throw new Error("No se pudo cargar la lista de choferes.");
+  }
+
+  const patentePorCamion = new Map<string, string>();
+  const camionPorChofer = new Map<string, string>();
+  for (const c of (camiones.data ?? []) as {
+    id: string;
+    patente: string;
+    chofer_actual_id: string | null;
+  }[]) {
+    patentePorCamion.set(c.id, c.patente);
+    if (c.chofer_actual_id) camionPorChofer.set(c.chofer_actual_id, c.id);
+  }
+  // La planilla de ese día pisa al habitual: un titular puede faltar y otro
+  // tomar su unidad por un día.
+  for (const a of (planilla?.data ?? []) as { chofer_id: string; camion_id: string | null }[]) {
+    if (a.camion_id) camionPorChofer.set(a.chofer_id, a.camion_id);
+  }
+
+  return ((choferes.data ?? []) as { id: string; nombre: string; apellido: string }[]).map((c) => {
+    const camionId = camionPorChofer.get(c.id) ?? null;
+    return {
+      id: c.id,
+      nombre: `${c.apellido ?? ""}, ${c.nombre ?? ""}`.trim(),
+      camionId,
+      patente: camionId ? (patentePorCamion.get(camionId) ?? null) : null,
+    };
+  });
+}
+
+/**
+ * Ponerle el chofer a un viaje que entró sin asignar.
+ *
+ * Es el paso que el Excel de la programación no trae y que Nico hoy hace con
+ * lapicera: subraya el número de transporte y escribe el nombre al lado. Acá se
+ * hace desde el mismo resumen, sin ir al listado.
+ */
+export async function asignarChoferViajeAction(
+  viajeId: string,
+  choferId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireSeccion("viajes_listado", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: viaje } = await (supabase as any)
+    .from("viajes")
+    .select("id, fecha_viaje, chofer_id, camion_id")
+    .eq("id", viajeId)
+    .maybeSingle();
+  if (!viaje) return { error: "El viaje ya no existe." };
+
+  const choferes = await getChoferesParaAsignarAction(viaje.fecha_viaje as string);
+  const elegido = choferes.find((c) => c.id === choferId);
+  if (!elegido) return { error: "Ese chofer no está activo." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("viajes")
+    .update({
+      chofer_id: choferId,
+      // Si ya tenía camión puesto a mano, no se lo cambia.
+      camion_id: viaje.camion_id ?? elegido.camionId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", viajeId);
+  if (error) return { error: error.message };
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "viaje",
+    entidadId: viajeId,
+    valoresAnteriores: { chofer_id: viaje.chofer_id, camion_id: viaje.camion_id },
+    valoresNuevos: { chofer_id: choferId, camion_id: viaje.camion_id ?? elegido.camionId },
+    metadata: { origen: "resumen_destinos" },
+  });
+
+  revalidatePath("/viajes");
+  revalidatePath("/viajes/resumen");
+  return { ok: true };
 }
 
 /**
