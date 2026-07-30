@@ -18,7 +18,15 @@ const ROLES: { value: string; label: string }[] = [
 ];
 const rolLabel = (r: string | null | undefined) =>
   ROLES.find((o) => o.value === (r || "chofer"))?.label ?? "Chofer";
-import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
+import {
+  getLegajoEstado,
+  MENSAJE_LEGAJO_INCOMPLETO,
+  formatCuil,
+  normalizarDni,
+  validarCuil,
+  validarDni,
+  validarFechasLegajo,
+} from "@/lib/chofer-validation";
 import CamionAsignacion from "./CamionAsignacion";
 import EmergencyContactsEditor, { EmergencyContactsView, parseContactos } from "./EmergencyContactsEditor";
 
@@ -45,6 +53,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
+  const [dni, setDni] = useState(chofer.dni ?? "");
+  const [cuil, setCuil] = useState((chofer as { cuil?: string | null }).cuil ?? "");
+  const [fechaNacimiento, setFechaNacimiento] = useState(chofer.fecha_nacimiento ?? "");
+  const [fechaIngreso, setFechaIngreso] = useState(chofer.fecha_ingreso ?? "");
+  const [email, setEmail] = useState(chofer.email ?? "");
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
@@ -71,10 +84,13 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     return new Date(s).toLocaleDateString("es-AR");
   };
 
-  // Edad calculada desde la fecha de nacimiento.
+  // Edad calculada desde la fecha de nacimiento. Editando sigue a lo que se
+  // está tipeando: si no, se corrige la fecha y la edad de al lado sigue con la
+  // vieja hasta guardar.
   const edad = (() => {
-    if (!chofer.fecha_nacimiento) return null;
-    const nac = new Date(chofer.fecha_nacimiento);
+    const desde = editing ? fechaNacimiento : chofer.fecha_nacimiento;
+    if (!desde) return null;
+    const nac = new Date(desde);
     if (Number.isNaN(nac.getTime())) return null;
     const hoy = new Date();
     let e = hoy.getFullYear() - nac.getFullYear();
@@ -86,6 +102,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
+    setDni(chofer.dni ?? "");
+    setCuil((chofer as { cuil?: string | null }).cuil ?? "");
+    setFechaNacimiento(chofer.fecha_nacimiento ?? "");
+    setFechaIngreso(chofer.fecha_ingreso ?? "");
+    setEmail(chofer.email ?? "");
     setTelefono(chofer.telefono ?? "");
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
@@ -106,6 +127,18 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     const errs: Record<string, string> = {};
     if (!nombre.trim()) errs.nombre = "El nombre es requerido.";
     if (!apellido.trim()) errs.apellido = "El apellido es requerido.";
+    const errDni = validarDni(dni);
+    if (errDni) errs.dni = errDni;
+    const errCuil = validarCuil(cuil);
+    if (errCuil) errs.cuil = errCuil;
+    const errFecha = validarFechasLegajo({
+      fecha_nacimiento: fechaNacimiento,
+      fecha_ingreso: fechaIngreso,
+      fecha_egreso: chofer.fecha_egreso,
+    });
+    if (errFecha) errs[errFecha.campo] = errFecha.mensaje;
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      errs.email = "El email no parece válido.";
     const telDigits = telefono.replace(/\D/g, "");
     if (telDigits && telDigits.length < 10) errs.telefono = "El teléfono debe tener al menos 10 dígitos.";
     // Validamos cada contacto de emergencia por separado: si tiene teléfono,
@@ -125,19 +158,26 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     if (!validateEdicion()) return;
     setError(null);
     startTransition(async () => {
+      // Vacío va como null (no undefined): así borrar un dato mal cargado
+      // realmente lo borra en vez de dejarlo como estaba.
       const res = await updateChoferInfoAction(chofer.id, {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
-        telefono: telefono.trim() || undefined,
-        telefono_emergencia: telefonoEmergencia.trim() || undefined,
-        domicilio: domicilio.trim() || undefined,
-        ciudad_nacimiento: ciudadNacimiento.trim() || undefined,
-        localidad: localidad.trim() || undefined,
-        provincia: provincia.trim() || undefined,
-        banco: banco.trim() || undefined,
-        cbu: cbu.trim() || undefined,
-        alias_cbu: aliasCbu.trim() || undefined,
-        alta_afip: altaAfip || undefined,
+        dni: normalizarDni(dni) || null,
+        cuil: cuil.trim() || null,
+        fecha_nacimiento: fechaNacimiento || null,
+        fecha_ingreso: fechaIngreso || null,
+        email: email.trim() || null,
+        telefono: telefono.trim() || null,
+        telefono_emergencia: telefonoEmergencia.trim() || null,
+        domicilio: domicilio.trim() || null,
+        ciudad_nacimiento: ciudadNacimiento.trim() || null,
+        localidad: localidad.trim() || null,
+        provincia: provincia.trim() || null,
+        banco: banco.trim() || null,
+        cbu: cbu.trim() || null,
+        alias_cbu: aliasCbu.trim() || null,
+        alta_afip: altaAfip || null,
         rol: rol || "chofer",
       });
       if (res.error) {
@@ -202,23 +242,70 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
             Personal y laboral
           </h4>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-            <Field label="DNI"><Value v={chofer.dni} mono /></Field>
-            <Field label="CUIL"><Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono /></Field>
+            <Field label="DNI">
+              {editing ? (
+                <EditField error={fieldErrors.dni}>
+                  <Input
+                    value={dni}
+                    onChange={(e) => setDni(normalizarDni(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="—"
+                    className={`font-mono h-8 text-sm ${fieldErrors.dni ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={chofer.dni} mono />}
+            </Field>
+            <Field label="CUIL">
+              {editing ? (
+                <EditField error={fieldErrors.cuil}>
+                  <Input
+                    value={cuil}
+                    onChange={(e) => setCuil(formatCuil(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="20-12345678-9"
+                    className={`font-mono h-8 text-sm ${fieldErrors.cuil ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono />}
+            </Field>
             <Field label="Estado">
               <Value v={chofer.estado === "baja" ? "egresado" : chofer.estado} />
+              {/* El estado no se toca acá: egresar pide motivo y fecha, y se
+                  hace desde el listado. Sin la aclaración parece un olvido. */}
+              {editing && <Nota>Se cambia desde el listado (Egresar / Reactivar).</Nota>}
             </Field>
             <Field label="Fecha nacimiento">
-              <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />
+              {editing ? (
+                <EditField error={fieldErrors.fecha_nacimiento}>
+                  <Input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.fecha_nacimiento ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />}
             </Field>
             <Field label="Edad">
               <Value v={edad != null ? `${edad} años` : "—"} />
+              {editing && <Nota>Se calcula sola.</Nota>}
             </Field>
             <Field label="Fecha ingreso">
-              <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />
+              {editing ? (
+                <EditField error={fieldErrors.fecha_ingreso}>
+                  <Input
+                    type="date"
+                    value={fechaIngreso}
+                    onChange={(e) => setFechaIngreso(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.fecha_ingreso ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />}
             </Field>
             {chofer.estado === "baja" && (
               <Field label="Fecha egreso">
                 <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />
+                {editing && <Nota>Se edita en el panel de egreso, arriba.</Nota>}
               </Field>
             )}
             <Field label="Ciudad de nacimiento">
@@ -295,6 +382,20 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                   {fieldErrors.telefono && <p className="text-red-500 text-[11px]">{fieldErrors.telefono}</p>}
                 </div>
               ) : <Value v={chofer.telefono} />}
+            </Field>
+            {/* El email estaba en el encabezado y en ningún lado se podía cargar. */}
+            <Field label="Email">
+              {editing ? (
+                <EditField error={fieldErrors.email}>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.email ? "border-red-400" : ""}`}
+                    placeholder="—"
+                  />
+                </EditField>
+              ) : <Value v={chofer.email} />}
             </Field>
             <div className="col-span-2">
               <Field label="Contactos de emergencia">
@@ -475,6 +576,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/** Campo en edición: el input y, debajo, el error de validación si lo hay. */
+function EditField({ error, children }: { error?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-0.5">
+      {children}
+      {error && <p className="text-red-500 text-[11px]">{error}</p>}
+    </div>
+  );
+}
+
+/** Aclaración de por qué un dato no se edita acá (o sale solo). */
+function Nota({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] text-muted-foreground/80">{children}</p>;
 }
 
 function Value({ v, mono }: { v?: string | null; mono?: boolean }) {

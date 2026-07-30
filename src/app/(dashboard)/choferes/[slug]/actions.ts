@@ -6,6 +6,13 @@ import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
+import {
+  formatCuil,
+  normalizarDni,
+  validarCuil,
+  validarDni,
+  validarFechasLegajo,
+} from "@/lib/chofer-validation";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
 import {
@@ -2213,20 +2220,28 @@ export async function updateDocumentoChoferAction(input: {
 
 export async function updateChoferInfoAction(
   chofer_id: string,
+  // Los campos que aceptan null se pueden vaciar: mandar undefined no borra nada
+  // (Supabase ni siquiera manda la columna), así que un dato cargado por error
+  // quedaba para siempre.
   data: Partial<{
     nombre: string;
     apellido: string;
-    telefono: string;
-    domicilio: string;
-    cbu: string;
-    alias_cbu: string;
-    banco: string;
-    telefono_emergencia: string;
-    ciudad_nacimiento: string;
-    localidad: string;
-    provincia: string;
-    alta_afip: string;
-    periodo_prueba_fin: string;
+    dni: string | null;
+    cuil: string | null;
+    email: string | null;
+    telefono: string | null;
+    domicilio: string | null;
+    cbu: string | null;
+    alias_cbu: string | null;
+    banco: string | null;
+    telefono_emergencia: string | null;
+    ciudad_nacimiento: string | null;
+    localidad: string | null;
+    provincia: string | null;
+    fecha_nacimiento: string | null;
+    fecha_ingreso: string | null;
+    alta_afip: string | null;
+    periodo_prueba_fin: string | null;
     rol: string;
   }>
 ) {
@@ -2235,26 +2250,61 @@ export async function updateChoferInfoAction(
   const supabase = createAdminClient();
 
   const camposEditables = Object.keys(data) as (keyof typeof data)[];
-  const { data: previo } = await supabase
+  if (camposEditables.length === 0) return { success: true };
+
+  // Las fechas se validan entre sí, así que hay que conocer las que NO vinieron
+  // en esta edición (ej: se cambia el ingreso y el nacimiento está en la base).
+  const columnasPrevio = [
+    ...new Set([...camposEditables as string[], "fecha_nacimiento", "fecha_ingreso", "fecha_egreso"]),
+  ];
+  const { data: previoRaw } = await supabase
     .from("choferes")
-    .select(camposEditables.join(", "))
+    .select(columnasPrevio.join(", "))
     .eq("id", chofer_id)
     .single();
+  const previo = (previoRaw ?? null) as Record<string, unknown> | null;
+
+  // Normalizar identificatorios con las mismas reglas que el alta.
+  const payload = { ...data };
+  if (payload.dni !== undefined) payload.dni = normalizarDni(payload.dni ?? "") || null;
+  if (payload.cuil !== undefined) payload.cuil = formatCuil(payload.cuil ?? "") || null;
+
+  const errorFormato = validarDni(payload.dni) ?? validarCuil(payload.cuil);
+  if (errorFormato) return { error: errorFormato };
+
+  // Para cada fecha: la que se está editando, o la que ya estaba guardada.
+  // El egreso no se edita acá (tiene su propio panel), pero se usa para comparar.
+  const guardada = (campo: string) => (previo?.[campo] as string | null | undefined) ?? null;
+  const errorFecha = validarFechasLegajo({
+    fecha_nacimiento:
+      payload.fecha_nacimiento !== undefined ? payload.fecha_nacimiento : guardada("fecha_nacimiento"),
+    fecha_ingreso:
+      payload.fecha_ingreso !== undefined ? payload.fecha_ingreso : guardada("fecha_ingreso"),
+    fecha_egreso: guardada("fecha_egreso"),
+  });
+  if (errorFecha) return { error: errorFecha.mensaje };
 
   const { error } = await supabase
     .from("choferes")
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("id", chofer_id);
-  if (error) return { error: "Error al actualizar" };
+  if (error) {
+    // DNI y CUIL son UNIQUE: sin este mensaje el usuario ve "Error al actualizar"
+    // y no se entera de que el dato ya está en otro legajo.
+    if (error.code === "23505") {
+      const dup = /cuil/i.test(error.message) ? "CUIL" : "DNI";
+      return { error: `Ya hay otro legajo con ese ${dup}.` };
+    }
+    return { error: "Error al actualizar" };
+  }
 
-  await supabase.from("audit_log").insert({
-    usuario_id: user.id,
-    accion: "actualizar",
-    entidad_tipo: "chofer",
-    entidad_id: chofer_id,
-    valores_anteriores: previo ?? null,
-    valores_nuevos: data,
-  });
+  // La auditoría guarda sólo los campos tocados (previo trae más columnas para
+  // poder validar las fechas).
+  const valoresAnteriores: Record<string, unknown> | null = previo
+    ? Object.fromEntries(camposEditables.map((k) => [k, previo[k as string] ?? null]))
+    : null;
+
+  await logChoferAudit(chofer_id, "actualizar", valoresAnteriores, payload, user.id);
 
   revalidatePath("/choferes/[slug]", "page");
   return { success: true };

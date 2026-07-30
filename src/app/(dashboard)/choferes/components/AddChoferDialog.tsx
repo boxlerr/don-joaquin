@@ -284,7 +284,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               name="dni"
               placeholder="Ej: 12345678"
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => setDni(normalizarDni(e.target.value))}
               icon={Fingerprint}
               error={fieldErrors.dni}
             />

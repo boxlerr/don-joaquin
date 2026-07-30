@@ -4,10 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
+import { normalizarDni, validarCuil, validarDni } from "@/lib/chofer-validation";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
-
-const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
 
 // Solo bloqueamos lo mínimo para tener un registro identificable + formato
 // inválido (si vino con datos basura). Lo demás se guarda como "legajo
@@ -16,16 +15,14 @@ const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
 function serverValidateChofer(data: {
   nombre: string;
   apellido: string;
+  dni?: string;
   cuil?: string;
   telefono?: string;
 }): string | null {
   if (!data.nombre.trim()) return "El nombre es requerido.";
   if (!data.apellido.trim()) return "El apellido es requerido.";
-  const cuilDigits = (data.cuil ?? "").replace(/\D/g, "");
-  if (cuilDigits.length > 0) {
-    if (cuilDigits.length !== 11) return "El CUIL debe tener 11 dígitos.";
-    if (!CUIL_PREFIXES.includes(cuilDigits.slice(0, 2))) return "Prefijo de CUIL inválido.";
-  }
+  const errorIdentificatorio = validarDni(data.dni) ?? validarCuil(data.cuil);
+  if (errorIdentificatorio) return errorIdentificatorio;
   const telDigits = (data.telefono ?? "").replace(/\D/g, "");
   if (telDigits.length > 0 && telDigits.length < 10) {
     return "El teléfono debe tener al menos 10 dígitos.";
@@ -56,7 +53,8 @@ export async function addChoferAction(data: {
   const insertData = {
     nombre: data.nombre.trim(),
     apellido: data.apellido.trim(),
-    dni: data.dni?.trim() || null,
+    // Solo dígitos: la columna es UNIQUE y "20.393.903" entraría como otra persona.
+    dni: normalizarDni(data.dni ?? "") || null,
     cuil: data.cuil?.trim() || null,
     telefono: data.telefono?.trim() || null,
     email: data.email?.trim() || null,
