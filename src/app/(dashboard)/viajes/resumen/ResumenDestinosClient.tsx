@@ -215,12 +215,15 @@ export default function ResumenDestinosClient({
   };
 
   /** El listado con las mismas fechas y, si hace falta, el destino ya buscado. */
-  const hrefListado = (extra?: { q?: string; choferId?: string }) => {
+  const hrefListado = (extra?: { q?: string; choferId?: string; faltaChofer?: boolean }) => {
     // "custom" es la clave que entiende el listado (resolverRango); con otra
     // cosa cae al default de 3 meses y el link llevaría a otro período.
     const p = new URLSearchParams({ rango: "custom", desde: datos.desde, hasta: datos.hasta });
     if (extra?.q) p.set("q", extra.q);
     if (extra?.choferId) p.set("choferId", extra.choferId);
+    // Los importados de la programación entran sin chofer: el listado los junta
+    // con ?falta=chofer, que es la pantalla donde se les asigna.
+    if (extra?.faltaChofer) p.set("falta", "chofer");
     return `/viajes?${p.toString()}`;
   };
 
@@ -349,11 +352,13 @@ export default function ResumenDestinosClient({
         <Kpi label="Destinos" value={fmtNum(datos.totales.destinos)} />
         <Kpi label="Choferes" value={fmtNum(datos.totales.choferes)} />
         <Kpi label="KM" value={fmtNum(datos.totales.km)} />
-        <Kpi
-          label="Sin chofer"
-          value={fmtNum(datos.totales.sinChofer)}
-          tone={datos.totales.sinChofer > 0 ? "warning" : undefined}
-        />
+        {datos.totales.sinChofer > 0 ? (
+          <Link href={hrefListado({ faltaChofer: true })} title="Asignarles el chofer">
+            <Kpi label="Sin chofer · asignar" value={fmtNum(datos.totales.sinChofer)} tone="warning" />
+          </Link>
+        ) : (
+          <Kpi label="Sin chofer" value={fmtNum(datos.totales.sinChofer)} />
+        )}
       </div>
 
       {destinos.length === 0 ? (
@@ -478,7 +483,7 @@ export default function ResumenDestinosClient({
                         </p>
                         <TablaViajes
                           viajes={d.sinChoferDetalle}
-                          href={hrefListado({ q: d.destino })}
+                          href={hrefListado({ q: d.destino, faltaChofer: true })}
                         />
                       </div>
                     )}
