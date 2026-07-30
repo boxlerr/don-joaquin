@@ -6,10 +6,12 @@
  * Nico: "hoy paso tres viajes a Lomaser, dos a Escobar; para no tener que
  * entrar chofer por chofer para ver a dónde fue el último viaje que le di".
  *
- * Tres niveles: destino → choferes que fueron → los viajes de cada uno, con
- * fecha, remito, km e importe. Todo acá, sin saltar de pantalla; y cuando hace
- * falta el viaje entero, cada nivel linkea al listado con los mismos filtros ya
- * puestos.
+ * Cada chofer aparece UNA sola vez, en el lugar donde terminó su último viaje.
+ * Antes salía en todos los destinos a los que había ido —Mehring en Lomaser y en
+ * Ramallo— y para decidir a quién darle el próximo viaje eso es ruido.
+ *
+ * Tres niveles: lugar → choferes que quedaron ahí → sus viajes del período, con
+ * fecha, de dónde salió, remito, km e importe. Todo acá, sin saltar de pantalla.
  */
 
 import { useEffect, useMemo, useState, useTransition } from "react";
@@ -327,6 +329,9 @@ function FilaViaje({
               className={CELDA_INPUT}
             />
           </td>
+          <td className="px-2 py-1.5 text-[12px] font-medium text-muted-foreground">
+            {viaje.destino}
+          </td>
           <td className="px-2 py-1.5">
             <input
               value={b.remito}
@@ -392,7 +397,7 @@ function FilaViaje({
         </tr>
         {error && (
           <tr>
-            <td colSpan={8} className="pb-1.5 pl-2 text-[11px] text-[#B91C1C]">
+            <td colSpan={9} className="pb-1.5 pl-2 text-[11px] text-[#B91C1C]">
               {error}
             </td>
           </tr>
@@ -417,6 +422,7 @@ function FilaViaje({
           {fmtFecha(viaje.fecha)}
         </td>
         <td className="px-2 py-2 font-medium">{viaje.origen ?? "—"}</td>
+        <td className="px-2 py-2 font-semibold text-foreground">{viaje.destino}</td>
         <td className="px-2 py-2 font-mono text-[11.5px] font-semibold">
           {viaje.remito ?? <span className="font-sans font-normal text-muted-foreground/60">—</span>}
         </td>
@@ -476,7 +482,7 @@ function FilaViaje({
       {/* Ponerle el chofer: el paso que el Excel de Loma no trae. */}
       {sinChofer && canWrite && (
         <tr>
-          <td colSpan={8} className="pb-2 pl-2">
+          <td colSpan={9} className="pb-2 pl-2">
             {choferes ? (
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] text-muted-foreground">Va con:</span>
@@ -550,6 +556,7 @@ function TablaViajes({
           <tr className="border-y border-border bg-muted text-[10.5px] uppercase tracking-wide text-muted-foreground">
             <th className="py-2 pl-3 pr-3 text-left font-bold">Fecha</th>
             <th className="px-2 py-2 text-left font-bold">Desde</th>
+            <th className="px-2 py-2 text-left font-bold">Hasta</th>
             <th className="px-2 py-2 text-left font-bold">Remito</th>
             <th className="px-2 py-2 text-left font-bold">Material</th>
             <th className="px-2 py-2 text-right font-bold">KM</th>
@@ -864,15 +871,19 @@ export default function ResumenDestinosClient({
           pie={
             datos.totales.viajes === 0
               ? "todavía no se cargó ninguno"
-              : `${fmtNum(datos.totales.viajes / Math.max(datos.totales.destinos, 1), 1)} viajes por destino`
+              : `${fmtNum(datos.totales.viajes / Math.max(datos.totales.destinos, 1), 1)} por lugar`
           }
         />
         <Metrica
-          label="Destinos"
+          label="Lugares"
           valor={fmtNum(datos.totales.destinos)}
           icono={MapPin}
           color="#7C3AED"
-          pie={destinos[0] ? `el más cargado: ${destinos[0].destino}` : "sin destinos en el período"}
+          pie={
+            destinos[0]
+              ? `donde más hay: ${destinos[0].destino}`
+              : "sin movimiento en el período"
+          }
         />
         <Metrica
           label="Choferes"
@@ -881,7 +892,7 @@ export default function ResumenDestinosClient({
           color="#0D9488"
           pie={
             datos.totales.choferes > 0
-              ? `${fmtNum(datos.totales.viajes / datos.totales.choferes, 1)} viajes por chofer`
+              ? `${fmtNum(datos.totales.viajes / datos.totales.choferes, 1)} viajes cada uno`
               : "nadie salió en el período"
           }
         />
@@ -915,8 +926,8 @@ export default function ResumenDestinosClient({
       {destinos.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-border bg-muted/30 py-14 text-center text-sm font-medium text-muted-foreground">
           {hayFiltro
-            ? "Ningún destino coincide con lo que buscaste."
-            : "No hay viajes cargados en este período."}
+            ? "Ningún lugar coincide con lo que buscaste."
+            : "No hay viajes cargados en este período, así que no hay dónde ubicar a nadie."}
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -949,9 +960,11 @@ export default function ResumenDestinosClient({
                       <span className="truncate text-[16px] font-bold tracking-tight text-foreground">
                         {d.destino}
                       </span>
-                      <span className="shrink-0 rounded-[4px] border border-border bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                        {d.choferes.length} chofer{d.choferes.length !== 1 ? "es" : ""}
-                      </span>
+                      {d.choferes.length > 0 && (
+                        <span className="shrink-0 rounded-[4px] border border-[#059669]/40 bg-[#059669]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#047857]">
+                          {d.choferes.length} {d.choferes.length !== 1 ? "quedaron" : "quedó"} acá
+                        </span>
+                      )}
                       {d.sinChofer > 0 && (
                         <span className="shrink-0 rounded-[4px] border border-[#B45309]/40 px-1.5 py-0.5 text-[11px] font-medium text-[#B45309]">
                           {d.sinChofer} sin asignar
@@ -969,13 +982,21 @@ export default function ResumenDestinosClient({
                           <b className="font-semibold text-foreground">{fmtNum(d.km)}</b> km
                         </span>
                       )}
-                      {/* El número solo no decía de qué era. */}
+                      {d.ultimaLlegada && (
+                        <span className="whitespace-nowrap">
+                          última llegada{" "}
+                          <b className="font-semibold text-foreground">
+                            {fmtFecha(d.ultimaLlegada)}
+                          </b>
+                        </span>
+                      )}
+                      {/* Lo que importa acá es cuánta gente hay parada. */}
                       <span className="flex items-baseline gap-1">
                         <span className="text-[20px] font-bold leading-none tracking-tight text-primary">
-                          {d.viajes}
+                          {d.choferes.length}
                         </span>
                         <span className="text-[11.5px] font-medium">
-                          viaje{d.viajes !== 1 ? "s" : ""}
+                          chofer{d.choferes.length !== 1 ? "es" : ""}
                         </span>
                       </span>
                     </span>
@@ -993,7 +1014,7 @@ export default function ResumenDestinosClient({
                   <div className="border-t border-border">
                     {d.choferes.length === 0 && d.sinChofer === 0 ? (
                       <p className="px-4 py-3 text-[13px] text-muted-foreground">
-                        Sin choferes que coincidan con la búsqueda.
+                        Ningún chofer coincide con la búsqueda.
                       </p>
                     ) : null}
 
@@ -1058,10 +1079,18 @@ export default function ResumenDestinosClient({
                                   <b className="font-semibold text-foreground">{c.viajes}</b> viaje
                                   {c.viajes !== 1 ? "s" : ""}
                                 </span>
+                                {/* El tramo con el que llegó: "fue a Lomaser
+                                    después de Ramallo, y ahí quedó". */}
+                                {c.vinoDe && (
+                                  <span className="whitespace-nowrap">
+                                    vino de{" "}
+                                    <b className="font-semibold text-foreground">{c.vinoDe}</b>
+                                  </span>
+                                )}
                                 <span className="whitespace-nowrap">
-                                  último el{" "}
+                                  llegó el{" "}
                                   <b className="font-semibold text-foreground">
-                                    {fmtFecha(c.ultimo)}
+                                    {fmtFecha(c.llegoEl)}
                                   </b>
                                 </span>
                               </span>

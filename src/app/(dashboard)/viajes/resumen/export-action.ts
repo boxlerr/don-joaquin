@@ -29,10 +29,11 @@ const MONEY_FMT = '"$" #,##0.00';
 const COLS_DESTINO: ProColumn[] = [
   { header: "Chofer", width: 30, align: "l" },
   { header: "Camión", width: 13 },
-  { header: "Viajes", width: 9, numFmt: "#,##0" },
+  { header: "Viajes del período", width: 17, numFmt: "#,##0" },
   { header: "Toneladas", width: 12, numFmt: "#,##0.0" },
   { header: "KM", width: 11, numFmt: "#,##0" },
-  { header: "Último viaje", width: 14 },
+  { header: "Llegó el", width: 13 },
+  { header: "Venía de", width: 24, align: "l" },
 ];
 
 const COLS_VIAJES: ProColumn[] = [
@@ -74,12 +75,12 @@ export async function exportarResumenDestinosAction(
   const secciones: ProSection[] = destinos.map((d) => {
     const rows: CellValue[][] = d.choferes.map(filaChofer);
     if (d.sinChofer > 0) {
-      rows.push([SIN_CHOFER, "—", d.sinChofer, null, null, "—"]);
+      rows.push([SIN_CHOFER, "—", d.sinChofer, null, null, "—", "—"]);
     }
     return {
-      label: `${d.destino} — ${d.viajes} viaje${d.viajes !== 1 ? "s" : ""}`,
+      label: `${d.destino} — ${d.choferes.length} chofer${d.choferes.length !== 1 ? "es" : ""} quedaron acá`,
       rows,
-      subtotals: [["TOTAL", null, d.viajes, siHay(d.toneladas), siHay(d.km), null]],
+      subtotals: [["TOTAL", null, d.viajes, siHay(d.toneladas), siHay(d.km), null, null]],
     };
   });
 
@@ -89,6 +90,7 @@ export async function exportarResumenDestinosAction(
   const totalTn = destinos.reduce((s, d) => s + d.toneladas, 0);
   const totalKm = destinos.reduce((s, d) => s + d.km, 0);
   const totalViajes = destinos.reduce((s, d) => s + d.viajes, 0);
+  const totalChoferes = destinos.reduce((s, d) => s + d.choferes.length, 0);
   const totalImporte = filasViajes.reduce(
     (s, f) => s + (typeof f[10] === "number" ? f[10] : 0),
     0,
@@ -96,11 +98,11 @@ export async function exportarResumenDestinosAction(
 
   const buffer = await buildMultiSheetWorkbook([
     {
-      name: "Por destino",
+      name: "Dónde quedaron",
       opts: {
         columns: COLS_DESTINO,
-        title: "A dónde fueron — resumen por destino",
-        subtitle: `${periodo} · ${totalViajes} viajes en ${destinos.length} destinos`,
+        title: "Dónde quedó cada chofer",
+        subtitle: `${periodo} · ${totalChoferes} choferes en ${destinos.length} lugares · ${totalViajes} viajes`,
         fuente,
         sections: secciones,
       },
@@ -109,7 +111,7 @@ export async function exportarResumenDestinosAction(
       name: "Viaje por viaje",
       opts: {
         columns: COLS_VIAJES,
-        title: "A dónde fueron — detalle",
+        title: "Dónde quedó cada chofer — viaje por viaje",
         subtitle: `${periodo} · ${filasViajes.length} viajes`,
         fuente,
         rows: filasViajes,
@@ -132,7 +134,7 @@ export async function exportarResumenDestinosAction(
 
   const sufijo = desde === hasta ? desde : `${desde}_${hasta}`;
   return {
-    filename: `a_donde_fueron_${sufijo}.xlsx`,
+    filename: `donde_quedaron_${sufijo}.xlsx`,
     base64: buffer.toString("base64"),
   };
 }

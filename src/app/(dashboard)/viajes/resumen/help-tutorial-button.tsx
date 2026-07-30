@@ -16,7 +16,11 @@ export default function HelpTutorialButton({
   triggerClassName?: string;
 }) {
   return (
-    <HelpTutorialDialog title="Guía · A dónde fueron" tabs={TABS} triggerClassName={triggerClassName} />
+    <HelpTutorialDialog
+      title="Guía · Dónde quedó cada chofer"
+      tabs={TABS}
+      triggerClassName={triggerClassName}
+    />
   );
 }
 
@@ -27,24 +31,25 @@ const TABS: TutorialTab[] = [
     icon: <ListChecks size={14} />,
     steps: [
       {
-        title: "Es la hoja de ruta dada vuelta",
+        title: "Dónde está parado cada chofer",
         description:
-          "En la hoja de ruta entrás por chofer y ves sus destinos. Acá entrás por destino y ves sus choferes: “a Lomaser mandé a estos cuatro”. Sirve para no tener que abrir chofer por chofer para acordarte a dónde fue el último viaje que le diste.",
+          "Cada chofer aparece UNA sola vez: en el lugar donde terminó su último viaje. Sirve para lo que se usa todos los días — “tengo estos cuatro en Lomaser, a quién le doy el próximo”. Antes salía en todos los destinos a los que había ido, y eso no dejaba ver dónde había quedado.",
         mockup: <MockDestinos />,
-        hint: "Los destinos van ordenados por movimiento: primero está a dónde hay que mirar.",
+        hint: "Los lugares van ordenados por cuánta gente hay parada: primero donde hay con qué trabajar.",
       },
       {
         title: "Se abre en tres niveles",
         description:
-          "Clic en el destino y aparecen los choferes que fueron, con su camión, cuántos viajes hicieron y cuándo fue el último. Clic en un chofer y aparecen sus viajes a ESE destino, uno por uno: fecha, desde dónde salió, remito, material, km, toneladas e importe.",
+          "Clic en el lugar y aparecen los choferes que quedaron ahí, con su camión, de dónde vinieron y cuándo llegaron. Clic en un chofer y aparecen todos sus viajes del período, del último al primero: así se lee la cadena — salió de Lomaser, fue a Ramallo, volvió a Lomaser y ahí quedó.",
         mockup: <MockNiveles />,
+        hint: "No hay nada guardado que se pueda desactualizar: la posición se recalcula al leer, así que cuando cargás un viaje nuevo el chofer se mueve solo.",
       },
       {
         title: "Cualquier mes, no sólo hoy",
         description:
-          "Hoy / ayer / 7 días / este mes, y el desplegable “Otro mes…” lista todos los meses que tienen viajes cargados. El histórico no hay que guardarlo: son los viajes de siempre, lo que faltaba era poder pedirlos.",
+          "Hoy / ayer / 7 días / este mes, el desplegable “Otro mes…” con los meses que tienen viajes, y la fecha de la derecha abre un calendario para ir a un día puntual. Ojo: “dónde quedó” es dentro de ese período — si mirás sólo el 29, el último viaje es el último de ESE día.",
         mockup: <MockPeriodo />,
-        hint: "Las búsquedas de destino y chofer no llevan acentos ni mayúsculas: “escobar” encuentra “(ESCOBAR) MAPEI”.",
+        hint: "Las búsquedas de lugar y chofer no llevan acentos ni mayúsculas: “escobar” encuentra “(ESCOBAR) MAPEI”.",
       },
     ],
   },
@@ -84,7 +89,7 @@ const TABS: TutorialTab[] = [
       {
         title: "Exportar a Excel",
         description:
-          "“Exportar” baja lo que estás viendo, con las mismas fechas y las mismas búsquedas. Vienen dos hojas: “Por destino”, una fila por chofer con el subtotal de cada destino; y “Viaje por viaje”, el detalle completo para cruzar contra los remitos.",
+          "“Exportar” baja lo que estás viendo, con las mismas fechas y las mismas búsquedas. Vienen dos hojas: “Dónde quedaron”, una fila por chofer con el lugar donde terminó y de dónde venía; y “Viaje por viaje”, el detalle completo para cruzar contra los remitos.",
         mockup: <MockExport />,
         hint: "Los datos se vuelven a leer al exportar, así que el archivo nunca sale con números viejos.",
       },
@@ -113,11 +118,11 @@ function FilaDestino({
     >
       <MapPin size={11} className="shrink-0 text-primary" />
       <span className="text-[11px] font-bold text-foreground">{nombre}</span>
-      <span className="rounded-[3px] border border-border bg-muted px-1 text-[9px] font-semibold text-muted-foreground">
-        {choferes} choferes
+      <span className="rounded-[3px] border border-[#059669]/40 bg-[#059669]/10 px-1 text-[9px] font-semibold text-[#047857]">
+        {choferes} quedaron acá
       </span>
       <span className="ml-auto text-[13px] font-bold text-primary">{viajes}</span>
-      <span className="text-[9px] text-muted-foreground">viajes</span>
+      <span className="text-[9px] text-muted-foreground">choferes</span>
     </div>
   );
 }
@@ -141,7 +146,8 @@ function MockNiveles() {
         <span className="text-[10.5px] font-semibold text-foreground">Paz, Leonardo</span>
         <span className="font-mono text-[9px] font-semibold text-muted-foreground">AF541MH</span>
         <span className="ml-auto text-[10px] text-muted-foreground">
-          <b className="text-foreground">300</b> km · <b className="text-foreground">1</b> viaje
+          vino de <b className="text-foreground">RAMALLO</b> · llegó el{" "}
+          <b className="text-foreground">29/07</b>
         </span>
       </div>
       <div className="bg-muted/30 px-3 py-2">
@@ -149,12 +155,12 @@ function MockNiveles() {
           <div className="flex gap-3 border-b border-border bg-muted px-2 py-1 text-[8.5px] font-bold uppercase text-muted-foreground">
             <span className="w-16">Fecha</span>
             <span className="flex-1">Desde</span>
-            <span className="w-10 text-right">KM</span>
+            <span className="flex-1">Hasta</span>
           </div>
           <div className="flex gap-3 px-2 py-1 text-[9.5px]">
             <span className="w-16 font-mono font-semibold">29/07/2026</span>
             <span className="flex-1 font-medium">RAMALLO</span>
-            <span className="w-10 text-right font-semibold">300</span>
+            <span className="flex-1 font-semibold">LOMASER</span>
           </div>
         </div>
       </div>
@@ -260,13 +266,13 @@ function MockExport() {
       <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
         <div className="flex gap-1 border-b border-border bg-muted px-2 py-1 text-[9px] font-semibold">
           <span className="rounded-t-[3px] border border-b-0 border-border bg-card px-1.5 py-0.5">
-            Por destino
+            Dónde quedaron
           </span>
           <span className="px-1.5 py-0.5 text-muted-foreground">Viaje por viaje</span>
         </div>
         <div className="px-2 py-1.5 text-[9px]">
-          <p className="font-bold text-foreground">LOMASER — 4 viajes</p>
-          <p className="text-muted-foreground">Paz, Leonardo · AF541MH · 1 · 300 km</p>
+          <p className="font-bold text-foreground">LOMASER — 4 choferes quedaron acá</p>
+          <p className="text-muted-foreground">Paz, Leonardo · AF541MH · llegó 29/07 · vino de RAMALLO</p>
           <p className="font-semibold text-foreground">TOTAL · 4 · 900 km</p>
         </div>
       </div>

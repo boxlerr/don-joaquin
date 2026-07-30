@@ -29,7 +29,8 @@ const chofer = (over: Partial<ChoferEnDestino> = {}): ChoferEnDestino => ({
   viajes: 1,
   km: 300,
   toneladas: 38,
-  ultimo: "2026-07-29",
+  llegoEl: "2026-07-29",
+  vinoDe: "RAMALLO",
   detalle: [viaje()],
   ...over,
 });
@@ -83,7 +84,7 @@ describe("filaViaje", () => {
 });
 
 describe("filaChofer", () => {
-  it("resume al chofer en ese destino", () => {
+  it("dice dónde quedó el chofer y de dónde venía", () => {
     expect(filaChofer(chofer())).toEqual([
       "Paz, Leonardo",
       "AF541MH",
@@ -91,6 +92,7 @@ describe("filaChofer", () => {
       38,
       300,
       "29/07/2026",
+      "RAMALLO",
     ]);
   });
   it("sin camión ni toneladas no inventa ceros", () => {
@@ -98,6 +100,9 @@ describe("filaChofer", () => {
     expect(f[1]).toBe("—");
     expect(f[3]).toBeNull();
     expect(f[4]).toBeNull();
+  });
+  it("si el primer viaje del período no trae origen, no inventa de dónde vino", () => {
+    expect(filaChofer(chofer({ vinoDe: null }))[6]).toBe("—");
   });
 });
 

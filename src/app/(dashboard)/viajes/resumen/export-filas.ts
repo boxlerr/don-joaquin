@@ -27,7 +27,7 @@ export function fmtFechaExport(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-/** Una fila de la hoja "Por destino": el resumen de ese chofer a ese destino. */
+/** Una fila de la hoja "Dónde quedaron": el chofer que terminó en ese lugar. */
 export function filaChofer(c: ChoferEnDestino): CellValue[] {
   return [
     c.chofer,
@@ -35,7 +35,8 @@ export function filaChofer(c: ChoferEnDestino): CellValue[] {
     c.viajes,
     siHay(c.toneladas),
     siHay(c.km),
-    fmtFechaExport(c.ultimo),
+    fmtFechaExport(c.llegoEl),
+    c.vinoDe ?? "—",
   ];
 }
 

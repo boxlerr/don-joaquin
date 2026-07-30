@@ -10,9 +10,11 @@ function hoyISO(): string {
 }
 
 /**
- * Resumen por destino — el pedido de Nico: entrar por dónde fueron, no por
- * quién fue. La hoja de ruta responde "¿qué hizo este chofer?"; esto responde
- * "¿a quién mandé a Lomaser?".
+ * Dónde quedó cada chofer — el pedido de Nico.
+ *
+ * La hoja de ruta responde "¿qué hizo este chofer?". Esto responde "¿a quién
+ * tengo en Lomaser para el próximo viaje?": cada chofer aparece una sola vez, en
+ * el lugar donde terminó su último viaje.
  */
 export default async function ResumenViajesPage() {
   const user = await requireSeccion("viajes_listado", "read");
@@ -24,8 +26,8 @@ export default async function ResumenViajesPage() {
   return (
     <div className="w-full space-y-6 p-8">
       <PageHeader
-        title="A dónde fueron"
-        description="Cada destino, quién fue y con qué unidad — se abre hasta el viaje y se corrige acá mismo"
+        title="Dónde quedó cada chofer"
+        description="El último lugar al que llegó cada uno, para saber a quién le podés dar el próximo viaje"
       />
       <ResumenDestinosClient inicial={inicial} hoy={hoy} canWrite={canWrite} />
     </div>

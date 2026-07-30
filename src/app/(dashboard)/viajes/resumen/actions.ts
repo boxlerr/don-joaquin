@@ -23,6 +23,8 @@ import { logAudit } from "@/lib/audit";
 
 export type ViajeDelResumen = {
   id: string;
+  /** `V-2026-NNNNN`. Es el único orden confiable dentro de un mismo día. */
+  codigo: string;
   fecha: string;
   origen: string | null;
   destino: string;
@@ -48,21 +50,29 @@ export type ChoferEnDestino = {
   camion: string | null;
   /** Marca del camión, para mostrar el logo en vez de un camioncito genérico. */
   camionMarca: string | null;
+  /** Viajes que hizo en el período — todos, no sólo los que terminaron acá. */
   viajes: number;
   km: number;
   toneladas: number;
-  /** Fecha del último viaje que se le dio a ese destino, dentro del rango. */
-  ultimo: string;
+  /** Fecha del viaje con el que llegó a este lugar. */
+  llegoEl: string;
+  /** De dónde venía en ese último viaje: "fue a Lomaser después de Ramallo". */
+  vinoDe: string | null;
+  /** Sus viajes del período, del último al primero. */
   detalle: ViajeDelResumen[];
 };
 
 export type DestinoResumen = {
   destino: string;
+  /** Los choferes que QUEDARON acá (cada uno aparece en un solo lugar). */
+  choferes: ChoferEnDestino[];
+  /** Viajes que hicieron en el período esos choferes. */
   viajes: number;
   toneladas: number;
   km: number;
-  choferes: ChoferEnDestino[];
-  /** Viajes del destino que todavía no tienen chofer asignado. */
+  /** La llegada más reciente a este lugar. */
+  ultimaLlegada: string;
+  /** Viajes a este destino que todavía no tienen chofer asignado. */
   sinChofer: number;
   sinChoferDetalle: ViajeDelResumen[];
 };
@@ -76,6 +86,7 @@ export type ResumenDestinos = {
 
 type Fila = {
   id: string;
+  codigo: string;
   fecha_viaje: string;
   km_con_carga: number | null;
   km_vacios: number | null;
@@ -158,7 +169,7 @@ export async function getResumenDestinosAction(
     const { data, error } = await (supabase as any)
       .from("viajes")
       .select(
-        `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, nro_remito,
+        `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, nro_remito,
          monto_flete, material, es_vacio, chofer_id,
          origen:puntos_ruta!viajes_origen_id_fkey(nombre),
          destino:puntos_ruta!viajes_destino_id_fkey(nombre),
@@ -189,6 +200,7 @@ export async function getResumenDestinosAction(
   const aViaje = (f: Fila, destino: string): ViajeDelResumen => ({
     sinChofer: !f.chofer_id,
     id: f.id,
+    codigo: f.codigo,
     fecha: f.fecha_viaje,
     origen: uno(f.origen)?.nombre ?? null,
     destino,
@@ -202,86 +214,129 @@ export async function getResumenDestinosAction(
     material: f.material,
   });
 
-  const porDestino = new Map<string, DestinoResumen>();
-  const porDestinoChofer = new Map<string, Map<string, ChoferEnDestino>>();
+  /**
+   * Dónde quedó cada chofer.
+   *
+   * Antes cada chofer aparecía en TODOS los destinos a los que fue: Mehring
+   * salía en Lomaser y en Ramallo porque hizo los dos viajes, y para decidir a
+   * quién darle el próximo eso es ruido. Nico (30/07): *"me gustaría que figure
+   * el último lugar al que llegaría"*.
+   *
+   * Así que cada chofer aparece UNA sola vez, en el destino de su último viaje.
+   *
+   * Dentro de un mismo día no hay hora, así que el orden lo da el código
+   * (`V-2026-NNNNN`), que es secuencial por carga. Verificado con Mehring el
+   * 29/07: 02080 LOMASER→RAMALLO y 02081 RAMALLO→LOMASER, así que quedó en
+   * Lomaser — lo mismo que dice su hoja de ruta. `created_at` no serviría: los
+   * dos viajes se cargaron en el mismo lote y tienen el mismo valor.
+   *
+   * No hay nada guardado que se pueda desactualizar: la posición se recalcula
+   * cada vez que se lee, así que al cargar un viaje nuevo el chofer se mueve solo.
+   */
+  const esPosterior = (f: Fila, previo: Fila | undefined) =>
+    !previo ||
+    f.fecha_viaje > previo.fecha_viaje ||
+    (f.fecha_viaje === previo.fecha_viaje && (f.codigo ?? "") > (previo.codigo ?? ""));
+
+  const nombreDestino = (f: Fila) => uno(f.destino)?.nombre?.trim() || "Sin destino";
+
+  // Acumulado del período por chofer + cuál fue su último viaje.
+  type Acum = { viajes: Fila[]; ultimo: Fila };
+  const porChofer = new Map<string, Acum>();
+  // Viajes sin chofer, agrupados por el destino al que iban.
+  const sinChoferPorDestino = new Map<string, ViajeDelResumen[]>();
 
   for (const f of utiles) {
-    const destino = uno(f.destino)?.nombre?.trim() || "Sin destino";
-    let d = porDestino.get(destino);
-    if (!d) {
-      d = {
-        destino,
-        viajes: 0,
-        toneladas: 0,
-        km: 0,
-        choferes: [],
-        sinChofer: 0,
-        sinChoferDetalle: [],
-      };
-      porDestino.set(destino, d);
-      porDestinoChofer.set(destino, new Map());
-    }
-    const viaje = aViaje(f, destino);
-    d.viajes += 1;
-    d.toneladas += viaje.toneladas ?? 0;
-    d.km += viaje.km;
-
     if (!f.chofer_id) {
-      d.sinChofer += 1;
-      d.sinChoferDetalle.push(viaje);
+      const destino = nombreDestino(f);
+      const lista = sinChoferPorDestino.get(destino) ?? [];
+      lista.push(aViaje(f, destino));
+      sinChoferPorDestino.set(destino, lista);
       continue;
     }
-
-    const ch = uno(f.chofer);
-    const nombre = ch ? `${ch.apellido ?? ""}, ${ch.nombre ?? ""}`.trim() : "—";
-    const mapa = porDestinoChofer.get(destino)!;
-    const previo = mapa.get(f.chofer_id);
+    const previo = porChofer.get(f.chofer_id);
     if (previo) {
-      previo.viajes += 1;
-      previo.km += viaje.km;
-      previo.toneladas += viaje.toneladas ?? 0;
-      previo.detalle.push(viaje);
-      // Las filas vienen de la más nueva a la más vieja, pero no se asume.
-      if (f.fecha_viaje > previo.ultimo) previo.ultimo = f.fecha_viaje;
+      previo.viajes.push(f);
+      if (esPosterior(f, previo.ultimo)) previo.ultimo = f;
     } else {
-      mapa.set(f.chofer_id, {
-        chofer_id: f.chofer_id,
-        chofer: nombre,
-        rol: ch?.rol ?? null,
-        fotoUrl: null, // se completa abajo, firmando todas juntas
-        camion: uno(f.camion)?.patente ?? null,
-        camionMarca: uno(f.camion)?.marca ?? null,
-        viajes: 1,
-        km: viaje.km,
-        toneladas: viaje.toneladas ?? 0,
-        ultimo: f.fecha_viaje,
-        detalle: [viaje],
-      });
+      porChofer.set(f.chofer_id, { viajes: [f], ultimo: f });
     }
   }
 
   // Fotos del legajo de los choferes que aparecen. Va en su propia consulta y no
   // embebida en la de viajes: si el embed fallara, ahora tiraría error y se
   // caería toda la pantalla por un adorno.
-  const fotoPorChofer = await firmarFotos(
-    supabase,
-    [...new Set(utiles.map((f) => f.chofer_id).filter((v): v is string => !!v))],
-  );
+  const fotoPorChofer = await firmarFotos(supabase, [...porChofer.keys()]);
+
+  const masNuevoPrimero = (a: ViajeDelResumen, b: ViajeDelResumen) =>
+    b.fecha.localeCompare(a.fecha) || (b.codigo ?? "").localeCompare(a.codigo ?? "");
+
+  const porDestino = new Map<string, DestinoResumen>();
+  const vacio = (destino: string): DestinoResumen => ({
+    destino,
+    choferes: [],
+    viajes: 0,
+    toneladas: 0,
+    km: 0,
+    ultimaLlegada: "",
+    sinChofer: 0,
+    sinChoferDetalle: [],
+  });
+
+  for (const [choferId, acum] of porChofer) {
+    const destino = nombreDestino(acum.ultimo);
+    const d = porDestino.get(destino) ?? vacio(destino);
+    porDestino.set(destino, d);
+
+    const ch = uno(acum.ultimo.chofer);
+    const detalle = acum.viajes.map((f) => aViaje(f, nombreDestino(f))).sort(masNuevoPrimero);
+    const km = detalle.reduce((s, v) => s + v.km, 0);
+    const toneladas = detalle.reduce((s, v) => s + (v.toneladas ?? 0), 0);
+
+    d.choferes.push({
+      chofer_id: choferId,
+      chofer: ch ? `${ch.apellido ?? ""}, ${ch.nombre ?? ""}`.trim() : "—",
+      rol: ch?.rol ?? null,
+      fotoUrl: fotoPorChofer.get(choferId) ?? null,
+      camion: uno(acum.ultimo.camion)?.patente ?? null,
+      camionMarca: uno(acum.ultimo.camion)?.marca ?? null,
+      viajes: detalle.length,
+      km,
+      toneladas,
+      llegoEl: acum.ultimo.fecha_viaje,
+      vinoDe: uno(acum.ultimo.origen)?.nombre ?? null,
+      detalle,
+    });
+    d.viajes += detalle.length;
+    d.km += km;
+    d.toneladas += toneladas;
+    if (acum.ultimo.fecha_viaje > d.ultimaLlegada) d.ultimaLlegada = acum.ultimo.fecha_viaje;
+  }
+
+  // Un destino puede tener sólo viajes sin asignar y ningún chofer parado ahí:
+  // igual tiene que aparecer, porque es trabajo que falta dar.
+  for (const [destino, viajes] of sinChoferPorDestino) {
+    const d = porDestino.get(destino) ?? vacio(destino);
+    porDestino.set(destino, d);
+    d.sinChofer = viajes.length;
+    d.sinChoferDetalle = viajes.sort(masNuevoPrimero);
+  }
 
   const destinos = [...porDestino.values()]
     .map((d) => ({
       ...d,
-      sinChoferDetalle: d.sinChoferDetalle.sort((a, b) => b.fecha.localeCompare(a.fecha)),
-      choferes: [...(porDestinoChofer.get(d.destino)?.values() ?? [])]
-        .map((c) => ({
-          ...c,
-          fotoUrl: c.chofer_id ? (fotoPorChofer.get(c.chofer_id) ?? null) : null,
-          detalle: c.detalle.sort((a, b) => b.fecha.localeCompare(a.fecha)),
-        }))
-        .sort((a, b) => b.ultimo.localeCompare(a.ultimo) || b.viajes - a.viajes),
+      // El que llegó último arriba: es la foto más fresca de dónde está cada uno.
+      choferes: d.choferes.sort(
+        (a, b) => b.llegoEl.localeCompare(a.llegoEl) || a.chofer.localeCompare(b.chofer, "es"),
+      ),
     }))
-    // El destino con más movimiento primero: es a donde hay que mirar.
-    .sort((a, b) => b.viajes - a.viajes || a.destino.localeCompare(b.destino, "es"));
+    // Donde hay más gente parada primero: es donde hay con qué trabajar.
+    .sort(
+      (a, b) =>
+        b.choferes.length - a.choferes.length ||
+        b.sinChofer - a.sinChofer ||
+        a.destino.localeCompare(b.destino, "es"),
+    );
 
   const choferesDistintos = new Set(
     utiles.filter((f) => f.chofer_id).map((f) => f.chofer_id as string),

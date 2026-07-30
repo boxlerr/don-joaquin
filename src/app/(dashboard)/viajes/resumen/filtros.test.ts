@@ -12,7 +12,8 @@ const chofer = (nombre: string, viajes = 1): ChoferEnDestino => ({
   viajes,
   km: 300 * viajes,
   toneladas: 38 * viajes,
-  ultimo: "2026-07-29",
+  llegoEl: "2026-07-29",
+  vinoDe: "RAMALLO",
   detalle: [],
 });
 
@@ -22,6 +23,7 @@ const destino = (nombre: string, choferes: ChoferEnDestino[]): DestinoResumen =>
   toneladas: choferes.reduce((s, c) => s + c.toneladas, 0),
   km: choferes.reduce((s, c) => s + c.km, 0),
   choferes,
+  ultimaLlegada: "2026-07-29",
   sinChofer: 0,
   sinChoferDetalle: [],
 });
