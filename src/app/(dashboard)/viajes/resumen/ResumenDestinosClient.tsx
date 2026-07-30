@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import MarcaLogo from "../../camiones/components/MarcaLogo";
 import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
@@ -661,6 +662,19 @@ export default function ResumenDestinosClient({
     cargar(desde, hasta);
   };
 
+  /**
+   * Un día puntual desde el calendario.
+   *
+   * Si cae en hoy o ayer se marca el botón que le corresponde: elegir el 29 en
+   * el calendario y que "Ayer" quedara apagado se lee como si fueran dos cosas
+   * distintas.
+   */
+  const elegirDia = (fecha: string) => {
+    const ayer = rangoDe("ayer", hoy).desde;
+    setRango(fecha === hoy ? "hoy" : fecha === ayer ? "ayer" : "personalizado");
+    cargar(fecha, fecha);
+  };
+
   const elegirMes = (m: string) => {
     setMes(m);
     setRango("personalizado");
@@ -749,12 +763,27 @@ export default function ResumenDestinosClient({
           )}
         </div>
 
-        <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
-          <CalendarRange size={13} />
-          {datos.desde === datos.hasta
-            ? fmtFecha(datos.desde)
-            : `${fmtFecha(datos.desde)} – ${fmtFecha(datos.hasta)}`}
-          {pendiente && <span className="ml-1 text-primary">actualizando…</span>}
+        {/* La fecha era un cartel: se leía como un dato y no se notaba que se
+            podía elegir el día. Ahora abre el calendario. */}
+        <span className="inline-flex items-center gap-2">
+          {pendiente && <span className="text-[12px] font-medium text-primary">actualizando…</span>}
+          <CalendarioPopover
+            value={datos.desde === datos.hasta ? datos.desde : null}
+            onSelect={elegirDia}
+            maxDate={hoy}
+            hoy={hoy}
+            ariaLabel="Elegir el día que se mira"
+            triggerClassName="h-9 rounded-[6px] border border-border bg-card px-3 text-[12.5px] font-semibold text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-primary/50 hover:text-primary"
+            triggerLabel={
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarRange size={13} className="text-primary" />
+                {datos.desde === datos.hasta
+                  ? fmtFecha(datos.desde)
+                  : `${fmtFecha(datos.desde)} – ${fmtFecha(datos.hasta)}`}
+                <ChevronDown size={12} className="text-muted-foreground" />
+              </span>
+            }
+          />
         </span>
       </div>
 
