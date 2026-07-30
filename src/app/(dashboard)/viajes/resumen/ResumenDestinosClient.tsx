@@ -22,6 +22,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
   Gauge,
   IdCard,
   Loader2,
@@ -37,6 +38,10 @@ import { Combobox } from "@/components/ui/combobox";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import MarcaLogo from "../../camiones/components/MarcaLogo";
 import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
+import { descargarXlsxBase64 } from "@/lib/excel/download-client";
+import HelpTutorialButton from "./help-tutorial-button";
+import { exportarResumenDestinosAction } from "./export-action";
+import { filtrarDestinos } from "./filtros";
 import {
   asignarChoferViajeAction,
   getChoferesParaAsignarAction,
@@ -110,22 +115,12 @@ function ars(n: number): string {
   return `$ ${Math.round(n).toLocaleString("es-AR")}`;
 }
 
-/** Sin acentos ni mayúsculas, para que "escobar" encuentre "(ESCOBAR) MAPEI". */
-function normalizar(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
 /**
  * Una cifra del período.
  *
- * Estaba todo del mismo peso y del mismo blanco, así que la pantalla se leía
- * como un párrafo: había que recorrer las cinco tarjetas para saber cuál era
- * cuál. Ahora el ícono va en su recuadro, el número pesa de verdad y la unidad
- * y el contexto quedan en segundo plano, que es el orden en que se lee.
+ * Cada una tiene su color en el ícono y en el número, así se distinguen de un
+ * vistazo en vez de leerse como cinco párrafos iguales. El color va sólo en el
+ * ícono y el número — nada de fondos de color, que ensucian la lectura.
  */
 function Metrica({
   label,
@@ -133,51 +128,46 @@ function Metrica({
   unidad,
   icono: Icono,
   pie,
-  tono,
+  color,
   href,
+  accion,
 }: {
   label: string;
   valor: string;
   unidad?: string;
   icono: LucideIcon;
   pie?: string;
-  tono?: "warning";
+  /** Color del ícono y del número. */
+  color: string;
   href?: string;
+  /** Texto del link, cuando la tarjeta lleva a algún lado. */
+  accion?: string;
 }) {
-  const alerta = tono === "warning";
   const cuerpo = (
     <>
       <span className="flex items-center gap-2">
         <span
-          className={`flex size-7 shrink-0 items-center justify-center rounded-[6px] border ${
-            alerta
-              ? "border-[#B45309]/30 bg-[#B45309]/10 text-[#B45309]"
-              : "border-border bg-muted text-primary"
-          }`}
+          className="flex size-8 shrink-0 items-center justify-center rounded-[6px] border"
+          style={{ borderColor: `${color}3D`, backgroundColor: `${color}14`, color }}
         >
-          <Icono size={14} />
+          <Icono size={15} />
         </span>
-        <span
-          className={`text-[12px] font-semibold uppercase tracking-wide ${
-            alerta ? "text-[#B45309]" : "text-muted-foreground"
-          }`}
-        >
+        <span className="text-[12.5px] font-bold uppercase tracking-wide text-foreground/75">
           {label}
         </span>
       </span>
       <span className="mt-2.5 flex items-baseline gap-1.5">
         <span
-          className={`text-[30px] font-bold leading-none tracking-tight tabular-nums ${
-            alerta ? "text-[#B45309]" : "text-foreground"
-          }`}
+          className="text-[32px] font-bold leading-none tracking-tight tabular-nums"
+          style={{ color }}
         >
           {valor}
         </span>
         {unidad && (
-          <span className="text-[13px] font-semibold text-muted-foreground">{unidad}</span>
+          <span className="text-[13px] font-bold text-muted-foreground">{unidad}</span>
         )}
       </span>
-      <span className="mt-1.5 block truncate text-[11.5px] font-medium text-muted-foreground">
+      <span className="mt-1.5 block truncate text-[11.5px] font-semibold text-muted-foreground">
         {pie ?? "\u00a0"}
       </span>
     </>
@@ -191,11 +181,15 @@ function Metrica({
   return (
     <Link
       href={href}
-      className={`${base} group border-[#B45309]/50 hover:-translate-y-px hover:border-[#B45309] hover:shadow-md`}
+      className={`${base} group border-border hover:-translate-y-px hover:shadow-md`}
+      style={{ borderColor: `${color}59` }}
     >
       {cuerpo}
-      <span className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#B45309]">
-        Asignarles chofer
+      <span
+        className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-bold"
+        style={{ color }}
+      >
+        {accion}
         <ArrowUpRight size={12} className="transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
@@ -611,6 +605,8 @@ export default function ResumenDestinosClient({
   // planilla de ese día) y sólo cuando alguien va a asignar.
   const [choferesPorFecha, setChoferesPorFecha] = useState<Record<string, ChoferParaAsignar[]>>({});
   const [pidiendoFecha, setPidiendoFecha] = useState<string | null>(null);
+  const [exportando, setExportando] = useState(false);
+  const [errorExport, setErrorExport] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
 
   // Los meses con viajes se piden una vez: alimentan el selector histórico.
@@ -642,6 +638,21 @@ export default function ResumenDestinosClient({
     } finally {
       setPidiendoFecha(null);
     }
+  };
+
+  const exportar = async () => {
+    setExportando(true);
+    setErrorExport(null);
+    const res = await exportarResumenDestinosAction(datos.desde, datos.hasta, {
+      destino: buscarDestino,
+      chofer: buscarChofer,
+    });
+    setExportando(false);
+    if ("error" in res) {
+      setErrorExport(res.error);
+      return;
+    }
+    descargarXlsxBase64(res.filename, res.base64);
   };
 
   const elegirRango = (id: Exclude<RangoId, "personalizado">) => {
@@ -686,19 +697,12 @@ export default function ResumenDestinosClient({
 
   // Los filtros de texto se aplican acá y no en el server: los datos del rango
   // ya están, así que escribir filtra al instante.
-  const destinos = useMemo(() => {
-    const qd = normalizar(buscarDestino);
-    const qc = normalizar(buscarChofer);
-    return datos.destinos
-      .filter((d) => !qd || normalizar(d.destino).includes(qd))
-      .map((d) =>
-        qc
-          ? { ...d, choferes: d.choferes.filter((c) => normalizar(c.chofer).includes(qc)) }
-          : d,
-      )
-      // Buscando un chofer, los destinos donde no fue no aportan nada.
-      .filter((d) => !qc || d.choferes.length > 0);
-  }, [datos.destinos, buscarDestino, buscarChofer]);
+  // El mismo filtrado que usa el export, para que el Excel no pueda traer algo
+  // distinto de lo que hay en pantalla.
+  const destinos = useMemo(
+    () => filtrarDestinos(datos.destinos, { destino: buscarDestino, chofer: buscarChofer }),
+    [datos.destinos, buscarDestino, buscarChofer],
+  );
 
   const hayFiltro = buscarDestino.trim() !== "" || buscarChofer.trim() !== "";
 
@@ -800,33 +804,56 @@ export default function ResumenDestinosClient({
         >
           Ver todos en el listado <ArrowUpRight size={12} className="text-primary" />
         </Link>
+        <button
+          type="button"
+          onClick={exportar}
+          disabled={exportando || datos.totales.viajes === 0}
+          className="inline-flex h-10 items-center gap-1.5 rounded-[6px] border border-border bg-card px-3.5 text-xs font-semibold text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+        >
+          {exportando ? (
+            <Loader2 size={13} className="animate-spin text-primary" />
+          ) : (
+            <Download size={13} className="text-primary" />
+          )}
+          {exportando ? "Armando…" : "Exportar"}
+        </button>
+        <HelpTutorialButton triggerClassName="h-10 rounded-[6px] border border-border bg-card px-3.5 text-xs font-semibold text-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:bg-muted inline-flex items-center gap-1.5 [&_svg]:size-3.5" />
       </div>
+
+      {errorExport && (
+        <p className="flex items-start gap-2 border-l-2 border-[#B91C1C] pl-3 text-sm font-medium text-[#B91C1C]">
+          {errorExport}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Metrica
           label="Viajes"
           valor={fmtNum(datos.totales.viajes)}
           icono={RouteIcon}
+          color="#0088D1"
           pie={
             datos.totales.viajes === 0
-              ? "nada cargado todavía"
-              : `${fmtNum(datos.totales.viajes / Math.max(datos.totales.destinos, 1), 1)} por destino`
+              ? "todavía no se cargó ninguno"
+              : `${fmtNum(datos.totales.viajes / Math.max(datos.totales.destinos, 1), 1)} viajes por destino`
           }
         />
         <Metrica
           label="Destinos"
           valor={fmtNum(datos.totales.destinos)}
           icono={MapPin}
-          pie={destinos[0] ? `más movimiento: ${destinos[0].destino}` : undefined}
+          color="#7C3AED"
+          pie={destinos[0] ? `el más cargado: ${destinos[0].destino}` : "sin destinos en el período"}
         />
         <Metrica
           label="Choferes"
           valor={fmtNum(datos.totales.choferes)}
           icono={Users}
+          color="#0D9488"
           pie={
             datos.totales.choferes > 0
-              ? `${fmtNum(datos.totales.viajes / datos.totales.choferes, 1)} viajes cada uno`
-              : undefined
+              ? `${fmtNum(datos.totales.viajes / datos.totales.choferes, 1)} viajes por chofer`
+              : "nadie salió en el período"
           }
         />
         <Metrica
@@ -834,19 +861,25 @@ export default function ResumenDestinosClient({
           valor={fmtNum(datos.totales.km)}
           unidad="km"
           icono={Gauge}
+          color="#4F46E5"
           pie={
             datos.totales.viajes > 0
               ? `${fmtNum(datos.totales.km / datos.totales.viajes)} km por viaje`
-              : undefined
+              : "sin kilómetros cargados"
           }
         />
         <Metrica
           label="Sin chofer"
           valor={fmtNum(datos.totales.sinChofer)}
           icono={UserRound}
-          tono={datos.totales.sinChofer > 0 ? "warning" : undefined}
-          pie={datos.totales.sinChofer === 0 ? "todos asignados" : "esperando quién los haga"}
+          color={datos.totales.sinChofer > 0 ? "#B45309" : "#059669"}
+          pie={
+            datos.totales.sinChofer === 0
+              ? "todos tienen quién los haga"
+              : "falta decidir quién los hace"
+          }
           href={datos.totales.sinChofer > 0 ? hrefListado({ faltaChofer: true }) : undefined}
+          accion="Asignarles chofer"
         />
       </div>
 
