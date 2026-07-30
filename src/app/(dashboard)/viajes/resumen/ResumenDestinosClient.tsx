@@ -429,10 +429,10 @@ function FilaViaje({
             quedó el chofer. */}
         <td className="px-2 py-2">
           {esDondeQuedo ? (
-            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-primary/40 bg-primary/[0.07] px-1.5 py-0.5 font-bold text-primary">
-              <MapPin size={11} />
-              {viaje.destino}
-              <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
+            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-primary/40 px-1.5 py-0.5">
+              <MapPin size={11} className="text-[#DC2626]" />
+              <span className="font-bold text-primary">{viaje.destino}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">
                 quedó acá
               </span>
             </span>
@@ -973,7 +973,7 @@ export default function ResumenDestinosClient({
                 }`}
               >
                 <div
-                  className={`flex items-center gap-2 pr-3 ${abierto ? "bg-muted" : "bg-card"}`}
+                  className={`flex items-stretch ${abierto ? "bg-muted" : "bg-card"}`}
                 >
                   <button
                     type="button"
@@ -986,7 +986,8 @@ export default function ResumenDestinosClient({
                       ) : (
                         <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
                       )}
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-border bg-muted text-primary">
+                      {/* El pin va rojo: es el color de "lugar" en todo el sistema. */}
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-border bg-muted text-[#DC2626]">
                         <MapPin size={14} />
                       </span>
                       <span className="truncate text-[16px] font-bold tracking-tight text-foreground">
@@ -1029,10 +1030,12 @@ export default function ResumenDestinosClient({
                       </span>
                     </span>
                   </button>
+                  {/* Ocupa la esquina completa: antes el hover pintaba un
+                      cuadradito y el resto quedaba en blanco. */}
                   <Link
                     href={hrefListado({ destino: d.destino })}
                     title={`Ver los viajes a ${d.destino} en el listado`}
-                    className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                    className="flex shrink-0 self-stretch items-center border-l border-border px-3.5 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
                   >
                     <ArrowUpRight size={14} />
                   </Link>
@@ -1050,14 +1053,29 @@ export default function ResumenDestinosClient({
                       const clave = `${d.destino}|${c.chofer_id}`;
                       const verViajes = choferesAbiertos.has(clave);
                       return (
-                        <div key={clave} className="border-b border-border last:border-0">
+                        <div
+                          key={clave}
+                          // Cada chofer separado de verdad: con un borde tenue las
+                          // filas se fundían entre sí y el hover se perdía.
+                          className={`border-b-2 last:border-b-0 ${
+                            verViajes ? "border-primary/25" : "border-border"
+                          }`}
+                        >
                           <div
-                            className={`flex items-center gap-2 pr-3 ${verViajes ? "bg-muted/60" : ""}`}
+                            className={`flex items-stretch ${
+                              verViajes ? "bg-primary/[0.06]" : "bg-card"
+                            }`}
                           >
                             <button
                               type="button"
                               onClick={() => setChoferesAbiertos((p) => alternar(p, clave))}
-                              className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                              // El hover marca de más y con borde izquierdo, para
+                              // que se vea qué fila está debajo del mouse.
+                              className={`flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 border-l-[3px] px-4 py-3 text-left transition-colors ${
+                                verViajes
+                                  ? "border-primary/60 hover:bg-primary/[0.1]"
+                                  : "border-transparent hover:border-primary/40 hover:bg-primary/[0.05]"
+                              }`}
                             >
                               <span className="flex min-w-0 items-center gap-2">
                                 {verViajes ? (
@@ -1129,7 +1147,7 @@ export default function ResumenDestinosClient({
                               <Link
                                 href={`/choferes/${c.chofer_id}`}
                                 title={`Abrir el legajo de ${c.chofer}`}
-                                className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                                className="flex shrink-0 self-stretch items-center border-l border-border px-3.5 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
                               >
                                 <IdCard size={14} />
                               </Link>
@@ -1140,7 +1158,7 @@ export default function ResumenDestinosClient({
                                 choferId: c.chofer_id ?? undefined,
                               })}
                               title={`Ver en el listado los viajes de ${c.chofer} a ${d.destino}`}
-                              className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                              className="flex shrink-0 self-stretch items-center border-l border-border px-3.5 text-muted-foreground transition-colors hover:bg-primary/20 hover:text-primary"
                             >
                               <ArrowUpRight size={13} />
                             </Link>
