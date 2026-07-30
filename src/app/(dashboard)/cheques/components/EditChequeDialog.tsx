@@ -8,15 +8,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/combobox";
 import {
   Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
-  Sliders, Home, FileText,
+  Sliders, Home, FileText, Hash,
 } from "lucide-react";
-import { createChequeAction, type ChequeTipo } from "../actions";
+import { updateChequeAction, type ChequeTipo } from "../actions";
 import {
   BancoField,
   FieldBlock,
@@ -27,46 +26,49 @@ import {
   type LibradorOption,
 } from "./cheque-form-fields";
 
-export type { LibradorOption };
+export type ChequeEditable = {
+  id: string;
+  numero: string | null;
+  tipo: ChequeTipo;
+  librador_nombre: string;
+  librador_cuit: string | null;
+  importe: number;
+  fecha_vencimiento: string;
+  banco_nombre: string | null;
+  sucursal_banco: string | null;
+  cuenta_corriente: string | null;
+  observaciones: string | null;
+};
 
-export default function AddChequeDialog({
-  children,
+export default function EditChequeDialog({
+  cheque,
   libradores,
   bancos,
+  open,
+  onOpenChange,
 }: {
-  children: React.ReactNode;
+  cheque: ChequeEditable;
   libradores: LibradorOption[];
   bancos: BancoOption[];
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
-
-  const [tipo, setTipo] = useState<ChequeTipo>("electronico"); // echeq preseleccionado
-  const [libradorNombre, setLibradorNombre] = useState("");
-  const [libradorCuit, setLibradorCuit] = useState("");
-  const [importe, setImporte] = useState("");
-  const [fechaVencimiento, setFechaVencimiento] = useState(today);
-  const [bancoNombre, setBancoNombre] = useState("");
-  const [sucursal, setSucursal] = useState("");
-  const [cuentaCorriente, setCuentaCorriente] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-
-  const resetForm = () => {
-    setTipo("electronico");
-    setLibradorNombre("");
-    setLibradorCuit("");
-    setImporte("");
-    setFechaVencimiento(today);
-    setBancoNombre("");
-    setSucursal("");
-    setCuentaCorriente("");
-    setObservaciones("");
-    setError(null);
-  };
+  const [numero, setNumero] = useState(cheque.numero ?? "");
+  const [tipo, setTipo] = useState<ChequeTipo>(cheque.tipo);
+  const [libradorNombre, setLibradorNombre] = useState(cheque.librador_nombre);
+  const [libradorCuit, setLibradorCuit] = useState(cheque.librador_cuit ?? "");
+  const [importe, setImporte] = useState(String(cheque.importe));
+  const [fechaVencimiento, setFechaVencimiento] = useState(
+    cheque.fecha_vencimiento.split("T")[0],
+  );
+  const [bancoNombre, setBancoNombre] = useState(cheque.banco_nombre ?? "");
+  const [sucursal, setSucursal] = useState(cheque.sucursal_banco ?? "");
+  const [cuentaCorriente, setCuentaCorriente] = useState(cheque.cuenta_corriente ?? "");
+  const [observaciones, setObservaciones] = useState(cheque.observaciones ?? "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +76,9 @@ export default function AddChequeDialog({
     setLoading(true);
     setError(null);
     try {
-      const res = await createChequeAction({
+      const res = await updateChequeAction({
+        id: cheque.id,
+        numero: numero || null,
         tipo,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
@@ -88,26 +92,18 @@ export default function AddChequeDialog({
       if (res.error) {
         setError(res.error);
       } else {
-        setOpen(false);
-        resetForm();
+        onOpenChange(false);
         router.refresh();
       }
     } catch {
-      setError("Error al registrar el cheque.");
+      setError("Error al guardar el cheque.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) resetForm();
-      }}
-    >
-      <DialogTrigger render={children as React.ReactElement} />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[540px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
@@ -115,9 +111,9 @@ export default function AddChequeDialog({
               <Landmark size={22} />
             </div>
             <div>
-              <DialogTitle className="text-foreground text-lg font-bold">Registrar Cheque</DialogTitle>
+              <DialogTitle className="text-foreground text-lg font-bold">Editar cheque</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Diferido. Quedará en cartera. Lo importante: importe, librador y vencimiento.
+                Corregí los datos cargados. El estado se cambia desde las acciones de la fila.
               </DialogDescription>
             </div>
           </div>
@@ -189,6 +185,14 @@ export default function AddChequeDialog({
               Datos del banco (opcional)
             </summary>
             <div className="mt-3 space-y-3">
+              <FieldBlock label="Número de cheque" icon={Hash}>
+                <FieldInput
+                  icon={Hash}
+                  placeholder="Nº impreso en el cheque"
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                />
+              </FieldBlock>
               <BancoField bancos={bancos} value={bancoNombre} onValueChange={setBancoNombre} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldBlock label="Sucursal" icon={Home}>
@@ -210,7 +214,7 @@ export default function AddChequeDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => onOpenChange(false)}
               className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
@@ -221,7 +225,7 @@ export default function AddChequeDialog({
               disabled={loading}
               className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
-              {loading ? "Registrando..." : (<><Check size={16} strokeWidth={2.5} /> Confirmar cheque</>)}
+              {loading ? "Guardando..." : (<><Check size={16} strokeWidth={2.5} /> Guardar cambios</>)}
             </Button>
           </div>
         </form>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ *
@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
  *   - onSelect               -> dispara SOLO al elegir una opción de la
  *                               lista (no al tipear). Útil para autocompletar
  *                               km al instante cuando se elige el destino.
+ *   - onRemoveOption         -> si se pasa, cada sugerencia lleva una X para
+ *                               sacarla de la lista (no toca lo ya cargado).
  *   - name                   -> participa en <form> con un hidden input.
  *
  * El popup respeta el ancho del campo, hace scroll y funciona con teclado
@@ -31,6 +33,14 @@ export interface PlaceComboboxProps {
   onValueChange: (text: string) => void;
   /** Se dispara solo cuando se elige una opción del desplegable. */
   onSelect?: (text: string) => void;
+  /**
+   * Si se pasa, cada sugerencia lleva una X para sacarla de la lista. Sirve
+   * para catálogos que se llenan solos (bancos, libradores) y terminan con
+   * nombres mal escritos.
+   */
+  onRemoveOption?: (option: { id: string; label: string }) => void;
+  /** Texto del tooltip de la X. */
+  removeTitle?: string;
   options: { id: string; label: string }[];
   icon?: React.ComponentType<{ size?: number | string; className?: string }>;
   error?: string;
@@ -44,6 +54,8 @@ export function PlaceCombobox({
   value,
   onValueChange,
   onSelect,
+  onRemoveOption,
+  removeTitle = "Sacar de la lista",
   options,
   icon: Icon,
   error,
@@ -113,7 +125,9 @@ export function PlaceCombobox({
           >
             <ComboboxPrimitive.Popup
               className={cn(
-                "max-h-[min(18rem,var(--available-height))] w-[var(--anchor-width)] min-w-[var(--anchor-width)] origin-[var(--transform-origin)]",
+                // Arranca del ancho del campo pero puede crecer: en un campo
+                // angosto un nombre largo se cortaba a la mitad.
+                "max-h-[min(18rem,var(--available-height))] w-max min-w-[var(--anchor-width)] max-w-[var(--available-width)] origin-[var(--transform-origin)]",
                 "flex flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg",
                 "transition-[transform,scale,opacity] data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
               )}
@@ -128,14 +142,45 @@ export function PlaceCombobox({
                     key={item}
                     value={item}
                     className={cn(
-                      "relative flex cursor-pointer items-center gap-2 rounded-md py-2 pl-2.5 pr-8 text-sm outline-none select-none",
+                      "relative flex cursor-pointer items-center gap-2 rounded-md py-2 pl-2.5 text-sm outline-none select-none",
+                      onRemoveOption ? "pr-2" : "pr-8",
                       "data-[highlighted]:bg-[#0088D1]/10 data-[highlighted]:text-foreground",
                     )}
                   >
-                    <span className="flex-1 truncate">{item}</span>
-                    <ComboboxPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
-                      <Check className="size-4 text-primary" />
-                    </ComboboxPrimitive.ItemIndicator>
+                    <span className="flex-1 break-words">{item}</span>
+                    {onRemoveOption ? (
+                      <>
+                        {/* Ancho fijo: sin esto la X se corre de fila en fila. */}
+                        <span className="flex size-4 shrink-0 items-center justify-center">
+                          <ComboboxPrimitive.ItemIndicator>
+                            <Check className="size-4 text-primary" />
+                          </ComboboxPrimitive.ItemIndicator>
+                        </span>
+                        <button
+                          type="button"
+                          title={removeTitle}
+                          aria-label={`${removeTitle}: ${item}`}
+                          // El clic no tiene que elegir la opción, solo borrarla.
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const opt = options.find((o) => o.label === item);
+                            if (opt) onRemoveOption(opt);
+                          }}
+                          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <ComboboxPrimitive.ItemIndicator className="absolute right-2.5 flex items-center">
+                        <Check className="size-4 text-primary" />
+                      </ComboboxPrimitive.ItemIndicator>
+                    )}
                   </ComboboxPrimitive.Item>
                 )}
               </ComboboxPrimitive.List>

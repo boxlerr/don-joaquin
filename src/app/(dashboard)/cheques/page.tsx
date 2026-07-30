@@ -30,51 +30,36 @@ export default async function ChequesPage() {
   const [
     { data: bancos },
     { data: cheques, count: totalCheques },
-    { data: libradoresRaw },
+    { data: libradores },
   ] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
     supabase
       .from("cheques")
       .select(
-        "id, numero, importe, fecha_emision, fecha_vencimiento, librador_nombre, concepto, estado, banco:bancos(nombre), cliente:clientes(razon_social)",
+        "id, numero, tipo, importe, fecha_emision, fecha_vencimiento, librador_nombre, librador_cuit, concepto, estado, sucursal_banco, cuenta_corriente, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)",
         { count: "exact" }
       )
       .order("created_at", { ascending: false }),
-    // Libradores ya usados (para autocompletar nombre + CUIT en el alta)
-    supabase
-      .from("cheques")
-      .select("librador_nombre, librador_cuit")
-      .not("librador_nombre", "is", null),
+    // Sugerencias de librador. Es un catálogo propio, no se deriva de los
+    // cheques: así lo que se escribe queda guardado y se puede sacar de la
+    // lista sin tocar los cheques ya cargados.
+    supabase.from("libradores").select("id, nombre, cuit").order("nombre"),
   ]);
-
-  // Libradores distintos con su CUIT (preferimos la fila que tenga CUIT cargado)
-  const libradoresMap = new Map<string, string | null>();
-  for (const l of libradoresRaw ?? []) {
-    const nombre = (l.librador_nombre ?? "").trim();
-    if (!nombre) continue;
-    if (!libradoresMap.has(nombre) || (!libradoresMap.get(nombre) && l.librador_cuit)) {
-      libradoresMap.set(nombre, l.librador_cuit ?? null);
-    }
-  }
-  const libradores = [...libradoresMap.entries()]
-    .map(([nombre, cuit]) => ({ nombre, cuit }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-  // Loma Negra siempre disponible como sugerencia (es el librador habitual),
-  // aunque todavía no se haya cargado ningún cheque suyo.
-  if (!libradores.some((l) => l.nombre.toLowerCase() === "loma negra")) {
-    libradores.unshift({ nombre: "Loma Negra", cuit: null });
-  }
 
   const rows: ChequeRow[] = (cheques ?? []).map((c) => ({
     id: c.id,
     numero: c.numero,
+    tipo: c.tipo,
     importe: Number(c.importe),
     fecha_emision: c.fecha_emision,
     fecha_vencimiento: c.fecha_vencimiento,
     librador_nombre: c.librador_nombre,
+    librador_cuit: c.librador_cuit,
     concepto: c.concepto,
     estado: c.estado,
+    sucursal_banco: c.sucursal_banco,
+    cuenta_corriente: c.cuenta_corriente,
+    observaciones: c.observaciones,
     banco: Array.isArray(c.banco) ? (c.banco[0] ?? null) : c.banco,
     cliente: Array.isArray(c.cliente) ? (c.cliente[0] ?? null) : c.cliente,
   }));
@@ -98,7 +83,7 @@ export default async function ChequesPage() {
             <HelpTutorialButton />
             <ExportChequesButton />
             {canWrite && (
-              <AddChequeDialog libradores={libradores} bancos={bancos ?? []}>
+              <AddChequeDialog libradores={libradores ?? []} bancos={bancos ?? []}>
                 <Button variant="brand" size="sm">
                   <Plus size={14} />
                   Registrar cheque
@@ -131,7 +116,12 @@ export default async function ChequesPage() {
         <StatCard label="Total registrados" value={String(totalCheques ?? 0)} color="success" />
       </div>
 
-      <ChequesList cheques={rows} bancos={bancos ?? []} />
+      <ChequesList
+        cheques={rows}
+        bancos={bancos ?? []}
+        libradores={libradores ?? []}
+        canWrite={canWrite}
+      />
     </div>
   );
 }

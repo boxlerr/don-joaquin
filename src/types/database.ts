@@ -1084,7 +1084,7 @@ export type Database = {
         Update: {
           archivo_id?: string | null
           banco_deposito?: string | null
-          banco_id?: string
+          banco_id?: string | null
           cheque_reemplazo_id?: string | null
           cliente_id?: string | null
           concepto?: string | null
@@ -1110,7 +1110,7 @@ export type Database = {
             | Database["public"]["Enums"]["cheque_motivo_rechazo"]
             | null
           motivo_rechazo_detalle?: string | null
-          numero?: string
+          numero?: string | null
           observaciones?: string | null
           recibido_de?: string | null
           sucursal_banco?: string | null
@@ -2895,6 +2895,38 @@ export type Database = {
           },
           {
             foreignKeyName: "hojas_ruta_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      libradores: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cuit: string | null
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cuit?: string | null
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cuit?: string | null
+          id?: string
+          nombre?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "libradores_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "usuarios"
