@@ -336,12 +336,16 @@ function FilaViaje({
             {viaje.destino}
           </td>
           <td className="px-2 py-1.5">
-            <input
-              value={b.remito}
-              onChange={(e) => setB({ ...b, remito: e.target.value })}
-              placeholder="remito"
-              className={`${CELDA_INPUT} font-mono`}
-            />
+            {viaje.esVacio ? (
+              <span className="font-mono text-[11.5px] font-bold text-[#DC2626]">VACIO</span>
+            ) : (
+              <input
+                value={b.remito}
+                onChange={(e) => setB({ ...b, remito: e.target.value })}
+                placeholder="remito"
+                className={`${CELDA_INPUT} font-mono`}
+              />
+            )}
           </td>
           <td className="px-2 py-1.5">
             <input
@@ -439,7 +443,13 @@ function FilaViaje({
           )}
         </td>
         <td className="px-2 py-2 font-mono text-[11.5px] font-semibold">
-          {viaje.remito ?? <span className="font-sans font-normal text-muted-foreground/60">—</span>}
+          {/* Misma marca que en el listado y la hoja de ruta: una vuelta en
+              vacío no espera remito, no es un dato que falte. */}
+          {viaje.esVacio ? (
+            <span className="font-bold text-[#DC2626]">VACIO</span>
+          ) : (
+            (viaje.remito ?? <span className="font-sans font-normal text-muted-foreground/60">—</span>)
+          )}
         </td>
         <td className="max-w-[16rem] px-2 py-2">
           {/* El material es el material. Antes, cuando estaba vacío, se mostraba
@@ -465,7 +475,9 @@ function FilaViaje({
           )}
         </td>
         <td className="py-2 pl-2 text-right tabular-nums">
-          {viaje.monto != null && viaje.monto > 0 ? (
+          {viaje.esVacio ? (
+            <span className="text-muted-foreground/60">—</span>
+          ) : viaje.monto != null && viaje.monto > 0 ? (
             <span className="font-bold text-foreground">{ars(viaje.monto)}</span>
           ) : (
             <span className="font-semibold text-[#B45309]">sin importe</span>

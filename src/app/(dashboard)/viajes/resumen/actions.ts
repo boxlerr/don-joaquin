@@ -194,8 +194,20 @@ export async function getResumenDestinosAction(
     if (pagina.length < 1000) break;
   }
 
-  // Los retornos vacíos no son "un viaje a ese destino": inflarían el conteo.
-  const utiles = opciones?.incluirVacios ? filas : filas.filter((f) => !f.es_vacio);
+  /**
+   * Dos preguntas distintas, dos conjuntos distintos.
+   *
+   * - DÓNDE QUEDÓ el camión: cuentan TODOS los viajes, incluida la vuelta en
+   *   vacío. El camión se mueve igual aunque vuelva sin carga.
+   * - CUÁNTO TRABAJÓ (viajes, toneladas): sólo los que llevaron algo. Un
+   *   retorno vacío no es "un viaje a ese destino".
+   *
+   * Confundirlas fue un bug real: Acosta hizo PLANTA SOLA → Darsena F 2 y
+   * después Darsena F 2 → LOMASER en vacío, y la pantalla lo dejaba parado en
+   * Darsena F 2 cuando el camión estaba en Lomaser. Pasaba en 273 de 1.030
+   * días con viajes (26%).
+   */
+  const conCarga = opciones?.incluirVacios ? filas : filas.filter((f) => !f.es_vacio);
 
   const aViaje = (f: Fila, destino: string): ViajeDelResumen => ({
     sinChofer: !f.chofer_id,
@@ -230,6 +242,9 @@ export async function getResumenDestinosAction(
    * Lomaser — lo mismo que dice su hoja de ruta. `created_at` no serviría: los
    * dos viajes se cargaron en el mismo lote y tienen el mismo valor.
    *
+   * OJO con los vacíos: para la POSICIÓN cuentan (el camión se mueve igual
+   * aunque vuelva sin carga), para los CONTEOS no. Ver el comentario de arriba.
+   *
    * No hay nada guardado que se pueda desactualizar: la posición se recalcula
    * cada vez que se lee, así que al cargar un viaje nuevo el chofer se mueve solo.
    */
@@ -246,8 +261,11 @@ export async function getResumenDestinosAction(
   // Viajes sin chofer, agrupados por el destino al que iban.
   const sinChoferPorDestino = new Map<string, ViajeDelResumen[]>();
 
-  for (const f of utiles) {
+  for (const f of filas) {
+    // Los viajes sin chofer se agrupan por destino y no cuentan los vacíos: son
+    // trabajo por asignar, y una vuelta en vacío no es trabajo.
     if (!f.chofer_id) {
+      if (f.es_vacio && !opciones?.incluirVacios) continue;
       const destino = nombreDestino(f);
       const lista = sinChoferPorDestino.get(destino) ?? [];
       lista.push(aViaje(f, destino));
@@ -295,9 +313,13 @@ export async function getResumenDestinosAction(
     porDestino.set(destino, d);
 
     const ch = uno(acum.ultimo.chofer);
+    // El detalle muestra TODO, incluida la vuelta en vacío: es la que explica
+    // por qué el camión terminó donde terminó.
     const detalle = acum.viajes.map((f) => aViaje(f, nombreDestino(f))).sort(cronologico);
-    const km = detalle.reduce((s, v) => s + v.km, 0);
-    const toneladas = detalle.reduce((s, v) => s + (v.toneladas ?? 0), 0);
+    // Los conteos, en cambio, son de trabajo hecho: los vacíos no suman.
+    const cargados = detalle.filter((v) => !v.esVacio);
+    const km = cargados.reduce((s, v) => s + v.km, 0);
+    const toneladas = cargados.reduce((s, v) => s + (v.toneladas ?? 0), 0);
 
     d.choferes.push({
       chofer_id: choferId,
@@ -306,14 +328,14 @@ export async function getResumenDestinosAction(
       fotoUrl: fotoPorChofer.get(choferId) ?? null,
       camion: uno(acum.ultimo.camion)?.patente ?? null,
       camionMarca: uno(acum.ultimo.camion)?.marca ?? null,
-      viajes: detalle.length,
+      viajes: cargados.length,
       km,
       toneladas,
       llegoEl: acum.ultimo.fecha_viaje,
       vinoDe: uno(acum.ultimo.origen)?.nombre ?? null,
       detalle,
     });
-    d.viajes += detalle.length;
+    d.viajes += cargados.length;
     d.km += km;
     d.toneladas += toneladas;
     if (acum.ultimo.fecha_viaje > d.ultimaLlegada) d.ultimaLlegada = acum.ultimo.fecha_viaje;
@@ -345,7 +367,7 @@ export async function getResumenDestinosAction(
     );
 
   const choferesDistintos = new Set(
-    utiles.filter((f) => f.chofer_id).map((f) => f.chofer_id as string),
+    conCarga.filter((f) => f.chofer_id).map((f) => f.chofer_id as string),
   );
 
   return {
@@ -353,7 +375,7 @@ export async function getResumenDestinosAction(
     hasta,
     destinos,
     totales: {
-      viajes: utiles.length,
+      viajes: conCarga.length,
       destinos: destinos.length,
       choferes: choferesDistintos.size,
       sinChofer: destinos.reduce((s, d) => s + d.sinChofer, 0),

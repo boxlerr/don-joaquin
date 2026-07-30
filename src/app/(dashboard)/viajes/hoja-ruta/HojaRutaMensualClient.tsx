@@ -19,11 +19,13 @@ import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
 import {
   getPanelChoferAction,
+  getViajesSinRemitoMesAction,
   listChoferesMesAction,
   actualizarViajesHojaRutaAction,
   type HrChoferListItem,
   type HrPanelChofer,
   type HrViajeItem,
+  type HrViajeSinRemito,
 } from "./actions";
 import { deleteViajeAction } from "../actions";
 import EditViajeDialog from "../components/EditViajeDialog";
@@ -83,6 +85,10 @@ export default function HojaRutaMensualClient({
   const [soloConViajes, setSoloConViajes] = useState(true);
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [panel, setPanel] = useState<HrPanelChofer | null>(null);
+  // Vista "sin remito": los viajes que faltan de TODOS los choferes, sin tener
+  // que entrar uno por uno a buscarlos.
+  const [vistaSinRemito, setVistaSinRemito] = useState(false);
+  const [sinRemito, setSinRemito] = useState<HrViajeSinRemito[] | null>(null);
   const [cargando, setCargando] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -153,6 +159,22 @@ export default function HojaRutaMensualClient({
   };
 
   // Stats globales del mes (todos los choferes)
+  const abrirSinRemito = async () => {
+    if (vistaSinRemito) {
+      setVistaSinRemito(false);
+      return;
+    }
+    setVistaSinRemito(true);
+    setSinRemito(null);
+    setSinRemito(await getViajesSinRemitoMesAction(mes));
+  };
+
+  // Al cambiar de mes o de chofer, la vista vuelve al chofer.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- salir de la vista cruzada al cambiar de contexto
+    setVistaSinRemito(false);
+  }, [mes, choferId]);
+
   const statsMes = useMemo(() => {
     return choferesMes.reduce(
       (acc, c) => {
@@ -162,10 +184,11 @@ export default function HojaRutaMensualClient({
         acc.km += c.totalKm;
         acc.kmVacios += c.totalKmVacios;
         acc.pendientes += c.pendientesFacturar;
+        acc.sinRemito += c.sinRemito;
         acc.choferesActivos += c.viajes > 0 ? 1 : 0;
         return acc;
       },
-      { viajes: 0, importe: 0, tn: 0, km: 0, kmVacios: 0, pendientes: 0, choferesActivos: 0 },
+      { viajes: 0, importe: 0, tn: 0, km: 0, kmVacios: 0, pendientes: 0, sinRemito: 0, choferesActivos: 0 },
     );
   }, [choferesMes]);
 
@@ -203,7 +226,16 @@ export default function HojaRutaMensualClient({
         <StatChip icon={<Receipt size={14} />} label="Viajes del mes" value={fmtNum(statsMes.viajes)} tone="brand" />
         <StatChip icon={<Truck size={14} />} label="Toneladas" value={fmtNum(statsMes.tn, 1)} tone="info" />
         <StatChip icon={<Truck size={14} />} label="KM cargados" value={fmtNum(statsMes.km)} tone="neutral" />
-        <StatChip icon={<AlertTriangle size={14} />} label="Pend. facturar" value={fmtNum(statsMes.pendientes)} tone={statsMes.pendientes > 0 ? "warning" : "neutral"} />
+        {/* Lo que falta para poder facturar. Clic y muestra cuáles son, de
+            todos los choferes, sin tener que entrar uno por uno. */}
+        <StatChip
+          icon={<AlertTriangle size={14} />}
+          label="Sin remito"
+          value={fmtNum(statsMes.sinRemito)}
+          tone={statsMes.sinRemito > 0 ? "warning" : "neutral"}
+          onClick={statsMes.sinRemito > 0 ? () => abrirSinRemito() : undefined}
+          activo={vistaSinRemito}
+        />
         <StatChip icon={<Receipt size={14} />} label="Facturado" value={fmtARS(statsMes.importe)} tone="success" />
       </div>
 
@@ -299,6 +331,17 @@ export default function HojaRutaMensualClient({
               <Loader2 size={18} className="animate-spin" />
               Cargando hoja de ruta…
             </div>
+          ) : vistaSinRemito ? (
+            <PanelSinRemito
+              viajes={sinRemito}
+              mes={mes}
+              canWrite={canWrite}
+              onChanged={async () => {
+                refresh();
+                setSinRemito(await getViajesSinRemitoMesAction(mes));
+              }}
+              onCerrar={() => setVistaSinRemito(false)}
+            />
           ) : !panel ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 p-6 text-center">
               <FileSpreadsheet size={32} className="opacity-40" />
@@ -309,6 +352,86 @@ export default function HojaRutaMensualClient({
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Los viajes sin remito del mes, de todos los choferes.
+ *
+ * Reusa el panel del chofer con una ficha armada al vuelo: la tabla, la edición
+ * y el guardado son exactamente los mismos, así que se completa el remito acá
+ * sin ir a buscar a cada chofer. La columna "Chofer" aparece sólo en esta vista,
+ * porque acá sí hace falta saber de quién es cada viaje.
+ */
+function PanelSinRemito({
+  viajes,
+  mes,
+  canWrite,
+  onChanged,
+  onCerrar,
+}: {
+  viajes: HrViajeSinRemito[] | null;
+  mes: string;
+  canWrite: boolean;
+  onChanged: () => void;
+  onCerrar: () => void;
+}) {
+  if (viajes === null) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground gap-2 p-6">
+        <Loader2 size={16} className="animate-spin" />
+        <span className="text-sm">Buscando los viajes sin remito…</span>
+      </div>
+    );
+  }
+
+  const totales = viajes.reduce(
+    (acc, v) => {
+      acc.cantidad++;
+      acc.km += v.km_con_carga;
+      acc.kmVacios += v.km_vacios;
+      acc.tonelaje += v.tonelaje_real ?? 0;
+      acc.importe += v.monto_flete ?? 0;
+      if (v.monto_flete == null) acc.pendientesFacturar++;
+      acc.sinRemito++;
+      return acc;
+    },
+    { cantidad: 0, km: 0, kmVacios: 0, tonelaje: 0, importe: 0, vacios: 0, pendientesFacturar: 0, sinRemito: 0 },
+  );
+
+  const panel: HrPanelChofer = {
+    id: "sin-remito",
+    apellido: "Sin remito",
+    nombre: `${viajes.length} viaje${viajes.length !== 1 ? "s" : ""} del mes`,
+    patentes_actuales: [],
+    patentes_del_mes: [],
+    viajes,
+    totales,
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border bg-[#FFFBEB] px-4 sm:px-5 py-2.5">
+        <p className="text-[12.5px] font-semibold text-[#92400E]">
+          Viajes de {fmtMesLabel(mes)} que todavía no tienen remito, de todos los choferes.
+        </p>
+        <button
+          type="button"
+          onClick={onCerrar}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card text-[12px] font-semibold text-foreground hover:bg-muted transition-colors"
+        >
+          <X size={13} />
+          Volver al chofer
+        </button>
+      </div>
+      {viajes.length === 0 ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">
+          Todos los viajes del mes tienen su remito cargado.
+        </div>
+      ) : (
+        <PanelChofer panel={panel} canWrite={canWrite} onChanged={onChanged} mostrarChofer />
+      )}
     </div>
   );
 }
@@ -355,10 +478,13 @@ function PanelChofer({
   panel,
   canWrite,
   onChanged,
+  mostrarChofer = false,
 }: {
   panel: HrPanelChofer;
   canWrite: boolean;
   onChanged: () => void;
+  /** Agrega la columna Chofer: sólo hace falta en la vista que cruza choferes. */
+  mostrarChofer?: boolean;
 }) {
   // Edición: una fila sola (el lápiz) o toda la hoja a la vez. Los borradores
   // viven acá y no en cada fila, porque "guardar todo" necesita verlos juntos.
@@ -420,9 +546,13 @@ function PanelChofer({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-foreground text-lg font-bold">{panel.apellido}, {panel.nombre}</h2>
+          <h2 className="text-foreground text-lg font-bold">
+            {mostrarChofer ? panel.apellido : `${panel.apellido}, ${panel.nombre}`}
+          </h2>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] text-muted-foreground">
-            {panel.patentes_del_mes.length > 0 ? (
+            {mostrarChofer ? (
+              <span>{panel.nombre}</span>
+            ) : panel.patentes_del_mes.length > 0 ? (
               panel.patentes_del_mes.map((p) => (
                 <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#E1F5FE] text-[#075985] font-mono font-semibold">
                   <Truck size={10} />
@@ -530,6 +660,7 @@ function PanelChofer({
           <table className="w-full text-xs">
             <thead className="bg-[#0F172A] text-white">
               <tr>
+                {mostrarChofer && <Th>Chofer</Th>}
                 <Th>Día</Th>
                 <Th>Sale de</Th>
                 <Th>Llega a</Th>
@@ -539,7 +670,7 @@ function PanelChofer({
                 <Th>Material / Cliente</Th>
                 <Th right>KM vacíos</Th>
                 <Th right>Importe ($)</Th>
-                <Th>Estado</Th>
+                <Th> </Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -556,6 +687,7 @@ function PanelChofer({
                   onCancelar={limpiar}
                   onGuardar={() => guardarLote([v])}
                   guardando={guardando}
+                  mostrarChofer={mostrarChofer}
                   borrador={borradorPara(v)}
                   onDetalle={() => setDetalle(v)}
                   onBorrador={(patch) =>
@@ -617,6 +749,7 @@ function FilaViaje({
   guardando,
   borrador,
   onBorrador,
+  mostrarChofer = false,
 }: {
   viaje: HrViajeItem;
   canWrite: boolean;
@@ -633,6 +766,7 @@ function FilaViaje({
   guardando: boolean;
   borrador: Borrador;
   onBorrador: (patch: Partial<Borrador>) => void;
+  mostrarChofer?: boolean;
 }) {
   const [borrando, setBorrando] = useState(false); // pidiendo confirmación
   const [eliminando, setEliminando] = useState(false);
@@ -657,6 +791,11 @@ function FilaViaje({
         esPendiente ? "bg-[#FFFBEB]/40" : ""
       } ${esVacio ? "text-muted-foreground/70" : ""}`}
     >
+      {mostrarChofer && (
+        <td className="px-3 py-2 text-[11px] font-semibold whitespace-nowrap">
+          {viaje.chofer ?? "—"}
+        </td>
+      )}
       <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap" title={fmtFechaLarga(viaje.fecha_viaje)}>
         {fmtFecha(viaje.fecha_viaje)}
       </td>
@@ -824,7 +963,6 @@ function FilaViaje({
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
-            <EstadoBadge viaje={viaje} />
             {canWrite && (
               <>
                 {/* Todo lo que no entra en la fila: cliente, tipo de carga,
@@ -870,47 +1008,18 @@ function FilaViaje({
   );
 }
 
-function EstadoBadge({ viaje }: { viaje: HrViajeItem }) {
-  const esVacio = viaje.es_vacio;
-  const esPendiente = !esVacio && viaje.monto_flete == null;
-
-  if (esVacio) {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-muted text-muted-foreground">
-        Vacío
-      </span>
-    );
-  }
-  if (esPendiente) {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#FEF3C7] text-[#92400E]">
-        Sin facturar
-      </span>
-    );
-  }
-  if (viaje.facturado) {
-    return (
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#ECFDF5] text-[#065F46]">
-        Facturado
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#E1F5FE] text-[#075985]">
-      Cerrado
-    </span>
-  );
-}
-
 // Sub-componentes pequeños -----------------------------------------------------
 
 function StatChip({
-  icon, label, value, tone,
+  icon, label, value, tone, onClick, activo,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   tone: "info" | "brand" | "success" | "warning" | "neutral";
+  /** Si se pasa, la tarjeta es un botón. */
+  onClick?: () => void;
+  activo?: boolean;
 }) {
   const cls =
     tone === "success" ? "border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]"
@@ -918,14 +1027,27 @@ function StatChip({
     : tone === "brand" ? "border-[#BAE6FD] bg-[#E1F5FE] text-primary"
     : tone === "info" ? "border-[#BAE6FD] bg-[#F0F9FF] text-[#075985]"
     : "border-border bg-muted/40 text-muted-foreground";
-  return (
-    <div className={`border rounded-md px-3 py-2 flex items-center gap-2 ${cls}`}>
+  const cuerpo = (
+    <>
       <span className="shrink-0">{icon}</span>
-      <div className="min-w-0">
+      <div className="min-w-0 text-left">
         <p className="text-[10px] uppercase tracking-widest font-bold opacity-80 truncate">{label}</p>
         <p className="text-sm font-bold leading-tight truncate">{value}</p>
       </div>
-    </div>
+    </>
+  );
+  const base = `border rounded-md px-3 py-2 flex items-center gap-2 ${cls}`;
+  if (!onClick) return <div className={base}>{cuerpo}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      title="Ver los viajes que todavía no tienen remito"
+      className={`${base} w-full transition-all hover:brightness-95 ${activo ? "ring-2 ring-[#92400E]/40" : ""}`}
+    >
+      {cuerpo}
+    </button>
   );
 }
 
