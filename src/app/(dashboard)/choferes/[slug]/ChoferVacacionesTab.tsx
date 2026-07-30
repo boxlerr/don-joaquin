@@ -132,6 +132,13 @@ export default function ChoferVacacionesTab({
   const diasAntig = anios != null ? diasPorAntiguedad(anios) : resumen.corresponden;
   const desfasaje = resumen.corresponden > 0 && anios != null && diasAntig !== resumen.corresponden;
 
+  // Los años ya vencidos no se listan. Las vacaciones duran dos años: las de
+  // 2024 se gozan hasta el 31/12/2025 y después se pierden, así que su renglón
+  // sólo dice "0 de 14" y ensucia. Si quedaron días sin gozar, el aviso de
+  // arriba los sigue nombrando. Los períodos tomados NO se tocan: siguen
+  // apareciendo en "Vacaciones cargadas", que es el historial.
+  const aniosVigentes = saldosVista.filter((a) => a.anio >= finPeriodoY - 1);
+
   // El año anterior quedó con más días imputados que cargados. Es un error de
   // carga, no un saldo, así que se avisa aparte en vez de mostrarlo en negativo.
   const anioAnterior = saldosVista.find((a) => a.anio === finPeriodoY - 1);
@@ -470,7 +477,7 @@ export default function ChoferVacacionesTab({
               más abajo.
             </p>
           </div>
-        ) : saldosVista.length === 0 ? (
+        ) : aniosVigentes.length === 0 ? (
           <p className="px-4 py-4 text-sm text-muted-foreground">Sin días cargados todavía.</p>
         ) : (
           /* Ni chips en monoespaciada ("2025: 0 de 28 (usados 28)") ni una tabla
@@ -478,12 +485,11 @@ export default function ChoferVacacionesTab({
              de memoria. Con una barra se VE cuánto le queda, y el color dice si
              corre riesgo de vencer. Mismo lenguaje que la vista global. */
           <div className="divide-y divide-border">
-            {saldosVista.map((a) => {
-              const vencido = a.anio < finPeriodoY - 1;
+            {aniosVigentes.map((a) => {
               // El saldo del año anterior vence el 31/12 de este año: es el que
               // hay que gastar primero, así que va en rojo.
               const porVencer = a.anio === finPeriodoY - 1;
-              const queda = vencido ? 0 : Math.max(0, a.saldo);
+              const queda = Math.max(0, a.saldo);
               const color = porVencer ? "#B91C1C" : "#059669";
               // La barra se llena SÓLO con lo que le queda. Antes pintaba también
               // los días tomados en gris y un año agotado quedaba con la barra
@@ -493,20 +499,9 @@ export default function ChoferVacacionesTab({
                 <div key={a.anio} className="px-4 py-3.5" title={a.observaciones ?? undefined}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="flex items-baseline gap-2">
-                      <span
-                        className={`text-base font-semibold tabular-nums ${
-                          vencido ? "text-muted-foreground" : "text-foreground"
-                        }`}
-                      >
-                        {a.anio}
-                      </span>
+                      <span className="text-base font-semibold tabular-nums text-foreground">{a.anio}</span>
                       {porVencer && queda > 0 && (
                         <span className="text-[11px] text-[#B91C1C]">vence el 31/12/{finPeriodoY}</span>
-                      )}
-                      {vencido && (
-                        <span className="text-[11px] text-muted-foreground">
-                          venció el 31/12/{a.anio + 1}
-                        </span>
                       )}
                     </span>
                     <span className="flex items-baseline gap-1.5 tabular-nums">

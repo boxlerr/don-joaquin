@@ -1323,7 +1323,11 @@ export default function VacacionesClient({
                 const gente = new Set(g.items.map((p) => p.chofer_id)).size;
                 return (
                   <section key={g.key}>
-                    <div className="sticky top-0 z-10 flex flex-wrap items-baseline gap-x-2 px-5 py-1.5 bg-muted/90 backdrop-blur-sm border-b border-border">
+                    {/* z-20 + fondo opaco: el encabezado del mes tiene que tapar
+                        la fila que se le mete por debajo al scrollear. Con
+                        bg-muted/90 se transparentaba y se leían los dos textos
+                        pisados. */}
+                    <div className="sticky top-0 z-20 flex flex-wrap items-baseline gap-x-2 px-5 py-1.5 bg-muted border-b border-border">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground">{g.label}</h3>
                       <span className="text-[11px] text-muted-foreground">
                         {gente} {gente === 1 ? "persona" : "personas"} · {totalDias} día
@@ -1337,7 +1341,12 @@ export default function VacacionesClient({
                         return (
                           <li
                             key={p.id}
-                            className={`group relative flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
+                            /* `isolate` encierra el z-index de adentro de la fila
+                               (el link estirado en z-0 contra los controles en
+                               z-10). Sin eso esos z-10 salían al contexto de
+                               apilado de la lista y se dibujaban encima del
+                               encabezado del mes al scrollear. */
+                            className={`group relative isolate flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
                           >
                             {/* Toda la fila abre el legajo. El link va estirado por
                                 debajo y los controles (fechas, cruz) quedan por

@@ -53,12 +53,16 @@ const periodoHeim: Ausencia = {
   created_at: `${Y}-07-01T00:00:00Z`,
 };
 
-function montar(extra?: Partial<VacacionesSaldo>, canWrite = true) {
+function montar(
+  extra?: Partial<VacacionesSaldo>,
+  canWrite = true,
+  ausencias: Ausencia[] = [periodoHeim],
+) {
   return render(
     <ChoferVacacionesTab
       chofer_id="c1"
       saldo={{ ...saldoHeim, ...extra }}
-      ausencias={[periodoHeim]}
+      ausencias={ausencias}
       can_write={canWrite}
       fecha_ingreso={`${Y - 1}-02-01`}
       onRefresh={vi.fn()}
@@ -145,8 +149,32 @@ describe("ChoferVacacionesTab — saldo", () => {
       ],
     });
     expect(screen.getByText(/día\(s\) de años anteriores/).textContent).toContain("5 día(s)");
-    // Un año vencido ya no va tachado: dice cuándo venció y su saldo cuenta 0.
-    expect(screen.getByText(`venció el 31/12/${Y - 1}`)).toBeInTheDocument();
+    // Un año ya vencido NO se lista en "Días por año": su saldo siempre sería 0
+    // y con el tiempo la lista se llena de años muertos. Lo que quedó sin gozar
+    // lo sigue diciendo el aviso de arriba.
+    expect(screen.queryByText(String(Y - 2))).not.toBeInTheDocument();
+    expect(screen.queryByText(`venció el 31/12/${Y - 1}`)).not.toBeInTheDocument();
+    // Pero el año anterior y el actual siguen estando.
+    expect(screen.getByText(String(Y - 1))).toBeInTheDocument();
+    expect(screen.getByText(String(Y))).toBeInTheDocument();
+  });
+
+  it("sigue mostrando los períodos tomados de un año ya vencido", () => {
+    // Los días vencen, el historial no: lo que se tomó tiene que quedar visible
+    // en "Vacaciones cargadas" aunque su año ya no figure arriba.
+    montar(
+      {
+        dias_vencidos: 5,
+        anios: [
+          { anio: Y - 2, otorgados: 5, usados: 5, saldo: 0, observaciones: null },
+          ...saldoHeim.anios,
+        ],
+      },
+      true,
+      [{ ...periodoHeim, id: "viejo", anio_cargo: Y - 2 }],
+    );
+    expect(screen.queryByText(String(Y - 2))).not.toBeInTheDocument();
+    expect(screen.getByText(`Del saldo ${Y - 2}`)).toBeInTheDocument();
   });
 });
 
