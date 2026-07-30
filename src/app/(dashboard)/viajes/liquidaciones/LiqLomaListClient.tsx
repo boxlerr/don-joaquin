@@ -22,7 +22,7 @@ import {
   deleteLiqLomaAction,
   type LiqLomaRow,
 } from "./liq-actions";
-import { coincideTerminos } from "@/lib/texto";
+import { coincideBusqueda } from "@/lib/texto";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato
@@ -122,15 +122,15 @@ export default function LiqLomaListClient({
 
   const liqsFiltradas = useMemo(() => {
     if (!busqueda.trim()) return liqs;
-    // La búsqueda ignora acentos y mayúsculas, y va por palabras sueltas: así
-    // "junio 2026" encuentra aunque el período y la fecha sean campos distintos.
+    // La búsqueda ignora acentos y mayúsculas. Se compara contra todos los
+    // campos unidos, igual que antes.
     return liqs.filter((l) =>
-      coincideTerminos(
+      coincideBusqueda(
         [
           formatPeriodoCorto(l.periodo_desde, l.periodo_hasta),
           l.archivo_nombre,
           formatFecha(l.importado_en),
-        ],
+        ].join(" "),
         busqueda,
       ),
     );

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { normalizarTexto } from "@/lib/texto";
 import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
@@ -32,6 +33,38 @@ function extractMaterialFromObs(obs: string | null): string | null {
   return m ? m[1].trim() : null;
 }
 
+/**
+ * Busca ids en una tabla auxiliar del buscador de viajes.
+ *
+ * Compara contra las columnas normalizadas (sin acentos) que crea la migración
+ * 20260730_busqueda_sin_acentos. Si esa migración todavía no corrió, la consulta
+ * falla con 42703 y se reintenta contra las columnas originales: la búsqueda
+ * vuelve a ser sensible a acentos, como era antes, pero no se rompe.
+ */
+async function buscarIdsPorTexto(
+  supabase: ReturnType<typeof createAdminClient>,
+  tabla: string,
+  columnas: readonly string[],
+  termNorm: string,
+  termCrudo: string,
+): Promise<string[]> {
+  const filtro = (cols: readonly string[], term: string) =>
+    cols.map((c) => `${c}.ilike.${term}`).join(",");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const consultar = (f: string) => (supabase as any).from(tabla).select("id").or(f);
+
+  let { data, error } = await consultar(filtro(columnas.map((c) => `${c}_norm`), termNorm));
+  if (error?.code === "42703") {
+    ({ data, error } = await consultar(filtro(columnas, termCrudo)));
+  }
+  if (error) {
+    console.error(`Error buscando en ${tabla}:`, error);
+    return [];
+  }
+  return (data ?? []).map((r: { id: string }) => r.id);
+}
+
 async function buildSearchOrFilter(
   supabase: ReturnType<typeof createAdminClient>,
   search: string,
@@ -39,44 +72,38 @@ async function buildSearchOrFilter(
   // Las comas y paréntesis rompen el parser de filtros `.or()` de PostgREST.
   const sanitized = search.replace(/[(),]/g, " ").trim();
   const term = `%${sanitized}%`;
-  const [choferes, camiones, clientes, lugares] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("choferes")
-      .select("id")
-      .or(`nombre.ilike.${term},apellido.ilike.${term}`),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("camiones")
-      .select("id")
-      .or(`patente.ilike.${term},marca.ilike.${term},modelo.ilike.${term}`),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("clientes")
-      .select("id")
-      .ilike("razon_social", term),
+  // El mismo texto, normalizado igual que las columnas *_norm: así "agustin"
+  // encuentra a "Agustín" y "munoz" a "Muñoz".
+  const termNorm = `%${normalizarTexto(sanitized)}%`;
+  const [choferIds, camionIds, clienteIds, lugarIds] = await Promise.all([
+    buscarIdsPorTexto(supabase, "choferes", ["nombre", "apellido"], termNorm, term),
+    // La patente no lleva acentos: se busca siempre contra la columna original.
+    buscarIdsPorTexto(supabase, "camiones", ["marca", "modelo"], termNorm, term).then(
+      async (ids) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("camiones")
+          .select("id")
+          .ilike("patente", term);
+        return [...new Set([...ids, ...(data ?? []).map((r: { id: string }) => r.id)])];
+      },
+    ),
+    buscarIdsPorTexto(supabase, "clientes", ["razon_social"], termNorm, term),
     // Lugares. Faltaban: buscar "LOMASER" o "Ramallo" en el listado no traía
     // nada, aunque la columna Destino lo mostrara en pantalla — y los links de
     // "A dónde fueron" caían acá, así que llevaban a una lista vacía.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("puntos_ruta")
-      .select("id")
-      .ilike("nombre", term),
+    buscarIdsPorTexto(supabase, "puntos_ruta", ["nombre"], termNorm, term),
   ]);
 
+  // Códigos: no llevan acentos, van contra la columna original.
   const parts: string[] = [`codigo.ilike.${term}`, `nro_viaje_ypf.ilike.${term}`];
 
-  const choferIds: string[] = (choferes.data ?? []).map((r: { id: string }) => r.id);
   if (choferIds.length) parts.push(`chofer_id.in.(${choferIds.join(",")})`);
 
-  const camionIds: string[] = (camiones.data ?? []).map((r: { id: string }) => r.id);
   if (camionIds.length) parts.push(`camion_id.in.(${camionIds.join(",")})`);
 
-  const clienteIds: string[] = (clientes.data ?? []).map((r: { id: string }) => r.id);
   if (clienteIds.length) parts.push(`cliente_id.in.(${clienteIds.join(",")})`);
 
-  const lugarIds: string[] = (lugares.data ?? []).map((r: { id: string }) => r.id);
   if (lugarIds.length) {
     parts.push(`origen_id.in.(${lugarIds.join(",")})`);
     parts.push(`destino_id.in.(${lugarIds.join(",")})`);

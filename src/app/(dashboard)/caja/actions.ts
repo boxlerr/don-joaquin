@@ -218,8 +218,14 @@ export type GetCajaMovimientosParams = {
   caja?: CajaFiltro;
 };
 
-// Se apaga solo si la base todavía no tiene la columna normalizada.
-let buscarSinAcentos = true;
+// Si la base todavía no tiene la columna normalizada (falta correr la migración
+// 20260730_busqueda_sin_acentos, o PostgREST tiene la caché de esquema vieja
+// justo después de aplicarla), se busca contra la columna original por un rato y
+// después se vuelve a probar. Así la búsqueda sin acentos se recupera sola en
+// cuanto la columna existe, en vez de quedar degradada hasta reiniciar.
+const ESPERA_REINTENTO_MS = 60_000;
+let sinAcentosBloqueadoHasta = 0;
+const hayColumnaNormalizada = () => Date.now() >= sinAcentosBloqueadoHasta;
 
 export type GetCajaMovimientosResult =
   | { data: CajaMovimientoRow[]; hasMore: boolean; count: number }
@@ -268,12 +274,13 @@ export async function getCajaMovimientosAction(
   if (categoria) query = query.eq("categoria", categoria as never);
   if (gastoIdsFiltro) query = query.in("gasto_id", gastoIdsFiltro);
   // La búsqueda ignora acentos: se compara contra concepto_norm, la columna
-  // generada que guarda el concepto en minúsculas y sin tildes (migración
-  // 20260730_busqueda_sin_acentos). Si esa migración todavía no corrió, se cae
-  // a la columna original (búsqueda sensible a acentos, como era antes).
-  if (search) {
-    query = buscarSinAcentos
-      ? query.ilike("concepto_norm", `%${normalizarTexto(search)}%`)
+  // generada que guarda el concepto normalizado igual que normalizarTexto().
+  // Si lo que se escribió no deja nada (sólo espacios), no se filtra: mandar un
+  // '%%' descartaría además las filas con el campo en null.
+  const termino = normalizarTexto(search ?? "");
+  if (termino) {
+    query = hayColumnaNormalizada()
+      ? query.ilike("concepto_norm", `%${termino}%`)
       : query.ilike("concepto", `%${search}%`);
   }
   if (visibilidad) query = query.or(visibilidad);
@@ -281,12 +288,13 @@ export async function getCajaMovimientosAction(
   const { data, count, error } = await query;
 
   if (error) {
-    // 42703 = la columna no existe: falta correr la migración de búsqueda sin
-    // acentos. Se apaga para lo que queda del proceso y se reintenta una vez.
-    if (error.code === "42703" && buscarSinAcentos) {
-      buscarSinAcentos = false;
+    // 42703 = la columna no existe todavía. Se deja de usar por un minuto y se
+    // reintenta una vez con la columna original (en el reintento ya está
+    // bloqueada, así que no hay recursión infinita).
+    if (error.code === "42703" && hayColumnaNormalizada()) {
+      sinAcentosBloqueadoHasta = Date.now() + ESPERA_REINTENTO_MS;
       console.warn(
-        "Falta la migración 20260730_busqueda_sin_acentos: la búsqueda de caja vuelve a ser sensible a acentos."
+        "Falta la columna concepto_norm (migración 20260730_busqueda_sin_acentos): la búsqueda de caja queda sensible a acentos y se reintenta en 1 minuto."
       );
       return getCajaMovimientosAction(params);
     }

@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getDmYpfPdfUrlAction, type DmYpfRow } from "./dm-actions";
-import { coincideTerminos } from "@/lib/texto";
+import { coincideBusqueda } from "@/lib/texto";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato
@@ -130,10 +130,9 @@ export default function DmYpfListClient({
   const dmsFiltrados = useMemo(() => {
     return dms.filter((dm) => {
       // La búsqueda ignora acentos y mayúsculas: "sanchez" encuentra "Sánchez".
-      // Se busca por palabras sueltas contra todos los campos juntos, así
-      // "solpe 4500" sigue encontrando aunque cada dato esté en su columna.
+      // Se compara contra todos los campos unidos, igual que antes.
       if (
-        !coincideTerminos(
+        !coincideBusqueda(
           [
             formatFecha(dm.periodo_desde),
             formatFecha(dm.periodo_hasta),
@@ -141,7 +140,7 @@ export default function DmYpfListClient({
             dm.numero_pedido,
             dm.contrato_sap,
             dm.solicitante,
-          ],
+          ].join(" "),
           busqueda,
         )
       )
