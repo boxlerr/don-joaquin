@@ -2242,6 +2242,12 @@ export async function updateChoferInfoAction(
     fecha_ingreso: string | null;
     alta_afip: string | null;
     periodo_prueba_fin: string | null;
+    nro_tramite_dni: string | null;
+    clave_fiscal: string | null;
+    observaciones: string | null;
+    estado: "activo" | "inactivo" | "baja";
+    motivo_egreso: "renuncia" | "despido" | "jubilacion" | "otro" | null;
+    fecha_egreso: string | null;
     rol: string;
   }>
 ) {
@@ -2252,10 +2258,17 @@ export async function updateChoferInfoAction(
   const camposEditables = Object.keys(data) as (keyof typeof data)[];
   if (camposEditables.length === 0) return { success: true };
 
-  // Las fechas se validan entre sí, así que hay que conocer las que NO vinieron
-  // en esta edición (ej: se cambia el ingreso y el nacimiento está en la base).
+  // Las fechas y el estado se validan entre sí, así que hay que conocer los
+  // valores que NO vinieron en esta edición (ej: se cambia el ingreso y el
+  // nacimiento está en la base).
   const columnasPrevio = [
-    ...new Set([...camposEditables as string[], "fecha_nacimiento", "fecha_ingreso", "fecha_egreso"]),
+    ...new Set([
+      ...camposEditables as string[],
+      "estado",
+      "fecha_nacimiento",
+      "fecha_ingreso",
+      "fecha_egreso",
+    ]),
   ];
   const { data: previoRaw } = await supabase
     .from("choferes")
@@ -2272,15 +2285,29 @@ export async function updateChoferInfoAction(
   const errorFormato = validarDni(payload.dni) ?? validarCuil(payload.cuil);
   if (errorFormato) return { error: errorFormato };
 
-  // Para cada fecha: la que se está editando, o la que ya estaba guardada.
-  // El egreso no se edita acá (tiene su propio panel), pero se usa para comparar.
+  // Para cada dato: el que se está editando, o el que ya estaba guardado.
   const guardada = (campo: string) => (previo?.[campo] as string | null | undefined) ?? null;
+  const valorFinal = (campo: keyof typeof payload) =>
+    (payload[campo] !== undefined ? payload[campo] : guardada(campo)) as string | null;
+
+  // Egreso: es lo mismo que hace el diálogo "Egresar" del listado, pero desde el
+  // legajo. Sin fecha de egreso el chofer queda de baja sin saberse desde cuándo
+  // (y la antigüedad se sigue contando hasta hoy).
+  const estadoFinal = valorFinal("estado") ?? "activo";
+  if (payload.estado !== undefined) {
+    if (estadoFinal === "baja") {
+      if (!valorFinal("fecha_egreso")) return { error: "Para dar de baja hace falta la fecha de egreso." };
+    } else {
+      // Volver a activo/inactivo limpia los datos del egreso (igual que "Reactivar").
+      payload.motivo_egreso = null;
+      payload.fecha_egreso = null;
+    }
+  }
+
   const errorFecha = validarFechasLegajo({
-    fecha_nacimiento:
-      payload.fecha_nacimiento !== undefined ? payload.fecha_nacimiento : guardada("fecha_nacimiento"),
-    fecha_ingreso:
-      payload.fecha_ingreso !== undefined ? payload.fecha_ingreso : guardada("fecha_ingreso"),
-    fecha_egreso: guardada("fecha_egreso"),
+    fecha_nacimiento: valorFinal("fecha_nacimiento"),
+    fecha_ingreso: valorFinal("fecha_ingreso"),
+    fecha_egreso: valorFinal("fecha_egreso"),
   });
   if (errorFecha) return { error: errorFecha.mensaje };
 
@@ -2299,14 +2326,23 @@ export async function updateChoferInfoAction(
   }
 
   // La auditoría guarda sólo los campos tocados (previo trae más columnas para
-  // poder validar las fechas).
+  // poder validar las fechas). Un alta/baja se registra como "cambio_estado",
+  // igual que cuando se hace desde el listado: en /auditoría se filtra por eso.
   const valoresAnteriores: Record<string, unknown> | null = previo
     ? Object.fromEntries(camposEditables.map((k) => [k, previo[k as string] ?? null]))
     : null;
+  const cambioEstado = payload.estado !== undefined && payload.estado !== previo?.estado;
 
-  await logChoferAudit(chofer_id, "actualizar", valoresAnteriores, payload, user.id);
+  await logChoferAudit(
+    chofer_id,
+    cambioEstado ? "cambio_estado" : "actualizar",
+    valoresAnteriores,
+    payload,
+    user.id,
+  );
 
   revalidatePath("/choferes/[slug]", "page");
+  revalidatePath("/choferes");
   return { success: true };
 }
 

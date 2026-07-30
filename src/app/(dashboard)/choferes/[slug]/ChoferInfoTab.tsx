@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
-import { Check, Pencil, X, AlertTriangle } from "lucide-react";
+import { Check, Pencil, X, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 // Áreas / roles posibles del legajo. Solo "chofer" usa camión de la flota.
 const ROLES: { value: string; label: string }[] = [
@@ -18,6 +18,25 @@ const ROLES: { value: string; label: string }[] = [
 ];
 const rolLabel = (r: string | null | undefined) =>
   ROLES.find((o) => o.value === (r || "chofer"))?.label ?? "Chofer";
+
+// El estado se edita acá igual que desde el listado: "baja" es el egreso y
+// arrastra motivo + fecha (por eso no alcanza con un activo/inactivo).
+type ChoferEstado = "activo" | "inactivo" | "baja";
+type MotivoEgreso = "renuncia" | "despido" | "jubilacion" | "otro";
+
+const ESTADOS: { value: ChoferEstado; label: string }[] = [
+  { value: "activo", label: "Activo" },
+  { value: "inactivo", label: "Inactivo" },
+  { value: "baja", label: "Egresado" },
+];
+const estadoLabel = (e: string) => ESTADOS.find((o) => o.value === e)?.label ?? e;
+
+const MOTIVOS_EGRESO: { value: MotivoEgreso; label: string }[] = [
+  { value: "renuncia", label: "Renuncia" },
+  { value: "despido", label: "Despido" },
+  { value: "jubilacion", label: "Jubilación" },
+  { value: "otro", label: "Otro" },
+];
 import {
   getLegajoEstado,
   MENSAJE_LEGAJO_INCOMPLETO,
@@ -70,6 +89,19 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
   const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
   const [rol, setRol] = useState<string>((chofer as { rol?: string | null }).rol ?? "chofer");
+  const [estado, setEstado] = useState<ChoferEstado>((chofer.estado as ChoferEstado) ?? "activo");
+  const [motivoEgreso, setMotivoEgreso] = useState<string>(chofer.motivo_egreso ?? "");
+  const [fechaEgreso, setFechaEgreso] = useState(chofer.fecha_egreso ?? "");
+  const [periodoPruebaFin, setPeriodoPruebaFin] = useState(
+    (chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? "",
+  );
+  const [nroTramiteDni, setNroTramiteDni] = useState(
+    (chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? "",
+  );
+  const [claveFiscal, setClaveFiscal] = useState(
+    (chofer as { clave_fiscal?: string | null }).clave_fiscal ?? "",
+  );
+  const [observaciones, setObservaciones] = useState(chofer.observaciones ?? "");
 
   // Solo los choferes usan camión de la flota; admin/mantenimiento/fleteros no.
   const esChofer = (rol || "chofer") === "chofer";
@@ -118,6 +150,13 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     setAliasCbu(chofer.alias_cbu ?? "");
     setAltaAfip(chofer.alta_afip ?? "");
     setRol((chofer as { rol?: string | null }).rol ?? "chofer");
+    setEstado((chofer.estado as ChoferEstado) ?? "activo");
+    setMotivoEgreso(chofer.motivo_egreso ?? "");
+    setFechaEgreso(chofer.fecha_egreso ?? "");
+    setPeriodoPruebaFin((chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? "");
+    setNroTramiteDni((chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? "");
+    setClaveFiscal((chofer as { clave_fiscal?: string | null }).clave_fiscal ?? "");
+    setObservaciones(chofer.observaciones ?? "");
     setError(null);
     setFieldErrors({});
     setEditing(false);
@@ -131,10 +170,14 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     if (errDni) errs.dni = errDni;
     const errCuil = validarCuil(cuil);
     if (errCuil) errs.cuil = errCuil;
+    // Un egresado sin fecha queda de baja sin saberse desde cuándo, y la
+    // antigüedad se le sigue contando hasta hoy.
+    if (estado === "baja" && !fechaEgreso)
+      errs.fecha_egreso = "Poné la fecha de egreso.";
     const errFecha = validarFechasLegajo({
       fecha_nacimiento: fechaNacimiento,
       fecha_ingreso: fechaIngreso,
-      fecha_egreso: chofer.fecha_egreso,
+      fecha_egreso: estado === "baja" ? fechaEgreso : null,
     });
     if (errFecha) errs[errFecha.campo] = errFecha.mensaje;
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
@@ -178,6 +221,14 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
         cbu: cbu.trim() || null,
         alias_cbu: aliasCbu.trim() || null,
         alta_afip: altaAfip || null,
+        periodo_prueba_fin: periodoPruebaFin || null,
+        nro_tramite_dni: nroTramiteDni.trim() || null,
+        clave_fiscal: claveFiscal.trim() || null,
+        observaciones: observaciones.trim() || null,
+        estado,
+        // Volver a activo/inactivo limpia el egreso (lo hace también el server).
+        motivo_egreso: estado === "baja" ? ((motivoEgreso || null) as MotivoEgreso | null) : null,
+        fecha_egreso: estado === "baja" ? fechaEgreso || null : null,
         rol: rol || "chofer",
       });
       if (res.error) {
@@ -269,10 +320,15 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
               ) : <Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono />}
             </Field>
             <Field label="Estado">
-              <Value v={chofer.estado === "baja" ? "egresado" : chofer.estado} />
-              {/* El estado no se toca acá: egresar pide motivo y fecha, y se
-                  hace desde el listado. Sin la aclaración parece un olvido. */}
-              {editing && <Nota>Se cambia desde el listado (Egresar / Reactivar).</Nota>}
+              {editing ? (
+                <Combobox
+                  value={estado}
+                  onValueChange={(v) => setEstado((v || "activo") as ChoferEstado)}
+                  options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
+                  searchable={false}
+                  triggerClassName="h-8 text-sm"
+                />
+              ) : <Value v={estadoLabel(chofer.estado).toLowerCase()} />}
             </Field>
             <Field label="Fecha nacimiento">
               {editing ? (
@@ -302,11 +358,36 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 </EditField>
               ) : <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />}
             </Field>
-            {chofer.estado === "baja" && (
-              <Field label="Fecha egreso">
-                <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />
-                {editing && <Nota>Se edita en el panel de egreso, arriba.</Nota>}
-              </Field>
+            {/* Datos del egreso: sólo si está (o va a quedar) dado de baja. */}
+            {(editing ? estado === "baja" : chofer.estado === "baja") && (
+              <>
+                <Field label="Motivo de egreso">
+                  {editing ? (
+                    <Combobox
+                      value={motivoEgreso}
+                      onValueChange={setMotivoEgreso}
+                      options={[
+                        { id: "", label: "— Sin especificar —" },
+                        ...MOTIVOS_EGRESO.map((m) => ({ id: m.value, label: m.label })),
+                      ]}
+                      searchable={false}
+                      triggerClassName="h-8 text-sm"
+                    />
+                  ) : <Value v={chofer.motivo_egreso} />}
+                </Field>
+                <Field label="Fecha egreso">
+                  {editing ? (
+                    <EditField error={fieldErrors.fecha_egreso}>
+                      <Input
+                        type="date"
+                        value={fechaEgreso}
+                        onChange={(e) => setFechaEgreso(e.target.value)}
+                        className={`h-8 text-sm ${fieldErrors.fecha_egreso ? "border-red-400" : ""}`}
+                      />
+                    </EditField>
+                  ) : <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />}
+                </Field>
+              </>
             )}
             <Field label="Ciudad de nacimiento">
               {editing
@@ -463,20 +544,46 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
                 : <Value v={altaAfip ? fmtFecha(altaAfip) : null} />}
             </Field>
-            <PeriodoPruebaField
-              fechaIngreso={chofer.fecha_ingreso}
-              periodoPruebaFin={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+            {/* Nº de trámite del DNI: venía cargado del Excel y no se veía en
+                ninguna pantalla. Es lo que se pide para renovar el documento. */}
+            <Field label="Nº de trámite del DNI">
+              {editing
+                ? <Input value={nroTramiteDni} onChange={(e) => setNroTramiteDni(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" />
+                : <Value v={(chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? null} mono />}
+            </Field>
+            <ClaveFiscalField
+              value={editing ? claveFiscal : (chofer as { clave_fiscal?: string | null }).clave_fiscal ?? ""}
+              onChange={setClaveFiscal}
               editing={editing}
-              onActivar={() => {
-                const fin = chofer.fecha_ingreso
-                  ? addMonthsStr(chofer.fecha_ingreso, 6)
-                  : addMonthsStr(new Date().toISOString().split("T")[0], 6);
-                updateChoferInfoAction(chofer.id, { periodo_prueba_fin: fin }).then((res) => {
-                  if (!res.error) onSaved?.();
-                });
-              }}
+            />
+            <PeriodoPruebaField
+              fechaIngreso={editing ? fechaIngreso : chofer.fecha_ingreso}
+              value={periodoPruebaFin}
+              guardado={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+              editing={editing}
+              onChange={setPeriodoPruebaFin}
             />
           </div>
+        </section>
+
+        {/* Observaciones del legajo (incluye la nota que se carga al egresar). */}
+        <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
+            Observaciones
+          </h4>
+          {editing ? (
+            <textarea
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows={3}
+              placeholder="Notas del legajo…"
+              className="w-full text-sm border border-border rounded-[6px] px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1]"
+            />
+          ) : (
+            <p className={`text-sm whitespace-pre-wrap ${chofer.observaciones ? "text-foreground" : "text-muted-foreground/60"}`}>
+              {chofer.observaciones || "—"}
+            </p>
+          )}
         </section>
       </div>
 
@@ -508,44 +615,69 @@ function addMonthsStr(dateStr: string, months: number): string {
   return d.toISOString().split("T")[0];
 }
 
+/**
+ * Período de prueba. Editando es una fecha más: se puede correr el fin, o
+ * vaciarla para dejarlo sin iniciar. El atajo "+ Iniciar" sigue estando, pero
+ * ahora sólo completa el campo (antes guardaba solo, sin pasar por "Guardar
+ * cambios", y no había forma de arrepentirse).
+ */
 function PeriodoPruebaField({
   fechaIngreso,
-  periodoPruebaFin,
+  value,
+  guardado,
   editing,
-  onActivar,
+  onChange,
 }: {
   fechaIngreso: string | null | undefined;
-  periodoPruebaFin: string | null;
+  value: string;
+  guardado: string | null;
   editing: boolean;
-  onActivar: () => void;
+  onChange: (v: string) => void;
 }) {
   const fmtFecha = (s: string) => {
     const [y, m, d] = s.split("-");
     return `${d}/${m}/${y}`;
   };
 
-  if (!periodoPruebaFin) {
+  if (editing) {
     return (
-      <div className="col-span-2 flex items-center gap-3">
-        <div className="space-y-0.5">
-          <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
-          <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
-        </div>
-        {editing && (
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+          Período de prueba — fin
+        </Label>
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-sm"
+        />
+        {!value && (
           <button
             type="button"
-            onClick={onActivar}
-            className="mt-4 text-xs font-semibold text-[#0088D1] hover:underline"
+            onClick={() =>
+              onChange(addMonthsStr(fechaIngreso || new Date().toISOString().split("T")[0], 6))
+            }
+            className="text-xs font-semibold text-[#0088D1] hover:underline"
           >
-            + Iniciar
+            + Iniciar (6 meses desde el ingreso)
           </button>
         )}
+        {value && <Nota>Vaciá la fecha para dejarlo sin iniciar.</Nota>}
+      </div>
+    );
+  }
+
+  if (!guardado) {
+    return (
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
+        <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
       </div>
     );
   }
 
   const hoy = new Date();
-  const fin = new Date(periodoPruebaFin + "T00:00:00");
+  const fin = new Date(guardado + "T00:00:00");
   const diasRestantes = Math.ceil((fin.getTime() - hoy.getTime()) / 86_400_000);
   const vencido = diasRestantes < 0;
   const porVencer = !vencido && diasRestantes <= 30;
@@ -559,13 +691,65 @@ function PeriodoPruebaField({
       <div className="space-y-0.5">
         <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — fin</Label>
         <p className={`text-sm py-0.5 font-semibold ${vencido ? "text-red-500" : porVencer ? "text-amber-500" : "text-[#0088D1]"}`}>
-          {fmtFecha(periodoPruebaFin)}
+          {fmtFecha(guardado)}
           <span className="ml-1.5 font-normal text-muted-foreground text-xs">
             {vencido ? `(venció hace ${Math.abs(diasRestantes)}d)` : `(${diasRestantes}d restantes)`}
           </span>
         </p>
       </div>
     </>
+  );
+}
+
+/**
+ * Clave fiscal de AFIP. Está cargada en algunos legajos desde el Excel, pero no
+ * se veía en ninguna pantalla. Se muestra tapada y con un ojo para revelarla:
+ * es una credencial, no un dato más para dejar a la vista de cualquiera que
+ * pase por atrás.
+ */
+function ClaveFiscalField({
+  value,
+  onChange,
+  editing,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  editing: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="space-y-0.5">
+      <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+        Clave fiscal
+      </Label>
+      <div className="flex items-center gap-1.5">
+        {editing ? (
+          <Input
+            type={visible ? "text" : "password"}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="—"
+            autoComplete="off"
+            className="font-mono h-8 text-sm"
+          />
+        ) : (
+          <p className={`text-sm py-0.5 font-mono ${value ? "text-foreground" : "text-muted-foreground/60"}`}>
+            {value ? (visible ? value : "••••••••") : "—"}
+          </p>
+        )}
+        {value && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            title={visible ? "Ocultar" : "Mostrar"}
+          >
+            {visible ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
