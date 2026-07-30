@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Importar la programación de viajes de Loma Negra.
+ * Importar la programación de viajes.
  *
  * Los viajes entran SIN CHOFER y después Nico los asigna — que es exactamente
  * lo que él hace hoy a mano: recibe el Excel, lo anota en un papel y cuando le
@@ -10,7 +10,7 @@
  * Nunca crea nada sin mostrar antes qué va a crear.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -30,9 +30,12 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 import {
+  getClientesProgramacionAction,
   importarProgramacionAction,
   previewProgramacionAction,
+  type ClienteOpcion,
   type PreviewProgramacion,
 } from "../import-programacion/actions";
 
@@ -56,6 +59,27 @@ export default function ImportProgramacionModal({
   const [importando, setImportando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ creados: number; errores: string[] } | null>(null);
+  // A quién se le factura no está en el archivo: se elige acá. Ver el comentario
+  // de la acción — el "Nombre cliente" del Excel son plantas, no la empresa.
+  const [clientes, setClientes] = useState<ClienteOpcion[]>([]);
+  const [clienteId, setClienteId] = useState("");
+
+  useEffect(() => {
+    if (!open || clientes.length > 0) return;
+    let vivo = true;
+    getClientesProgramacionAction()
+      .then((r) => {
+        if (!vivo) return;
+        setClientes(r.clientes);
+        setClienteId((prev) => prev || r.sugeridoId || "");
+      })
+      .catch(() => {
+        if (vivo) setError("No se pudo cargar la lista de clientes.");
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [open, clientes.length]);
 
   const reset = () => {
     setArchivo(null);
@@ -89,7 +113,7 @@ export default function ImportProgramacionModal({
     if (!archivo) return;
     setImportando(true);
     setError(null);
-    const res = await importarProgramacionAction(archivo.base64, archivo.nombre);
+    const res = await importarProgramacionAction(archivo.base64, archivo.nombre, clienteId);
     setImportando(false);
     if ("error" in res) {
       setError(res.error);
@@ -111,9 +135,7 @@ export default function ImportProgramacionModal({
     >
       <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle className="text-lg text-foreground">
-            Programación de viajes — Loma Negra
-          </DialogTitle>
+          <DialogTitle className="text-lg text-foreground">Programación de viajes</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             El Excel que llega con los viajes del día. Entran <b>sin chofer</b>: después se asignan
             desde el listado o desde “A dónde fueron”.
@@ -169,12 +191,32 @@ export default function ImportProgramacionModal({
                   {archivo ? archivo.nombre : "Elegí el Excel de la programación"}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  .xlsx — el que manda Loma con los números de transporte
+                  .xlsx — el que llega con los números de transporte
                 </span>
               </label>
 
               {preview && (
                 <>
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      ¿A qué cliente van estos viajes?
+                    </p>
+                    <Combobox
+                      options={clientes}
+                      value={clienteId}
+                      onValueChange={setClienteId}
+                      placeholder="Elegí el cliente…"
+                      searchPlaceholder="Buscar cliente…"
+                      aria-label="Cliente al que se le facturan estos viajes"
+                      triggerClassName="h-9 text-[13px]"
+                    />
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      El archivo no lo dice: el “Nombre cliente” del Excel son plantas
+                      (FÁBRICA RAMALLO, LOMASER), no la empresa. Hoy lo manda Loma Negra, así que
+                      viene propuesta.
+                    </p>
+                  </div>
+
                   {/* Se carga el Centro tal cual (A111 / A109) y el
                       destinatario como destino. Que se lea antes de crear, no
                       después de importar 12 viajes al revés. */}
@@ -291,7 +333,7 @@ export default function ImportProgramacionModal({
               type="button"
               variant="brand"
               onClick={importar}
-              disabled={importando || !preview || preview.resumen.aCrear === 0}
+              disabled={importando || !preview || preview.resumen.aCrear === 0 || !clienteId}
             >
               {importando ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
               {importando

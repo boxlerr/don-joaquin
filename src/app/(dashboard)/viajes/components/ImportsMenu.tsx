@@ -50,11 +50,11 @@ export default function ImportsMenu() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuLabel>Documentación de clientes</DropdownMenuLabel>
-            {/* Los viajes del día que Loma manda por adelantado: entran sin
-                chofer y después se asignan. */}
+            {/* Los viajes del día que el cliente manda por adelantado: entran
+                sin chofer y después se asignan. */}
             <DropdownMenuItem onClick={() => setOpenModal("programacion")}>
               <CalendarClock size={14} />
-              Programación de viajes — Loma Negra
+              Programación de viajes
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setOpenModal("loma")}>
               <Factory size={14} />

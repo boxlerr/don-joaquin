@@ -14,18 +14,50 @@ import {
 } from "./parser";
 
 /**
- * Importar la programación de viajes de Loma Negra.
+ * Importar la programación de viajes.
  *
  * Nico recibe este Excel y hoy lo copia a mano en un papel: anota el número de
  * transporte y, cuando le da el viaje a alguien, lo subraya y escribe el nombre
  * del chofer. Acá los viajes entran SIN CHOFER y después él los asigna — que es
  * exactamente el paso que el archivo no trae.
  *
+ * Hoy el archivo llega de Loma Negra, pero el formato no tiene nada propio de
+ * ellos y no hay forma de saber desde adentro a qué cliente facturar: el
+ * "Nombre cliente" del Excel son plantas (FÁBRICA RAMALLO, LOMASER), no la
+ * empresa. Así que el cliente se elige al importar, con Loma Negra propuesta por
+ * defecto. Adivinarlo dejaría viajes facturados al cliente equivocado.
+ *
  * Nunca escribe nada sin mostrar antes qué va a crear: primero se pide el
  * preview, se mira, y recién entonces se confirma.
  */
 
-const CLIENTE_LOMA = "LOMA NEGRA CIASA";
+/** El que manda este archivo hoy: se propone, no se impone. */
+const CLIENTE_SUGERIDO = "LOMA NEGRA CIASA";
+
+export type ClienteOpcion = { id: string; label: string };
+
+/** Clientes activos para elegir a quién van los viajes, y cuál se propone. */
+export async function getClientesProgramacionAction(): Promise<{
+  clientes: ClienteOpcion[];
+  sugeridoId: string | null;
+}> {
+  await requireSeccion("viajes_listado", "write");
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("clientes")
+    .select("id, razon_social")
+    .eq("estado", "activo")
+    .order("razon_social", { ascending: true });
+  if (error) {
+    console.error("[programación] no se pudieron leer los clientes:", error);
+    throw new Error("No se pudo cargar la lista de clientes.");
+  }
+  const clientes = (data ?? []).map((c) => ({ id: c.id, label: c.razon_social }));
+  return {
+    clientes,
+    sugeridoId: clientes.find((c) => c.label === CLIENTE_SUGERIDO)?.id ?? null,
+  };
+}
 
 /**
  * Origen y destino de cada etapa.
@@ -237,6 +269,7 @@ export type ResultadoImport = {
 export async function importarProgramacionAction(
   base64: string,
   nombreArchivo: string,
+  clienteId: string,
 ): Promise<ResultadoImport | { error: string }> {
   const user = await requireSeccion("viajes_listado", "write");
 
@@ -251,11 +284,11 @@ export async function importarProgramacionAction(
   const supabase = createAdminClient();
 
   const [{ data: cliente }, { data: tipoCarga }] = await Promise.all([
-    supabase.from("clientes").select("id").eq("razon_social", CLIENTE_LOMA).maybeSingle(),
+    supabase.from("clientes").select("id, razon_social").eq("id", clienteId).maybeSingle(),
     supabase.from("tipos_carga").select("id").eq("nombre", "Carga a Granel").maybeSingle(),
   ]);
   if (!cliente?.id) {
-    return { error: `No encontré el cliente "${CLIENTE_LOMA}" para asociar los viajes.` };
+    return { error: "Elegí a qué cliente van estos viajes antes de crearlos." };
   }
   if (!tipoCarga?.id) {
     return { error: 'No encontré el tipo de carga "Carga a Granel".' };
@@ -311,6 +344,7 @@ export async function importarProgramacionAction(
       entidadId: null,
       valoresNuevos: {
         archivo: nombreArchivo,
+        cliente: cliente.razon_social,
         creados,
         transportes: aCrear.slice(0, 50).map((v) => v.nroCorto),
       },

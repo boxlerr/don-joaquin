@@ -938,6 +938,23 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
           className="text-sm flex-1 min-w-[11rem]"
           aria-label="Buscar viaje por código, chofer, camión, cliente o lugar"
         />
+        {/* Los incompletos se filtraban sólo desde la tarjeta de arriba, que
+            queda lejos de la tabla: acá está donde se está mirando. */}
+        <button
+          type="button"
+          onClick={() => setIncompletoFiltro(incompletoFiltro ? null : true)}
+          aria-pressed={!!incompletoFiltro}
+          title="Ver sólo los viajes a los que les falta origen, destino o chofer"
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[6px] border px-2.5 text-[12px] font-semibold transition-colors ${
+            incompletoFiltro
+              ? "border-[#B45309] bg-[#B45309]/10 text-[#B45309]"
+              : "border-border bg-card text-muted-foreground hover:border-[#B45309]/50 hover:text-[#B45309]"
+          }`}
+        >
+          <AlertTriangle size={13} />
+          Incompletos
+          {incompletoFiltro && <X size={12} />}
+        </button>
         {destino && (
           <button
             type="button"
