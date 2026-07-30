@@ -138,7 +138,7 @@ export default function ImportProgramacionModal({
           <DialogTitle className="text-lg text-foreground">Programación de viajes</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             El Excel que llega con los viajes del día. Entran <b>sin chofer</b>: después se asignan
-            desde el listado o desde “Dónde quedaron”.
+            desde el listado o desde “A dónde fueron”.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,7 +223,7 @@ export default function ImportProgramacionModal({
                   <p className="rounded-[6px] border border-border px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">
                     <b className="text-foreground">Desde</b> es el código de planta del archivo
                     (A111 / A109) y <b className="text-foreground">hasta</b> es el destinatario.
-                    Entran así y se corrigen después desde el listado o desde “Dónde quedaron”.
+                    Entran así y se corrigen después desde el listado o desde “A dónde fueron”.
                   </p>
 
                   <div className="flex flex-wrap gap-2 text-[12px]">

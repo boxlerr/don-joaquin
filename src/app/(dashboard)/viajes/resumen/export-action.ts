@@ -101,7 +101,7 @@ export async function exportarResumenDestinosAction(
       name: "Dónde quedaron",
       opts: {
         columns: COLS_DESTINO,
-        title: "Dónde quedó cada chofer",
+        title: "A dónde fueron — dónde quedó cada chofer",
         subtitle: `${periodo} · ${totalChoferes} choferes en ${destinos.length} lugares · ${totalViajes} viajes`,
         fuente,
         sections: secciones,
@@ -111,7 +111,7 @@ export async function exportarResumenDestinosAction(
       name: "Viaje por viaje",
       opts: {
         columns: COLS_VIAJES,
-        title: "Dónde quedó cada chofer — viaje por viaje",
+        title: "A dónde fueron — viaje por viaje",
         subtitle: `${periodo} · ${filasViajes.length} viajes`,
         fuente,
         rows: filasViajes,
@@ -134,7 +134,7 @@ export async function exportarResumenDestinosAction(
 
   const sufijo = desde === hasta ? desde : `${desde}_${hasta}`;
   return {
-    filename: `donde_quedaron_${sufijo}.xlsx`,
+    filename: `a_donde_fueron_${sufijo}.xlsx`,
     base64: buffer.toString("base64"),
   };
 }

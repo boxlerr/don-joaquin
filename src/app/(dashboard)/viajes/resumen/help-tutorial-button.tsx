@@ -17,7 +17,7 @@ export default function HelpTutorialButton({
 }) {
   return (
     <HelpTutorialDialog
-      title="Guía · Dónde quedó cada chofer"
+      title="Guía · A dónde fueron"
       tabs={TABS}
       triggerClassName={triggerClassName}
     />

@@ -26,7 +26,7 @@ export default async function ResumenViajesPage() {
   return (
     <div className="w-full space-y-6 p-8">
       <PageHeader
-        title="Dónde quedó cada chofer"
+        title="A dónde fueron"
         description="El último lugar al que llegó cada uno, para saber a quién le podés dar el próximo viaje"
       />
       <ResumenDestinosClient inicial={inicial} hoy={hoy} canWrite={canWrite} />

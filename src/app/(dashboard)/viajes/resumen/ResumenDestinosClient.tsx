@@ -429,12 +429,10 @@ function FilaViaje({
             quedó el chofer. */}
         <td className="px-2 py-2">
           {esDondeQuedo ? (
-            <span className="inline-flex items-center gap-1.5 rounded-[4px] border border-primary/40 px-1.5 py-0.5">
-              <MapPin size={11} className="text-[#DC2626]" />
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={12} className="text-[#DC2626]" />
               <span className="font-bold text-primary">{viaje.destino}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">
-                quedó acá
-              </span>
+              <span className="font-bold uppercase tracking-wide text-foreground">quedó acá</span>
             </span>
           ) : (
             <span className="font-semibold text-foreground">{viaje.destino}</span>
