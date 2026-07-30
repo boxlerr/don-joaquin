@@ -5,6 +5,7 @@ import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
 import { normalizarDni, validarCuil, validarDni } from "@/lib/chofer-validation";
+import { liberarCamionDeChofer } from "@/lib/chofer-egreso";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
 
@@ -211,16 +212,31 @@ export async function egresarChoferAction(
     return { error: "No se pudo egresar el chofer." };
   }
 
+  // Se va de la empresa: devuelve la unidad. El trigger de historial cierra solo
+  // el tramo, así que no se pierde quién manejó qué.
+  const camionLiberado = await liberarCamionDeChofer(id, data.fecha_egreso);
+
   await logChoferAudit(
     id,
     "cambio_estado",
     { estado: previo?.estado, motivo_egreso: previo?.motivo_egreso, fecha_egreso: previo?.fecha_egreso },
-    { estado: "baja", motivo_egreso: data.motivo, fecha_egreso: data.fecha_egreso },
+    {
+      estado: "baja",
+      motivo_egreso: data.motivo,
+      fecha_egreso: data.fecha_egreso,
+      ...(camionLiberado.length > 0 ? { camion_liberado: camionLiberado.join(", ") } : {}),
+    },
     user.id,
   );
 
   revalidatePath("/choferes");
-  return { success: true };
+  revalidatePath("/choferes/[slug]", "page");
+  if (camionLiberado.length > 0) {
+    revalidatePath("/camiones");
+    revalidatePath("/viajes/planilla-diaria");
+    revalidatePath("/viajes/carga-rapida");
+  }
+  return { success: true, camionLiberado };
 }
 
 /**

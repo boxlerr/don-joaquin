@@ -245,8 +245,10 @@ export default function AddSiniestroDialog({
                 { value: "none", label: "Sin chofer / Otro" },
                 ...choferes.map((ch) => ({
                   value: ch.id,
+                  // El motivo lo decide quien arma la lista (legajo incompleto,
+                  // egresado): antes estaba escrito acá y decía siempre lo mismo.
                   label: ch.disabled
-                    ? `⚠ ${ch.nombre} ${ch.apellido || ""} — legajo incompleto`
+                    ? `${ch.nombre} ${ch.apellido || ""} — ${(ch.motivo ?? "no disponible").toLowerCase()}`
                     : `${ch.nombre} ${ch.apellido || ""}`,
                   disabled: ch.disabled,
                   title: ch.motivo,

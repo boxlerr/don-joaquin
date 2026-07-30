@@ -36,6 +36,9 @@ interface Props {
   ausencias: Ausencia[];
   can_write: boolean;
   fecha_ingreso?: string | null;
+  /** Egresado: no acumula más días. Queda el historial de lo que se tomó. */
+  egresado?: boolean;
+  fecha_egreso?: string | null;
   onRefresh: () => void;
 }
 
@@ -47,6 +50,8 @@ export default function ChoferVacacionesTab({
   ausencias,
   can_write,
   fecha_ingreso,
+  egresado = false,
+  fecha_egreso,
   onRefresh,
 }: Props) {
   const finPeriodoY = new Date().getFullYear();
@@ -75,6 +80,7 @@ export default function ChoferVacacionesTab({
 
   // Períodos de vacaciones ya tomados (ausencias marcadas como vacaciones).
   const periodos = ausencias.filter((a) => a.es_vacaciones);
+  const totalTomado = periodos.reduce((acc, p) => acc + p.dias, 0);
 
   // Períodos agrupados por el año del que descuentan, del más nuevo al más viejo.
   // Los que no descuentan de ningún año (histórico) van al final, porque son los
@@ -283,7 +289,7 @@ export default function ChoferVacacionesTab({
           <Palmtree size={16} className="text-primary" />
           Saldo de vacaciones
         </h3>
-        {can_write && (
+        {can_write && !egresado && (
           <Button
             variant="outline"
             className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
@@ -295,6 +301,25 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
+      {/* Egresado: no acumula más días. Nada de saldos, hitos ni vencimientos
+          —seguían corriendo como si la persona siguiera en la empresa—; queda
+          el historial de lo que se tomó, que es lo que hay que poder consultar. */}
+      {egresado && (
+        <div className="rounded-[6px] border border-border bg-muted/30 px-4 py-3">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">Egresado{fecha_egreso ? ` el ${formatFecha(fecha_egreso)}` : ""}.</span>{" "}
+            No acumula más vacaciones.
+          </p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {periodos.length > 0
+              ? `Se tomó ${totalTomado} día${totalTomado !== 1 ? "s" : ""} en ${periodos.length} período${periodos.length !== 1 ? "s" : ""} mientras trabajó.`
+              : "No tiene vacaciones cargadas."}
+          </p>
+        </div>
+      )}
+
+      {!egresado && (
+        <>
       {/* Dos números y nada más, como los pidió Bárbara (29/07/2026): "yo dejaría
           cuántos le corresponden de 2026, cuántos le debo de 2025, y nada más;
           tomados me confunde y disponibles también es medio confuso". */}
@@ -358,10 +383,15 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
+        </>
+      )}
+
       {error && (
         <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-[6px]">{error}</div>
       )}
 
+      {!egresado && (
+        <>
       {/* Días que corresponden, año por año. Editable: los otorgados de cada año
           son la carga inicial de la planilla y a veces vienen mal. */}
       <div className="bg-card rounded-[8px] border border-border overflow-hidden">
@@ -534,6 +564,9 @@ export default function ChoferVacacionesTab({
           </div>
         )}
       </div>
+
+        </>
+      )}
 
       {/* Vacaciones cargadas, agrupadas por el año del que descuentan.
           Antes era una lista plana de tarjetas con borde: con tres períodos se
@@ -745,7 +778,15 @@ export default function ChoferVacacionesTab({
         )}
         <p className="mt-2 text-xs text-muted-foreground">
           Clic en las <span className="font-medium">fechas</span> para corregirlas. Cada grupo suma lo
-          que se tomó de ese año, así se puede cotejar con <span className="font-medium">Días por año</span>.
+          que se tomó de ese año
+          {/* En un egresado no se muestra el bloque de saldos, así que mandarlo
+              a cotejar contra una tarjeta que no está sólo confunde. */}
+          {!egresado && (
+            <>
+              , así se puede cotejar con <span className="font-medium">Días por año</span>
+            </>
+          )}
+          .
         </p>
       </div>
 

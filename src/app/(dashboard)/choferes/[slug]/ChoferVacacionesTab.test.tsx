@@ -267,3 +267,49 @@ describe("ChoferVacacionesTab — corregir fechas del período", () => {
     expect(screen.getByText(new RegExp(`vuelven al saldo ${Y - 1}`))).toBeInTheDocument();
   });
 });
+
+// Un egresado dejó de acumular: el legajo le seguía mostrando saldo del año en
+// curso, "vence el 31/12", próximo hito y el botón para cargarle vacaciones
+// nuevas, como si siguiera trabajando.
+describe("chofer egresado", () => {
+  const montarEgresado = () =>
+    render(
+      <ChoferVacacionesTab
+        chofer_id="c1"
+        saldo={saldoHeim}
+        ausencias={[periodoHeim]}
+        can_write
+        fecha_ingreso={`${Y - 1}-02-01`}
+        egresado
+        fecha_egreso={`${Y}-08-15`}
+        onRefresh={vi.fn()}
+      />,
+    );
+
+  it("dice que está egresado y cuántos días se tomó, sin tarjetas de saldo", () => {
+    montarEgresado();
+    expect(screen.getByText(/Egresado el 15\/08/)).toBeInTheDocument();
+    expect(screen.getByText(/No acumula más vacaciones/)).toBeInTheDocument();
+    expect(screen.getByText(/Se tomó 11 días en 1 período/)).toBeInTheDocument();
+    expect(screen.queryByText(`Corresponden (${Y})`)).not.toBeInTheDocument();
+    expect(screen.queryByText(`Adeudados (${Y - 1})`)).not.toBeInTheDocument();
+  });
+
+  it("no muestra hitos, vencimientos ni el saldo por año", () => {
+    montarEgresado();
+    expect(screen.queryByText("Próximo hito")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vence saldo anterior")).not.toBeInTheDocument();
+    expect(screen.queryByText("Antigüedad")).not.toBeInTheDocument();
+    expect(screen.queryByText("Días por año")).not.toBeInTheDocument();
+    expect(screen.queryByText(`vence el 31/12/${Y}`)).not.toBeInTheDocument();
+  });
+
+  it("no deja cargarle vacaciones nuevas pero conserva el historial", () => {
+    montarEgresado();
+    expect(screen.queryByText("Cargar vacaciones")).not.toBeInTheDocument();
+    expect(screen.queryByText("Editar días")).not.toBeInTheDocument();
+    // El historial sigue entero: es lo que hay que poder consultar.
+    expect(screen.getByText("Vacaciones cargadas")).toBeInTheDocument();
+    expect(screen.getByText(`Del saldo ${Y - 1}`)).toBeInTheDocument();
+  });
+});

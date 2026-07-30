@@ -14,6 +14,8 @@ interface Props {
   chofer_id: string;
   licencias: LicenciaMedica[];
   can_write: boolean;
+  /** Egresado: se conserva todo el historial, pero no se cargan novedades nuevas. */
+  egresado?: boolean;
   onRefresh: () => void;
 }
 
@@ -21,6 +23,7 @@ export default function ChoferLicenciasTab({
   chofer_id,
   licencias,
   can_write,
+  egresado = false,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -58,7 +61,7 @@ export default function ChoferLicenciasTab({
             {licencias.length} registro{licencias.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        {can_write && (
+        {can_write && !egresado && (
           <Button
             variant="outline"
             size="sm"

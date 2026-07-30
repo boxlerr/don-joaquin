@@ -13,6 +13,7 @@ import {
   validarDni,
   validarFechasLegajo,
 } from "@/lib/chofer-validation";
+import { errorSiEgresado, liberarCamionDeChofer } from "@/lib/chofer-egreso";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
 import {
@@ -1041,6 +1042,9 @@ export async function crearApercibimientoAction(
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
   const tipo = APERCIBIMIENTO_TIPOS.includes(data.tipo ?? "") ? data.tipo! : "apercibimiento";
 
@@ -1122,6 +1126,9 @@ export async function crearLicenciaAction(
 ) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
+
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   if (data.fecha_hasta && data.fecha_hasta < data.fecha_desde)
     return { error: "La fecha hasta no puede ser anterior a desde" };
@@ -1308,6 +1315,11 @@ export async function crearAusenciaAction(
 ) {
   const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
   const supabase = createAdminClient();
+
+  // Cubre las tres entradas al alta: "Nueva ausencia" y "Cargar vacaciones" del
+  // legajo, y el diálogo de la vista global de Vacaciones.
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   const tipo = data.tipo.trim();
   if (!tipo) return { error: "El tipo de ausencia es obligatorio" };
@@ -1876,6 +1888,11 @@ export async function crearPrestamoAction(
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  // Los préstamos ya abiertos se pueden seguir cobrando (eso es historial);
+  // lo que no se puede es darle uno nuevo a alguien que ya no está.
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   if (!Number.isFinite(data.monto) || data.monto <= 0)
     return { error: "El monto debe ser mayor a cero" };
   if (!Number.isInteger(data.cuotas) || data.cuotas < 1)
@@ -1993,6 +2010,8 @@ export async function crearUrlSubidaDocumentoAction(input: {
   const supabase = createAdminClient();
 
   if (!input.chofer_id) return { error: "Falta el chofer" };
+  const egresado = await errorSiEgresado(input.chofer_id);
+  if (egresado) return { error: egresado };
 
   const bucket = "documentos-personal";
   const ext = (input.filename.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
@@ -2045,6 +2064,9 @@ export async function registrarDocumentoChoferAction(input: {
   const supabase = createAdminClient();
 
   const { chofer_id } = input;
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   const adjuntos = input.adjuntos ?? [];
   let tipo_documento_id = input.tipo_documento_id ?? "";
 
@@ -2325,6 +2347,15 @@ export async function updateChoferInfoAction(
     return { error: "Error al actualizar" };
   }
 
+  // Al egresar, la unidad vuelve a la flota: dejarla "a nombre de" alguien que
+  // ya no está hacía que la planilla diaria y /camiones mostraran una asignación
+  // que no existe. Sólo en la transición (si ya estaba de baja no hay nada que
+  // liberar y volver a correrlo pisaría el historial).
+  let camionLiberado: string[] = [];
+  if (payload.estado === "baja" && previo?.estado !== "baja") {
+    camionLiberado = await liberarCamionDeChofer(chofer_id, valorFinal("fecha_egreso"));
+  }
+
   // La auditoría guarda sólo los campos tocados (previo trae más columnas para
   // poder validar las fechas). Un alta/baja se registra como "cambio_estado",
   // igual que cuando se hace desde el listado: en /auditoría se filtra por eso.
@@ -2337,13 +2368,18 @@ export async function updateChoferInfoAction(
     chofer_id,
     cambioEstado ? "cambio_estado" : "actualizar",
     valoresAnteriores,
-    payload,
+    camionLiberado.length > 0 ? { ...payload, camion_liberado: camionLiberado.join(", ") } : payload,
     user.id,
   );
 
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/choferes");
-  return { success: true };
+  if (camionLiberado.length > 0) {
+    revalidatePath("/camiones");
+    revalidatePath("/viajes/planilla-diaria");
+    revalidatePath("/viajes/carga-rapida");
+  }
+  return { success: true, camionLiberado };
 }
 
 // ---------------------------------------------------------------------------
@@ -2405,6 +2441,11 @@ export async function asignarCamionAction(
 ): Promise<{ ok?: boolean; error?: string; camion?: CamionAsignadoResult; quitadoA?: string | null }> {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
+
+  // Un egresado no maneja más: darle una unidad de la flota es justo lo que el
+  // egreso tiene que impedir. Desasignar sí se puede (es devolver el camión).
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   // Dueño anterior del camión (para avisar "se lo quitaste a X").
   const { data: prev } = await supabase

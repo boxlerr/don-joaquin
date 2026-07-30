@@ -29,6 +29,8 @@ interface Props {
   apercibimientos: Apercibimiento[];
   categorias: CategoriaApercibimiento[];
   can_write: boolean;
+  /** Egresado: se conserva todo el historial, pero no se cargan novedades nuevas. */
+  egresado?: boolean;
   onRefresh: () => void;
 }
 
@@ -37,6 +39,7 @@ export default function ChoferApercibimientosTab({
   apercibimientos,
   categorias,
   can_write,
+  egresado = false,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -60,7 +63,7 @@ export default function ChoferApercibimientosTab({
             {apercibimientos.length} registro{apercibimientos.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        {can_write && (
+        {can_write && !egresado && (
           <Button
             variant="outline"
             size="sm"

@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import { uploadFotoChoferAction, deleteFotoChoferAction } from "../actions";
 import { updateEgresoAction } from "./actions";
+import ExportarLegajoButton from "./ExportarLegajoButton";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -110,11 +111,11 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
   };
 
 
-  const estadoTone: "success" | "warning" | "neutral" | "error" =
+  const estadoTone: "success" | "archivado" | "neutral" | "error" =
     chofer.estado === "activo"
       ? "success"
       : chofer.estado === "baja"
-      ? "warning"
+      ? "archivado"
       : "neutral";
   const estadoLabel = chofer.estado === "baja" ? "egresado" : chofer.estado;
 
@@ -142,13 +143,11 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     : null;
 
   return (
-    <div
-      className={`rounded-[8px] border shadow-sm p-6 ${
-        esBaja
-          ? "bg-amber-50/40 border-amber-200"
-          : "bg-card border-border"
-      }`}
-    >
+    // El legajo de un egresado se leía como una alerta: la tarjeta entera lavada
+    // de amarillo, con otro recuadro amarillo adentro. Un egreso es un archivo,
+    // no un problema: misma tarjeta que el resto y el estado se dice con
+    // palabras, no tiñendo el fondo.
+    <div className="rounded-[8px] border border-border bg-card shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative flex-shrink-0 group/avatar">
@@ -315,16 +314,19 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
           </div>
         </div>
 
-        {!editing && (
-          <Button
-            variant="outline"
-            className="h-10 flex-shrink-0 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
-            onClick={() => onEditar?.()}
-          >
-            <Edit size={15} className="mr-2 text-primary" />
-            Editar
-          </Button>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <ExportarLegajoButton choferId={chofer.id} canVerSueldos={chofer.can_ver_sueldos} />
+          {!editing && (
+            <Button
+              variant="outline"
+              className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+              onClick={() => onEditar?.()}
+            >
+              <Edit size={15} className="mr-2 text-primary" />
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Antes eran 7 columnas fijas y el texto se cortaba en "Ingreso: 01/09/20…".
@@ -352,13 +354,13 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
         />
       </div>
 
-      {/* Panel de egreso destacado — solo si está dado de baja */}
+      {/* Egreso — sin caja de color: es una sección más del encabezado. */}
       {esBaja && (
-        <div className="mt-5 p-4 bg-amber-100/60 border border-amber-300 rounded-lg">
+        <div className="mt-5 pt-4 border-t border-border">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <LogOut size={14} className="text-amber-700" />
-              <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">
+              <LogOut size={14} className="text-muted-foreground" />
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Información del egreso
               </h3>
             </div>
@@ -366,7 +368,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs bg-card/60"
+                className="h-7 text-xs"
                 onClick={() => {
                   setEgMotivo(chofer.motivo_egreso ?? "");
                   setEgFecha(chofer.fecha_egreso ?? "");
@@ -378,7 +380,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               </Button>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 text-xs bg-card/60" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
                   <X size={12} className="mr-1" /> Cancelar
                 </Button>
                 <Button variant="brand" size="sm" className="h-7 text-xs" onClick={handleGuardarEgreso} disabled={savingEgreso}>
@@ -408,7 +410,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 </div>
               </div>
               {observacionEgreso && (
-                <div className="mt-3 pt-3 border-t border-amber-300/60">
+                <div className="mt-3 pt-3 border-t border-border">
                   <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
                     <FileText size={11} /> Observaciones del egreso
                   </div>

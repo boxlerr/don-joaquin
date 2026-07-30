@@ -16,6 +16,8 @@ interface Props {
   chofer_id: string;
   ausencias: Ausencia[];
   can_write: boolean;
+  /** Egresado: se conserva todo el historial, pero no se cargan novedades nuevas. */
+  egresado?: boolean;
   onRefresh: () => void;
 }
 
@@ -23,6 +25,7 @@ export default function ChoferAusenciasTab({
   chofer_id,
   ausencias,
   can_write,
+  egresado = false,
   onRefresh,
 }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -64,7 +67,7 @@ export default function ChoferAusenciasTab({
         </h3>
         <div className="flex items-center gap-2">
           <AusenciasHelpButton />
-          {can_write && (
+          {can_write && !egresado && (
             <Button
               variant="outline"
               size="sm"

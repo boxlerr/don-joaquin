@@ -94,6 +94,12 @@ export default function ChoferDetailPage() {
   const effectiveTab: TabId =
     activeTab === "sueldos" && chofer && !chofer.can_ver_sueldos ? "info" : activeTab;
 
+  // Egresado: el legajo pasa a ser un archivo. Se puede ver y corregir todo lo
+  // que ya está cargado, pero no se le suman novedades nuevas. Va aparte de
+  // can_write a propósito: apagar la escritura entera dejaría al legajo sin
+  // poder arreglar su propio historial, que es justo lo que hay que conservar.
+  const esBaja = chofer?.estado === "baja";
+
   // Centra la sección activa en la barra al cambiarla o al entrar por URL: con
   // ?tab=vacaciones quedaba seleccionada pero fuera de la vista y había que
   // buscarla con la flechita.
@@ -209,6 +215,7 @@ export default function ChoferDetailPage() {
               apercibimientos={chofer.apercibimientos}
               categorias={chofer.categorias_apercibimiento}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -217,6 +224,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               licencias={chofer.licencias_medicas}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -225,6 +233,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               ausencias={chofer.ausencias}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -235,6 +244,8 @@ export default function ChoferDetailPage() {
               ausencias={chofer.ausencias}
               can_write={chofer.can_logistica_write}
               fecha_ingreso={chofer.fecha_ingreso}
+              egresado={esBaja}
+              fecha_egreso={chofer.fecha_egreso}
               onRefresh={loadData}
             />
           )}
@@ -243,6 +254,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               prestamos={chofer.prestamos}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}

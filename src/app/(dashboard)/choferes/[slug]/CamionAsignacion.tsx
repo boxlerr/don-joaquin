@@ -23,10 +23,13 @@ export default function CamionAsignacion({
   choferId,
   camionActual,
   historial,
+  egresado = false,
 }: {
   choferId: string;
   camionActual: CamionAsignado | null;
   historial: CamionHistorialItem[];
+  /** Egresado: no se le asigna una unidad nueva. El historial se sigue viendo. */
+  egresado?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -119,13 +122,19 @@ export default function CamionAsignacion({
               )}
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs ${
+                egresado ? "text-muted-foreground" : "font-medium text-[#B45309]"
+              }`}
+            >
               <Truck size={12} /> Sin camión asignado
             </span>
           )}
-          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={abrir} disabled={pending}>
-            <Pencil size={11} /> {asignado ? "Cambiar" : "Asignar camión"}
-          </Button>
+          {!egresado && (
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={abrir} disabled={pending}>
+              <Pencil size={11} /> {asignado ? "Cambiar" : "Asignar camión"}
+            </Button>
+          )}
           {asignado && (
             <Button
               type="button"

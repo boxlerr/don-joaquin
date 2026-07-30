@@ -60,8 +60,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   const fechaEgresoAprox = esBaja && !fechaEgresoReal;
   const faltanDatosEgreso = esBaja && (!fechaEgresoReal || !chofer.motivo_egreso);
   const legajoEstado = getLegajoEstado(chofer);
-  const estadoTone: "success" | "warning" | "neutral" =
-    chofer.estado === "activo" ? "success" : esBaja ? "warning" : "neutral";
+  const estadoTone: "success" | "archivado" | "neutral" =
+    chofer.estado === "activo" ? "success" : esBaja ? "archivado" : "neutral";
   const estadoLabel = esBaja ? "egresado" : chofer.estado;
 
   // El camión solo aplica a choferes (no administración/mantenimiento/fletero).
@@ -170,17 +170,11 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   return (
     <>
       <div
-        className={`bg-card rounded-[12px] border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col relative group overflow-hidden ${
-          esBaja ? "border-amber-200/70" : "border-border"
+        className={`bg-card rounded-[12px] border border-border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col relative group overflow-hidden ${
+          esBaja ? "opacity-75 hover:opacity-100" : ""
         }`}
       >
-        <div
-          className={`h-1.5 w-full ${
-            esBaja
-              ? "bg-gradient-to-r from-amber-500 to-amber-300"
-              : "bg-gradient-to-r from-[#0088D1] to-[#4FC3F7]"
-          }`}
-        />
+        <div className={`h-[2px] w-full ${esBaja ? "bg-border" : "bg-primary"}`} />
 
         <div className="p-5 flex-1 flex flex-col">
           <div className="flex items-start gap-4 mb-4">
@@ -314,7 +308,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     )}
                   </span>
                 ) : sinCamion ? (
-                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  <span className="text-[11px] font-medium text-[#B45309]">
                     Sin camión asignado
                   </span>
                 ) : (
@@ -353,15 +347,15 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           )}
 
           {esBaja && (
-            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-md space-y-1.5 text-xs">
-              <div className="flex items-center gap-1.5 text-amber-700 font-semibold">
+            <div className="mt-3 pt-2.5 border-t border-border space-y-1.5 text-xs">
+              <div className="flex items-center gap-1.5 text-muted-foreground font-semibold">
                 <LogOut size={12} />
                 <span className="uppercase tracking-wide">Chofer egresado</span>
               </div>
               <div className="text-foreground/90">
                 <span className="text-muted-foreground">Motivo:</span>{" "}
                 <span className="font-medium capitalize">
-                  {chofer.motivo_egreso ?? <span className="text-amber-700/80 not-italic">Sin especificar</span>}
+                  {chofer.motivo_egreso ?? <span className="text-[#B45309] not-italic">Sin especificar</span>}
                 </span>
               </div>
               <div className="text-foreground/90">
@@ -371,7 +365,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     {formatFecha(fechaEgresoMostrar)}
                     {fechaEgresoAprox && (
                       <span
-                        className="ml-1 text-amber-600 font-mono"
+                        className="ml-1 text-muted-foreground font-mono"
                         title="Aproximada: es la fecha en que se registró la baja, no un egreso cargado. Completala abajo."
                       >
                         ≈
@@ -379,18 +373,18 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     )}
                   </>
                 ) : (
-                  <span className="text-amber-700/80">Sin cargar</span>
+                  <span className="text-[#B45309]">Sin cargar</span>
                 )}
               </div>
               {chofer.fecha_ingreso && fechaEgresoMostrar && (
                 <div className="text-foreground/90">
                   <span className="text-muted-foreground">Tiempo en la empresa:</span>{" "}
                   {formatDuracionEmpresa(chofer.fecha_ingreso, fechaEgresoMostrar)}
-                  {fechaEgresoAprox && <span className="text-amber-600 font-mono ml-0.5">≈</span>}
+                  {fechaEgresoAprox && <span className="text-muted-foreground font-mono ml-0.5">≈</span>}
                 </div>
               )}
               {chofer.observaciones && (
-                <div className="pt-1 mt-1 border-t border-amber-200/60 text-muted-foreground italic line-clamp-2">
+                <div className="pt-1 mt-1 border-t border-border text-muted-foreground italic line-clamp-2">
                   {chofer.observaciones}
                 </div>
               )}
@@ -401,7 +395,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     setActionError(null);
                     setEgresarOpen(true);
                   }}
-                  className="mt-1 inline-flex items-center gap-1 font-medium text-amber-700 hover:text-amber-900 hover:underline"
+                  className="mt-1 inline-flex items-center gap-1 font-medium text-[#B45309] hover:underline"
                 >
                   <LogOut size={11} />
                   Completar datos de egreso

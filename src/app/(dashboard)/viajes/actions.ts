@@ -1114,10 +1114,17 @@ export async function createViajeAction(
   {
     const { data: choferRow } = await supabase
       .from("choferes")
-      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
+      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso, estado")
       .eq("id", parsed.data.chofer_id)
       .single();
     if (choferRow) {
+      if (choferRow.estado === "baja") {
+        return {
+          ok: false,
+          error: `${choferRow.apellido}, ${choferRow.nombre} está egresado: no se le pueden cargar viajes nuevos.`,
+          fieldErrors: { chofer_id: "Chofer egresado." },
+        };
+      }
       const estadoLegajo = getLegajoEstado(choferRow);
       if (!estadoLegajo.completo) {
         return {
@@ -1886,6 +1893,23 @@ export async function updateViajeAction(
   // y modificarlos generaría datos fantasma.
   if (previo?.estado === "cancelado") {
     return { error: "El viaje está eliminado y no se puede editar." };
+  }
+
+  // Pasarle el viaje a un egresado es asignarle trabajo nuevo. Corregir un viaje
+  // viejo del propio egresado sí se puede: se compara contra el chofer que ya
+  // tenía, así que sólo se frena el CAMBIO de chofer.
+  if (parsed.data.chofer_id !== previo?.chofer_id) {
+    const { data: nuevoChofer } = await supabase
+      .from("choferes")
+      .select("nombre, apellido, estado")
+      .eq("id", parsed.data.chofer_id)
+      .single();
+    if (nuevoChofer?.estado === "baja") {
+      return {
+        error: `${nuevoChofer.apellido}, ${nuevoChofer.nombre} está egresado: no se le pueden asignar viajes.`,
+        fieldErrors: { chofer_id: "Chofer egresado." },
+      };
+    }
   }
 
   let realTipoCargaId = parsed.data.tipo_carga_id;

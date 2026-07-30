@@ -427,6 +427,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                     choferId={chofer.id}
                     camionActual={chofer.camion_actual}
                     historial={chofer.camiones_historial}
+                    egresado={chofer.estado === "baja"}
                   />
                 </Field>
               </div>
