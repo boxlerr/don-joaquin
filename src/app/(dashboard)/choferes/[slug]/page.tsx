@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getChoferDetailAction } from "./actions";
 import type { ChoferDetail } from "./types";
@@ -56,6 +56,10 @@ export default function ChoferDetailPage() {
   const [chofer, setChofer] = useState<ChoferDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("info");
+  // La barra de secciones scrollea: si se entra con ?tab=prestamos la sección
+  // quedaba seleccionada pero fuera de la vista y había que buscarla a mano.
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+
   const [editingInfo, setEditingInfo] = useState(false);
 
   useEffect(() => {
@@ -89,6 +93,19 @@ export default function ChoferDetailPage() {
   // (deep-link), caemos a Información para no dejar el panel en blanco.
   const effectiveTab: TabId =
     activeTab === "sueldos" && chofer && !chofer.can_ver_sueldos ? "info" : activeTab;
+
+  // Egresado: el legajo pasa a ser un archivo. Se puede ver y corregir todo lo
+  // que ya está cargado, pero no se le suman novedades nuevas. Va aparte de
+  // can_write a propósito: apagar la escritura entera dejaría al legajo sin
+  // poder arreglar su propio historial, que es justo lo que hay que conservar.
+  const esBaja = chofer?.estado === "baja";
+
+  // Centra la sección activa en la barra al cambiarla o al entrar por URL: con
+  // ?tab=vacaciones quedaba seleccionada pero fuera de la vista y había que
+  // buscarla con la flechita.
+  useEffect(() => {
+    tabRefs.current[effectiveTab]?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [effectiveTab, loading]);
 
   if (loading) {
     return (
@@ -134,17 +151,24 @@ export default function ChoferDetailPage() {
       />
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="border-b border-border bg-muted/40">
-          <HorizontalScrollHint className="px-6" fadeBg="from-muted/40">
-            <div className="flex items-center">
+        {/* La barra de secciones se leía flotando sobre el contenido: fondo casi
+            del mismo tono, texto chico y la sección activa marcada nada más que
+            con una línea. Ahora la activa toma el fondo de la tarjeta —queda
+            pegada a lo que muestra abajo— y el resto va sobre gris. */}
+        <div className="border-b border-border bg-muted/50">
+          <HorizontalScrollHint className="px-4" fadeBg="from-muted/50">
+            <div className="flex items-end gap-0.5">
               {TABS.filter((tab) => tab.id !== "sueldos" || chofer.can_ver_sueldos).map((tab) => (
                 <button
                   key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                  className={`-mb-px whitespace-nowrap rounded-t-[6px] border-b-2 px-4 py-3 text-[15px] transition-colors ${
                     effectiveTab === tab.id
-                      ? "text-primary border-[#0088D1]"
-                      : "text-muted-foreground border-transparent hover:text-foreground"
+                      ? "border-[#0088D1] bg-card font-semibold text-foreground"
+                      : "border-transparent font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                   }`}
                 >
                   {tab.label}
@@ -191,6 +215,7 @@ export default function ChoferDetailPage() {
               apercibimientos={chofer.apercibimientos}
               categorias={chofer.categorias_apercibimiento}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -199,6 +224,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               licencias={chofer.licencias_medicas}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -207,6 +233,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               ausencias={chofer.ausencias}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}
@@ -217,6 +244,8 @@ export default function ChoferDetailPage() {
               ausencias={chofer.ausencias}
               can_write={chofer.can_logistica_write}
               fecha_ingreso={chofer.fecha_ingreso}
+              egresado={esBaja}
+              fecha_egreso={chofer.fecha_egreso}
               onRefresh={loadData}
             />
           )}
@@ -225,6 +254,7 @@ export default function ChoferDetailPage() {
               chofer_id={chofer.id}
               prestamos={chofer.prestamos}
               can_write={chofer.can_logistica_write}
+              egresado={esBaja}
               onRefresh={loadData}
             />
           )}

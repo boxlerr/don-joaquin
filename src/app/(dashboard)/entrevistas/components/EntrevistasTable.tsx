@@ -26,6 +26,7 @@ import EntrevistaFormDialog from "./EntrevistaFormDialog";
 import CvButton from "./CvButton";
 import Semaforo from "./Semaforo";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { coincideEnAlguno } from "@/lib/texto";
 import { deleteEntrevistaAction } from "../actions";
 
 export interface Entrevista {
@@ -94,15 +95,9 @@ export default function EntrevistasTable({
   const [eliminarDe, setEliminarDe] = useState<Entrevista | null>(null);
 
   const filtradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return entrevistas.filter((e) => {
       if (resultado !== "todos" && e.resultado !== resultado) return false;
-      if (!q) return true;
-      return (
-        e.nombre.toLowerCase().includes(q) ||
-        (e.localidad ?? "").toLowerCase().includes(q) ||
-        (e.observaciones ?? "").toLowerCase().includes(q)
-      );
+      return coincideEnAlguno([e.nombre, e.localidad, e.observaciones], busqueda);
     });
   }, [entrevistas, busqueda, resultado]);
 

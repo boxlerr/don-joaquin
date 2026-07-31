@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { updateChoferInfoAction } from "./actions";
 import type { ChoferDetail } from "./types";
-import { Check, Pencil, X, AlertTriangle } from "lucide-react";
+import { Check, Pencil, X, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 // Áreas / roles posibles del legajo. Solo "chofer" usa camión de la flota.
 const ROLES: { value: string; label: string }[] = [
@@ -18,7 +18,34 @@ const ROLES: { value: string; label: string }[] = [
 ];
 const rolLabel = (r: string | null | undefined) =>
   ROLES.find((o) => o.value === (r || "chofer"))?.label ?? "Chofer";
-import { getLegajoEstado, MENSAJE_LEGAJO_INCOMPLETO } from "@/lib/chofer-validation";
+
+// El estado se edita acá igual que desde el listado: "baja" es el egreso y
+// arrastra motivo + fecha (por eso no alcanza con un activo/inactivo).
+type ChoferEstado = "activo" | "inactivo" | "baja";
+type MotivoEgreso = "renuncia" | "despido" | "jubilacion" | "otro";
+
+const ESTADOS: { value: ChoferEstado; label: string }[] = [
+  { value: "activo", label: "Activo" },
+  { value: "inactivo", label: "Inactivo" },
+  { value: "baja", label: "Egresado" },
+];
+const estadoLabel = (e: string) => ESTADOS.find((o) => o.value === e)?.label ?? e;
+
+const MOTIVOS_EGRESO: { value: MotivoEgreso; label: string }[] = [
+  { value: "renuncia", label: "Renuncia" },
+  { value: "despido", label: "Despido" },
+  { value: "jubilacion", label: "Jubilación" },
+  { value: "otro", label: "Otro" },
+];
+import {
+  getLegajoEstado,
+  MENSAJE_LEGAJO_INCOMPLETO,
+  formatCuil,
+  normalizarDni,
+  validarCuil,
+  validarDni,
+  validarFechasLegajo,
+} from "@/lib/chofer-validation";
 import CamionAsignacion from "./CamionAsignacion";
 import EmergencyContactsEditor, { EmergencyContactsView, parseContactos } from "./EmergencyContactsEditor";
 
@@ -45,6 +72,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
   const [nombre, setNombre] = useState(chofer.nombre);
   const [apellido, setApellido] = useState(chofer.apellido);
+  const [dni, setDni] = useState(chofer.dni ?? "");
+  const [cuil, setCuil] = useState((chofer as { cuil?: string | null }).cuil ?? "");
+  const [fechaNacimiento, setFechaNacimiento] = useState(chofer.fecha_nacimiento ?? "");
+  const [fechaIngreso, setFechaIngreso] = useState(chofer.fecha_ingreso ?? "");
+  const [email, setEmail] = useState(chofer.email ?? "");
   const [telefono, setTelefono] = useState(chofer.telefono ?? "");
   const [telefonoEmergencia, setTelefonoEmergencia] = useState(chofer.telefono_emergencia ?? "");
   const [domicilio, setDomicilio] = useState(chofer.domicilio ?? "");
@@ -57,6 +89,19 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
   const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
   const [rol, setRol] = useState<string>((chofer as { rol?: string | null }).rol ?? "chofer");
+  const [estado, setEstado] = useState<ChoferEstado>((chofer.estado as ChoferEstado) ?? "activo");
+  const [motivoEgreso, setMotivoEgreso] = useState<string>(chofer.motivo_egreso ?? "");
+  const [fechaEgreso, setFechaEgreso] = useState(chofer.fecha_egreso ?? "");
+  const [periodoPruebaFin, setPeriodoPruebaFin] = useState(
+    (chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? "",
+  );
+  const [nroTramiteDni, setNroTramiteDni] = useState(
+    (chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? "",
+  );
+  const [claveFiscal, setClaveFiscal] = useState(
+    (chofer as { clave_fiscal?: string | null }).clave_fiscal ?? "",
+  );
+  const [observaciones, setObservaciones] = useState(chofer.observaciones ?? "");
 
   // Solo los choferes usan camión de la flota; admin/mantenimiento/fleteros no.
   const esChofer = (rol || "chofer") === "chofer";
@@ -71,10 +116,13 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     return new Date(s).toLocaleDateString("es-AR");
   };
 
-  // Edad calculada desde la fecha de nacimiento.
+  // Edad calculada desde la fecha de nacimiento. Editando sigue a lo que se
+  // está tipeando: si no, se corrige la fecha y la edad de al lado sigue con la
+  // vieja hasta guardar.
   const edad = (() => {
-    if (!chofer.fecha_nacimiento) return null;
-    const nac = new Date(chofer.fecha_nacimiento);
+    const desde = editing ? fechaNacimiento : chofer.fecha_nacimiento;
+    if (!desde) return null;
+    const nac = new Date(desde);
     if (Number.isNaN(nac.getTime())) return null;
     const hoy = new Date();
     let e = hoy.getFullYear() - nac.getFullYear();
@@ -86,6 +134,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const handleCancel = () => {
     setNombre(chofer.nombre);
     setApellido(chofer.apellido);
+    setDni(chofer.dni ?? "");
+    setCuil((chofer as { cuil?: string | null }).cuil ?? "");
+    setFechaNacimiento(chofer.fecha_nacimiento ?? "");
+    setFechaIngreso(chofer.fecha_ingreso ?? "");
+    setEmail(chofer.email ?? "");
     setTelefono(chofer.telefono ?? "");
     setTelefonoEmergencia(chofer.telefono_emergencia ?? "");
     setDomicilio(chofer.domicilio ?? "");
@@ -97,6 +150,13 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     setAliasCbu(chofer.alias_cbu ?? "");
     setAltaAfip(chofer.alta_afip ?? "");
     setRol((chofer as { rol?: string | null }).rol ?? "chofer");
+    setEstado((chofer.estado as ChoferEstado) ?? "activo");
+    setMotivoEgreso(chofer.motivo_egreso ?? "");
+    setFechaEgreso(chofer.fecha_egreso ?? "");
+    setPeriodoPruebaFin((chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? "");
+    setNroTramiteDni((chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? "");
+    setClaveFiscal((chofer as { clave_fiscal?: string | null }).clave_fiscal ?? "");
+    setObservaciones(chofer.observaciones ?? "");
     setError(null);
     setFieldErrors({});
     setEditing(false);
@@ -106,6 +166,22 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     const errs: Record<string, string> = {};
     if (!nombre.trim()) errs.nombre = "El nombre es requerido.";
     if (!apellido.trim()) errs.apellido = "El apellido es requerido.";
+    const errDni = validarDni(dni);
+    if (errDni) errs.dni = errDni;
+    const errCuil = validarCuil(cuil);
+    if (errCuil) errs.cuil = errCuil;
+    // Un egresado sin fecha queda de baja sin saberse desde cuándo, y la
+    // antigüedad se le sigue contando hasta hoy.
+    if (estado === "baja" && !fechaEgreso)
+      errs.fecha_egreso = "Poné la fecha de egreso.";
+    const errFecha = validarFechasLegajo({
+      fecha_nacimiento: fechaNacimiento,
+      fecha_ingreso: fechaIngreso,
+      fecha_egreso: estado === "baja" ? fechaEgreso : null,
+    });
+    if (errFecha) errs[errFecha.campo] = errFecha.mensaje;
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      errs.email = "El email no parece válido.";
     const telDigits = telefono.replace(/\D/g, "");
     if (telDigits && telDigits.length < 10) errs.telefono = "El teléfono debe tener al menos 10 dígitos.";
     // Validamos cada contacto de emergencia por separado: si tiene teléfono,
@@ -125,19 +201,34 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     if (!validateEdicion()) return;
     setError(null);
     startTransition(async () => {
+      // Vacío va como null (no undefined): así borrar un dato mal cargado
+      // realmente lo borra en vez de dejarlo como estaba.
       const res = await updateChoferInfoAction(chofer.id, {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
-        telefono: telefono.trim() || undefined,
-        telefono_emergencia: telefonoEmergencia.trim() || undefined,
-        domicilio: domicilio.trim() || undefined,
-        ciudad_nacimiento: ciudadNacimiento.trim() || undefined,
-        localidad: localidad.trim() || undefined,
-        provincia: provincia.trim() || undefined,
-        banco: banco.trim() || undefined,
-        cbu: cbu.trim() || undefined,
-        alias_cbu: aliasCbu.trim() || undefined,
-        alta_afip: altaAfip || undefined,
+        dni: normalizarDni(dni) || null,
+        cuil: cuil.trim() || null,
+        fecha_nacimiento: fechaNacimiento || null,
+        fecha_ingreso: fechaIngreso || null,
+        email: email.trim() || null,
+        telefono: telefono.trim() || null,
+        telefono_emergencia: telefonoEmergencia.trim() || null,
+        domicilio: domicilio.trim() || null,
+        ciudad_nacimiento: ciudadNacimiento.trim() || null,
+        localidad: localidad.trim() || null,
+        provincia: provincia.trim() || null,
+        banco: banco.trim() || null,
+        cbu: cbu.trim() || null,
+        alias_cbu: aliasCbu.trim() || null,
+        alta_afip: altaAfip || null,
+        periodo_prueba_fin: periodoPruebaFin || null,
+        nro_tramite_dni: nroTramiteDni.trim() || null,
+        clave_fiscal: claveFiscal.trim() || null,
+        observaciones: observaciones.trim() || null,
+        estado,
+        // Volver a activo/inactivo limpia el egreso (lo hace también el server).
+        motivo_egreso: estado === "baja" ? ((motivoEgreso || null) as MotivoEgreso | null) : null,
+        fecha_egreso: estado === "baja" ? fechaEgreso || null : null,
         rol: rol || "chofer",
       });
       if (res.error) {
@@ -202,24 +293,101 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
             Personal y laboral
           </h4>
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-            <Field label="DNI"><Value v={chofer.dni} mono /></Field>
-            <Field label="CUIL"><Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono /></Field>
+            <Field label="DNI">
+              {editing ? (
+                <EditField error={fieldErrors.dni}>
+                  <Input
+                    value={dni}
+                    onChange={(e) => setDni(normalizarDni(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="—"
+                    className={`font-mono h-8 text-sm ${fieldErrors.dni ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={chofer.dni} mono />}
+            </Field>
+            <Field label="CUIL">
+              {editing ? (
+                <EditField error={fieldErrors.cuil}>
+                  <Input
+                    value={cuil}
+                    onChange={(e) => setCuil(formatCuil(e.target.value))}
+                    inputMode="numeric"
+                    placeholder="20-12345678-9"
+                    className={`font-mono h-8 text-sm ${fieldErrors.cuil ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={(chofer as { cuil?: string | null }).cuil ?? null} mono />}
+            </Field>
             <Field label="Estado">
-              <Value v={chofer.estado === "baja" ? "egresado" : chofer.estado} />
+              {editing ? (
+                <Combobox
+                  value={estado}
+                  onValueChange={(v) => setEstado((v || "activo") as ChoferEstado)}
+                  options={ESTADOS.map((e) => ({ id: e.value, label: e.label }))}
+                  searchable={false}
+                  triggerClassName="h-8 text-sm"
+                />
+              ) : <Value v={estadoLabel(chofer.estado).toLowerCase()} />}
             </Field>
             <Field label="Fecha nacimiento">
-              <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />
+              {editing ? (
+                <EditField error={fieldErrors.fecha_nacimiento}>
+                  <Input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.fecha_nacimiento ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={fmtFecha(chofer.fecha_nacimiento) ?? "—"} />}
             </Field>
             <Field label="Edad">
               <Value v={edad != null ? `${edad} años` : "—"} />
+              {editing && <Nota>Se calcula sola.</Nota>}
             </Field>
             <Field label="Fecha ingreso">
-              <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />
+              {editing ? (
+                <EditField error={fieldErrors.fecha_ingreso}>
+                  <Input
+                    type="date"
+                    value={fechaIngreso}
+                    onChange={(e) => setFechaIngreso(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.fecha_ingreso ? "border-red-400" : ""}`}
+                  />
+                </EditField>
+              ) : <Value v={fmtFecha(chofer.fecha_ingreso) ?? "Pendiente"} />}
             </Field>
-            {chofer.estado === "baja" && (
-              <Field label="Fecha egreso">
-                <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />
-              </Field>
+            {/* Datos del egreso: sólo si está (o va a quedar) dado de baja. */}
+            {(editing ? estado === "baja" : chofer.estado === "baja") && (
+              <>
+                <Field label="Motivo de egreso">
+                  {editing ? (
+                    <Combobox
+                      value={motivoEgreso}
+                      onValueChange={setMotivoEgreso}
+                      options={[
+                        { id: "", label: "— Sin especificar —" },
+                        ...MOTIVOS_EGRESO.map((m) => ({ id: m.value, label: m.label })),
+                      ]}
+                      searchable={false}
+                      triggerClassName="h-8 text-sm"
+                    />
+                  ) : <Value v={chofer.motivo_egreso} />}
+                </Field>
+                <Field label="Fecha egreso">
+                  {editing ? (
+                    <EditField error={fieldErrors.fecha_egreso}>
+                      <Input
+                        type="date"
+                        value={fechaEgreso}
+                        onChange={(e) => setFechaEgreso(e.target.value)}
+                        className={`h-8 text-sm ${fieldErrors.fecha_egreso ? "border-red-400" : ""}`}
+                      />
+                    </EditField>
+                  ) : <Value v={fmtFecha(chofer.fecha_egreso) ?? "—"} />}
+                </Field>
+              </>
             )}
             <Field label="Ciudad de nacimiento">
               {editing
@@ -259,6 +427,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                     choferId={chofer.id}
                     camionActual={chofer.camion_actual}
                     historial={chofer.camiones_historial}
+                    egresado={chofer.estado === "baja"}
                   />
                 </Field>
               </div>
@@ -295,6 +464,20 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                   {fieldErrors.telefono && <p className="text-red-500 text-[11px]">{fieldErrors.telefono}</p>}
                 </div>
               ) : <Value v={chofer.telefono} />}
+            </Field>
+            {/* El email estaba en el encabezado y en ningún lado se podía cargar. */}
+            <Field label="Email">
+              {editing ? (
+                <EditField error={fieldErrors.email}>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={`h-8 text-sm ${fieldErrors.email ? "border-red-400" : ""}`}
+                    placeholder="—"
+                  />
+                </EditField>
+              ) : <Value v={chofer.email} />}
             </Field>
             <div className="col-span-2">
               <Field label="Contactos de emergencia">
@@ -362,20 +545,46 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
                 : <Value v={altaAfip ? fmtFecha(altaAfip) : null} />}
             </Field>
-            <PeriodoPruebaField
-              fechaIngreso={chofer.fecha_ingreso}
-              periodoPruebaFin={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+            {/* Nº de trámite del DNI: venía cargado del Excel y no se veía en
+                ninguna pantalla. Es lo que se pide para renovar el documento. */}
+            <Field label="Nº de trámite del DNI">
+              {editing
+                ? <Input value={nroTramiteDni} onChange={(e) => setNroTramiteDni(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" />
+                : <Value v={(chofer as { nro_tramite_dni?: string | null }).nro_tramite_dni ?? null} mono />}
+            </Field>
+            <ClaveFiscalField
+              value={editing ? claveFiscal : (chofer as { clave_fiscal?: string | null }).clave_fiscal ?? ""}
+              onChange={setClaveFiscal}
               editing={editing}
-              onActivar={() => {
-                const fin = chofer.fecha_ingreso
-                  ? addMonthsStr(chofer.fecha_ingreso, 6)
-                  : addMonthsStr(new Date().toISOString().split("T")[0], 6);
-                updateChoferInfoAction(chofer.id, { periodo_prueba_fin: fin }).then((res) => {
-                  if (!res.error) onSaved?.();
-                });
-              }}
+            />
+            <PeriodoPruebaField
+              fechaIngreso={editing ? fechaIngreso : chofer.fecha_ingreso}
+              value={periodoPruebaFin}
+              guardado={(chofer as { periodo_prueba_fin?: string | null }).periodo_prueba_fin ?? null}
+              editing={editing}
+              onChange={setPeriodoPruebaFin}
             />
           </div>
+        </section>
+
+        {/* Observaciones del legajo (incluye la nota que se carga al egresar). */}
+        <section className="space-y-2.5 md:col-span-2 lg:col-span-3">
+          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
+            Observaciones
+          </h4>
+          {editing ? (
+            <textarea
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows={3}
+              placeholder="Notas del legajo…"
+              className="w-full text-sm border border-border rounded-[6px] px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1]"
+            />
+          ) : (
+            <p className={`text-sm whitespace-pre-wrap ${chofer.observaciones ? "text-foreground" : "text-muted-foreground/60"}`}>
+              {chofer.observaciones || "—"}
+            </p>
+          )}
         </section>
       </div>
 
@@ -407,44 +616,69 @@ function addMonthsStr(dateStr: string, months: number): string {
   return d.toISOString().split("T")[0];
 }
 
+/**
+ * Período de prueba. Editando es una fecha más: se puede correr el fin, o
+ * vaciarla para dejarlo sin iniciar. El atajo "+ Iniciar" sigue estando, pero
+ * ahora sólo completa el campo (antes guardaba solo, sin pasar por "Guardar
+ * cambios", y no había forma de arrepentirse).
+ */
 function PeriodoPruebaField({
   fechaIngreso,
-  periodoPruebaFin,
+  value,
+  guardado,
   editing,
-  onActivar,
+  onChange,
 }: {
   fechaIngreso: string | null | undefined;
-  periodoPruebaFin: string | null;
+  value: string;
+  guardado: string | null;
   editing: boolean;
-  onActivar: () => void;
+  onChange: (v: string) => void;
 }) {
   const fmtFecha = (s: string) => {
     const [y, m, d] = s.split("-");
     return `${d}/${m}/${y}`;
   };
 
-  if (!periodoPruebaFin) {
+  if (editing) {
     return (
-      <div className="col-span-2 flex items-center gap-3">
-        <div className="space-y-0.5">
-          <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
-          <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
-        </div>
-        {editing && (
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+          Período de prueba — fin
+        </Label>
+        <Input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 text-sm"
+        />
+        {!value && (
           <button
             type="button"
-            onClick={onActivar}
-            className="mt-4 text-xs font-semibold text-[#0088D1] hover:underline"
+            onClick={() =>
+              onChange(addMonthsStr(fechaIngreso || new Date().toISOString().split("T")[0], 6))
+            }
+            className="text-xs font-semibold text-[#0088D1] hover:underline"
           >
-            + Iniciar
+            + Iniciar (6 meses desde el ingreso)
           </button>
         )}
+        {value && <Nota>Vaciá la fecha para dejarlo sin iniciar.</Nota>}
+      </div>
+    );
+  }
+
+  if (!guardado) {
+    return (
+      <div className="space-y-0.5">
+        <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba</Label>
+        <p className="text-sm py-0.5 text-muted-foreground/60">No iniciado</p>
       </div>
     );
   }
 
   const hoy = new Date();
-  const fin = new Date(periodoPruebaFin + "T00:00:00");
+  const fin = new Date(guardado + "T00:00:00");
   const diasRestantes = Math.ceil((fin.getTime() - hoy.getTime()) / 86_400_000);
   const vencido = diasRestantes < 0;
   const porVencer = !vencido && diasRestantes <= 30;
@@ -458,13 +692,65 @@ function PeriodoPruebaField({
       <div className="space-y-0.5">
         <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Período de prueba — fin</Label>
         <p className={`text-sm py-0.5 font-semibold ${vencido ? "text-red-500" : porVencer ? "text-amber-500" : "text-[#0088D1]"}`}>
-          {fmtFecha(periodoPruebaFin)}
+          {fmtFecha(guardado)}
           <span className="ml-1.5 font-normal text-muted-foreground text-xs">
             {vencido ? `(venció hace ${Math.abs(diasRestantes)}d)` : `(${diasRestantes}d restantes)`}
           </span>
         </p>
       </div>
     </>
+  );
+}
+
+/**
+ * Clave fiscal de AFIP. Está cargada en algunos legajos desde el Excel, pero no
+ * se veía en ninguna pantalla. Se muestra tapada y con un ojo para revelarla:
+ * es una credencial, no un dato más para dejar a la vista de cualquiera que
+ * pase por atrás.
+ */
+function ClaveFiscalField({
+  value,
+  onChange,
+  editing,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  editing: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="space-y-0.5">
+      <Label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+        Clave fiscal
+      </Label>
+      <div className="flex items-center gap-1.5">
+        {editing ? (
+          <Input
+            type={visible ? "text" : "password"}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="—"
+            autoComplete="off"
+            className="font-mono h-8 text-sm"
+          />
+        ) : (
+          <p className={`text-sm py-0.5 font-mono ${value ? "text-foreground" : "text-muted-foreground/60"}`}>
+            {value ? (visible ? value : "••••••••") : "—"}
+          </p>
+        )}
+        {value && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            title={visible ? "Ocultar" : "Mostrar"}
+          >
+            {visible ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -475,6 +761,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
+}
+
+/** Campo en edición: el input y, debajo, el error de validación si lo hay. */
+function EditField({ error, children }: { error?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-0.5">
+      {children}
+      {error && <p className="text-red-500 text-[11px]">{error}</p>}
+    </div>
+  );
+}
+
+/** Aclaración de por qué un dato no se edita acá (o sale solo). */
+function Nota({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] text-muted-foreground/80">{children}</p>;
 }
 
 function Value({ v, mono }: { v?: string | null; mono?: boolean }) {

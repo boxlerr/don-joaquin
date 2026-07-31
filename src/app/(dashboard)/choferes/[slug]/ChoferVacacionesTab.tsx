@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { Palmtree, Plus, Save, Trash2, Pencil, X, CalendarDays } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { Palmtree, Plus, Save, Trash2, Pencil, X, ChevronRight } from "lucide-react";
 import CargarAusenciaDialog from "./CargarAusenciaDialog";
 import {
   guardarSaldosAnioAction,
@@ -16,6 +17,10 @@ import {
 import type { Ausencia, VacacionesSaldo } from "./types";
 import { formatFecha } from "@/lib/utils";
 import {
+  fmtRangoCorto,
+  fmtRangoFechas,
+  fmtDiaLargo,
+  diaSiguiente,
   aniosCumplidos,
   hitoLabel,
   proximoHito,
@@ -24,6 +29,7 @@ import {
   saldosPorAnio,
   resumenSaldos,
 } from "../vacaciones/derivar";
+import type { SaldoAnio } from "../vacaciones/derivar";
 
 interface Props {
   chofer_id: string;
@@ -31,6 +37,9 @@ interface Props {
   ausencias: Ausencia[];
   can_write: boolean;
   fecha_ingreso?: string | null;
+  /** Egresado: no acumula más días. Queda el historial de lo que se tomó. */
+  egresado?: boolean;
+  fecha_egreso?: string | null;
   onRefresh: () => void;
 }
 
@@ -42,6 +51,8 @@ export default function ChoferVacacionesTab({
   ausencias,
   can_write,
   fecha_ingreso,
+  egresado = false,
+  fecha_egreso,
   onRefresh,
 }: Props) {
   const finPeriodoY = new Date().getFullYear();
@@ -65,8 +76,40 @@ export default function ChoferVacacionesTab({
   const [cancelando, setCancelando] = useState<Ausencia | null>(null);
   const [cancelandoLoading, setCancelandoLoading] = useState(false);
 
+  // Qué grupos de año quedaron abiertos o cerrados a mano.
+  const [plegados, setPlegados] = useState<Record<string, boolean>>({});
+
   // Períodos de vacaciones ya tomados (ausencias marcadas como vacaciones).
   const periodos = ausencias.filter((a) => a.es_vacaciones);
+  const totalTomado = periodos.reduce((acc, p) => acc + p.dias, 0);
+
+  // Períodos agrupados por el año del que descuentan, del más nuevo al más viejo.
+  // Los que no descuentan de ningún año (histórico) van al final, porque son los
+  // que menos se consultan.
+  const gruposPeriodos = (() => {
+    const porAnio = new Map<string, typeof periodos>();
+    for (const p of periodos) {
+      const clave = p.anio_cargo != null ? String(p.anio_cargo) : "hist";
+      const lista = porAnio.get(clave) ?? [];
+      lista.push(p);
+      porAnio.set(clave, lista);
+    }
+    return [...porAnio.entries()]
+      .sort(([a], [b]) => {
+        if (a === "hist") return 1;
+        if (b === "hist") return -1;
+        return Number(b) - Number(a);
+      })
+      .map(([clave, items]) => ({
+        clave,
+        titulo: clave === "hist" ? "No descuentan de ningún año" : `Del saldo ${clave}`,
+        items: [...items].sort((x, y) => (x.fecha_inicio < y.fecha_inicio ? 1 : -1)),
+        dias: items.reduce((acc, p) => acc + p.dias, 0),
+        // Sólo el año en curso y el anterior arrancan abiertos: son los que se
+        // están liquidando. Lo viejo se pide cuando se necesita.
+        abiertoPorDefecto: clave !== "hist" && Number(clave) >= finPeriodoY - 1,
+      }));
+  })();
 
   // Mientras se editan los días, los totales se recalculan en vivo con el mismo
   // derivador del servidor: lo que se ve antes de guardar es lo que va a quedar.
@@ -96,20 +139,42 @@ export default function ChoferVacacionesTab({
   const diasAntig = anios != null ? diasPorAntiguedad(anios) : resumen.corresponden;
   const desfasaje = resumen.corresponden > 0 && anios != null && diasAntig !== resumen.corresponden;
 
-  // Explica de dónde sale "disponibles", año por año. Sin esto, ver
-  // "Corresponden 14" al lado de "Disponibles 7" parece un error del sistema.
+  // Los años ya vencidos no se listan. Las vacaciones duran dos años: las de
+  // 2024 se gozan hasta el 31/12/2025 y después se pierden, así que su renglón
+  // sólo dice "0 de 14" y ensucia. Si quedaron días sin gozar, el aviso de
+  // arriba los sigue nombrando. Los períodos tomados NO se tocan: siguen
+  // apareciendo en "Vacaciones cargadas", que es el historial.
+  const aniosVigentes = saldosVista.filter((a) => a.anio >= finPeriodoY - 1);
+
+  // Un año quedó con más días imputados que cargados. Es un error de carga, no
+  // un saldo, así que se avisa aparte en vez de mostrarlo en negativo. Se mira
+  // en los dos años vigentes: ahora la tarjeta del año en curso también muestra
+  // lo que queda, y un sobregiro de este año se vería como un 0 mudo.
+  const anioAnterior = saldosVista.find((a) => a.anio === finPeriodoY - 1);
+  const anioActual = saldosVista.find((a) => a.anio === finPeriodoY);
+  const sobregiros = [anioAnterior, anioActual].filter(
+    (a): a is SaldoAnio => a != null && a.saldo < 0,
+  );
+
+  // Explica de dónde sale el saldo, año por año. Sin esto, ver "Corresponden 14"
+  // al lado de un saldo menor parece un error del sistema.
   const cuentaSaldo = (() => {
     const vigentes = saldosVista.filter((a) => a.anio >= finPeriodoY - 1 && a.anio <= finPeriodoY);
     if (vigentes.length === 0) return null;
     const partes = vigentes.map((a) =>
       a.usados > 0
-        ? `del ${a.anio} le tocaban ${a.otorgados} y ya se tomó ${a.usados}, quedan ${a.saldo}`
+        ? // Un saldo negativo no se escribe como saldo ("quedan −15" no se
+          // entiende): se dice que se pasó, que es lo que realmente pasó.
+          a.saldo < 0
+          ? `del ${a.anio} le tocaban ${a.otorgados} y ya se tomó ${a.usados}, se pasó por ${-a.saldo}`
+          : `del ${a.anio} le tocaban ${a.otorgados} y ya se tomó ${a.usados}, quedan ${a.saldo}`
         : `del ${a.anio} le tocan ${a.otorgados} y no se tomó ninguno`,
     );
     const total = vigentes.reduce((s, a) => s + a.saldo, 0);
-    return vigentes.length === 1
-      ? `${partes[0]!.charAt(0).toUpperCase()}${partes[0]!.slice(1)}.`
-      : `${partes.join("; ")}. En total le quedan ${total} día${total === 1 ? "" : "s"}.`;
+    if (vigentes.length === 1) return `${partes[0]!.charAt(0).toUpperCase()}${partes[0]!.slice(1)}.`;
+    return total > 0
+      ? `${partes.join("; ")}. En total le quedan ${total} día${total === 1 ? "" : "s"}.`
+      : `${partes.join("; ")}. En total no le queda ninguno.`;
   })();
 
   // Años que se le pueden asignar a un período: los que ya tiene cargados más el
@@ -158,6 +223,17 @@ export default function ChoferVacacionesTab({
     const res = await reimputarPeriodoAction(id, chofer_id, valor === "hist" ? null : Number(valor));
     if (res.error) setError(res.error);
     else onRefresh();
+  };
+
+  // Muchos períodos viejos se reconstruyeron del Excel, donde el comentario
+  // decía "una semana en julio" sin precisar cuál: la fecha que quedó es una
+  // elección nuestra, no un dato. Sin avisarlo, la pantalla afirma una precisión
+  // que el dato no tiene y el que la lee después la toma por firme. La cantidad
+  // de días sí es firme; lo estimado es cuándo.
+  const marcaEstimada = (obs: string | null) => {
+    const m = obs && /(FECHA ESTIMADA|AÑO ESTIMADO)/i.exec(obs);
+    if (!m) return null;
+    return { etiqueta: /AÑO/i.test(m[1]!) ? "año estimado" : "fecha estimada", detalle: obs! };
   };
 
   // Mismo cálculo inclusivo que hace el servidor: del 30/03 al 05/04 son 7 días,
@@ -227,44 +303,76 @@ export default function ChoferVacacionesTab({
           <Palmtree size={16} className="text-primary" />
           Saldo de vacaciones
         </h3>
-        {can_write && (
+        {can_write && !egresado && (
           <Button
             variant="outline"
-            size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
             onClick={() => setDialogOpen(true)}
           >
-            <Plus size={13} className="mr-1.5 text-primary" />
+            <Plus size={15} className="mr-2 text-primary" />
             Cargar vacaciones
           </Button>
         )}
       </div>
 
-      {/* Resumen de saldo. "Disponibles" es el saldo vigente que queda por año
-          (Y e Y−1): NO se le vuelven a restar los tomados, porque esos días ya
-          están descontados del año al que se imputaron. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Egresado: no acumula más días. Nada de saldos, hitos ni vencimientos
+          —seguían corriendo como si la persona siguiera en la empresa—; queda
+          el historial de lo que se tomó, que es lo que hay que poder consultar. */}
+      {egresado && (
+        <div className="rounded-[6px] border border-border bg-muted/30 px-4 py-3">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">Egresado{fecha_egreso ? ` el ${formatFecha(fecha_egreso)}` : ""}.</span>{" "}
+            No acumula más vacaciones.
+          </p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {periodos.length > 0
+              ? `Se tomó ${totalTomado} día${totalTomado !== 1 ? "s" : ""} en ${periodos.length} período${periodos.length !== 1 ? "s" : ""} mientras trabajó.`
+              : "No tiene vacaciones cargadas."}
+          </p>
+        </div>
+      )}
+
+      {!egresado && (
+        <>
+      {/* Dos números y nada más, como los pidió Bárbara (29/07/2026): "yo dejaría
+          cuántos le corresponden de 2026, cuántos le debo de 2025, y nada más;
+          tomados me confunde y disponibles también es medio confuso". */}
+      {/* Las dos tarjetas muestran LO QUE LE QUEDA, con el total del año abajo
+          (31/07/2026): cargarle 7 días movía el renglón del año a "7 de 14" y
+          arriba seguía diciendo 14, al lado de un "Adeudados" que sí era saldo.
+          Dos criterios en dos tarjetas pegadas se lee como un error. */}
+      {/* Acotadas: con dos tarjetas a todo el ancho quedaban dos cajas enormes
+          con un número perdido adentro. */}
+      <div className="grid grid-cols-2 gap-3 max-w-md">
         <SaldoCard
           label={`Corresponden (${finPeriodoY})`}
-          value={resumen.corresponden}
+          value={Math.max(0, anioActual ? anioActual.saldo : resumen.corresponden)}
+          total={anioActual?.otorgados ?? resumen.corresponden}
           tone="muted"
-          hint={`Los días que le tocan por ${finPeriodoY} según su antigüedad. Es el total del año, no lo que le queda.`}
-        />
-        <SaldoCard label={`Adeudados (${finPeriodoY - 1})`} value={resumen.adeudados} tone="muted" />
-        <SaldoCard
-          label="Tomados"
-          value={saldo.dias_tomados}
-          tone="warning"
-          hint={`Días de vacaciones que arrancaron en ${finPeriodoY}, sin importar de qué año descuenten.`}
+          hint={`Lo que le queda del ${finPeriodoY}: los días que le tocan por su antigüedad menos los que ya se tomó de ese año.`}
         />
         <SaldoCard
-          label="Disponibles"
-          value={resumen.disponibles}
-          tone={resumen.disponibles < 0 ? "error" : "success"}
-          hint={`Suma de lo que queda del ${finPeriodoY} y del ${finPeriodoY - 1}.`}
+          label={`Adeudados (${finPeriodoY - 1})`}
+          value={Math.max(0, resumen.adeudados)}
+          total={anioAnterior?.otorgados ?? 0}
+          tone="muted"
+          hint={`Lo que le quedó sin tomar del ${finPeriodoY - 1}.`}
         />
       </div>
-      {/* La cuenta escrita. "Corresponden 14" al lado de "Disponibles 7" se lee
+      {/* Un adeudados negativo no es un saldo: es que a ese año se le imputaron
+          más días de los que tiene cargados. La tarjeta muestra 0 y el problema
+          se explica acá, porque un "−15" pelado fue justo lo que asustó a
+          Bárbara sin decirle qué hacer. */}
+      {sobregiros.map((s) => (
+        <p
+          key={s.anio}
+          className="border-l-2 border-[#EF4444] pl-3 text-[13px] leading-snug text-foreground"
+        >
+          <span className="font-medium">Falta corregir el {s.anio}.</span> Se le imputaron{" "}
+          {s.usados} días y tiene {s.otorgados} cargados. Editá los días de ese año.
+        </p>
+      ))}
+      {/* La cuenta escrita. "Corresponden 14" al lado de un saldo menor se lee
           como una contradicción si no se ve de dónde sale cada número: son los
           días del año contra lo que queda después de lo tomado. */}
       {cuentaSaldo && (
@@ -298,16 +406,22 @@ export default function ChoferVacacionesTab({
         )}
       </div>
 
+        </>
+      )}
+
       {error && (
         <div className="p-2.5 bg-red-50 border border-red-200 text-red-600 text-sm rounded-[6px]">{error}</div>
       )}
 
+      {!egresado && (
+        <>
       {/* Días que corresponden, año por año. Editable: los otorgados de cada año
           son la carga inicial de la planilla y a veces vienen mal. */}
       <div className="bg-card rounded-[8px] border border-border overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border">
+          {/* Sin subtítulo con la fórmula: los encabezados de la tabla ya dicen
+              qué es cada número, y era texto de más. */}
           <h4 className="text-sm font-semibold text-foreground">Días por año</h4>
-          <span className="text-xs text-muted-foreground">otorgados − tomados de ese año = saldo</span>
           {can_write && (
             <div className="ml-auto flex items-center gap-1.5">
               {editando ? (
@@ -416,39 +530,76 @@ export default function ChoferVacacionesTab({
               más abajo.
             </p>
           </div>
-        ) : saldosVista.length === 0 ? (
+        ) : aniosVigentes.length === 0 ? (
           <p className="px-4 py-4 text-sm text-muted-foreground">Sin días cargados todavía.</p>
         ) : (
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3 text-xs">
-            {saldosVista.map((a) => {
-              const vencido = a.anio < finPeriodoY - 1;
+          /* Ni chips en monoespaciada ("2025: 0 de 28 (usados 28)") ni una tabla
+             de tres columnas: en los dos casos hay que leer números y compararlos
+             de memoria. Con una barra se VE cuánto le queda, y el color dice si
+             corre riesgo de vencer. Mismo lenguaje que la vista global. */
+          <div className="divide-y divide-border">
+            {aniosVigentes.map((a) => {
+              // El saldo del año anterior vence el 31/12 de este año: es el que
+              // hay que gastar primero, así que va en rojo.
+              const porVencer = a.anio === finPeriodoY - 1;
+              const queda = Math.max(0, a.saldo);
+              const color = porVencer ? "#B91C1C" : "#059669";
+              // La barra se llena SÓLO con lo que le queda. Antes pintaba también
+              // los días tomados en gris y un año agotado quedaba con la barra
+              // entera: visualmente "lleno" cuando significaba lo contrario.
+              const pct = a.otorgados > 0 ? Math.min(100, (queda / a.otorgados) * 100) : 0;
               return (
-                <span
-                  key={a.anio}
-                  title={
-                    (vencido ? `Venció el 31/12/${a.anio + 1}. ` : "") +
-                    (a.observaciones ?? "")
-                  }
-                  className={`px-2 py-0.5 rounded-[4px] border font-mono ${
-                    vencido
-                      ? "bg-muted text-muted-foreground/60 border-border line-through"
-                      : a.saldo > 0
-                        ? "bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]"
-                        : "bg-muted text-muted-foreground border-border"
-                  }`}
-                >
-                  {a.anio}: {a.saldo} de {a.otorgados}
-                  {a.usados > 0 ? ` (usados ${a.usados})` : ""}
-                </span>
+                <div key={a.anio} className="px-4 py-3.5" title={a.observaciones ?? undefined}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-base font-semibold tabular-nums text-foreground">{a.anio}</span>
+                      {porVencer && queda > 0 && (
+                        <span className="text-[11px] text-[#B91C1C]">vence el 31/12/{finPeriodoY}</span>
+                      )}
+                    </span>
+                    <span className="flex items-baseline gap-1.5 tabular-nums">
+                      <span
+                        className={`text-2xl font-semibold leading-none ${
+                          queda === 0 ? "text-muted-foreground" : porVencer ? "text-[#B91C1C]" : "text-[#059669]"
+                        }`}
+                      >
+                        {queda}
+                      </span>
+                      <span className="text-xs text-muted-foreground">de {a.otorgados}</span>
+                    </span>
+                  </div>
+                  <div
+                    className="mt-2.5 h-2 w-full overflow-hidden rounded-[3px] bg-muted"
+                    title={
+                      queda > 0
+                        ? `Le quedan ${queda} de ${a.otorgados}`
+                        : `No le queda ninguno de los ${a.otorgados}`
+                    }
+                  >
+                    <div
+                      className="h-full rounded-[3px]"
+                      style={{ width: `${pct}%`, backgroundColor: color }}
+                    />
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* Listado de vacaciones tomadas */}
+        </>
+      )}
+
+      {/* Vacaciones cargadas, agrupadas por el año del que descuentan.
+          Antes era una lista plana de tarjetas con borde: con tres períodos se
+          leía, pero un legajo de diez años junta doscientos y se vuelve un muro.
+          Agrupar por año hace dos cosas: da unidades de ~20 filas en vez de una
+          de 200, y deja auditar el bloque "Días por año" de arriba —el subtotal
+          de cada grupo tiene que ser lo que ahí figura como tomado. Los años que
+          no son el actual ni el anterior arrancan plegados. */}
       <div>
-        <h4 className="text-sm font-semibold text-foreground mb-2">
+        <h4 className="mb-2 text-sm font-semibold text-foreground">
           Vacaciones cargadas
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
             {periodos.length} período{periodos.length !== 1 ? "s" : ""}
@@ -457,157 +608,227 @@ export default function ChoferVacacionesTab({
         {periodos.length === 0 ? (
           <EmptyState icon={Palmtree} message="Sin vacaciones cargadas" />
         ) : (
-          <div className="space-y-2">
-            {periodos.map((a) => (
-              <div
-                key={a.id}
-                className="bg-card rounded-[8px] border border-border p-3 flex items-center justify-between gap-3 flex-wrap"
-              >
-                <div className="flex items-center gap-2 flex-wrap">
-                  {editandoFechas === a.id ? (
-                    <span className="inline-flex items-center gap-1.5 flex-wrap">
-                      <Input
-                        type="date"
-                        value={fechas.inicio}
-                        onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
-                        className="h-7 w-[8.75rem] text-xs"
-                        aria-label="Desde"
-                      />
-                      <span className="text-muted-foreground">→</span>
-                      <Input
-                        type="date"
-                        value={fechas.fin}
-                        min={fechas.inicio || undefined}
-                        onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
-                        className="h-7 w-[8.75rem] text-xs"
-                        aria-label="Hasta"
-                      />
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {diasEntre(fechas.inicio, fechas.fin)} día
-                        {diasEntre(fechas.inicio, fechas.fin) !== 1 ? "s" : ""}
-                      </span>
-                      <Button
-                        variant="brand"
-                        size="sm"
-                        onClick={() => guardarFechas(a)}
-                        disabled={guardandoFechas}
-                        className="h-7 text-xs"
-                      >
-                        <Save size={12} className="mr-1" />
-                        {guardandoFechas ? "Guardando…" : "Guardar"}
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setEditandoFechas(null)}
-                        disabled={guardandoFechas}
-                        title="Cancelar la edición"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={13} />
-                      </button>
+          <div className="overflow-hidden rounded-[8px] border border-border bg-card">
+            {gruposPeriodos.map((g) => {
+              const abierto = plegados[g.clave] ?? g.abiertoPorDefecto;
+              return (
+                <section key={g.clave}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPlegados((p) => ({ ...p, [g.clave]: !(p[g.clave] ?? g.abiertoPorDefecto) }))
+                    }
+                    className="flex w-full items-baseline gap-2 border-b border-border bg-muted/60 px-3.5 py-2 text-left hover:bg-muted"
+                  >
+                    <ChevronRight
+                      size={13}
+                      className={`shrink-0 self-center text-muted-foreground transition-transform ${abierto ? "rotate-90" : ""}`}
+                      aria-hidden
+                    />
+                    <span className="text-[13px] font-semibold text-foreground">{g.titulo}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {g.items.length} período{g.items.length !== 1 ? "s" : ""} ·{" "}
+                      {g.dias} día{g.dias !== 1 ? "s" : ""}
                     </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={!can_write}
-                        onClick={() => can_write && abrirFechas(a)}
-                        title={can_write ? "Corregir las fechas de este período" : undefined}
-                        className={`text-sm text-foreground text-left ${
-                          can_write ? "hover:text-primary cursor-pointer" : "cursor-default"
-                        }`}
-                      >
-                        {formatFecha(a.fecha_inicio)}
-                        <span className="text-muted-foreground mx-1.5">→</span>
-                        {formatFecha(a.fecha_fin)}
-                        {can_write && (
-                          <CalendarDays size={11} className="inline ml-1.5 align-baseline text-muted-foreground" />
-                        )}
-                      </button>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#065F46] border border-[#A7F3D0]">
-                        {a.dias} día{a.dias !== 1 ? "s" : ""}
-                      </span>
-                    </>
+                  </button>
+
+                  {abierto && (
+                    <ul className="divide-y divide-border">
+                      {g.items.map((a) => {
+                        const estimada = marcaEstimada(a.observaciones);
+                        return (
+                        <li key={a.id} className="group px-3.5 py-2.5">
+                          {editandoFechas === a.id ? (
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <Input
+                                type="date"
+                                value={fechas.inicio}
+                                onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
+                                className="h-7 w-[8.75rem] text-xs"
+                                aria-label="Desde"
+                              />
+                              <span className="text-muted-foreground">→</span>
+                              <Input
+                                type="date"
+                                value={fechas.fin}
+                                min={fechas.inicio || undefined}
+                                onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
+                                className="h-7 w-[8.75rem] text-xs"
+                                aria-label="Hasta"
+                              />
+                              <span className="text-xs tabular-nums text-muted-foreground">
+                                {diasEntre(fechas.inicio, fechas.fin)} día
+                                {diasEntre(fechas.inicio, fechas.fin) !== 1 ? "s" : ""}
+                              </span>
+                              <Button
+                                variant="brand"
+                                size="sm"
+                                onClick={() => guardarFechas(a)}
+                                disabled={guardandoFechas}
+                                className="h-7 text-xs"
+                              >
+                                <Save size={12} className="mr-1" />
+                                {guardandoFechas ? "Guardando…" : "Guardar"}
+                              </Button>
+                              <button
+                                type="button"
+                                onClick={() => setEditandoFechas(null)}
+                                disabled={guardandoFechas}
+                                title="Cancelar la edición"
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X size={13} />
+                              </button>
+                            </span>
+                          ) : (
+                            <>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {/* La fecha manda y va en columna de ancho fijo: así
+                                  la lista se escanea hacia abajo en vez de leerse
+                                  renglón por renglón. */}
+                              <button
+                                type="button"
+                                disabled={!can_write}
+                                onClick={() => can_write && abrirFechas(a)}
+                                title={can_write ? "Corregir las fechas" : undefined}
+                                className={`w-[12.5rem] shrink-0 text-left text-sm font-semibold tabular-nums text-foreground ${
+                                  can_write ? "cursor-pointer hover:text-primary hover:underline" : "cursor-default"
+                                }`}
+                              >
+                                {/* El ~ avisa que la fecha es aproximada sin tener que
+                                    leer la nota: la lista se escanea de arriba abajo. */}
+                                {estimada && <span className="mr-0.5 font-normal text-muted-foreground" aria-hidden>~</span>}
+                                {fmtRangoCorto(a.fecha_inicio, a.fecha_fin)}
+                              </button>
+                              <span className="w-[4.5rem] shrink-0 text-sm tabular-nums text-muted-foreground">
+                                <span className="font-semibold text-foreground">{a.dias}</span> día
+                                {a.dias !== 1 ? "s" : ""}
+                              </span>
+                              <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+                                {a.en_curso && (
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-[#059669]">
+                                    <span className="inline-block size-1.5 rounded-full bg-[#10B981]" aria-hidden />
+                                    Está de vacaciones · vuelve el{" "}
+                                    <span className="font-medium text-foreground">
+                                      {fmtDiaLargo(diaSiguiente(a.fecha_fin), `${finPeriodoY}-01-01`)}
+                                    </span>
+                                  </span>
+                                )}
+                                {!a.en_curso && a.autorizado_por_nombre && (
+                                  <span>autorizó {a.autorizado_por_nombre}</span>
+                                )}
+                              </span>
+                              {reimputando === a.id ? (
+                                <span className="inline-flex shrink-0 items-center gap-1">
+                                  <Select
+                                    value={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
+                                    onValueChange={(v) => v && cambiarImputacion(a.id, v)}
+                                  >
+                                    <SelectTrigger className="h-7 w-[12rem] text-xs">
+                                      <span>
+                                        {a.anio_cargo != null
+                                          ? `Descuenta del ${a.anio_cargo}`
+                                          : "Histórico (no descuenta)"}
+                                      </span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {aniosDisponibles.map((y) => {
+                                        // Cuánto queda en ese año SI se mueve el
+                                        // período para allá: se le devuelven los
+                                        // días al año que lo tiene hoy.
+                                        const fila = saldo.anios.find((x) => x.anio === y);
+                                        const propio = a.anio_cargo === y;
+                                        const queda = fila ? fila.saldo : null;
+                                        return (
+                                          <SelectItem key={y} value={String(y)}>
+                                            Descuenta del {y}
+                                            {queda != null && (
+                                              <span className="text-muted-foreground">
+                                                {" · "}
+                                                {propio
+                                                  ? `hoy sale de acá, quedan ${Math.max(0, queda)}`
+                                                  : queda - a.dias < 0
+                                                    ? `no le alcanza: quedan ${Math.max(0, queda)} de ${fila!.otorgados}`
+                                                    : `le quedan ${queda} de ${fila!.otorgados}`}
+                                              </span>
+                                            )}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                      <SelectItem value="hist">
+                                        Histórico
+                                        <span className="text-muted-foreground">
+                                          {" · "}no toca ningún saldo
+                                        </span>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <button
+                                    type="button"
+                                    onClick={() => setReimputando(null)}
+                                    title="Cancelar"
+                                    className="text-muted-foreground hover:text-foreground"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </span>
+                              ) : (
+                                can_write && (
+                                  <span className="flex shrink-0 items-center gap-2.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={() => setReimputando(a.id)}
+                                      title="Cambiar de qué año descuenta este período"
+                                      className="text-[13px] text-muted-foreground hover:text-primary"
+                                    >
+                                      cambiar año
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelando(a)}
+                                      title="Cancelar este período (los días vuelven al saldo)"
+                                      className="text-muted-foreground hover:text-[#EF4444]"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </span>
+                                )
+                              )}
+                            </div>
+                            {/* La nota va entera debajo: dice de qué frase del Excel
+                                salió el período y por qué se eligió esa semana. Es lo
+                                único que separa un dato reconstruido de uno que
+                                alguien vio. */}
+                            {estimada && (
+                              <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                                <span className="font-medium text-foreground">{estimada.etiqueta}</span>
+                                {" — "}
+                                {estimada.detalle}
+                              </p>
+                            )}
+                            </>
+                          )}
+                        </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                  {a.en_curso && editandoFechas !== a.id && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#92400E] border border-[#FEF3C7]">
-                      En curso
-                    </span>
-                  )}
-                  {/* De qué año descuenta. Editable: la imputación automática
-                      (y el importador de la planilla) a veces le pegan al año
-                      equivocado y hasta ahora no había forma de corregirlo. */}
-                  {editandoFechas === a.id ? null : reimputando === a.id ? (
-                    <span className="inline-flex items-center gap-1">
-                      <select
-                        autoFocus
-                        defaultValue={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
-                        onChange={(e) => cambiarImputacion(a.id, e.target.value)}
-                        className="h-7 rounded-[4px] border border-border bg-background px-2 text-xs text-foreground"
-                      >
-                        {aniosDisponibles.map((y) => (
-                          <option key={y} value={y}>
-                            Descuenta del {y}
-                          </option>
-                        ))}
-                        <option value="hist">Histórico (no descuenta)</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setReimputando(null)}
-                        title="Cancelar"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={13} />
-                      </button>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={!can_write}
-                      onClick={() => can_write && setReimputando(a.id)}
-                      title={
-                        can_write
-                          ? "Cambiar de qué año descuenta este período"
-                          : a.anio_cargo != null
-                            ? `Descuenta del saldo ${a.anio_cargo}`
-                            : "Histórico — ya está reflejado en el saldo"
-                      }
-                      className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-[4px] bg-muted text-muted-foreground border border-border ${
-                        can_write ? "hover:border-primary/50 hover:text-foreground cursor-pointer" : ""
-                      }`}
-                    >
-                      {a.anio_cargo != null ? `Saldo ${a.anio_cargo}` : "Histórico"}
-                      {can_write && <Pencil size={9} className="inline ml-1 align-baseline" />}
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 ml-auto">
-                  {a.autorizado_por_nombre && (
-                    <span className="text-xs text-muted-foreground">
-                      Autorizó: {a.autorizado_por_nombre}
-                    </span>
-                  )}
-                  {can_write && editandoFechas !== a.id && (
-                    <button
-                      type="button"
-                      onClick={() => setCancelando(a)}
-                      title="Cancelar este período (los días vuelven al saldo)"
-                      className="text-muted-foreground hover:text-[#EF4444] shrink-0"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+                </section>
+              );
+            })}
           </div>
         )}
         <p className="mt-2 text-xs text-muted-foreground">
-          Clic en las <span className="font-medium">fechas</span> para corregirlas, y en{" "}
-          <span className="font-medium">Saldo {finPeriodoY}</span> /{" "}
-          <span className="font-medium">Histórico</span> para cambiar de qué año descuenta el período.
-          Las vacaciones se cargan como una ausencia (también aparecen en Logística / Viajes).
+          Clic en las <span className="font-medium">fechas</span> para corregirlas. Cada grupo suma lo
+          que se tomó de ese año
+          {/* En un egresado no se muestra el bloque de saldos, así que mandarlo
+              a cotejar contra una tarjeta que no está sólo confunde. */}
+          {!egresado && (
+            <>
+              , así se puede cotejar con <span className="font-medium">Días por año</span>
+            </>
+          )}
+          .
         </p>
       </div>
 
@@ -650,11 +871,15 @@ export default function ChoferVacacionesTab({
 function SaldoCard({
   label,
   value,
+  total,
   tone,
   hint,
 }: {
   label: string;
   value: number;
+  /** Días del año completo. Se escribe abajo ("de 14 días") para que el número
+   *  grande se lea como saldo y no se pierda cuántos le tocaban. */
+  total?: number;
   tone: "muted" | "success" | "warning" | "error";
   hint?: string;
 }) {
@@ -667,9 +892,19 @@ function SaldoCard({
           ? "text-[#991B1B]"
           : "text-foreground";
   return (
-    <div className="rounded-[8px] border border-border bg-card p-3" title={hint}>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-bold ${toneClass}`}>{value}</div>
+    // Centrada y con el rótulo destacado: era un título en gris de 11px arriba de
+    // un número pegado a la izquierda, y no se leía como una unidad.
+    <div
+      className="rounded-[8px] border border-border bg-muted/30 px-4 py-3 text-center"
+      title={hint}
+    >
+      <div className="text-[12px] font-semibold uppercase tracking-wide text-primary">{label}</div>
+      <div className={`mt-1 text-[32px] font-bold leading-none tabular-nums ${toneClass}`}>
+        {value}
+      </div>
+      <div className="mt-0.5 text-[11px] text-muted-foreground">
+        {total != null && total > 0 ? `de ${total} días` : `día${value !== 1 ? "s" : ""}`}
+      </div>
     </div>
   );
 }

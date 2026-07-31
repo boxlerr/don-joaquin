@@ -29,6 +29,7 @@ import {
 } from "../actions";
 import { Combobox } from "@/components/ui/combobox";
 import { accionLabel, accionClasses, entidadLabel, ACCION_LABELS, type RefsMap } from "@/lib/audit-catalog";
+import { coincideBusqueda } from "@/lib/texto";
 
 const PAGE_SIZE = 25;
 
@@ -213,20 +214,20 @@ export default function AuditoriaClient({
   const rangeTo = Math.min((page + 1) * PAGE_SIZE, total);
 
   // Búsqueda por texto: filtra lo cargado en la página actual (no toca el server).
-  const filtroTexto = q.trim().toLowerCase();
+  const filtroTexto = q.trim();
   const entriesFiltradas = filtroTexto
     ? entries.filter((e) =>
-        [
-          e.entidad_label,
-          e.entidad_detalle,
-          accionLabel(e.accion),
-          entidadLabel(e.entidad_tipo),
-          e.usuario ? `${e.usuario.apellido} ${e.usuario.nombre}` : "",
-          typeof e.metadata?.email === "string" ? e.metadata.email : "",
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(filtroTexto),
+        coincideBusqueda(
+          [
+            e.entidad_label,
+            e.entidad_detalle,
+            accionLabel(e.accion),
+            entidadLabel(e.entidad_tipo),
+            e.usuario ? `${e.usuario.apellido} ${e.usuario.nombre}` : "",
+            typeof e.metadata?.email === "string" ? e.metadata.email : "",
+          ].join(" "),
+          filtroTexto,
+        ),
       )
     : entries;
 

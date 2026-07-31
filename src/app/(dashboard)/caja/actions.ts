@@ -9,6 +9,7 @@ import {
   type CurrentUser,
 } from "@/lib/auth";
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
+import { normalizarTexto } from "@/lib/texto";
 import { clausulaVisibilidad } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
@@ -334,6 +335,15 @@ export type GetCajaMovimientosParams = {
   caja?: CajaFiltro;
 };
 
+// Si la base todavía no tiene la columna normalizada (falta correr la migración
+// 20260730_busqueda_sin_acentos, o PostgREST tiene la caché de esquema vieja
+// justo después de aplicarla), se busca contra la columna original por un rato y
+// después se vuelve a probar. Así la búsqueda sin acentos se recupera sola en
+// cuanto la columna existe, en vez de quedar degradada hasta reiniciar.
+const ESPERA_REINTENTO_MS = 60_000;
+let sinAcentosBloqueadoHasta = 0;
+const hayColumnaNormalizada = () => Date.now() >= sinAcentosBloqueadoHasta;
+
 export type GetCajaMovimientosResult =
   | { data: CajaMovimientoRow[]; hasMore: boolean; count: number }
   | { error: string };
@@ -380,12 +390,31 @@ export async function getCajaMovimientosAction(
   if (hasta) query = query.lte("fecha", hasta);
   if (categoria) query = query.eq("categoria", categoria as never);
   if (gastoIdsFiltro) query = query.in("gasto_id", gastoIdsFiltro);
-  if (search) query = query.ilike("concepto", `%${search}%`);
+  // La búsqueda ignora acentos: se compara contra concepto_norm, la columna
+  // generada que guarda el concepto normalizado igual que normalizarTexto().
+  // Si lo que se escribió no deja nada (sólo espacios), no se filtra: mandar un
+  // '%%' descartaría además las filas con el campo en null.
+  const termino = normalizarTexto(search ?? "");
+  if (termino) {
+    query = hayColumnaNormalizada()
+      ? query.ilike("concepto_norm", `%${termino}%`)
+      : query.ilike("concepto", `%${search}%`);
+  }
   if (visibilidad) query = query.or(visibilidad);
 
   const { data, count, error } = await query;
 
   if (error) {
+    // 42703 = la columna no existe todavía. Se deja de usar por un minuto y se
+    // reintenta una vez con la columna original (en el reintento ya está
+    // bloqueada, así que no hay recursión infinita).
+    if (error.code === "42703" && hayColumnaNormalizada()) {
+      sinAcentosBloqueadoHasta = Date.now() + ESPERA_REINTENTO_MS;
+      console.warn(
+        "Falta la columna concepto_norm (migración 20260730_busqueda_sin_acentos): la búsqueda de caja queda sensible a acentos y se reintenta en 1 minuto."
+      );
+      return getCajaMovimientosAction(params);
+    }
     console.error("Error al obtener movimientos de caja:", error);
     return { error: "No se pudieron cargar los movimientos." };
   }

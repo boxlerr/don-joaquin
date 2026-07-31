@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { coincideBusqueda } from "@/lib/texto";
 import ModalNuevoCircuito from "./ModalNuevoCircuito";
 import ImportarCircuitosDialog from "./ImportarCircuitosDialog";
 import {
@@ -44,19 +45,15 @@ export default function TabCircuitos({
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return circuitos.filter((c) => {
       if (soloActivos && c.estado !== "activa") return false;
-      if (!q) return true;
       const hay = [
         c.codigo_interno ?? "",
         c.origen_label,
         c.destino_label,
         c.descripcion ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
+      ].join(" ");
+      return coincideBusqueda(hay, busqueda);
     });
   }, [circuitos, busqueda, soloActivos]);
 

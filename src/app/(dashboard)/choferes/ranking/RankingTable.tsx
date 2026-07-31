@@ -22,6 +22,7 @@ import type { RankingCriterios } from "./criterios";
 import ScoreBadge from "./ScoreBadge";
 import ScoreInfoButton from "./ScoreInfoButton";
 import { choferSlug } from "@/lib/chofer-slug";
+import { coincideEnAlguno } from "@/lib/texto";
 
 interface Props {
   ranking: RankingChofer[];
@@ -298,24 +299,16 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
   const mostrarMedallas = sortKey === "score" && sortDir === "desc";
 
   const filteredActivos = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sortedActivos;
-    return sortedActivos.filter(
-      (r) =>
-        r.nombre.toLowerCase().includes(q) ||
-        r.apellido.toLowerCase().includes(q) ||
-        (r.localidad ?? "").toLowerCase().includes(q)
+    if (!query.trim()) return sortedActivos;
+    return sortedActivos.filter((r) =>
+      coincideEnAlguno([r.nombre, r.apellido, r.localidad], query)
     );
   }, [sortedActivos, query]);
 
   const filteredSinActividad = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sinActividad;
-    return sinActividad.filter(
-      (r) =>
-        r.nombre.toLowerCase().includes(q) ||
-        r.apellido.toLowerCase().includes(q) ||
-        (r.localidad ?? "").toLowerCase().includes(q)
+    if (!query.trim()) return sinActividad;
+    return sinActividad.filter((r) =>
+      coincideEnAlguno([r.nombre, r.apellido, r.localidad], query)
     );
   }, [sinActividad, query]);
 

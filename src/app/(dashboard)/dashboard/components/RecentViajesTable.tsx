@@ -19,7 +19,7 @@ import {
   Package,
   ArrowRight,
 } from "lucide-react";
-import InitialsAvatar from "@/components/ui/InitialsAvatar";
+import AvatarPersona from "@/components/ui/AvatarPersona";
 import { deleteViajeAction } from "@/app/(dashboard)/viajes/actions";
 import type { ViajeBasico } from "@/app/(dashboard)/viajes/types";
 
@@ -219,7 +219,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                     <span className="inline-flex items-center gap-1.5 min-w-0">
                       {v.chofer ? (
                         <>
-                          <InitialsAvatar name={v.chofer} size={22} />
+                          <AvatarPersona name={v.chofer} rol="chofer" size={26} />
                           <span className="text-[11.5px] font-bold text-foreground truncate max-w-[180px]" title={v.chofer}>
                             {v.chofer}
                           </span>

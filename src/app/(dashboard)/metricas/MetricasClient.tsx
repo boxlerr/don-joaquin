@@ -11,12 +11,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
+import { coincideBusqueda } from "@/lib/texto";
 import {
   BarChart3, Search, Table2, ChartBarBig, ChartLine, ExternalLink,
 } from "lucide-react";
 import type { MetricasData, MetricaChofer, Flota, TotalesMes } from "./actions";
 import { METRICAS, KPIS, type MetricaId, metricaPorId } from "./components/metricas-def";
-import { compactMoney, money, numAr, mesLabel, mesCorto, delta, deltaPP } from "./components/format";
+import { money, numAr, mesLabel, mesCorto, delta, deltaPP } from "./components/format";
 import KpiCard from "./components/KpiCard";
 import CoberturaBanner from "./components/CoberturaBanner";
 import ProcedenciaPanel from "./components/ProcedenciaPanel";
@@ -39,9 +40,6 @@ const TABS: { id: TabId; label: string }[] = [
   ...METRICAS.map((m) => ({ id: m.id as TabId, label: m.tab })),
   { id: "evolucion", label: "Evolución" },
 ];
-
-const normalizar = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function MetricasClient({ data }: { data: MetricasData }) {
   const searchParams = useSearchParams();
@@ -75,8 +73,8 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
   const choferesFiltrados = useMemo(() => {
     let rows = data.choferes;
     if (flota !== "todas") rows = rows.filter((c) => c.flota === flota);
-    const q = normalizar(busqueda.trim());
-    if (q) rows = rows.filter((c) => normalizar(c.nombre).includes(q));
+    // La búsqueda por nombre ignora acentos ("agustin" encuentra "Agustín").
+    if (busqueda.trim()) rows = rows.filter((c) => coincideBusqueda(c.nombre, busqueda));
     return rows;
   }, [data.choferes, flota, busqueda]);
 
@@ -108,8 +106,17 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
     if (id === "facturacion") return `${t.camiones} camiones`;
     if (id === "km" && t.camiones > 0) return `prom. ${numAr(t.km / t.camiones)} por camión`;
     if (id === "factkm") {
-      const costo = data.serieCosto.find((r) => r.mes === data.mes)?.costoKm;
-      return costo != null ? `costo estudio ${money(costo, 2)}` : undefined;
+      // Antes acá colgaba "costo estudio $X". Ese costo es SOLO de escalables
+      // (la planilla COSTO VS KM se arma sobre esa flota) y el número grande
+      // mezcla las dos, así que invitaba a una comparación que no cerraba.
+      // La comparación contra el costo vive en Resumen, donde está explicada.
+      const e = data.totales.escalables?.factPorKm;
+      const to = data.totales.tolvas?.factPorKm;
+      const partes = [
+        e != null ? `escalables ${money(e, 0)}` : null,
+        to != null ? `tolvas ${money(to, 0)}` : null,
+      ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : undefined;
     }
     return undefined;
   };
@@ -145,7 +152,7 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
             <KpiCard
               key={k.id}
               def={k}
-              valor={k.id === "facturacion" ? compactMoney(k.valor(t)) : k.fmt(k.valor(t))}
+              valor={k.fmt(k.valor(t))}
               sub={kpiSub(k.id)}
               dPrev={dPrev}
               dYoY={dYoY}

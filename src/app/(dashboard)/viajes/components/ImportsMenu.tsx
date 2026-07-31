@@ -11,12 +11,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Upload, ChevronDown, Route, Factory, Fuel } from "lucide-react";
+import { Upload, ChevronDown, Route, Factory, Fuel, CalendarClock } from "lucide-react";
 import ImportHojaRutaModal from "./ImportHojaRutaModal";
 import ImportLomaModal from "./ImportLomaModal";
 import ImportYpfModal from "./ImportYpfModal";
+import ImportProgramacionModal from "./ImportProgramacionModal";
 
-type ModalKey = "hoja-ruta" | "loma" | "ypf" | null;
+type ModalKey = "hoja-ruta" | "loma" | "ypf" | "programacion" | null;
 
 export default function ImportsMenu() {
   const [openModal, setOpenModal] = useState<ModalKey>(null);
@@ -49,6 +50,12 @@ export default function ImportsMenu() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuLabel>Documentación de clientes</DropdownMenuLabel>
+            {/* Los viajes del día que el cliente manda por adelantado: entran
+                sin chofer y después se asignan. */}
+            <DropdownMenuItem onClick={() => setOpenModal("programacion")}>
+              <CalendarClock size={14} />
+              Programación de viajes
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setOpenModal("loma")}>
               <Factory size={14} />
               Liquidación de fletes — Loma Negra
@@ -70,6 +77,10 @@ export default function ImportsMenu() {
         open={openModal === "loma"}
         onOpenChange={handleChange("loma")}
         showTrigger={false}
+      />
+      <ImportProgramacionModal
+        open={openModal === "programacion"}
+        onOpenChange={handleChange("programacion")}
       />
       <ImportYpfModal
         open={openModal === "ypf"}

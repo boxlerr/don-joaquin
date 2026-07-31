@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useTransition, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Table,
   TableHeader,
@@ -56,7 +57,7 @@ import { formatFecha } from "@/lib/utils";
 import AuditTrailDrawer from "./audit-trail-drawer";
 import ViajeGastosPanel, { type GastoFormData } from "./ViajeGastosPanel";
 import ViajeAdjuntosStrip from "./ViajeAdjuntosStrip";
-import InitialsAvatar from "@/components/ui/InitialsAvatar";
+import AvatarPersona from "@/components/ui/AvatarPersona";
 import { esFacturable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
 import EditViajeDialog from "./EditViajeDialog";
@@ -135,6 +136,8 @@ interface Props {
   /** Rango de fechas inicial sembrado desde el selector de período de la página
    *  (queda editable en los inputs de fecha del listado). */
   initialDesde?: string;
+  /** Búsqueda inicial, para llegar desde otra pantalla con el filtro puesto. */
+  initialBusqueda?: string;
   initialHasta?: string;
 }
 
@@ -286,7 +289,7 @@ function ViajeDetalleHeader({
             {det?.creadoPor && (
               <>
                 <span aria-hidden>·</span>
-                <InitialsAvatar name={det.creadoPor} size={17} />
+                <AvatarPersona name={det.creadoPor} size={20} />
                 <span className="font-semibold text-foreground/80">{det.creadoPor}</span>
               </>
             )}
@@ -409,7 +412,7 @@ function ChoferCard({
     <div className="rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
       <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-1">
         {nombre ? (
-          <InitialsAvatar name={nombre} size={34} />
+          <AvatarPersona name={nombre} rol="chofer" size={38} />
         ) : (
           <span className="flex items-center justify-center size-[34px] rounded-full bg-muted text-muted-foreground/60 shrink-0">
             <User size={16} />
@@ -662,7 +665,7 @@ function NotasEditables({
   );
 }
 
-export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta }: Props) {
+export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta, initialBusqueda }: Props) {
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -672,6 +675,37 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   const [isPending, startTransition] = useTransition();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // ?viaje=<id> — se llega desde "A dónde fueron" clickeando un viaje puntual.
+  // La fila se abre y se le hace scroll: si no, el link caía en una lista larga
+  // y había que buscar a mano el viaje que se acaba de clickear.
+  const params = useSearchParams();
+  const viajePedido = params.get("viaje");
+  // ?destino=LOMASER — llega desde "A dónde fueron". Filtra por destino exacto,
+  // no por el buscador libre (que también traería los que SALIERON de ahí).
+  const destinoUrl = params.get("destino")?.trim() || "";
+  const [destino, setDestino] = useState(destinoUrl);
+  // ?sinVacios=1 — el resumen no cuenta los retornos vacíos, así que el link
+  // tampoco. Va en su propio estado y NO en esVacioFiltro: ese lo reescribe el
+  // filtro de las tarjetas en el primer render, y se perdía (mostraba 8 donde
+  // el resumen decía 4).
+  const [sinVacios, setSinVacios] = useState(params.get("sinVacios") === "1");
+  const yaSalte = useRef<string | null>(null);
+  useEffect(() => {
+    if (!viajePedido || yaSalte.current === viajePedido) return;
+    if (!rows.some((r) => r.id === viajePedido)) return;
+    yaSalte.current = viajePedido;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abrir la fila que pidió la URL
+    setExpandedId(viajePedido);
+    requestAnimationFrame(() => {
+      const fila = document.querySelector(`[data-viaje-id="${viajePedido}"]`);
+      // scrollIntoView no existe en todos los entornos (jsdom, por ejemplo): que
+      // falte no puede impedir que la fila quede abierta.
+      if (fila instanceof HTMLElement && typeof fila.scrollIntoView === "function") {
+        fila.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+  }, [viajePedido, rows]);
   // Detalle rico (chofer, camión, quién/cuándo lo cargó), traído al expandir.
   const [detalles, setDetalles] = useState<
     Record<string, ViajeDetalle | "loading" | "error">
@@ -702,11 +736,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [facturarOpen, setFacturarOpen] = useState(false);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialBusqueda ?? "");
   const [desde, setDesde] = useState(initialDesde ?? "");
   const [hasta, setHasta] = useState(initialHasta ?? "");
   const [facturadoFiltro, setFacturadoFiltro] = useState<boolean | null>(null);
   const [esVacioFiltro, setEsVacioFiltro] = useState<boolean | null>(null);
+  // Si alguien pide expresamente "vueltas en vacío" desde las tarjetas, gana esa
+  // elección: es una acción explícita, no el arrastre de un link.
+  const esVacioEfectivo = esVacioFiltro ?? (sinVacios ? false : null);
   const [incompletoFiltro, setIncompletoFiltro] = useState<boolean | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [allLoaded, setAllLoaded] = useState(false);
@@ -757,10 +794,11 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
       desde: desde || undefined,
       hasta: hasta || undefined,
       facturado: facturadoFiltro ?? undefined,
-      esVacio: esVacioFiltro ?? undefined,
+      esVacio: esVacioEfectivo ?? undefined,
       incompleto: incompletoFiltro ?? undefined,
       falta,
       search: debouncedSearch || undefined,
+      destino: destino || undefined,
       orderBy,
       orderDir,
     }).then((result) => {
@@ -780,7 +818,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
     return () => {
       cancelled = true;
     };
-  }, [choferId, falta, desde, hasta, facturadoFiltro, esVacioFiltro, incompletoFiltro, debouncedSearch, refreshToken, orderBy, orderDir]);
+  }, [choferId, falta, desde, hasta, facturadoFiltro, esVacioEfectivo, incompletoFiltro, debouncedSearch, destino, refreshToken, orderBy, orderDir]);
 
   const loadMore = () => {
     startTransition(async () => {
@@ -791,10 +829,11 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
         desde: desde || undefined,
         hasta: hasta || undefined,
         facturado: facturadoFiltro ?? undefined,
-        esVacio: esVacioFiltro ?? undefined,
+        esVacio: esVacioEfectivo ?? undefined,
         incompleto: incompletoFiltro ?? undefined,
         falta,
         search: debouncedSearch || undefined,
+        destino: destino || undefined,
         orderBy,
         orderDir,
       });
@@ -808,12 +847,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   };
 
   const hayFiltros =
-    !!desde || !!hasta || !!search || !!falta || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
+    !!desde || !!hasta || !!search || !!falta || !!destino || sinVacios || facturadoFiltro !== null || esVacioFiltro !== null || incompletoFiltro !== null;
 
   const limpiarFiltros = () => {
     setDesde("");
     setHasta("");
     setSearch("");
+    setDestino("");
+    setSinVacios(false);
     setFacturadoFiltro(null);
     setEsVacioFiltro(null);
     setIncompletoFiltro(null);
@@ -891,12 +932,45 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
         />
         <Input
           type="text"
-          placeholder="Buscar por código, chofer, camión..."
+          placeholder="Buscar por código, chofer, camión, cliente o lugar…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="text-sm flex-1 min-w-[11rem]"
-          aria-label="Buscar viaje por código"
+          aria-label="Buscar viaje por código, chofer, camión, cliente o lugar"
         />
+        {/* Los incompletos se filtraban sólo desde la tarjeta de arriba, que
+            queda lejos de la tabla: acá está donde se está mirando. */}
+        <button
+          type="button"
+          onClick={() => setIncompletoFiltro(incompletoFiltro ? null : true)}
+          aria-pressed={!!incompletoFiltro}
+          title="Ver sólo los viajes a los que les falta origen, destino o chofer"
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[6px] border px-2.5 text-[12px] font-semibold transition-colors ${
+            incompletoFiltro
+              ? "border-[#B45309] bg-[#B45309]/10 text-[#B45309]"
+              : "border-border bg-card text-muted-foreground hover:border-[#B45309]/50 hover:text-[#B45309]"
+          }`}
+        >
+          <AlertTriangle size={13} />
+          Incompletos
+          {incompletoFiltro && <X size={12} />}
+        </button>
+        {destino && (
+          <button
+            type="button"
+            onClick={() => {
+              setDestino("");
+              setSinVacios(false);
+            }}
+            title="Quitar el filtro de destino"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[6px] border border-primary/40 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
+          >
+            <MapPin size={12} />
+            Destino: {destino}
+            {sinVacios && <span className="font-normal opacity-80">· sin vueltas vacías</span>}
+            <X size={12} />
+          </button>
+        )}
         {hayFiltros && (
           <Button
             variant="ghost"
@@ -916,9 +990,10 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             desde={desde || undefined}
             hasta={hasta || undefined}
             facturado={facturadoFiltro ?? undefined}
-            esVacio={esVacioFiltro ?? undefined}
+            esVacio={esVacioEfectivo ?? undefined}
             incompleto={incompletoFiltro ?? undefined}
             search={debouncedSearch || undefined}
+            destino={destino || undefined}
             disabled={loading || rows.length === 0}
           />
         </div>
@@ -1029,7 +1104,10 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             rows.map((v) => (
               <React.Fragment key={v.id}>
                 <TableRow
-                  className="hover:bg-muted/40 transition-colors cursor-pointer"
+                  data-viaje-id={v.id}
+                  className={`transition-colors cursor-pointer ${
+                    viajePedido === v.id ? "bg-primary/[0.06]" : "hover:bg-muted/40"
+                  }`}
                   tabIndex={0}
                   onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
                   onKeyDown={(e) => {
@@ -1206,23 +1284,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                             )}
 
                             <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {/* Editar primero y con borde: es lo que más se
+                                    usa acá y como botón chico de texto plano no
+                                    se encontraba. */}
                                 <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-primary hover:text-[#0277BD] hover:bg-[#E1F5FE] dark:hover:bg-sky-950/40 text-[11px] gap-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAuditTrailViajeId(v.id);
-                                    setAuditTrailOpen(true);
-                                  }}
-                                >
-                                  <Clock size={12} /> Historial
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] gap-1"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1.5 border-border px-3 text-[12px] font-medium text-foreground hover:bg-muted"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (v.facturado) {
@@ -1232,7 +1301,19 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                                     }
                                   }}
                                 >
-                                  <Pencil size={12} /> Editar
+                                  <Pencil size={14} /> Editar viaje
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-8 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAuditTrailViajeId(v.id);
+                                    setAuditTrailOpen(true);
+                                  }}
+                                >
+                                  <Clock size={12} /> Historial
                                 </Button>
                               </div>
                               {deletingId === v.id ? (

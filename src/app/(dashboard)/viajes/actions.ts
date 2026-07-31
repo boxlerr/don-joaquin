@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { coincideEnAlguno } from "@/lib/texto";
 import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { requireArea } from "@/lib/auth";
@@ -32,6 +33,38 @@ function extractMaterialFromObs(obs: string | null): string | null {
   return m ? m[1].trim() : null;
 }
 
+/**
+ * Busca ids en una tabla auxiliar del buscador de viajes, ignorando acentos.
+ *
+ * El ILIKE de Postgres no ignora los acentos: buscar "agustin" no encontraba a
+ * "Agustín". Como estas tablas son chicas (choferes, camiones, clientes y
+ * lugares: decenas o pocos cientos de filas), en vez de pedirle a la base que
+ * normalice se traen las filas y se filtran acá con el mismo helper que usa el
+ * resto del sistema. Sin migración ni columnas nuevas.
+ *
+ * Sólo se piden el id y las columnas por las que se busca, así que lo que viaja
+ * es mínimo. Los viajes en sí, que son muchos, se siguen filtrando en la base
+ * por los ids que devuelve esto.
+ */
+async function buscarIdsPorTexto(
+  supabase: ReturnType<typeof createAdminClient>,
+  tabla: "choferes" | "camiones" | "clientes" | "puntos_ruta",
+  columnas: readonly string[],
+  search: string,
+): Promise<string[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from(tabla)
+    .select(["id", ...columnas].join(","));
+  if (error) {
+    console.error(`Error buscando en ${tabla}:`, error);
+    return [];
+  }
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .filter((fila) => coincideEnAlguno(columnas.map((c) => fila[c]), search))
+    .map((fila) => fila.id as string);
+}
+
 async function buildSearchOrFilter(
   supabase: ReturnType<typeof createAdminClient>,
   search: string,
@@ -39,34 +72,29 @@ async function buildSearchOrFilter(
   // Las comas y paréntesis rompen el parser de filtros `.or()` de PostgREST.
   const sanitized = search.replace(/[(),]/g, " ").trim();
   const term = `%${sanitized}%`;
-  const [choferes, camiones, clientes] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("choferes")
-      .select("id")
-      .or(`nombre.ilike.${term},apellido.ilike.${term}`),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("camiones")
-      .select("id")
-      .or(`patente.ilike.${term},marca.ilike.${term},modelo.ilike.${term}`),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("clientes")
-      .select("id")
-      .ilike("razon_social", term),
+  const [choferIds, camionIds, clienteIds, lugarIds] = await Promise.all([
+    buscarIdsPorTexto(supabase, "choferes", ["nombre", "apellido"], sanitized),
+    buscarIdsPorTexto(supabase, "camiones", ["patente", "marca", "modelo"], sanitized),
+    buscarIdsPorTexto(supabase, "clientes", ["razon_social"], sanitized),
+    // Lugares. Faltaban: buscar "LOMASER" o "Ramallo" en el listado no traía
+    // nada, aunque la columna Destino lo mostrara en pantalla — y los links de
+    // "A dónde fueron" caían acá, así que llevaban a una lista vacía.
+    buscarIdsPorTexto(supabase, "puntos_ruta", ["nombre"], sanitized),
   ]);
 
+  // Códigos: no llevan acentos, van contra la columna original.
   const parts: string[] = [`codigo.ilike.${term}`, `nro_viaje_ypf.ilike.${term}`];
 
-  const choferIds: string[] = (choferes.data ?? []).map((r: { id: string }) => r.id);
   if (choferIds.length) parts.push(`chofer_id.in.(${choferIds.join(",")})`);
 
-  const camionIds: string[] = (camiones.data ?? []).map((r: { id: string }) => r.id);
   if (camionIds.length) parts.push(`camion_id.in.(${camionIds.join(",")})`);
 
-  const clienteIds: string[] = (clientes.data ?? []).map((r: { id: string }) => r.id);
   if (clienteIds.length) parts.push(`cliente_id.in.(${clienteIds.join(",")})`);
+
+  if (lugarIds.length) {
+    parts.push(`origen_id.in.(${lugarIds.join(",")})`);
+    parts.push(`destino_id.in.(${lugarIds.join(",")})`);
+  }
 
   return parts.join(",");
 }
@@ -98,6 +126,12 @@ export type GetViajesParams = {
    */
   falta?: FaltaDato;
   search?: string;
+  /**
+   * Sólo los viajes que fueron a ESE destino, por nombre exacto. Lo usa el link
+   * de "A dónde fueron": el buscador libre traería también los que salieron de
+   * ahí, y el resumen agrupa por destino, no por lugar mencionado.
+   */
+  destino?: string;
   orderBy?: ViajeOrderBy;
   orderDir?: "asc" | "desc";
 };
@@ -117,6 +151,7 @@ export async function getViajesAction(
     incompleto,
     falta,
     search,
+    destino,
     orderBy = "fecha",
     orderDir = "desc",
   } = params;
@@ -195,6 +230,22 @@ export async function getViajesAction(
   if (search) {
     const orFilter = await buildSearchOrFilter(supabase, search);
     query = query.or(orFilter);
+  }
+
+  if (destino?.trim()) {
+    // Puede haber más de un punto con el mismo nombre (LOMASER / Lomaser), así
+    // que entran todos los que coincidan.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: puntos } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", destino.trim());
+    const ids = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
+    // Sin coincidencias el filtro tiene que dar vacío, no ignorarse: si no,
+    // mostraría TODOS los viajes como si el filtro no existiera.
+    query = ids.length
+      ? query.in("destino_id", ids)
+      : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
   }
 
   const { data, count, error } = await query;
@@ -1063,10 +1114,17 @@ export async function createViajeAction(
   {
     const { data: choferRow } = await supabase
       .from("choferes")
-      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
+      .select("nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso, estado")
       .eq("id", parsed.data.chofer_id)
       .single();
     if (choferRow) {
+      if (choferRow.estado === "baja") {
+        return {
+          ok: false,
+          error: `${choferRow.apellido}, ${choferRow.nombre} está egresado: no se le pueden cargar viajes nuevos.`,
+          fieldErrors: { chofer_id: "Chofer egresado." },
+        };
+      }
       const estadoLegajo = getLegajoEstado(choferRow);
       if (!estadoLegajo.completo) {
         return {
@@ -1203,11 +1261,13 @@ export type ExportViajesParams = {
   incompleto?: boolean;
   falta?: FaltaDato;
   search?: string;
+  destino?: string;
 };
 
 export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   await requireArea("viajes", "read");
-  const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search } = params ?? {};
+  const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search, destino } =
+    params ?? {};
   const supabase = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
@@ -1265,6 +1325,19 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   if (search) {
     const orFilter = await buildSearchOrFilter(supabase, search);
     query = query.or(orFilter);
+  }
+
+  // Exportar lo filtrado tiene que dar lo mismo que muestra la pantalla.
+  if (destino?.trim()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: puntos } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", destino.trim());
+    const ids = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
+    query = ids.length
+      ? query.in("destino_id", ids)
+      : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
   }
 
   const { data, error } = await query;
@@ -1820,6 +1893,23 @@ export async function updateViajeAction(
   // y modificarlos generaría datos fantasma.
   if (previo?.estado === "cancelado") {
     return { error: "El viaje está eliminado y no se puede editar." };
+  }
+
+  // Pasarle el viaje a un egresado es asignarle trabajo nuevo. Corregir un viaje
+  // viejo del propio egresado sí se puede: se compara contra el chofer que ya
+  // tenía, así que sólo se frena el CAMBIO de chofer.
+  if (parsed.data.chofer_id !== previo?.chofer_id) {
+    const { data: nuevoChofer } = await supabase
+      .from("choferes")
+      .select("nombre, apellido, estado")
+      .eq("id", parsed.data.chofer_id)
+      .single();
+    if (nuevoChofer?.estado === "baja") {
+      return {
+        error: `${nuevoChofer.apellido}, ${nuevoChofer.nombre} está egresado: no se le pueden asignar viajes.`,
+        fieldErrors: { chofer_id: "Chofer egresado." },
+      };
+    }
   }
 
   let realTipoCargaId = parsed.data.tipo_carga_id;

@@ -14,6 +14,8 @@ interface Props {
   chofer_id: string;
   prestamos: Prestamo[];
   can_write: boolean;
+  /** Egresado: se conserva todo el historial, pero no se cargan novedades nuevas. */
+  egresado?: boolean;
   onRefresh: () => void;
 }
 
@@ -44,6 +46,7 @@ export default function ChoferPrestamosTab({
   chofer_id,
   prestamos,
   can_write,
+  egresado = false,
   onRefresh,
 }: Props) {
   const [cargarOpen, setCargarOpen] = useState(false);
@@ -100,7 +103,7 @@ export default function ChoferPrestamosTab({
               <span className="font-medium text-foreground">{fmtMonto(totalPendiente, "ARS")}</span>
             </span>
           )}
-          {can_write && (
+          {can_write && !egresado && (
             <Button
               variant="outline"
               size="sm"

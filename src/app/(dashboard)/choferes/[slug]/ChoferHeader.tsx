@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SiluetaPersona } from "@/components/ui/AvatarPersona";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { Combobox } from "@/components/ui/combobox";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import { uploadFotoChoferAction, deleteFotoChoferAction } from "../actions";
 import { updateEgresoAction } from "./actions";
+import ExportarLegajoButton from "./ExportarLegajoButton";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -108,13 +110,12 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     }
   };
 
-  const initials = `${chofer.nombre[0] ?? ""}${chofer.apellido[0] ?? ""}`.toUpperCase();
 
-  const estadoTone: "success" | "warning" | "neutral" | "error" =
+  const estadoTone: "success" | "archivado" | "neutral" | "error" =
     chofer.estado === "activo"
       ? "success"
       : chofer.estado === "baja"
-      ? "warning"
+      ? "archivado"
       : "neutral";
   const estadoLabel = chofer.estado === "baja" ? "egresado" : chofer.estado;
 
@@ -142,13 +143,11 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     : null;
 
   return (
-    <div
-      className={`rounded-[8px] border shadow-sm p-6 ${
-        esBaja
-          ? "bg-amber-50/40 border-amber-200"
-          : "bg-card border-border"
-      }`}
-    >
+    // El legajo de un egresado se leía como una alerta: la tarjeta entera lavada
+    // de amarillo, con otro recuadro amarillo adentro. Un egreso es un archivo,
+    // no un problema: misma tarjeta que el resto y el estado se dice con
+    // palabras, no tiñendo el fondo.
+    <div className="rounded-[8px] border border-border bg-card shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative flex-shrink-0 group/avatar">
@@ -160,7 +159,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               {fotoUrl ? (
                 <img src={fotoUrl} alt={`${chofer.nombre} ${chofer.apellido}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
-                <span className="text-primary text-xl font-bold">{initials}</span>
+                // Mientras no haya foto, la silueta del área. Las iniciales no
+                // decían nada teniendo el nombre al lado.
+                <SiluetaPersona rol={chofer.rol} className="text-primary" />
               )}
 
               <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
@@ -204,7 +205,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             {fotoError && (
               <p className="mt-1 text-[11px] text-red-600">{fotoError}</p>
             )}
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
               <StatusBadge label={estadoLabel} tone={estadoTone} />
               {!esBaja && chofer.score_trimestre !== null && (
                 <TooltipProvider delay={100}>
@@ -212,17 +213,18 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                     <TooltipTrigger
                       render={
                         <span
-                          className="inline-flex items-center gap-1 rounded-full text-[11px] font-bold px-2 py-0.5 border cursor-help"
-                          style={
-                            chofer.score_trimestre >= 80
-                              ? { backgroundColor: "#ECFDF5", borderColor: "#A7F3D0", color: "#065F46" }
-                              : chofer.score_trimestre >= 60
-                                ? { backgroundColor: "#FFFBEB", borderColor: "#FEF3C7", color: "#92400E" }
-                                : { backgroundColor: "#FEF2F2", borderColor: "#FECACA", color: "#991B1B" }
-                          }
+                          className="inline-flex cursor-help items-center gap-1.5 text-[13px] text-muted-foreground"
+                          style={{
+                            color:
+                              chofer.score_trimestre >= 80
+                                ? "#059669"
+                                : chofer.score_trimestre >= 60
+                                  ? "#B45309"
+                                  : "#B91C1C",
+                          }}
                         >
-                          <Trophy size={11} />
-                          Score {chofer.score_trimestre}
+                          <Trophy size={14} />
+                          <span className="font-semibold">Score {chofer.score_trimestre}</span>
                         </span>
                       }
                     />
@@ -255,44 +257,44 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               )}
               {!esBaja && esChofer && (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 border ${
-                    camionLabel
-                      ? "bg-sky-50 border-sky-200 text-sky-700"
-                      : "bg-muted/50 border-border text-muted-foreground"
-                  }`}
+                  className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground"
                   title={camionLabel ? "Camión asignado actualmente" : "Sin camión asignado"}
                 >
-                  <Truck size={11} />
-                  {camionLabel ?? "Sin camión asignado"}
+                  <Truck size={14} className={camionLabel ? "text-primary" : "text-muted-foreground/60"} />
+                  {camionLabel ? (
+                    <span className="font-medium text-foreground">{camionLabel}</span>
+                  ) : (
+                    "Sin camión asignado"
+                  )}
                 </span>
               )}
               {periodoPrueba !== null && periodoPrueba > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium px-2 py-0.5">
-                  <AlertCircle size={11} />
-                  Período de prueba: quedan {periodoPrueba} {periodoPrueba === 1 ? "día" : "días"}
+                <span className="inline-flex items-center gap-1.5 text-[13px] text-[#B45309]">
+                  <AlertCircle size={14} />
+                  <span className="font-medium">
+                    Período de prueba: quedan {periodoPrueba} {periodoPrueba === 1 ? "día" : "días"}
+                  </span>
                 </span>
               )}
               {cumple && (
                 <span
-                  className="inline-flex items-center gap-1 rounded-full bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-700 text-[11px] font-medium px-2 py-0.5"
+                  className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground"
                   title={`Fecha de nacimiento: ${cumple.fechaLabel}`}
                 >
-                  <Cake size={11} />
-                  {cumple.label}
+                  <Cake size={14} className="text-[#DB2777]" />
+                  <span className="font-medium text-foreground">{cumple.label}</span>
                 </span>
               )}
               {docsResumen && (
                 <button
                   type="button"
                   onClick={() => onSelectTab?.("documentos")}
-                  className={`inline-flex items-center gap-1 rounded-full text-[11px] font-semibold px-2 py-0.5 border transition-all hover:scale-[1.02] cursor-pointer ${
-                    docsResumen.vencidos > 0
-                      ? "bg-red-50 border-red-200 text-red-700"
-                      : "bg-amber-50 border-amber-200 text-amber-700"
+                  className={`inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-medium hover:underline ${
+                    docsResumen.vencidos > 0 ? "text-[#B91C1C]" : "text-[#B45309]"
                   }`}
                   title="Ver documentación"
                 >
-                  <AlertTriangle size={11} />
+                  <AlertTriangle size={14} />
                   {docsResumen.label}
                 </button>
               )}
@@ -301,7 +303,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                   type="button"
                   onClick={handleMarcarLeidas}
                   disabled={markingRead}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 border border-[#BAE6FD] text-[#0369A1] text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none"
+                  className="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-[6px] border border-border px-2.5 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
                   title="Marcar todas las alertas de este legajo como leídas"
                 >
                   <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
@@ -312,23 +314,27 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
           </div>
         </div>
 
-        {!editing && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40 flex-shrink-0"
-            onClick={() => onEditar?.()}
-          >
-            <Edit size={13} className="mr-1.5 text-primary" />
-            Editar
-          </Button>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <ExportarLegajoButton choferId={chofer.id} canVerSueldos={chofer.can_ver_sueldos} />
+          {!editing && (
+            <Button
+              variant="outline"
+              className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+              onClick={() => onEditar?.()}
+            >
+              <Edit size={15} className="mr-2 text-primary" />
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-[#F1F5F9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <InfoItem icon={<Phone size={13} />} label={chofer.telefono ?? "—"} />
-        <InfoItem icon={<Mail size={13} />} label={chofer.email ?? "—"} />
-        <InfoItem icon={<MapPin size={13} />} label={chofer.localidad ?? "—"} />
+      {/* Antes eran 7 columnas fijas y el texto se cortaba en "Ingreso: 01/09/20…".
+          Ahora fluye y cada dato ocupa lo que necesita. */}
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-[#F1F5F9] pt-4">
+        <InfoItem icon={<Phone size={14} />} tono="#059669" label={chofer.telefono ?? "—"} />
+        <InfoItem icon={<Mail size={14} />} tono="#0277BD" label={chofer.email ?? "—"} />
+        <InfoItem icon={<MapPin size={14} />} tono="#DC2626" label={chofer.localidad ?? "—"} />
         {esChofer && (
           <InfoItem
             icon={<Truck size={13} />}
@@ -336,20 +342,25 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
           />
         )}
         <InfoItem
-          icon={<Calendar size={13} />}
+          icon={<Calendar size={14} />}
+          tono="#7C3AED"
           label={`Ingreso: ${formatFecha(chofer.fecha_ingreso)}`}
         />
-        <InfoItem icon={<Clock size={13} />} label={`Antigüedad: ${antiguedad}`} />
-        <InfoItem icon={<Cake size={13} />} label={`Edad: ${edad != null ? `${edad} años` : "—"}`} />
+        <InfoItem icon={<Clock size={14} />} tono="#D97706" label={`Antigüedad: ${antiguedad}`} />
+        <InfoItem
+          icon={<Cake size={14} />}
+          tono="#DB2777"
+          label={`Edad: ${edad != null ? `${edad} años` : "—"}`}
+        />
       </div>
 
-      {/* Panel de egreso destacado — solo si está dado de baja */}
+      {/* Egreso — sin caja de color: es una sección más del encabezado. */}
       {esBaja && (
-        <div className="mt-5 p-4 bg-amber-100/60 border border-amber-300 rounded-lg">
+        <div className="mt-5 pt-4 border-t border-border">
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <LogOut size={14} className="text-amber-700" />
-              <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">
+              <LogOut size={14} className="text-muted-foreground" />
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Información del egreso
               </h3>
             </div>
@@ -357,7 +368,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs bg-card/60"
+                className="h-7 text-xs"
                 onClick={() => {
                   setEgMotivo(chofer.motivo_egreso ?? "");
                   setEgFecha(chofer.fecha_egreso ?? "");
@@ -369,7 +380,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               </Button>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 text-xs bg-card/60" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
                   <X size={12} className="mr-1" /> Cancelar
                 </Button>
                 <Button variant="brand" size="sm" className="h-7 text-xs" onClick={handleGuardarEgreso} disabled={savingEgreso}>
@@ -399,7 +410,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 </div>
               </div>
               {observacionEgreso && (
-                <div className="mt-3 pt-3 border-t border-amber-300/60">
+                <div className="mt-3 pt-3 border-t border-border">
                   <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
                     <FileText size={11} /> Observaciones del egreso
                   </div>
@@ -453,11 +464,26 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
   );
 }
 
-function InfoItem({ icon, label }: { icon: React.ReactNode; label: string }) {
+/**
+ * Un dato del encabezado. El ícono lleva color propio —era una fila de siete
+ * grises iguales y no se distinguía nada— y el texto NO se trunca: "Ingreso:
+ * 01/09/20…" no sirve para nada.
+ */
+function InfoItem({
+  icon,
+  label,
+  tono,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  tono?: string;
+}) {
   return (
-    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <span className="text-muted-foreground/70">{icon}</span>
-      <span className="truncate">{label}</span>
+    <div className="flex items-center gap-2 text-sm text-foreground/90" title={label}>
+      <span style={tono ? { color: tono } : undefined} className={tono ? "" : "text-muted-foreground/70"}>
+        {icon}
+      </span>
+      <span className="whitespace-nowrap">{label}</span>
     </div>
   );
 }

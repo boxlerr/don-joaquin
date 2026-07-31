@@ -3,6 +3,11 @@
  *
  *   npx tsx --env-file=.env scripts/cargar-metricas-drive.ts [--dir DIR] [--apply] [--solo 2025]
  *
+ * Para un mes suelto que Bárbara comparte como carpeta aparte (link directo a
+ * la carpeta del mes, sin el árbol año/mes):
+ *
+ *   npx tsx --env-file=.env scripts/cargar-metricas-drive.ts --carpeta <folderId> --mes 2026-06 [--apply]
+ *
  * 1. Enumera el Drive público (embeddedfolderview) recursivamente:
  *    raíz → carpetas por año (2023…) → carpetas por mes ("ENERO 2025") → PDFs.
  * 2. Descarga cada PDF (uc?export=download), lo clasifica por nombre y lo pasa
@@ -28,6 +33,11 @@ const dirIdx = args.indexOf("--dir");
 const BASE = dirIdx >= 0 ? args[dirIdx + 1] : join(process.cwd(), ".metricas-drive");
 const soloIdx = args.indexOf("--solo");
 const SOLO = soloIdx >= 0 ? args[soloIdx + 1] : null;
+// Carpeta suelta de UN mes (link directo a la carpeta del mes, sin árbol año/mes).
+const carpetaIdx = args.indexOf("--carpeta");
+const CARPETA = carpetaIdx >= 0 ? args[carpetaIdx + 1] : null;
+const mesIdx = args.indexOf("--mes");
+const MES_ARG = mesIdx >= 0 ? args[mesIdx + 1] : null;
 // Meses con mismatch REVISADO A MANO que igual se aplican (ej. el TOTAL del
 // propio Excel está mal calculado): --forzar 2024-06,2025-03
 const forzarIdx = args.indexOf("--forzar");
@@ -111,14 +121,53 @@ async function descargar(fileId: string, destino: string) {
   });
 }
 
+/** Baja los PDFs de UNA carpeta de mes a `dir` y los pasa a .txt. */
+async function bajarPlanillas(folderId: string, dir: string, etiqueta: string, noClasificados: string[]) {
+  mkdirSync(dir, { recursive: true });
+  const archivos = (await listarCarpeta(folderId)).filter((e) => !e.esCarpeta);
+  for (const a of archivos) {
+    const clase = clasificar(a.nombre);
+    if (!clase) {
+      noClasificados.push(`${etiqueta}/${a.nombre}`);
+      continue;
+    }
+    const pdf = join(dir, `${clase}.pdf`);
+    try {
+      await descargar(a.id, pdf);
+      const txt = pdf.replace(/\.pdf$/, ".txt");
+      if (!existsSync(txt)) sh(`pdftotext -layout "${pdf}" "${txt}"`);
+      // El desglose del sueldo se lee por coordenadas: -layout arma las
+      // columnas por página y en las de continuación (sin header) las corre.
+      const xml = pdf.replace(/\.pdf$/, ".bbox.xml");
+      if (clase === "sueldo-fact" && !existsSync(xml)) sh(`pdftotext -bbox-layout "${pdf}" "${xml}"`);
+    } catch (e) {
+      console.log(`  ⚠️ Error bajando ${a.nombre}: ${(e as Error).message}`);
+    }
+  }
+  return archivos.length;
+}
+
 async function main() {
   mkdirSync(BASE, { recursive: true });
   const noClasificados: string[] = [];
+  const mesesDirs: { mesISO: string; dir: string }[] = [];
 
   // ── 1+2) Enumerar y descargar ───────────────────────────────────────────
+  if (CARPETA) {
+    // Carpeta suelta: los PDFs cuelgan directo de ella y el mes lo da --mes.
+    if (!MES_ARG || !/^\d{4}-\d{2}$/.test(MES_ARG)) {
+      console.error("--carpeta requiere --mes YYYY-MM");
+      process.exit(1);
+    }
+    const dir = join(BASE, MES_ARG.slice(0, 4), MES_ARG);
+    const n = await bajarPlanillas(CARPETA, dir, MES_ARG, noClasificados);
+    mesesDirs.push({ mesISO: MES_ARG, dir });
+    console.log(`  ✓ ${MES_ARG} (${n} archivos)`);
+    return procesar(mesesDirs, noClasificados);
+  }
+
   console.log("Enumerando Drive…");
   const anios = (await listarCarpeta(ROOT_FOLDER)).filter((e) => e.esCarpeta);
-  const mesesDirs: { mesISO: string; dir: string }[] = [];
 
   for (const anio of anios) {
     if (SOLO && anio.nombre !== SOLO) continue;
@@ -138,28 +187,18 @@ async function main() {
       const dir = join(BASE, anioToken, esAnuales ? "anuales" : mesISO);
       mkdirSync(dir, { recursive: true });
 
-      const archivos = (await listarCarpeta(carpeta.id)).filter((e) => !e.esCarpeta);
-      for (const a of archivos) {
-        const clase = clasificar(a.nombre);
-        if (!clase) {
-          noClasificados.push(`${anio.nombre}/${carpeta.nombre}/${a.nombre}`);
-          continue;
-        }
-        const pdf = join(dir, `${clase}.pdf`);
-        try {
-          await descargar(a.id, pdf);
-          const txt = pdf.replace(/\.pdf$/, ".txt");
-          if (!existsSync(txt)) sh(`pdftotext -layout "${pdf}" "${txt}"`);
-        } catch (e) {
-          console.log(`  ⚠️ Error bajando ${a.nombre}: ${(e as Error).message}`);
-        }
-      }
+      const etiqueta = `${anio.nombre}/${carpeta.nombre}`;
+      const nArchivos = await bajarPlanillas(carpeta.id, dir, etiqueta, noClasificados);
       if (!esAnuales) mesesDirs.push({ mesISO, dir });
       else mesesDirs.push({ mesISO: `${anioToken}-ANUAL`, dir });
-      console.log(`  ✓ ${anio.nombre}/${carpeta.nombre} (${archivos.length} archivos)`);
+      console.log(`  ✓ ${etiqueta} (${nArchivos} archivos)`);
     }
   }
 
+  return procesar(mesesDirs, noClasificados);
+}
+
+async function procesar(mesesDirs: { mesISO: string; dir: string }[], noClasificados: string[]) {
   // ── 3) Parsear y verificar ─────────────────────────────────────────────
   const resultados: ParseResult[] = [];
   const conMismatch: string[] = [];

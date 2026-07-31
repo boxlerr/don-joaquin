@@ -18,6 +18,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
+import { coincideEnAlguno } from "@/lib/texto";
 import { actualizarParametro } from "./actions";
 import HistorialDrawer from "./HistorialDrawer";
 import BulkEditForm from "./BulkEditForm";
@@ -56,13 +57,9 @@ export default function ParametrosList({
   }, [parametros, hideClaves]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return visibles;
-    return visibles.filter(
-      (p) =>
-        p.clave.toLowerCase().includes(q) ||
-        (p.descripcion ?? "").toLowerCase().includes(q) ||
-        (p.categoria ?? "").toLowerCase().includes(q),
+    if (!search.trim()) return visibles;
+    return visibles.filter((p) =>
+      coincideEnAlguno([p.clave, p.descripcion, p.categoria], search),
     );
   }, [visibles, search]);
 

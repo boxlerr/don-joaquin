@@ -61,18 +61,22 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
             {docs.length} documento{docs.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        <Button
-          variant="outline"
-          size="sm"
-          className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
-          onClick={() => {
-            setSelectedDocForEdit(null);
-            setCargarOpen(true);
-          }}
-        >
-          <Plus size={13} className="mr-1.5 text-primary" />
-          Cargar documento
-        </Button>
+        {/* A un egresado no se le cargan documentos nuevos; los que tiene
+            quedan igual, con sus vencimientos, como historial. */}
+        {chofer.estado !== "baja" && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            onClick={() => {
+              setSelectedDocForEdit(null);
+              setCargarOpen(true);
+            }}
+          >
+            <Plus size={13} className="mr-1.5 text-primary" />
+            Cargar documento
+          </Button>
+        )}
       </div>
 
       {docs.length === 0 ? (

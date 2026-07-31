@@ -18,6 +18,7 @@ import {
 import { CalendarClock, CheckCircle2, Hash, Plus, Search, Sigma, Trash2, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { coincideBusqueda } from "@/lib/texto";
 import CargarAumentoDialog from "./CargarAumentoDialog";
 import type { ClienteOption } from "./actions";
 import {
@@ -128,9 +129,8 @@ export default function TabClientes({
   }, [aumentos, desde12m, hasta12m]);
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return fichas;
-    return fichas.filter((f) => f.nombre.toLowerCase().includes(q));
+    if (!busqueda.trim()) return fichas;
+    return fichas.filter((f) => coincideBusqueda(f.nombre, busqueda));
   }, [fichas, busqueda]);
 
   const actual =

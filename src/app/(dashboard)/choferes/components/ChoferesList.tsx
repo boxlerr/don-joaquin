@@ -5,6 +5,7 @@ import { Users, X, ChevronDown, ChevronRight, Archive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { coincideTerminos } from "@/lib/texto";
 import ChoferCard from "./ChoferCard";
 
 type EstadoFilter = "todos" | "activo" | "inactivo" | "baja" | "periodo_prueba";
@@ -69,14 +70,6 @@ function enPeriodoPrueba(fechaIngreso?: string | null): boolean {
   return Date.now() < fin.getTime();
 }
 
-function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
-}
-
 export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [rolFilter, setRolFilter] = useState<RolFilter>("chofer");
@@ -106,7 +99,6 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   }, [orden]);
 
   const filtered = useMemo(() => {
-    const q = normalize(query);
     return choferes.filter((c) => {
       if (rolFilter !== "todos" && rolDe(c) !== rolFilter) return false;
       if (estadoFilter === "periodo_prueba") {
@@ -114,11 +106,11 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
       } else if (estadoFilter !== "todos" && c.estado !== estadoFilter) {
         return false;
       }
-      if (!q) return true;
       // Se busca por todo lo que está a la vista en la tarjeta, incluido el
       // camión: escribir "iveco" tiene que traer a los que manejan un Iveco, y
       // "azul" a los de esa localidad.
-      const haystack = normalize(
+      // Cada palabra tiene que estar: "iveco azul" angosta en vez de sumar.
+      return coincideTerminos(
         [
           c.apellido,
           c.nombre,
@@ -129,15 +121,9 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
           c.camion_patente,
           c.camion_marca,
           c.camion_modelo,
-        ]
-          .filter(Boolean)
-          .join(" "),
+        ],
+        query,
       );
-      // Cada palabra tiene que estar: "iveco azul" angosta en vez de sumar.
-      return q
-        .split(/\s+/)
-        .filter(Boolean)
-        .every((t) => haystack.includes(t));
     });
   }, [choferes, estadoFilter, rolFilter, query]);
 

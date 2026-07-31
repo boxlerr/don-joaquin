@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Search, Truck, Container, X } from "lucide-react";
 import type { AcopladoOption, CamionOption } from "../types";
+import { coincideEnAlguno } from "@/lib/texto";
 
 // Algunos camiones/acoplados se cargaron solo con patente — marca/modelo
 // quedaron como "Sin datos". Filtramos para no mostrar la muletilla.
@@ -17,14 +18,6 @@ function descripcion(u: { marca?: string | null; modelo?: string | null }): stri
   const marca = isPlaceholder(u.marca) ? "" : u.marca!.trim();
   const modelo = isPlaceholder(u.modelo) ? "" : u.modelo!.trim();
   return [marca, modelo].filter(Boolean).join(" ");
-}
-
-function norm(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .trim();
 }
 
 export type UnidadValue = `c:${string}` | `a:${string}` | "";
@@ -135,21 +128,14 @@ export default function UnidadPicker({
     return a ? { tipo: "acoplado" as const, patente: a.patente, sub: descripcion(a) } : null;
   }, [value, camiones, acoplados_]);
 
-  const q = norm(query);
+  const q = query.trim();
+  // Con la búsqueda vacía pasan todas; los acentos y las mayúsculas no cuentan.
   const filteredCamiones = useMemo(
-    () =>
-      camiones.filter((c) => {
-        if (!q) return true;
-        return norm(c.patente).includes(q) || norm(descripcion(c)).includes(q);
-      }),
+    () => camiones.filter((c) => coincideEnAlguno([c.patente, descripcion(c)], q)),
     [camiones, q]
   );
   const filteredAcoplados = useMemo(
-    () =>
-      acoplados_.filter((a) => {
-        if (!q) return true;
-        return norm(a.patente).includes(q) || norm(descripcion(a)).includes(q);
-      }),
+    () => acoplados_.filter((a) => coincideEnAlguno([a.patente, descripcion(a)], q)),
     [acoplados_, q]
   );
 

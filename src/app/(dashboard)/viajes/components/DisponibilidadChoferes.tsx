@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarOff, ShieldCheck } from "lucide-react";
 import { formatFecha } from "@/lib/utils";
-import InitialsAvatar from "@/components/ui/InitialsAvatar";
+import AvatarPersona from "@/components/ui/AvatarPersona";
 import type { AusenciaProxima } from "../actions";
 
 interface Props {
@@ -79,7 +79,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                   a.en_curso ? "border-amber-500/40" : "border-border"
                 }`}
               >
-                <InitialsAvatar name={a.chofer_nombre} size={40} className="mt-0.5 text-[13px]" />
+                <AvatarPersona name={a.chofer_nombre} rol="chofer" size={44} className="mt-0.5" />
 
                 <div className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">

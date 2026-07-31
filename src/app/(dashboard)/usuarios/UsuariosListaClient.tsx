@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { coincideEnAlguno } from "@/lib/texto";
 import {
   Dialog,
   DialogContent,
@@ -85,14 +86,10 @@ export default function UsuariosListaClient({
   const [copied, setCopied] = useState(false);
 
   const filtrados = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return usuarios.filter((u) => {
       if (rolFiltro && u.rol_codigo !== rolFiltro) return false;
-      if (q) {
-        const nombre = `${u.nombre ?? ""} ${u.apellido ?? ""}`.toLowerCase();
-        if (!nombre.includes(q) && !u.email.toLowerCase().includes(q)) return false;
-      }
-      return true;
+      const nombre = `${u.nombre ?? ""} ${u.apellido ?? ""}`;
+      return coincideEnAlguno([nombre, u.email], query);
     });
   }, [usuarios, query, rolFiltro]);
 

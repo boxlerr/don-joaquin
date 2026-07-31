@@ -67,7 +67,10 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
     setActionLoading(false);
   };
 
-  const estadoTone = chofer.estado === "activo" ? "success" : "neutral";
+  // La tabla decía "baja" en gris mientras la tarjeta y el legajo del MISMO
+  // chofer decían "egresado": tres pantallas, tres idiomas.
+  const esBaja = chofer.estado === "baja";
+  const estadoTone = chofer.estado === "activo" ? "success" : esBaja ? "archivado" : "neutral";
 
   return (
     <>
@@ -98,7 +101,7 @@ export default function ChoferRow({ chofer }: { chofer: any }) {
           {formatFecha(chofer.fecha_ingreso)}
         </TableCell>
         <TableCell>
-          <StatusBadge label={chofer.estado} tone={estadoTone} />
+          <StatusBadge label={esBaja ? "egresado" : chofer.estado} tone={estadoTone} />
         </TableCell>
       </TableRow>
 

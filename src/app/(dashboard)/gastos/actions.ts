@@ -5,8 +5,18 @@ import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { logAudit } from "@/lib/audit";
+import { normalizarTexto } from "@/lib/texto";
 
 const GASTOS_PAGE_SIZE = 25;
+
+// Si la base todavía no tiene la columna normalizada (falta correr la migración
+// 20260730_busqueda_sin_acentos, o PostgREST tiene la caché de esquema vieja
+// justo después de aplicarla), se busca contra la columna original por un rato y
+// después se vuelve a probar. Así la búsqueda sin acentos se recupera sola en
+// cuanto la columna existe, en vez de quedar degradada hasta reiniciar.
+const ESPERA_REINTENTO_MS = 60_000;
+let sinAcentosBloqueadoHasta = 0;
+const hayColumnaNormalizada = () => Date.now() >= sinAcentosBloqueadoHasta;
 
 export type GastoMedioPago =
   | "efectivo_caja"
@@ -86,10 +96,29 @@ export async function getGastosAction(
   if (sinAsignar) {
     query = query.is("viaje_id", null).is("camion_id", null).is("chofer_id", null);
   }
-  if (search) query = query.ilike("descripcion", `%${search}%`);
+  // La búsqueda ignora acentos: se compara contra descripcion_norm, la columna
+  // generada que guarda la descripción normalizada igual que normalizarTexto().
+  // Si lo que se escribió no deja nada (sólo espacios), no se filtra: mandar un
+  // '%%' descartaría además los gastos sin descripción, que es un campo nullable.
+  const termino = normalizarTexto(search ?? "");
+  if (termino) {
+    query = hayColumnaNormalizada()
+      ? query.ilike("descripcion_norm", `%${termino}%`)
+      : query.ilike("descripcion", `%${search}%`);
+  }
 
   const { data, count, error } = await query;
   if (error) {
+    // 42703 = la columna no existe todavía. Se deja de usar por un minuto y se
+    // reintenta una vez con la columna original (en el reintento ya está
+    // bloqueada, así que no hay recursión infinita).
+    if (error.code === "42703" && hayColumnaNormalizada()) {
+      sinAcentosBloqueadoHasta = Date.now() + ESPERA_REINTENTO_MS;
+      console.warn(
+        "Falta la columna descripcion_norm (migración 20260730_busqueda_sin_acentos): la búsqueda de gastos queda sensible a acentos y se reintenta en 1 minuto."
+      );
+      return getGastosAction(params);
+    }
     console.error("Error al obtener gastos:", error);
     return { error: "No se pudieron cargar los gastos." };
   }

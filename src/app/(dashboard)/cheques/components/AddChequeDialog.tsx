@@ -11,21 +11,23 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { SelectField } from "@/components/ui/combobox";
 import {
-  Landmark, DollarSign, User, Fingerprint, Calendar, MessageSquare, Check,
-  Sliders, Home, FileText, Plus, type LucideIcon,
+  Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
+  Sliders, Home, FileText,
 } from "lucide-react";
 import { createChequeAction, type ChequeTipo } from "../actions";
+import {
+  BancoField,
+  FieldBlock,
+  FieldInput,
+  LibradorField,
+  TIPO_OPTS,
+  type BancoOption,
+  type LibradorOption,
+} from "./cheque-form-fields";
 
-export type LibradorOption = { nombre: string; cuit: string | null };
-type BancoOption = { id: string; nombre: string };
-
-const TIPO_OPTS = [
-  { id: "electronico", label: "Echeq (electrónico)" },
-  { id: "diferido", label: "Cheque físico" },
-];
+export type { LibradorOption };
 
 export default function AddChequeDialog({
   children,
@@ -46,10 +48,9 @@ export default function AddChequeDialog({
   const [tipo, setTipo] = useState<ChequeTipo>("electronico"); // echeq preseleccionado
   const [libradorNombre, setLibradorNombre] = useState("");
   const [libradorCuit, setLibradorCuit] = useState("");
-  const [libradorNuevo, setLibradorNuevo] = useState(false);
   const [importe, setImporte] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState(today);
-  const [bancoId, setBancoId] = useState("");
+  const [bancoNombre, setBancoNombre] = useState("");
   const [sucursal, setSucursal] = useState("");
   const [cuentaCorriente, setCuentaCorriente] = useState("");
   const [observaciones, setObservaciones] = useState("");
@@ -58,21 +59,13 @@ export default function AddChequeDialog({
     setTipo("electronico");
     setLibradorNombre("");
     setLibradorCuit("");
-    setLibradorNuevo(false);
     setImporte("");
     setFechaVencimiento(today);
-    setBancoId("");
+    setBancoNombre("");
     setSucursal("");
     setCuentaCorriente("");
     setObservaciones("");
     setError(null);
-  };
-
-  // Al elegir un librador de la lista, autocompleta su CUIT.
-  const onLibradorSelect = (nombre: string) => {
-    setLibradorNombre(nombre);
-    const match = libradores.find((l) => l.nombre === nombre);
-    if (match?.cuit) setLibradorCuit(match.cuit);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,7 +80,7 @@ export default function AddChequeDialog({
         librador_cuit: libradorCuit || null,
         importe: parseFloat(importe),
         fecha_vencimiento: fechaVencimiento,
-        banco_id: bancoId || null,
+        banco_nombre: bancoNombre || null,
         sucursal_banco: sucursal || null,
         cuenta_corriente: cuentaCorriente || null,
         observaciones: observaciones || null,
@@ -147,48 +140,12 @@ export default function AddChequeDialog({
               onValueChange={(v) => setTipo((v || "electronico") as ChequeTipo)}
             />
 
-            {libradorNuevo ? (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-muted-foreground">Librador (nuevo) *</Label>
-                  <button
-                    type="button"
-                    className="text-[11px] text-primary hover:underline"
-                    onClick={() => { setLibradorNuevo(false); setLibradorNombre(""); }}
-                  >
-                    Elegir de la lista
-                  </button>
-                </div>
-                <FieldInput
-                  icon={User}
-                  placeholder="Nombre / razón social"
-                  value={libradorNombre}
-                  onChange={(e) => setLibradorNombre(e.target.value)}
-                  required
-                />
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold text-muted-foreground">Librador *</Label>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
-                    onClick={() => { setLibradorNuevo(true); setLibradorNombre(""); setLibradorCuit(""); }}
-                  >
-                    <Plus size={11} /> Cargar otro
-                  </button>
-                </div>
-                <SelectField
-                  icon={User}
-                  options={libradores.map((l) => ({ id: l.nombre, label: l.nombre }))}
-                  value={libradorNombre}
-                  onValueChange={onLibradorSelect}
-                  placeholder="Elegí un librador..."
-                  searchPlaceholder="Buscar librador..."
-                />
-              </div>
-            )}
+            <LibradorField
+              libradores={libradores}
+              nombre={libradorNombre}
+              onNombreChange={setLibradorNombre}
+              onCuitChange={setLibradorCuit}
+            />
           </div>
 
           {/* CUIT */}
@@ -232,16 +189,7 @@ export default function AddChequeDialog({
               Datos del banco (opcional)
             </summary>
             <div className="mt-3 space-y-3">
-              <SelectField
-                label="Banco"
-                icon={Landmark}
-                options={bancos.map((b) => ({ id: b.id, label: b.nombre }))}
-                value={bancoId}
-                onValueChange={setBancoId}
-                placeholder="Sin banco"
-                clearable
-                searchPlaceholder="Buscar banco..."
-              />
+              <BancoField bancos={bancos} value={bancoNombre} onValueChange={setBancoNombre} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldBlock label="Sucursal" icon={Home}>
                   <FieldInput icon={Home} placeholder="Ej: 045 - Centro" value={sucursal} onChange={(e) => setSucursal(e.target.value)} />
@@ -279,45 +227,5 @@ export default function AddChequeDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FieldBlock({ label, children }: { label: string; icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs font-semibold text-muted-foreground">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function FieldInput({
-  icon: Icon, type = "text", placeholder, required, value, onChange, step, min,
-}: {
-  icon: LucideIcon;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  step?: string;
-  min?: string;
-}) {
-  return (
-    <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
-      <div className="flex items-center justify-center w-10 h-full border-r border-border bg-muted/50 text-primary shrink-0">
-        <Icon size={15} />
-      </div>
-      <input
-        type={type}
-        placeholder={placeholder}
-        required={required}
-        value={value}
-        onChange={onChange}
-        step={step}
-        min={min}
-        className="flex-1 h-full px-3 text-sm bg-transparent border-0 outline-none focus:outline-none focus:ring-0 text-foreground"
-      />
-    </div>
   );
 }

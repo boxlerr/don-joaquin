@@ -48,9 +48,131 @@ const TRANSICIONES_VALIDAS: Record<ChequeEstado, ChequeEstado[]> = {
   anulado: [],
 };
 
+/**
+ * Devuelve el id del banco a partir de su nombre. La lista nunca va a tener
+ * todos los bancos del país, así que si el que se escribió no existe se crea
+ * (queda disponible para la próxima carga y para el filtro del listado).
+ */
+async function resolveBancoId(
+  supabase: ReturnType<typeof createAdminClient>,
+  nombre?: string | null,
+): Promise<string | null> {
+  const limpio = nombre?.trim();
+  if (!limpio) return null;
+
+  // `ilike` sin comodines = comparación exacta sin distinguir mayúsculas.
+  const patron = limpio.replace(/[\\%_*]/g, (c) => `\\${c}`);
+  const buscar = async () => {
+    const { data } = await supabase
+      .from("bancos")
+      .select("id")
+      .ilike("nombre", patron)
+      .limit(1)
+      .maybeSingle();
+    return data?.id ?? null;
+  };
+
+  const existente = await buscar();
+  if (existente) return existente;
+
+  const { data: creado, error } = await supabase
+    .from("bancos")
+    .insert({ nombre: limpio, estado: "activo" })
+    .select("id")
+    .single();
+  if (creado) return creado.id;
+
+  // 23505 = otro alta simultánea lo creó primero (bancos.nombre es UNIQUE).
+  if (error?.code === "23505") return buscar();
+
+  console.error("Error al crear el banco:", error);
+  return null;
+}
+
+/**
+ * Deja el librador guardado en el catálogo para la próxima carga. Como la
+ * lista nunca va a estar completa, lo que se escribe en el campo se guarda
+ * solo (igual que los bancos). Si ya existe y ahora se cargó el CUIT, se lo
+ * completa.
+ *
+ * `cheques.librador_nombre` es texto, no una FK: el catálogo son sugerencias,
+ * así que borrar un librador de la lista nunca toca los cheques ya cargados.
+ */
+async function guardarLibrador(
+  supabase: ReturnType<typeof createAdminClient>,
+  nombre: string,
+  cuit: string | null,
+  userId: string,
+) {
+  const limpio = nombre.trim();
+  if (!limpio) return;
+  const cuitLimpio = cuit?.trim() || null;
+
+  // `ilike` sin comodines = comparación exacta sin distinguir mayúsculas.
+  const patron = limpio.replace(/[\\%_*]/g, (c) => `\\${c}`);
+  const { data: existente } = await supabase
+    .from("libradores")
+    .select("id, cuit")
+    .ilike("nombre", patron)
+    .limit(1)
+    .maybeSingle();
+
+  if (existente) {
+    if (cuitLimpio && !existente.cuit) {
+      await supabase.from("libradores").update({ cuit: cuitLimpio }).eq("id", existente.id);
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .from("libradores")
+    .insert({ nombre: limpio, cuit: cuitLimpio, created_by: userId });
+
+  // 23505 = otra carga simultánea lo creó primero (nombre es UNIQUE).
+  if (error && error.code !== "23505") {
+    console.error("Error al guardar el librador:", error);
+  }
+}
+
+/**
+ * Saca un librador de las sugerencias. No toca los cheques: los que ya se
+ * cargaron con ese nombre lo conservan.
+ */
+export async function eliminarLibradorAction(id: string) {
+  const user = await requireArea("finanzas", "write");
+  const supabase = createAdminClient();
+
+  const { data: anterior } = await supabase
+    .from("libradores")
+    .select("nombre, cuit")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!anterior) return { error: "Ese librador ya no está en la lista." };
+
+  const { error } = await supabase.from("libradores").delete().eq("id", id);
+  if (error) {
+    console.error("Error al eliminar librador:", error);
+    return { error: "No se pudo sacar el librador de la lista." };
+  }
+
+  await logAudit({
+    accion: "eliminar",
+    entidadTipo: "librador",
+    entidadId: id,
+    usuarioId: user.id,
+    valoresAnteriores: anterior,
+    valoresNuevos: null,
+    client: supabase,
+  });
+
+  revalidatePath("/cheques");
+  return { success: true };
+}
+
 export type CreateChequeInput = {
   numero?: string | null;
-  banco_id?: string | null;
+  banco_nombre?: string | null;
   sucursal_banco?: string | null;
   cuenta_corriente?: string | null;
   librador_nombre: string;
@@ -85,7 +207,7 @@ export async function createChequeAction(input: CreateChequeInput) {
 
   const insertData = {
     numero: input.numero?.trim() || null,
-    banco_id: input.banco_id || null,
+    banco_id: await resolveBancoId(supabase, input.banco_nombre),
     sucursal_banco: input.sucursal_banco?.trim() || null,
     cuenta_corriente: input.cuenta_corriente?.trim() || null,
     librador_nombre: input.librador_nombre.trim(),
@@ -119,6 +241,8 @@ export async function createChequeAction(input: CreateChequeInput) {
     return { error: "No se pudo registrar el cheque." };
   }
 
+  await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await supabase.from("cheque_historial_estado" as any).insert({
     cheque_id: inserted!.id,
@@ -131,6 +255,78 @@ export async function createChequeAction(input: CreateChequeInput) {
   });
 
   await logChequeAudit(supabase, inserted!.id, "crear", null, insertData, user.id);
+
+  revalidatePath("/cheques");
+  return { success: true };
+}
+
+export type UpdateChequeInput = {
+  id: string;
+  numero?: string | null;
+  banco_nombre?: string | null;
+  sucursal_banco?: string | null;
+  cuenta_corriente?: string | null;
+  librador_nombre: string;
+  librador_cuit?: string | null;
+  tipo?: ChequeTipo;
+  importe: number;
+  fecha_vencimiento: string;
+  observaciones?: string | null;
+};
+
+/**
+ * Corrige los datos de un cheque ya cargado. El estado NO se toca acá: se
+ * cambia con las transiciones (entregar / depositar / …) para no perder el
+ * historial.
+ */
+export async function updateChequeAction(input: UpdateChequeInput) {
+  const user = await requireArea("finanzas", "write");
+  const supabase = createAdminClient();
+
+  if (!input.librador_nombre?.trim()) return { error: "El librador es obligatorio." };
+  if (!input.importe || isNaN(input.importe) || input.importe <= 0) {
+    return { error: "El importe debe ser mayor a 0." };
+  }
+  if (!input.fecha_vencimiento) {
+    return { error: "La fecha de vencimiento es obligatoria." };
+  }
+
+  const { data: anterior } = await supabase
+    .from("cheques")
+    .select(
+      "numero, banco_id, sucursal_banco, cuenta_corriente, librador_nombre, librador_cuit, tipo, importe, fecha_vencimiento, observaciones",
+    )
+    .eq("id", input.id)
+    .single();
+
+  if (!anterior) return { error: "Cheque no encontrado." };
+
+  const updateData = {
+    numero: input.numero?.trim() || null,
+    banco_id: await resolveBancoId(supabase, input.banco_nombre),
+    sucursal_banco: input.sucursal_banco?.trim() || null,
+    cuenta_corriente: input.cuenta_corriente?.trim() || null,
+    librador_nombre: input.librador_nombre.trim(),
+    librador_cuit: input.librador_cuit?.trim() || null,
+    tipo: (input.tipo ?? "electronico") as ChequeTipo,
+    importe: input.importe,
+    fecha_vencimiento: input.fecha_vencimiento,
+    observaciones: input.observaciones?.trim() || null,
+  };
+
+  const { error } = await supabase.from("cheques").update(updateData).eq("id", input.id);
+
+  if (error) {
+    console.error("Error al editar cheque:", error);
+    if (error.code === "23505") {
+      return { error: "Ya existe un cheque con ese número en el mismo banco." };
+    }
+    return { error: "No se pudo guardar el cheque." };
+  }
+
+  await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
+
+  await logChequeAudit(supabase, input.id, "actualizar", anterior, updateData, user.id);
 
   revalidatePath("/cheques");
   return { success: true };

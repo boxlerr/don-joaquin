@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { getDmYpfPdfUrlAction, type DmYpfRow } from "./dm-actions";
+import { coincideBusqueda } from "@/lib/texto";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato
@@ -127,21 +128,23 @@ export default function DmYpfListClient({
   // Filtrado por búsqueda (período, solpe, pedido, solicitante) + rango de fechas.
   // Para el rango, un DM "cae dentro" si su período se solapa con [fechaDesde, fechaHasta].
   const dmsFiltrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return dms.filter((dm) => {
-      if (q) {
-        const haystack = [
-          formatFecha(dm.periodo_desde),
-          formatFecha(dm.periodo_hasta),
-          dm.numero_solpe ?? "",
-          dm.numero_pedido ?? "",
-          dm.contrato_sap ?? "",
-          dm.solicitante ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
+      // La búsqueda ignora acentos y mayúsculas: "sanchez" encuentra "Sánchez".
+      // Se compara contra todos los campos unidos, igual que antes.
+      if (
+        !coincideBusqueda(
+          [
+            formatFecha(dm.periodo_desde),
+            formatFecha(dm.periodo_hasta),
+            dm.numero_solpe,
+            dm.numero_pedido,
+            dm.contrato_sap,
+            dm.solicitante,
+          ].join(" "),
+          busqueda,
+        )
+      )
+        return false;
       // Rango de fechas: solapamiento entre el período del DM y [fechaDesde, fechaHasta]
       const dmDesde = dm.periodo_desde.split("T")[0];
       const dmHasta = dm.periodo_hasta.split("T")[0];

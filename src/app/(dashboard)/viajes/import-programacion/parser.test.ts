@@ -7,7 +7,6 @@ import {
   corto,
   detectarFormato,
   parsearFilasExcel,
-  parsearTextoPdf,
   tramosDelCircuito,
   type FilaCruda,
 } from "./parser";
@@ -43,6 +42,7 @@ describe("detectarFormato", () => {
   it("reconoce por los bytes, no por la extensión", () => {
     // Un xlsx renombrado a .pdf sigue siendo un zip.
     expect(detectarFormato(bytes(0x50, 0x4b), "programacion.pdf")).toBe("excel");
+    // Y un PDF de verdad se detecta para poder decir "esto no es el Excel".
     expect(detectarFormato(bytes(0x25, 0x50, 0x44, 0x46), "cosa.xlsx")).toBe("pdf");
   });
 
@@ -198,34 +198,5 @@ describe("tramosDelCircuito", () => {
     expect(t[0]!.destino).toBe("FÁBRICA RAMALLO");
     expect(t[1]!.origen).toBe("FÁBRICA RAMALLO");
     expect(t[1]!.destino).toBe("LOMASER");
-  });
-});
-
-describe("parsearTextoPdf", () => {
-  it("reconoce las filas por el número de transporte", () => {
-    const texto = [
-      "Programación de viajes",
-      "6100062748  1  210061753  2026-07-29  A111  FÁBRICA RAMALLO",
-      "6100062748  2  210061773  2026-07-29  A109  LOMASER",
-    ].join("\n");
-    const r = parsearTextoPdf(texto);
-    expect(r.map((f) => f.nroCorto)).toEqual(["61753", "61773"]);
-    expect(r[0]!.fecha).toBe("2026-07-29");
-    expect(r[0]!.centro).toBe("A111");
-  });
-
-  it("es conservador: lo que no puede afirmar queda vacío", () => {
-    const r = parsearTextoPdf("210061753 sin nada más");
-    expect(r[0]!.destino).toBeNull();
-    expect(r[0]!.toneladas).toBeNull();
-  });
-
-  it("no repite un transporte que aparece dos veces", () => {
-    const r = parsearTextoPdf("210061753 algo\n210061753 otra vez");
-    expect(r).toHaveLength(1);
-  });
-
-  it("un PDF que no es la programación devuelve vacío en vez de basura", () => {
-    expect(parsearTextoPdf("Factura A 0001-00001234\nTotal $ 50.000")).toEqual([]);
   });
 });

@@ -24,18 +24,26 @@ export default async function SiniestrosPage() {
         .order("patente"),
       supabase
         .from("choferes")
-        .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso")
+        .select("id, nombre, apellido, dni, cuil, telefono, localidad, fecha_ingreso, estado")
         .order("nombre"),
     ]);
 
+  // Los egresados quedan en la lista pero deshabilitados: hay que poder abrir y
+  // editar un siniestro viejo de alguien que después se fue, pero no cargarle
+  // uno nuevo. Mismo mecanismo que ya existía para el legajo incompleto.
   const choferesParaSelector = (choferes ?? []).map((c) => {
     const estado = getLegajoEstado(c);
+    const egresado = c.estado === "baja";
     return {
       id: c.id,
       nombre: c.nombre,
       apellido: c.apellido,
-      disabled: !estado.completo,
-      motivo: estado.completo ? undefined : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
+      disabled: egresado || !estado.completo,
+      motivo: egresado
+        ? "Chofer egresado"
+        : estado.completo
+          ? undefined
+          : `Legajo incompleto. Falta: ${estado.faltantes.join(", ")}`,
     };
   });
 

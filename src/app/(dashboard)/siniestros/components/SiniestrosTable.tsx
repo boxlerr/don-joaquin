@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import SiniestroArchivosPanel from "./SiniestroArchivosPanel";
 import RegistrarPagoSiniestroDialog from "./RegistrarPagoSiniestroDialog";
+import { coincideEnAlguno } from "@/lib/texto";
 
 export type TipoSiniestro = "choque" | "robo" | "incendio" | "vandalismo" | "vuelco" | "otro";
 export type EstadoSiniestro = "abierto" | "en_gestion" | "cerrado";
@@ -100,17 +101,19 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
     setExpandedId(null);
   };
 
-  const filtered = siniestros.filter((s) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      (s.camion ? `${s.camion.patente} ${s.camion.marca} ${s.camion.modelo}`.toLowerCase() : "").includes(q) ||
-      (s.chofer ? `${s.chofer.nombre} ${s.chofer.apellido || ""}`.toLowerCase() : "sin chofer").includes(q) ||
-      s.descripcion.toLowerCase().includes(q) ||
-      (s.compania_seguro || "").toLowerCase().includes(q) ||
-      TIPO_LABELS[s.tipo_siniestro].toLowerCase().includes(q) ||
-      ESTADO_LABELS[s.estado].toLowerCase().includes(q)
-    );
-  });
+  const filtered = siniestros.filter((s) =>
+    coincideEnAlguno(
+      [
+        s.camion ? `${s.camion.patente} ${s.camion.marca} ${s.camion.modelo}` : "",
+        s.chofer ? `${s.chofer.nombre} ${s.chofer.apellido || ""}` : "sin chofer",
+        s.descripcion,
+        s.compania_seguro,
+        TIPO_LABELS[s.tipo_siniestro],
+        ESTADO_LABELS[s.estado],
+      ],
+      searchTerm,
+    ),
+  );
 
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">

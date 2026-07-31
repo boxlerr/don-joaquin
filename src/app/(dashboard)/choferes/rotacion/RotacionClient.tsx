@@ -511,7 +511,17 @@ function RotacionTabla({
                   <td className="px-3 py-2 text-muted-foreground">{a.localidad ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmt(a.fecha_ingreso)}</td>
                   <td className="px-3 py-2">
-                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${a.estado === "activo" ? "bg-emerald-50 text-emerald-700" : a.estado === "baja" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+                    {/* Punto + texto, como en camiones: el color va en el punto,
+                        no en un fondo pastel detrás de la palabra. */}
+                    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span
+                        className="size-1.5 rounded-full"
+                        style={{
+                          background:
+                            a.estado === "activo" ? "#10B981" : a.estado === "baja" ? "#94A3B8" : "#CBD5E1",
+                        }}
+                        aria-hidden
+                      />
                       {a.estado === "baja" ? "egresado" : a.estado}
                     </span>
                   </td>

@@ -22,6 +22,7 @@ import {
   deleteLiqLomaAction,
   type LiqLomaRow,
 } from "./liq-actions";
+import { coincideBusqueda } from "@/lib/texto";
 
 // ---------------------------------------------------------------------------
 // Helpers de formato
@@ -120,17 +121,18 @@ export default function LiqLomaListClient({
   }, [liqs]);
 
   const liqsFiltradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return liqs;
+    if (!busqueda.trim()) return liqs;
+    // La búsqueda ignora acentos y mayúsculas. Se compara contra todos los
+    // campos unidos, igual que antes.
     return liqs.filter((l) =>
-      [
-        formatPeriodoCorto(l.periodo_desde, l.periodo_hasta),
-        l.archivo_nombre ?? "",
-        formatFecha(l.importado_en),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
+      coincideBusqueda(
+        [
+          formatPeriodoCorto(l.periodo_desde, l.periodo_hasta),
+          l.archivo_nombre,
+          formatFecha(l.importado_en),
+        ].join(" "),
+        busqueda,
+      ),
     );
   }, [liqs, busqueda]);
 

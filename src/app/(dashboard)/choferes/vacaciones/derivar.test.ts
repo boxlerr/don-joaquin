@@ -6,6 +6,16 @@ import {
   aniosCumplidos,
   semaforo,
   resumenSaldos,
+  subeADiasEn,
+  ventanaGoce,
+  yaSePuedeTomar,
+  esNotaDeProceso,
+  notaVisible,
+  vinoDeImportacion,
+  fmtDiaLargo,
+  fmtRangoFechas,
+  diaSiguiente,
+  fmtRangoCorto,
 } from "./derivar";
 
 // Casos tomados de la conciliación real con la planilla de Bárbara (21/07/2026):
@@ -186,5 +196,118 @@ describe("semáforo", () => {
     expect(semaforo(0, 30)).toBe("🟠");
     expect(semaforo(0, 21)).toBe("🟡");
     expect(semaforo(0, 14)).toBe("🟢");
+  });
+});
+
+// Reemplazo del "sube en 37 meses" que se rechazó: hay que decir el AÑO concreto
+// y a cuántos días pasa.
+describe("subeADiasEn", () => {
+  it("el año del escalón es el de ingreso más los años del escalón", () => {
+    expect(subeADiasEn("2013-07-01", 12)).toEqual({ anio: 2033, dias: 35 }); // 2013+20
+    expect(subeADiasEn("2022-11-30", 3)).toEqual({ anio: 2027, dias: 21 }); // 2022+5
+    expect(subeADiasEn("2016-10-03", 9)).toEqual({ anio: 2026, dias: 28 }); // 2016+10
+  });
+
+  it("NO depende del mes de ingreso: la antigüedad se mide al 31/12", () => {
+    // Si dependiera del mes, "en marzo de 2033 pasa a 35" sería una fecha falsa:
+    // los 35 días valen para TODO el período 2033.
+    expect(subeADiasEn("2013-01-01", 12)?.anio).toBe(2033);
+    expect(subeADiasEn("2013-12-31", 12)?.anio).toBe(2033);
+  });
+
+  it("en el tramo máximo o sin ingreso no hay próximo escalón", () => {
+    expect(subeADiasEn("2000-05-10", 21)).toBeNull();
+    expect(subeADiasEn(null, 3)).toBeNull();
+    expect(subeADiasEn("no-es-fecha", 3)).toBeNull();
+  });
+});
+
+describe("ventanaGoce / yaSePuedeTomar (LCT art. 154)", () => {
+  it("la ventana va del 1/10 del año al 30/4 del siguiente", () => {
+    expect(ventanaGoce(2026)).toEqual({ desde: "2026-10-01", hasta: "2027-04-30" });
+  });
+
+  it('"los de 2026 son a partir de octubre" (lo que subrayó Bárbara)', () => {
+    expect(yaSePuedeTomar(2026, "2026-07-29")).toBe(false);
+    expect(yaSePuedeTomar(2026, "2026-10-01")).toBe(true);
+    expect(yaSePuedeTomar(2025, "2026-07-29")).toBe(true);
+  });
+});
+
+describe("notaVisible / vinoDeImportacion / esNotaDeProceso", () => {
+  it("la metadata del importador no se muestra como si fuera una nota humana", () => {
+    const imp = "Import cronograma (VACACIONES 2, 21/07/2026)";
+    expect(notaVisible(imp)).toBeNull();
+    expect(esNotaDeProceso(imp)).toBe(true);
+    expect(vinoDeImportacion(imp)).toBe(true);
+
+    const planilla = "Importado de planilla (21/07/2026)";
+    expect(notaVisible(planilla)).toBeNull();
+    expect(vinoDeImportacion(planilla)).toBe(true);
+  });
+
+  it("el alta automática es proceso pero NO vino de la planilla", () => {
+    // La escribe lib.ts cuando falta la fila del año en curso.
+    const alta = "Alta automática del período 2026 (días por antigüedad)";
+    expect(notaVisible(alta)).toBeNull();
+    expect(esNotaDeProceso(alta)).toBe(true);
+    expect(vinoDeImportacion(alta)).toBe(false);
+  });
+
+  it("una nota escrita por una persona se conserva", () => {
+    expect(notaVisible("adelanta una semana por casamiento")).toBe("adelanta una semana por casamiento");
+    expect(notaVisible(null)).toBeNull();
+    expect(notaVisible("   ")).toBeNull();
+  });
+});
+
+describe("fmtRangoFechas / fmtDiaLargo", () => {
+  const hoy = "2026-07-29";
+
+  it("mismo mes, mes distinto y cruce de año", () => {
+    expect(fmtRangoFechas("2026-07-07", "2026-07-20", hoy)).toBe("del 7 al 20 de julio");
+    expect(fmtRangoFechas("2026-07-28", "2026-08-04", hoy)).toBe("del 28 de julio al 4 de agosto");
+    expect(fmtRangoFechas("2026-12-28", "2027-01-10", hoy)).toBe(
+      "del 28 de diciembre de 2026 al 10 de enero de 2027",
+    );
+  });
+
+  it("un día en prosa, con el año sólo cuando no es el de hoy", () => {
+    expect(fmtDiaLargo("2026-07-21", hoy)).toBe("martes 21 de julio");
+    expect(fmtDiaLargo("2027-01-04", hoy)).toBe("lunes 4 de enero de 2027");
+  });
+});
+
+describe("diaSiguiente", () => {
+  it("devuelve el día en que vuelve a trabajar", () => {
+    expect(diaSiguiente("2026-08-02")).toBe("2026-08-03");
+  });
+
+  it("cruza fin de mes y fin de año", () => {
+    expect(diaSiguiente("2026-01-31")).toBe("2026-02-01");
+    expect(diaSiguiente("2026-12-31")).toBe("2027-01-01");
+  });
+
+  it("contempla el 29 de febrero de los años bisiestos", () => {
+    expect(diaSiguiente("2028-02-28")).toBe("2028-02-29");
+    expect(diaSiguiente("2027-02-28")).toBe("2027-03-01");
+  });
+});
+
+describe("fmtRangoCorto", () => {
+  it("no repite el mes cuando empieza y termina en el mismo", () => {
+    expect(fmtRangoCorto("2026-08-17", "2026-08-23")).toBe("17 – 23 ago 2026");
+  });
+
+  it("nombra los dos meses cuando cruza de mes", () => {
+    expect(fmtRangoCorto("2026-07-27", "2026-08-02")).toBe("27 jul – 2 ago 2026");
+  });
+
+  it("repite el año sólo cuando cruza de año", () => {
+    expect(fmtRangoCorto("2025-12-29", "2026-01-04")).toBe("29 dic 2025 – 4 ene 2026");
+  });
+
+  it("siempre lleva el año: en diez años de historia es lo que desambigua", () => {
+    expect(fmtRangoCorto("2019-03-04", "2019-03-10")).toContain("2019");
   });
 });

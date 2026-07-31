@@ -140,6 +140,153 @@ export function vencePeriodoLabel(finPeriodoY: number): string {
   return `${MES_CORTO[9]} ${finPeriodoY + 1}`; // Oct del año siguiente
 }
 
+// ── Textos y fechas para la UI ────────────────────────────────────────────────
+// Todo lo de acá abajo existe para que las pantallas no tengan que armar frases
+// a mano (que es cómo terminaron diciendo lo mismo de siete formas distintas).
+// `hitoLabel`, `proximoHito` y `vencePeriodoLabel` siguen vivos porque los
+// consumen los dos exports a Excel (el "formato de siempre" que archiva Bárbara),
+// pero la UI usa estas funciones nuevas.
+
+/**
+ * Próximo escalón de antigüedad, dicho en AÑO y en DÍAS: "desde 2029 le van a
+ * corresponder 35 días por año".
+ *
+ * NO devuelve mes a propósito. `aniosCumplidos` mide la antigüedad al 31/12 del
+ * año del período (refM=12, refD=31 ⇒ anios = refY − year(ingreso) siempre), así
+ * que el escalón vale para TODO el período `year(ingreso) + escalón`: decir "en
+ * marzo de 2029 pasa a 35 días" sería falso, los 35 valen para el 2029 completo.
+ *
+ * Reemplaza a `proximoHito` en la UI ("37 meses → 20 años": nadie planifica en
+ * meses sueltos).
+ */
+export function subeADiasEn(
+  ingresoISO: string | null,
+  anios: number,
+): { anio: number; dias: number } | null {
+  const sig = ESCALONES_HITO.find((e) => e > anios);
+  if (sig == null || !ingresoISO) return null;
+  const y = Number(ingresoISO.slice(0, 4));
+  if (!Number.isFinite(y)) return null;
+  return { anio: y + sig, dias: diasPorAntiguedad(sig) };
+}
+
+/** Ventana legal para gozar el período de un año (LCT art. 154): 1/10 → 30/4. */
+export function ventanaGoce(anio: number): { desde: string; hasta: string } {
+  return { desde: `${anio}-10-01`, hasta: `${anio + 1}-04-30` };
+}
+
+/** ¿Ya se abrió la ventana del art. 154 para el período de ese año? */
+export function yaSePuedeTomar(anio: number, hoyISO: string): boolean {
+  return hoyISO >= ventanaGoce(anio).desde;
+}
+
+/**
+ * ¿Ese texto de `observaciones` lo escribió un proceso y no una persona?
+ *
+ * No hay columna de origen en `chofer_ausencias` ni en `chofer_vacaciones_anios`,
+ * así que lo único que queda es heurística sobre el texto libre. Se usa para
+ * ESCONDER el ruido de importación ("Import cronograma (VACACIONES 2, …)" abajo
+ * del nombre de una persona, como si fuera una nota humana), nunca para afirmar
+ * cómo se cargó algo que en realidad no sabemos.
+ */
+export function esNotaDeProceso(obs: string | null): boolean {
+  if (!obs) return false;
+  return /^\s*\[?import/i.test(obs) || /^\s*alta autom/i.test(obs);
+}
+
+/** La observación sólo si la escribió una persona; si no, null. */
+export function notaVisible(obs: string | null): string | null {
+  if (!obs || esNotaDeProceso(obs)) return null;
+  return obs.trim() || null;
+}
+
+/**
+ * Sólo la importación de planilla habilita la frase "al importar la planilla".
+ * `esNotaDeProceso` es más amplia (incluye el "Alta automática…" que escribe
+ * lib.ts) y sirve nada más que para filtrar.
+ */
+export function vinoDeImportacion(obs: string | null): boolean {
+  return /^\s*\[?import/i.test(obs ?? "");
+}
+
+const DIA_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MES_LARGO = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+function partesISO(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return { y: y ?? 0, m: m ?? 1, d: d ?? 1 };
+}
+
+/**
+ * Un día en prosa: "lunes 21 de julio". El año se agrega sólo si no es el de hoy
+ * ("lunes 4 de enero de 2027"), que es el caso frecuente por la ventana de goce.
+ * Un solo formato para "vuelve el…", "se va el…" y "volvió el…" en las tres
+ * pantallas: antes cada bloque escribía la fecha a su manera.
+ */
+/**
+ * El día siguiente a una fecha ISO. Es el día en que la persona vuelve a
+ * trabajar: la pregunta que se hace quien arma la semana no es "cuándo termina
+ * la licencia" sino "cuándo lo tengo de nuevo".
+ */
+/**
+ * Rango compacto para listas largas. Siempre lleva el año: en un legajo con diez
+ * años de historia, "del 17 al 23 de agosto" no dice de qué agosto habla. No
+ * repite mes ni año cuando coinciden, así la columna se escanea de arriba abajo.
+ *   "17 – 23 ago 2026" · "27 jul – 2 ago 2026" · "29 dic 2025 – 4 ene 2026"
+ */
+export function fmtRangoCorto(inicioISO: string, finISO: string): string {
+  const a = partesISO(inicioISO);
+  const b = partesISO(finISO);
+  const mesA = MES_CORTO[a.m - 1]!.toLowerCase();
+  const mesB = MES_CORTO[b.m - 1]!.toLowerCase();
+  if (a.y === b.y && a.m === b.m) return `${a.d} – ${b.d} ${mesA} ${a.y}`;
+  if (a.y === b.y) return `${a.d} ${mesA} – ${b.d} ${mesB} ${a.y}`;
+  return `${a.d} ${mesA} ${a.y} – ${b.d} ${mesB} ${b.y}`;
+}
+
+export function diaSiguiente(iso: string): string {
+  const { y, m, d } = partesISO(iso);
+  const t = new Date(Date.UTC(y, m - 1, d + 1));
+  return t.toISOString().slice(0, 10);
+}
+
+export function fmtDiaLargo(iso: string, hoyISO: string): string {
+  const { y, m, d } = partesISO(iso);
+  const dow = DIA_SEMANA[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+  const base = `${dow} ${d} de ${MES_LARGO[m - 1]}`;
+  return y !== partesISO(hoyISO).y ? `${base} de ${y}` : base;
+}
+
+/**
+ * Rango en prosa: "del 7 al 20 de julio", "del 28 de julio al 4 de agosto",
+ * "del 28 de diciembre de 2026 al 10 de enero de 2027". Reemplaza al
+ * "07 jul → 20 jul" de la vista global, que es formato de planilla.
+ */
+export function fmtRangoFechas(inicioISO: string, finISO: string, hoyISO: string): string {
+  const a = partesISO(inicioISO);
+  const b = partesISO(finISO);
+  const anioHoy = partesISO(hoyISO).y;
+  const cruzaAnio = a.y !== b.y || a.y !== anioHoy || b.y !== anioHoy;
+  if (cruzaAnio) {
+    return `del ${a.d} de ${MES_LARGO[a.m - 1]} de ${a.y} al ${b.d} de ${MES_LARGO[b.m - 1]} de ${b.y}`;
+  }
+  if (a.m === b.m) return `del ${a.d} al ${b.d} de ${MES_LARGO[a.m - 1]}`;
+  return `del ${a.d} de ${MES_LARGO[a.m - 1]} al ${b.d} de ${MES_LARGO[b.m - 1]}`;
+}
+
 /** Conjunto completo de campos derivados para un empleado. */
 export function derivarVacaciones(opts: {
   rol: string | null;

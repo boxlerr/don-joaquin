@@ -25,10 +25,17 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { addChoferAction } from "../actions";
+import { coincideBusqueda } from "@/lib/texto";
 
 const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
-import { getLegajoEstado } from "@/lib/chofer-validation";
+import {
+  getLegajoEstado,
+  formatCuil,
+  normalizarDni,
+  validarCuil,
+  validarDni,
+} from "@/lib/chofer-validation";
 
 // ---------------------------------------------------------------------------
 // Localidades
@@ -74,24 +81,9 @@ const ROLES = [
 
 // ---------------------------------------------------------------------------
 // Validaciones
+// El formato de DNI/CUIL vive en @/lib/chofer-validation: lo comparten el alta,
+// la edición del legajo y el server action.
 // ---------------------------------------------------------------------------
-const CUIL_PREFIXES = ["20", "23", "24", "27", "30", "33", "34"];
-
-function formatCuil(raw: string): string {
-  const digits = raw.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 10) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
-}
-
-function validateCuil(value: string): string | null {
-  const digits = value.replace(/\D/g, "");
-  if (!digits) return "El CUIL es requerido.";
-  if (digits.length !== 11) return "El CUIL debe tener 11 dígitos.";
-  if (!CUIL_PREFIXES.includes(digits.slice(0, 2))) return "Prefijo de CUIL inválido.";
-  return null;
-}
-
 function validateTelefono(value: string): string | null {
   const digits = value.replace(/\D/g, "");
   if (!digits) return "El teléfono es requerido.";
@@ -153,11 +145,11 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
     const errors: Record<string, string> = {};
     if (!nombre.trim()) errors.nombre = "El nombre es requerido.";
     if (!apellido.trim()) errors.apellido = "El apellido es requerido.";
-    // CUIL/teléfono: solo se validan si el usuario ingresó algo (formato).
-    if (cuil.replace(/\D/g, "").length > 0) {
-      const cuilErr = validateCuil(cuil);
-      if (cuilErr) errors.cuil = cuilErr;
-    }
+    // DNI/CUIL/teléfono: solo se validan si el usuario ingresó algo (formato).
+    const dniErr = validarDni(dni);
+    if (dniErr) errors.dni = dniErr;
+    const cuilErr = validarCuil(cuil);
+    if (cuilErr) errors.cuil = cuilErr;
     if (telefono.replace(/\D/g, "").length > 0) {
       const telErr = validateTelefono(telefono);
       if (telErr) errors.telefono = telErr;
@@ -292,7 +284,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               name="dni"
               placeholder="Ej: 12345678"
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => setDni(normalizarDni(e.target.value))}
               icon={Fingerprint}
               error={fieldErrors.dni}
             />
@@ -445,12 +437,7 @@ function LocalidadCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filtered = query.trim()
-    ? LOCALIDADES_AR.filter((l) =>
-        l.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
-          .includes(
-            query.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
-          )
-      ).slice(0, 8)
+    ? LOCALIDADES_AR.filter((l) => coincideBusqueda(l, query)).slice(0, 8)
     : [];
 
   useEffect(() => {

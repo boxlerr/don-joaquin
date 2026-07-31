@@ -20,6 +20,9 @@ export type HrChoferListItem = {
   estado: string; // "activo" | "baja" — egresados con viajes en el mes también se listan
   viajes: number; // del mes seleccionado
   pendientesFacturar: number; // sin importe cargado (el remito no tiene nada que ver)
+  /** Viajes con carga que todavía no tienen remito. Las vueltas en vacío no
+   *  cuentan: no llevan remito por definición. */
+  sinRemito: number;
   totalImporte: number;
   totalTn: number;
   totalKm: number;
@@ -44,6 +47,8 @@ export type HrViajeItem = {
   facturado: boolean;
   es_vacio: boolean;
   observaciones: string | null;
+  /** Sólo en la vista "sin remito", que cruza choferes. */
+  chofer?: string;
 };
 
 export type HrPanelChofer = {
@@ -60,9 +65,13 @@ export type HrPanelChofer = {
     tonelaje: number;
     importe: number;
     pendientesFacturar: number;
+    sinRemito: number;
     vacios: number;
   };
 };
+
+/** Un viaje sin remito, con el chofer al que pertenece (la lista cruza choferes). */
+export type HrViajeSinRemito = HrViajeItem & { chofer: string; chofer_id: string };
 
 // ---------------------------------------------------------------------------
 
@@ -146,7 +155,7 @@ export async function listChoferesMesAction(
   const statsPorChofer = new Map<string, Stats>();
   for (const v of viajes) {
     const s = statsPorChofer.get(v.chofer_id) ?? {
-      viajes: 0, pendientesFacturar: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
+      viajes: 0, pendientesFacturar: 0, sinRemito: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
     };
     s.viajes++;
     s.totalKm += v.km_con_carga ?? 0;
@@ -155,6 +164,7 @@ export async function listChoferesMesAction(
     s.totalImporte += v.monto_flete ?? 0;
     const vacio = !!v.es_vacio;
     if (!vacio && v.monto_flete == null) s.pendientesFacturar++;
+    if (!vacio && !v.nro_remito) s.sinRemito++;
     statsPorChofer.set(v.chofer_id, s);
   }
 
@@ -169,7 +179,7 @@ export async function listChoferesMesAction(
       nombre: c.nombre,
       estado: c.estado,
       ...(statsPorChofer.get(c.id) ?? {
-        viajes: 0, pendientesFacturar: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
+        viajes: 0, pendientesFacturar: 0, sinRemito: 0, totalImporte: 0, totalTn: 0, totalKm: 0, totalKmVacios: 0,
       }),
     }))
     .sort((a, b) =>
@@ -278,9 +288,10 @@ export async function getPanelChoferAction(
       const vacio = v.es_vacio;
       if (vacio) acc.vacios++;
       if (!vacio && v.monto_flete == null) acc.pendientesFacturar++;
+      if (!vacio && !v.nro_remito) acc.sinRemito++;
       return acc;
     },
-    { cantidad: 0, km: 0, kmVacios: 0, tonelaje: 0, importe: 0, vacios: 0, pendientesFacturar: 0 },
+    { cantidad: 0, km: 0, kmVacios: 0, tonelaje: 0, importe: 0, vacios: 0, pendientesFacturar: 0, sinRemito: 0 },
   );
 
   return {
@@ -292,6 +303,78 @@ export async function getPanelChoferAction(
     viajes,
     totales,
   };
+}
+
+/**
+ * Todos los viajes del mes que todavía no tienen remito, de todos los choferes.
+ *
+ * Es el trabajo pendiente concreto de la hoja de ruta: hasta que no está el
+ * remito el viaje no se puede facturar. Antes había que entrar chofer por chofer
+ * a buscarlos.
+ *
+ * Las vueltas en vacío quedan afuera: no llevan remito, así que contarlas sería
+ * inventar trabajo que no existe.
+ */
+export async function getViajesSinRemitoMesAction(mesISO: string): Promise<HrViajeSinRemito[]> {
+  await requireArea("viajes", "read");
+  const supabase = createAdminClient();
+  const { desde, hasta } =
+    mesISO === "total" ? { desde: "1900-01-01", hasta: "2999-12-31" } : rangoMes(mesISO);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("viajes")
+    .select(`
+      id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
+      nro_remito, nro_viaje_ypf, monto_flete, estado, facturado, es_vacio,
+      observaciones, material, chofer_id,
+      chofer:choferes(nombre, apellido),
+      cliente:clientes(razon_social, nombre_comercial),
+      origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+      destino:puntos_ruta!viajes_destino_id_fkey(nombre)
+    `)
+    .gte("fecha_viaje", desde)
+    .lte("fecha_viaje", hasta)
+    .neq("estado", "cancelado")
+    .eq("es_vacio", false)
+    .is("nro_remito", null)
+    .not("chofer_id", "is", null)
+    .order("fecha_viaje", { ascending: true })
+    .order("codigo", { ascending: true });
+
+  if (error) {
+    console.error("[hoja de ruta] no se pudieron leer los viajes sin remito:", error);
+    throw new Error("No se pudieron leer los viajes sin remito.");
+  }
+
+  const uno = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((v) => {
+    const ch = uno(v.chofer) as { nombre?: string; apellido?: string } | null;
+    const cli = uno(v.cliente) as { razon_social?: string; nombre_comercial?: string | null } | null;
+    return {
+      id: v.id,
+      codigo: v.codigo,
+      fecha_viaje: v.fecha_viaje,
+      origen: (uno(v.origen) as { nombre: string } | null)?.nombre ?? null,
+      destino: (uno(v.destino) as { nombre: string } | null)?.nombre ?? null,
+      km_con_carga: v.km_con_carga,
+      km_vacios: v.km_vacios,
+      tonelaje_real: v.tonelaje_real,
+      nro_remito: v.nro_remito,
+      nro_viaje_ypf: v.nro_viaje_ypf,
+      material: v.material ?? extractMaterial(v.observaciones),
+      monto_flete: v.monto_flete,
+      cliente: cli?.nombre_comercial ?? cli?.razon_social ?? null,
+      estado: v.estado,
+      facturado: v.facturado,
+      es_vacio: !!v.es_vacio,
+      observaciones: v.observaciones,
+      chofer_id: v.chofer_id,
+      chofer: ch ? `${ch.apellido ?? ""}, ${ch.nombre ?? ""}`.trim() : "—",
+    };
+  });
 }
 
 /** Actualizar remito + monto de un viaje individual desde la grilla. */
@@ -344,6 +427,7 @@ export async function actualizarViajeHojaRutaAction(
     tonelaje_real?: number | null;
     nro_remito?: string | null;
     monto_flete?: number | null;
+    material?: string | null;
   },
 ): Promise<{ ok?: boolean; error?: string }> {
   const user = await requireArea("viajes", "write");
@@ -353,7 +437,7 @@ export async function actualizarViajeHojaRutaAction(
   const { data: previo } = await (supabase as any)
     .from("viajes")
     .select(
-      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete,
+      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete, material,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -382,6 +466,8 @@ export async function actualizarViajeHojaRutaAction(
   }
 
   if (data.nro_remito !== undefined) payload.nro_remito = data.nro_remito || null;
+  // Qué llevaba: lo escribe quien recibe el remito, así que se corrige acá.
+  if (data.material !== undefined) payload.material = data.material || null;
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
     // Misma regla que la edición de remito: tener valor = facturado y cobrado.
@@ -409,6 +495,7 @@ export async function actualizarViajeHojaRutaAction(
       tonelaje_real: previo.tonelaje_real,
       nro_remito: previo.nro_remito,
       monto_flete: previo.monto_flete,
+      material: previo.material,
     },
     valoresNuevos: {
       ...(data.origen_nombre !== undefined ? { origen: data.origen_nombre } : {}),
@@ -418,6 +505,7 @@ export async function actualizarViajeHojaRutaAction(
       ...(data.tonelaje_real !== undefined ? { tonelaje_real: data.tonelaje_real } : {}),
       ...(data.nro_remito !== undefined ? { nro_remito: data.nro_remito } : {}),
       ...(data.monto_flete !== undefined ? { monto_flete: data.monto_flete } : {}),
+      ...(data.material !== undefined ? { material: data.material } : {}),
     },
     metadata: { origen: "hoja_ruta" },
   });
@@ -436,6 +524,7 @@ export type CambioViajeHr = {
   tonelaje_real?: number | null;
   nro_remito?: string | null;
   monto_flete?: number | null;
+  material?: string | null;
 };
 
 /**

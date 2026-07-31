@@ -22,6 +22,7 @@ interface ExportViajesButtonProps {
   incompleto?: boolean;
   falta?: FaltaDato;
   search?: string;
+  destino?: string;
   disabled?: boolean;
 }
 
@@ -92,6 +93,7 @@ export default function ExportViajesButton({
   incompleto,
   falta,
   search,
+  destino,
   disabled,
 }: ExportViajesButtonProps) {
   const meses = ultimosMeses();
@@ -108,6 +110,7 @@ export default function ExportViajesButton({
     desde ||
     hasta ||
     search ||
+    destino ||
     falta ||
     typeof facturado === "boolean" ||
     typeof esVacio === "boolean" ||
@@ -174,6 +177,7 @@ export default function ExportViajesButton({
         incompleto: conFiltros ? incompleto : undefined,
         falta: conFiltros ? falta : undefined,
         search: conFiltros ? search : undefined,
+        destino: conFiltros ? destino : undefined,
       });
 
       if (!data || data.length === 0) {

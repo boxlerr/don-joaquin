@@ -14,6 +14,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
+import { coincideEnAlguno } from "@/lib/texto";
 
 export interface Extintor {
   id: string;
@@ -84,7 +85,6 @@ export default function ExtintoresTable({
 
   // Filtrado de extintores
   const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return extintores.filter((item) => {
       // Filtro por categoría
       if (categoria !== "todos" && item.categoria !== categoria) {
@@ -97,16 +97,12 @@ export default function ExtintoresTable({
         return false;
       }
 
-      // Filtro por búsqueda
-      if (q) {
-        const inDom = item.dominio.toLowerCase().includes(q);
-        const inExt = (item.n_extintor ?? "").toLowerCase().includes(q);
-        const inInt = item.n_interno?.toLowerCase().includes(q) ?? false;
-        const inObs = item.observaciones?.toLowerCase().includes(q) ?? false;
-        return inDom || inExt || inInt || inObs;
-      }
-
-      return true;
+      // Filtro por búsqueda: ignora acentos y mayúsculas, y con una búsqueda
+      // vacía pasan todos.
+      return coincideEnAlguno(
+        [item.dominio, item.n_extintor, item.n_interno, item.observaciones],
+        busqueda,
+      );
     });
   }, [extintores, categoria, vencimiento, busqueda]);
 

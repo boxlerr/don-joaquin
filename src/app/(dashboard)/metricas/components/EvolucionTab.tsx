@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import type { SerieMes, TotalesMes } from "../actions";
 import type { Flota } from "../actions";
-import { money, numAr, pct, mesLabel, compactMoney } from "./format";
+import { money, numAr, pct, mesLabel } from "./format";
 
 type FlotaSel = Flota | "general";
 
@@ -56,7 +56,8 @@ export default function EvolucionTab({
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto rounded-md border border-border">
-        <table className="w-full text-sm min-w-[900px]">
+        {/* min-w subió con los montos completos (antes iban abreviados). */}
+        <table className="w-full text-sm min-w-[1120px]">
           <thead>
             <tr className="bg-muted/80 text-xs text-muted-foreground border-b border-border">
               <th className="py-2 px-3 font-medium text-left">Mes</th>
@@ -105,12 +106,12 @@ export default function EvolucionTab({
                   </td>
                   <td className={td}>{t.camiones || "—"}</td>
                   <td className={td}>{numAr(t.km)}</td>
-                  <td className={td}>{compactMoney(t.facturacion)}</td>
+                  <td className={td}>{money(t.facturacion)}</td>
                   <td className={td}>{money(t.factPorKm, 2)}</td>
                   <td className={td}>{pct(t.pctVacios)}</td>
                   <td className={td}>{pct(t.pctKm100)}</td>
                   <td className={td}>{pct(t.pctSueldoFact)}</td>
-                  <td className={td}>{compactMoney(t.sueldoTotal)}</td>
+                  <td className={td}>{money(t.sueldoTotal)}</td>
                   <td className={td}>{numAr(t.toneladasProm, 2)}</td>
                   <td className={td}>{money(f.costoKm, 2)}</td>
                 </tr>
@@ -123,12 +124,12 @@ export default function EvolucionTab({
                 <td className="py-2 px-3">TOTAL / PROM. ({conDatos.length} meses)</td>
                 <td className={td} />
                 <td className={td}>{numAr(totales.km)}</td>
-                <td className={td}>{compactMoney(totales.fact)}</td>
+                <td className={td}>{money(totales.fact)}</td>
                 <td className={td}>{money(totales.factPorKm, 2)}</td>
                 <td className={td}>{pct(totales.pctVacios)}</td>
                 <td className={td}>{pct(totales.pctKm100)}</td>
                 <td className={td}>{pct(totales.pctSueldo)}</td>
-                <td className={td}>{compactMoney(totales.sueldo)}</td>
+                <td className={td}>{money(totales.sueldo)}</td>
                 <td className={td}>{numAr(totales.tonProm, 2)}</td>
                 <td className={td} />
               </tr>

@@ -22,6 +22,7 @@ import {
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
 } from "lucide-react";
+import { coincideEnAlguno } from "@/lib/texto";
 import { marcarAlertaVista, borrarAlerta, borrarTodasLeidas } from "./actions";
 import {
   type AlertaCategoria,
@@ -189,14 +190,12 @@ export default function NotificacionesView({
   }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return alertas.filter((a) => {
       if (sevFilter !== "todas" && a.severidad !== sevFilter) return false;
       if (catFilter !== "todas" && categoriaDeAlerta(a.tipo, a.entidad_tipo) !== catFilter) return false;
       if (urgentesOnly && !esUrgente(a)) return false;
-      if (q && !a.titulo.toLowerCase().includes(q) && !a.mensaje.toLowerCase().includes(q)) {
-        return false;
-      }
+      // Busca en título y mensaje ignorando acentos ("agustin" encuentra "Agustín").
+      if (!coincideEnAlguno([a.titulo, a.mensaje], query)) return false;
       return true;
     });
   }, [alertas, sevFilter, catFilter, urgentesOnly, query]);

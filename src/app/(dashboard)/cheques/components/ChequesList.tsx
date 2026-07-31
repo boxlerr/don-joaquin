@@ -20,9 +20,13 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { FileText, MoreVertical } from "lucide-react";
+import { coincideEnAlguno } from "@/lib/texto";
 import ChequeTransitionDialog, {
   type Transicion,
 } from "./ChequeTransitionDialog";
+import EditChequeDialog from "./EditChequeDialog";
+import type { BancoOption, LibradorOption } from "./cheque-form-fields";
+import type { ChequeTipo } from "../actions";
 
 export type ChequeEstado =
   | "cartera"
@@ -35,17 +39,20 @@ export type ChequeEstado =
 export type ChequeRow = {
   id: string;
   numero: string | null;
+  tipo: ChequeTipo;
   importe: number;
   fecha_emision: string | null;
   fecha_vencimiento: string;
   librador_nombre: string;
+  librador_cuit: string | null;
   concepto: string | null;
   estado: ChequeEstado;
+  sucursal_banco: string | null;
+  cuenta_corriente: string | null;
+  observaciones: string | null;
   banco: { nombre: string } | null;
   cliente: { razon_social: string } | null;
 };
-
-type BancoOption = { id: string; nombre: string };
 
 type Tab = {
   label: string;
@@ -113,9 +120,13 @@ function formatFecha(iso: string | null): string {
 export default function ChequesList({
   cheques,
   bancos,
+  libradores,
+  canWrite,
 }: {
   cheques: ChequeRow[];
   bancos: BancoOption[];
+  libradores: LibradorOption[];
+  canWrite: boolean;
 }) {
   const [tabIndex, setTabIndex] = useState(0);
   const [bancoId, setBancoId] = useState("");
@@ -125,6 +136,7 @@ export default function ChequesList({
     numero: string;
     accion: Transicion;
   } | null>(null);
+  const [editando, setEditando] = useState<ChequeRow | null>(null);
 
   const bancosByNombre = useMemo(() => {
     const map = new Map<string, string>();
@@ -133,7 +145,6 @@ export default function ChequesList({
   }, [bancos]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const matchEstado = TABS[tabIndex].match;
     return cheques.filter((c) => {
       if (!matchEstado(c.estado)) return false;
@@ -141,12 +152,10 @@ export default function ChequesList({
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
       }
-      if (!q) return true;
-      return (
-        (c.numero ?? "").toLowerCase().includes(q) ||
-        c.librador_nombre.toLowerCase().includes(q) ||
-        (c.concepto ?? "").toLowerCase().includes(q) ||
-        (c.cliente?.razon_social ?? "").toLowerCase().includes(q)
+      // Sin acentos: "benitez" tiene que encontrar "Benítez".
+      return coincideEnAlguno(
+        [c.numero, c.librador_nombre, c.concepto, c.cliente?.razon_social],
+        search,
       );
     });
   }, [cheques, tabIndex, bancoId, search, bancosByNombre]);
@@ -266,7 +275,7 @@ export default function ChequesList({
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      {acciones.length > 0 ? (
+                      {canWrite ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={
@@ -280,6 +289,9 @@ export default function ChequesList({
                             }
                           />
                           <DropdownMenuContent align="end" className="min-w-[200px]">
+                            <DropdownMenuItem onClick={() => setEditando(c)}>
+                              Editar datos
+                            </DropdownMenuItem>
                             {acciones.map((a) => (
                               <DropdownMenuItem
                                 key={a.key}
@@ -317,6 +329,31 @@ export default function ChequesList({
           open={true}
           onOpenChange={(o) => {
             if (!o) setTransicion(null);
+          }}
+        />
+      )}
+
+      {editando && (
+        <EditChequeDialog
+          key={editando.id}
+          cheque={{
+            id: editando.id,
+            numero: editando.numero,
+            tipo: editando.tipo,
+            librador_nombre: editando.librador_nombre,
+            librador_cuit: editando.librador_cuit,
+            importe: editando.importe,
+            fecha_vencimiento: editando.fecha_vencimiento,
+            banco_nombre: editando.banco?.nombre ?? null,
+            sucursal_banco: editando.sucursal_banco,
+            cuenta_corriente: editando.cuenta_corriente,
+            observaciones: editando.observaciones,
+          }}
+          libradores={libradores}
+          bancos={bancos}
+          open={true}
+          onOpenChange={(o) => {
+            if (!o) setEditando(null);
           }}
         />
       )}

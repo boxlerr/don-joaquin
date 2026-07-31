@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight } from "lucide-react";
+import { coincideBusqueda } from "@/lib/texto";
 import { NAV_GROUPS } from "./nav-items";
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) =>
@@ -22,10 +23,9 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Búsqueda sin acentos: "logistica" tiene que encontrar "Logística".
   const filtered = query.trim()
-    ? ALL_ITEMS.filter((item) =>
-        item.label.toLowerCase().includes(query.toLowerCase())
-      )
+    ? ALL_ITEMS.filter((item) => coincideBusqueda(item.label, query))
     : ALL_ITEMS;
 
   const closePalette = useCallback(() => {

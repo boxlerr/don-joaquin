@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { TipoSiniestro, EstadoSiniestro } from "./components/SiniestrosTable";
 import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { errorSiEgresado } from "@/lib/chofer-egreso";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
@@ -28,6 +29,13 @@ export async function createSiniestroAction(data: {
   terceros_involucrados: string;
 }): Promise<{ error?: string; success?: true }> {
   await requireSeccion("siniestros", "write");
+
+  // Un siniestro nuevo es un hecho nuevo: no se le carga a alguien que ya no
+  // trabaja. Editar uno viejo (updateSiniestroAction) sigue permitido.
+  if (data.chofer_id) {
+    const egresado = await errorSiEgresado(data.chofer_id);
+    if (egresado) return { error: egresado };
+  }
 
   const supabase = createAdminClient();
   const authClient = await createClient();

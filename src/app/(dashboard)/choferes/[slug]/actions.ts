@@ -6,6 +6,14 @@ import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
 import { calcularEficienciaPorDeltas } from "@/lib/combustible-eficiencia";
 import { choferSlug, isUuid } from "@/lib/chofer-slug";
+import {
+  formatCuil,
+  normalizarDni,
+  validarCuil,
+  validarDni,
+  validarFechasLegajo,
+} from "@/lib/chofer-validation";
+import { errorSiEgresado, liberarCamionDeChofer } from "@/lib/chofer-egreso";
 import { computeScoreChofer } from "../ranking/lib";
 import { logChoferAudit } from "../audit";
 import {
@@ -1034,6 +1042,9 @@ export async function crearApercibimientoAction(
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   if (!data.motivo.trim()) return { error: "El motivo es obligatorio" };
   const tipo = APERCIBIMIENTO_TIPOS.includes(data.tipo ?? "") ? data.tipo! : "apercibimiento";
 
@@ -1115,6 +1126,9 @@ export async function crearLicenciaAction(
 ) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
+
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   if (data.fecha_hasta && data.fecha_hasta < data.fecha_desde)
     return { error: "La fecha hasta no puede ser anterior a desde" };
@@ -1301,6 +1315,11 @@ export async function crearAusenciaAction(
 ) {
   const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
   const supabase = createAdminClient();
+
+  // Cubre las tres entradas al alta: "Nueva ausencia" y "Cargar vacaciones" del
+  // legajo, y el diálogo de la vista global de Vacaciones.
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   const tipo = data.tipo.trim();
   if (!tipo) return { error: "El tipo de ausencia es obligatorio" };
@@ -1869,6 +1888,11 @@ export async function crearPrestamoAction(
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
 
+  // Los préstamos ya abiertos se pueden seguir cobrando (eso es historial);
+  // lo que no se puede es darle uno nuevo a alguien que ya no está.
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   if (!Number.isFinite(data.monto) || data.monto <= 0)
     return { error: "El monto debe ser mayor a cero" };
   if (!Number.isInteger(data.cuotas) || data.cuotas < 1)
@@ -1986,6 +2010,8 @@ export async function crearUrlSubidaDocumentoAction(input: {
   const supabase = createAdminClient();
 
   if (!input.chofer_id) return { error: "Falta el chofer" };
+  const egresado = await errorSiEgresado(input.chofer_id);
+  if (egresado) return { error: egresado };
 
   const bucket = "documentos-personal";
   const ext = (input.filename.split(".").pop() ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
@@ -2038,6 +2064,9 @@ export async function registrarDocumentoChoferAction(input: {
   const supabase = createAdminClient();
 
   const { chofer_id } = input;
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
+
   const adjuntos = input.adjuntos ?? [];
   let tipo_documento_id = input.tipo_documento_id ?? "";
 
@@ -2213,20 +2242,34 @@ export async function updateDocumentoChoferAction(input: {
 
 export async function updateChoferInfoAction(
   chofer_id: string,
+  // Los campos que aceptan null se pueden vaciar: mandar undefined no borra nada
+  // (Supabase ni siquiera manda la columna), así que un dato cargado por error
+  // quedaba para siempre.
   data: Partial<{
     nombre: string;
     apellido: string;
-    telefono: string;
-    domicilio: string;
-    cbu: string;
-    alias_cbu: string;
-    banco: string;
-    telefono_emergencia: string;
-    ciudad_nacimiento: string;
-    localidad: string;
-    provincia: string;
-    alta_afip: string;
-    periodo_prueba_fin: string;
+    dni: string | null;
+    cuil: string | null;
+    email: string | null;
+    telefono: string | null;
+    domicilio: string | null;
+    cbu: string | null;
+    alias_cbu: string | null;
+    banco: string | null;
+    telefono_emergencia: string | null;
+    ciudad_nacimiento: string | null;
+    localidad: string | null;
+    provincia: string | null;
+    fecha_nacimiento: string | null;
+    fecha_ingreso: string | null;
+    alta_afip: string | null;
+    periodo_prueba_fin: string | null;
+    nro_tramite_dni: string | null;
+    clave_fiscal: string | null;
+    observaciones: string | null;
+    estado: "activo" | "inactivo" | "baja";
+    motivo_egreso: "renuncia" | "despido" | "jubilacion" | "otro" | null;
+    fecha_egreso: string | null;
     rol: string;
   }>
 ) {
@@ -2235,29 +2278,108 @@ export async function updateChoferInfoAction(
   const supabase = createAdminClient();
 
   const camposEditables = Object.keys(data) as (keyof typeof data)[];
-  const { data: previo } = await supabase
+  if (camposEditables.length === 0) return { success: true };
+
+  // Las fechas y el estado se validan entre sí, así que hay que conocer los
+  // valores que NO vinieron en esta edición (ej: se cambia el ingreso y el
+  // nacimiento está en la base).
+  const columnasPrevio = [
+    ...new Set([
+      ...camposEditables as string[],
+      "estado",
+      "fecha_nacimiento",
+      "fecha_ingreso",
+      "fecha_egreso",
+    ]),
+  ];
+  const { data: previoRaw } = await supabase
     .from("choferes")
-    .select(camposEditables.join(", "))
+    .select(columnasPrevio.join(", "))
     .eq("id", chofer_id)
     .single();
+  const previo = (previoRaw ?? null) as Record<string, unknown> | null;
+
+  // Normalizar identificatorios con las mismas reglas que el alta.
+  const payload = { ...data };
+  if (payload.dni !== undefined) payload.dni = normalizarDni(payload.dni ?? "") || null;
+  if (payload.cuil !== undefined) payload.cuil = formatCuil(payload.cuil ?? "") || null;
+
+  const errorFormato = validarDni(payload.dni) ?? validarCuil(payload.cuil);
+  if (errorFormato) return { error: errorFormato };
+
+  // Para cada dato: el que se está editando, o el que ya estaba guardado.
+  const guardada = (campo: string) => (previo?.[campo] as string | null | undefined) ?? null;
+  const valorFinal = (campo: keyof typeof payload) =>
+    (payload[campo] !== undefined ? payload[campo] : guardada(campo)) as string | null;
+
+  // Egreso: es lo mismo que hace el diálogo "Egresar" del listado, pero desde el
+  // legajo. Sin fecha de egreso el chofer queda de baja sin saberse desde cuándo
+  // (y la antigüedad se sigue contando hasta hoy).
+  const estadoFinal = valorFinal("estado") ?? "activo";
+  if (payload.estado !== undefined) {
+    if (estadoFinal === "baja") {
+      if (!valorFinal("fecha_egreso")) return { error: "Para dar de baja hace falta la fecha de egreso." };
+    } else {
+      // Volver a activo/inactivo limpia los datos del egreso (igual que "Reactivar").
+      payload.motivo_egreso = null;
+      payload.fecha_egreso = null;
+    }
+  }
+
+  const errorFecha = validarFechasLegajo({
+    fecha_nacimiento: valorFinal("fecha_nacimiento"),
+    fecha_ingreso: valorFinal("fecha_ingreso"),
+    fecha_egreso: valorFinal("fecha_egreso"),
+  });
+  if (errorFecha) return { error: errorFecha.mensaje };
 
   const { error } = await supabase
     .from("choferes")
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("id", chofer_id);
-  if (error) return { error: "Error al actualizar" };
+  if (error) {
+    // DNI y CUIL son UNIQUE: sin este mensaje el usuario ve "Error al actualizar"
+    // y no se entera de que el dato ya está en otro legajo.
+    if (error.code === "23505") {
+      const dup = /cuil/i.test(error.message) ? "CUIL" : "DNI";
+      return { error: `Ya hay otro legajo con ese ${dup}.` };
+    }
+    return { error: "Error al actualizar" };
+  }
 
-  await supabase.from("audit_log").insert({
-    usuario_id: user.id,
-    accion: "actualizar",
-    entidad_tipo: "chofer",
-    entidad_id: chofer_id,
-    valores_anteriores: previo ?? null,
-    valores_nuevos: data,
-  });
+  // Al egresar, la unidad vuelve a la flota: dejarla "a nombre de" alguien que
+  // ya no está hacía que la planilla diaria y /camiones mostraran una asignación
+  // que no existe. Sólo en la transición (si ya estaba de baja no hay nada que
+  // liberar y volver a correrlo pisaría el historial).
+  let camionLiberado: string[] = [];
+  if (payload.estado === "baja" && previo?.estado !== "baja") {
+    camionLiberado = await liberarCamionDeChofer(chofer_id, valorFinal("fecha_egreso"));
+  }
+
+  // La auditoría guarda sólo los campos tocados (previo trae más columnas para
+  // poder validar las fechas). Un alta/baja se registra como "cambio_estado",
+  // igual que cuando se hace desde el listado: en /auditoría se filtra por eso.
+  const valoresAnteriores: Record<string, unknown> | null = previo
+    ? Object.fromEntries(camposEditables.map((k) => [k, previo[k as string] ?? null]))
+    : null;
+  const cambioEstado = payload.estado !== undefined && payload.estado !== previo?.estado;
+
+  await logChoferAudit(
+    chofer_id,
+    cambioEstado ? "cambio_estado" : "actualizar",
+    valoresAnteriores,
+    camionLiberado.length > 0 ? { ...payload, camion_liberado: camionLiberado.join(", ") } : payload,
+    user.id,
+  );
 
   revalidatePath("/choferes/[slug]", "page");
-  return { success: true };
+  revalidatePath("/choferes");
+  if (camionLiberado.length > 0) {
+    revalidatePath("/camiones");
+    revalidatePath("/viajes/planilla-diaria");
+    revalidatePath("/viajes/carga-rapida");
+  }
+  return { success: true, camionLiberado };
 }
 
 // ---------------------------------------------------------------------------
@@ -2319,6 +2441,11 @@ export async function asignarCamionAction(
 ): Promise<{ ok?: boolean; error?: string; camion?: CamionAsignadoResult; quitadoA?: string | null }> {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
+
+  // Un egresado no maneja más: darle una unidad de la flota es justo lo que el
+  // egreso tiene que impedir. Desasignar sí se puede (es devolver el camión).
+  const egresado = await errorSiEgresado(chofer_id);
+  if (egresado) return { error: egresado };
 
   // Dueño anterior del camión (para avisar "se lo quitaste a X").
   const { data: prev } = await supabase
