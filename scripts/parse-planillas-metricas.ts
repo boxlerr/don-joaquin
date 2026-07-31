@@ -172,7 +172,7 @@ function anclasDeHeader(fila: Palabra[]): { x1: number; campo: CeldaDesglose }[]
 }
 
 /** Filas del desglose leídas del XML, en orden de documento. */
-function desgloseDesdeXml(xml: string): { nombre: string; celdas: Partial<Record<CeldaDesglose, number>> }[] {
+export function desgloseDesdeXml(xml: string): { nombre: string; celdas: Partial<Record<CeldaDesglose, number>> }[] {
   const out: { nombre: string; celdas: Partial<Record<CeldaDesglose, number>> }[] = [];
   let anclas: { x1: number; campo: CeldaDesglose }[] = [];
   for (const fila of filasDeXml(xml)) {
