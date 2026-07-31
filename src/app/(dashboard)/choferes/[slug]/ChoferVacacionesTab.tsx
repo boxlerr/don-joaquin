@@ -29,6 +29,7 @@ import {
   saldosPorAnio,
   resumenSaldos,
 } from "../vacaciones/derivar";
+import type { SaldoAnio } from "../vacaciones/derivar";
 
 interface Props {
   chofer_id: string;
@@ -145,13 +146,15 @@ export default function ChoferVacacionesTab({
   // apareciendo en "Vacaciones cargadas", que es el historial.
   const aniosVigentes = saldosVista.filter((a) => a.anio >= finPeriodoY - 1);
 
-  // El año anterior quedó con más días imputados que cargados. Es un error de
-  // carga, no un saldo, así que se avisa aparte en vez de mostrarlo en negativo.
+  // Un año quedó con más días imputados que cargados. Es un error de carga, no
+  // un saldo, así que se avisa aparte en vez de mostrarlo en negativo. Se mira
+  // en los dos años vigentes: ahora la tarjeta del año en curso también muestra
+  // lo que queda, y un sobregiro de este año se vería como un 0 mudo.
   const anioAnterior = saldosVista.find((a) => a.anio === finPeriodoY - 1);
-  const sobregiro =
-    anioAnterior && anioAnterior.saldo < 0
-      ? { usados: anioAnterior.usados, otorgados: anioAnterior.otorgados }
-      : null;
+  const anioActual = saldosVista.find((a) => a.anio === finPeriodoY);
+  const sobregiros = [anioAnterior, anioActual].filter(
+    (a): a is SaldoAnio => a != null && a.saldo < 0,
+  );
 
   // Explica de dónde sale el saldo, año por año. Sin esto, ver "Corresponden 14"
   // al lado de un saldo menor parece un error del sistema.
@@ -220,6 +223,17 @@ export default function ChoferVacacionesTab({
     const res = await reimputarPeriodoAction(id, chofer_id, valor === "hist" ? null : Number(valor));
     if (res.error) setError(res.error);
     else onRefresh();
+  };
+
+  // Muchos períodos viejos se reconstruyeron del Excel, donde el comentario
+  // decía "una semana en julio" sin precisar cuál: la fecha que quedó es una
+  // elección nuestra, no un dato. Sin avisarlo, la pantalla afirma una precisión
+  // que el dato no tiene y el que la lee después la toma por firme. La cantidad
+  // de días sí es firme; lo estimado es cuándo.
+  const marcaEstimada = (obs: string | null) => {
+    const m = obs && /(FECHA ESTIMADA|AÑO ESTIMADO)/i.exec(obs);
+    if (!m) return null;
+    return { etiqueta: /AÑO/i.test(m[1]!) ? "año estimado" : "fecha estimada", detalle: obs! };
   };
 
   // Mismo cálculo inclusivo que hace el servidor: del 30/03 al 05/04 son 7 días,
@@ -323,18 +337,24 @@ export default function ChoferVacacionesTab({
       {/* Dos números y nada más, como los pidió Bárbara (29/07/2026): "yo dejaría
           cuántos le corresponden de 2026, cuántos le debo de 2025, y nada más;
           tomados me confunde y disponibles también es medio confuso". */}
+      {/* Las dos tarjetas muestran LO QUE LE QUEDA, con el total del año abajo
+          (31/07/2026): cargarle 7 días movía el renglón del año a "7 de 14" y
+          arriba seguía diciendo 14, al lado de un "Adeudados" que sí era saldo.
+          Dos criterios en dos tarjetas pegadas se lee como un error. */}
       {/* Acotadas: con dos tarjetas a todo el ancho quedaban dos cajas enormes
           con un número perdido adentro. */}
       <div className="grid grid-cols-2 gap-3 max-w-md">
         <SaldoCard
           label={`Corresponden (${finPeriodoY})`}
-          value={resumen.corresponden}
+          value={Math.max(0, anioActual ? anioActual.saldo : resumen.corresponden)}
+          total={anioActual?.otorgados ?? resumen.corresponden}
           tone="muted"
-          hint={`Los días que le tocan por ${finPeriodoY} según su antigüedad. Es el total del año, no lo que le queda.`}
+          hint={`Lo que le queda del ${finPeriodoY}: los días que le tocan por su antigüedad menos los que ya se tomó de ese año.`}
         />
         <SaldoCard
           label={`Adeudados (${finPeriodoY - 1})`}
           value={Math.max(0, resumen.adeudados)}
+          total={anioAnterior?.otorgados ?? 0}
           tone="muted"
           hint={`Lo que le quedó sin tomar del ${finPeriodoY - 1}.`}
         />
@@ -343,12 +363,15 @@ export default function ChoferVacacionesTab({
           más días de los que tiene cargados. La tarjeta muestra 0 y el problema
           se explica acá, porque un "−15" pelado fue justo lo que asustó a
           Bárbara sin decirle qué hacer. */}
-      {sobregiro && (
-        <p className="border-l-2 border-[#EF4444] pl-3 text-[13px] leading-snug text-foreground">
-          <span className="font-medium">Falta corregir el {finPeriodoY - 1}.</span> Se le imputaron{" "}
-          {sobregiro.usados} días y tiene {sobregiro.otorgados} cargados. Editá los días de ese año.
+      {sobregiros.map((s) => (
+        <p
+          key={s.anio}
+          className="border-l-2 border-[#EF4444] pl-3 text-[13px] leading-snug text-foreground"
+        >
+          <span className="font-medium">Falta corregir el {s.anio}.</span> Se le imputaron{" "}
+          {s.usados} días y tiene {s.otorgados} cargados. Editá los días de ese año.
         </p>
-      )}
+      ))}
       {/* La cuenta escrita. "Corresponden 14" al lado de un saldo menor se lee
           como una contradicción si no se ve de dónde sale cada número: son los
           días del año contra lo que queda después de lo tomado. */}
@@ -611,7 +634,9 @@ export default function ChoferVacacionesTab({
 
                   {abierto && (
                     <ul className="divide-y divide-border">
-                      {g.items.map((a) => (
+                      {g.items.map((a) => {
+                        const estimada = marcaEstimada(a.observaciones);
+                        return (
                         <li key={a.id} className="group px-3.5 py-2.5">
                           {editandoFechas === a.id ? (
                             <span className="flex flex-wrap items-center gap-1.5">
@@ -656,6 +681,7 @@ export default function ChoferVacacionesTab({
                               </button>
                             </span>
                           ) : (
+                            <>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                               {/* La fecha manda y va en columna de ancho fijo: así
                                   la lista se escanea hacia abajo en vez de leerse
@@ -669,6 +695,9 @@ export default function ChoferVacacionesTab({
                                   can_write ? "cursor-pointer hover:text-primary hover:underline" : "cursor-default"
                                 }`}
                               >
+                                {/* El ~ avisa que la fecha es aproximada sin tener que
+                                    leer la nota: la lista se escanea de arriba abajo. */}
+                                {estimada && <span className="mr-0.5 font-normal text-muted-foreground" aria-hidden>~</span>}
                                 {fmtRangoCorto(a.fecha_inicio, a.fecha_fin)}
                               </button>
                               <span className="w-[4.5rem] shrink-0 text-sm tabular-nums text-muted-foreground">
@@ -766,9 +795,22 @@ export default function ChoferVacacionesTab({
                                 )
                               )}
                             </div>
+                            {/* La nota va entera debajo: dice de qué frase del Excel
+                                salió el período y por qué se eligió esa semana. Es lo
+                                único que separa un dato reconstruido de uno que
+                                alguien vio. */}
+                            {estimada && (
+                              <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
+                                <span className="font-medium text-foreground">{estimada.etiqueta}</span>
+                                {" — "}
+                                {estimada.detalle}
+                              </p>
+                            )}
+                            </>
                           )}
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   )}
                 </section>
@@ -829,11 +871,15 @@ export default function ChoferVacacionesTab({
 function SaldoCard({
   label,
   value,
+  total,
   tone,
   hint,
 }: {
   label: string;
   value: number;
+  /** Días del año completo. Se escribe abajo ("de 14 días") para que el número
+   *  grande se lea como saldo y no se pierda cuántos le tocaban. */
+  total?: number;
   tone: "muted" | "success" | "warning" | "error";
   hint?: string;
 }) {
@@ -857,7 +903,7 @@ function SaldoCard({
         {value}
       </div>
       <div className="mt-0.5 text-[11px] text-muted-foreground">
-        día{value !== 1 ? "s" : ""}
+        {total != null && total > 0 ? `de ${total} días` : `día${value !== 1 ? "s" : ""}`}
       </div>
     </div>
   );

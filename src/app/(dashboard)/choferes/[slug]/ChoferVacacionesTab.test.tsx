@@ -53,6 +53,19 @@ const periodoHeim: Ausencia = {
   created_at: `${Y}-07-01T00:00:00Z`,
 };
 
+// Caso Cancela: 2025 → 7 otorgados, 7 usados, quedan 0. 2026 → 14 otorgados,
+// 7 usados, quedan 7.
+const cancela = (): Partial<VacacionesSaldo> => ({
+  dias_correspondientes: 14,
+  dias_adeudados: 0,
+  dias_tomados: 14,
+  dias_disponibles: 7,
+  anios: [
+    { anio: Y - 1, otorgados: 7, usados: 7, saldo: 0, observaciones: null },
+    { anio: Y, otorgados: 14, usados: 7, saldo: 7, observaciones: null },
+  ],
+});
+
 function montar(
   extra?: Partial<VacacionesSaldo>,
   canWrite = true,
@@ -109,19 +122,18 @@ describe("ChoferVacacionesTab — saldo", () => {
     );
   });
 
+  // Julián, 31/07/2026: se le cargaron 7 días, el renglón del año pasó a "7 de
+  // 14" y la tarjeta de arriba seguía diciendo 14. Las dos tarjetas muestran lo
+  // que le queda; los días del año completo van en la línea chica de abajo.
+  it("la tarjeta del año en curso descuenta lo ya tomado", () => {
+    montar(cancela());
+    const card = screen.getByText(`Corresponden (${Y})`).parentElement!;
+    expect(card).toHaveTextContent("7");
+    expect(card).toHaveTextContent("de 14 días");
+  });
+
   it("explica por escrito de dónde sale el saldo (caso Cancela)", () => {
-    // 2025: 7 otorgados, 7 usados → 0. 2026: 14 otorgados, 7 usados → 7.
-    // "Corresponden 14" al lado de "Disponibles 7" se leía como un error.
-    montar({
-      dias_correspondientes: 14,
-      dias_adeudados: 0,
-      dias_tomados: 14,
-      dias_disponibles: 7,
-      anios: [
-        { anio: Y - 1, otorgados: 7, usados: 7, saldo: 0, observaciones: null },
-        { anio: Y, otorgados: 14, usados: 7, saldo: 7, observaciones: null },
-      ],
-    });
+    montar(cancela());
     const cuenta = screen.getByText(/le tocaban/);
     expect(cuenta.textContent).toContain(`del ${Y - 1} le tocaban 7 y ya se tomó 7, quedan 0`);
     expect(cuenta.textContent).toContain(`del ${Y} le tocaban 14 y ya se tomó 7, quedan 7`);
@@ -311,5 +323,44 @@ describe("chofer egresado", () => {
     // El historial sigue entero: es lo que hay que poder consultar.
     expect(screen.getByText("Vacaciones cargadas")).toBeInTheDocument();
     expect(screen.getByText(`Del saldo ${Y - 1}`)).toBeInTheDocument();
+  });
+});
+
+// Muchos períodos viejos se reconstruyeron del Excel, donde el comentario decía
+// "una semana en julio" sin precisar cuál: la fecha que quedó es una elección
+// nuestra, no un dato. Si la pantalla no lo aclara, el que la lee después la
+// toma por firme — que es justo el error que hay que no repetir.
+describe("ChoferVacacionesTab — fechas estimadas", () => {
+  const conObs = (observaciones: string | null): Ausencia => ({
+    ...periodoHeim,
+    observaciones,
+    en_curso: false,
+  });
+
+  it("avisa cuándo la fecha del período es estimada, y con qué texto", () => {
+    montar(undefined, true, [
+      conObs('FECHA ESTIMADA — el Excel sólo dice "Se tomo 5 dias en Agosto", sin día.'),
+    ]);
+    expect(screen.getByText("fecha estimada")).toBeInTheDocument();
+    expect(screen.getByText(/el Excel sólo dice "Se tomo 5 dias en Agosto"/)).toBeInTheDocument();
+  });
+
+  it("distingue el año estimado de la fecha estimada", () => {
+    montar(undefined, true, [
+      conObs('Cargado desde el comentario: "del 23/12 al 5/1". AÑO ESTIMADO.'),
+    ]);
+    expect(screen.getByText("año estimado")).toBeInTheDocument();
+    expect(screen.queryByText("fecha estimada")).not.toBeInTheDocument();
+  });
+
+  it("no marca nada cuando el período tiene fecha firme", () => {
+    montar(undefined, true, [conObs("Excel N25: fechas exactas del comentario.")]);
+    expect(screen.queryByText("fecha estimada")).not.toBeInTheDocument();
+    expect(screen.queryByText("año estimado")).not.toBeInTheDocument();
+  });
+
+  it("tolera un período sin observaciones", () => {
+    montar(undefined, true, [conObs(null)]);
+    expect(screen.queryByText("fecha estimada")).not.toBeInTheDocument();
   });
 });
