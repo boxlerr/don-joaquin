@@ -284,11 +284,11 @@ export default function MovimientosCajaTable({
   };
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
         <div className="flex items-center gap-2">
-          <Wallet size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">
+          <Wallet size={15} className="text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">
             {caja === "grande"
               ? "Movimientos de Caja General"
               : caja === "todas"
@@ -296,30 +296,34 @@ export default function MovimientosCajaTable({
                 : "Movimientos de Caja Chica"}
           </h2>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Input
-            type="date"
-            value={desde}
-            min={minDate}
-            onChange={(e) => onRangeChange(e.target.value, hasta)}
-            className="text-sm w-auto"
-            aria-label="Fecha desde"
-          />
-          <Input
-            type="date"
-            value={hasta}
-            min={minDate}
-            onChange={(e) => onRangeChange(desde, e.target.value)}
-            className="text-sm w-auto"
-            aria-label="Fecha hasta"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Desde–hasta se leen como un rango: van juntos en un mismo marco. */}
+          <div className="flex h-9 items-center rounded-lg border border-input bg-background px-1 transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+            <Input
+              type="date"
+              value={desde}
+              min={minDate}
+              onChange={(e) => onRangeChange(e.target.value, hasta)}
+              className="h-7 w-auto border-0 bg-transparent text-sm focus-visible:ring-0"
+              aria-label="Fecha desde"
+            />
+            <span className="text-muted-foreground/60">–</span>
+            <Input
+              type="date"
+              value={hasta}
+              min={minDate}
+              onChange={(e) => onRangeChange(desde, e.target.value)}
+              className="h-7 w-auto border-0 bg-transparent text-sm focus-visible:ring-0"
+              aria-label="Fecha hasta"
+            />
+          </div>
           <Select
             value={tipoFiltro || "__all__"}
             onValueChange={(v) => setTipoFiltro(v === "__all__" ? "" : (v ?? ""))}
           >
             <SelectTrigger
               aria-label="Filtrar por tipo"
-              className="h-9 text-sm w-auto min-w-[200px]"
+              className="h-9 w-auto min-w-[200px] text-sm"
             >
               <SelectValue>
                 {(value: unknown) => {
@@ -366,7 +370,7 @@ export default function MovimientosCajaTable({
             placeholder="Buscar concepto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-44 text-sm"
+            className="h-9 w-44 text-sm"
             aria-label="Buscar por concepto"
           />
           {hayFiltros && (
@@ -383,9 +387,11 @@ export default function MovimientosCajaTable({
         </div>
       </div>
 
-      <Table>
-        <TableHeader className="bg-muted/40">
-          <TableRow>
+      {/* Las celdas del sistema vienen apretadas (p-2): acá se les da aire para
+          que la lista se pueda barrer de un vistazo. */}
+      <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
+        <TableHeader className="bg-muted/30">
+          <TableRow className="hover:bg-transparent">
             {[
               "Fecha",
               ...(mostrarColumnaCaja ? ["Caja"] : []),
@@ -399,7 +405,7 @@ export default function MovimientosCajaTable({
             ].map((col) => (
               <TableHead
                 key={col}
-                className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                className={`h-9 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/90 ${
                   col === "Monto" ? "text-right" : ""
                 }`}
               >
@@ -418,7 +424,7 @@ export default function MovimientosCajaTable({
             </TableRow>
           ) : error ? (
             <TableRow>
-              <TableCell colSpan={colSpan} className="text-center py-8 text-[#EF4444] text-sm">
+              <TableCell colSpan={colSpan} className="py-8 text-center text-sm text-rose-600">
                 {error}
               </TableCell>
             </TableRow>
@@ -428,14 +434,14 @@ export default function MovimientosCajaTable({
             rows.map((m) => {
               const esIngreso = m.tipo === "ingreso";
               return (
-                <TableRow key={m.id}>
-                  <TableCell className="text-sm text-muted-foreground">
+                <TableRow key={m.id} className="border-border/60 hover:bg-muted/40">
+                  <TableCell className="text-sm tabular-nums text-muted-foreground">
                     {formatFecha(m.fecha)}
                   </TableCell>
                   {mostrarColumnaCaja && (
                     <TableCell>
                       <span
-                        className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                           m.caja === "grande"
                             ? "bg-[#E1F5FE] text-[#004A99]"
                             : "bg-muted text-muted-foreground"
@@ -445,7 +451,7 @@ export default function MovimientosCajaTable({
                       </span>
                     </TableCell>
                   )}
-                  <TableCell className="text-sm text-foreground font-medium">
+                  <TableCell className="text-sm font-medium text-foreground">
                     {m.concepto}
                   </TableCell>
                   <TableCell>
@@ -463,12 +469,15 @@ export default function MovimientosCajaTable({
                   <TableCell className="text-sm text-muted-foreground">
                     {MEDIO_LABEL[m.medio] ?? m.medio}
                   </TableCell>
+                  {/* El signo va aparte del número para que las columnas de
+                      montos queden alineadas al leerlas de arriba a abajo. */}
                   <TableCell
                     className={`text-right text-sm font-semibold tabular-nums ${
-                      esIngreso ? "text-[#10B981]" : "text-[#EF4444]"
+                      esIngreso ? "text-emerald-600" : "text-rose-600"
                     }`}
                   >
-                    {esIngreso ? "+" : "-"} $ {formatARS(m.monto)}
+                    <span className="mr-0.5 opacity-70">{esIngreso ? "+" : "−"}</span>${" "}
+                    {formatARS(m.monto)}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.usuario ?? "—"}
@@ -512,7 +521,7 @@ export default function MovimientosCajaTable({
       </Table>
 
       {hasMore && !loading && (
-        <div className="flex justify-center py-4 border-t border-border">
+        <div className="flex justify-center border-t border-border bg-muted/20 py-3">
           <Button
             variant="outline"
             size="sm"

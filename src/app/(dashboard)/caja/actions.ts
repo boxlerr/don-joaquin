@@ -11,6 +11,7 @@ import {
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import { clausulaVisibilidad } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
+import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
@@ -118,6 +119,11 @@ export type CajaResumen = {
    *  vista general: el valor entra con el remito, así que esto ES el ingreso por
    *  viajes, y es información comercial que la caja chica no muestra. */
   fletesFacturados: number | null;
+  /**
+   * El día de hoy, aparte del período elegido: es lo que se necesita para cerrar
+   * la caja al final de la jornada sin tener que cambiar de período.
+   */
+  hoy: { fecha: string; ingresos: number; egresos: number; movimientos: number };
 };
 
 /**
@@ -148,13 +154,25 @@ export async function getCajaResumenAction(params: {
   let saldoQuery = (supabase as any).from("caja_movimientos").select("tipo, monto");
   if (caja !== "todas") saldoQuery = saldoQuery.eq("caja", caja);
 
+  // El día en curso, aparte del período. `fecha` es timestamptz: se toma el día
+  // completo (gte hoy / lt mañana) para no depender de la hora que traiga.
+  const hoy = hoyArgentina();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let hoyQuery = (supabase as any)
+    .from("caja_movimientos")
+    .select("tipo, monto")
+    .gte("fecha", hoy)
+    .lt("fecha", sumarDiasISO(hoy, 1));
+  if (caja !== "todas") hoyQuery = hoyQuery.eq("caja", caja);
+
   const [
     { data: rango, error: rangoError },
     { data: todos, error: todosError },
-  ] = await Promise.all([rangoQuery, saldoQuery]);
+    { data: movsHoy, error: hoyError },
+  ] = await Promise.all([rangoQuery, saldoQuery, hoyQuery]);
 
-  if (rangoError || todosError) {
-    console.error("Error al obtener resumen de caja:", rangoError ?? todosError);
+  if (rangoError || todosError || hoyError) {
+    console.error("Error al obtener resumen de caja:", rangoError ?? todosError ?? hoyError);
     return { error: "No se pudo cargar el resumen de caja." };
   }
 
@@ -197,12 +215,25 @@ export async function getCajaResumenAction(params: {
     (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto) : -Number(m.monto)),
     0,
   );
+  let ingresosHoy = 0;
+  let egresosHoy = 0;
+  for (const m of (movsHoy ?? []) as TipoMonto[]) {
+    if (m.tipo === "ingreso") ingresosHoy += Number(m.monto || 0);
+    else egresosHoy += Number(m.monto || 0);
+  }
+
   return {
     ingresos,
     egresos,
     movimientos: rango?.length ?? 0,
     saldoTotal,
     fletesFacturados: vista === "general" ? fletesFacturados : null,
+    hoy: {
+      fecha: hoy,
+      ingresos: ingresosHoy,
+      egresos: egresosHoy,
+      movimientos: movsHoy?.length ?? 0,
+    },
   };
 }
 

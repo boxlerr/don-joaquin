@@ -119,7 +119,7 @@ export default function CalendarioPopover({
         onClick={() => setOpen(!open)}
         aria-label={ariaLabel}
         aria-expanded={open}
-        className={`h-9 px-3 text-sm rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] flex items-center gap-2 font-medium min-w-[130px] hover:bg-muted/30 transition-colors ${triggerClassName}`}
+        className={`h-9 px-3 text-sm rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] flex items-center gap-2 font-medium min-w-[130px] hover:bg-muted/30 transition-colors ${triggerClassName}`}
       >
         <CalendarClock size={15} className="text-[#0088D1]" />
         {triggerLabel}

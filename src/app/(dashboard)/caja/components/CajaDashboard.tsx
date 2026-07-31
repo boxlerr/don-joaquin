@@ -1,17 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  ReceiptText,
-  Truck,
-  Wallet,
-} from "lucide-react";
-import StatCard from "@/components/ui/StatCard";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import ResumenCaja from "./ResumenCaja";
 import { Button } from "@/components/ui/button";
 import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import { Combobox } from "@/components/ui/combobox";
@@ -23,13 +14,6 @@ import {
   type CajaVista,
 } from "../actions";
 import { VENTANA_CAJA_CHICA_DIAS } from "../ventana";
-
-function formatARS(n: number): string {
-  return n.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 /**
  * Qué se está mirando. El día suelto viene del calendario; el mes es el período
@@ -212,178 +196,163 @@ export default function CajaDashboard({
   const periodoLabel = periodoLabelDe(periodo);
   const hoy = hoyISO();
 
-  // Cuántas cards quedan: la facturación solo está en la caja chica de dirección.
-  const cardsGrid =
-    esGeneral && cajaFiltro === "diaria" ? "lg:grid-cols-5" : "lg:grid-cols-4";
-
   // Sin futuro: la caja no se carga hacia adelante.
   const enElPresente =
     (periodo.tipo === "mes" && periodo.mes === mesActual()) ||
     (periodo.tipo === "dia" && periodo.dia === hoy);
 
+  // Navegación del período: va en la franja superior de la barra de saldo, así
+  // el control y el número que devuelve son un mismo bloque.
+  const controles = (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onClick={() => navegar(-1)}
+        aria-label={periodo.tipo === "dia" ? "Día anterior" : "Mes anterior"}
+      >
+        <ChevronLeft size={15} />
+      </Button>
+
+      <CalendarioPopover
+        value={periodo.tipo === "dia" ? periodo.dia : null}
+        onSelect={(fecha) => setPeriodo({ tipo: "dia", dia: fecha })}
+        triggerLabel={periodoLabel}
+        triggerClassName="w-56 justify-start"
+        ariaLabel="Elegir día o período"
+        maxDate={hoy}
+        minDate={ventanaDesde}
+        hoy={hoy}
+        mesInicial={periodo.tipo === "mes" ? periodo.mes : undefined}
+        marca={(fecha) =>
+          diasConDatos.has(fecha)
+            ? {
+                className:
+                  "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60",
+                title: "Hay movimientos este día",
+              }
+            : undefined
+        }
+        pie={(cerrar) => (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => {
+                  const mes =
+                    periodo.tipo === "dia" ? periodo.dia.slice(0, 7) : mesActual();
+                  setPeriodo({ tipo: "mes", mes });
+                  cerrar();
+                }}
+              >
+                Todo el mes
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => {
+                  setPeriodo({ tipo: "todos" });
+                  cerrar();
+                }}
+              >
+                Todo
+              </Button>
+            </div>
+            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
+              días con movimientos
+            </span>
+          </div>
+        )}
+      />
+
+      <Button
+        variant="outline"
+        size="icon-sm"
+        onClick={() => navegar(1)}
+        disabled={enElPresente}
+        aria-label={periodo.tipo === "dia" ? "Día siguiente" : "Mes siguiente"}
+      >
+        <ChevronRight size={15} />
+      </Button>
+      {!enElPresente && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs text-muted-foreground"
+          onClick={() => setPeriodo({ tipo: "mes", mes: mesActual() })}
+        >
+          <CalendarDays size={13} />
+          Mes actual
+        </Button>
+      )}
+
+      {/* Vista general: las dos cajas juntas, con la opción de separarlas. */}
+      {esGeneral && (
+        <Combobox
+          value={cajaFiltro}
+          onValueChange={(v) => v && setCajaFiltro(v as CajaFiltro)}
+          options={(["todas", "diaria", "grande"] as CajaFiltro[]).map((id) => ({
+            id,
+            label: CAJA_LABEL[id],
+          }))}
+          searchable={false}
+          triggerClassName="h-8 w-44 font-medium"
+          aria-label="Filtrar por caja"
+        />
+      )}
+    </div>
+  );
+
   return (
     <>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={() => navegar(-1)}
-            aria-label={periodo.tipo === "dia" ? "Día anterior" : "Mes anterior"}
-          >
-            <ChevronLeft size={15} />
-          </Button>
-
-          <CalendarioPopover
-            value={periodo.tipo === "dia" ? periodo.dia : null}
-            onSelect={(fecha) => setPeriodo({ tipo: "dia", dia: fecha })}
-            triggerLabel={periodoLabel}
-            triggerClassName="w-56 justify-start"
-            ariaLabel="Elegir día o período"
-            maxDate={hoy}
-            minDate={ventanaDesde}
-            hoy={hoy}
-            mesInicial={periodo.tipo === "mes" ? periodo.mes : undefined}
-            marca={(fecha) =>
-              diasConDatos.has(fecha)
-                ? {
-                    className:
-                      "bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 font-semibold border border-emerald-200/60",
-                    title: "Hay movimientos este día",
-                  }
-                : undefined
-            }
-            pie={(cerrar) => (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => {
-                      const mes =
-                        periodo.tipo === "dia" ? periodo.dia.slice(0, 7) : mesActual();
-                      setPeriodo({ tipo: "mes", mes });
-                      cerrar();
-                    }}
-                  >
-                    Todo el mes
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => {
-                      setPeriodo({ tipo: "todos" });
-                      cerrar();
-                    }}
-                  >
-                    Todo
-                  </Button>
-                </div>
-                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
-                  días con movimientos
-                </span>
-              </div>
-            )}
-          />
-
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={() => navegar(1)}
-            disabled={enElPresente}
-            aria-label={periodo.tipo === "dia" ? "Día siguiente" : "Mes siguiente"}
-          >
-            <ChevronRight size={15} />
-          </Button>
-          {!enElPresente && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-muted-foreground"
-              onClick={() => setPeriodo({ tipo: "mes", mes: mesActual() })}
-            >
-              <CalendarDays size={13} />
-              Mes actual
-            </Button>
-          )}
-
-          {/* Vista general: las dos cajas juntas, con la opción de separarlas. */}
-          {esGeneral && (
-            <Combobox
-              value={cajaFiltro}
-              onValueChange={(v) => v && setCajaFiltro(v as CajaFiltro)}
-              options={(["todas", "diaria", "grande"] as CajaFiltro[]).map((id) => ({
-                id,
-                label: CAJA_LABEL[id],
-              }))}
-              searchable={false}
-              triggerClassName="h-8 w-44 font-medium"
-              aria-label="Filtrar por caja"
-            />
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Mostrando: <span className="font-semibold text-foreground">{periodoLabel}</span>
-          {ventanaDesde && (
-            <span className="ml-2 text-muted-foreground/80">
-              · últimos {VENTANA_CAJA_CHICA_DIAS} días
-            </span>
-          )}
-        </p>
-      </div>
-
-      <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 ${cardsGrid}`}>
-        {/* El saldo es el real, sin descontar lo privado: es contra este número
-            que se arquea la plata de la caja. */}
-        <StatCard
-          label="Saldo actual"
-          value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
-          sub={`${CAJA_LABEL[cajaFiltro]} (histórico)`}
-          color="brand"
-          icon={Wallet}
-        />
-        <StatCard
-          label="Ingresos"
-          value={resumen ? `$ ${formatARS(resumen.ingresos)}` : "—"}
-          sub={periodoLabel}
-          color="success"
-          icon={ArrowUpRight}
-        />
-        {/* El valor del flete entra con el remito → la facturación del período ES
-            el ingreso por viajes. Solo fuera de la caja general y para quien ve
-            el saldo: es información comercial, no operativa. */}
-        {esGeneral && cajaFiltro === "diaria" && (
-          <StatCard
-            label="Fletes facturados"
-            value={
-              resumen?.fletesFacturados != null
-                ? `$ ${formatARS(resumen.fletesFacturados)}`
-                : "—"
-            }
-            sub={`Ingresos por viajes · ${periodoLabel}`}
-            color="success"
-            icon={Truck}
-            href="/viajes"
-          />
-        )}
-        <StatCard
-          label="Egresos"
-          value={resumen ? `$ ${formatARS(resumen.egresos)}` : "—"}
-          sub={periodoLabel}
-          color="error"
-          icon={ArrowDownRight}
-        />
-        <StatCard
-          label="Movimientos"
-          value={resumen ? String(resumen.movimientos) : "—"}
-          sub={periodoLabel}
-          color="brand"
-          icon={ReceiptText}
-        />
-      </div>
+      {/* El saldo es el real, sin descontar lo privado: es contra este número
+          que se arquea la plata de la caja. */}
+      <ResumenCaja
+        cargando={resumen === null}
+        saldo={resumen?.saldoTotal ?? null}
+        saldoSub={`${CAJA_LABEL[cajaFiltro]} · histórico`}
+        controles={controles}
+        nota={ventanaDesde ? `Últimos ${VENTANA_CAJA_CHICA_DIAS} días` : null}
+        hoy={resumen?.hoy ?? null}
+        metricas={[
+          {
+            label: "Ingresos",
+            value: resumen?.ingresos ?? null,
+            sub: periodoLabel,
+            tono: "ingreso",
+          },
+          {
+            label: "Egresos",
+            value: resumen?.egresos ?? null,
+            sub: periodoLabel,
+            tono: "egreso",
+          },
+          // El valor del flete entra con el remito → la facturación del período
+          // ES el ingreso por viajes. Solo fuera de la caja general y para quien
+          // ve el saldo: es información comercial, no operativa.
+          ...(esGeneral && cajaFiltro === "diaria"
+            ? [
+                {
+                  label: "Fletes facturados",
+                  value: resumen?.fletesFacturados ?? null,
+                  sub: `Ingresos por viajes · ${periodoLabel}`,
+                  tono: "ingreso" as const,
+                  href: "/viajes",
+                },
+              ]
+            : []),
+          {
+            label: "Movimientos",
+            value: resumen?.movimientos ?? null,
+            formato: "cantidad",
+            sub: periodoLabel,
+          },
+        ]}
+      />
 
       <MovimientosCajaTable
         tiposGasto={tiposGasto}
