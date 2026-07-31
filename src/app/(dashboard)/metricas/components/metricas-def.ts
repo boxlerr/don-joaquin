@@ -4,7 +4,7 @@
 import type { LucideIcon } from "lucide-react";
 import { TrendingUp, Route, Gauge, Truck, Percent, Weight, Wallet } from "lucide-react";
 import type { MetricaChofer, TotalesMes, ChoferHistPunto } from "../actions";
-import { money, numAr, pct, compactMoney } from "./format";
+import { money, numAr, pct } from "./format";
 
 export type MetricaId = "factkm" | "vacios" | "km100" | "toneladas" | "sueldo";
 
@@ -110,6 +110,13 @@ export type KpiDef = {
   label: string;
   icon: LucideIcon;
   subirEsBueno: boolean;
+  /**
+   * true → la variación va sin color (ni verde ni rojo). Para los montos en
+   * pesos: con inflación y aguinaldo suben casi todos los meses, y pintarlos
+   * de rojo hace ruido en vez de avisar algo. El dato que sí tiene dirección
+   * es el ratio (% sueldo / facturación), que sigue coloreado.
+   */
+  neutro?: boolean;
   enPuntos: boolean;
   /** Pestaña que abre al hacer click (si aplica). */
   metrica: MetricaId | null;
@@ -124,7 +131,7 @@ export const KPIS: KpiDef[] = [
     subirEsBueno: true, enPuntos: false, metrica: "factkm",
     fuente: { label: "Viajes", href: "/viajes" },
     valor: (t) => t?.facturacion ?? null,
-    fmt: (n) => compactMoney(n),
+    fmt: (n) => money(n),
   },
   {
     id: "km", label: "KM totales", icon: Route,
@@ -164,12 +171,14 @@ export const KPIS: KpiDef[] = [
   {
     // Costo de sueldos en pesos (no %): serie mes a mes con comparación interanual,
     // para ver la evolución del costo laboral junto a la facturación (audio Bárbara
-    // 17/07). Sube = peor (es un costo). En vivo no sale de viajes → "—".
+    // 17/07). Va NEUTRO: en pesos sube por inflación, por paritaria y por el
+    // aguinaldo de junio/diciembre — el semáforo lo da el % sobre facturación.
+    // En vivo no sale de viajes → "—".
     id: "sueldos_pesos", label: "Sueldos $", icon: Wallet,
-    subirEsBueno: false, enPuntos: false, metrica: "sueldo",
+    subirEsBueno: false, neutro: true, enPuntos: false, metrica: "sueldo",
     fuente: { label: "Sueldos admin", href: "/sueldos-admin" },
     valor: (t) => t?.sueldoTotal || null,
-    fmt: (n) => compactMoney(n),
+    fmt: (n) => money(n),
   },
   {
     id: "toneladas", label: "Toneladas promedio", icon: Weight,

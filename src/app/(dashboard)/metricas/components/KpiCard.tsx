@@ -20,6 +20,10 @@ const PUNTO: Record<EstadoKpi["estado"], string> = {
   no_obtenible: "bg-muted-foreground/30",
 };
 
+/** Cuerpo del número: baja de a poco para que un monto largo entre entero. */
+const tamValor = (v: string) =>
+  v.length > 13 ? "text-[18px]" : v.length > 11 ? "text-[21px]" : v.length > 9 ? "text-[23px]" : "text-[26px]";
+
 export default function KpiCard({
   def, valor, sub, dPrev, dYoY, dCmp, etiquetaCmp, serie, onClick, activa, origen,
 }: {
@@ -66,8 +70,10 @@ export default function KpiCard({
 
       <div className="mt-1.5 flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[26px] font-bold font-mono text-foreground leading-none tracking-tight">{valor}</p>
-          {sub && <p className="mt-1 text-[11px] text-muted-foreground truncate">{sub}</p>}
+          {/* Los montos van completos (no "$1,51 MM"): el número achica el
+              cuerpo si es largo en vez de abreviarse. */}
+          <p className={`${tamValor(valor)} font-bold font-mono text-foreground leading-none tracking-tight`}>{valor}</p>
+          {sub && <p className="mt-1 text-[11px] text-muted-foreground truncate" title={sub}>{sub}</p>}
         </div>
         <div className="shrink-0 text-primary/60">
           <Sparkline valores={serie} width={72} height={26} />
@@ -77,10 +83,10 @@ export default function KpiCard({
       {/* flex-1: absorbe el alto sobrante para que el pie quede alineado
           entre tarjetas de distinta altura. */}
       <div className="mt-2.5 flex flex-1 flex-col gap-0.5">
-        <DeltaBadge valor={dPrev} subirEsBueno={def.subirEsBueno} etiqueta="mes ant." puntos={def.enPuntos} />
-        <DeltaBadge valor={dYoY} subirEsBueno={def.subirEsBueno} etiqueta="interanual" puntos={def.enPuntos} />
+        <DeltaBadge valor={dPrev} subirEsBueno={def.subirEsBueno} neutro={def.neutro} etiqueta="mes ant." puntos={def.enPuntos} />
+        <DeltaBadge valor={dYoY} subirEsBueno={def.subirEsBueno} neutro={def.neutro} etiqueta="interanual" puntos={def.enPuntos} />
         {etiquetaCmp !== undefined && (
-          <DeltaBadge valor={dCmp ?? null} subirEsBueno={def.subirEsBueno} etiqueta={`vs ${etiquetaCmp}`} puntos={def.enPuntos} />
+          <DeltaBadge valor={dCmp ?? null} subirEsBueno={def.subirEsBueno} neutro={def.neutro} etiqueta={`vs ${etiquetaCmp}`} puntos={def.enPuntos} />
         )}
       </div>
 

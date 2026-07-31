@@ -9,11 +9,6 @@ export const numAr = (n: number | null | undefined, dec = 0) =>
 export const pct = (n: number | null | undefined, dec = 1) =>
   n == null ? "—" : `${n.toLocaleString("es-AR", { maximumFractionDigits: dec })}%`;
 
-export const compactMoney = (n: number | null | undefined) =>
-  n == null ? "—" :
-  n >= 1e9 ? `$${(n / 1e9).toLocaleString("es-AR", { maximumFractionDigits: 2 })} MM` :
-  n >= 1e6 ? `$${(n / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M` : money(n);
-
 export const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",

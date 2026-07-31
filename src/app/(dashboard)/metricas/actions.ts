@@ -366,11 +366,20 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
   const hoyMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-01`;
 
   // Meses con planillas cargadas; si no se pidió un mes puntual, mostrar el último.
-  const { data: mesesRaw } = await (supabase as any)
-    .from("metricas_chofer_mes")
-    .select("mes")
-    .order("mes", { ascending: false });
-  const mesesDisponibles = Array.from(new Set(((mesesRaw ?? []) as any[]).map((r) => String(r.mes))));
+  // Va PAGINADO: es una fila por chofer×mes (>1.700) y Supabase corta en 1.000,
+  // así que sin esto el selector se comía los meses más viejos sin avisar.
+  const mesesSet = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await (supabase as any)
+      .from("metricas_chofer_mes")
+      .select("mes")
+      .order("mes", { ascending: false })
+      .range(from, from + 999);
+    const filas = (data ?? []) as { mes: string }[];
+    filas.forEach((r) => mesesSet.add(String(r.mes)));
+    if (filas.length < 1000) break;
+  }
+  const mesesDisponibles = Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
 
   let mes = mesInfo(month);
   if (!month && mesesDisponibles.length && !mesesDisponibles.includes(mes)) {

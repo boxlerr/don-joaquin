@@ -21,7 +21,7 @@ import { Plus, Trash2, Trophy, AlertTriangle, ChevronDown, ChevronUp } from "luc
 import type { MetricasData, MetricaChofer } from "../actions";
 import { eliminarAumentoClienteAction } from "../actions";
 import { METRICAS } from "./metricas-def";
-import { money, numAr, pct, compactMoney, mesLabel, mesCorto } from "./format";
+import { money, numAr, pct, mesLabel, mesCorto } from "./format";
 import CargarAumentoDialog from "../CargarAumentoDialog";
 
 /** Encabezado de sección: título legible + una línea que explica qué se está viendo. */
@@ -138,7 +138,7 @@ export default function ResumenTab({
                   <td className="py-2.5 pr-4 capitalize text-foreground">{f}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{tf!.camiones}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{numAr(tf!.km)}</td>
-                  <td className="py-2.5 pr-4 text-right font-mono">{compactMoney(tf!.facturacion)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{money(tf!.facturacion)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{money(tf!.factPorKm, 2)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{pct(tf!.pctVacios)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{pct(tf!.pctKm100)}</td>
@@ -150,7 +150,7 @@ export default function ResumenTab({
                   <td className="py-2.5 pr-4">TOTAL</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{t.camiones}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{numAr(t.km)}</td>
-                  <td className="py-2.5 pr-4 text-right font-mono">{compactMoney(t.facturacion)}</td>
+                  <td className="py-2.5 pr-4 text-right font-mono">{money(t.facturacion)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{money(t.factPorKm, 2)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{pct(t.pctVacios)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{pct(t.pctKm100)}</td>
@@ -255,9 +255,11 @@ export default function ResumenTab({
           <div className="mt-3 space-y-2 rounded-md border border-border bg-muted/20 p-3 text-[13px] leading-snug">
             <p className="font-semibold text-foreground">De dónde sale cada línea</p>
             <p className="text-muted-foreground">
-              <span className="font-medium text-red-600 dark:text-red-400">Cuesta $/km</span> — columna
-              {" "}<span className="font-mono text-[12px]">ESTUDIO DE COSTO</span> de la planilla COSTO VS KM.
-              Lo calcula el estudio contable fuera del sistema y se carga un número por mes; no sale de los viajes.
+              <span className="font-medium text-red-600 dark:text-red-400">Cuesta $/km</span> — lo que le sale a la
+              empresa hacer un kilómetro. Es la columna{" "}
+              <span className="font-mono text-[12px]">ESTUDIO DE COSTO</span> de la planilla COSTO VS KM: un número
+              por mes que arma el estudio contable por fuera del sistema. No se calcula acá ni sale de los viajes,
+              y —como la línea azul— está armado sobre <span className="font-medium text-foreground">escalables</span>.
             </p>
             <p className="text-muted-foreground">
               <span className="font-medium text-[#0088D1]">Se factura $/km</span> — columna
