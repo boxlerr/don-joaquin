@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  ReceiptText,
+  Truck,
+  Wallet,
+} from "lucide-react";
 import StatCard from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/button";
 import CalendarioPopover from "@/components/ui/CalendarioPopover";
@@ -334,12 +343,14 @@ export default function CajaDashboard({
           value={resumen ? `$ ${formatARS(resumen.saldoTotal)}` : "—"}
           sub={`${CAJA_LABEL[cajaFiltro]} (histórico)`}
           color="brand"
+          icon={Wallet}
         />
         <StatCard
           label="Ingresos"
           value={resumen ? `$ ${formatARS(resumen.ingresos)}` : "—"}
           sub={periodoLabel}
           color="success"
+          icon={ArrowUpRight}
         />
         {/* El valor del flete entra con el remito → la facturación del período ES
             el ingreso por viajes. Solo fuera de la caja general y para quien ve
@@ -354,6 +365,7 @@ export default function CajaDashboard({
             }
             sub={`Ingresos por viajes · ${periodoLabel}`}
             color="success"
+            icon={Truck}
             href="/viajes"
           />
         )}
@@ -362,12 +374,14 @@ export default function CajaDashboard({
           value={resumen ? `$ ${formatARS(resumen.egresos)}` : "—"}
           sub={periodoLabel}
           color="error"
+          icon={ArrowDownRight}
         />
         <StatCard
           label="Movimientos"
           value={resumen ? String(resumen.movimientos) : "—"}
           sub={periodoLabel}
           color="brand"
+          icon={ReceiptText}
         />
       </div>
 

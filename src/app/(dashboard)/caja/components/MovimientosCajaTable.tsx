@@ -54,6 +54,25 @@ const CATEGORIAS_FILTRO: { value: string; label: string }[] = [
   { value: "otro", label: "Otro" },
 ];
 
+/**
+ * Color del chip de cada categoría: lo que entra tira a verde, lo que sale a
+ * rojo/ámbar y lo que solo mueve plata de un lado al otro queda neutro. Es para
+ * poder barrer la columna con la vista sin leer cada fila.
+ */
+const CATEGORIA_CHIP: Record<string, string> = {
+  cobro_cliente: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
+  rendicion_vuelto: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
+  pago_proveedor: "bg-rose-50 text-rose-700 border-rose-200/70",
+  pago_chofer: "bg-rose-50 text-rose-700 border-rose-200/70",
+  gasto_operativo: "bg-amber-50 text-amber-700 border-amber-200/70",
+  entrega_viatico: "bg-sky-50 text-sky-700 border-sky-200/70",
+  transferencia_interna: "bg-violet-50 text-violet-700 border-violet-200/70",
+  ajuste: "bg-slate-100 text-slate-600 border-slate-200",
+  otro: "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+const CHIP_NEUTRO = "bg-slate-100 text-slate-600 border-slate-200";
+
 const MEDIO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
   transferencia: "Transferencia",
@@ -380,7 +399,9 @@ export default function MovimientosCajaTable({
             ].map((col) => (
               <TableHead
                 key={col}
-                className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                  col === "Monto" ? "text-right" : ""
+                }`}
               >
                 {col}
               </TableHead>
@@ -427,8 +448,14 @@ export default function MovimientosCajaTable({
                   <TableCell className="text-sm text-foreground font-medium">
                     {m.concepto}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
+                  <TableCell>
+                    <span
+                      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
+                        CATEGORIA_CHIP[m.categoria] ?? CHIP_NEUTRO
+                      }`}
+                    >
+                      {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
+                    </span>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {m.vinculado_a ?? "—"}
@@ -437,7 +464,7 @@ export default function MovimientosCajaTable({
                     {MEDIO_LABEL[m.medio] ?? m.medio}
                   </TableCell>
                   <TableCell
-                    className={`text-sm font-semibold ${
+                    className={`text-right text-sm font-semibold tabular-nums ${
                       esIngreso ? "text-[#10B981]" : "text-[#EF4444]"
                     }`}
                   >

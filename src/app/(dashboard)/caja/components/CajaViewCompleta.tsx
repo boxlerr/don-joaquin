@@ -1,12 +1,11 @@
 "use client";
 
-import { ArrowUpRight, ArrowDownRight, ArrowRightLeft } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import AddIngresoDialog from "./AddIngresoDialog";
 import AddEgresoDialog from "./AddEgresoDialog";
 import ImportMovimientosDialog from "./ImportMovimientosDialog";
-import TransferirCajaDialog from "./TransferirCajaDialog";
 import CajaDashboard from "./CajaDashboard";
 import SincronizadorCaja from "./SincronizadorCaja";
 import ViaticosPendientesPanel from "./ViaticosPendientesPanel";
@@ -27,10 +26,8 @@ type Props = {
   viaticos: ViaticoPendiente[];
   /** Puede cargar movimientos en la caja diaria (área caja ≥ write). */
   puedeOperar: boolean;
-  /** Ve la caja grande (subsección caja_grande ≥ read). */
+  /** Ve la caja general (subsección caja_grande ≥ read). */
   puedeVerGrande: boolean;
-  /** Opera la caja grande y transfiere entre cajas (caja_grande ≥ write). */
-  puedeOperarGrande: boolean;
   /** Ve la solapa Gastos (subsección "gastos" ≥ read). */
   showGastos: boolean;
   /** Solapa activa, definida por la URL (?caja=grande). */
@@ -56,7 +53,6 @@ export default function CajaViewCompleta({
   viaticos,
   puedeOperar,
   puedeVerGrande,
-  puedeOperarGrande,
   showGastos,
   caja,
   puedeMarcarPrivado = false,
@@ -97,21 +93,21 @@ export default function CajaViewCompleta({
                 </AddEgresoDialog>
               </>
             )}
-            {esGrande && puedeOperarGrande && (
+            {esGrande && puedeOperar && (
               <>
-                <TransferirCajaDialog>
-                  <Button variant="outline" size="sm">
-                    <ArrowRightLeft size={14} />
-                    Transferir entre cajas
-                  </Button>
-                </TransferirCajaDialog>
-                <AddIngresoDialog caja="grande">
+                {/* Un solo pozo: el alta va a la caja operativa y el check decide
+                    si se ve en la chica. Por defecto queda privado (solo general). */}
+                <AddIngresoDialog puedeMarcarPrivado={puedeMarcarPrivado} defaultPrivado>
                   <Button variant="success" size="lg" className={BOTON_CARGA}>
                     <ArrowUpRight size={16} />
                     Ingreso
                   </Button>
                 </AddIngresoDialog>
-                <AddEgresoDialog caja="grande" tiposGasto={tiposGasto}>
+                <AddEgresoDialog
+                  tiposGasto={tiposGasto}
+                  puedeMarcarPrivado={puedeMarcarPrivado}
+                  defaultPrivado
+                >
                   <Button variant="danger" size="lg" className={BOTON_CARGA}>
                     <ArrowDownRight size={16} />
                     Egreso

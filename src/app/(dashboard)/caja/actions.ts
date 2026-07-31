@@ -206,6 +206,92 @@ export async function getCajaResumenAction(params: {
   };
 }
 
+/** Un día de la caja: lo que entró, lo que salió y con cuánto se cerró. */
+export type CajaSerieDia = {
+  fecha: string;
+  ingresos: number;
+  egresos: number;
+  /** Saldo acumulado al cierre del día, arrancando del saldo previo al período. */
+  saldo: number;
+};
+
+/**
+ * La serie diaria del período, para el gráfico. Igual que el resumen, NO filtra
+ * lo privado: son totales, y el gráfico acompaña a las cards —si mostrara otra
+ * cosa que el saldo de arriba, no habría forma de cuadrarlos.
+ */
+export async function getCajaSerieDiariaAction(params: {
+  desde?: string;
+  hasta?: string;
+  vista?: CajaVista;
+  caja?: CajaFiltro;
+}): Promise<CajaSerieDia[] | { error: string }> {
+  const vista = params.vista ?? "chica";
+  await requireVerCaja(vista);
+  const supabase = createAdminClient();
+  const caja: CajaFiltro = vista === "chica" ? "diaria" : params.caja ?? "todas";
+  const desde = acotarDesde(params.desde, vista);
+
+  // Movimientos del rango. El API REST corta en 1000 filas: vamos de a tandas.
+  const movimientos: { fecha: string; tipo: string; monto: number | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let q = (supabase as any)
+      .from("caja_movimientos")
+      .select("fecha, tipo, monto")
+      .order("fecha", { ascending: true })
+      .range(from, from + 999);
+    if (caja !== "todas") q = q.eq("caja", caja);
+    if (desde) q = q.gte("fecha", desde);
+    if (params.hasta) q = q.lte("fecha", params.hasta);
+    const { data, error } = await q;
+    if (error) {
+      console.error("Error al obtener la serie diaria de caja:", error);
+      return { error: "No se pudo cargar el gráfico de caja." };
+    }
+    const batch = (data ?? []) as typeof movimientos;
+    movimientos.push(...batch);
+    if (batch.length < 1000) break;
+  }
+
+  // De dónde arranca la línea: el saldo acumulado hasta el día anterior.
+  let saldo = 0;
+  if (desde) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let previosQuery = (supabase as any)
+      .from("caja_movimientos")
+      .select("tipo, monto")
+      .lt("fecha", desde);
+    if (caja !== "todas") previosQuery = previosQuery.eq("caja", caja);
+    const { data: previos, error: previosError } = await previosQuery;
+    if (previosError) {
+      console.error("Error al calcular el saldo inicial del gráfico:", previosError);
+      return { error: "No se pudo cargar el gráfico de caja." };
+    }
+    type TipoMonto = { tipo: string; monto: number | null };
+    saldo = ((previos ?? []) as TipoMonto[]).reduce(
+      (acc, m) => acc + (m.tipo === "ingreso" ? Number(m.monto || 0) : -Number(m.monto || 0)),
+      0,
+    );
+  }
+
+  const porDia = new Map<string, { ingresos: number; egresos: number }>();
+  for (const m of movimientos) {
+    const fecha = String(m.fecha).slice(0, 10);
+    const dia = porDia.get(fecha) ?? { ingresos: 0, egresos: 0 };
+    if (m.tipo === "ingreso") dia.ingresos += Number(m.monto || 0);
+    else dia.egresos += Number(m.monto || 0);
+    porDia.set(fecha, dia);
+  }
+
+  return [...porDia.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([fecha, d]) => {
+      saldo += d.ingresos - d.egresos;
+      return { fecha, ingresos: d.ingresos, egresos: d.egresos, saldo };
+    });
+}
+
 export type GetCajaMovimientosParams = {
   desde?: string;
   hasta?: string;

@@ -23,7 +23,6 @@ export default async function CajaPage({
   // Marcar qué se muestra en la caja chica es potestad de dirección.
   const puedeMarcarPrivado = puedeVerSaldo;
   const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
-  const puedeOperarGrande = hasSeccion(user, "caja_grande", "write");
   // Gastos ahora es una solapa de Caja (antes sección propia del sidebar). El
   // permiso sigue siendo el mismo de siempre: la subsección "gastos".
   const puedeVerGastos = hasSeccion(user, "gastos", "read");
@@ -124,7 +123,6 @@ export default async function CajaPage({
         viaticos={viaticosPendientes}
         puedeOperar={puedeOperar}
         puedeVerGrande={puedeVerGrande}
-        puedeOperarGrande={puedeOperarGrande}
         caja={cajaActiva}
         showGastos={puedeVerGastos}
         puedeMarcarPrivado={puedeMarcarPrivado}
