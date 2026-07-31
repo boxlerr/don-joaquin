@@ -4,8 +4,13 @@
  * Como CLI genera SQL idempotente para `metricas_chofer_mes` / `metricas_mes`:
  *
  *   pdftotext -layout "SUELDO SOBRE FACTURACION MAYO 2026.pdf" sueldo-fact.txt
+ *   pdftotext -bbox-layout "SUELDO SOBRE FACTURACION MAYO 2026.pdf" sueldo-fact.bbox.xml
  *   ... (fact-km / costo-km / km-vacios / km-100 / toneladas)
  *   npx tsx scripts/parse-planillas-metricas.ts <dir> 2026-05 --parciales GOMEZ,CLEMENTE
+ *
+ * El .bbox.xml del sueldo NO es opcional en la práctica: el desglose de
+ * retenciones se lee de ahí porque el texto -layout corre las columnas en las
+ * páginas de continuación (ver desgloseDesdeXml).
  *
  * También exporta `parsePlanillasDir()` para la carga masiva desde el Drive
  * (scripts/cargar-metricas-drive.ts).
@@ -99,6 +104,104 @@ function splitRow(rawLine: string): { nombre: string; valores: number[]; pos: nu
 /** ¿v es (casi) igual a ref? Tolerancia chica para cruces entre planillas. */
 const casiIgual = (v: number, ref: number | undefined) => ref != null && Math.abs(v - ref) <= 2;
 
+// ── Desglose del sueldo por coordenadas reales del PDF ─────────────────────
+// `pdftotext -layout` arma las columnas PÁGINA POR PÁGINA: en las páginas de
+// continuación (las que no repiten el header) el texto queda comprimido y los
+// valores caen en posiciones que no son las del header, así que una RETENCIÓN
+// se lee como EMBARGO JUDICIAL. El XML de `pdftotext -bbox-layout` trae las
+// coordenadas del PDF, iguales en todas las páginas: cuando el .bbox.xml está,
+// el desglose se lee de ahí; si no, se cae al texto (dirs viejos).
+type CeldaDesglose =
+  | "retenciones" | "adelantos" | "devolPrestamo" | "embargoJudicial"
+  | "aguinaldo" | "neto" | "total" | "km100";
+
+type Palabra = { x0: number; x1: number; y: number; t: string };
+
+const ETIQUETAS_DESGLOSE: [RegExp, CeldaDesglose][] = [
+  [/^RETENCIONES$/i, "retenciones"],
+  [/^ADELANTOS$/i, "adelantos"],
+  [/^DEVOL\.?\s*PREST\.?$/i, "devolPrestamo"],
+  [/^EMBAR\.?\s*JUD\.?$/i, "embargoJudicial"],
+  [/^AGUINALDO$/i, "aguinaldo"],
+  [/^NETO$/i, "neto"],
+  [/^TOTAL$/i, "total"],
+  [/^KM\s*AL\s*100\s*%$/i, "km100"],
+];
+const esMonto = (t: string) => /^-?[\d.]+(?:,\d+)?$/.test(t);
+/** Las columnas que se suman al neto para dar el total. */
+const CONCEPTOS = ["retenciones", "adelantos", "devolPrestamo", "embargoJudicial", "aguinaldo"] as const;
+
+/** Palabras del XML agrupadas en filas (misma y ±4pt), ordenadas por x. */
+function filasDeXml(xml: string): Palabra[][] {
+  const out: Palabra[][] = [];
+  const reWord = /<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="[\d.]+">([\s\S]*?)<\/word>/g;
+  for (const [, cuerpo] of xml.matchAll(/<page\b[^>]*>([\s\S]*?)<\/page>/g)) {
+    const palabras: Palabra[] = [];
+    for (const m of cuerpo.matchAll(reWord)) {
+      const t = m[4].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+      palabras.push({ x0: Number(m[1]), y: Number(m[2]), x1: Number(m[3]), t });
+    }
+    palabras.sort((a, b) => a.y - b.y || a.x0 - b.x0);
+    let fila: Palabra[] = [];
+    for (const p of palabras) {
+      if (fila.length && Math.abs(p.y - fila[0].y) > 4) {
+        out.push(fila.sort((a, b) => a.x0 - b.x0));
+        fila = [];
+      }
+      fila.push(p);
+    }
+    if (fila.length) out.push(fila.sort((a, b) => a.x0 - b.x0));
+  }
+  return out;
+}
+
+/** Ancla de cada columna = borde DERECHO del rótulo (los valores van alineados a la derecha). */
+function anclasDeHeader(fila: Palabra[]): { x1: number; campo: CeldaDesglose }[] {
+  const anclas: { x1: number; campo: CeldaDesglose }[] = [];
+  for (const [re, campo] of ETIQUETAS_DESGLOSE) {
+    for (let i = 0; i < fila.length && !anclas.some((a) => a.campo === campo); i++) {
+      for (let k = 1; k <= 3 && i + k <= fila.length; k++) {
+        if (re.test(fila.slice(i, i + k).map((p) => p.t).join(" "))) {
+          anclas.push({ x1: fila[i + k - 1].x1, campo });
+          break;
+        }
+      }
+    }
+  }
+  return anclas;
+}
+
+/** Filas del desglose leídas del XML, en orden de documento. */
+function desgloseDesdeXml(xml: string): { nombre: string; celdas: Partial<Record<CeldaDesglose, number>> }[] {
+  const out: { nombre: string; celdas: Partial<Record<CeldaDesglose, number>> }[] = [];
+  let anclas: { x1: number; campo: CeldaDesglose }[] = [];
+  for (const fila of filasDeXml(xml)) {
+    if (fila.some((p) => /^RETENCIONES$/i.test(p.t))) {
+      const nuevas = anclasDeHeader(fila);
+      if (nuevas.length >= 4) anclas = nuevas; // header del desglose (no una fila suelta)
+      continue;
+    }
+    if (!anclas.length) continue;
+    const nombre: string[] = [];
+    let i = 0;
+    for (; i < fila.length && fila[i].t !== "$" && !esMonto(fila[i].t); i++) nombre.push(fila[i].t);
+    const nom = nombre.join(" ").replace(/\s+/g, " ").trim();
+    if (!nom || /^(CHOFER|TOTAL|PROMEDIO)\b/i.test(nom)) continue;
+    const celdas: Partial<Record<CeldaDesglose, number>> = {};
+    for (; i < fila.length; i++) {
+      if (!esMonto(fila[i].t)) continue;
+      let mejor: { x1: number; campo: CeldaDesglose } | null = null;
+      for (const a of anclas) {
+        if (!mejor || Math.abs(fila[i].x1 - a.x1) < Math.abs(fila[i].x1 - mejor.x1)) mejor = a;
+      }
+      // El hueco entre columnas es ≥58pt; 28 deja el match inequívoco.
+      if (mejor && Math.abs(fila[i].x1 - mejor.x1) <= 28) celdas[mejor.campo] = num(fila[i].t);
+    }
+    if (celdas.total != null) out.push({ nombre: nom, celdas });
+  }
+  return out;
+}
+
 const MESES_ABREV: Record<string, string> = {
   ene: "01", feb: "02", mar: "03", abr: "04", may: "05", jun: "06",
   jul: "07", ago: "08", sept: "09", sep: "09", oct: "10", nov: "11", dic: "12",
@@ -149,6 +252,33 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
       mismatch = true;
       warnings.push(`Suma que no cierra en ${tag}`);
     }
+  };
+  /**
+   * Chequeo del desglose de UNA fila: conceptos + neto = total de la página, y
+   * el total de la página es el del chofer en la tabla principal. Si no lo es
+   * (fila corrida EN LA FUENTE), el desglose es de otra persona → se descarta.
+   * Devuelve true si la fila no cierra.
+   */
+  const validarDesglose = (f: FilaChofer, nombre: string, neto: number | undefined, total: number): boolean => {
+    if (neto == null) return false;
+    let rota = false;
+    const suma = CONCEPTOS.reduce((s, c) => s + (f[c] ?? 0), 0) + neto;
+    if (Math.abs(suma - total) > 1.5) {
+      rota = true;
+      warnings.push(`desglose ${nombre}: conceptos+neto=${Math.round(suma)} ≠ total=${Math.round(total)}`);
+    }
+    if (f.sueldoTotal != null && Math.abs(f.sueldoTotal - total) > 1.5) {
+      const esTypoChico = Math.abs(f.sueldoTotal - total) <= Math.max(1000, f.sueldoTotal * 0.005);
+      if (!esTypoChico) {
+        for (const campo of CONCEPTOS) delete f[campo];
+        warnings.push(
+          `desglose ${nombre}: DESCARTADO — el total de la página de retenciones (${Math.round(total)}) no es el del chofer (${Math.round(f.sueldoTotal)}); fila corrida en la planilla fuente`,
+        );
+      } else {
+        warnings.push(`desglose ${nombre}: typo chico en la fuente (${Math.round(total)} vs ${Math.round(f.sueldoTotal)})`);
+      }
+    }
+    return rota;
   };
   const totalDe = (lines: string[], desde: number, hasta: number): number[] | null => {
     for (let i = desde; i < hasta; i++) {
@@ -439,7 +569,21 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
   {
     const lines = leer(/^sueldo-fact(?!-anual)/i);
     const desde = lines?.findIndex((l) => /RETENCIONES/i.test(l)) ?? -1;
-    if (lines && desde >= 0) {
+    // Camino preferido: coordenadas reales del PDF (ver desgloseDesdeXml).
+    const xmlNombre = readdirSync(dir).find((x) => /^sueldo-fact(?!-anual)/i.test(x) && x.endsWith(".bbox.xml"));
+    const crudas = xmlNombre ? desgloseDesdeXml(readFileSync(join(dir, xmlNombre), "utf8")) : null;
+    if (crudas) {
+      let n = 0, rotas = 0;
+      for (const { nombre, celdas } of crudas) {
+        const flota = flotaResuelta(nombre, "escalables");
+        const f = filaDe(flota, nombre);
+        for (const campo of CONCEPTOS) if (celdas[campo] != null) f[campo] = celdas[campo];
+        n++;
+        if (validarDesglose(f, nombre, celdas.neto, celdas.total!)) rotas++;
+      }
+      checks.push(`✓ desglose retenciones (coordenadas): ${n} filas${rotas ? ` · ${rotas} que no cierran` : ""}`);
+    } else if (lines && desde >= 0) {
+      warnings.push("desglose: sin .bbox.xml — leído del texto, las páginas de continuación pueden correr las columnas");
       type Ancla = { centro: number; campo: keyof FilaChofer | "neto" | "total" | "km100" | null };
       let anclas: Ancla[] = [];
       const armarAnclas = (header: string) => {
@@ -507,35 +651,9 @@ export function parsePlanillasDir(dir: string, mesISO: string, parciales: Set<st
           if (celdas[campo] != null) f[campo] = celdas[campo];
         }
         n++;
-        // Validación: conceptos + neto = total (con el neto/total de ESTA página).
-        const neto = celdas.neto;
-        if (neto != null) {
-          const suma =
-            (f.retenciones ?? 0) + (f.adelantos ?? 0) + (f.devolPrestamo ?? 0) +
-            (f.embargoJudicial ?? 0) + (f.aguinaldo ?? 0) + neto;
-          if (Math.abs(suma - total.v) > 1.5) {
-            rotas++;
-            warnings.push(`desglose ${nombre}: conceptos+neto=${Math.round(suma)} ≠ total=${Math.round(total.v)}`);
-          }
-          // Cross-check contra la tabla principal del mismo PDF. Si el total de
-          // esta página no es el del chofer (pasa: filas corridas en la fuente,
-          // ej. tolvas may-26), el desglose es de OTRA persona → se descarta.
-          if (f.sueldoTotal != null && Math.abs(f.sueldoTotal - total.v) > 1.5) {
-            const esTypoChico = Math.abs(f.sueldoTotal - total.v) <= Math.max(1000, f.sueldoTotal * 0.005);
-            if (!esTypoChico) {
-              for (const campo of ["retenciones", "adelantos", "devolPrestamo", "embargoJudicial", "aguinaldo"] as const) {
-                delete f[campo];
-              }
-              warnings.push(
-                `desglose ${nombre}: DESCARTADO — el total de la página de retenciones (${Math.round(total.v)}) no es el del chofer (${Math.round(f.sueldoTotal)}); fila corrida en la planilla fuente`,
-              );
-            } else {
-              warnings.push(`desglose ${nombre}: typo chico en la fuente (${Math.round(total.v)} vs ${Math.round(f.sueldoTotal)})`);
-            }
-          }
-        }
+        if (validarDesglose(f, nombre, celdas.neto, total.v)) rotas++;
       }
-      checks.push(`✓ desglose retenciones: ${n} filas${rotas ? ` · ${rotas} que no cierran` : ""}`);
+      checks.push(`✓ desglose retenciones (texto): ${n} filas${rotas ? ` · ${rotas} que no cierran` : ""}`);
     } else if (lines) {
       checks.push("· desglose retenciones: el PDF no trae esas páginas");
     }

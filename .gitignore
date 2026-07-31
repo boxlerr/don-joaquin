@@ -54,3 +54,6 @@ CLAUDE.local.md
 
 # Salida temporal de scripts (previews de emails, etc.)
 .tmp/
+
+# Caché de las planillas del Drive (PDFs de Bárbara + .txt/.xml derivados)
+/.metricas-drive/
