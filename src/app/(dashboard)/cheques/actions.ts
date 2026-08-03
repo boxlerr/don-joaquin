@@ -192,10 +192,19 @@ async function conErrorVisible<T extends object>(
   try {
     return await fn();
   } catch (e) {
+    // Next usa excepciones para redirigir (por ejemplo, cuando el usuario no
+    // tiene permiso y lo manda al dashboard). Ésas hay que dejarlas pasar: si
+    // las tratáramos como un error, el redirect nunca ocurriría.
+    if (esControlDeNext(e)) throw e;
     console.error(`[cheques] ${queSeIntentaba}:`, e);
     const detalle = e instanceof Error ? e.message : String(e);
     return { error: `${queSeIntentaba}: ${detalle}` };
   }
+}
+
+function esControlDeNext(e: unknown): boolean {
+  const digest = (e as { digest?: unknown })?.digest;
+  return typeof digest === "string" && /^NEXT_(REDIRECT|NOT_FOUND)/.test(digest);
 }
 
 export async function createChequeAction(input: CreateChequeInput) {
