@@ -62,6 +62,7 @@ import { excedeTope, hayAlgunTope, nivel, TOPES_DEFAULT, type TopesConfig } from
 import {
   setCuotaPagadaAction,
   updateCuotaAction,
+  eliminarCuotaAction,
   deletePrestamoAction,
   type PrestamoRow,
   type CuotaRow,
@@ -1404,6 +1405,7 @@ function EditarCuotaDialog({
   const [fecha, setFecha] = useState(cuota.fecha_vencimiento);
   const [importe, setImporte] = useState(String(cuota.importe || ""));
   const [error, setError] = useState<string | null>(null);
+  const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const guardar = () => {
@@ -1413,6 +1415,17 @@ function EditarCuotaDialog({
         fecha_vencimiento: fecha,
         importe: importe.trim() === "" ? undefined : Number(importe) || 0,
       });
+      if ("error" in res) setError(res.error);
+      else onSaved();
+    });
+  };
+
+  // Sacar una cuota del cronograma: el "me pasé" de agregar meses. Las que
+  // siguen se renumeran solas para que no queden huecos.
+  const eliminar = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await eliminarCuotaAction(cuota.id);
       if ("error" in res) setError(res.error);
       else onSaved();
     });
@@ -1455,13 +1468,44 @@ function EditarCuotaDialog({
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
-            Cancelar
-          </Button>
-          <Button variant="brand" size="sm" onClick={guardar} disabled={isPending}>
-            {isPending ? "Guardando…" : "Guardar"}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          {confirmarBorrar ? (
+            <span className="flex items-center gap-2 text-xs text-red-700">
+              {cuota.pagada ? "Figura pagada. ¿Sacarla igual?" : "¿Sacarla del cronograma?"}
+              <button
+                type="button"
+                onClick={eliminar}
+                disabled={isPending}
+                className="h-7 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                Sí, sacar
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmarBorrar(false)}
+                className="h-7 rounded border border-red-200 px-2 hover:bg-red-50"
+              >
+                No
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmarBorrar(true)}
+              disabled={isPending}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-red-600 disabled:opacity-60"
+            >
+              <Trash2 size={13} /> Eliminar cuota
+            </button>
+          )}
+          <span className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
+              Cancelar
+            </Button>
+            <Button variant="brand" size="sm" onClick={guardar} disabled={isPending}>
+              {isPending ? "Guardando…" : "Guardar"}
+            </Button>
+          </span>
         </DialogFooter>
       </DialogContent>
     </Dialog>

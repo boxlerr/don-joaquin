@@ -675,6 +675,85 @@ export async function agregarCuotasAction(
 }
 
 /**
+ * Saca una cuota del cronograma y corre la numeración de las que siguen, así
+ * no quedan huecos (1, 2, 4…). Es el "me pasé" de agregar meses: se usa desde
+ * las puntas de la tira de cuotas.
+ */
+export async function eliminarCuotaAction(
+  cuotaId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireSeccion("prestamos", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cuota } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, prestamo_id, nro, fecha_vencimiento, importe, pagada, pagada_en")
+    .eq("id", cuotaId)
+    .single();
+  if (!cuota) return { error: "La cuota no existe." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: todas } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, nro")
+    .eq("prestamo_id", cuota.prestamo_id);
+  const hermanas = (todas ?? []) as { id: string; nro: number }[];
+  if (hermanas.length <= 1)
+    return {
+      error: "Es la única cuota del préstamo. Si el préstamo no va, borralo entero con la papelera.",
+    };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("prestamo_cuotas").delete().eq("id", cuotaId);
+  if (error) {
+    console.error("Error al eliminar la cuota:", error);
+    return { error: "No se pudo eliminar la cuota." };
+  }
+
+  // De la más baja a la más alta: cada destino lo libera el paso anterior.
+  const posteriores = hermanas
+    .filter((c) => c.nro > cuota.nro)
+    .sort((a, b) => a.nro - b.nro);
+  for (const c of posteriores) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: e } = await (supabase as any)
+      .from("prestamo_cuotas")
+      .update({ nro: c.nro - 1 })
+      .eq("id", c.id);
+    if (e) {
+      console.error("Error al renumerar las cuotas:", e);
+      return { error: "Se borró la cuota pero quedó un hueco en la numeración. Revisá el cronograma." };
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from("prestamos")
+    .update({ cuotas_total: hermanas.length - 1 })
+    .eq("id", cuota.prestamo_id);
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "prestamo_cuota",
+    entidadId: cuotaId,
+    valoresAnteriores: {
+      nro: cuota.nro,
+      fecha_vencimiento: cuota.fecha_vencimiento,
+      importe: Number(cuota.importe),
+      pagada: cuota.pagada,
+      pagada_en: cuota.pagada_en,
+    },
+    metadata: { origen: "prestamos", prestamo_id: cuota.prestamo_id },
+  });
+
+  revalidatePath("/prestamos");
+  return { ok: true };
+}
+
+/**
  * Vuelve a armar el cronograma entero con los tres números del alta: cuántas
  * cuotas son, por cuál va y cuándo vence esa. Es lo que hace falta cuando las
  * que faltan están en el PASADO — el préstamo de 12 cuotas que entró como una

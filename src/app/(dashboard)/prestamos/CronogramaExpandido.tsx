@@ -12,7 +12,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, Plus, X } from "lucide-react";
-import { agregarCuotasAction, type CuotaRow, type PrestamoRow } from "./actions";
+import {
+  agregarCuotasAction,
+  eliminarCuotaAction,
+  type CuotaRow,
+  type PrestamoRow,
+} from "./actions";
 import { mesesAlFinal, mesesAlInicio } from "./cronograma";
 
 function fmtFecha(iso: string): string {
@@ -47,6 +52,8 @@ export default function CronogramaExpandido({
   const [meses, setMeses] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Cuota de la punta que se está por sacar; pide confirmación si está pagada. */
+  const [quitando, setQuitando] = useState<CuotaRow | null>(null);
 
   const n = Number.parseInt(meses, 10);
   const nuevas =
@@ -81,8 +88,33 @@ export default function CronogramaExpandido({
     router.refresh();
   };
 
+  const quitar = async (cuota: CuotaRow) => {
+    setGuardando(true);
+    setError(null);
+    const res = await eliminarCuotaAction(cuota.id);
+    setGuardando(false);
+    if ("error" in res) {
+      setError(res.error);
+      return;
+    }
+    setQuitando(null);
+    router.refresh();
+  };
+
   // Los pagos mensuales sin fin reponen sus cuotas solos: no hay nada que sumar.
   const puedeAgregar = canWrite && !prestamo.es_recurrente && prestamo.cuotas.length > 0;
+
+  // Sacar cuotas sólo por las puntas: del medio dejaría el cronograma con un
+  // salto de un mes, que no es lo que nadie quiere arreglar de apuro. Y nunca
+  // la última que queda, porque un préstamo sin cronograma no sirve.
+  const nros = prestamo.cuotas.map((c) => c.nro);
+  const primerNro = Math.min(...nros);
+  const ultimoNro = Math.max(...nros);
+  const esPunta = (c: CuotaRow) =>
+    canWrite &&
+    !prestamo.es_recurrente &&
+    prestamo.cuotas.length > 1 &&
+    (c.nro === primerNro || c.nro === ultimoNro);
 
   const botonAgregar = (d: "inicio" | "final") => {
     if (donde === d) {
@@ -172,22 +204,62 @@ export default function CronogramaExpandido({
                   <b className="tabular-nums">{c.nro}</b> · {fmtFecha(c.fecha_vencimiento)}
                 </span>
               </label>
-              {canWrite && (
-                <button
-                  type="button"
-                  onClick={() => onEditCuota(c)}
-                  className="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-primary"
-                  title={`Editar cuota (${ars(c.importe)})`}
-                >
-                  <Pencil size={11} />
-                </button>
-              )}
+              <span className="flex shrink-0 items-center">
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => onEditCuota(c)}
+                    className="rounded p-0.5 text-muted-foreground/60 hover:text-primary"
+                    title={`Editar cuota (${ars(c.importe)})`}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                )}
+                {/* Deshacer un mes de más, sin abrir nada. */}
+                {esPunta(c) && (
+                  <button
+                    type="button"
+                    onClick={() => (c.pagada ? setQuitando(c) : quitar(c))}
+                    disabled={guardando}
+                    className="rounded p-0.5 text-muted-foreground/60 hover:text-red-600 disabled:opacity-40"
+                    title="Sacar esta cuota del cronograma"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </span>
             </div>
           );
         })}
 
         {puedeAgregar && botonAgregar("final")}
       </div>
+
+      {/* Sacar una que figura pagada borra un pago: eso se pregunta. */}
+      {quitando && (
+        <p className="mt-2 flex items-center gap-2 text-[11px] text-red-700">
+          La cuota {quitando.nro} ({fmtFecha(quitando.fecha_vencimiento)}) figura pagada.
+          <button
+            type="button"
+            onClick={() => quitar(quitando)}
+            disabled={guardando}
+            className="h-6 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            Sacarla igual
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuitando(null)}
+            className="h-6 rounded border border-red-200 px-2 hover:bg-red-50"
+          >
+            Cancelar
+          </button>
+        </p>
+      )}
+
+      {error && !donde && !quitando && (
+        <p className="mt-2 text-[11px] text-[#B91C1C]">{error}</p>
+      )}
 
       {/* Un solo renglón, y sólo mientras se está escribiendo el número. */}
       {donde && (
