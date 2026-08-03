@@ -1527,6 +1527,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                 item.id === editingViaje.id ? { ...item, ...patch } : item
               )
             );
+            // El detalle expandido (ficha del chofer, patente, notas) se trae
+            // aparte y quedaba con los datos del chofer anterior: se descarta
+            // para que el efecto de arriba lo vuelva a pedir con lo nuevo.
+            setDetalles((prev) => {
+              const sinViejo = { ...prev };
+              delete sinViejo[editingViaje.id];
+              return sinViejo;
+            });
             setEditingViaje(null);
           }}
         />
