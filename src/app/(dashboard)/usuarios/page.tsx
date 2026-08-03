@@ -36,18 +36,26 @@ export default async function UsuariosPage() {
     usuarioSeccionesRes,
     seccionesConfRes,
   ] = await Promise.all([
+    // Los eliminados quedan en la base solo para sostener el historial de lo que
+    // hicieron (ver eliminarUsuarioAction): no se listan ni se cuentan.
     supabase
       .from("usuarios")
       .select("*, roles(codigo, nombre)")
+      .neq("estado", "eliminado")
       .order("created_at", { ascending: false }),
-    supabase.from("usuarios").select("*", { count: "exact", head: true }),
+    supabase
+      .from("usuarios")
+      .select("*", { count: "exact", head: true })
+      .neq("estado", "eliminado"),
     supabase
       .from("usuarios")
       .select("*, roles!inner(codigo)", { count: "exact", head: true })
+      .neq("estado", "eliminado")
       .eq("roles.codigo", "admin"),
     supabase
       .from("usuarios")
       .select("*, roles!inner(codigo)", { count: "exact", head: true })
+      .neq("estado", "eliminado")
       .eq("roles.codigo", "administrativo"),
     showMatriz
       ? supabase.from("roles").select("id, codigo, nombre").order("codigo")

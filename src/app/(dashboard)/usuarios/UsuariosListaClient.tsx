@@ -367,7 +367,8 @@ export default function UsuariosListaClient({
               <span className="font-semibold text-foreground">
                 {[deleteUser.nombre, deleteUser.apellido].filter(Boolean).join(" ") || deleteUser.email}
               </span>
-              . Esta acción no se puede deshacer.
+              : no va a poder entrar nunca más y sale del listado. Lo que cargó queda en el
+              sistema con su nombre. Esta acción no se puede deshacer.
             </>
           ) : undefined
         }

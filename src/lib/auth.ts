@@ -30,7 +30,7 @@ export type CurrentUser = {
   nombre: string;
   apellido: string | null;
   telefono: string | null;
-  estado: "activo" | "inactivo" | "suspendido";
+  estado: "activo" | "inactivo" | "suspendido" | "eliminado";
   must_change_password: boolean;
   rol: {
     id: string;

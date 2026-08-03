@@ -22,6 +22,13 @@ async function requireDueño() {
   return user;
 }
 
+/** Datos del acceso recién creado, para pasárselos al usuario nuevo. */
+export type CredencialesNuevoUsuario = {
+  rol: string;
+  email: string;
+  password: string;
+};
+
 const NIVELES_VALIDOS: AreaNivel[] = ["none", "read", "write", "admin"];
 const NIVEL_RANK: Record<AreaNivel, number> = { none: 0, read: 1, write: 2, admin: 3 };
 
@@ -126,7 +133,7 @@ export async function setUsuarioAcceso24Action(
 
 export async function crearUsuarioAction(
   formData: FormData,
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; credenciales: CredencialesNuevoUsuario } | { error: string }> {
   const admin = await requireDueño();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -149,7 +156,7 @@ export async function crearUsuarioAction(
 
   const { data: rol } = await supabase
     .from("roles")
-    .select("id, codigo")
+    .select("id, codigo, nombre")
     .eq("id", rol_id)
     .single();
   if (!rol) return { error: "Rol inválido" };
@@ -158,6 +165,25 @@ export async function crearUsuarioAction(
   // base de datos.
   if (rol.codigo === "admin") {
     return { error: "El rol Administrador solo se asigna manualmente en la base de datos." };
+  }
+
+  // Si ese email pertenece a un usuario eliminado, su fila sigue existiendo solo
+  // para sostener el historial. Se le corre el email a un apartado para liberar
+  // la dirección; el nombre, que es lo que se muestra en el historial, no cambia.
+  const { data: lapida } = await supabase
+    .from("usuarios")
+    .select("id, estado")
+    .eq("email", email)
+    .maybeSingle();
+  if (lapida) {
+    if (lapida.estado !== "eliminado") {
+      return { error: "Ya existe un usuario con ese email." };
+    }
+    const [local, dominio] = email.split("@");
+    await supabase
+      .from("usuarios")
+      .update({ email: `${local}+eliminado-${lapida.id.slice(0, 8)}@${dominio}` })
+      .eq("id", lapida.id);
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -195,7 +221,9 @@ export async function crearUsuarioAction(
   });
 
   revalidatePath("/usuarios");
-  return { ok: true };
+  // Se devuelven los datos tal cual para que el dueño se los pase al usuario de
+  // una: es la única vez que la contraseña inicial está a la vista.
+  return { ok: true, credenciales: { rol: rol.nombre, email, password } };
 }
 
 export async function updateRolAreaAction(
@@ -375,11 +403,30 @@ export async function eliminarRolAction(
   const { count } = await supabase
     .from("usuarios")
     .select("id", { count: "exact", head: true })
-    .eq("rol_id", rol_id);
+    .eq("rol_id", rol_id)
+    .neq("estado", "eliminado");
   if ((count ?? 0) > 0) {
     return {
       error: `Tiene ${count} usuario(s) con este rol. Reasignalos a otro rol antes de borrarlo.`,
     };
+  }
+
+  // Los usuarios eliminados quedan como lápida y conservan su rol_id, así que
+  // frenarían el borrado sin que nadie los vea en el listado: se los pasa a otro
+  // rol (para ellos ya no significa nada, no tienen acceso).
+  const { data: otroRol } = await supabase
+    .from("roles")
+    .select("id")
+    .neq("id", rol_id)
+    .order("codigo")
+    .limit(1)
+    .maybeSingle();
+  if (otroRol) {
+    await supabase
+      .from("usuarios")
+      .update({ rol_id: otroRol.id })
+      .eq("rol_id", rol_id)
+      .eq("estado", "eliminado");
   }
 
   // Limpiamos los permisos del rol antes de borrarlo (por si las FK no cascadean).
@@ -929,15 +976,30 @@ export async function eliminarUsuarioAction(
   const supabase = createAdminClient();
   const { data: previo } = await supabase
     .from("usuarios")
-    .select("email, nombre, apellido")
+    .select("email, nombre, apellido, estado")
     .eq("id", usuario_id)
     .single();
   if (!previo) return { error: "Usuario inexistente" };
 
-  // Perfil primero, después el acceso de auth.
-  const { error: dbErr } = await supabase.from("usuarios").delete().eq("id", usuario_id);
-  if (dbErr) return { error: dbErr.message };
+  // El acceso se borra de verdad: se va de auth y no puede entrar nunca más.
   const { error: authErr } = await supabase.auth.admin.deleteUser(usuario_id);
+  if (authErr && !/not found/i.test(authErr.message)) {
+    return { error: `No se pudo eliminar el acceso: ${authErr.message}` };
+  }
+
+  // La fila de usuarios NO se borra: medio sistema guarda quién cargó cada cosa
+  // (created_by) y el audit_log referencia al autor, así que borrarla dejaría
+  // huérfano todo ese historial (o directamente lo frena la clave foránea).
+  // Queda como lápida en estado "eliminado" y desaparece del listado.
+  const { error: dbErr } = await supabase
+    .from("usuarios")
+    .update({ estado: "eliminado", updated_at: new Date().toISOString() })
+    .eq("id", usuario_id);
+  if (dbErr) return { error: dbErr.message };
+
+  // Lo personal del usuario (permisos, avisos, preferencias) no tiene sentido
+  // conservarlo: se va con él. El historial de lo que hizo sí queda.
+  await limpiarRastroPersonal(supabase, usuario_id);
 
   await logAudit({
     client: supabase,
@@ -945,10 +1007,36 @@ export async function eliminarUsuarioAction(
     accion: "eliminar",
     entidadTipo: "usuarios",
     entidadId: usuario_id,
-    valoresAnteriores: { email: previo.email, nombre: previo.nombre, apellido: previo.apellido },
-    metadata: authErr ? { auth_delete_error: authErr.message } : undefined,
+    valoresAnteriores: {
+      email: previo.email,
+      nombre: previo.nombre,
+      apellido: previo.apellido,
+      estado: previo.estado,
+    },
+    valoresNuevos: { estado: "eliminado" },
   });
 
   revalidatePath("/usuarios");
   return { ok: true };
+}
+
+/**
+ * Borra lo que es exclusivamente del usuario y no es historial: permisos
+ * puntuales, notificaciones, preferencias de aviso. Se hace a mano porque la
+ * fila de usuarios se conserva y entonces los ON DELETE CASCADE no corren.
+ */
+async function limpiarRastroPersonal(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tablas sin tipar en database.ts
+  supabase: any,
+  usuario_id: string,
+) {
+  for (const tabla of [
+    "usuario_areas",
+    "usuario_secciones",
+    "notificaciones",
+    "alerta_lecturas",
+    "configuracion_notificaciones",
+  ]) {
+    await supabase.from(tabla).delete().eq("usuario_id", usuario_id);
+  }
 }
