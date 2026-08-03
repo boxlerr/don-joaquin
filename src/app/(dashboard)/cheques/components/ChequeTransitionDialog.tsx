@@ -27,9 +27,8 @@ import {
   debitarChequeAction,
   rechazarChequeAction,
   anularChequeAction,
-  type ChequeMotivoRechazo,
-  type ChequeOrigen,
 } from "../actions";
+import type { ChequeMotivoRechazo, ChequeOrigen } from "../transiciones";
 import { describirError } from "../errores";
 
 export type Transicion =

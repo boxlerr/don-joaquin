@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
-import type { ChequeOrigen } from "./actions";
+import type { ChequeOrigen } from "./transiciones";
 import ExportChequesButton from "./components/ExportChequesButton";
 import HelpTutorialButton from "./help-tutorial-button";
 

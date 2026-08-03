@@ -14,15 +14,7 @@ import {
   type ChequeOrigen,
   type ChequeTipo,
 } from "./transiciones";
-
-export type { ChequeEstado, ChequeOrigen, ChequeTipo };
-
-export type ChequeMotivoRechazo =
-  | "sin_fondos"
-  | "firma_no_corresponde"
-  | "cuenta_cerrada"
-  | "formal"
-  | "otro";
+import type { ChequeMotivoRechazo } from "./transiciones";
 
 async function logChequeAudit(
   supabase: ReturnType<typeof createAdminClient>,
@@ -186,7 +178,31 @@ export type CreateChequeInput = {
   observaciones?: string | null;
 };
 
+/**
+ * Envuelve una acción para que un error inesperado llegue a la pantalla con su
+ * motivo. Sin esto, cualquier excepción del servidor le llega al navegador como
+ * "An error occurred in the Server Components render", que no dice nada y deja
+ * al que está cargando sin saber si fue un permiso, la base o un dato mal
+ * puesto.
+ */
+async function conErrorVisible<T extends object>(
+  queSeIntentaba: string,
+  fn: () => Promise<T>,
+): Promise<T | { error: string }> {
+  try {
+    return await fn();
+  } catch (e) {
+    console.error(`[cheques] ${queSeIntentaba}:`, e);
+    const detalle = e instanceof Error ? e.message : String(e);
+    return { error: `${queSeIntentaba}: ${detalle}` };
+  }
+}
+
 export async function createChequeAction(input: CreateChequeInput) {
+  return conErrorVisible("No se pudo registrar el cheque", () => crearCheque(input));
+}
+
+async function crearCheque(input: CreateChequeInput) {
   const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 
@@ -291,6 +307,10 @@ export type UpdateChequeInput = {
  * cada lado. Sólo se permite mientras el cheque no arrancó a moverse.
  */
 export async function updateChequeAction(input: UpdateChequeInput) {
+  return conErrorVisible("No se pudo guardar el cheque", () => editarCheque(input));
+}
+
+async function editarCheque(input: UpdateChequeInput) {
   const user = await requireArea("finanzas", "write");
   const supabase = createAdminClient();
 

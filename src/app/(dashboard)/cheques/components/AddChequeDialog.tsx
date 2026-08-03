@@ -16,7 +16,8 @@ import {
   Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
   Sliders, Home, FileText, User,
 } from "lucide-react";
-import { createChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
+import { createChequeAction } from "../actions";
+import type { ChequeOrigen, ChequeTipo } from "../transiciones";
 import { describirError } from "../errores";
 import {
   BancoField,

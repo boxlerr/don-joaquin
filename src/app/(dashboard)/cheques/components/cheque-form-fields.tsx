@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { Landmark, User, type LucideIcon } from "lucide-react";
-import { eliminarLibradorAction, type ChequeOrigen } from "../actions";
+import { eliminarLibradorAction } from "../actions";
+import type { ChequeOrigen } from "../transiciones";
 
 /* Campos compartidos por el alta y la edición de cheques. */
 

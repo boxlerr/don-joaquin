@@ -41,7 +41,8 @@ import ChequeTransitionDialog, {
 } from "./ChequeTransitionDialog";
 import EditChequeDialog from "./EditChequeDialog";
 import type { BancoOption, LibradorOption } from "./cheque-form-fields";
-import { eliminarChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
+import { eliminarChequeAction } from "../actions";
+import type { ChequeOrigen, ChequeTipo } from "../transiciones";
 import { describirError } from "../errores";
 
 export type ChequeEstado =

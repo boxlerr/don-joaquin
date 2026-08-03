@@ -6,6 +6,13 @@
 
 export type ChequeTipo = "comun" | "diferido" | "electronico";
 
+export type ChequeMotivoRechazo =
+  | "sin_fondos"
+  | "firma_no_corresponde"
+  | "cuenta_cerrada"
+  | "formal"
+  | "otro";
+
 /**
  * De qué lado está el cheque: `recibido` nos lo dio un tercero y es plata a
  * cobrar; `propio` lo emitimos nosotros y es plata que sale. Cada uno tiene su
