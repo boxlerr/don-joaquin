@@ -16,6 +16,7 @@ import {
   Sliders, Home, FileText, Hash,
 } from "lucide-react";
 import { updateChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
+import { describirError } from "../errores";
 import {
   BancoField,
   FieldBlock,
@@ -106,8 +107,8 @@ export default function EditChequeDialog({
         onOpenChange(false);
         router.refresh();
       }
-    } catch {
-      setError("Error al guardar el cheque.");
+    } catch (e) {
+      setError(describirError(e, "No se pudo guardar el cheque."));
     } finally {
       setLoading(false);
     }

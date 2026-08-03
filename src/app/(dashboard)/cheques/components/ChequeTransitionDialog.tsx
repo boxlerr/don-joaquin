@@ -30,6 +30,7 @@ import {
   type ChequeMotivoRechazo,
   type ChequeOrigen,
 } from "../actions";
+import { describirError } from "../errores";
 
 export type Transicion =
   | "entregar"
@@ -52,7 +53,7 @@ type Meta = { titulo: string; descripcion: string; cta: string };
 const TITULOS: Record<Transicion, Meta> = {
   entregar: {
     titulo: "Entregar cheque",
-    descripcion: "Registrá la entrega del cheque a un tercero.",
+    descripcion: "Registrá a quién se le entregó el cheque que emitimos.",
     cta: "Confirmar entrega",
   },
   depositar: {
@@ -82,12 +83,15 @@ const TITULOS: Record<Transicion, Meta> = {
   },
 };
 
-/** En un cheque propio, entregar es dárselo al beneficiario, no endosarlo. */
-const TITULOS_PROPIO: Partial<Record<Transicion, Meta>> = {
+/**
+ * Pasarle a un tercero un cheque que recibimos es un endoso; el propio se
+ * entrega al beneficiario. Los TITULOS de arriba son los del cheque propio.
+ */
+const TITULOS_RECIBIDO: Partial<Record<Transicion, Meta>> = {
   entregar: {
-    titulo: "Entregar cheque",
-    descripcion: "Registrá a quién se le entregó el cheque que emitimos.",
-    cta: "Confirmar entrega",
+    titulo: "Endosar cheque",
+    descripcion: "Registrá a quién se le endosó el cheque que nos dieron.",
+    cta: "Confirmar endoso",
   },
 };
 
@@ -120,7 +124,7 @@ export default function ChequeTransitionDialog({
   const [motivoDetalle, setMotivoDetalle] = useState("");
   const [motivoAnulacion, setMotivoAnulacion] = useState("");
 
-  const meta = (origen === "propio" && TITULOS_PROPIO[transicion]) || TITULOS[transicion];
+  const meta = (origen === "recibido" && TITULOS_RECIBIDO[transicion]) || TITULOS[transicion];
 
   const reset = () => {
     setFecha(today);
@@ -188,8 +192,8 @@ export default function ChequeTransitionDialog({
         reset();
         router.refresh();
       }
-    } catch {
-      setError("Ocurrió un error inesperado.");
+    } catch (e) {
+      setError(describirError(e, "No se pudo registrar el cambio."));
     } finally {
       setLoading(false);
     }
@@ -222,7 +226,8 @@ export default function ChequeTransitionDialog({
           {transicion === "entregar" && (
             <div className="space-y-2">
               <Label htmlFor="tr-entregado-a" className="text-sm font-medium text-foreground">
-                Entregado a <span className="text-red-500">*</span>
+                {origen === "recibido" ? "Endosado a" : "Entregado a"}{" "}
+                <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="tr-entregado-a"

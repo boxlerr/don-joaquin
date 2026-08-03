@@ -22,7 +22,19 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { FileText, MoreVertical } from "lucide-react";
+import {
+  Ban,
+  Banknote,
+  Check,
+  FileText,
+  Landmark,
+  MoreVertical,
+  Pencil,
+  Send,
+  Trash2,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
 import { coincideEnAlguno } from "@/lib/texto";
 import ChequeTransitionDialog, {
   type Transicion,
@@ -30,6 +42,7 @@ import ChequeTransitionDialog, {
 import EditChequeDialog from "./EditChequeDialog";
 import type { BancoOption, LibradorOption } from "./cheque-form-fields";
 import { eliminarChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
+import { describirError } from "../errores";
 
 export type ChequeEstado =
   | "cartera"
@@ -112,6 +125,21 @@ const ESTADO_LABEL_PLURAL: Record<ChequeEstado, string> = {
   anulado: "Anulados",
 };
 
+/**
+ * Pasarle a un tercero un cheque que recibimos es endosarlo; entregar es lo que
+ * se hace con uno propio. Es la misma fila de la base, pero la palabra cambia
+ * según de qué lado esté, tal como lo planteó Bárbara.
+ */
+function etiquetaEstado(estado: ChequeEstado, origen: ChequeOrigen): string {
+  if (estado === "entregado" && origen === "recibido") return "Endosado";
+  return ESTADO_LABEL[estado];
+}
+
+function etiquetaEstadoPlural(estado: ChequeEstado, origen: OrigenTab): string {
+  if (estado === "entregado" && origen === "recibido") return "Endosados";
+  return ESTADO_LABEL_PLURAL[estado];
+}
+
 const ESTADO_BADGE: Record<ChequeEstado, string> = {
   cartera: "bg-[#E1F5FE] text-primary",
   entregado: "bg-muted text-muted-foreground",
@@ -123,7 +151,7 @@ const ESTADO_BADGE: Record<ChequeEstado, string> = {
   anulado: "bg-muted text-muted-foreground/70",
 };
 
-type Accion = { key: Transicion; label: string; destructive?: boolean };
+type Accion = { key: Transicion; label: string; icon: LucideIcon; destructive?: boolean };
 
 const SIN_ACCIONES: Record<ChequeEstado, Accion[]> = {
   cartera: [],
@@ -140,31 +168,68 @@ const ACCIONES_POR_ESTADO: Record<ChequeOrigen, Record<ChequeEstado, Accion[]>> 
   recibido: {
     ...SIN_ACCIONES,
     cartera: [
-      { key: "entregar", label: "Entregar a tercero" },
-      { key: "depositar", label: "Depositar en banco" },
-      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
-      { key: "anular", label: "Anular", destructive: true },
+      { key: "entregar", label: "Endosar a un tercero", icon: Send },
+      { key: "depositar", label: "Depositar en banco", icon: Landmark },
+      { key: "rechazar", label: "Marcar como rechazado", icon: XCircle, destructive: true },
+      { key: "anular", label: "Anular", icon: Ban, destructive: true },
     ],
     depositado: [
-      { key: "acreditar", label: "Marcar como acreditado" },
-      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
+      { key: "acreditar", label: "Marcar como acreditado", icon: Check },
+      { key: "rechazar", label: "Marcar como rechazado", icon: XCircle, destructive: true },
     ],
   },
   propio: {
     ...SIN_ACCIONES,
     emitido: [
-      { key: "entregar", label: "Registrar entrega" },
-      { key: "debitar", label: "Marcar como debitado" },
-      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
-      { key: "anular", label: "Anular", destructive: true },
+      { key: "entregar", label: "Registrar entrega", icon: Send },
+      { key: "debitar", label: "Marcar como debitado", icon: Banknote },
+      { key: "rechazar", label: "Marcar como rechazado", icon: XCircle, destructive: true },
+      { key: "anular", label: "Anular", icon: Ban, destructive: true },
     ],
     entregado: [
-      { key: "debitar", label: "Marcar como debitado" },
-      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
-      { key: "anular", label: "Anular", destructive: true },
+      { key: "debitar", label: "Marcar como debitado", icon: Banknote },
+      { key: "rechazar", label: "Marcar como rechazado", icon: XCircle, destructive: true },
+      { key: "anular", label: "Anular", icon: Ban, destructive: true },
     ],
   },
 };
+
+/**
+ * Filtro de estado del segundo nivel. Lleva el número al lado: saber cuántos
+ * hay de cada uno evita el clic a ciegas, y el que está en cero se atenúa en
+ * lugar de esconderse, así no parece que el estado no existe.
+ */
+function FiltroEstado({
+  label,
+  cantidad,
+  activo,
+  onClick,
+}: {
+  label: string;
+  cantidad: number;
+  activo: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-[13px] transition-colors whitespace-nowrap ${
+        activo
+          ? "bg-foreground/[0.07] text-foreground font-semibold"
+          : cantidad === 0
+            ? "text-muted-foreground/50 hover:bg-muted/50 hover:text-muted-foreground"
+            : "text-muted-foreground font-medium hover:bg-muted/60 hover:text-foreground"
+      }`}
+    >
+      {label}
+      <span className={`tabular-nums ${activo ? "text-foreground/70" : "text-muted-foreground/60"}`}>
+        {cantidad}
+      </span>
+    </button>
+  );
+}
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -218,8 +283,8 @@ export default function ChequesList({
         setBorrando(null);
         router.refresh();
       }
-    } catch {
-      setErrorBorrado("Ocurrió un error inesperado.");
+    } catch (e) {
+      setErrorBorrado(describirError(e, "No se pudo borrar el cheque."));
     } finally {
       setBorrandoLoading(false);
     }
@@ -232,6 +297,12 @@ export default function ChequesList({
   }, [bancos]);
 
   const estadosDelTab = ESTADOS_POR_ORIGEN[origenTab];
+
+  // Los cheques del lado elegido: es sobre esto que se cuenta cada estado.
+  const delOrigen = useMemo(
+    () => (origenTab === "todos" ? cheques : cheques.filter((c) => c.origen === origenTab)),
+    [cheques, origenTab],
+  );
 
   const cambiarOrigen = (key: OrigenTab) => {
     setOrigenTab(key);
@@ -288,31 +359,21 @@ export default function ChequesList({
           })}
         </div>
 
-        <div className="flex items-center gap-1 px-5 py-2 border-b border-border overflow-x-auto">
-          <button
-            type="button"
+        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto">
+          <FiltroEstado
+            label="Todos los estados"
+            cantidad={delOrigen.length}
+            activo={estadoFiltro === ""}
             onClick={() => setEstadoFiltro("")}
-            className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors whitespace-nowrap ${
-              estadoFiltro === ""
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Todos los estados
-          </button>
+          />
           {estadosDelTab.map((estado) => (
-            <button
+            <FiltroEstado
               key={estado}
-              type="button"
+              label={etiquetaEstadoPlural(estado, origenTab)}
+              cantidad={delOrigen.filter((c) => c.estado === estado).length}
+              activo={estadoFiltro === estado}
               onClick={() => setEstadoFiltro(estado)}
-              className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors whitespace-nowrap ${
-                estadoFiltro === estado
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {ESTADO_LABEL_PLURAL[estado]}
-            </button>
+            />
           ))}
         </div>
 
@@ -411,7 +472,7 @@ export default function ChequesList({
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${ESTADO_BADGE[c.estado]}`}
                       >
-                        {ESTADO_LABEL[c.estado]}
+                        {etiquetaEstado(c.estado, c.origen)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
@@ -430,6 +491,7 @@ export default function ChequesList({
                           />
                           <DropdownMenuContent align="end" className="min-w-[200px]">
                             <DropdownMenuItem onClick={() => setEditando(c)}>
+                              <Pencil size={14} />
                               Editar datos
                             </DropdownMenuItem>
                             {acciones.map((a) => (
@@ -445,6 +507,7 @@ export default function ChequesList({
                                   })
                                 }
                               >
+                                <a.icon size={14} />
                                 {a.label}
                               </DropdownMenuItem>
                             ))}
@@ -456,6 +519,7 @@ export default function ChequesList({
                                 setBorrando(c);
                               }}
                             >
+                              <Trash2 size={14} />
                               Borrar cheque
                             </DropdownMenuItem>
                           </DropdownMenuContent>

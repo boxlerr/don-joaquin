@@ -17,6 +17,7 @@ import {
   Sliders, Home, FileText, User,
 } from "lucide-react";
 import { createChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
+import { describirError } from "../errores";
 import {
   BancoField,
   FieldBlock,
@@ -101,8 +102,8 @@ export default function AddChequeDialog({
         resetForm();
         router.refresh();
       }
-    } catch {
-      setError("Error al registrar el cheque.");
+    } catch (e) {
+      setError(describirError(e, "No se pudo registrar el cheque."));
     } finally {
       setLoading(false);
     }

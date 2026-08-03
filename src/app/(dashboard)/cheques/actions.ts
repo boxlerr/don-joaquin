@@ -243,7 +243,7 @@ export async function createChequeAction(input: CreateChequeInput) {
     if (error.code === "23505") {
       return { error: "Ya existe un cheque con ese número en el mismo banco." };
     }
-    return { error: "No se pudo registrar el cheque." };
+    return { error: `No se pudo registrar el cheque: ${error.message}` };
   }
 
   await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
@@ -352,7 +352,7 @@ export async function updateChequeAction(input: UpdateChequeInput) {
     if (error.code === "23505") {
       return { error: "Ya existe un cheque con ese número en el mismo banco." };
     }
-    return { error: "No se pudo guardar el cheque." };
+    return { error: `No se pudo guardar el cheque: ${error.message}` };
   }
 
   await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
@@ -445,7 +445,7 @@ export async function entregarChequeAction(input: EntregarChequeInput) {
 
   if (error) {
     console.error("Error al entregar cheque:", error);
-    return { error: "No se pudo registrar la entrega." };
+    return { error: `No se pudo registrar la entrega: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -453,7 +453,10 @@ export async function entregarChequeAction(input: EntregarChequeInput) {
     estado_anterior: estadoActual,
     estado_nuevo: "entregado",
     fecha: input.fecha_entrega,
-    motivo: `Entregado a ${input.entregado_a.trim()}`,
+    motivo:
+      cheque.origen === "recibido"
+        ? `Endosado a ${input.entregado_a.trim()}`
+        : `Entregado a ${input.entregado_a.trim()}`,
     observaciones: input.observaciones,
     usuario_id: user.id,
   });
@@ -508,7 +511,7 @@ export async function depositarChequeAction(input: DepositarChequeInput) {
 
   if (error) {
     console.error("Error al depositar cheque:", error);
-    return { error: "No se pudo registrar el depósito." };
+    return { error: `No se pudo registrar el depósito: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -567,7 +570,7 @@ export async function acreditarChequeAction(input: AcreditarChequeInput) {
 
   if (error) {
     console.error("Error al acreditar cheque:", error);
-    return { error: "No se pudo registrar la acreditación." };
+    return { error: `No se pudo registrar la acreditación: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -629,7 +632,7 @@ export async function debitarChequeAction(input: DebitarChequeInput) {
 
   if (error) {
     console.error("Error al debitar cheque:", error);
-    return { error: "No se pudo registrar el débito." };
+    return { error: `No se pudo registrar el débito: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -693,7 +696,7 @@ export async function rechazarChequeAction(input: RechazarChequeInput) {
 
   if (error) {
     console.error("Error al rechazar cheque:", error);
-    return { error: "No se pudo registrar el rechazo." };
+    return { error: `No se pudo registrar el rechazo: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -755,7 +758,7 @@ export async function anularChequeAction(input: AnularChequeInput) {
 
   if (error) {
     console.error("Error al anular cheque:", error);
-    return { error: "No se pudo anular el cheque." };
+    return { error: `No se pudo anular el cheque: ${error.message}` };
   }
 
   await registrarHistorial({
@@ -846,7 +849,7 @@ export async function eliminarChequeAction(id: string) {
 
   if (error) {
     console.error("Error al eliminar cheque:", error);
-    return { error: "No se pudo borrar el cheque." };
+    return { error: `No se pudo borrar el cheque: ${error.message}` };
   }
 
   await logChequeAudit(supabase, id, "eliminar", anterior, null, user.id);

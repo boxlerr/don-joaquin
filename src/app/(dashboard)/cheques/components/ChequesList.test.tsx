@@ -73,13 +73,49 @@ describe("ChequesList — separación por origen", () => {
 
   it("los estados del segundo nivel cambian según el lado", () => {
     montar();
-    expect(screen.getByRole("button", { name: "En cartera" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Emitidos" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^En cartera/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Emitidos/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Nuestros/ }));
-    expect(screen.getByRole("button", { name: "Emitidos" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "En cartera" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Depositados" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Emitidos/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^En cartera/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Depositados/ })).not.toBeInTheDocument();
+  });
+
+  it("cada filtro de estado lleva cuántos hay", () => {
+    montar([recibido, { ...recibido, id: "r2" }, propio]);
+    // Dos recibidos en cartera; el propio no cuenta de este lado.
+    expect(screen.getByRole("button", { name: /^En cartera\s*2$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Todos los estados\s*2$/ })).toBeInTheDocument();
+  });
+
+  it("pasarle a un tercero un cheque recibido es endosarlo, no entregarlo", () => {
+    montar();
+    // Segundo nivel del listado.
+    expect(screen.getByRole("button", { name: /^Endosados/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Entregados/ })).not.toBeInTheDocument();
+
+    // Y la acción de la fila.
+    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    expect(screen.getByRole("menuitem", { name: /Endosar a un tercero/ })).toBeInTheDocument();
+  });
+
+  it("un cheque nuestro sí se entrega", () => {
+    montar();
+    fireEvent.click(screen.getByRole("button", { name: /Nuestros/ }));
+    expect(screen.getByRole("button", { name: /^Entregados/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Endosados/ })).not.toBeInTheDocument();
+  });
+
+  it("el badge de la fila usa la palabra del lado que corresponde", () => {
+    montar([
+      { ...recibido, estado: "entregado" },
+      { ...propio, estado: "entregado" },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /Todos\s*2/ }));
+    const texto = textoDeFilas().join();
+    expect(texto).toContain("Endosado");
+    expect(texto).toContain("Entregado");
   });
 
   it("un cheque nuestro muestra a quién se le entregó, no el cliente", () => {
