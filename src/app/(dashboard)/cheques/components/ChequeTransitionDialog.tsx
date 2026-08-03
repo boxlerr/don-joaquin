@@ -24,12 +24,20 @@ import {
   entregarChequeAction,
   depositarChequeAction,
   acreditarChequeAction,
+  debitarChequeAction,
   rechazarChequeAction,
   anularChequeAction,
   type ChequeMotivoRechazo,
+  type ChequeOrigen,
 } from "../actions";
 
-export type Transicion = "entregar" | "depositar" | "acreditar" | "rechazar" | "anular";
+export type Transicion =
+  | "entregar"
+  | "depositar"
+  | "acreditar"
+  | "debitar"
+  | "rechazar"
+  | "anular";
 
 const MOTIVOS_RECHAZO: Record<ChequeMotivoRechazo, string> = {
   sin_fondos: "Sin fondos suficientes",
@@ -39,7 +47,9 @@ const MOTIVOS_RECHAZO: Record<ChequeMotivoRechazo, string> = {
   otro: "Otro",
 };
 
-const TITULOS: Record<Transicion, { titulo: string; descripcion: string; cta: string }> = {
+type Meta = { titulo: string; descripcion: string; cta: string };
+
+const TITULOS: Record<Transicion, Meta> = {
   entregar: {
     titulo: "Entregar cheque",
     descripcion: "Registrá la entrega del cheque a un tercero.",
@@ -55,6 +65,11 @@ const TITULOS: Record<Transicion, { titulo: string; descripcion: string; cta: st
     descripcion: "Confirmá la acreditación efectiva del cheque en cuenta.",
     cta: "Confirmar acreditación",
   },
+  debitar: {
+    titulo: "Debitar cheque",
+    descripcion: "Confirmá que ya lo cobraron y la plata salió de la cuenta.",
+    cta: "Confirmar débito",
+  },
   rechazar: {
     titulo: "Rechazar cheque",
     descripcion: "Registrá el rechazo del cheque por parte del banco.",
@@ -67,15 +82,26 @@ const TITULOS: Record<Transicion, { titulo: string; descripcion: string; cta: st
   },
 };
 
+/** En un cheque propio, entregar es dárselo al beneficiario, no endosarlo. */
+const TITULOS_PROPIO: Partial<Record<Transicion, Meta>> = {
+  entregar: {
+    titulo: "Entregar cheque",
+    descripcion: "Registrá a quién se le entregó el cheque que emitimos.",
+    cta: "Confirmar entrega",
+  },
+};
+
 export default function ChequeTransitionDialog({
   chequeId,
   numero,
+  origen,
   transicion,
   open,
   onOpenChange,
 }: {
   chequeId: string;
   numero: string;
+  origen: ChequeOrigen;
   transicion: Transicion;
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -94,7 +120,7 @@ export default function ChequeTransitionDialog({
   const [motivoDetalle, setMotivoDetalle] = useState("");
   const [motivoAnulacion, setMotivoAnulacion] = useState("");
 
-  const meta = TITULOS[transicion];
+  const meta = (origen === "propio" && TITULOS_PROPIO[transicion]) || TITULOS[transicion];
 
   const reset = () => {
     setFecha(today);
@@ -129,6 +155,12 @@ export default function ChequeTransitionDialog({
         });
       } else if (transicion === "acreditar") {
         res = await acreditarChequeAction({
+          id: chequeId,
+          fecha,
+          observaciones: observaciones || null,
+        });
+      } else if (transicion === "debitar") {
+        res = await debitarChequeAction({
           id: chequeId,
           fecha,
           observaciones: observaciones || null,

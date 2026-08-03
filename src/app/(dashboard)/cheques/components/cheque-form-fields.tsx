@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { Landmark, User, type LucideIcon } from "lucide-react";
-import { eliminarLibradorAction } from "../actions";
+import { eliminarLibradorAction, type ChequeOrigen } from "../actions";
 
 /* Campos compartidos por el alta y la edición de cheques. */
 
@@ -74,11 +74,15 @@ export function LibradorField({
   nombre,
   onNombreChange,
   onCuitChange,
+  label = "Librador *",
+  hint = "Si no está en la lista, escribilo: queda guardado para la próxima.",
 }: {
   libradores: LibradorOption[];
   nombre: string;
   onNombreChange: (nombre: string) => void;
   onCuitChange: (cuit: string) => void;
+  label?: string;
+  hint?: string;
 }) {
   const router = useRouter();
   // Se saca del desplegable en el acto, sin esperar al refresh del servidor.
@@ -101,7 +105,7 @@ export function LibradorField({
 
   return (
     <PlaceCombobox
-      label="Librador *"
+      label={label}
       name="librador_nombre"
       icon={User}
       value={nombre}
@@ -117,8 +121,65 @@ export function LibradorField({
       removeTitle="Sacar de la lista"
       placeholder="Escribí o elegí el librador"
       error={error ?? undefined}
-      hint="Si no está en la lista, escribilo: queda guardado para la próxima."
+      hint={hint}
     />
+  );
+}
+
+/**
+ * De qué lado está el cheque. Es lo primero que hay que decidir porque cambia
+ * todo lo demás: uno que recibimos entra a la cartera (plata a cobrar), uno
+ * nuestro queda emitido (plata que sale). Dos botones y no un desplegable
+ * porque son dos caminos, no una lista de opciones.
+ */
+export function OrigenField({
+  value,
+  onValueChange,
+  disabled = false,
+  disabledHint,
+}: {
+  value: ChequeOrigen;
+  onValueChange: (origen: ChequeOrigen) => void;
+  disabled?: boolean;
+  disabledHint?: string;
+}) {
+  const opciones: Array<{ key: ChequeOrigen; label: string; detalle: string }> = [
+    { key: "recibido", label: "Lo recibimos", detalle: "De un cliente · a cobrar" },
+    { key: "propio", label: "Es nuestro", detalle: "Lo emitimos · a pagar" },
+  ];
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs font-semibold text-muted-foreground">¿De quién es el cheque? *</Label>
+      <div className="grid grid-cols-2 gap-2">
+        {opciones.map((o) => {
+          const activo = value === o.key;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              disabled={disabled}
+              onClick={() => onValueChange(o.key)}
+              className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                activo
+                  ? "border-[#0088D1] bg-[#0088D1]/[0.04]"
+                  : "border-border hover:border-muted-foreground/40"
+              }`}
+            >
+              <span
+                className={`block text-sm font-semibold ${activo ? "text-primary" : "text-foreground"}`}
+              >
+                {o.label}
+              </span>
+              <span className="block text-[11px] text-muted-foreground">{o.detalle}</span>
+            </button>
+          );
+        })}
+      </div>
+      {disabled && disabledHint && (
+        <p className="text-[11px] text-muted-foreground">{disabledHint}</p>
+      )}
+    </div>
   );
 }
 

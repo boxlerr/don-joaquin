@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -18,7 +19,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FileText, MoreVertical } from "lucide-react";
 import { coincideEnAlguno } from "@/lib/texto";
 import ChequeTransitionDialog, {
@@ -26,13 +29,15 @@ import ChequeTransitionDialog, {
 } from "./ChequeTransitionDialog";
 import EditChequeDialog from "./EditChequeDialog";
 import type { BancoOption, LibradorOption } from "./cheque-form-fields";
-import type { ChequeTipo } from "../actions";
+import { eliminarChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
 
 export type ChequeEstado =
   | "cartera"
-  | "entregado"
   | "depositado"
   | "acreditado"
+  | "emitido"
+  | "debitado"
+  | "entregado"
   | "rechazado"
   | "anulado";
 
@@ -40,6 +45,7 @@ export type ChequeRow = {
   id: string;
   numero: string | null;
   tipo: ChequeTipo;
+  origen: ChequeOrigen;
   importe: number;
   fecha_emision: string | null;
   fecha_vencimiento: string;
@@ -47,6 +53,7 @@ export type ChequeRow = {
   librador_cuit: string | null;
   concepto: string | null;
   estado: ChequeEstado;
+  entregado_a: string | null;
   sucursal_banco: string | null;
   cuenta_corriente: string | null;
   observaciones: string | null;
@@ -54,28 +61,55 @@ export type ChequeRow = {
   cliente: { razon_social: string } | null;
 };
 
-type Tab = {
-  label: string;
-  match: (estado: ChequeEstado) => boolean;
-};
+/**
+ * Primer nivel del listado: de qué lado está el cheque. Los que recibimos son
+ * plata a cobrar; los nuestros, plata que sale. Mezclarlos en una sola lista de
+ * estados era lo que hacía que un cheque propio no tuviera dónde vivir.
+ */
+type OrigenTab = ChequeOrigen | "todos";
 
-const TABS: Tab[] = [
-  { label: "Todos", match: () => true },
-  { label: "En cartera", match: (e) => e === "cartera" },
-  { label: "Entregados", match: (e) => e === "entregado" },
-  { label: "Depositados", match: (e) => e === "depositado" },
-  { label: "Acreditados", match: (e) => e === "acreditado" },
-  { label: "Rechazados", match: (e) => e === "rechazado" },
-  { label: "Anulados", match: (e) => e === "anulado" },
+const ORIGEN_TABS: Array<{ key: OrigenTab; label: string }> = [
+  { key: "recibido", label: "Recibidos" },
+  { key: "propio", label: "Nuestros" },
+  { key: "todos", label: "Todos" },
 ];
+
+/** Segundo nivel: los estados que tienen sentido para cada lado. */
+const ESTADOS_POR_ORIGEN: Record<OrigenTab, ChequeEstado[]> = {
+  recibido: ["cartera", "entregado", "depositado", "acreditado", "rechazado", "anulado"],
+  propio: ["emitido", "entregado", "debitado", "rechazado", "anulado"],
+  todos: [
+    "cartera",
+    "emitido",
+    "entregado",
+    "depositado",
+    "acreditado",
+    "debitado",
+    "rechazado",
+    "anulado",
+  ],
+};
 
 const ESTADO_LABEL: Record<ChequeEstado, string> = {
   cartera: "En cartera",
   entregado: "Entregado",
   depositado: "Depositado",
   acreditado: "Acreditado",
+  emitido: "Emitido",
+  debitado: "Debitado",
   rechazado: "Rechazado",
   anulado: "Anulado",
+};
+
+const ESTADO_LABEL_PLURAL: Record<ChequeEstado, string> = {
+  cartera: "En cartera",
+  entregado: "Entregados",
+  depositado: "Depositados",
+  acreditado: "Acreditados",
+  emitido: "Emitidos",
+  debitado: "Debitados",
+  rechazado: "Rechazados",
+  anulado: "Anulados",
 };
 
 const ESTADO_BADGE: Record<ChequeEstado, string> = {
@@ -83,25 +117,53 @@ const ESTADO_BADGE: Record<ChequeEstado, string> = {
   entregado: "bg-muted text-muted-foreground",
   depositado: "bg-[#FEF3C7] text-[#B45309]",
   acreditado: "bg-[#DCFCE7] text-[#16A34A]",
+  emitido: "bg-[#E1F5FE] text-primary",
+  debitado: "bg-[#DCFCE7] text-[#16A34A]",
   rechazado: "bg-[#FEE2E2] text-[#DC2626]",
   anulado: "bg-muted text-muted-foreground/70",
 };
 
-const ACCIONES_POR_ESTADO: Record<ChequeEstado, Array<{ key: Transicion; label: string; destructive?: boolean }>> = {
-  cartera: [
-    { key: "entregar", label: "Entregar a tercero" },
-    { key: "depositar", label: "Depositar en banco" },
-    { key: "rechazar", label: "Marcar como rechazado", destructive: true },
-    { key: "anular", label: "Anular", destructive: true },
-  ],
-  depositado: [
-    { key: "acreditar", label: "Marcar como acreditado" },
-    { key: "rechazar", label: "Marcar como rechazado", destructive: true },
-  ],
+type Accion = { key: Transicion; label: string; destructive?: boolean };
+
+const SIN_ACCIONES: Record<ChequeEstado, Accion[]> = {
+  cartera: [],
   entregado: [],
+  depositado: [],
   acreditado: [],
+  emitido: [],
+  debitado: [],
   rechazado: [],
   anulado: [],
+};
+
+const ACCIONES_POR_ESTADO: Record<ChequeOrigen, Record<ChequeEstado, Accion[]>> = {
+  recibido: {
+    ...SIN_ACCIONES,
+    cartera: [
+      { key: "entregar", label: "Entregar a tercero" },
+      { key: "depositar", label: "Depositar en banco" },
+      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
+      { key: "anular", label: "Anular", destructive: true },
+    ],
+    depositado: [
+      { key: "acreditar", label: "Marcar como acreditado" },
+      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
+    ],
+  },
+  propio: {
+    ...SIN_ACCIONES,
+    emitido: [
+      { key: "entregar", label: "Registrar entrega" },
+      { key: "debitar", label: "Marcar como debitado" },
+      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
+      { key: "anular", label: "Anular", destructive: true },
+    ],
+    entregado: [
+      { key: "debitar", label: "Marcar como debitado" },
+      { key: "rechazar", label: "Marcar como rechazado", destructive: true },
+      { key: "anular", label: "Anular", destructive: true },
+    ],
+  },
 };
 
 function formatARS(n: number): string {
@@ -128,15 +190,40 @@ export default function ChequesList({
   libradores: LibradorOption[];
   canWrite: boolean;
 }) {
-  const [tabIndex, setTabIndex] = useState(0);
+  const router = useRouter();
+  const [origenTab, setOrigenTab] = useState<OrigenTab>("recibido");
+  const [estadoFiltro, setEstadoFiltro] = useState<ChequeEstado | "">("");
   const [bancoId, setBancoId] = useState("");
   const [search, setSearch] = useState("");
   const [transicion, setTransicion] = useState<{
     chequeId: string;
     numero: string;
+    origen: ChequeOrigen;
     accion: Transicion;
   } | null>(null);
   const [editando, setEditando] = useState<ChequeRow | null>(null);
+  const [borrando, setBorrando] = useState<ChequeRow | null>(null);
+  const [borrandoLoading, setBorrandoLoading] = useState(false);
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
+
+  const eliminar = async () => {
+    if (!borrando) return;
+    setBorrandoLoading(true);
+    setErrorBorrado(null);
+    try {
+      const res = await eliminarChequeAction(borrando.id);
+      if (res.error) {
+        setErrorBorrado(res.error);
+      } else {
+        setBorrando(null);
+        router.refresh();
+      }
+    } catch {
+      setErrorBorrado("Ocurrió un error inesperado.");
+    } finally {
+      setBorrandoLoading(false);
+    }
+  };
 
   const bancosByNombre = useMemo(() => {
     const map = new Map<string, string>();
@@ -144,33 +231,48 @@ export default function ChequesList({
     return map;
   }, [bancos]);
 
+  const estadosDelTab = ESTADOS_POR_ORIGEN[origenTab];
+
+  const cambiarOrigen = (key: OrigenTab) => {
+    setOrigenTab(key);
+    // El estado elegido puede no existir del otro lado (ej: "En cartera" al
+    // pasar a los nuestros): en ese caso se vuelve a mostrar todo.
+    setEstadoFiltro((actual) =>
+      actual && ESTADOS_POR_ORIGEN[key].includes(actual) ? actual : "",
+    );
+  };
+
   const filtered = useMemo(() => {
-    const matchEstado = TABS[tabIndex].match;
     return cheques.filter((c) => {
-      if (!matchEstado(c.estado)) return false;
+      if (origenTab !== "todos" && c.origen !== origenTab) return false;
+      if (estadoFiltro && c.estado !== estadoFiltro) return false;
       if (bancoId) {
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
       }
       // Sin acentos: "benitez" tiene que encontrar "Benítez".
       return coincideEnAlguno(
-        [c.numero, c.librador_nombre, c.concepto, c.cliente?.razon_social],
+        [c.numero, c.librador_nombre, c.concepto, c.cliente?.razon_social, c.entregado_a],
         search,
       );
     });
-  }, [cheques, tabIndex, bancoId, search, bancosByNombre]);
+  }, [cheques, origenTab, estadoFiltro, bancoId, search, bancosByNombre]);
 
   return (
     <>
       <div className="bg-card rounded-[8px] border border-border shadow-sm">
         <div className="flex items-center gap-1 px-5 pt-4 border-b border-border overflow-x-auto">
-          {TABS.map((tab, i) => {
-            const active = i === tabIndex;
+          {ORIGEN_TABS.map((tab) => {
+            const active = tab.key === origenTab;
+            const cantidad =
+              tab.key === "todos"
+                ? cheques.length
+                : cheques.filter((c) => c.origen === tab.key).length;
             return (
               <button
-                key={tab.label}
+                key={tab.key}
                 type="button"
-                onClick={() => setTabIndex(i)}
+                onClick={() => cambiarOrigen(tab.key)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
                   active
                     ? "border-[#0088D1] text-primary"
@@ -178,9 +280,40 @@ export default function ChequesList({
                 }`}
               >
                 {tab.label}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground/70">
+                  {cantidad}
+                </span>
               </button>
             );
           })}
+        </div>
+
+        <div className="flex items-center gap-1 px-5 py-2 border-b border-border overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setEstadoFiltro("")}
+            className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors whitespace-nowrap ${
+              estadoFiltro === ""
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Todos los estados
+          </button>
+          {estadosDelTab.map((estado) => (
+            <button
+              key={estado}
+              type="button"
+              onClick={() => setEstadoFiltro(estado)}
+              className={`px-2.5 py-1 rounded-[4px] text-xs font-medium transition-colors whitespace-nowrap ${
+                estadoFiltro === estado
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {ESTADO_LABEL_PLURAL[estado]}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40">
@@ -219,7 +352,7 @@ export default function ChequesList({
                 "Importe",
                 "Fecha emisión",
                 "Fecha cobro",
-                "Cliente / Concepto",
+                origenTab === "propio" ? "Entregado a" : "Cliente / Concepto",
                 "Estado",
                 "",
               ].map((col, i) => (
@@ -238,12 +371,14 @@ export default function ChequesList({
                 message={
                   cheques.length === 0
                     ? "Sin cheques registrados"
-                    : "Sin cheques para los filtros seleccionados"
+                    : origenTab === "propio" && !cheques.some((c) => c.origen === "propio")
+                      ? "Todavía no hay cheques nuestros cargados"
+                      : "Sin cheques para los filtros seleccionados"
                 }
               />
             ) : (
               filtered.map((c) => {
-                const acciones = ACCIONES_POR_ESTADO[c.estado];
+                const acciones = ACCIONES_POR_ESTADO[c.origen][c.estado];
                 return (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-sm text-foreground">
@@ -254,6 +389,9 @@ export default function ChequesList({
                     </TableCell>
                     <TableCell className="text-sm text-foreground">
                       {c.librador_nombre}
+                      {origenTab === "todos" && c.origen === "propio" && (
+                        <span className="block text-xs text-muted-foreground">Cheque nuestro</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm font-medium text-foreground">
                       ${formatARS(Number(c.importe))}
@@ -265,7 +403,9 @@ export default function ChequesList({
                       {formatFecha(c.fecha_vencimiento)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {c.cliente?.razon_social ?? c.concepto ?? "—"}
+                      {c.origen === "propio"
+                        ? (c.entregado_a ?? c.concepto ?? "—")
+                        : (c.cliente?.razon_social ?? c.concepto ?? "—")}
                     </TableCell>
                     <TableCell>
                       <span
@@ -300,6 +440,7 @@ export default function ChequesList({
                                   setTransicion({
                                     chequeId: c.id,
                                     numero: c.numero ?? "s/n",
+                                    origen: c.origen,
                                     accion: a.key,
                                   })
                                 }
@@ -307,6 +448,16 @@ export default function ChequesList({
                                 {a.label}
                               </DropdownMenuItem>
                             ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => {
+                                setErrorBorrado(null);
+                                setBorrando(c);
+                              }}
+                            >
+                              Borrar cheque
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
@@ -325,6 +476,7 @@ export default function ChequesList({
         <ChequeTransitionDialog
           chequeId={transicion.chequeId}
           numero={transicion.numero}
+          origen={transicion.origen}
           transicion={transicion.accion}
           open={true}
           onOpenChange={(o) => {
@@ -340,6 +492,8 @@ export default function ChequesList({
             id: editando.id,
             numero: editando.numero,
             tipo: editando.tipo,
+            origen: editando.origen,
+            estado: editando.estado,
             librador_nombre: editando.librador_nombre,
             librador_cuit: editando.librador_cuit,
             importe: editando.importe,
@@ -357,6 +511,33 @@ export default function ChequesList({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!borrando}
+        onOpenChange={(o) => {
+          if (!o) {
+            setBorrando(null);
+            setErrorBorrado(null);
+          }
+        }}
+        title="Borrar cheque"
+        description={
+          borrando ? (
+            <>
+              Se va a borrar el cheque de{" "}
+              <strong className="text-foreground">{borrando.librador_nombre}</strong> por{" "}
+              <strong className="text-foreground">${formatARS(borrando.importe)}</strong>. Desaparece
+              del listado junto con su historial de estados y no se puede deshacer.
+              {errorBorrado && (
+                <span className="mt-3 block text-destructive">{errorBorrado}</span>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Borrar"
+        onConfirm={eliminar}
+        loading={borrandoLoading}
+      />
     </>
   );
 }

@@ -2,17 +2,21 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { requireArea } from "@/lib/auth";
+import { requireArea, requireSeccion } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
-export type ChequeTipo = "comun" | "diferido" | "electronico";
-export type ChequeEstado =
-  | "cartera"
-  | "entregado"
-  | "depositado"
-  | "acreditado"
-  | "rechazado"
-  | "anulado";
+import {
+  ESTADOS_ORIGEN_EDITABLE,
+  estadoAlCambiarOrigen,
+  estadoInicial,
+  validateTransicion,
+  type ChequeEstado,
+  type ChequeOrigen,
+  type ChequeTipo,
+} from "./transiciones";
+
+export type { ChequeEstado, ChequeOrigen, ChequeTipo };
+
 export type ChequeMotivoRechazo =
   | "sin_fondos"
   | "firma_no_corresponde"
@@ -38,15 +42,6 @@ async function logChequeAudit(
     client: supabase,
   });
 }
-
-const TRANSICIONES_VALIDAS: Record<ChequeEstado, ChequeEstado[]> = {
-  cartera: ["entregado", "depositado", "rechazado", "anulado"],
-  entregado: [],
-  depositado: ["acreditado", "rechazado"],
-  acreditado: [],
-  rechazado: [],
-  anulado: [],
-};
 
 /**
  * Devuelve el id del banco a partir de su nombre. La lista nunca va a tener
@@ -179,6 +174,9 @@ export type CreateChequeInput = {
   librador_cuit?: string | null;
   cliente_id?: string | null;
   recibido_de?: string | null;
+  origen?: ChequeOrigen;
+  /** Sólo para los propios: a quién se le entregó (si ya se entregó). */
+  entregado_a?: string | null;
   tipo?: ChequeTipo;
   importe: number;
   fecha_emision?: string | null;
@@ -204,6 +202,10 @@ export async function createChequeAction(input: CreateChequeInput) {
   // de los campos es opcional. La fecha de recepción default es hoy (alta).
   const hoy = new Date().toISOString().split("T")[0];
   const fechaRecepcion = input.fecha_recepcion || hoy;
+  const origen: ChequeOrigen = input.origen ?? "recibido";
+  const entregadoA = input.entregado_a?.trim() || null;
+
+  const estado = estadoInicial(origen, entregadoA);
 
   const insertData = {
     numero: input.numero?.trim() || null,
@@ -214,6 +216,9 @@ export async function createChequeAction(input: CreateChequeInput) {
     librador_cuit: input.librador_cuit?.trim() || null,
     cliente_id: input.cliente_id || null,
     recibido_de: input.recibido_de?.trim() || null,
+    origen,
+    entregado_a: origen === "propio" ? entregadoA : null,
+    fecha_entrega: origen === "propio" && entregadoA ? fechaRecepcion : null,
     tipo: (input.tipo ?? "electronico") as ChequeTipo,
     importe: input.importe,
     moneda: "ARS",
@@ -222,7 +227,7 @@ export async function createChequeAction(input: CreateChequeInput) {
     fecha_recepcion: fechaRecepcion,
     concepto: input.concepto?.trim() || null,
     observaciones: input.observaciones?.trim() || null,
-    estado: "cartera" as ChequeEstado,
+    estado,
     fecha_estado_actual: fechaRecepcion,
     created_by: user.id,
   };
@@ -247,9 +252,9 @@ export async function createChequeAction(input: CreateChequeInput) {
   await supabase.from("cheque_historial_estado" as any).insert({
     cheque_id: inserted!.id,
     estado_anterior: null,
-    estado_nuevo: "cartera",
+    estado_nuevo: estado,
     fecha: fechaRecepcion,
-    motivo: "Alta de cheque",
+    motivo: origen === "propio" ? "Alta de cheque propio" : "Alta de cheque",
     observaciones: input.observaciones?.trim() || null,
     usuario_id: user.id,
   });
@@ -268,6 +273,7 @@ export type UpdateChequeInput = {
   cuenta_corriente?: string | null;
   librador_nombre: string;
   librador_cuit?: string | null;
+  origen?: ChequeOrigen;
   tipo?: ChequeTipo;
   importe: number;
   fecha_vencimiento: string;
@@ -278,6 +284,11 @@ export type UpdateChequeInput = {
  * Corrige los datos de un cheque ya cargado. El estado NO se toca acá: se
  * cambia con las transiciones (entregar / depositar / …) para no perder el
  * historial.
+ *
+ * La excepción es el origen: si se cargó un cheque nuestro como recibido (o al
+ * revés), corregirlo mueve también el estado a su equivalente del otro lado,
+ * porque "en cartera" y "emitido" son el mismo punto de partida visto desde
+ * cada lado. Sólo se permite mientras el cheque no arrancó a moverse.
  */
 export async function updateChequeAction(input: UpdateChequeInput) {
   const user = await requireArea("finanzas", "write");
@@ -294,12 +305,30 @@ export async function updateChequeAction(input: UpdateChequeInput) {
   const { data: anterior } = await supabase
     .from("cheques")
     .select(
-      "numero, banco_id, sucursal_banco, cuenta_corriente, librador_nombre, librador_cuit, tipo, importe, fecha_vencimiento, observaciones",
+      "numero, banco_id, sucursal_banco, cuenta_corriente, librador_nombre, librador_cuit, tipo, importe, fecha_vencimiento, observaciones, estado, origen",
     )
     .eq("id", input.id)
     .single();
 
   if (!anterior) return { error: "Cheque no encontrado." };
+
+  const origenAnterior = ((anterior as { origen?: ChequeOrigen }).origen ??
+    "recibido") as ChequeOrigen;
+  const estadoAnterior = anterior.estado as ChequeEstado;
+  const origenNuevo = input.origen ?? origenAnterior;
+  const cambiaOrigen = origenNuevo !== origenAnterior;
+
+  if (cambiaOrigen && !ESTADOS_ORIGEN_EDITABLE.includes(estadoAnterior)) {
+    return {
+      error:
+        "El cheque ya está en circulación: no se puede cambiar de lado. Si se cargó mal, borralo y cargalo de nuevo.",
+    };
+  }
+
+  // Al cruzar de lado, el punto de partida cambia de nombre.
+  const estadoTraducido = cambiaOrigen
+    ? estadoAlCambiarOrigen(estadoAnterior, origenNuevo)
+    : null;
 
   const updateData = {
     numero: input.numero?.trim() || null,
@@ -308,10 +337,12 @@ export async function updateChequeAction(input: UpdateChequeInput) {
     cuenta_corriente: input.cuenta_corriente?.trim() || null,
     librador_nombre: input.librador_nombre.trim(),
     librador_cuit: input.librador_cuit?.trim() || null,
+    origen: origenNuevo,
     tipo: (input.tipo ?? "electronico") as ChequeTipo,
     importe: input.importe,
     fecha_vencimiento: input.fecha_vencimiento,
     observaciones: input.observaciones?.trim() || null,
+    ...(estadoTraducido ? { estado: estadoTraducido } : {}),
   };
 
   const { error } = await supabase.from("cheques").update(updateData).eq("id", input.id);
@@ -326,29 +357,38 @@ export async function updateChequeAction(input: UpdateChequeInput) {
 
   await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
 
+  if (estadoTraducido) {
+    await registrarHistorial({
+      cheque_id: input.id,
+      estado_anterior: estadoAnterior,
+      estado_nuevo: estadoTraducido,
+      fecha: new Date().toISOString().split("T")[0],
+      motivo:
+        origenNuevo === "propio"
+          ? "Corregido: es un cheque nuestro"
+          : "Corregido: es un cheque que recibimos",
+      usuario_id: user.id,
+    });
+  }
+
   await logChequeAudit(supabase, input.id, "actualizar", anterior, updateData, user.id);
 
   revalidatePath("/cheques");
   return { success: true };
 }
 
-async function fetchChequeEstado(id: string) {
+async function fetchCheque(id: string) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("cheques")
-    .select("estado")
+    .select("estado, origen")
     .eq("id", id)
     .single();
   if (error || !data) return null;
-  return data.estado as ChequeEstado;
-}
-
-function validateTransicion(actual: ChequeEstado, destino: ChequeEstado): string | null {
-  const permitidas = TRANSICIONES_VALIDAS[actual];
-  if (!permitidas.includes(destino)) {
-    return `No se puede pasar de "${actual}" a "${destino}".`;
-  }
-  return null;
+  return {
+    estado: data.estado as ChequeEstado,
+    origen: ((data as { origen?: ChequeOrigen }).origen ?? "recibido") as ChequeOrigen,
+  };
 }
 
 async function registrarHistorial(params: {
@@ -387,9 +427,10 @@ export async function entregarChequeAction(input: EntregarChequeInput) {
   if (!input.entregado_a?.trim()) return { error: "Indicá a quién se entrega el cheque." };
   if (!input.fecha_entrega) return { error: "La fecha de entrega es obligatoria." };
 
-  const estadoActual = await fetchChequeEstado(input.id);
-  if (!estadoActual) return { error: "Cheque no encontrado." };
-  const invalido = validateTransicion(estadoActual, "entregado");
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "entregado", cheque.origen);
   if (invalido) return { error: invalido };
 
   const { error } = await supabase
@@ -449,9 +490,10 @@ export async function depositarChequeAction(input: DepositarChequeInput) {
   if (!input.banco_deposito?.trim()) return { error: "Indicá el banco de depósito." };
   if (!input.fecha_deposito) return { error: "La fecha de depósito es obligatoria." };
 
-  const estadoActual = await fetchChequeEstado(input.id);
-  if (!estadoActual) return { error: "Cheque no encontrado." };
-  const invalido = validateTransicion(estadoActual, "depositado");
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "depositado", cheque.origen);
   if (invalido) return { error: invalido };
 
   const { error } = await supabase
@@ -509,9 +551,10 @@ export async function acreditarChequeAction(input: AcreditarChequeInput) {
 
   if (!input.fecha) return { error: "La fecha de acreditación es obligatoria." };
 
-  const estadoActual = await fetchChequeEstado(input.id);
-  if (!estadoActual) return { error: "Cheque no encontrado." };
-  const invalido = validateTransicion(estadoActual, "acreditado");
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "acreditado", cheque.origen);
   if (invalido) return { error: invalido };
 
   const { error } = await supabase
@@ -554,6 +597,68 @@ export async function acreditarChequeAction(input: AcreditarChequeInput) {
   return { success: true };
 }
 
+export type DebitarChequeInput = {
+  id: string;
+  fecha: string;
+  observaciones?: string | null;
+};
+
+/**
+ * Cierra un cheque propio: lo cobraron y la plata salió de la cuenta. Es el
+ * equivalente a "acreditado" del lado de los recibidos.
+ */
+export async function debitarChequeAction(input: DebitarChequeInput) {
+  const user = await requireArea("finanzas", "write");
+  const supabase = createAdminClient();
+
+  if (!input.fecha) return { error: "La fecha del débito es obligatoria." };
+
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "debitado", cheque.origen);
+  if (invalido) return { error: invalido };
+
+  const { error } = await supabase
+    .from("cheques")
+    .update({
+      estado: "debitado",
+      fecha_estado_actual: input.fecha,
+    })
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("Error al debitar cheque:", error);
+    return { error: "No se pudo registrar el débito." };
+  }
+
+  await registrarHistorial({
+    cheque_id: input.id,
+    estado_anterior: estadoActual,
+    estado_nuevo: "debitado",
+    fecha: input.fecha,
+    motivo: "Debitado de la cuenta",
+    observaciones: input.observaciones,
+    usuario_id: user.id,
+  });
+
+  await logChequeAudit(
+    supabase,
+    input.id,
+    "cambio_estado",
+    { estado: estadoActual },
+    {
+      estado: "debitado",
+      fecha_estado_actual: input.fecha,
+      observaciones: input.observaciones?.trim() || null,
+    },
+    user.id,
+  );
+
+  revalidatePath("/cheques");
+  return { success: true };
+}
+
 export type RechazarChequeInput = {
   id: string;
   motivo: ChequeMotivoRechazo;
@@ -569,9 +674,10 @@ export async function rechazarChequeAction(input: RechazarChequeInput) {
   if (!input.motivo) return { error: "Seleccioná el motivo del rechazo." };
   if (!input.fecha) return { error: "La fecha de rechazo es obligatoria." };
 
-  const estadoActual = await fetchChequeEstado(input.id);
-  if (!estadoActual) return { error: "Cheque no encontrado." };
-  const invalido = validateTransicion(estadoActual, "rechazado");
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "rechazado", cheque.origen);
   if (invalido) return { error: invalido };
 
   const { error } = await supabase
@@ -633,9 +739,10 @@ export async function anularChequeAction(input: AnularChequeInput) {
   if (!input.motivo?.trim()) return { error: "Indicá el motivo de la anulación." };
   if (!input.fecha) return { error: "La fecha de anulación es obligatoria." };
 
-  const estadoActual = await fetchChequeEstado(input.id);
-  if (!estadoActual) return { error: "Cheque no encontrado." };
-  const invalido = validateTransicion(estadoActual, "anulado");
+  const cheque = await fetchCheque(input.id);
+  if (!cheque) return { error: "Cheque no encontrado." };
+  const estadoActual = cheque.estado;
+  const invalido = validateTransicion(estadoActual, "anulado", cheque.origen);
   if (invalido) return { error: invalido };
 
   const { error } = await supabase
@@ -679,10 +786,80 @@ export async function anularChequeAction(input: AnularChequeInput) {
   return { success: true };
 }
 
+/**
+ * Borra un cheque que se cargó por error. Se lleva con él su historial de
+ * estados (la FK es ON DELETE CASCADE), así que no queda nada colgado.
+ *
+ * No se borra si la plata ya se movió: si el cheque está enganchado a un
+ * movimiento de caja, a la cuenta corriente de un cliente, al cobro de una
+ * factura o es el reemplazo de otro cheque rechazado, borrarlo dejaría esos
+ * registros sin respaldo. En ese caso el camino es anularlo.
+ */
+export async function eliminarChequeAction(id: string) {
+  const user = await requireSeccion("cheques", "write");
+  const supabase = createAdminClient();
+
+  const { data: anterior } = await supabase
+    .from("cheques")
+    .select(
+      "numero, banco_id, librador_nombre, librador_cuit, importe, tipo, estado, fecha_vencimiento, fecha_recepcion, concepto, observaciones",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!anterior) return { error: "Ese cheque ya no existe." };
+
+  const [{ count: enCaja }, { count: enCtaCte }, { count: enCobros }, { count: reemplaza }] =
+    await Promise.all([
+      supabase
+        .from("caja_movimientos")
+        .select("id", { count: "exact", head: true })
+        .eq("cheque_id", id),
+      supabase
+        .from("cta_cte_movimientos")
+        .select("id", { count: "exact", head: true })
+        .eq("cheque_id", id),
+      supabase
+        .from("pago_cliente_detalle")
+        .select("id", { count: "exact", head: true })
+        .eq("cheque_id", id),
+      supabase
+        .from("cheques")
+        .select("id", { count: "exact", head: true })
+        .eq("cheque_reemplazo_id", id),
+    ]);
+
+  const enganches = [
+    enCaja ? "un movimiento de caja" : null,
+    enCtaCte ? "la cuenta corriente de un cliente" : null,
+    enCobros ? "el cobro de una factura" : null,
+    reemplaza ? "otro cheque que reemplaza" : null,
+  ].filter(Boolean);
+
+  if (enganches.length > 0) {
+    return {
+      error: `No se puede borrar: el cheque ya está vinculado a ${enganches.join(", ")}. Anulalo en lugar de borrarlo.`,
+    };
+  }
+
+  const { error } = await supabase.from("cheques").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error al eliminar cheque:", error);
+    return { error: "No se pudo borrar el cheque." };
+  }
+
+  await logChequeAudit(supabase, id, "eliminar", anterior, null, user.id);
+
+  revalidatePath("/cheques");
+  return { success: true };
+}
+
 export type ChequeExportRow = {
   id: string;
   numero: string;
   tipo: ChequeTipo;
+  origen: ChequeOrigen;
   importe: number;
   moneda: string;
   fecha_emision: string;
@@ -704,7 +881,7 @@ export async function getAllChequesForExportAction(): Promise<ChequeExportRow[]>
   const { data, error } = await supabase
     .from("cheques")
     .select(
-      "id, numero, tipo, importe, moneda, fecha_emision, fecha_vencimiento, fecha_recepcion, estado, librador_nombre, librador_cuit, concepto, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)"
+      "id, numero, tipo, origen, importe, moneda, fecha_emision, fecha_vencimiento, fecha_recepcion, estado, librador_nombre, librador_cuit, concepto, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)"
     )
     .order("created_at", { ascending: false });
 

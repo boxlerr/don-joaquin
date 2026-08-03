@@ -1040,6 +1040,7 @@ export type Database = {
           motivo_rechazo_detalle: string | null
           numero: string
           observaciones: string | null
+          origen: Database["public"]["Enums"]["cheque_origen"]
           recibido_de: string | null
           sucursal_banco: string | null
           tipo: Database["public"]["Enums"]["cheque_tipo"]
@@ -1076,6 +1077,7 @@ export type Database = {
           motivo_rechazo_detalle?: string | null
           numero?: string | null
           observaciones?: string | null
+          origen?: Database["public"]["Enums"]["cheque_origen"]
           recibido_de?: string | null
           sucursal_banco?: string | null
           tipo?: Database["public"]["Enums"]["cheque_tipo"]
@@ -1112,6 +1114,7 @@ export type Database = {
           motivo_rechazo_detalle?: string | null
           numero?: string | null
           observaciones?: string | null
+          origen?: Database["public"]["Enums"]["cheque_origen"]
           recibido_de?: string | null
           sucursal_banco?: string | null
           tipo?: Database["public"]["Enums"]["cheque_tipo"]
@@ -5167,6 +5170,9 @@ export type Database = {
         | "rechazado"
         | "anulado"
         | "entregado"
+        | "emitido"
+        | "debitado"
+      cheque_origen: "recibido" | "propio"
       cheque_motivo_rechazo:
         | "sin_fondos"
         | "firma_no_corresponde"
@@ -5267,7 +5273,7 @@ export type Database = {
         | "vandalismo"
         | "vuelco"
         | "otro"
-      usuario_estado: "activo" | "inactivo" | "suspendido"
+      usuario_estado: "activo" | "inactivo" | "suspendido" | "eliminado"
       viaje_estado: "pendiente" | "en_curso" | "cerrado" | "cancelado"
       viatico_estado: "pendiente_rendicion" | "rendido" | "parcialmente_rendido"
       viatico_medio_entrega: "efectivo" | "transferencia" | "otro"
@@ -5469,7 +5475,10 @@ export const Constants = {
         "rechazado",
         "anulado",
         "entregado",
+        "emitido",
+        "debitado",
       ],
+      cheque_origen: ["recibido", "propio"],
       cheque_motivo_rechazo: [
         "sin_fondos",
         "firma_no_corresponde",

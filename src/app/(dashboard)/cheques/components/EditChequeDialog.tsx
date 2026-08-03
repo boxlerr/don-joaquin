@@ -15,12 +15,13 @@ import {
   Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
   Sliders, Home, FileText, Hash,
 } from "lucide-react";
-import { updateChequeAction, type ChequeTipo } from "../actions";
+import { updateChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
 import {
   BancoField,
   FieldBlock,
   FieldInput,
   LibradorField,
+  OrigenField,
   TIPO_OPTS,
   type BancoOption,
   type LibradorOption,
@@ -30,6 +31,9 @@ export type ChequeEditable = {
   id: string;
   numero: string | null;
   tipo: ChequeTipo;
+  origen: ChequeOrigen;
+  /** Hace falta para saber si todavía se puede corregir de qué lado es. */
+  estado: string;
   librador_nombre: string;
   librador_cuit: string | null;
   importe: number;
@@ -39,6 +43,9 @@ export type ChequeEditable = {
   cuenta_corriente: string | null;
   observaciones: string | null;
 };
+
+/** Mientras el cheque no arrancó a moverse, se puede corregir el lado. */
+const ESTADOS_ORIGEN_EDITABLE = ["cartera", "emitido", "anulado"];
 
 export default function EditChequeDialog({
   cheque,
@@ -58,6 +65,7 @@ export default function EditChequeDialog({
   const [error, setError] = useState<string | null>(null);
 
   const [numero, setNumero] = useState(cheque.numero ?? "");
+  const [origen, setOrigen] = useState<ChequeOrigen>(cheque.origen);
   const [tipo, setTipo] = useState<ChequeTipo>(cheque.tipo);
   const [libradorNombre, setLibradorNombre] = useState(cheque.librador_nombre);
   const [libradorCuit, setLibradorCuit] = useState(cheque.librador_cuit ?? "");
@@ -70,6 +78,8 @@ export default function EditChequeDialog({
   const [cuentaCorriente, setCuentaCorriente] = useState(cheque.cuenta_corriente ?? "");
   const [observaciones, setObservaciones] = useState(cheque.observaciones ?? "");
 
+  const puedeCambiarOrigen = ESTADOS_ORIGEN_EDITABLE.includes(cheque.estado);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!importe || isNaN(Number(importe))) return;
@@ -79,6 +89,7 @@ export default function EditChequeDialog({
       const res = await updateChequeAction({
         id: cheque.id,
         numero: numero || null,
+        origen,
         tipo,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
@@ -126,6 +137,14 @@ export default function EditChequeDialog({
             </div>
           )}
 
+          {/* De quién es el cheque — se puede corregir si todavía no se movió */}
+          <OrigenField
+            value={origen}
+            onValueChange={setOrigen}
+            disabled={!puedeCambiarOrigen}
+            disabledHint="El cheque ya está en circulación: para cambiarlo de lado hay que borrarlo y cargarlo de nuevo."
+          />
+
           {/* Tipo (Echeq / Físico) + Librador */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <SelectField
@@ -141,6 +160,7 @@ export default function EditChequeDialog({
               nombre={libradorNombre}
               onNombreChange={setLibradorNombre}
               onCuitChange={setLibradorCuit}
+              label={origen === "propio" ? "Librador (nuestra firma) *" : "Librador *"}
             />
           </div>
 

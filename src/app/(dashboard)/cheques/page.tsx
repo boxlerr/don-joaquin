@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
+import type { ChequeOrigen } from "./actions";
 import ExportChequesButton from "./components/ExportChequesButton";
 import HelpTutorialButton from "./help-tutorial-button";
 
@@ -36,7 +37,7 @@ export default async function ChequesPage() {
     supabase
       .from("cheques")
       .select(
-        "id, numero, tipo, importe, fecha_emision, fecha_vencimiento, librador_nombre, librador_cuit, concepto, estado, sucursal_banco, cuenta_corriente, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)",
+        "id, numero, tipo, origen, importe, fecha_emision, fecha_vencimiento, librador_nombre, librador_cuit, concepto, estado, entregado_a, sucursal_banco, cuenta_corriente, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)",
         { count: "exact" }
       )
       .order("created_at", { ascending: false }),
@@ -50,6 +51,7 @@ export default async function ChequesPage() {
     id: c.id,
     numero: c.numero,
     tipo: c.tipo,
+    origen: (c as { origen?: ChequeOrigen }).origen ?? "recibido",
     importe: Number(c.importe),
     fecha_emision: c.fecha_emision,
     fecha_vencimiento: c.fecha_vencimiento,
@@ -57,6 +59,7 @@ export default async function ChequesPage() {
     librador_cuit: c.librador_cuit,
     concepto: c.concepto,
     estado: c.estado,
+    entregado_a: c.entregado_a,
     sucursal_banco: c.sucursal_banco,
     cuenta_corriente: c.cuenta_corriente,
     observaciones: c.observaciones,
@@ -64,7 +67,9 @@ export default async function ChequesPage() {
     cliente: Array.isArray(c.cliente) ? (c.cliente[0] ?? null) : c.cliente,
   }));
 
-  const enCartera = rows.filter((c) => c.estado === "cartera");
+  // La cartera es sólo lo que nos deben: un cheque nuestro es plata que sale y
+  // se cuenta aparte.
+  const enCartera = rows.filter((c) => c.origen === "recibido" && c.estado === "cartera");
   const totalEnCartera = enCartera.reduce((acc, c) => acc + c.importe, 0);
   const porVencer = enCartera.filter(
     (c) => c.fecha_vencimiento >= hoy && c.fecha_vencimiento <= en7dias
@@ -72,6 +77,12 @@ export default async function ChequesPage() {
   const totalPorVencer = porVencer.reduce((acc, c) => acc + c.importe, 0);
   const vencidos = enCartera.filter((c) => c.fecha_vencimiento < hoy);
   const totalVencidos = vencidos.reduce((acc, c) => acc + c.importe, 0);
+
+  // Cheques nuestros que todavía no se cobraron: plata comprometida.
+  const propiosPendientes = rows.filter(
+    (c) => c.origen === "propio" && (c.estado === "emitido" || c.estado === "entregado")
+  );
+  const totalPropiosPendientes = propiosPendientes.reduce((acc, c) => acc + c.importe, 0);
 
   return (
     <div className="p-8">
@@ -98,7 +109,7 @@ export default async function ChequesPage() {
         <StatCard
           label="En cartera"
           value={`$${formatARS(totalEnCartera)}`}
-          sub={`${enCartera.length} cheque${enCartera.length === 1 ? "" : "s"}`}
+          sub={`${enCartera.length} cheque${enCartera.length === 1 ? "" : "s"} a cobrar`}
           color="brand"
         />
         <StatCard
@@ -113,7 +124,16 @@ export default async function ChequesPage() {
           sub={`${vencidos.length} sin gestionar`}
           color="error"
         />
-        <StatCard label="Total registrados" value={String(totalCheques ?? 0)} color="success" />
+        <StatCard
+          label="Cheques nuestros"
+          value={`$${formatARS(totalPropiosPendientes)}`}
+          sub={
+            propiosPendientes.length === 0
+              ? `${totalCheques ?? 0} cheques registrados`
+              : `${propiosPendientes.length} sin debitar · ${totalCheques ?? 0} registrados`
+          }
+          color="neutral"
+        />
       </div>
 
       <ChequesList

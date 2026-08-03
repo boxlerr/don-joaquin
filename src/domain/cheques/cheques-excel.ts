@@ -3,6 +3,7 @@ import { ExcelExportService, type ExcelColumn } from "@/shared/services/excel-ex
 export interface ChequeExportable {
   numero?: string;
   tipo?: string;
+  origen?: string;
   importe?: number | string;
   moneda?: string;
   fecha_emision?: string;
@@ -44,10 +45,17 @@ function formatEstado(estado?: string): string {
     entregado: "Entregado",
     depositado: "Depositado",
     acreditado: "Acreditado",
+    emitido: "Emitido",
+    debitado: "Debitado",
     rechazado: "Rechazado",
     anulado: "Anulado",
   };
   return labels[estado] ?? estado.charAt(0).toUpperCase() + estado.slice(1);
+}
+
+function formatOrigen(origen?: string): string {
+  if (origen === "propio") return "Nuestro";
+  return "Recibido";
 }
 
 function formatTipo(tipo?: string): string {
@@ -66,6 +74,7 @@ export function exportChequesToExcel(
 ): void {
   const columns: ExcelColumn<ChequeExportable>[] = [
     { header: "Número", key: (c) => c.numero || "—", width: 16 },
+    { header: "Origen", key: (c) => formatOrigen(c.origen), width: 12 },
     { header: "Tipo", key: (c) => formatTipo(c.tipo), width: 12 },
     { header: "Banco", key: (c) => c.banco?.nombre || "—", width: 20 },
     { header: "Librador", key: (c) => c.librador_nombre || "—", width: 25 },

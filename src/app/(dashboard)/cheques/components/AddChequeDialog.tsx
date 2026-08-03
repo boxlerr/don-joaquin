@@ -14,14 +14,15 @@ import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/combobox";
 import {
   Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
-  Sliders, Home, FileText,
+  Sliders, Home, FileText, User,
 } from "lucide-react";
-import { createChequeAction, type ChequeTipo } from "../actions";
+import { createChequeAction, type ChequeOrigen, type ChequeTipo } from "../actions";
 import {
   BancoField,
   FieldBlock,
   FieldInput,
   LibradorField,
+  OrigenField,
   TIPO_OPTS,
   type BancoOption,
   type LibradorOption,
@@ -45,9 +46,11 @@ export default function AddChequeDialog({
 
   const today = new Date().toISOString().split("T")[0];
 
+  const [origen, setOrigen] = useState<ChequeOrigen>("recibido");
   const [tipo, setTipo] = useState<ChequeTipo>("electronico"); // echeq preseleccionado
   const [libradorNombre, setLibradorNombre] = useState("");
   const [libradorCuit, setLibradorCuit] = useState("");
+  const [entregadoA, setEntregadoA] = useState("");
   const [importe, setImporte] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState(today);
   const [bancoNombre, setBancoNombre] = useState("");
@@ -55,10 +58,14 @@ export default function AddChequeDialog({
   const [cuentaCorriente, setCuentaCorriente] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
+  const esPropio = origen === "propio";
+
   const resetForm = () => {
+    setOrigen("recibido");
     setTipo("electronico");
     setLibradorNombre("");
     setLibradorCuit("");
+    setEntregadoA("");
     setImporte("");
     setFechaVencimiento(today);
     setBancoNombre("");
@@ -75,6 +82,8 @@ export default function AddChequeDialog({
     setError(null);
     try {
       const res = await createChequeAction({
+        origen,
+        entregado_a: esPropio ? entregadoA || null : null,
         tipo,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
@@ -117,7 +126,9 @@ export default function AddChequeDialog({
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">Registrar Cheque</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Diferido. Quedará en cartera. Lo importante: importe, librador y vencimiento.
+                {esPropio
+                  ? "Cheque nuestro. Queda como emitido, aparte de la cartera."
+                  : "Diferido. Quedará en cartera. Lo importante: importe, librador y vencimiento."}
               </DialogDescription>
             </div>
           </div>
@@ -129,6 +140,9 @@ export default function AddChequeDialog({
               {error}
             </div>
           )}
+
+          {/* De quién es el cheque: define todo lo demás */}
+          <OrigenField value={origen} onValueChange={setOrigen} />
 
           {/* Tipo (Echeq / Físico) + Librador */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -145,6 +159,12 @@ export default function AddChequeDialog({
               nombre={libradorNombre}
               onNombreChange={setLibradorNombre}
               onCuitChange={setLibradorCuit}
+              label={esPropio ? "Librador (nuestra firma) *" : "Librador *"}
+              hint={
+                esPropio
+                  ? "La razón social con la que se emitió el cheque."
+                  : "Si no está en la lista, escribilo: queda guardado para la próxima."
+              }
             />
           </div>
 
@@ -157,6 +177,18 @@ export default function AddChequeDialog({
               onChange={(e) => setLibradorCuit(e.target.value)}
             />
           </FieldBlock>
+
+          {/* Sólo para los nuestros: a quién se lo dimos */}
+          {esPropio && (
+            <FieldBlock label="Entregado a" icon={User}>
+              <FieldInput
+                icon={User}
+                placeholder="Nombre o razón social (si ya se entregó)"
+                value={entregadoA}
+                onChange={(e) => setEntregadoA(e.target.value)}
+              />
+            </FieldBlock>
+          )}
 
           {/* Importe + Vencimiento */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
