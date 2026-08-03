@@ -437,7 +437,7 @@ export async function actualizarViajeHojaRutaAction(
   const { data: previo } = await (supabase as any)
     .from("viajes")
     .select(
-      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete, material,
+      `id, km_con_carga, km_vacios, tonelaje_real, nro_remito, monto_flete, material, es_vacio,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -471,7 +471,9 @@ export async function actualizarViajeHojaRutaAction(
   if (data.monto_flete !== undefined) {
     payload.monto_flete = data.monto_flete;
     // Misma regla que la edición de remito: tener valor = facturado y cobrado.
-    payload.facturado = viajeEstaFacturado(data.monto_flete);
+    // El tramo vacío no factura por más importe que se le tipee: sin pasarle
+    // `es_vacio` quedaba marcado como facturado y ensuciaba los totales del mes.
+    payload.facturado = viajeEstaFacturado(data.monto_flete, !!previo.es_vacio);
     payload.cobrado = payload.facturado;
   }
   if (data.nro_remito && data.monto_flete != null) payload.estado = "cerrado";

@@ -108,7 +108,13 @@ function sheetName(apellido: string, used: Set<string>): string {
   return name;
 }
 
-export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<Buffer> {
+export async function buildHojaRutaWorkbook(
+  choferes: ExportChofer[],
+  /** Período exportado ("Julio 2026", "01/05/2026 al 15/07/2026"). Va en el
+   *  encabezado de cada hoja: con rangos libres, el nombre del archivo no
+   *  alcanza para saber qué se está mirando una vez impreso. */
+  periodo?: string,
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Don Joaquín — Sistema de Gestión";
 
@@ -120,9 +126,21 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
     });
     ws.columns = WIDTHS.map((width) => ({ width }));
 
-    // Filas 1-3: ficha del chofer (legajo) — nombre + datos de contacto.
+    // Filas 1-3: ficha del chofer (legajo) — nombre + datos de contacto. El
+    // período va a la derecha de la misma fila: la hoja se imprime y hay que
+    // poder saber de qué fechas es sin mirar el nombre del archivo.
     const nombreCompleto = [ch.apellido, ch.nombre].filter(Boolean).join(", ").toUpperCase() || "CHOFER";
     bannerRow(ws, 1, nombreCompleto, { fillArgb: GRIS_HEADER, fontColor: "FFFFFFFF", bold: true, size: 13, height: 22 });
+    if (periodo) {
+      // Se rompe el merge A:K de la fila para reservar H:K al período.
+      ws.unMergeCells(1, 1, 1, 11);
+      ws.mergeCells(1, 1, 1, 7);
+      ws.mergeCells(1, 8, 1, 11);
+      const per = ws.getCell(1, 8);
+      per.value = periodo;
+      per.font = { bold: false, size: 10, color: { argb: "FFD9D9D9" } };
+      per.alignment = { horizontal: "right", vertical: "middle", indent: 1 };
+    }
 
     const datos = [
       ch.dni ? `DNI: ${ch.dni}` : "",
@@ -246,7 +264,9 @@ export async function buildHojaRutaWorkbook(choferes: ExportChofer[]): Promise<B
   }
 
   if (choferes.length === 0) {
-    wb.addWorksheet("Sin datos").getCell("A1").value = "No hay viajes en el período seleccionado.";
+    wb.addWorksheet("Sin datos").getCell("A1").value = periodo
+      ? `No hay viajes cargados en el período seleccionado (${periodo}).`
+      : "No hay viajes en el período seleccionado.";
   }
 
   const buf = await wb.xlsx.writeBuffer();

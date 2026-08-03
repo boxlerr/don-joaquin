@@ -2,25 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSeccion } from "@/lib/auth";
 import { buildHojaRutaWorkbook, type ExportChofer, type ExportViaje } from "./build";
+import { resolverPeriodo, slugArchivo } from "./periodo";
 
 export const dynamic = "force-dynamic";
-
-function rangoMes(mesISO: string): { desde: string; hasta: string; label: string } {
-  if (mesISO === "total") {
-    return { desde: "1900-01-01", hasta: "2999-12-31", label: "historico" };
-  }
-  if (!/^\d{4}-\d{2}$/.test(mesISO)) {
-    const hoy = new Date();
-    mesISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
-  }
-  const [y, m] = mesISO.split("-").map((x) => parseInt(x, 10));
-  const last = new Date(y, m, 0).getDate();
-  return {
-    desde: `${y}-${String(m).padStart(2, "0")}-01`,
-    hasta: `${y}-${String(m).padStart(2, "0")}-${String(last).padStart(2, "0")}`,
-    label: mesISO,
-  };
-}
 
 function extractMaterial(obs: string | null): string {
   if (!obs) return "";
@@ -33,12 +17,34 @@ function extractMaterial(obs: string | null): string {
 export async function GET(req: NextRequest) {
   await requireSeccion("viajes_hoja_ruta", "read");
 
-  const mesISO = req.nextUrl.searchParams.get("mes") ?? "";
-  const { desde, hasta, label } = rangoMes(mesISO);
+  const periodo = resolverPeriodo(req.nextUrl.searchParams);
+  if ("error" in periodo) {
+    // Se llega por un <a href>, así que la respuesta la lee una persona: texto
+    // plano en castellano, no un JSON de error.
+    return new NextResponse(periodo.error, {
+      status: 400,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+  const { desde, hasta, label, titulo } = periodo;
+
+  // Exportar UNA sola hoja de ruta: la del chofer que está abierto en pantalla.
+  // Se valida el UUID acá: uno mal formado hace fallar la query de Postgres y el
+  // Excel saldría vacío sin decir por qué.
+  const choferParam = (req.nextUrl.searchParams.get("chofer") ?? "").trim();
+  const esUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(choferParam);
+  const soloChoferId = esUuid ? choferParam : null;
+  if (choferParam && !soloChoferId) {
+    return new NextResponse("El chofer indicado no es válido.", {
+      status: 400,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const supabase = createAdminClient();
   const sb = supabase as any;
 
-  // 1) Viajes del mes con joins (paginado: el REST corta en 1000).
+  // 1) Viajes del período con joins (paginado: el REST corta en 1000).
   type ViajeRaw = {
     chofer_id: string;
     fecha_viaje: string;
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest) {
   };
   const viajes: ViajeRaw[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data } = await sb
+    let q = sb
       .from("viajes")
       .select(`
         chofer_id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
@@ -69,7 +75,9 @@ export async function GET(req: NextRequest) {
       .gte("fecha_viaje", desde)
       .lte("fecha_viaje", hasta)
       .neq("estado", "cancelado") // los borrados (soft delete) no van al Excel
-      .not("chofer_id", "is", null)
+      .not("chofer_id", "is", null);
+    if (soloChoferId) q = q.eq("chofer_id", soloChoferId);
+    const { data } = await q
       .order("fecha_viaje", { ascending: true })
       // Desempate dentro del mismo día por orden de carga (código secuencial):
       // la ida antes que su vuelta vacía, igual que en la vista de hoja de ruta.
@@ -170,8 +178,36 @@ export async function GET(req: NextRequest) {
     })
     .sort((a, b) => a.apellido.localeCompare(b.apellido, "es"));
 
-  const buf = await buildHojaRutaWorkbook(choferes);
-  const filename = `hoja-de-ruta_${label}.xlsx`;
+  // Exportar un solo chofer que no tuvo viajes en el período: igual sale su hoja
+  // con la ficha y el encabezado (vacía), no un archivo con "Sin datos" a secas.
+  if (soloChoferId && choferes.length === 0) {
+    const f = fichaChofer.get(soloChoferId);
+    if (f) {
+      const tractor = tractorPorChofer.get(soloChoferId);
+      choferes.push({
+        apellido: f.apellido ?? "CHOFER",
+        nombre: f.nombre ?? "",
+        dni: f.dni ?? "",
+        cuil: f.cuil ?? "",
+        telefono: f.telefono ?? "",
+        telefonoEmergencia: f.telefono_emergencia ?? "",
+        domicilio: f.domicilio ?? "",
+        localidad: f.localidad ?? "",
+        provincia: f.provincia ?? "",
+        fechaIngreso: f.fecha_ingreso ?? "",
+        tractor: tractor?.patente ?? "",
+        acoplado: tractor ? acopladoPorCamion.get(tractor.camionId) ?? "" : "",
+        viajes: [],
+      });
+    }
+  }
+
+  const buf = await buildHojaRutaWorkbook(choferes, titulo);
+
+  // Nombre del archivo: con el apellido adelante cuando es una sola hoja, para
+  // que en la carpeta de Descargas se distingan entre sí.
+  const quien = soloChoferId ? `_${slugArchivo(choferes[0]?.apellido ?? "chofer")}` : "";
+  const filename = `hoja-de-ruta${quien}_${label}.xlsx`;
 
   return new NextResponse(new Uint8Array(buf), {
     status: 200,

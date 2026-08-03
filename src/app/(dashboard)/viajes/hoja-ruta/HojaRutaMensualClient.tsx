@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
+import ExportarHojaRuta from "./ExportarHojaRuta";
 import {
   getPanelChoferAction,
   getViajesSinRemitoMesAction,
@@ -208,14 +209,20 @@ export default function HojaRutaMensualClient({
         <div className="flex items-center gap-2">
           {cargandoLista && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
           <MonthPicker value={mes} onChange={cambiarMes} allowTotal />
-          <a
-            href={`/viajes/hoja-ruta/export?mes=${mes}`}
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-border bg-card text-sm font-medium text-foreground hover:bg-muted/40 transition-colors"
-            title="Exportar la hoja de ruta: una hoja por chofer con sus viajes"
-          >
-            <FileSpreadsheet size={14} className="text-[#10B981]" />
-            Exportar a Excel
-          </a>
+          <ExportarHojaRuta
+            mes={mes}
+            // En la vista "sin remito" no hay un chofer abierto: el export sale
+            // de todos, que es lo que se está mirando.
+            choferId={vistaSinRemito ? null : choferId}
+            choferLabel={
+              vistaSinRemito
+                ? null
+                : (() => {
+                    const c = choferesMes.find((x) => x.id === choferId);
+                    return c ? `${c.apellido}, ${c.nombre}` : null;
+                  })()
+            }
+          />
         </div>
       </div>
 
