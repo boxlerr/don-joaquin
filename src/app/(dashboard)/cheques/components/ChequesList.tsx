@@ -42,7 +42,11 @@ import ChequeTransitionDialog, {
 import EditChequeDialog from "./EditChequeDialog";
 import type { BancoOption, LibradorOption } from "./cheque-form-fields";
 import { eliminarChequeAction } from "../actions";
-import type { ChequeOrigen, ChequeTipo } from "../transiciones";
+import {
+  ESTADOS_POR_ORIGEN,
+  type ChequeOrigen,
+  type ChequeTipo,
+} from "../transiciones";
 import { describirError } from "../errores";
 
 export type ChequeEstado =
@@ -89,9 +93,10 @@ const ORIGEN_TABS: Array<{ key: OrigenTab; label: string }> = [
 ];
 
 /** Segundo nivel: los estados que tienen sentido para cada lado. */
-const ESTADOS_POR_ORIGEN: Record<OrigenTab, ChequeEstado[]> = {
-  recibido: ["cartera", "entregado", "depositado", "acreditado", "rechazado", "anulado"],
-  propio: ["emitido", "entregado", "debitado", "rechazado", "anulado"],
+const ESTADOS_DEL_TAB: Record<OrigenTab, ChequeEstado[]> = {
+  recibido: ESTADOS_POR_ORIGEN.recibido,
+  propio: ESTADOS_POR_ORIGEN.propio,
+  // En "Todos" van los de los dos lados, sin repetir y en orden de circuito.
   todos: [
     "cartera",
     "emitido",
@@ -297,7 +302,7 @@ export default function ChequesList({
     return map;
   }, [bancos]);
 
-  const estadosDelTab = ESTADOS_POR_ORIGEN[origenTab];
+  const estadosDelTab = ESTADOS_DEL_TAB[origenTab];
 
   // Los cheques del lado elegido: es sobre esto que se cuenta cada estado.
   const delOrigen = useMemo(
@@ -310,7 +315,7 @@ export default function ChequesList({
     // El estado elegido puede no existir del otro lado (ej: "En cartera" al
     // pasar a los nuestros): en ese caso se vuelve a mostrar todo.
     setEstadoFiltro((actual) =>
-      actual && ESTADOS_POR_ORIGEN[key].includes(actual) ? actual : "",
+      actual && ESTADOS_DEL_TAB[key].includes(actual) ? actual : "",
     );
   };
 
@@ -442,7 +447,12 @@ export default function ChequesList({
               filtered.map((c) => {
                 const acciones = ACCIONES_POR_ESTADO[c.origen][c.estado];
                 return (
-                  <TableRow key={c.id}>
+                  <TableRow
+                    key={c.id}
+                    onClick={() => canWrite && setEditando(c)}
+                    className={canWrite ? "cursor-pointer" : undefined}
+                    title={canWrite ? "Abrir el cheque para editarlo" : undefined}
+                  >
                     <TableCell className="font-mono text-sm text-foreground">
                       {c.numero ?? "—"}
                     </TableCell>
@@ -476,7 +486,10 @@ export default function ChequesList({
                         {etiquetaEstado(c.estado, c.origen)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {canWrite ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger
@@ -490,7 +503,7 @@ export default function ChequesList({
                               </Button>
                             }
                           />
-                          <DropdownMenuContent align="end" className="min-w-[200px]">
+                          <DropdownMenuContent align="end" className="min-w-[230px]">
                             <DropdownMenuItem onClick={() => setEditando(c)}>
                               <Pencil size={14} />
                               Editar datos

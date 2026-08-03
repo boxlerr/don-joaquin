@@ -125,6 +125,27 @@ describe("ChequesList — separación por origen", () => {
   });
 });
 
+describe("ChequesList — abrir el cheque", () => {
+  it("hacer clic en la fila abre la edición", () => {
+    montar([recibido]);
+    fireEvent.click(screen.getAllByRole("row")[1]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Editar cheque")).toBeInTheDocument();
+  });
+
+  it("usar el menú de la fila no abre además la edición", () => {
+    montar([recibido]);
+    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    expect(screen.queryByText("Editar cheque")).not.toBeInTheDocument();
+  });
+
+  it("sin permiso de escritura la fila no es clickeable", () => {
+    render(<ChequesList cheques={[recibido]} bancos={[]} libradores={[]} canWrite={false} />);
+    fireEvent.click(screen.getAllByRole("row")[1]);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
 describe("ChequesList — acciones", () => {
   it("todo cheque se puede borrar, incluso uno anulado", () => {
     montar([{ ...recibido, estado: "anulado" }]);

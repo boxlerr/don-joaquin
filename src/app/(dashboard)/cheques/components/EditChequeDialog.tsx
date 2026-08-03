@@ -13,10 +13,15 @@ import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/combobox";
 import {
   Landmark, DollarSign, Fingerprint, Calendar, MessageSquare, Check,
-  Sliders, Home, FileText, Hash,
+  Sliders, Home, FileText, Hash, Activity,
 } from "lucide-react";
 import { updateChequeAction } from "../actions";
-import type { ChequeOrigen, ChequeTipo } from "../transiciones";
+import {
+  ESTADOS_POR_ORIGEN,
+  type ChequeEstado,
+  type ChequeOrigen,
+  type ChequeTipo,
+} from "../transiciones";
 import { describirError } from "../errores";
 import {
   BancoField,
@@ -49,6 +54,17 @@ export type ChequeEditable = {
 /** Mientras el cheque no arrancó a moverse, se puede corregir el lado. */
 const ESTADOS_ORIGEN_EDITABLE = ["cartera", "emitido", "anulado"];
 
+const ESTADO_OPTS_LABEL: Record<ChequeEstado, string> = {
+  cartera: "En cartera",
+  entregado: "Entregado",
+  depositado: "Depositado",
+  acreditado: "Acreditado",
+  emitido: "Emitido",
+  debitado: "Debitado",
+  rechazado: "Rechazado",
+  anulado: "Anulado",
+};
+
 export default function EditChequeDialog({
   cheque,
   libradores,
@@ -68,6 +84,7 @@ export default function EditChequeDialog({
 
   const [numero, setNumero] = useState(cheque.numero ?? "");
   const [origen, setOrigen] = useState<ChequeOrigen>(cheque.origen);
+  const [estado, setEstado] = useState<ChequeEstado>(cheque.estado as ChequeEstado);
   const [tipo, setTipo] = useState<ChequeTipo>(cheque.tipo);
   const [libradorNombre, setLibradorNombre] = useState(cheque.librador_nombre);
   const [libradorCuit, setLibradorCuit] = useState(cheque.librador_cuit ?? "");
@@ -82,6 +99,15 @@ export default function EditChequeDialog({
 
   const puedeCambiarOrigen = ESTADOS_ORIGEN_EDITABLE.includes(cheque.estado);
 
+  // Los estados posibles dependen del lado; al cruzar de lado hay que quedarse
+  // con uno que exista del otro.
+  const estadosPosibles = ESTADOS_POR_ORIGEN[origen];
+  const estadoValido = estadosPosibles.includes(estado)
+    ? estado
+    : origen === "propio"
+      ? "emitido"
+      : "cartera";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!importe || isNaN(Number(importe))) return;
@@ -92,6 +118,7 @@ export default function EditChequeDialog({
         id: cheque.id,
         numero: numero || null,
         origen,
+        estado: estadoValido,
         tipo,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
@@ -117,7 +144,7 @@ export default function EditChequeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] p-6 gap-0">
+      <DialogContent className="sm:max-w-[880px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
@@ -126,7 +153,7 @@ export default function EditChequeDialog({
             <div>
               <DialogTitle className="text-foreground text-lg font-bold">Editar cheque</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
-                Corregí los datos cargados. El estado se cambia desde las acciones de la fila.
+                Corregí cualquier dato, incluido el estado.
               </DialogDescription>
             </div>
           </div>
@@ -139,16 +166,25 @@ export default function EditChequeDialog({
             </div>
           )}
 
-          {/* De quién es el cheque — se puede corregir si todavía no se movió */}
-          <OrigenField
-            value={origen}
-            onValueChange={setOrigen}
-            disabled={!puedeCambiarOrigen}
-            disabledHint="El cheque ya está en circulación: para cambiarlo de lado hay que borrarlo y cargarlo de nuevo."
-          />
+          {/* De quién es y en qué estado está: lo que define todo lo demás */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <OrigenField
+              value={origen}
+              onValueChange={setOrigen}
+              disabled={!puedeCambiarOrigen}
+              disabledHint="El cheque ya está en circulación: para cambiarlo de lado hay que borrarlo y cargarlo de nuevo."
+            />
+            <SelectField
+              label="Estado"
+              icon={Activity}
+              options={estadosPosibles.map((e) => ({ id: e, label: ESTADO_OPTS_LABEL[e] }))}
+              value={estadoValido}
+              onValueChange={(v) => setEstado((v || estadoValido) as ChequeEstado)}
+              hint="Se puede corregir a mano: si se anuló por error, volvé a ponerlo donde estaba."
+            />
+          </div>
 
-          {/* Tipo (Echeq / Físico) + Librador */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <SelectField
               label="Tipo de cheque *"
               icon={Sliders}
@@ -164,20 +200,18 @@ export default function EditChequeDialog({
               onCuitChange={setLibradorCuit}
               label={origen === "propio" ? "Librador (nuestra firma) *" : "Librador *"}
             />
+
+            <FieldBlock label="CUIT del librador" icon={Fingerprint}>
+              <FieldInput
+                icon={Fingerprint}
+                placeholder="30-12345678-9"
+                value={libradorCuit}
+                onChange={(e) => setLibradorCuit(e.target.value)}
+              />
+            </FieldBlock>
           </div>
 
-          {/* CUIT */}
-          <FieldBlock label="CUIT del librador" icon={Fingerprint}>
-            <FieldInput
-              icon={Fingerprint}
-              placeholder="30-12345678-9 (se autocompleta de la lista)"
-              value={libradorCuit}
-              onChange={(e) => setLibradorCuit(e.target.value)}
-            />
-          </FieldBlock>
-
-          {/* Importe + Vencimiento */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FieldBlock label="Importe ($) *" icon={DollarSign}>
               <FieldInput
                 icon={DollarSign}
@@ -199,6 +233,14 @@ export default function EditChequeDialog({
                 onChange={(e) => setFechaVencimiento(e.target.value)}
               />
             </FieldBlock>
+            <FieldBlock label="Observaciones" icon={MessageSquare}>
+              <FieldInput
+                icon={MessageSquare}
+                placeholder="Notas internas (opcional)"
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+              />
+            </FieldBlock>
           </div>
 
           {/* Datos bancarios — opcionales */}
@@ -206,7 +248,7 @@ export default function EditChequeDialog({
             <summary className="cursor-pointer text-xs font-semibold text-muted-foreground select-none">
               Datos del banco (opcional)
             </summary>
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
               <FieldBlock label="Número de cheque" icon={Hash}>
                 <FieldInput
                   icon={Hash}
@@ -216,21 +258,14 @@ export default function EditChequeDialog({
                 />
               </FieldBlock>
               <BancoField bancos={bancos} value={bancoNombre} onValueChange={setBancoNombre} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldBlock label="Sucursal" icon={Home}>
-                  <FieldInput icon={Home} placeholder="Ej: 045 - Centro" value={sucursal} onChange={(e) => setSucursal(e.target.value)} />
-                </FieldBlock>
-                <FieldBlock label="Cuenta corriente" icon={FileText}>
-                  <FieldInput icon={FileText} placeholder="Nº de cuenta" value={cuentaCorriente} onChange={(e) => setCuentaCorriente(e.target.value)} />
-                </FieldBlock>
-              </div>
+              <FieldBlock label="Sucursal" icon={Home}>
+                <FieldInput icon={Home} placeholder="Ej: 045 - Centro" value={sucursal} onChange={(e) => setSucursal(e.target.value)} />
+              </FieldBlock>
+              <FieldBlock label="Cuenta corriente" icon={FileText}>
+                <FieldInput icon={FileText} placeholder="Nº de cuenta" value={cuentaCorriente} onChange={(e) => setCuentaCorriente(e.target.value)} />
+              </FieldBlock>
             </div>
           </details>
-
-          {/* Observaciones */}
-          <FieldBlock label="Observaciones" icon={MessageSquare}>
-            <FieldInput icon={MessageSquare} placeholder="Notas internas (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-          </FieldBlock>
 
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button

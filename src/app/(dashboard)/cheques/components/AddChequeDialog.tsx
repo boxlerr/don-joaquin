@@ -119,7 +119,7 @@ export default function AddChequeDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[540px] p-6 gap-0">
+      <DialogContent className="sm:max-w-[880px] p-6 gap-0">
         <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
           <div className="flex items-start gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
@@ -144,10 +144,8 @@ export default function AddChequeDialog({
           )}
 
           {/* De quién es el cheque: define todo lo demás */}
-          <OrigenField value={origen} onValueChange={setOrigen} />
-
-          {/* Tipo (Echeq / Físico) + Librador */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <OrigenField value={origen} onValueChange={setOrigen} />
             <SelectField
               label="Tipo de cheque *"
               icon={Sliders}
@@ -155,7 +153,9 @@ export default function AddChequeDialog({
               value={tipo}
               onValueChange={(v) => setTipo((v || "electronico") as ChequeTipo)}
             />
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <LibradorField
               libradores={libradores}
               nombre={libradorNombre}
@@ -168,32 +168,38 @@ export default function AddChequeDialog({
                   : "Si no está en la lista, escribilo: queda guardado para la próxima."
               }
             />
-          </div>
 
-          {/* CUIT */}
-          <FieldBlock label="CUIT del librador" icon={Fingerprint}>
-            <FieldInput
-              icon={Fingerprint}
-              placeholder="30-12345678-9 (se autocompleta de la lista)"
-              value={libradorCuit}
-              onChange={(e) => setLibradorCuit(e.target.value)}
-            />
-          </FieldBlock>
-
-          {/* Sólo para los nuestros: a quién se lo dimos */}
-          {esPropio && (
-            <FieldBlock label="Entregado a" icon={User}>
+            <FieldBlock label="CUIT del librador" icon={Fingerprint}>
               <FieldInput
-                icon={User}
-                placeholder="Nombre o razón social (si ya se entregó)"
-                value={entregadoA}
-                onChange={(e) => setEntregadoA(e.target.value)}
+                icon={Fingerprint}
+                placeholder="30-12345678-9"
+                value={libradorCuit}
+                onChange={(e) => setLibradorCuit(e.target.value)}
               />
             </FieldBlock>
-          )}
 
-          {/* Importe + Vencimiento */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {esPropio ? (
+              <FieldBlock label="Entregado a" icon={User}>
+                <FieldInput
+                  icon={User}
+                  placeholder="Nombre o razón social"
+                  value={entregadoA}
+                  onChange={(e) => setEntregadoA(e.target.value)}
+                />
+              </FieldBlock>
+            ) : (
+              <FieldBlock label="Observaciones" icon={MessageSquare}>
+                <FieldInput
+                  icon={MessageSquare}
+                  placeholder="Notas internas (opcional)"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                />
+              </FieldBlock>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FieldBlock label="Importe ($) *" icon={DollarSign}>
               <FieldInput
                 icon={DollarSign}
@@ -215,6 +221,16 @@ export default function AddChequeDialog({
                 onChange={(e) => setFechaVencimiento(e.target.value)}
               />
             </FieldBlock>
+            {esPropio && (
+              <FieldBlock label="Observaciones" icon={MessageSquare}>
+                <FieldInput
+                  icon={MessageSquare}
+                  placeholder="Notas internas (opcional)"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                />
+              </FieldBlock>
+            )}
           </div>
 
           {/* Datos bancarios — opcionales */}
@@ -222,23 +238,16 @@ export default function AddChequeDialog({
             <summary className="cursor-pointer text-xs font-semibold text-muted-foreground select-none">
               Datos del banco (opcional)
             </summary>
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
               <BancoField bancos={bancos} value={bancoNombre} onValueChange={setBancoNombre} />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldBlock label="Sucursal" icon={Home}>
-                  <FieldInput icon={Home} placeholder="Ej: 045 - Centro" value={sucursal} onChange={(e) => setSucursal(e.target.value)} />
-                </FieldBlock>
-                <FieldBlock label="Cuenta corriente" icon={FileText}>
-                  <FieldInput icon={FileText} placeholder="Nº de cuenta" value={cuentaCorriente} onChange={(e) => setCuentaCorriente(e.target.value)} />
-                </FieldBlock>
-              </div>
+              <FieldBlock label="Sucursal" icon={Home}>
+                <FieldInput icon={Home} placeholder="Ej: 045 - Centro" value={sucursal} onChange={(e) => setSucursal(e.target.value)} />
+              </FieldBlock>
+              <FieldBlock label="Cuenta corriente" icon={FileText}>
+                <FieldInput icon={FileText} placeholder="Nº de cuenta" value={cuentaCorriente} onChange={(e) => setCuentaCorriente(e.target.value)} />
+              </FieldBlock>
             </div>
           </details>
-
-          {/* Observaciones */}
-          <FieldBlock label="Observaciones" icon={MessageSquare}>
-            <FieldInput icon={MessageSquare} placeholder="Notas internas (opcional)" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-          </FieldBlock>
 
           <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
             <Button

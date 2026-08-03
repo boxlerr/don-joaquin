@@ -106,3 +106,21 @@ export function estadoAlCambiarOrigen(
   if (origenNuevo === "recibido" && estado === "emitido") return "cartera";
   return null;
 }
+
+/** Los estados que puede tener un cheque de cada lado. */
+export const ESTADOS_POR_ORIGEN: Record<ChequeOrigen, ChequeEstado[]> = {
+  recibido: ["cartera", "entregado", "depositado", "acreditado", "rechazado", "anulado"],
+  propio: ["emitido", "entregado", "debitado", "rechazado", "anulado"],
+};
+
+/**
+ * Corregir el estado a mano, sin pasar por las transiciones.
+ *
+ * Hace falta porque equivocarse es normal: anular un cheque por error dejaba la
+ * fila muerta para siempre, sin forma de volver. Esto no reemplaza al circuito
+ * normal (que es el que registra a quién se le endosó, en qué banco se
+ * depositó, etc.) — es la marcha atrás, y queda asentada en el historial.
+ */
+export function puedeCorregirseA(estado: ChequeEstado, origen: ChequeOrigen): boolean {
+  return ESTADOS_POR_ORIGEN[origen].includes(estado);
+}

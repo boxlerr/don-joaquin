@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  ESTADOS_POR_ORIGEN,
   estadoAlCambiarOrigen,
   estadoInicial,
   puedeCambiarOrigen,
+  puedeCorregirseA,
   validateTransicion,
   type ChequeEstado,
 } from "./transiciones";
@@ -79,5 +81,34 @@ describe("corregir de qué lado es el cheque", () => {
   it("un anulado sigue anulado del lado que sea", () => {
     expect(estadoAlCambiarOrigen("anulado", "propio")).toBeNull();
     expect(estadoAlCambiarOrigen("anulado", "recibido")).toBeNull();
+  });
+});
+
+describe("corregir el estado a mano", () => {
+  it("un cheque anulado por error se puede devolver a donde estaba", () => {
+    // El circuito normal no vuelve de anulado; la corrección sí, que es el
+    // punto: equivocarse al anular no puede dejar la fila muerta para siempre.
+    expect(validateTransicion("anulado", "cartera", "recibido")).not.toBeNull();
+    expect(puedeCorregirseA("cartera", "recibido")).toBe(true);
+    expect(puedeCorregirseA("emitido", "propio")).toBe(true);
+  });
+
+  it("no se puede corregir a un estado del otro lado", () => {
+    expect(puedeCorregirseA("emitido", "recibido")).toBe(false);
+    expect(puedeCorregirseA("debitado", "recibido")).toBe(false);
+    expect(puedeCorregirseA("cartera", "propio")).toBe(false);
+    expect(puedeCorregirseA("depositado", "propio")).toBe(false);
+  });
+
+  it("cada lado ofrece sus propios estados", () => {
+    expect(ESTADOS_POR_ORIGEN.recibido).toContain("cartera");
+    expect(ESTADOS_POR_ORIGEN.recibido).not.toContain("emitido");
+    expect(ESTADOS_POR_ORIGEN.propio).toContain("debitado");
+    expect(ESTADOS_POR_ORIGEN.propio).not.toContain("acreditado");
+    // Anulado y rechazado existen de los dos lados.
+    for (const origen of ["recibido", "propio"] as const) {
+      expect(ESTADOS_POR_ORIGEN[origen]).toContain("anulado");
+      expect(ESTADOS_POR_ORIGEN[origen]).toContain("rechazado");
+    }
   });
 });

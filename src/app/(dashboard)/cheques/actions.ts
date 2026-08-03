@@ -9,6 +9,7 @@ import {
   ESTADOS_ORIGEN_EDITABLE,
   estadoAlCambiarOrigen,
   estadoInicial,
+  puedeCorregirseA,
   validateTransicion,
   type ChequeEstado,
   type ChequeOrigen,
@@ -299,6 +300,8 @@ export type UpdateChequeInput = {
   librador_nombre: string;
   librador_cuit?: string | null;
   origen?: ChequeOrigen;
+  /** Corrección a mano del estado (por ejemplo, deshacer una anulación). */
+  estado?: ChequeEstado;
   tipo?: ChequeTipo;
   importe: number;
   fecha_vencimiento: string;
@@ -359,6 +362,15 @@ async function editarCheque(input: UpdateChequeInput) {
     ? estadoAlCambiarOrigen(estadoAnterior, origenNuevo)
     : null;
 
+  // Corrección a mano del estado: pedida explícitamente desde el formulario,
+  // gana sobre la traducción automática del cambio de lado.
+  const estadoPedido = input.estado;
+  if (estadoPedido && !puedeCorregirseA(estadoPedido, origenNuevo)) {
+    return { error: `El estado "${estadoPedido}" no corresponde a este tipo de cheque.` };
+  }
+  const estadoFinal =
+    estadoPedido && estadoPedido !== estadoAnterior ? estadoPedido : estadoTraducido;
+
   const updateData = {
     numero: input.numero?.trim() || null,
     banco_id: await resolveBancoId(supabase, input.banco_nombre),
@@ -371,7 +383,7 @@ async function editarCheque(input: UpdateChequeInput) {
     importe: input.importe,
     fecha_vencimiento: input.fecha_vencimiento,
     observaciones: input.observaciones?.trim() || null,
-    ...(estadoTraducido ? { estado: estadoTraducido } : {}),
+    ...(estadoFinal ? { estado: estadoFinal } : {}),
   };
 
   const { error } = await supabase.from("cheques").update(updateData).eq("id", input.id);
@@ -386,16 +398,17 @@ async function editarCheque(input: UpdateChequeInput) {
 
   await guardarLibrador(supabase, input.librador_nombre, input.librador_cuit ?? null, user.id);
 
-  if (estadoTraducido) {
+  if (estadoFinal) {
     await registrarHistorial({
       cheque_id: input.id,
       estado_anterior: estadoAnterior,
-      estado_nuevo: estadoTraducido,
+      estado_nuevo: estadoFinal,
       fecha: new Date().toISOString().split("T")[0],
-      motivo:
-        origenNuevo === "propio"
+      motivo: cambiaOrigen
+        ? origenNuevo === "propio"
           ? "Corregido: es un cheque nuestro"
-          : "Corregido: es un cheque que recibimos",
+          : "Corregido: es un cheque que recibimos"
+        : "Estado corregido a mano",
       usuario_id: user.id,
     });
   }
