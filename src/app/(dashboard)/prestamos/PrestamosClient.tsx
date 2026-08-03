@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import AddPrestamoDialog from "./AddPrestamoDialog";
 import EditPrestamoDialog from "./EditPrestamoDialog";
+import CronogramaExpandido from "./CronogramaExpandido";
 import { inicialesBanco, marcaBanco } from "./bancos";
 import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
@@ -1210,48 +1211,14 @@ export default function PrestamosClient({
                       {abierto && (
                         <tr className="bg-muted/20">
                           <td colSpan={nCols} className="px-5 py-3">
-                            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
-                              {p.cuotas.map((c) => {
-                                const vencida = !c.pagada && c.fecha_vencimiento < hoy;
-                                return (
-                                  <div
-                                    key={c.id}
-                                    className={`flex items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
-                                      c.pagada
-                                        ? "border-emerald-200 bg-emerald-50/60 text-emerald-800"
-                                        : vencida
-                                          ? "border-red-200 bg-red-50/70 text-red-700"
-                                          : "border-border bg-card text-foreground"
-                                    }`}
-                                  >
-                                    <label className="flex min-w-0 cursor-pointer items-center gap-1.5">
-                                      <input
-                                        type="checkbox"
-                                        checked={c.pagada}
-                                        disabled={!canWrite || savingId === c.id}
-                                        onChange={(e) => togglePagada(c.id, e.target.checked)}
-                                        className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-emerald-600"
-                                        title={c.pagada ? "Marcar como no pagada" : "Marcar como pagada"}
-                                      />
-                                      <span className="truncate">
-                                        <b className="tabular-nums">{c.nro}</b> ·{" "}
-                                        {fmtFecha(c.fecha_vencimiento)}
-                                      </span>
-                                    </label>
-                                    {canWrite && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditCuota({ ...c, banco: p.banco })}
-                                        className="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-primary"
-                                        title={`Editar cuota (${ars(c.importe)})`}
-                                      >
-                                        <Pencil size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
+                            <CronogramaExpandido
+                              prestamo={p}
+                              canWrite={canWrite}
+                              hoy={hoy}
+                              savingId={savingId}
+                              onTogglePagada={togglePagada}
+                              onEditCuota={(c) => setEditCuota({ ...c, banco: p.banco })}
+                            />
                           </td>
                         </tr>
                       )}
