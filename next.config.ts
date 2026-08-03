@@ -20,6 +20,22 @@ const nextConfig: NextConfig = {
       "@tanstack/react-table",
     ],
   },
+  async headers() {
+    return [
+      {
+        // Sistema de uso interno: nada de acá debe aparecer en buscadores.
+        // Va como header (y no sólo como <meta>) para que también cubra
+        // imágenes, PDFs y respuestas de la API, que no llevan HTML.
+        source: "/:path*",
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow, noarchive, nosnippet, noimageindex",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
