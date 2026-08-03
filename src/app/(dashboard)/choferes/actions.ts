@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
-import { normalizarDni, validarCuil, validarDni } from "@/lib/chofer-validation";
+import { normalizarDni, validarCuil, validarDni, validarFechasLegajo } from "@/lib/chofer-validation";
 import { liberarCamionDeChofer } from "@/lib/chofer-egreso";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
@@ -19,6 +19,8 @@ function serverValidateChofer(data: {
   dni?: string;
   cuil?: string;
   telefono?: string;
+  fecha_nacimiento?: string;
+  fecha_ingreso?: string;
 }): string | null {
   if (!data.nombre.trim()) return "El nombre es requerido.";
   if (!data.apellido.trim()) return "El apellido es requerido.";
@@ -28,6 +30,11 @@ function serverValidateChofer(data: {
   if (telDigits.length > 0 && telDigits.length < 10) {
     return "El teléfono debe tener al menos 10 dígitos.";
   }
+  const errorFechas = validarFechasLegajo({
+    fecha_nacimiento: data.fecha_nacimiento,
+    fecha_ingreso: data.fecha_ingreso,
+  });
+  if (errorFechas) return errorFechas.mensaje;
   return null;
 }
 
@@ -44,6 +51,17 @@ export async function addChoferAction(data: {
   rol: "chofer" | "administrativo" | "mantenimiento" | "fletero";
   alta_afip?: string;
   periodo_prueba_fin?: string;
+  fecha_nacimiento?: string;
+  ciudad_nacimiento?: string;
+  domicilio?: string;
+  provincia?: string;
+  telefono_emergencia?: string;
+  banco?: string;
+  cbu?: string;
+  alias_cbu?: string;
+  nro_tramite_dni?: string;
+  clave_fiscal?: string;
+  observaciones?: string;
 }) {
   const user = await requireArea("logistica", "write");
   const supabase = createAdminClient();
@@ -65,6 +83,17 @@ export async function addChoferAction(data: {
     rol: data.rol,
     alta_afip: data.alta_afip || null,
     periodo_prueba_fin: data.periodo_prueba_fin || null,
+    fecha_nacimiento: data.fecha_nacimiento || null,
+    ciudad_nacimiento: data.ciudad_nacimiento?.trim() || null,
+    domicilio: data.domicilio?.trim() || null,
+    provincia: data.provincia?.trim() || null,
+    telefono_emergencia: data.telefono_emergencia?.trim() || null,
+    banco: data.banco?.trim() || null,
+    cbu: data.cbu?.trim() || null,
+    alias_cbu: data.alias_cbu?.trim() || null,
+    nro_tramite_dni: data.nro_tramite_dni?.trim() || null,
+    clave_fiscal: data.clave_fiscal?.trim() || null,
+    observaciones: data.observaciones?.trim() || null,
   };
 
   const { data: inserted, error } = await supabase
@@ -75,7 +104,25 @@ export async function addChoferAction(data: {
 
   if (error) {
     console.error("Error al insertar chofer:", error);
-    return { error: "No se pudo registrar el chofer. Verificá que el DNI no esté duplicado." };
+    // 23505 = esa persona ya tiene legajo (DNI y CUIL son UNIQUE). Decimos cuál
+    // de los dos y de quién es: "verificá que no esté duplicado" mandaba a
+    // cargarlo de nuevo, que es justo como se terminan duplicando las personas.
+    if ((error as { code?: string }).code === "23505") {
+      const esCuil = /cuil/i.test(error.message ?? "");
+      const valor = esCuil ? insertData.cuil : insertData.dni;
+      const { data: dueño } = valor
+        ? await supabase
+            .from("choferes")
+            .select("nombre, apellido")
+            .eq(esCuil ? "cuil" : "dni", valor)
+            .maybeSingle()
+        : { data: null };
+      const deQuien = dueño ? ` Es el legajo de ${dueño.apellido}, ${dueño.nombre}.` : "";
+      return {
+        error: `Ese ${esCuil ? "CUIL" : "DNI"} ya está cargado.${deQuien} Buscalo en el listado y editalo en vez de cargarlo otra vez.`,
+      };
+    }
+    return { error: "No se pudo guardar el legajo. Revisá los datos e intentá de nuevo." };
   }
 
   if (inserted?.id) {
@@ -296,12 +343,21 @@ export async function deleteChoferAction(id: string) {
 
   if (error) {
     console.error("Error al eliminar chofer:", error);
-    return { error: "No se pudo eliminar el chofer. Es posible que tenga registros o viajes asociados." };
+    // 23503 = tiene movimientos colgando (viajes, gastos, documentos…). Borrarlo
+    // se llevaría puesto el historial, así que ese legajo se egresa, no se borra.
+    if ((error as { code?: string }).code === "23503") {
+      return {
+        error:
+          "No se puede eliminar: este legajo ya tiene movimientos cargados (viajes, documentos u otros registros). Usá \"Egresar\" para archivarlo sin perder el historial.",
+      };
+    }
+    return { error: "No se pudo eliminar el legajo. Intentá de nuevo." };
   }
 
   await logChoferAudit(id, "eliminar", previo ?? null, null, user.id);
 
   revalidatePath("/choferes");
+  revalidatePath("/choferes/[slug]", "page");
   return { success: true };
 }
 

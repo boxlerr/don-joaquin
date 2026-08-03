@@ -72,7 +72,9 @@ function enPeriodoPrueba(fechaIngreso?: string | null): boolean {
 
 export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
-  const [rolFilter, setRolFilter] = useState<RolFilter>("chofer");
+  // Entrar a Legajos muestra a TODO el personal: filtrado en "Choferes" de arranque,
+  // administración/mantenimiento/fleteros parecían no existir.
+  const [rolFilter, setRolFilter] = useState<RolFilter>("todos");
   const [orden, setOrden] = useState<OrdenFilter>("apellido_az");
   const [query, setQuery] = useState("");
   const [historialOpen, setHistorialOpen] = useState(false);
@@ -144,7 +146,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
     [filtered, ordenarChoferes],
   );
 
-  const sinFiltros = estadoFilter === "todos" && !query;
+  const sinFiltros = estadoFilter === "todos" && rolFilter === "todos" && !query;
   const hayResultados = filtered.length > 0;
   const totalEgresadosGlobal = useMemo(
     () => choferes.filter((c) => c.estado === "baja").length,
@@ -209,6 +211,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
               type="button"
               onClick={() => {
                 setEstadoFilter("todos");
+                setRolFilter("todos");
                 setQuery("");
                 setOrden("apellido_az");
               }}

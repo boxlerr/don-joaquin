@@ -442,27 +442,14 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             )}
 
             {esBaja ? (
-              <>
-                <button
-                  onClick={handleReactivar}
-                  disabled={actionLoading}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
-                  title="Reactivar chofer"
-                >
-                  <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
-                </button>
-                <button
-                  onClick={() => {
-                    setActionError(null);
-                    setConfirmDelete(true);
-                  }}
-                  disabled={actionLoading}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
-                  title="Eliminar definitivamente del sistema"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </>
+              <button
+                onClick={handleReactivar}
+                disabled={actionLoading}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
+                title="Reactivar chofer"
+              >
+                <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
+              </button>
             ) : (
               <button
                 onClick={handleEgresar}
@@ -473,6 +460,21 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 <LogOut size={14} />
               </button>
             )}
+
+            {/* Eliminar está siempre a mano: un legajo cargado por error se borra
+                el mismo día, sin tener que egresarlo primero para que aparezca
+                el tacho. Si ya tiene movimientos, el server lo impide. */}
+            <button
+              onClick={() => {
+                setActionError(null);
+                setConfirmDelete(true);
+              }}
+              disabled={actionLoading}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
+              title="Eliminar definitivamente del sistema"
+            >
+              <Trash2 size={14} />
+            </button>
           </div>
         </div>
 
@@ -482,7 +484,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             <div className="flex-1">
               <p className="font-semibold">¿Eliminar definitivamente a {chofer.apellido}, {chofer.nombre}?</p>
               <p className="text-red-600/80 mt-0.5">
-                Esta acción no se puede deshacer. Si tiene viajes o registros operativos asociados, el sistema lo va a impedir (queda en el historial).
+                Se borra el legajo entero y no se puede deshacer. Es para los que se cargaron por error:
+                si la persona ya tiene viajes o documentos, el sistema lo impide y hay que usar &quot;Egresar&quot;.
               </p>
               <div className="flex items-center gap-2 mt-2">
                 <button

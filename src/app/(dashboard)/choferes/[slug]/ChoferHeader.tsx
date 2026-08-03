@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SiluetaPersona } from "@/components/ui/AvatarPersona";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -10,7 +11,7 @@ import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircl
 import type { ChoferDetail } from "./types";
 import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
-import { uploadFotoChoferAction, deleteFotoChoferAction } from "../actions";
+import { uploadFotoChoferAction, deleteFotoChoferAction, deleteChoferAction } from "../actions";
 import { updateEgresoAction } from "./actions";
 import ExportarLegajoButton from "./ExportarLegajoButton";
 import { formatFecha } from "@/lib/utils";
@@ -24,10 +25,32 @@ interface Props {
 }
 
 export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, onEditar }: Props) {
+  const router = useRouter();
   const [markingRead, setMarkingRead] = useState(false);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoError, setFotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Eliminar el legajo entero. Está acá porque es donde se termina cuando se
+  // cargó a alguien por error: antes había que egresarlo para que apareciera el
+  // botón en la tarjeta del listado.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleEliminar = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await deleteChoferAction(chofer.id);
+    if (res?.error) {
+      setDeleteError(res.error);
+      setConfirmDelete(false);
+      setDeleting(false);
+      return;
+    }
+    router.push("/choferes");
+    router.refresh();
+  };
 
   // Edición de la información del egreso (solo para choferes dados de baja).
   const [editandoEgreso, setEditandoEgreso] = useState(false);
@@ -326,8 +349,64 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               Editar
             </Button>
           )}
+          {!editing && (
+            <Button
+              variant="outline"
+              className="h-10 border-red-200 px-3 text-sm text-red-600 hover:bg-red-50"
+              onClick={() => {
+                setDeleteError(null);
+                setConfirmDelete(true);
+              }}
+              title="Eliminar este legajo del sistema"
+            >
+              <Trash2 size={15} className="mr-2" />
+              Eliminar
+            </Button>
+          )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="mt-4 rounded-[6px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="font-semibold">
+            ¿Eliminar el legajo de {chofer.apellido}, {chofer.nombre}?
+          </p>
+          <p className="mt-0.5 text-red-600/80">
+            Se borra entero y no se puede deshacer. Es para los que se cargaron por error: si la
+            persona ya tiene viajes o documentos, el sistema lo impide y hay que egresarla.
+          </p>
+          <div className="mt-2.5 flex items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8 bg-red-600 text-white hover:bg-red-700"
+              onClick={handleEliminar}
+              disabled={deleting}
+            >
+              {deleting ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Trash2 size={13} className="mr-1.5" />}
+              Sí, eliminar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-red-200 text-red-700 hover:bg-red-100"
+              onClick={() => setConfirmDelete(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="mt-4 flex items-start gap-2 rounded-[6px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
+          <span className="flex-1">{deleteError}</span>
+          <button type="button" onClick={() => setDeleteError(null)} className="hover:underline">
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {/* Antes eran 7 columnas fijas y el texto se cortaba en "Ingreso: 01/09/20…".
           Ahora fluye y cada dato ocupa lo que necesita. */}
