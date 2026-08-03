@@ -7,6 +7,7 @@ import {
   Percent,
   CalendarClock,
   CalendarDays,
+  CalendarPlus,
   PiggyBank,
   AlertTriangle,
   Bell,
@@ -437,6 +438,47 @@ function MockProgreso() {
 }
 
 
+function MockCorregirCronograma() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <span className="size-6 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+          <ListChecks size={12} />
+        </span>
+        <span className="text-[11px] font-bold text-foreground">Cuotas</span>
+      </div>
+      <div className="p-3 space-y-2.5">
+        <div className="text-[10px] text-foreground">
+          <b>1</b> cuota cargada · <b>1</b> pagada
+        </div>
+        <div className="border-l-2 border-[#B45309] pl-2 text-[9px] leading-snug text-[#B45309]">
+          Figura como <b>Cancelado</b> porque no le queda ninguna cuota por pagar.
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-semibold text-muted-foreground inline-flex items-center gap-1">
+            <CalendarPlus size={10} className="text-primary" /> Agregar meses
+          </span>
+          <span className="h-6 w-10 rounded border border-border bg-card text-[10px] text-foreground inline-flex items-center px-2">
+            11
+          </span>
+          <span className="text-[9px] text-muted-foreground">→ serían 12 en total</span>
+        </div>
+        <div className="inline-flex rounded border border-border overflow-hidden">
+          <span className="h-5 px-2 text-[9px] bg-[#0088D1] text-white font-medium inline-flex items-center">
+            Ya se pagaron
+          </span>
+          <span className="h-5 px-2 text-[9px] text-muted-foreground inline-flex items-center">
+            Vienen después
+          </span>
+        </div>
+        <div className="text-[9px] text-muted-foreground">
+          Se agregan 11 cuotas ya pagadas, de 29/09/2025 a 29/07/2026.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===========================================================================
 // Tabs
 // ===========================================================================
@@ -536,6 +578,13 @@ const TABS: TutorialTab[] = [
         description:
           "En la tabla cada préstamo muestra la barra de avance (43/48), la próxima cuota y cuánto falta pagar en total. Al saldar la última, la próxima dice “Cancelado”.",
         mockup: <MockProgreso />,
+      },
+      {
+        title: "Si eran más cuotas de las que dice",
+        description:
+          "Con el lápiz del préstamo, en “Cuotas”: ponés cuántos meses faltan y decís si ya se pagaron o si vienen después. “Ya se pagaron” los mete antes de la primera (el que entró como 1 de 1 y en verdad es la 12 de 12); “Vienen después” los agenda a partir de la última.",
+        mockup: <MockCorregirCronograma />,
+        hint: "Ahí también se arregla el que dice “Cancelado” sin estarlo: destildás la última y vuelve a los vencimientos.",
       },
     ],
   },

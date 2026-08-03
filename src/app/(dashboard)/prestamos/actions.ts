@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { canonizarBanco } from "./bancos";
 import { FALTANTES, siguePendiente, type Faltante } from "./faltantes";
 import { mergeTopes, TOPES_CLAVE, type TopesConfig } from "./topes";
+import { addMonths, armarCronograma, mesesAlFinal, mesesAlInicio } from "./cronograma";
 import { getCalendario } from "@/lib/feriados-server";
 import { corrimiento } from "@/lib/feriados";
 
@@ -71,20 +72,6 @@ export type PrestamoRow = {
   restante: number; // $ que falta pagar (cuotas no pagadas)
   proxima: CuotaRow | null;
 };
-
-/**
- * Suma meses manteniendo el día de la cuota (con clamp a fin de mes: una cuota
- * que vence el 31 cae al 30/28 en los meses cortos, como hacen los bancos).
- */
-function addMonths(fechaISO: string, meses: number): string {
-  const [y, m, d] = fechaISO.split("-").map(Number);
-  const base = new Date(y!, m! - 1 + meses, 1);
-  const ultimoDia = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
-  base.setDate(Math.min(d!, ultimoDia));
-  const mm = String(base.getMonth() + 1).padStart(2, "0");
-  const dd = String(base.getDate()).padStart(2, "0");
-  return `${base.getFullYear()}-${mm}-${dd}`;
-}
 
 /**
  * Grafías de banco ya en uso. Sirve para que escribir "galicia" en el alta no
@@ -360,12 +347,14 @@ export async function addPrestamoAction(input: {
     return { error: "No se pudo crear el préstamo." };
   }
 
-  const cuotas = Array.from({ length: cuotasTotal }, (_, i) => ({
+  // Las anteriores a la próxima ya se pagaron: el cronograma se reconstruye
+  // completo, para atrás y para adelante.
+  const cuotas = armarCronograma({ cuotasTotal, proximaNro, proximaFecha }).map((c) => ({
     prestamo_id: prestamo.id,
-    nro: i + 1,
-    fecha_vencimiento: addMonths(proximaFecha, i + 1 - proximaNro),
+    nro: c.nro,
+    fecha_vencimiento: c.fecha_vencimiento,
     importe: input.importe_cuota,
-    pagada: i + 1 < proximaNro, // las anteriores a la próxima ya se pagaron
+    pagada: c.pagada,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -562,6 +551,266 @@ export async function updatePrestamoAction(
 
   revalidatePath("/prestamos");
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * El cronograma se corrige después
+ *
+ * La planilla no siempre entra bien de una: un préstamo que sigue vivo puede
+ * haber quedado cargado como "1 de 1", o estirarse porque se refinanció. Sin
+ * forma de tocar la cantidad de cuotas, el único camino era borrar el préstamo
+ * y volver a cargarlo — perdiendo el historial de pagos.
+ * ------------------------------------------------------------------ */
+
+/** Cuántos meses se pueden sumar de una vez: más que esto es un error de tipeo. */
+const MAX_MESES_A_AGREGAR = 120;
+
+/**
+ * Le agrega meses al cronograma, una cuota por mes y con el importe de cuota
+ * que tenga el préstamo. No pisa ninguna de las que ya estaban.
+ *
+ * Van a un lado o al otro según qué falte, que no es lo mismo:
+ *
+ *   - `final`  → el préstamo que se estiró. Siguen desde la última cargada y
+ *                nacen impagas.
+ *   - `inicio` → el préstamo que entró recortado, con la ÚLTIMA cuota como si
+ *                fuera la única ("1 de 1" que en realidad es 12 de 12). Las que
+ *                faltan son historia: van antes, ya pagadas, y las que estaban
+ *                se corren para pasar a ser las últimas.
+ */
+export async function agregarCuotasAction(
+  id: string,
+  input: { meses: number; donde: "final" | "inicio" },
+): Promise<{ ok: true; agregadas: number } | { error: string }> {
+  const user = await requireSeccion("prestamos", "write");
+  const meses = Math.trunc(input.meses);
+  if (!Number.isInteger(meses) || meses < 1) return { error: "Indicá cuántos meses agregar." };
+  if (meses > MAX_MESES_A_AGREGAR)
+    return { error: `Se pueden agregar hasta ${MAX_MESES_A_AGREGAR} meses de una vez.` };
+  const alInicio = input.donde === "inicio";
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: prestamo } = await (supabase as any)
+    .from("prestamos")
+    .select("id, banco, importe_cuota, cuotas_total, es_recurrente")
+    .eq("id", id)
+    .single();
+  if (!prestamo) return { error: "No se encontró el préstamo." };
+  if (prestamo.es_recurrente)
+    return { error: "Es un pago mensual sin fin: las cuotas se reponen solas." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: actuales } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, nro, fecha_vencimiento")
+    .eq("prestamo_id", id);
+  const cuotas = (actuales ?? []) as { id: string; nro: number; fecha_vencimiento: string }[];
+
+  const nuevas = alInicio ? mesesAlInicio(cuotas, meses) : mesesAlFinal(cuotas, meses);
+  if (nuevas.length === 0)
+    return {
+      error: "El préstamo no tiene ninguna cuota cargada: usá «Rehacer el cronograma».",
+    };
+
+  // Para meterlas adelante hay que correr las que ya están. Se va de la más
+  // alta a la más baja: el número es único por préstamo y así el destino
+  // siempre está libre.
+  if (alInicio) {
+    for (const c of [...cuotas].sort((a, b) => b.nro - a.nro)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("prestamo_cuotas")
+        .update({ nro: c.nro + meses })
+        .eq("id", c.id);
+      if (error) {
+        console.error("Error al correr la numeración de las cuotas:", error);
+        return { error: "No se pudieron renumerar las cuotas. Revisá el cronograma." };
+      }
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("prestamo_cuotas").insert(
+    nuevas.map((c) => ({
+      prestamo_id: id,
+      nro: c.nro,
+      fecha_vencimiento: c.fecha_vencimiento,
+      importe: Number(prestamo.importe_cuota),
+      // Las de atrás son historia; las de adelante todavía no se pagaron.
+      pagada: alInicio,
+    })),
+  );
+  if (error) {
+    console.error("Error al agregar cuotas:", error);
+    return { error: "No se pudieron agregar las cuotas." };
+  }
+
+  const total = cuotas.length + nuevas.length;
+  const update: Record<string, unknown> = { cuotas_total: total };
+  // El primer vencimiento pasa a ser el de la cuota más vieja de todas.
+  if (alInicio) update.primer_vencimiento = nuevas[0]!.fecha_vencimiento;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from("prestamos").update(update).eq("id", id);
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "prestamo",
+    entidadId: id,
+    valoresAnteriores: { cuotas_total: Number(prestamo.cuotas_total) },
+    valoresNuevos: {
+      cuotas_total: total,
+      agregadas: nuevas.length,
+      donde: input.donde,
+      desde: nuevas[0]!.fecha_vencimiento,
+      hasta: nuevas.at(-1)!.fecha_vencimiento,
+    },
+    metadata: { origen: "prestamos", operacion: "agregar_cuotas" },
+  });
+
+  revalidatePath("/prestamos");
+  return { ok: true, agregadas: nuevas.length };
+}
+
+/**
+ * Vuelve a armar el cronograma entero con los tres números del alta: cuántas
+ * cuotas son, por cuál va y cuándo vence esa. Es lo que hace falta cuando las
+ * que faltan están en el PASADO — el préstamo de 12 cuotas que entró como una
+ * sola: agregarlas al final las pondría en 2027, y en realidad ya se pagaron.
+ *
+ * De las cuotas que ya existen se conserva el importe (que en las variables es
+ * lo que se pagó de verdad); lo que se recalcula es la fecha y si está paga.
+ * Las que sobran se borran.
+ */
+export async function rehacerCronogramaAction(
+  id: string,
+  input: { cuotas_total: number; proxima_cuota_nro: number; proxima_fecha: string },
+): Promise<{ ok: true; agregadas: number; borradas: number } | { error: string }> {
+  const user = await requireSeccion("prestamos", "write");
+
+  const cuotasTotal = Math.trunc(input.cuotas_total);
+  const proximaNro = Math.trunc(input.proxima_cuota_nro);
+  if (!Number.isInteger(cuotasTotal) || cuotasTotal <= 0)
+    return { error: "La cantidad de cuotas debe ser un entero mayor a cero." };
+  if (cuotasTotal > 600) return { error: "Son demasiadas cuotas: revisá el número." };
+  // Una más que el total = préstamo terminado, todas pagadas. Es válido.
+  if (proximaNro < 1 || proximaNro > cuotasTotal + 1)
+    return { error: `La próxima cuota tiene que estar entre 1 y ${cuotasTotal + 1}.` };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.proxima_fecha))
+    return { error: "Indicá la fecha de la próxima cuota." };
+
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: prestamo } = await (supabase as any)
+    .from("prestamos")
+    .select("id, banco, importe_cuota, cuotas_total, es_recurrente")
+    .eq("id", id)
+    .single();
+  if (!prestamo) return { error: "No se encontró el préstamo." };
+  if (prestamo.es_recurrente)
+    return {
+      error: "Es un pago mensual sin fin: el cronograma se repone solo, no hace falta rehacerlo.",
+    };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: actuales } = await (supabase as any)
+    .from("prestamo_cuotas")
+    .select("id, nro, pagada, pagada_en")
+    .eq("prestamo_id", id);
+  const existentes = new Map(
+    ((actuales ?? []) as { id: string; nro: number; pagada: boolean; pagada_en: string | null }[])
+      .map((c) => [c.nro, c]),
+  );
+
+  const plan = armarCronograma({ cuotasTotal, proximaNro, proximaFecha: input.proxima_fecha });
+
+  // Las que sobran (el préstamo tenía más cuotas de las que resultan ser).
+  const sobran = [...existentes.values()].filter((c) => c.nro > cuotasTotal);
+  if (sobran.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("prestamo_cuotas")
+      .delete()
+      .in(
+        "id",
+        sobran.map((c) => c.id),
+      );
+    if (error) {
+      console.error("Error al borrar las cuotas sobrantes:", error);
+      return { error: "No se pudo rehacer el cronograma." };
+    }
+  }
+
+  // Las que ya existen: se les corrige la fecha y si está paga. Si deja de
+  // estarlo, se le borra el día de pago — ese pago no existió.
+  for (const c of plan) {
+    const previa = existentes.get(c.nro);
+    if (!previa) continue;
+    const update: Record<string, unknown> = { fecha_vencimiento: c.fecha_vencimiento };
+    if (previa.pagada !== c.pagada) {
+      update.pagada = c.pagada;
+      if (!c.pagada) update.pagada_en = null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("prestamo_cuotas")
+      .update(update)
+      .eq("id", previa.id);
+    if (error) {
+      console.error("Error al rehacer una cuota:", error);
+      return { error: "No se pudieron corregir todas las cuotas. Revisá y probá de nuevo." };
+    }
+  }
+
+  // Las que faltaban.
+  const faltan = plan.filter((c) => !existentes.has(c.nro));
+  if (faltan.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).from("prestamo_cuotas").insert(
+      faltan.map((c) => ({
+        prestamo_id: id,
+        nro: c.nro,
+        fecha_vencimiento: c.fecha_vencimiento,
+        importe: Number(prestamo.importe_cuota),
+        pagada: c.pagada,
+      })),
+    );
+    if (error) {
+      console.error("Error al crear las cuotas que faltaban:", error);
+      return { error: "No se pudieron crear las cuotas que faltaban." };
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
+    .from("prestamos")
+    .update({
+      cuotas_total: cuotasTotal,
+      primer_vencimiento: addMonths(input.proxima_fecha, -(proximaNro - 1)),
+    })
+    .eq("id", id);
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "prestamo",
+    entidadId: id,
+    valoresAnteriores: { cuotas_total: Number(prestamo.cuotas_total), cuotas: existentes.size },
+    valoresNuevos: {
+      cuotas_total: cuotasTotal,
+      proxima_cuota_nro: proximaNro,
+      proxima_fecha: input.proxima_fecha,
+      agregadas: faltan.length,
+      borradas: sobran.length,
+    },
+    metadata: { origen: "prestamos", operacion: "rehacer_cronograma" },
+  });
+
+  revalidatePath("/prestamos");
+  return { ok: true, agregadas: faltan.length, borradas: sobran.length };
 }
 
 export async function updateCuotaAction(
