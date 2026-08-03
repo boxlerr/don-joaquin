@@ -13,6 +13,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { choferSlug } from "@/lib/chofer-slug";
@@ -280,12 +281,26 @@ async function liveDesdeViajes(
   flotaDe: (choferId: string) => Flota | null,
 ): Promise<{ choferes: MetricaChofer[]; info: LiveInfo } | null> {
   const hasta = addMonths(mes, 1);
-  const { data, error } = await supabase
-    .from("viajes")
-    .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio, tonelaje_real, es_vacio, chofer:choferes(id, nombre, apellido)")
-    .gte("fecha_viaje", mes)
-    .lt("fecha_viaje", hasta);
-  if (error || !data?.length) return null;
+  // Un mes cargado pasa las 1000 filas (abril-26: 1322). Sin paginar, las
+  // métricas en vivo salían calculadas sobre las primeras 1000 y nada avisaba.
+  let data: any[];
+  try {
+    data = await traerTodo(
+      (from, to) =>
+        supabase
+          .from("viajes")
+          .select("chofer_id, km_con_carga, km_vacios, monto_flete, moneda, tipo_cambio, tonelaje_real, es_vacio, chofer:choferes(id, nombre, apellido)")
+          .gte("fecha_viaje", mes)
+          .lt("fecha_viaje", hasta)
+          .order("codigo", { ascending: true })
+          .range(from, to),
+      { etiqueta: `métricas en vivo de ${mes}` },
+    );
+  } catch (e) {
+    console.error("[métricas en vivo] no se pudieron leer los viajes:", e);
+    return null;
+  }
+  if (!data.length) return null;
 
   type Acc = { nombre: string; slug: string; km: number; kmVacios: number; facturacion: number; tonSum: number; tonCount: number };
   const porChofer = new Map<string, Acc>();
@@ -390,13 +405,22 @@ export async function getMetricasAction(month?: string, compareMonth?: string): 
   const desdeVentana = mesInteranual; // 13 meses: mes visto + 12 hacia atrás
 
   const [ventanaRes, agregadosRes, costoRes, aumentosRes] = await Promise.all([
-    (supabase as any)
-      .from("metricas_chofer_mes")
-      .select(
-        "mes, chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
-      )
-      .gte("mes", desdeVentana)
-      .lte("mes", mes),
+    // 13 meses × la flota entera se acerca a las 1000 filas y la va a pasar en
+    // cuanto crezca la flota: pagina, y se sigue viendo la ventana completa.
+    traerTodo(
+      (from, to) =>
+        (supabase as any)
+          .from("metricas_chofer_mes")
+          .select(
+            "mes, chofer_nombre, chofer_id, flota, escal_tipo, km_totales, km_vacios, km_100, facturacion, sueldo_total, sueldo_neto, toneladas_prom, ingreso_parcial, retenciones, adelantos, devol_prestamo, embargo_judicial, aguinaldo",
+          )
+          .gte("mes", desdeVentana)
+          .lte("mes", mes)
+          .order("mes", { ascending: true })
+          .order("chofer_nombre", { ascending: true })
+          .range(from, to),
+      { etiqueta: "ventana de 13 meses" },
+    ).then((data) => ({ data })),
     (supabase as any)
       .from("metricas_mes")
       .select("mes, flota, km, facturacion, fact_km, km_vacios, km_100, sueldo_total, toneladas_prom")

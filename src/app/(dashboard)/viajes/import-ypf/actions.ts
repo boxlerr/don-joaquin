@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerEnLotes } from "@/lib/supabase/traer-todo";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 import { requireArea } from "@/lib/auth";
 import { parseYpfPdf, type YpfTarifa } from "./parser-ypf";
@@ -83,11 +84,20 @@ type ViajeMatch = {
 async function matchViajesPorRemito(supabase: Admin, remitos: string[]): Promise<Map<string, ViajeMatch>> {
   const map = new Map<string, ViajeMatch>();
   if (remitos.length === 0) return map;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any)
-    .from("viajes")
-    .select("id, codigo, nro_remito, monto_flete, tonelaje_real, es_vacio, choferes(nombre, apellido)")
-    .in("nro_remito", remitos);
+  // En lotes y paginado: un DM grande dejaba afuera los remitos que caían más
+  // allá de la fila 1000 y esos viajes se reportaban como "sin viaje".
+  const data = await traerEnLotes(
+    remitos,
+    (lote, from, to) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("viajes")
+        .select("id, codigo, nro_remito, monto_flete, tonelaje_real, es_vacio, choferes(nombre, apellido)")
+        .in("nro_remito", lote)
+        .order("codigo", { ascending: true })
+        .range(from, to),
+    { etiqueta: "viajes por remito" },
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const r of (data ?? []) as any[]) {
     const key = onlyDigits(r.nro_remito);

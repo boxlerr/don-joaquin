@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
 import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
 
@@ -836,12 +837,21 @@ export async function generarAlertas() {
   // Galicia, cuota 44 de 48"). Disparos discretos 7 días / 1 día / vencida;
   // se apagan al tildar la cuota como pagada.
   // `as any`: prestamo_cuotas es tabla nueva, aún no está en database.ts.
+  // Paginado: hoy son 852 cuotas impagas de préstamos activos, a un paso de las
+  // 1000. Si se corta, hay cuotas que simplemente nunca generan alerta.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: cuotasPrestamo } = await (supabase as any)
-    .from("prestamo_cuotas")
-    .select("id, nro, fecha_vencimiento, importe, prestamo:prestamos!inner(banco, tasa, cuotas_total, estado)")
-    .eq("pagada", false)
-    .eq("prestamo.estado", "activo");
+  const cuotasPrestamo = await traerTodo<any>(
+    (from, to) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("prestamo_cuotas")
+        .select("id, nro, fecha_vencimiento, importe, prestamo:prestamos!inner(banco, tasa, cuotas_total, estado)")
+        .eq("pagada", false)
+        .eq("prestamo.estado", "activo")
+        .order("id", { ascending: true })
+        .range(from, to),
+    { etiqueta: "cuotas de préstamo impagas" },
+  );
 
   for (const cu of (cuotasPrestamo ?? []) as {
     id: string;
@@ -1051,12 +1061,19 @@ export async function generarAlertas() {
     if (topeMes != null) {
       const finVentana = new Date(hoy.getFullYear(), hoy.getMonth() + 6, 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: cuotasTope } = await (supabase as any)
-        .from("prestamo_cuotas")
-        .select("fecha_vencimiento, importe")
-        .eq("pagada", false)
-        .gte("fecha_vencimiento", hoyStr)
-        .lte("fecha_vencimiento", finVentana.toISOString().split("T")[0]!);
+      const cuotasTope = await traerTodo<any>(
+        (from, to) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("prestamo_cuotas")
+            .select("fecha_vencimiento, importe")
+            .eq("pagada", false)
+            .gte("fecha_vencimiento", hoyStr)
+            .lte("fecha_vencimiento", finVentana.toISOString().split("T")[0]!)
+            .order("id", { ascending: true })
+            .range(from, to),
+        { etiqueta: "cuotas para el tope mensual" },
+      );
 
       const porMes = new Map<string, number>();
       for (const c of (cuotasTope ?? []) as { fecha_vencimiento: string; importe: number }[]) {

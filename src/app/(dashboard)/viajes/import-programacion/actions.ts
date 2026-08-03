@@ -2,6 +2,7 @@
 
 import ExcelJS from "exceljs";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerEnLotes } from "@/lib/supabase/traer-todo";
 import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -155,13 +156,25 @@ export async function previewProgramacionAction(
   }
 
   const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existentes, error } = await (supabase as any)
-    .from("viajes")
-    .select("nro_transporte")
-    .in("nro_transporte", filas.map((f) => f.nroTransporte));
-  if (error) {
-    console.error("[programación] no se pudo chequear los existentes:", error);
+  // Este chequeo decide qué se inserta: si devuelve de menos, los viajes que no
+  // vuelven se toman por nuevos y se cargan duplicados. Por eso va en lotes y
+  // paginado, no en una sola consulta que el REST corta en 1000.
+  let existentes: { nro_transporte: string | null }[];
+  try {
+    existentes = await traerEnLotes(
+      filas.map((f) => f.nroTransporte),
+      (lote, from, to) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("viajes")
+          .select("nro_transporte")
+          .in("nro_transporte", lote)
+          .order("codigo", { ascending: true })
+          .range(from, to),
+      { etiqueta: "viajes ya cargados" },
+    );
+  } catch (e) {
+    console.error("[programación] no se pudo chequear los existentes:", e);
     return { error: "No se pudo verificar qué viajes ya estaban cargados." };
   }
   const yaCargados = new Set(

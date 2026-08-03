@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { requireSeccion } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 
@@ -42,13 +43,21 @@ export async function getSueldosResumenAction(month?: string): Promise<SueldoCho
   const supabase = createAdminClient();
   const { desde, hasta } = getRangoMes(month);
 
-  const { data } = await (supabase as any)
-    .from("viajes")
-    .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, zona")
-    .eq("estado", "cerrado")
-    .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta)
-    .not("chofer_id", "is", null);
+  // Paginado: un mes cargado se acerca a las 1000 filas (abril-26: 622 sólo
+  // entre los cerrados). Sin esto los sueldos salen sobre parte de los viajes.
+  const data = await traerTodo<any>(
+    (from, to) =>
+      (supabase as any)
+        .from("viajes")
+        .select("chofer_id, km_con_carga, km_vacios, tonelaje_real, zona")
+        .eq("estado", "cerrado")
+        .gte("fecha_viaje", desde)
+        .lte("fecha_viaje", hasta)
+        .not("chofer_id", "is", null)
+        .order("codigo", { ascending: true })
+        .range(from, to),
+    { etiqueta: "viajes cerrados del mes" },
+  );
 
   const rows = (data ?? []) as {
     chofer_id: string; km_con_carga: number; km_vacios: number; tonelaje_real: number | null; zona: string | null;

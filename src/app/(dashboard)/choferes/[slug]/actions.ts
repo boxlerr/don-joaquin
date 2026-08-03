@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { requireArea, requireSeccion, requireUser, requireAdmin, hasArea, hasSeccion } from "@/lib/auth";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { revalidatePath } from "next/cache";
@@ -223,13 +224,21 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
       .limit(1)
       .maybeSingle(),
 
-    // Ranking: viajes de todos los choferes activos este mes (para calcular posición)
-    supabase
-      .from("viajes")
-      .select("chofer_id, km_con_carga, km_vacios")
-      .gte("fecha_viaje", primerDia)
-      .lte("fecha_viaje", ultimoDia)
-      .not("chofer_id", "is", null),
+    // Ranking: viajes de todos los choferes activos este mes (para calcular posición).
+    // Son TODOS los viajes del mes, no los de un chofer: pasa las 1000 filas
+    // (abril-26: 1320) y sin paginar la posición salía calculada de menos.
+    traerTodo(
+      (from, to) =>
+        supabase
+          .from("viajes")
+          .select("chofer_id, km_con_carga, km_vacios")
+          .gte("fecha_viaje", primerDia)
+          .lte("fecha_viaje", ultimoDia)
+          .not("chofer_id", "is", null)
+          .order("codigo", { ascending: true })
+          .range(from, to),
+      { etiqueta: "ranking del mes" },
+    ).then((data) => ({ data })),
 
     // Apercibimientos del mes de todos los choferes (para el score legacy del legajo).
     // Solo los que pesan en "apercibimientos" (apercibimiento/multa); los eventos de

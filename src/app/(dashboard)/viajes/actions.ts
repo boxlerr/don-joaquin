@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { logAudit } from "@/lib/audit";
 import { coincideEnAlguno } from "@/lib/texto";
 import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
+import { mezclarObservaciones } from "./mezclar-observaciones";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
@@ -1269,85 +1271,98 @@ export async function getAllViajesForExportAction(params?: ExportViajesParams) {
   const { choferId, desde, hasta, facturado, esVacio, incompleto, falta, search, destino } =
     params ?? {};
   const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (supabase as any)
-    .from("viajes")
-    .select(
-      `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, monto_flete, moneda, observaciones, nro_viaje_ypf,
-       clientes(razon_social),
-       chofer:choferes(nombre, apellido),
-       camion:camiones(patente, marca, modelo),
-       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
-       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`
-    )
-    .order("fecha_viaje", { ascending: false });
 
-  if (choferId) {
-    query = query.eq("chofer_id", choferId);
-  }
+  // Las dos lecturas auxiliares van una sola vez, no en cada página.
+  const orFilter = search ? await buildSearchOrFilter(supabase, search) : null;
 
-  if (desde) {
-    query = query.gte("fecha_viaje", desde);
-  }
-
-  if (hasta) {
-    query = query.lte("fecha_viaje", hasta);
-  }
-
-  // Igual que el listado: solo se excluyen los cancelados (soft-delete).
-  query = query.neq("estado", "cancelado");
-
-  if (typeof facturado === "boolean") {
-    query = query.eq("facturado", facturado);
-  }
-
-  if (typeof esVacio === "boolean") {
-    query = query.eq("es_vacio", esVacio);
-  }
-
-  if (incompleto) {
-    query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
-  }
-
-  // Mismos criterios que el listado, para que exportar lo filtrado dé lo mismo.
-  if (falta === "km") {
-    query = query
-      .or("km_con_carga.is.null,km_con_carga.eq.0")
-      .or("km_vacios.is.null,km_vacios.eq.0");
-  } else if (falta === "monto") {
-    query = query.eq("es_vacio", false).or("monto_flete.is.null,monto_flete.lte.0");
-  } else if (falta === "tonelaje") {
-    query = query.eq("es_vacio", false).or("tonelaje_real.is.null,tonelaje_real.lte.0");
-  } else if (falta === "chofer") {
-    query = query.is("chofer_id", null);
-  }
-
-  if (search) {
-    const orFilter = await buildSearchOrFilter(supabase, search);
-    query = query.or(orFilter);
-  }
-
-  // Exportar lo filtrado tiene que dar lo mismo que muestra la pantalla.
+  let destinoIds: string[] | null = null;
   if (destino?.trim()) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: puntos } = await (supabase as any)
       .from("puntos_ruta")
       .select("id")
       .ilike("nombre", destino.trim());
-    const ids = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
-    query = ids.length
-      ? query.in("destino_id", ids)
-      : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
+    destinoIds = ((puntos ?? []) as { id: string }[]).map((p) => p.id);
   }
 
-  const { data, error } = await query;
+  // La consulta se rearma en cada página: el paginado necesita repetir los
+  // mismos filtros, y un builder de Supabase no se puede reusar entre páginas.
+  const armar = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase as any)
+      .from("viajes")
+      .select(
+        `id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, monto_flete, moneda, observaciones, nro_viaje_ypf,
+       clientes(razon_social),
+       chofer:choferes(nombre, apellido),
+       camion:camiones(patente, marca, modelo),
+       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
+       destino:puntos_ruta!viajes_destino_id_fkey(nombre)`
+      )
+      .order("fecha_viaje", { ascending: false })
+      // Desempate por código (secuencial y único): además de dejar la ida antes
+      // que su vuelta vacía, le da al paginado un orden estable — sin eso las
+      // páginas se pisan entre sí y el Excel sale con filas repetidas y faltantes.
+      .order("codigo", { ascending: true });
 
-  if (error) {
-    console.error("Error al obtener viajes para exportación:", error);
-    throw new Error("No se pudieron cargar los datos para exportar.");
-  }
+    if (choferId) {
+      query = query.eq("chofer_id", choferId);
+    }
 
-  return data ?? [];
+    if (desde) {
+      query = query.gte("fecha_viaje", desde);
+    }
+
+    if (hasta) {
+      query = query.lte("fecha_viaje", hasta);
+    }
+
+    // Igual que el listado: solo se excluyen los cancelados (soft-delete).
+    query = query.neq("estado", "cancelado");
+
+    if (typeof facturado === "boolean") {
+      query = query.eq("facturado", facturado);
+    }
+
+    if (typeof esVacio === "boolean") {
+      query = query.eq("es_vacio", esVacio);
+    }
+
+    if (incompleto) {
+      query = query.or("origen_id.is.null,destino_id.is.null,chofer_id.is.null");
+    }
+
+    // Mismos criterios que el listado, para que exportar lo filtrado dé lo mismo.
+    if (falta === "km") {
+      query = query
+        .or("km_con_carga.is.null,km_con_carga.eq.0")
+        .or("km_vacios.is.null,km_vacios.eq.0");
+    } else if (falta === "monto") {
+      query = query.eq("es_vacio", false).or("monto_flete.is.null,monto_flete.lte.0");
+    } else if (falta === "tonelaje") {
+      query = query.eq("es_vacio", false).or("tonelaje_real.is.null,tonelaje_real.lte.0");
+    } else if (falta === "chofer") {
+      query = query.is("chofer_id", null);
+    }
+
+    if (orFilter) {
+      query = query.or(orFilter);
+    }
+
+    // Exportar lo filtrado tiene que dar lo mismo que muestra la pantalla.
+    if (destinoIds) {
+      query = destinoIds.length
+        ? query.in("destino_id", destinoIds)
+        : query.eq("destino_id", "00000000-0000-0000-0000-000000000000");
+    }
+
+    return query;
+  };
+
+  // Un export que trae 1000 de 1540 es peor que uno que falla: nadie nota que
+  // le faltan filas.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return traerTodo<any>((from, to) => armar().range(from, to), { etiqueta: "export de viajes" });
 }
 
 // ============================================================================
@@ -1737,6 +1752,8 @@ export type ViajeParaEditar = {
   descripcion_otros: string | null;
   nro_viaje_ypf: string | null;
   material: string | null;
+  /** Tramo vacío (la vuelta sin carga): define dónde van los km y que no factura. */
+  es_vacio: boolean;
 };
 
 export async function getViajeParaEditarAction(
@@ -1752,7 +1769,7 @@ export async function getViajeParaEditarAction(
        cliente_id, chofer_id, camion_id, tipo_carga_id, ruta_id,
        origen_id, destino_id,
        km_con_carga, km_vacios, ruta_via, tonelaje_real, monto_flete, tarifa_id, observaciones,
-       nro_viaje_ypf, material,
+       nro_viaje_ypf, material, es_vacio,
        origen:puntos_ruta!viajes_origen_id_fkey(nombre),
        destino:puntos_ruta!viajes_destino_id_fkey(nombre)`,
     )
@@ -1791,6 +1808,7 @@ export async function getViajeParaEditarAction(
     descripcion_otros: otrosMatch ? otrosMatch[1].trim() : null,
     nro_viaje_ypf: data.nro_viaje_ypf ?? null,
     material: data.material ?? extractMaterialFromObs(data.observaciones),
+    es_vacio: !!data.es_vacio,
   };
 }
 
@@ -1826,6 +1844,8 @@ export async function updateViajeAction(
     tarifa_id?: string | null;
     nro_viaje_ypf: string | null;
     material: string | null;
+    /** Tramo vacío. Si no viene, se conserva el que ya tenía el viaje. */
+    es_vacio?: boolean;
   },
 ): Promise<UpdateViajeState> {
 
@@ -1885,7 +1905,7 @@ export async function updateViajeAction(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: previo } = await (supabase as any)
     .from("viajes")
-    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, ruta_via, tonelaje_real, monto_flete, es_vacio, cobrado, facturado")
+    .select("fecha_viaje, estado, cliente_id, chofer_id, camion_id, tipo_carga_id, origen_id, destino_id, km_con_carga, km_vacios, ruta_via, tonelaje_real, monto_flete, es_vacio, cobrado, facturado, observaciones")
     .eq("id", id)
     .single();
 
@@ -1913,17 +1933,27 @@ export async function updateViajeAction(
   }
 
   let realTipoCargaId = parsed.data.tipo_carga_id;
-  const notasAdicionales: string[] = [];
-
-  if (realTipoCargaId === "otros" && data.descripcion_otros) {
-    notasAdicionales.push(`Carga (Otros): ${data.descripcion_otros}`);
-  }
 
   try {
     realTipoCargaId = await resolveTipoCargaId(supabase, realTipoCargaId);
   } catch (e) {
     console.error("Error resolviendo el tipo de carga:", e);
     return { error: "No se pudo resolver el tipo de carga seleccionado." };
+  }
+
+  // La descripción de "Otros" se decide por el tipo YA RESUELTO: al editar, el
+  // diálogo manda el uuid del tipo (no el literal "otros"), así que compararlo
+  // contra el string tiraba la descripción que el operador acababa de escribir.
+  const notasAdicionales: string[] = [];
+  if (data.descripcion_otros?.trim()) {
+    const { data: tipoRow } = await supabase
+      .from("tipos_carga")
+      .select("nombre")
+      .eq("id", realTipoCargaId)
+      .single();
+    if ((tipoRow?.nombre ?? "").trim().toLowerCase() === "otros") {
+      notasAdicionales.push(`Carga (Otros): ${data.descripcion_otros.trim()}`);
+    }
   }
 
   // Origen/destino viven en origen_id/destino_id (fuente de verdad), no en observaciones.
@@ -1937,8 +1967,20 @@ export async function updateViajeAction(
     destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
   }
 
-  const observacionesDB =
-    notasAdicionales.length > 0 ? notasAdicionales.join(" | ") : null;
+  // `observaciones` es una columna compartida: ahí viven la nota libre que
+  // escribe el operador en el detalle, la observación del cierre, la marca
+  // "Tramo 2 de V-…" y los segmentos legados de los importados. Editar un viaje
+  // sólo puede tocar SU segmento ("Carga (Otros): …"); todo lo demás se conserva.
+  // Antes se reescribía la columna entera y la nota desaparecía sin aviso.
+  const observacionesDB = mezclarObservaciones(
+    (previo?.observaciones as string | null) ?? null,
+    notasAdicionales,
+  );
+
+  // Un tramo vacío no factura (facturado = !esVacio && monto > 0). Hasta ahora
+  // el editar nunca escribía esta columna: un viaje cargado por error como vacío
+  // no había forma de corregirlo, y la plata que le cargaran quedaba escondida.
+  const esVacio = data.es_vacio ?? !!previo?.es_vacio;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
@@ -1963,10 +2005,11 @@ export async function updateViajeAction(
       observaciones: observacionesDB,
       nro_viaje_ypf: parsed.data.nro_viaje_ypf ?? null,
       material: parsed.data.material || null,
+      es_vacio: esVacio,
       // Regla unificada: facturado se deriva del monto, y cobrado es su espejo
       // (no hay flujo de cobro aparte — 03/07/2026).
-      facturado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
-      cobrado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
+      facturado: viajeEstaFacturado(parsed.data.monto_flete, esVacio),
+      cobrado: viajeEstaFacturado(parsed.data.monto_flete, esVacio),
     })
     .eq("id", id);
 
@@ -1993,8 +2036,10 @@ export async function updateViajeAction(
       ruta_via: parsed.data.ruta_via ?? null,
       tonelaje_real: parsed.data.tonelaje_real,
       monto_flete: parsed.data.monto_flete,
-      facturado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
-      cobrado: viajeEstaFacturado(parsed.data.monto_flete, !!previo?.es_vacio),
+      es_vacio: esVacio,
+      observaciones: observacionesDB,
+      facturado: viajeEstaFacturado(parsed.data.monto_flete, esVacio),
+      cobrado: viajeEstaFacturado(parsed.data.monto_flete, esVacio),
     },
     user.id,
   );
@@ -2261,20 +2306,31 @@ export async function getViajesMensualPorChoferAction(
 
   const supabase = createAdminClient();
 
+  // Un mes puede pasar largamente las 1000 filas (abril-26: 1322), así que la
+  // lectura pagina: si no, los totales del mes salen sobre una parte.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("viajes")
-    .select(
-      `chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete,
+  let data: any[];
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data = await traerTodo<any>(
+      (from, to) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("viajes")
+          .select(
+            `chofer_id, km_con_carga, km_vacios, tonelaje_real, monto_flete,
        choferes(nombre, apellido),
        camiones(capacidad_tn)`,
-    )
-    .gte("fecha_viaje", desde)
-    .lte("fecha_viaje", hasta)
-    .neq("estado", "cancelado");
-
-  if (error) {
-    console.error("Error getViajesMensualPorChoferAction:", error);
+          )
+          .gte("fecha_viaje", desde)
+          .lte("fecha_viaje", hasta)
+          .neq("estado", "cancelado")
+          .order("codigo", { ascending: true })
+          .range(from, to),
+      { etiqueta: `viajes de ${mes}` },
+    );
+  } catch (e) {
+    console.error("Error getViajesMensualPorChoferAction:", e);
     return { error: "No se pudieron cargar los viajes del mes." };
   }
 
