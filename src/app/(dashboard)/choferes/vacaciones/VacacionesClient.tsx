@@ -1144,12 +1144,17 @@ export default function VacacionesClient({
                       {sectorDe.get(f.id) && sectorDe.get(f.id) !== "Chofer" && (
                         <span className="ml-1.5 text-[10px] text-muted-foreground/70">{sectorDe.get(f.id)}</span>
                       )}
+                      {/* En celular el ícono crece a 16px y suma padding hasta
+                          28x32 de zona de toque: a 11px no se le acertaba con el
+                          dedo. El padding sólo se compensa hacia arriba/abajo y
+                          a la derecha — hacia la izquierda quedaría encima del
+                          nombre del chofer y le robaría el toque. */}
                       <Link
                         href={`/choferes/${choferSlug(f)}?tab=vacaciones`}
                         title="Abrir legajo"
-                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary"
+                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary max-md:-my-2 max-md:-mr-1.5 max-md:px-1.5 max-md:py-2"
                       >
-                        <ExternalLink size={11} />
+                        <ExternalLink size={11} className="max-md:size-4" />
                       </Link>
                     </td>
                     {semanas.map((s, i) => {
