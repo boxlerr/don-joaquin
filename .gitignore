@@ -14,10 +14,13 @@
 /coverage
 
 # next.js
-# Sin barra final: en esta máquina .next es un symlink a ~/Library/Caches para
-# sacarlo de iCloud (sincroniza ~/Documents y le corrompe la caché a Turbopack).
-# Con "/.next/" el patrón sólo matchea un directorio y el symlink se colaba.
+# iCloud sincroniza ~/Documents y le corrompe la caché de build a Turbopack
+# (archivos que desaparecen a mitad de escritura). iCloud NO toca lo que termina
+# en ".nosync", así que la caché vive ahí y .next es un symlink que apunta
+# adentro del repo — si apuntara afuera, se pierde el node_modules de arriba.
+# Sin barra final para que el patrón tape también al symlink.
 /.next
+/.next.nosync
 /out/
 
 # production

@@ -25,30 +25,6 @@ export function mesCorto(mesISO: string): string {
   return `${MESES_ABR[Number(m) - 1] ?? m} ${y.slice(2)}`;
 }
 
-/**
- * Todos los meses entre dos fechas, inclusive ("2026-01-01" → "2026-08-01").
- * La tira de meses la usa para no saltearse los meses sin cargar: si sólo se
- * dibujaran los que tienen datos, el mes actual no aparecería hasta que alguien
- * lo cargue, que es justo al revés de lo que hace falta.
- */
-export function rangoMeses(desde: string, hasta: string): string[] {
-  const [ya, ma] = desde.slice(0, 7).split("-").map(Number);
-  const [yb, mb] = hasta.slice(0, 7).split("-").map(Number);
-  const out: string[] = [];
-  let y = ya;
-  let m = ma;
-  // Tope defensivo: 50 años de meses. Sin él, una fecha invertida cuelga el render.
-  for (let i = 0; i < 600 && (y < yb || (y === yb && m <= mb)); i++) {
-    out.push(`${y}-${String(m).padStart(2, "0")}-01`);
-    m += 1;
-    if (m > 12) {
-      m = 1;
-      y += 1;
-    }
-  }
-  return out;
-}
-
 /** Variación porcentual contra el mes anterior; null si no hay con qué comparar. */
 export function variacion(actual: number, previo: number | undefined): number | null {
   if (previo === undefined || previo === 0) return null;

@@ -1,33 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { amt, ars, claveProveedor, formatMilesAR, parseNum, rangoMeses, variacion } from "./formato";
-
-describe("rangoMeses", () => {
-  it("no se saltea los meses sin cargar", () => {
-    expect(rangoMeses("2026-01-01", "2026-04-01")).toEqual([
-      "2026-01-01",
-      "2026-02-01",
-      "2026-03-01",
-      "2026-04-01",
-    ]);
-  });
-
-  it("cruza el cambio de año", () => {
-    expect(rangoMeses("2025-11-01", "2026-02-01")).toEqual([
-      "2025-11-01",
-      "2025-12-01",
-      "2026-01-01",
-      "2026-02-01",
-    ]);
-  });
-
-  it("un solo mes cuando coinciden", () => {
-    expect(rangoMeses("2026-08-01", "2026-08-01")).toEqual(["2026-08-01"]);
-  });
-
-  it("no cuelga si la fecha viene invertida", () => {
-    expect(rangoMeses("2026-08-01", "2026-01-01")).toEqual([]);
-  });
-});
+import { amt, ars, claveProveedor, formatMilesAR, parseNum, variacion } from "./formato";
 
 describe("parseNum", () => {
   it("lee el formato argentino: coma decimal y puntos de miles", () => {
