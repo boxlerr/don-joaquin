@@ -6,7 +6,6 @@ import {
   TrendingUp,
   FileSpreadsheet,
   Receipt,
-  Percent,
   Pencil,
   Save,
   ArrowDown,
@@ -19,6 +18,7 @@ import {
   Clock,
   Upload,
   CheckCircle2,
+  ClipboardPaste,
 } from "lucide-react";
 
 // Tutorial de la sección "Sueldos admin y taller" (planilla del personal de
@@ -30,53 +30,11 @@ import {
 // ---------------------------------------------------------------------------
 
 function SectorChip({ label, tone }: { label: string; tone: "admin" | "taller" }) {
-  const cls =
-    tone === "admin"
-      ? "bg-blue-50 text-blue-700 border-blue-200/60"
-      : "bg-orange-50 text-orange-700 border-orange-200/60";
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${cls}`}>
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-foreground">
+      <span className={`h-1.5 w-1.5 rounded-full ${tone === "admin" ? "bg-blue-500" : "bg-orange-500"}`} />
       {label}
     </span>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  icon,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  tone?: "default" | "primary" | "green";
-}) {
-  const box = tone === "primary" ? "border-primary/30 bg-primary/5" : "border-border bg-card";
-  const iconCls =
-    tone === "green" ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary";
-  const valCls = tone === "primary" ? "text-primary" : "text-foreground";
-  return (
-    <div className={`rounded-lg border p-2.5 ${box}`}>
-      <div className="flex items-start justify-between gap-1">
-        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground leading-tight">
-          {label}
-        </span>
-        <span className={`p-1 rounded ${iconCls}`}>{icon}</span>
-      </div>
-      <div className={`text-[15px] font-black mt-1 ${valCls}`}>{value}</div>
-    </div>
-  );
-}
-
-function VarField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[9px] font-semibold text-muted-foreground mb-0.5">{label}</div>
-      <div className="h-7 px-2 rounded border border-[#0088D1]/50 bg-card text-[10px] font-mono text-foreground flex items-center justify-end">
-        {value}
-      </div>
-    </div>
   );
 }
 
@@ -224,10 +182,35 @@ function MockQueEs() {
 
 function MockKpis() {
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <KpiCard label="Total sueldos" value="$ 41,2M" icon={<Wallet size={13} />} />
-      <KpiCard label="Facturación" value="$ 310M" icon={<Receipt size={13} />} tone="green" />
-      <KpiCard label="% s/ facturación" value="13,3%" icon={<Percent size={13} />} tone="primary" />
+    <div className="rounded-lg border border-border bg-card px-3 py-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Total del mes</span>
+        <span className="font-mono text-[13px] font-bold text-foreground">$ 41,2M</span>
+      </span>
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Facturación</span>
+        <span className="font-mono text-[12px] font-semibold text-foreground">$ 310M</span>
+        <Pencil size={10} className="text-primary self-center" />
+      </span>
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">Sobre facturación</span>
+        <span className="font-mono text-[13px] font-bold text-primary">13,3%</span>
+      </span>
+    </div>
+  );
+}
+
+/** Celda de grilla del mockup: como se ve al escribir en la planilla. */
+function GridCell({ value, focus, muted }: { value: string; focus?: boolean; muted?: boolean }) {
+  return (
+    <div
+      className={`h-6 rounded px-1.5 flex items-center justify-end font-mono text-[10px] tabular-nums ${
+        focus
+          ? "border border-[#0088D1] bg-card text-foreground ring-2 ring-[#0088D1]/15"
+          : `border border-transparent ${muted ? "text-muted-foreground/40" : "text-foreground"}`
+      }`}
+    >
+      {value}
     </div>
   );
 }
@@ -235,30 +218,81 @@ function MockKpis() {
 function MockFilaEmpleado() {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-muted/40">
-        <span className="text-[11px] font-semibold text-foreground">Gómez, Ana</span>
-        <SectorChip label="Administración" tone="admin" />
+      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-1 bg-muted text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
+        <span>Empleado</span>
+        <span className="text-right">Base</span>
+        <span className="text-right">Comis.</span>
+        <span className="text-right">Combus.</span>
+        <span className="text-right">Total</span>
+        <span />
       </div>
-      <div className="p-3 space-y-2">
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-muted-foreground">Sueldo base</span>
-          <span className="font-mono text-foreground">$ 3.100.000</span>
+      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60">
+        <span className="text-[10px] font-medium text-foreground truncate">Gómez, Ana</span>
+        <GridCell value="3.100.000" />
+        <GridCell value="290.000" />
+        <GridCell value="100.000" />
+        <span className="text-right font-mono text-[10px] font-semibold text-foreground">3.490.000</span>
+        <CheckCircle2 size={11} className="text-emerald-600" />
+      </div>
+      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60 bg-[#0088D1]/[0.04]">
+        <span className="text-[10px] font-medium text-foreground truncate">Ruiz, Marco</span>
+        <GridCell value="2.900.000" />
+        <GridCell value="150.000" focus />
+        <GridCell value="0" muted />
+        <span className="text-right font-mono text-[10px] font-semibold text-foreground">3.050.000</span>
+        <span />
+      </div>
+      <div className="flex items-center justify-center gap-2 border-t border-border bg-muted/40 py-1 text-[9px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <kbd className="rounded border border-border bg-card px-1 text-[8px] font-semibold text-foreground">Tab</kbd> al lado
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <kbd className="rounded border border-border bg-card px-1 text-[8px] font-semibold text-foreground">Enter</kbd> abajo
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <kbd className="rounded border border-border bg-card px-1 text-[8px] font-semibold text-foreground">Esc</kbd> deshace
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MockPegar() {
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-emerald-500/30 bg-card overflow-hidden">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-[9px] font-semibold text-emerald-700">
+          <FileSpreadsheet size={11} /> copiado del Excel
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <VarField label="Comisión logística" value="290.000" />
-          <VarField label="Combustible" value="100.000" />
-          <VarField label="Plus YPF" value="0" />
-          <VarField label="Sábados" value="68.000" />
+        <div className="grid grid-cols-3 text-[9px] font-mono text-foreground">
+          {["3.100.000", "290.000", "100.000", "2.900.000", "150.000", "0", "2.600.000", "88.000", "40.000"].map((v, i) => (
+            <div key={i} className="px-2 py-1 border-t border-border/60 text-right tabular-nums">{v}</div>
+          ))}
         </div>
-        <div className="flex items-center justify-between border-t border-border pt-2">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Total</span>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[12px] font-bold text-foreground">$ 3.558.000</span>
-            <span className="h-6 px-2 rounded-md bg-[#0088D1] text-white inline-flex items-center gap-1 text-[10px] font-bold">
-              <Save size={11} /> Guardar
-            </span>
-          </div>
+      </div>
+      <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold text-primary">
+        <ClipboardPaste size={12} /> se pega sobre la primera celda y se guarda solo
+      </div>
+    </div>
+  );
+}
+
+function MockBaseInline() {
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-border bg-card px-2 py-1.5 flex items-center gap-2">
+        <span className="text-[10px] font-medium text-foreground w-20 truncate">Gómez, Ana</span>
+        <Clock size={11} className="text-muted-foreground/60" />
+        <div className="flex-1">
+          <GridCell value="3.100.000" focus />
         </div>
+      </div>
+      <div className="flex items-center justify-center">
+        <ArrowDown size={12} className="text-muted-foreground" />
+      </div>
+      <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-[10px] text-foreground">
+        Queda registrado como <b>aumento vigente desde junio 2026</b>, igual que si lo cargaras
+        en la pestaña Aumentos.
       </div>
     </div>
   );
@@ -553,17 +587,31 @@ const TABS: TutorialTab[] = [
         hint: "El mes se cambia con el selector de arriba a la derecha. Cada mes guarda sus propios valores.",
       },
       {
-        title: "Los tres indicadores de arriba",
+        title: "La línea de arriba",
         description:
-          "Tres tarjetas: el total de sueldos del mes, la facturación del mes y el porcentaje que los sueldos se llevan de lo facturado. Sirve para ver de un vistazo cuánto pesa la nómina admin/taller.",
+          "En un solo renglón: el total de sueldos del mes, la facturación del mes y el porcentaje que los sueldos se llevan de lo facturado. Va arriba de todo para que la planilla entre entera en la pantalla.",
         mockup: <MockKpis />,
       },
       {
-        title: "Cargá las variables de cada uno",
+        title: "Se escribe en la celda, como en el Excel",
         description:
-          "Por empleado, sobre su sueldo base, sumás comisión logística, combustible, plus YPF y sábados (las mismas columnas del Excel). El total se calcula solo y guardás fila por fila con el botón que aparece al editar.",
+          "Por empleado: sueldo base, comisión logística, combustible, plus YPF y sábados (las mismas columnas del Excel). Escribís directo en la celda y se guarda solo — no hay que apretar ningún botón. El total se calcula al instante.",
         mockup: <MockFilaEmpleado />,
-        hint: "Los montos no pueden ser negativos: si escribís un número en rojo, el botón Guardar queda bloqueado hasta corregirlo.",
+        hint: "Tab pasa a la celda de al lado, Enter baja una fila y Esc deshace lo que escribiste en esa celda. A la derecha de cada fila una tilde te avisa que quedó guardada.",
+      },
+      {
+        title: "Pegá un bloque entero del Excel",
+        description:
+          "Si ya tenés los números en la planilla, copiá el bloque (varias filas y columnas juntas) y pegalo sobre la primera celda: se reparte solo y se guarda fila por fila. Si copiaste también el encabezado o la columna de nombres, los descarta.",
+        mockup: <MockPegar />,
+        hint: "Antes de pegar, ordená la tabla por Empleado (es el orden por defecto) para que las filas coincidan con las del Excel.",
+      },
+      {
+        title: "El sueldo base también se edita ahí",
+        description:
+          "Escribir un sueldo base nuevo queda registrado como un aumento vigente desde el mes que estás viendo — es lo mismo que cargarlo en la pestaña Aumentos, pero sin salir de la planilla. El ⟳ al costado de la celda abre el historial de esa persona.",
+        mockup: <MockBaseInline />,
+        hint: "Para dejar un sueldo base en cero hay que borrar el aumento desde el historial: vaciar la celda no lo hace, justamente para que un Supr de más no le ponga el sueldo en cero a nadie.",
       },
       {
         title: "Ordenada por sector, con subtotales",
@@ -652,6 +700,8 @@ const TABS: TutorialTab[] = [
   },
 ];
 
-export default function HelpTutorialButton() {
-  return <HelpTutorialDialog title="Guía de Sueldos admin y taller" tabs={TABS} />;
+export default function HelpTutorialButton({ triggerClassName }: { triggerClassName?: string }) {
+  return (
+    <HelpTutorialDialog title="Guía de Sueldos admin y taller" tabs={TABS} triggerClassName={triggerClassName} />
+  );
 }

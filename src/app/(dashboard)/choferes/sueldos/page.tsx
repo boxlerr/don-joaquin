@@ -32,10 +32,12 @@ export default async function SueldosPage({
   ]);
 
   return (
-    <div className="p-8 space-y-6">
+    // Padding vertical corto a propósito: la planilla tiene que entrar entera en
+    // la pantalla, y cada píxel de chrome son filas que quedan abajo del corte.
+    <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
       <PageHeader
         title="Sueldos"
-        description="Liquidación de choferes (por viajes) y sueldos de administración y taller"
+        description="Liquidación de choferes por viajes, y sueldos de administración y taller"
         action={<MesSelector currentMonth={month} />}
       />
       <SueldosUnificadoClient

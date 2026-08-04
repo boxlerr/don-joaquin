@@ -1,23 +1,20 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import {
-  Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell,
-} from "@/components/ui/table";
+import { TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import MonthPicker from "@/components/ui/MonthPicker";
+import AvatarPersona from "@/components/ui/AvatarPersona";
 import {
-  Wallet, Percent, Receipt, History, Loader2, Trash2, Pencil, Save, TrendingUp, HelpCircle, X, Plus,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  Loader2, Trash2, Save, TrendingUp, HelpCircle, X, Plus,
 } from "lucide-react";
 import {
-  upsertSueldoAdminMesAction,
   registrarAumentoAction,
   eliminarAumentoAction,
   eliminarMesAumentosAction,
@@ -27,19 +24,12 @@ import {
   type AumentoRow,
 } from "./actions";
 import AumentosMetricas from "./AumentosMetricas";
-import HelpTutorialButton from "./help-tutorial-button";
+import PlanillaGrid from "./PlanillaGrid";
+import {
+  MESES_CORTO, formatMiles, mesActual, mesLabel, parseNum, pesos,
+} from "./formato";
 import type { InflacionData } from "@/lib/inflacion";
 
-const pesos = (n: number) => `$ ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
-const pct1 = (n: number) =>
-  `${n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-
-const MESES_FULL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-const MESES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-function mesLabel(iso: string): string {
-  const [y, m] = iso.slice(0, 10).split("-");
-  return `${MESES_FULL[parseInt(m, 10) - 1]} ${y}`;
-}
 /** Solo el mes abreviado ("jun"), sin año — para la matriz con banda de año arriba. */
 function mesAbrev(iso: string): string {
   return MESES_CORTO[parseInt(iso.slice(5, 7), 10) - 1];
@@ -47,70 +37,14 @@ function mesAbrev(iso: string): string {
 function anioDe(iso: string): string {
   return iso.slice(0, 4);
 }
-function mesActual(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-function parseNum(s: string): number | null {
-  let t = s.trim();
-  if (t === "") return null;
-  // Formato AR: la coma es decimal; los puntos son separador de miles (montos enteros en $).
-  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
-  else t = t.replace(/\./g, "");
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
 
-/** Formatea un monto (entero) con separador de miles AR para mostrarlo mientras se tipea. */
-function formatMiles(s: string): string {
-  if (!s) return "";
-  const neg = s.trim().startsWith("-");
-  const digits = s.replace(/[^\d]/g, "");
-  if (!digits) return neg ? "-" : "";
-  return (neg ? "-" : "") + Number(digits).toLocaleString("es-AR");
-}
-
-const ROL_BADGE: Record<SueldoAdminEmpleado["rol"], { label: string; cls: string }> = {
-  administrativo: { label: "Administración", cls: "bg-blue-50 text-blue-700 border-blue-200/50" },
-  mantenimiento: { label: "Taller", cls: "bg-orange-50 text-orange-700 border-orange-200/50" },
+// El sector se marca con un punto de color, no con una pastilla de fondo pastel.
+const ROL_SECTOR: Record<SueldoAdminEmpleado["rol"], { label: string; dot: string }> = {
+  administrativo: { label: "Administración", dot: "bg-blue-500" },
+  mantenimiento: { label: "Taller", dot: "bg-orange-500" },
 };
 
-// Avatar con iniciales + color determinístico por nombre, para distinguir empleados.
-const AVATAR_COLORS = [
-  "bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700", "bg-rose-100 text-rose-700", "bg-cyan-100 text-cyan-700",
-  "bg-indigo-100 text-indigo-700", "bg-teal-100 text-teal-700", "bg-fuchsia-100 text-fuchsia-700",
-];
-function iniciales(nombre: string): string {
-  const partes = nombre.split(",").map((s) => s.trim()).filter(Boolean);
-  const ape = partes[0] ?? "";
-  const nom = partes[1] ?? "";
-  const dos = nom ? `${ape[0] ?? ""}${nom[0] ?? ""}` : ape.slice(0, 2);
-  return dos.toUpperCase() || "?";
-}
-function colorAvatar(nombre: string): string {
-  let h = 0;
-  for (let i = 0; i < nombre.length; i++) h = (h * 31 + nombre.charCodeAt(i)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-
-type RowDraft = { comisionLogistica: string; combustible: string; plusYpf: string; sabados: string };
 const thCls = "text-[11px] font-bold text-muted-foreground uppercase tracking-wider";
-
-// Orden de la planilla + separación por sector.
-type SortCol = "nombre" | "sueldoBase" | "comisionLogistica" | "combustible" | "plusYpf" | "sabados" | "total";
-const SORT_COLS: { col: SortCol; label: string }[] = [
-  { col: "sueldoBase", label: "Sueldo base" },
-  { col: "comisionLogistica", label: "Comisión logística" },
-  { col: "combustible", label: "Combustible" },
-  { col: "plusYpf", label: "Plus YPF" },
-  { col: "sabados", label: "Sábados" },
-  { col: "total", label: "Total" },
-];
-const GRUPOS_SECTOR: { rol: SueldoAdminEmpleado["rol"]; label: string }[] = [
-  { rol: "administrativo", label: "Administración" },
-  { rol: "mantenimiento", label: "Taller" },
-];
 
 export default function SueldosAdminClient({
   resumen, month, canWrite, mostrar = "ambos", inflacion = null,
@@ -128,86 +62,18 @@ export default function SueldosAdminClient({
   const [tab, setTab] = useState<"planilla" | "aumentos">("planilla");
   const embedded = mostrar !== "ambos";
   const activeTab = embedded ? mostrar : tab;
-  const [error, setError] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<string, RowDraft>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [aumentosDe, setAumentosDe] = useState<{ id: string; mes: string } | null>(null);
   const [factOpen, setFactOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const draftDe = (e: SueldoAdminEmpleado): RowDraft =>
-    edits[e.chofer_id] ?? {
-      comisionLogistica: e.comisionLogistica ? String(e.comisionLogistica) : "",
-      combustible: e.combustible ? String(e.combustible) : "",
-      plusYpf: e.plusYpf ? String(e.plusYpf) : "",
-      sabados: e.sabados ? String(e.sabados) : "",
-    };
-  const setDraft = (e: SueldoAdminEmpleado, patch: Partial<RowDraft>) =>
-    setEdits((prev) => ({ ...prev, [e.chofer_id]: { ...draftDe(e), ...patch } }));
-
-  const CAMPOS = ["comisionLogistica", "combustible", "plusYpf", "sabados"] as const;
-  // Los montos no pueden ser negativos (misma regla que el server). Para el total
-  // los tratamos como 0 así nunca se muestra un "descuento" engañoso.
-  const valoresDe = (e: SueldoAdminEmpleado) => {
-    const d = draftDe(e);
-    const comisionLogistica = Math.max(0, parseNum(d.comisionLogistica) ?? 0);
-    const combustible = Math.max(0, parseNum(d.combustible) ?? 0);
-    const plusYpf = Math.max(0, parseNum(d.plusYpf) ?? 0);
-    const sabados = Math.max(0, parseNum(d.sabados) ?? 0);
-    // El aguinaldo no se edita acá (viene del import), pero suma al total.
-    return { comisionLogistica, combustible, plusYpf, sabados, total: e.sueldoBase + comisionLogistica + combustible + plusYpf + sabados + (e.aguinaldo ?? 0) };
-  };
-  const campoNegativo = (e: SueldoAdminEmpleado, campo: (typeof CAMPOS)[number]) =>
-    (parseNum(draftDe(e)[campo]) ?? 0) < 0;
-  const filaConNegativo = (e: SueldoAdminEmpleado) => CAMPOS.some((c) => campoNegativo(e, c));
-
-  const isDirty = (e: SueldoAdminEmpleado) => {
-    if (!edits[e.chofer_id]) return false;
-    const v = valoresDe(e);
-    return v.comisionLogistica !== e.comisionLogistica || v.combustible !== e.combustible || v.plusYpf !== e.plusYpf || v.sabados !== e.sabados;
-  };
-
-  const totales = useMemo(() => {
-    let sueldoBase = 0, total = 0;
-    for (const e of resumen.empleados) { sueldoBase += e.sueldoBase; total += valoresDe(e).total; }
-    const porcentaje = resumen.facturacionEfectiva > 0 ? (total / resumen.facturacionEfectiva) * 100 : null;
-    return { sueldoBase, total, porcentaje };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumen, edits]);
-
-  // Orden por columna (default: total, mayor a menor). Se ordena por los valores
-  // guardados (estables), no por lo que se está tipeando, para no saltar al editar.
-  const [sort, setSort] = useState<{ col: SortCol; dir: "asc" | "desc" }>({ col: "total", dir: "desc" });
-  const toggleSort = (col: SortCol) =>
-    setSort((s) => (s.col === col ? { col, dir: s.dir === "desc" ? "asc" : "desc" } : { col, dir: col === "nombre" ? "asc" : "desc" }));
-  const flecha = (col: SortCol) =>
-    sort.col === col
-      ? (sort.dir === "desc" ? <ArrowDown size={12} /> : <ArrowUp size={12} />)
-      : <ArrowUpDown size={12} className="opacity-40" />;
-  const ordenar = (arr: SueldoAdminEmpleado[]) => {
-    const f = sort.dir === "asc" ? 1 : -1;
-    return [...arr].sort((a, b) =>
-      sort.col === "nombre" ? f * a.nombre.localeCompare(b.nombre) : f * ((a[sort.col] as number) - (b[sort.col] as number)),
-    );
-  };
-
-  const guardarFila = async (e: SueldoAdminEmpleado) => {
-    const v = valoresDe(e);
-    setError(null);
-    setSavingId(e.chofer_id);
-    const res = await upsertSueldoAdminMesAction(e.chofer_id, month, {
-      comisionLogistica: v.comisionLogistica, combustible: v.combustible, plusYpf: v.plusYpf, sabados: v.sabados,
-    });
-    setSavingId(null);
-    if ("error" in res) { setError(res.error); return; }
-    setEdits((prev) => { const next = { ...prev }; delete next[e.chofer_id]; return next; });
-    router.refresh();
-  };
+  const refrescar = useCallback(() => router.refresh(), [router]);
+  const abrirAumentos = useCallback((id: string, mes: string) => setAumentosDe({ id, mes }), []);
+  const abrirFacturacion = useCallback(() => setFactOpen(true), []);
 
   const empleadoAumentos = aumentosDe ? resumen.empleados.find((e) => e.chofer_id === aumentosDe.id) ?? null : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Tabs + ayuda (solo en modo standalone; embebido usa las pestañas del unificado) */}
       {!embedded && (
         <div className="flex items-center justify-between gap-3">
@@ -225,152 +91,18 @@ export default function SueldosAdminClient({
         </div>
       )}
 
-      {error && (
-        <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-[8px] px-4 py-2">{error}</p>
-      )}
-
       {activeTab === "planilla" ? (
-        <>
-          {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider">Total sueldos del mes</p>
-                <div className="p-2 rounded-lg bg-primary/10 text-primary"><Wallet size={16} /></div>
-              </div>
-              <p className="text-2xl font-black tracking-tight text-foreground mt-2">{pesos(totales.total)}</p>
-              <p className="text-muted-foreground/80 text-[11px] mt-1">{resumen.empleados.length} persona{resumen.empleados.length === 1 ? "" : "s"} de administración y taller</p>
-            </div>
-            <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider">Facturación del mes</p>
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600"><Receipt size={16} /></div>
-              </div>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <p className="text-2xl font-black tracking-tight text-foreground">{pesos(resumen.facturacionEfectiva)}</p>
-                {resumen.facturacionManual != null ? (
-                  <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded text-[11px] font-semibold border border-amber-200/60">manual</span>
-                ) : (
-                  <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[11px] font-semibold border border-blue-200/50">del sistema</span>
-                )}
-                {canWrite && <Button variant="ghost" size="icon-xs" aria-label="Editar facturación" onClick={() => setFactOpen(true)}><Pencil /></Button>}
-              </div>
-              <p className="text-muted-foreground/80 text-[11px] mt-1">
-                {resumen.facturacionManual != null ? `Calculada por el sistema: ${pesos(resumen.facturacionCalculada)}` : "Suma de los viajes del mes"}
-              </p>
-            </div>
-            <div className="bg-primary/5 rounded-xl border border-primary/30 p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-primary text-xs font-bold uppercase tracking-wider">% sobre facturación</p>
-                <div className="p-2 rounded-lg bg-primary/10 text-primary"><Percent size={16} /></div>
-              </div>
-              <p className="text-3xl font-black tracking-tight text-primary mt-2">{totales.porcentaje != null ? pct1(totales.porcentaje) : "—"}</p>
-              <p className="text-muted-foreground/80 text-[11px] mt-1">{totales.porcentaje != null ? "Sueldos admin + taller sobre lo facturado" : "Sin facturación en el mes para comparar"}</p>
-            </div>
-          </div>
-
-          {/* Tabla del mes con columnas del Excel */}
-          <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
-              <Wallet size={16} className="text-primary" />
-              <h2 className="text-foreground text-sm font-semibold">Planilla por empleado</h2>
-              <div className="ml-auto">
-                <HelpTutorialButton />
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className={`${thCls} pl-6`}>
-                      <button type="button" onClick={() => toggleSort("nombre")} className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sort.col === "nombre" ? "text-foreground" : ""}`}>
-                        Empleado {flecha("nombre")}
-                      </button>
-                    </TableHead>
-                    {SORT_COLS.map(({ col, label }) => (
-                      <TableHead key={col} className={`${thCls} text-right`}>
-                        <button type="button" onClick={() => toggleSort(col)} className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === col ? "text-foreground" : ""}`}>
-                          {label} {flecha(col)}
-                        </button>
-                      </TableHead>
-                    ))}
-                    {canWrite && <TableHead className="w-24 pr-6" />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resumen.empleados.length === 0 ? (
-                    <TableRow><TableCell colSpan={canWrite ? 8 : 7} className="py-16 text-center text-muted-foreground text-sm">
-                      No hay personal de administración o taller activo.
-                      <span className="block mt-1 text-xs">Se cargan desde Personal → Legajos, con rol Administración o Mantenimiento.</span>
-                    </TableCell></TableRow>
-                  ) : (
-                    GRUPOS_SECTOR.map((g) => {
-                      const filas = ordenar(resumen.empleados.filter((e) => e.rol === g.rol));
-                      if (filas.length === 0) return null;
-                      const subtotal = filas.reduce((s, e) => s + valoresDe(e).total, 0);
-                      const gb = ROL_BADGE[g.rol];
-                      return (
-                        <Fragment key={g.rol}>
-                          <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={canWrite ? 8 : 7} className="px-6 py-2">
-                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider border ${gb.cls}`}>{g.label}</span>
-                              <span className="text-xs text-muted-foreground ml-2">{filas.length} {filas.length === 1 ? "persona" : "personas"} · subtotal <strong className="font-mono text-foreground">{pesos(subtotal)}</strong></span>
-                            </TableCell>
-                          </TableRow>
-                          {filas.map((e) => {
-                            const d = draftDe(e), v = valoresDe(e), dirty = isDirty(e), saving = savingId === e.chofer_id;
-                            return (
-                              <TableRow key={e.chofer_id} className="hover:bg-muted/10 transition-colors">
-                                <TableCell className="pl-6">
-                                  <span className="font-semibold text-foreground">{e.nombre}</span>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <span className="font-mono text-foreground">{e.sueldoBase > 0 ? pesos(e.sueldoBase) : <span className="text-muted-foreground/60">sin cargar</span>}</span>
-                                    {canWrite && <Button variant="ghost" size="icon-xs" title="Aumentos" onClick={() => setAumentosDe({ id: e.chofer_id, mes: month || mesActual() })}><History /></Button>}
-                                  </div>
-                                </TableCell>
-                                {CAMPOS.map((campo) => (
-                                  <TableCell key={campo} className="text-right">
-                                    {canWrite ? (
-                                      <Input type="text" inputMode="numeric" placeholder="0" value={formatMiles(d[campo])}
-                                        onChange={(ev) => setDraft(e, { [campo]: ev.target.value.replace(/\./g, "") })}
-                                        className={`w-24 ml-auto text-right font-mono ${campoNegativo(e, campo) ? "border-red-400 focus-visible:ring-red-100" : ""}`} />
-                                    ) : (
-                                      <span className="font-mono text-muted-foreground">{pesos(e[campo])}</span>
-                                    )}
-                                  </TableCell>
-                                ))}
-                                <TableCell className="text-right font-mono font-semibold text-foreground">{pesos(v.total)}</TableCell>
-                                {canWrite && (
-                                  <TableCell className="text-right pr-6">
-                                    {dirty && <Button size="sm" variant="brand" disabled={saving || filaConNegativo(e)} onClick={() => guardarFila(e)}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Guardar</Button>}
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            );
-                          })}
-                        </Fragment>
-                      );
-                    })
-                  )}
-                </TableBody>
-                {resumen.empleados.length > 0 && (
-                  <TableFooter className="bg-muted/30">
-                    <TableRow>
-                      <TableCell className="pl-6 text-xs font-bold text-muted-foreground uppercase tracking-wider">Total</TableCell>
-                      <TableCell className="text-right font-mono font-semibold text-foreground">{pesos(totales.sueldoBase)}</TableCell>
-                      <TableCell /><TableCell /><TableCell /><TableCell />
-                      <TableCell className="text-right font-mono font-black text-foreground">{pesos(totales.total)}</TableCell>
-                      {canWrite && <TableCell className="pr-6" />}
-                    </TableRow>
-                  </TableFooter>
-                )}
-              </Table>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">La facturación sale de los viajes del mes; se puede pisar a mano desde la tarjeta &quot;Facturación del mes&quot;.</p>
-        </>
+        <PlanillaGrid
+          key={month}
+          empleados={resumen.empleados}
+          month={month}
+          canWrite={canWrite}
+          facturacionEfectiva={resumen.facturacionEfectiva}
+          facturacionManual={resumen.facturacionManual}
+          onEditarFacturacion={abrirFacturacion}
+          onVerAumentos={abrirAumentos}
+          onDatosCambiados={refrescar}
+        />
       ) : (
         <div className="space-y-4">
           {inflacion && (
@@ -500,7 +232,7 @@ function AumentosMatriz({
       </div>
 
       {meses.length === 0 ? (
-        <div className="p-8 text-center text-sm text-muted-foreground">
+        <div className="p-4 sm:p-6 lg:p-8 text-center text-sm text-muted-foreground">
           Sin aumentos cargados todavía.{canWrite && " Agregá un mes o tocá un nombre para empezar."}
         </div>
       ) : (
@@ -630,7 +362,7 @@ function AumentosDialog({
     onChanged();
   };
 
-  const rol = ROL_BADGE[empleado.rol];
+  const rol = ROL_SECTOR[empleado.rol];
   const baseActual = empleado.sueldoBase; // base vigente al mes de la página (para el header)
   const montoNuevo = parseNum(sueldo);
   // Referencia del preview = base vigente ANTES del mes elegido en el diálogo (no el de la página),
@@ -652,14 +384,16 @@ function AumentosDialog({
 
         {/* Encabezado con identidad del empleado — deja claro de quién es la planilla. */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent rounded-t-xl">
-          <div className={`h-12 w-12 rounded-full flex items-center justify-center font-bold shrink-0 ${colorAvatar(empleado.nombre)}`}>
-            {iniciales(empleado.nombre)}
-          </div>
+          <AvatarPersona name={empleado.nombre} rol={empleado.rol} size={44} />
           <div className="min-w-0">
             <p className="font-heading text-lg font-semibold text-foreground truncate">{empleado.nombre}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${rol.cls}`}>{rol.label}</span>
-              <span className="text-xs text-muted-foreground">base actual <strong className="font-mono text-foreground">{pesos(baseActual)}</strong></span>
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${rol.dot}`} />
+                {rol.label}
+              </span>
+              <span>·</span>
+              <span>base actual <strong className="font-mono text-foreground">{pesos(baseActual)}</strong></span>
             </div>
           </div>
         </div>

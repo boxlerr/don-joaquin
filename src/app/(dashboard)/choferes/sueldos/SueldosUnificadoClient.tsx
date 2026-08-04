@@ -9,6 +9,7 @@ import { descargarExport } from "@/lib/download-export";
 import SueldosClient from "./SueldosClient";
 import SueldosAdminClient from "../../sueldos-admin/SueldosAdminClient";
 import ImportSueldosDialog from "../../sueldos-admin/ImportSueldosDialog";
+import HelpTutorialButton from "../../sueldos-admin/help-tutorial-button";
 import SueldosTutorial from "./SueldosTutorial";
 import type { SueldoChoferRow } from "./actions";
 import type { SueldosAdminResumen } from "../../sueldos-admin/actions";
@@ -46,7 +47,7 @@ export default function SueldosUnificadoClient({
     );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
           {tabs.map((t) => {
@@ -66,9 +67,15 @@ export default function SueldosUnificadoClient({
             </Button>
           )}
           <ExportButton onClick={handleExport} label="Exportar" />
-          <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
-            <HelpCircle size={14} /> ¿Cómo funciona?
-          </Button>
+          {/* Una sola ayuda por pestaña: la guía detallada para la planilla y los
+              aumentos, y el recorrido de la sección para la de choferes. */}
+          {tab === "choferes" ? (
+            <Button variant="outline" size="sm" onClick={() => setHelpOpen(true)} className="gap-1.5">
+              <HelpCircle size={14} /> ¿Cómo funciona?
+            </Button>
+          ) : (
+            <HelpTutorialButton triggerClassName="h-7 px-2.5 rounded-[min(var(--radius-md),12px)] border border-border bg-background text-primary hover:bg-muted inline-flex items-center gap-1 text-[0.8rem] font-medium" />
+          )}
         </div>
       </div>
 
