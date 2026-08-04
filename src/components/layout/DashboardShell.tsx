@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Menu, PanelLeft, Search, X } from "lucide-react";
 import Sidebar, { type SidebarUser } from "./Sidebar";
 import CommandPalette from "./CommandPalette";
@@ -31,7 +30,6 @@ export default function DashboardShell({
   // contenido. Antes se comía 60 de los 375px de ancho y no había forma de
   // sacarlo, que es la mitad de por qué el sistema era inusable desde el celu.
   const [navOpen, setNavOpen] = useState(false);
-  const pathname = usePathname();
 
   const openAudit = useCallback(() => setAuditOpen(true), []);
 
@@ -39,11 +37,6 @@ export default function DashboardShell({
     window.addEventListener(AUDIT_DRAWER_EVENT, openAudit);
     return () => window.removeEventListener(AUDIT_DRAWER_EVENT, openAudit);
   }, [openAudit]);
-
-  // Navegar cierra el cajón: si no, tapa la página a la que se acaba de entrar.
-  useEffect(() => {
-    setNavOpen(false);
-  }, [pathname]);
 
   // Con el cajón abierto, el fondo no scrollea (si no, el dedo mueve la página
   // de atrás en vez del menú) y Escape lo cierra.
@@ -87,6 +80,14 @@ export default function DashboardShell({
         aria-modal="true"
         aria-label="Menú de navegación"
         aria-hidden={!navOpen}
+        // Tocar un link cierra el cajón: si no, tapa la página a la que se acaba
+        // de entrar. Va acá por delegación y no en un efecto sobre el pathname
+        // porque así también cierra cuando el link apunta a la página actual (no
+        // hay navegación, y el cajón quedaba abierto). Los grupos que despliegan
+        // submenús son <button>, no <a>, así que expandirlos no lo cierra.
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest("a")) setNavOpen(false);
+        }}
         // `invisible` cuando está cerrado, no sólo corrido: con el cajón fuera
         // de pantalla los links seguían siendo enfocables con Tab, así que el
         // foco se iba a un menú que no se ve. `visibility` saca del orden de
