@@ -1,5 +1,5 @@
 import { ExcelExportService, type ExcelColumn } from "@/shared/services/excel-export.service";
-import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
+import { etiquetaRutaViaExcel } from "@/domain/viajes/ruta-via";
 
 export interface ViajeExportable {
   id?: string;
@@ -142,7 +142,7 @@ export function exportViajesToExcel(
     // "—", porque el guion ensucia los filtros de Excel.
     {
       header: "Ruta",
-      key: (v) => (v.ruta_via && RUTA_VIA_LABELS[v.ruta_via]) || "",
+      key: (v) => etiquetaRutaViaExcel(v.ruta_via) ?? "",
       width: 10,
     },
     // Igual que la planilla del cliente: km con carga y km vacíos separados.

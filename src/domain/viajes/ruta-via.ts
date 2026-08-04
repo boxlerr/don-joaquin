@@ -29,3 +29,15 @@ export function etiquetaRutaVia(via: string | null | undefined): string {
   if (!via) return "—";
   return RUTA_VIA_LABELS[via as RutaVia] ?? via;
 }
+
+/**
+ * Etiqueta para Excel: sin vía devuelve null (celda VACÍA) en vez del guión
+ * largo, porque el guion se cuela en los filtros y en el orden de las columnas.
+ *
+ * Igual que en pantalla, una vía desconocida se devuelve cruda: perderla en una
+ * celda vacía haría creer que el viaje no tiene vía cargada.
+ */
+export function etiquetaRutaViaExcel(via: string | null | undefined): string | null {
+  if (!via) return null;
+  return RUTA_VIA_LABELS[via as RutaVia] ?? via;
+}

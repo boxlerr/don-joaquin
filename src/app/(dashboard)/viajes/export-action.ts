@@ -6,7 +6,7 @@ import {
   type ProColumn,
   type CellValue,
 } from "@/lib/excel/professional-sheet";
-import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
+import { etiquetaRutaViaExcel } from "@/domain/viajes/ruta-via";
 
 // Arma el Excel del listado de viajes con el estilo profesional del sistema y
 // lo devuelve en base64 para que el cliente dispare la descarga. Recibe los
@@ -93,12 +93,6 @@ function puntoConFallback(
   return match ? match[1].trim() : null;
 }
 
-// Vía por la que fue el camión (de ella dependen los km). Sin vía la celda queda
-// VACÍA en vez de "—": el guion se cuela en los filtros y en el orden de Excel.
-function rutaCell(via?: string | null): string | null {
-  return (via && RUTA_VIA_LABELS[via]) || null;
-}
-
 function textoEstado(estado?: string | null): string | null {
   if (!estado) return null;
   const str = estado.replace(/_/g, " ");
@@ -167,7 +161,8 @@ export async function exportarViajesXlsxAction(
     nombreCamion(v.camion),
     puntoConFallback(v.origen, v.origen_nombre, v.observaciones, "Origen"),
     puntoConFallback(v.destino, v.destino_nombre, v.observaciones, "Destino"),
-    rutaCell(v.ruta_via),
+    // Sin vía la celda va VACÍA y no "—": el guion se cuela en los filtros de Excel.
+    etiquetaRutaViaExcel(v.ruta_via),
     Number(v.km_con_carga ?? v.km_totales ?? 0) || 0,
     Number(v.km_vacios ?? 0) || 0,
     Number(v.tonelaje_real || v.toneladas || 0),
