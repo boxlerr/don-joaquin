@@ -1583,22 +1583,30 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                     }}
                     className="flex w-full items-start gap-2.5 px-3 py-3 text-left"
                   >
-                    <span
-                      className="flex w-5 shrink-0 items-center justify-center pt-1"
+                    {/* En celular el cuadradito crece a 24px y su zona de toque
+                        a 36: a 16px se erraba y, como el resto de la tarjeta
+                        abre el viaje, el error no era "no pasa nada" sino
+                        entrar al viaje equivocado. Los márgenes negativos
+                        compensan el padding para que la tarjeta no se mueva.
+                        Es un <label> y no un <span> para que el toque en todo
+                        el recuadro marque la casilla, y no sólo el cuadradito:
+                        el label reenvía el click al input, sin doble disparo. */}
+                    <label
+                      className="flex w-5 shrink-0 items-center justify-center pt-1 max-md:-my-1.5 max-md:w-9 max-md:py-1.5"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {esSeleccionable(v) ? (
                         <input
                           type="checkbox"
                           aria-label={`Seleccionar viaje ${v.codigo}`}
-                          className="size-4 accent-[#0088D1]"
+                          className="size-4 accent-[#0088D1] max-md:size-6"
                           checked={selectedIds.has(v.id)}
                           onChange={() => toggleSeleccion(v.id)}
                         />
                       ) : v.facturado ? (
                         <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Con remito" />
                       ) : null}
-                    </span>
+                    </label>
 
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
