@@ -150,22 +150,22 @@ export default async function ReportesPage({
   const topChoferes = ranking.filter((r) => r.viajes_count > 0).slice(0, 10);
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
       <PageHeader
         title="Reportes"
         description="Indicadores operativos, de rotación y comerciales"
         action={<ReportesHelpButton />}
       />
 
-      {/* Selector de período */}
-      <div className="flex items-center gap-1.5">
+      {/* Selector de período — envuelve en celular en vez de salirse de la pantalla */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {RANGOS.map((r) => {
           const active = periodo.rango === r.key;
           return (
             <Link
               key={r.key}
               href={`/reportes?rango=${r.key}`}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`inline-flex items-center h-9 md:h-auto px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                 active
                   ? "bg-primary text-white"
                   : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -175,7 +175,7 @@ export default async function ReportesPage({
             </Link>
           );
         })}
-        <span className="ml-2 text-xs text-muted-foreground capitalize">{periodo.label}</span>
+        <span className="w-full sm:w-auto sm:ml-2 text-xs text-muted-foreground capitalize">{periodo.label}</span>
       </div>
 
       {/* Reporte: Productividad de choferes */}
@@ -192,11 +192,13 @@ export default async function ReportesPage({
           <Tabla
             cols={["#", "Chofer", "Viajes", "Km", "% vacíos", "Facturación", "$/km", "Score"]}
             aligns={["left", "left", "right", "right", "right", "right", "right", "right"]}
+            minW="min-w-[760px]"
+            sticky={1}
           >
             {topChoferes.map((r, i) => (
               <tr key={r.id} className="hover:bg-muted/30 border-t border-border">
-                <Td>{i + 1}</Td>
-                <Td>
+                <Td className="pr-2">{i + 1}</Td>
+                <Td sticky className="whitespace-nowrap">
                   <Link href={`/choferes/${choferSlug(r)}?tab=productividad`} className="font-medium text-foreground hover:text-primary">
                     {r.apellido}, {r.nombre}
                   </Link>
@@ -226,7 +228,7 @@ export default async function ReportesPage({
         {/* Cobertura de cliente: qué porción de los viajes del período tiene un
             cliente real asignado (vs. el comodín "Sin asignar (import)"). */}
         {cobertura.conCliente + cobertura.sinAsignar > 0 && (
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3 border-b border-border bg-muted/20">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-4 sm:px-5 py-3 border-b border-border bg-muted/20">
             <div className="flex items-baseline gap-1.5">
               <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wide">Cobertura de cliente</span>
               <span
@@ -254,10 +256,12 @@ export default async function ReportesPage({
           <Tabla
             cols={["Cliente", "Viajes", "Km", "Toneladas", "Facturación", "$/km"]}
             aligns={["left", "right", "right", "right", "right", "right"]}
+            minW="min-w-[640px]"
+            sticky={0}
           >
             {clientes.slice(0, 15).map((c) => (
               <tr key={c.cliente} className="hover:bg-muted/30 border-t border-border">
-                <Td>{c.cliente}</Td>
+                <Td sticky>{c.cliente}</Td>
                 <Td align="right">{c.viajes}</Td>
                 <Td align="right">{fmtNum(c.km)}</Td>
                 <Td align="right">{fmtNum(c.toneladas)}</Td>
@@ -277,7 +281,7 @@ export default async function ReportesPage({
         href="/choferes/rotacion"
         hrefLabel="Ver detalle de rotación"
       >
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-5 py-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 px-4 sm:px-5 py-4">
           <MiniKPI label="Dotación actual" value={String(rotacion.dotacion_actual)} icon={Users} />
           <MiniKPI label="Altas del año" value={String(rotacion.altas)} icon={TrendingUp} color="text-[#10B981]" />
           <MiniKPI label="Bajas del año" value={String(rotacion.bajas)} icon={Route} color="text-[#EF4444]" />
@@ -314,17 +318,17 @@ function ReportCard({
 }) {
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2.5">
-          <Icon size={16} className="text-primary" />
-          <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Icon size={16} className="text-primary shrink-0" />
+          <div className="min-w-0">
             <h2 className="text-foreground text-sm font-bold leading-tight">{title}</h2>
             <p className="text-muted-foreground text-[11px] mt-0.5">{subtitle}</p>
           </div>
         </div>
         <Link
           href={href}
-          className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors flex items-center gap-0.5 shrink-0"
+          className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors inline-flex items-center gap-0.5 shrink-0 max-md:h-9"
         >
           {hrefLabel}
           <ChevronRight size={13} />
@@ -335,26 +339,36 @@ function ReportCard({
   );
 }
 
+// Tablas de consulta (no son la acción principal de la pantalla): en celular
+// scrollean de costado adentro de su propia tarjeta, con la columna que
+// identifica la fila (Chofer / Cliente) fija a la izquierda para no perder la
+// referencia. El resto de la página nunca se corre.
 function Tabla({
   cols,
   aligns,
+  minW = "",
+  sticky,
   children,
 }: {
   cols: string[];
   aligns: ("left" | "right")[];
+  /** Ancho mínimo para que las columnas no se aplasten al scrollear en celular. */
+  minW?: string;
+  /** Índice de la columna identificadora, que queda fija al scrollear. */
+  sticky?: number;
   children: React.ReactNode;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className={`w-full text-sm ${minW}`}>
         <thead className="bg-muted/40">
           <tr>
             {cols.map((c, i) => (
               <th
                 key={c}
-                className={`px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide ${
+                className={`px-4 py-2.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap ${
                   aligns[i] === "right" ? "text-right" : "text-left"
-                }`}
+                } ${i === sticky ? "sticky left-0 z-20 bg-muted border-r border-border" : ""}`}
               >
                 {c}
               </th>
@@ -371,14 +385,19 @@ function Td({
   children,
   align = "left",
   className = "",
+  sticky = false,
 }: {
   children: React.ReactNode;
   align?: "left" | "right";
   className?: string;
+  /** Columna identificadora: queda fija mientras el resto scrollea. */
+  sticky?: boolean;
 }) {
   return (
     <td
-      className={`px-4 py-2.5 text-sm text-muted-foreground ${align === "right" ? "text-right font-mono" : ""} ${className}`}
+      className={`px-4 py-2.5 text-sm text-muted-foreground ${align === "right" ? "text-right font-mono" : ""} ${
+        sticky ? "sticky left-0 z-10 bg-card border-r border-border" : ""
+      } ${className}`}
     >
       {children}
     </td>
@@ -397,12 +416,12 @@ function MiniKPI({
   color?: string;
 }) {
   return (
-    <div className="rounded-[8px] border border-border bg-card px-4 py-3">
+    <div className="rounded-[8px] border border-border bg-card px-3 sm:px-4 py-3">
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon size={13} className="text-muted-foreground/70" />
-        <p className="text-[11px] text-muted-foreground/70">{label}</p>
+        <Icon size={13} className="text-muted-foreground/70 shrink-0" />
+        <p className="text-[11px] text-muted-foreground/70 leading-tight">{label}</p>
       </div>
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
+      <p className={`text-lg sm:text-xl font-bold ${color}`}>{value}</p>
     </div>
   );
 }

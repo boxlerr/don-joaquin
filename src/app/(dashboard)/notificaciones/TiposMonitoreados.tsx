@@ -31,15 +31,15 @@ export default function TiposMonitoreados({
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="px-5 py-4 border-b border-border">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <ShieldAlert size={16} className="text-primary" />
+      <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldAlert size={16} className="shrink-0 text-primary" />
             <h2 className="text-foreground text-sm font-semibold">
               Tipos de documento monitoreados
             </h2>
           </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
             {totalVencidos > 0 && (
               <span className="px-2 py-0.5 rounded-md border border-[#FECACA] bg-[#FEF2F2] text-[#991B1B] font-semibold">
                 {totalVencidos} vencido{totalVencidos !== 1 ? "s" : ""}
@@ -118,7 +118,7 @@ function TipoColumna({
 
   return (
     <div className={borderLeft ? "md:border-l border-border" : ""}>
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-[#F1F5F9] bg-card">
+      <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-b border-[#F1F5F9] bg-card">
         <div
           className={`w-7 h-7 rounded-lg flex items-center justify-center ${accentColors.bg}`}
         >
@@ -129,7 +129,7 @@ function TipoColumna({
       </div>
 
       {sorted.length === 0 ? (
-        <div className="px-5 py-8 text-center text-xs text-muted-foreground/70">
+        <div className="px-4 sm:px-5 py-8 text-center text-xs text-muted-foreground/70">
           Sin tipos configurados
         </div>
       ) : (
@@ -151,7 +151,7 @@ function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
   return (
     <Link
       href={href}
-      className="group flex items-center justify-between gap-3 px-5 py-3 hover:bg-muted/40 transition-colors"
+      className="group flex items-start sm:items-center justify-between gap-2 sm:gap-3 px-4 sm:px-5 py-3 hover:bg-muted/40 transition-colors"
       title={`Ir a ${tipo.aplica_a === "camion" ? "Camiones" : "Choferes"} para cargar o actualizar este documento`}
     >
       <div className="min-w-0 flex-1">
@@ -175,7 +175,8 @@ function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
           </span>
         </p>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* En celular los chips se apilan a la derecha en vez de empujar el nombre. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0 max-w-[46%] sm:max-w-none">
         {conteo.vencidos > 0 && (
           <ConteoChip n={conteo.vencidos} label="vencido" tone="vencido" />
         )}
@@ -190,7 +191,7 @@ function TipoFila({ tipo, conteo }: { tipo: Tipo; conteo: DocCount }) {
         )}
         <ChevronRight
           size={15}
-          className="text-muted-foreground/30 group-hover:text-primary transition-colors"
+          className="shrink-0 text-muted-foreground/30 group-hover:text-primary transition-colors"
         />
       </div>
     </Link>

@@ -76,13 +76,13 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-6 gap-0">
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-green-50 text-green-600 shrink-0">
+      <DialogContent className="sm:max-w-[480px] p-4 sm:p-6 gap-0 max-h-[90dvh] overflow-y-auto">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-green-50 text-green-600 shrink-0">
               <Banknote size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-lg font-bold">
                 Registrar pago de siniestro
               </DialogTitle>
@@ -96,7 +96,7 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-1">
               <Label className="text-xs font-semibold text-muted-foreground">Monto *</Label>
               <div className="relative flex items-center h-10 w-full rounded-lg border border-border bg-card overflow-hidden focus-within:ring-2 focus-within:ring-[#0088D1]/20 focus-within:border-[#0088D1] transition-all">
@@ -159,12 +159,12 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-border -mx-6 px-6">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40"
+              className="w-full sm:w-auto h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40"
               disabled={loading}
             >
               Cancelar
@@ -172,7 +172,7 @@ export default function RegistrarPagoSiniestroDialog({ siniestro, open, onOpenCh
             <Button
               type="submit"
               disabled={loading}
-              className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm"
             >
               {loading ? "Registrando..." : <><Check size={15} /> Registrar egreso</>}
             </Button>

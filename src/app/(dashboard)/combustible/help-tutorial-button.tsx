@@ -92,16 +92,16 @@ function MockGasoilForm() {
         <div className="text-foreground text-xs font-bold uppercase tracking-wider">Cargar gasoil</div>
       </div>
       <div className="p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Camión *" value="AB 123 CD" icon={<Truck size={11} />} required />
           <MockField label="Fecha *" value="20/05/2026" icon={<Calendar size={11} />} required />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
           <MockField label="KM odóm." value="184.520" icon={<Gauge size={11} />} />
           <MockField label="Litros *" value="300" required />
           <MockField label="Importe *" value="$ 360k" icon={<DollarSign size={11} />} required />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Chofer" value="Pérez, Juan" icon={<User size={11} />} />
           <MockField label="Estación" value="YPF Ruta 3" icon={<MapPin size={11} />} />
         </div>

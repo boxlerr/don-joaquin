@@ -160,10 +160,12 @@ function MockNewCamionForm() {
           <MockField label="Marca *" value="Scania" required />
           <MockField label="Modelo *" value="R450" required />
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MockField label="Año *" value="2020" required />
           <MockField label="Cap. TN *" value="35.0" required />
-          <MockField label="Tipo" value="Tractor" />
+          <div className="col-span-2 sm:col-span-1">
+            <MockField label="Tipo" value="Tractor" />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <MockField label="Tercerización" value="Tercerizado" icon={<Building2 size={11} />} />
@@ -461,7 +463,7 @@ function MockMetricas() {
   const barras = [40, 55, 48, 70, 62, 95];
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {METRICAS_KPIS.map((k) => (
           <KpiChip key={k.label} icon={k.icon} label={k.label} value={k.value} sub={k.sub} color={k.color} />
         ))}

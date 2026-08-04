@@ -218,7 +218,7 @@ export default function CajaDashboard({
         value={periodo.tipo === "dia" ? periodo.dia : null}
         onSelect={(fecha) => setPeriodo({ tipo: "dia", dia: fecha })}
         triggerLabel={periodoLabel}
-        triggerClassName="w-56 justify-start"
+        triggerClassName="w-44 justify-start sm:w-56"
         ariaLabel="Elegir día o período"
         maxDate={hoy}
         minDate={ventanaDesde}
@@ -282,7 +282,7 @@ export default function CajaDashboard({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 text-xs text-muted-foreground"
+          className="h-9 text-xs text-muted-foreground sm:h-8"
           onClick={() => setPeriodo({ tipo: "mes", mes: mesActual() })}
         >
           <CalendarDays size={13} />
@@ -300,7 +300,7 @@ export default function CajaDashboard({
             label: CAJA_LABEL[id],
           }))}
           searchable={false}
-          triggerClassName="h-8 w-44 font-medium"
+          triggerClassName="h-10 w-44 font-medium sm:h-8"
           aria-label="Filtrar por caja"
         />
       )}

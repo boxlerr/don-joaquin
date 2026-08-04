@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { coincideBusqueda } from "@/lib/texto";
 import {
   Dialog,
@@ -199,6 +200,21 @@ function BankBadge({ banco, alto = 20 }: { banco: string; alto?: number }) {
   );
 }
 
+
+/**
+ * Un dato de la tarjeta de celular: el rótulo que en la tabla es el encabezado
+ * de la columna, y abajo el valor. Misma información, sin ocho columnas.
+ */
+function Dato({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+        {label}
+      </span>
+      <span className="block text-xs tabular-nums text-foreground">{children}</span>
+    </div>
+  );
+}
 
 /** Criterios de orden del listado de préstamos. */
 type OrdenPrestamo = "proxima" | "cuota" | "deuda" | "tasa" | "cuotas" | "banco";
@@ -545,7 +561,7 @@ export default function PrestamosClient({
                 options={mesesOpciones}
                 aria-label="Elegir mes"
                 searchable
-                triggerClassName="h-7 w-[152px] border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
+                triggerClassName="h-9 sm:h-7 w-[152px] max-w-full border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
               />
               {!esMesActual && (
                 <button
@@ -574,8 +590,8 @@ export default function PrestamosClient({
         {/* Un solo gráfico de carga de pagos, con tres escalas de tiempo:
             día (qué cae mañana), semana (en cuál conviene pagar o financiar) y
             mes (la película larga). */}
-        <div className="rounded-[12px] border border-border bg-card p-5 shadow-sm">
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[12px] border border-border bg-card p-3 shadow-sm sm:p-5">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
               {vista === "dia" ? (
                 <CalendarDays size={16} style={{ color: VIOLETA }} />
@@ -593,7 +609,7 @@ export default function PrestamosClient({
                 </span>
               </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
             <div
               role="group"
               aria-label="Escala del gráfico"
@@ -607,7 +623,7 @@ export default function PrestamosClient({
                     type="button"
                     onClick={() => cambiarVista(v.id)}
                     aria-pressed={activa}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    className={`inline-flex items-center justify-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors max-md:h-9 max-md:px-3.5 ${
                       activa
                         ? "bg-card text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -623,7 +639,7 @@ export default function PrestamosClient({
                 type="button"
                 onClick={() => setTopesOpen(true)}
                 title="A partir de cuánta plata por día, semana o mes querés que te avise"
-                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors max-md:h-9 max-md:px-3 ${
                   hayAlgunTope(topes)
                     ? "border-border text-muted-foreground hover:text-foreground"
                     : "border-dashed border-border text-muted-foreground hover:text-foreground"
@@ -637,12 +653,12 @@ export default function PrestamosClient({
           </div>
           {/* Navegación de la ventana: se puede ir a períodos anteriores y
               posteriores, no sólo mirar hacia adelante. */}
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setOffset((o) => o - 1)}
               aria-label="Período anterior"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-md:h-9 max-md:w-9"
             >
               <ChevronLeft size={14} />
             </button>
@@ -650,7 +666,7 @@ export default function PrestamosClient({
               type="button"
               onClick={() => setOffset((o) => o + 1)}
               aria-label="Período siguiente"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-md:h-9 max-md:w-9"
             >
               <ChevronRight size={14} />
             </button>
@@ -686,8 +702,12 @@ export default function PrestamosClient({
             </div>
           )}
 
+          {/* 14 barras no entran en 343px: abajo de md el gráfico scrollea
+              adentro de su tarjeta (con la flechita), no se aplasta. */}
           {vista === "dia" &&
             (hayCargaDiaria ? (
+              <HorizontalScrollHint fadeBg="from-card">
+              <div className="min-w-[620px] md:min-w-0">
               <ResponsiveContainer width="100%" height={288}>
                 <BarChart data={dias} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
@@ -708,6 +728,8 @@ export default function PrestamosClient({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
+              </HorizontalScrollHint>
             ) : (
               <p className="py-14 text-center text-sm text-muted-foreground">
                 No vence ninguna cuota en los próximos 14 días.
@@ -750,6 +772,8 @@ export default function PrestamosClient({
 
           {vista === "mes" &&
             (hayCargaMensual ? (
+              <HorizontalScrollHint fadeBg="from-card">
+              <div className="min-w-[560px] md:min-w-0">
               <ResponsiveContainer width="100%" height={288}>
                 <BarChart data={meses} margin={{ top: 18, right: 8, bottom: 2, left: 8 }}>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--border)" />
@@ -777,6 +801,8 @@ export default function PrestamosClient({
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              </div>
+              </HorizontalScrollHint>
             ) : (
               <p className="py-14 text-center text-sm text-muted-foreground">
                 Sin cuotas en los próximos 12 meses.
@@ -786,12 +812,12 @@ export default function PrestamosClient({
 
         {/* Próximos vencimientos */}
         <div className="overflow-hidden rounded-[12px] border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+          <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
             <Bell size={15} className="text-[#0088D1]" />
             <h2 className="text-sm font-semibold text-foreground">Próximos vencimientos</h2>
           </div>
           {cuotasPendientes.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground sm:px-5">
               Sin cuotas pendientes. Cargá un préstamo para empezar.
             </p>
           ) : (
@@ -799,7 +825,9 @@ export default function PrestamosClient({
               {cuotasPendientes.slice(0, 8).map((c) => {
                 const vencida = c.fecha_vencimiento < hoy;
                 return (
-                  <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                  // En celular el importe y el botón bajan a su propio
+                  // renglón: en la misma fila el banco quedaba en "Galic…".
+                  <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
                     <BankBadge banco={c.banco} alto={18} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">
@@ -822,20 +850,26 @@ export default function PrestamosClient({
                         )}
                       </p>
                     </div>
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                      {ars(c.importe)}
-                    </span>
-                    {canWrite && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 shrink-0 px-2 text-xs"
-                        disabled={savingId === c.id}
-                        onClick={() => togglePagada(c.id, true)}
-                      >
-                        {savingId === c.id ? <Loader2 size={12} className="animate-spin" /> : "Pagada"}
-                      </Button>
-                    )}
+                    <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                        {ars(c.importe)}
+                      </span>
+                      {canWrite && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 px-2 text-xs"
+                          disabled={savingId === c.id}
+                          onClick={() => togglePagada(c.id, true)}
+                        >
+                          {savingId === c.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            "Pagada"
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -846,8 +880,10 @@ export default function PrestamosClient({
 
       {/* Préstamos */}
       <div className="overflow-hidden rounded-[12px] border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
-          <div className="flex items-center gap-2">
+        {/* Encabezado: en celular el título va arriba y las acciones abajo, en
+            una tira que envuelve; en una sola fila se salían de la pantalla. */}
+        <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
+          <div className="flex flex-wrap items-center gap-2">
             <Landmark size={15} className="text-[#0088D1]" />
             <h2 className="text-sm font-semibold text-foreground">
               Préstamos{" "}
@@ -870,52 +906,54 @@ export default function PrestamosClient({
               </button>
             )}
           </div>
-          {/* Mirar para atrás: lo que ya se pagó, mes a mes. Estaba guardado
-              pero no se veía sin abrir préstamo por préstamo. */}
-          <button
-            type="button"
-            onClick={() => setHistorialOpen(true)}
-            title="Ver todo lo que ya se pagó, mes a mes"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            <History size={15} className="text-primary" />
-            Pagos hechos
-          </button>
-          {canWrite && (
-            <>
-              {/* El ritual de principio de mes: corregir de una las fechas que
-                  pasó el banco, en vez de abrir préstamo por préstamo. */}
-              <button
-                type="button"
-                onClick={() => setFechasOpen(true)}
-                title="Corregir de una vez las fechas y los importes que vencen este mes"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                <CalendarCheck size={15} className="text-primary" />
-                Fechas del mes
-              </button>
-              <AddPrestamoDialog bancos={bancos} />
-            </>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Mirar para atrás: lo que ya se pagó, mes a mes. Estaba guardado
+                pero no se veía sin abrir préstamo por préstamo. */}
+            <button
+              type="button"
+              onClick={() => setHistorialOpen(true)}
+              title="Ver todo lo que ya se pagó, mes a mes"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <History size={15} className="text-primary" />
+              Pagos hechos
+            </button>
+            {canWrite && (
+              <>
+                {/* El ritual de principio de mes: corregir de una las fechas que
+                    pasó el banco, en vez de abrir préstamo por préstamo. */}
+                <button
+                  type="button"
+                  onClick={() => setFechasOpen(true)}
+                  title="Corregir de una vez las fechas y los importes que vencen este mes"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <CalendarCheck size={15} className="text-primary" />
+                  Fechas del mes
+                </button>
+                <AddPrestamoDialog bancos={bancos} />
+              </>
+            )}
+          </div>
         </div>
 
         {/* Filtros y orden: con 35 préstamos de 6 bancos, encontrar uno a ojo
             no va. El total de arriba sigue siendo el de todos. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-2.5">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 sm:px-5">
+          <div className="relative w-full sm:w-auto">
             <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
             <input
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar banco o monto…"
-              className="h-8 w-52 rounded-[6px] border border-border bg-background pl-7 pr-2 text-xs text-foreground"
+              className="h-9 w-full rounded-[6px] border border-border bg-background pl-7 pr-2 text-xs text-foreground sm:h-8 sm:w-52"
             />
           </div>
           <select
             value={fBanco}
             onChange={(e) => setFBanco(e.target.value)}
-            className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+            className="h-9 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground sm:h-8 sm:flex-none"
           >
             <option value="todos">Todos los bancos</option>
             {bancos.map((b) => (
@@ -925,19 +963,19 @@ export default function PrestamosClient({
           <select
             value={fEstado}
             onChange={(e) => setFEstado(e.target.value as typeof fEstado)}
-            className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+            className="h-9 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground sm:h-8 sm:flex-none"
           >
             <option value="todos">Todos</option>
             <option value="activos">Con cuotas por pagar</option>
             <option value="cancelados">Cancelados</option>
             {incompletos > 0 && <option value="incompletos">Falta completar ({incompletos})</option>}
           </select>
-          <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-            Ordenar por
+          <label className="flex w-full items-center gap-1.5 text-xs text-muted-foreground sm:ml-auto sm:w-auto">
+            <span className="shrink-0">Ordenar por</span>
             <select
               value={orden}
               onChange={(e) => setOrden(e.target.value as OrdenPrestamo)}
-              className="h-8 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground"
+              className="h-9 min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 text-xs text-foreground sm:h-8 sm:flex-none"
             >
               {(Object.keys(ORDEN_LABEL) as OrdenPrestamo[]).map((k) => (
                 <option key={k} value={k}>{ORDEN_LABEL[k]}</option>
@@ -951,7 +989,7 @@ export default function PrestamosClient({
           )}
         </div>
         {prestamos.length === 0 ? (
-          <div className="px-5 py-12 text-center">
+          <div className="px-4 py-12 text-center sm:px-5">
             <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#0088D1]/10">
               <PiggyBank size={22} className="text-[#0088D1]" />
             </div>
@@ -961,7 +999,12 @@ export default function PrestamosClient({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desde md, la tabla de siempre (con scroll horizontal propio).
+              Abajo de md la misma lista se dibuja como tarjetas: ocho columnas
+              no entran en 343px y ésta ES la pantalla —abrir el cronograma y
+              marcar cuotas se tiene que poder hacer del celular. */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
@@ -1229,6 +1272,205 @@ export default function PrestamosClient({
               </tbody>
             </table>
           </div>
+
+          {/* Celular: una tarjeta por préstamo, con los mismos datos que las
+              columnas de la tabla y las acciones siempre visibles (en el
+              teléfono no hay hover que las haga aparecer). */}
+          <ul className="divide-y divide-border/60 md:hidden">
+            {visibles.map((p) => {
+              const abierto = expandedId === p.id;
+              const ultima = p.cuotas[p.cuotas.length - 1]?.fecha_vencimiento ?? null;
+              const pct = Math.round((p.pagadas / p.cuotas_total) * 100);
+              const v = p.cuota_variable ? variacionCuota(p.cuotas) : null;
+              return (
+                <li key={p.id} className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(abierto ? null : p.id)}
+                    aria-expanded={abierto}
+                    className="flex w-full items-start gap-2.5 text-left"
+                  >
+                    {abierto ? (
+                      <ChevronDown size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <BankBadge banco={p.banco} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-x-1.5">
+                        <span className="font-medium text-foreground">{p.banco}</span>
+                        <span
+                          className={`text-xs ${p.detalle ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+                        >
+                          · {p.detalle || "—"}
+                        </span>
+                        {p.moneda === "USD" && (
+                          <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            USD
+                          </span>
+                        )}
+                        {tieneFaltantes(p) && (
+                          <span
+                            title={`Falta ${textoFaltantes(p)}`}
+                            aria-label={`Préstamo incompleto, falta ${textoFaltantes(p)}`}
+                            className="inline-flex shrink-0 text-amber-500"
+                          >
+                            <AlertTriangle size={13} />
+                          </span>
+                        )}
+                      </span>
+                      {p.referencia && (
+                        <span className="block truncate text-[11px] leading-tight text-muted-foreground/80">
+                          {p.referencia}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+
+                  <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 pl-[26px]">
+                    <Dato label="Cuota">
+                      {p.importe_cuota === 0 ? (
+                        "—"
+                      ) : (
+                        <>
+                          {p.moneda === "USD"
+                            ? `US$ ${p.importe_cuota.toLocaleString("es-AR")}`
+                            : ars(p.importe_cuota)}
+                          {p.cuota_variable && (
+                            <span className="block text-[11px] font-normal leading-tight">
+                              {v ? (
+                                <span
+                                  className={v.diferencia >= 0 ? "text-[#B45309]" : "text-[#059669]"}
+                                >
+                                  {formatoVariacion(v.porcentaje)} vs. la anterior
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">cuota variable</span>
+                              )}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Dato>
+                    <Dato label="Falta pagar">
+                      {p.es_recurrente ? (
+                        <span className="text-muted-foreground/70">sin fin</span>
+                      ) : p.restante > 0 ? (
+                        <span className={p.cuota_variable ? "text-muted-foreground" : undefined}>
+                          {p.cuota_variable ? "≈ " : ""}
+                          {ars(p.restante)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </Dato>
+                    <Dato label="Próxima cuota">
+                      {p.proxima ? (
+                        <>
+                          {fmtFecha(p.proxima.fecha_vencimiento)}
+                          {p.proxima.motivo_corrimiento && (
+                            <span className="block text-[11px] leading-tight text-[#B45309]">
+                              se paga el {fmtFecha(p.proxima.fecha_efectiva)}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "Cancelado ✅"
+                      )}
+                    </Dato>
+                    <Dato label="Última cuota">{ultima ? fmtFecha(ultima) : "—"}</Dato>
+                    <Dato label="Progreso">
+                      {p.es_recurrente ? (
+                        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                          <Repeat size={12} className="text-primary" />
+                          Todos los meses
+                          {p.dia_vencimiento ? `, el ${p.dia_vencimiento}` : ""}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                            <span
+                              className="block h-full rounded-full bg-emerald-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </span>
+                          <span className="shrink-0 tabular-nums text-muted-foreground">
+                            {p.pagadas}/{p.cuotas_total}
+                          </span>
+                        </span>
+                      )}
+                    </Dato>
+                    <Dato label="Tasa">
+                      {p.tasa != null ? `${p.tasa.toLocaleString("es-AR")}%` : "—"}
+                    </Dato>
+                  </div>
+
+                  {canWrite && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 pl-[26px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditPrestamo(p);
+                          setEditKey((k) => k + 1);
+                        }}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                      >
+                        <Pencil size={13} className="text-muted-foreground" />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelId(p.id)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      >
+                        <Trash2 size={13} />
+                        Eliminar
+                      </button>
+                    </div>
+                  )}
+
+                  {confirmDelId === p.id && (
+                    <div className="mt-2 rounded-[6px] bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                      <p className="font-semibold">
+                        ¿Eliminar el préstamo de {p.banco} con todo su cronograma?
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={savingId === p.id}
+                          onClick={() => borrarPrestamo(p.id)}
+                          className="h-9 rounded bg-red-600 px-3 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                        >
+                          Sí, eliminar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelId(null)}
+                          className="h-9 rounded border border-red-200 px-3 hover:bg-red-100"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {abierto && (
+                    <div className="mt-3 rounded-[6px] bg-muted/30 p-2.5">
+                      <CronogramaExpandido
+                        prestamo={p}
+                        canWrite={canWrite}
+                        hoy={hoy}
+                        savingId={savingId}
+                        onTogglePagada={togglePagada}
+                        onEditCuota={(c) => setEditCuota({ ...c, banco: p.banco })}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          </>
         )}
       </div>
 
@@ -1345,16 +1587,20 @@ function KpiCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-[12px] border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-[12px] border border-border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex items-center gap-2.5">
-        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconBg}`}>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
           <Icon size={16} className={iconColor} />
         </span>
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
       </div>
-      <p className={`mt-3 text-[26px] font-bold leading-none tabular-nums ${valueTone}`}>{value}</p>
+      {/* En celular el número baja un escalón: a 26px un total de nueve cifras
+          se salía de la tarjeta. */}
+      <p className={`mt-3 text-2xl font-bold leading-none tabular-nums sm:text-[26px] ${valueTone}`}>
+        {value}
+      </p>
       {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -1374,7 +1620,7 @@ function KpiHero({
 }) {
   return (
     <div
-      className="rounded-[12px] p-5 shadow-sm"
+      className="rounded-[12px] p-4 shadow-sm sm:p-5"
       style={{ background: "linear-gradient(135deg, #0088D1 0%, #0072B0 100%)" }}
     >
       {/* El título va solo en su fila: compartirla con el selector lo dejaba
@@ -1385,7 +1631,9 @@ function KpiHero({
         </span>
         <span className="text-xs font-semibold uppercase tracking-wide text-white/80">{label}</span>
       </div>
-      <p className="mt-3 text-[26px] font-bold leading-none tabular-nums text-white">{value}</p>
+      <p className="mt-3 text-2xl font-bold leading-none tabular-nums text-white sm:text-[26px]">
+        {value}
+      </p>
       {action && <div className="mt-3">{action}</div>}
       {hint && <p className="mt-2 text-xs text-white/70">{hint}</p>}
     </div>
@@ -1470,20 +1718,20 @@ function EditarCuotaDialog({
         </div>
         <DialogFooter className="sm:justify-between">
           {confirmarBorrar ? (
-            <span className="flex items-center gap-2 text-xs text-red-700">
+            <span className="flex flex-wrap items-center gap-2 text-xs text-red-700">
               {cuota.pagada ? "Figura pagada. ¿Sacarla igual?" : "¿Sacarla del cronograma?"}
               <button
                 type="button"
                 onClick={eliminar}
                 disabled={isPending}
-                className="h-7 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                className="h-7 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60 max-md:h-9 max-md:px-3"
               >
                 Sí, sacar
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmarBorrar(false)}
-                className="h-7 rounded border border-red-200 px-2 hover:bg-red-50"
+                className="h-7 rounded border border-red-200 px-2 hover:bg-red-50 max-md:h-9 max-md:px-3"
               >
                 No
               </button>
@@ -1498,7 +1746,9 @@ function EditarCuotaDialog({
               <Trash2 size={13} /> Eliminar cuota
             </button>
           )}
-          <span className="flex gap-2">
+          {/* En celular los dos botones se reparten el ancho: el pie del
+              diálogo ya estira a sus hijos directos, pero éstos son nietos. */}
+          <span className="flex gap-2 max-sm:*:flex-1">
             <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
               Cancelar
             </Button>

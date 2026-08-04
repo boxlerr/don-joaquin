@@ -216,9 +216,10 @@ export default function AddServicioDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (loading) return; setOpen(v); }}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+      {/* El alto máximo lo maneja la primitiva con `dvh`; acá sólo el ancho. */}
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">{editing ? "Editar servicio" : "Cargar servicio"}</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">{editing ? "Editar servicio" : "Cargar servicio"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Registrá un service, reparación o gomería de un camión o acoplado.
           </DialogDescription>
@@ -280,7 +281,7 @@ export default function AddServicioDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input id="fecha" type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
@@ -298,7 +299,7 @@ export default function AddServicioDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="taller" className="text-sm font-medium text-foreground">
                 Taller / Concesionaria <span className="text-muted-foreground font-normal">(opcional)</span>
@@ -320,8 +321,8 @@ export default function AddServicioDialog({
             <Input id="obs" placeholder="Detalle del trabajo" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
           </div>
 
-          <div className="rounded-[8px] border border-dashed border-border bg-muted/20 px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="rounded-[8px] border border-dashed border-border bg-muted/20 px-3 sm:px-4 py-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                 Próximo service <span className="font-normal normal-case">(genera alerta)</span>
               </p>
@@ -331,7 +332,7 @@ export default function AddServicioDialog({
                 </p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="proxFecha" className="text-xs font-medium text-muted-foreground">Fecha estimada</Label>
                 <Input id="proxFecha" type="date" value={proxFecha} onChange={(e) => setProxFecha(e.target.value)} />

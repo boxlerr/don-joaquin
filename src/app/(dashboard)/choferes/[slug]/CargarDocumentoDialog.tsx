@@ -154,7 +154,7 @@ export default function CargarDocumentoDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">
+          <DialogTitle className="text-foreground text-lg sm:text-xl">
             {esEdicion ? "Editar documento" : "Cargar documento"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -227,7 +227,7 @@ export default function CargarDocumentoDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
               <Input

@@ -84,7 +84,7 @@ export default function CargarPrestamoDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Nuevo préstamo</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">Nuevo préstamo</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             El saldo pendiente inicial será igual al monto del préstamo.
           </DialogDescription>
@@ -97,7 +97,7 @@ export default function CargarPrestamoDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Fecha <span className="text-red-400">*</span>

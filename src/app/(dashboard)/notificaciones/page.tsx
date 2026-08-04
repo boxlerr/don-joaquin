@@ -152,12 +152,12 @@ export default async function NotificacionesPage() {
   const docProximos = docAlertas.length - docVencidos;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Notificaciones"
         description="Alertas del sistema sobre vencimientos, documentos y operaciones"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <HelpTutorialButton />
             <form action={actualizarAlertas}>
               <Button type="submit" variant="outline" size="sm">
@@ -176,7 +176,7 @@ export default async function NotificacionesPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-5 sm:mb-6">
         <StatCard
           label="Vencidos"
           value={String(docVencidos)}

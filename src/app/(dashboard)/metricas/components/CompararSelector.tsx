@@ -52,30 +52,32 @@ export default function CompararSelector({
   return (
     <div ref={ref} className="relative">
       <div className={cn(
-        "flex items-center gap-1 rounded-lg border px-2 h-8 text-xs font-medium transition-colors",
+        "flex h-9 items-center gap-1 rounded-lg border px-2 text-xs font-medium transition-colors sm:h-8",
         compare ? "border-violet-400/60 bg-violet-500/5 text-violet-700" : "border-border bg-card text-muted-foreground hover:text-foreground",
       )}>
-        <button type="button" onClick={() => setOpen(!open)} className="inline-flex items-center gap-1.5" title="Comparar contra otro mes">
-          <GitCompareArrows size={13} />
-          {compare ? `vs ${mesLabel(`${compare}-01`)}` : "Comparar con…"}
+        <button type="button" onClick={() => setOpen(!open)} className="inline-flex h-full items-center gap-1.5" title="Comparar contra otro mes">
+          <GitCompareArrows size={13} className="shrink-0" />
+          <span className="truncate">{compare ? `vs ${mesLabel(`${compare}-01`)}` : "Comparar con…"}</span>
         </button>
         {compare && (
-          <button type="button" onClick={() => setCompare(null)} title="Quitar comparación" className="hover:text-red-500 transition-colors">
+          <button type="button" onClick={() => setCompare(null)} title="Quitar comparación" className="inline-flex h-full items-center px-1 transition-colors hover:text-red-500">
             <X size={12} />
           </button>
         )}
       </div>
 
       {open && (
-        // Anclado a la DERECHA: el botón vive en el borde derecho de la
-        // toolbar y anclado a la izquierda el popup se salía de la pantalla.
-        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        // Anclado a la DERECHA en desktop: el botón vive en el borde derecho de
+        // la toolbar y anclado a la izquierda el popup se salía de la pantalla.
+        // En celular el botón arranca pegado a la izquierda, así que se ancla al
+        // revés (si no, las 64 de ancho se iban fuera de la pantalla).
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 shadow-lg sm:left-auto sm:right-0">
           <div className="mb-2 flex items-center justify-between">
-            <button type="button" onClick={() => setYearView(yearView - 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border hover:bg-muted/50">
+            <button type="button" onClick={() => setYearView(yearView - 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border hover:bg-muted/50 sm:h-7 sm:w-7">
               <ChevronLeft size={13} />
             </button>
             <span className="text-sm font-semibold text-foreground">{yearView}</span>
-            <button type="button" onClick={() => setYearView(yearView + 1)} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border hover:bg-muted/50">
+            <button type="button" onClick={() => setYearView(yearView + 1)} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border hover:bg-muted/50 sm:h-7 sm:w-7">
               <ChevronRight size={13} />
             </button>
           </div>

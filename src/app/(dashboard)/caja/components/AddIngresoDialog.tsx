@@ -125,7 +125,7 @@ export default function AddIngresoDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ing-monto" className="text-sm font-medium text-foreground">Monto ($)</Label>
               <Input 
@@ -150,7 +150,7 @@ export default function AddIngresoDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ing-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
               <Select value={categoria} onValueChange={(v) => setCategoria(v as typeof categoria)}>

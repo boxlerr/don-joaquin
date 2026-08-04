@@ -60,7 +60,7 @@ export default function CargarAumentoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowUpRight size={16} className="text-amber-500" /> Cargar aumento de tarifa
@@ -74,7 +74,7 @@ export default function CargarAumentoDialog({
           <div>
             <label className="text-xs font-medium text-muted-foreground">Cliente</label>
             <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none">
+              className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none max-md:h-10">
               <option value="">Otro (escribir abajo)</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
@@ -83,27 +83,29 @@ export default function CargarAumentoDialog({
             {!clienteId && (
               <input value={clienteLibre} onChange={(e) => setClienteLibre(e.target.value)}
                 placeholder="Nombre del cliente" required
-                className="mt-2 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                className="mt-2 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none max-md:h-10" />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* La fecha y el % recién van lado a lado desde sm: en 375px el campo
+              de fecha quedaba sin lugar para el formato dd/mm/aaaa. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Vigente desde</label>
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} required
-                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none max-md:h-10" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Aumento %</label>
               <input value={porcentaje} onChange={(e) => setPorcentaje(e.target.value)}
                 placeholder="Ej: 8,5" required inputMode="decimal"
-                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none" />
+                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none max-md:h-10" />
             </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Observaciones (opcional)</label>
             <input value={obs} onChange={(e) => setObs(e.target.value)}
               placeholder="Ej: aumento por paritaria / combustible"
-              className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none max-md:h-10" />
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <DialogFooter>

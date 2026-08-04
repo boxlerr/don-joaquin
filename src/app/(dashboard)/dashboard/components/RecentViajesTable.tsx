@@ -87,7 +87,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
             <button
               type="button"
               onClick={() => setExpandedId(isExpanded ? null : v.id)}
-              className={`w-full text-left px-4 sm:px-5 py-2.5 flex items-center gap-3 transition-colors cursor-pointer hover:bg-muted/40 ${
+              className={`w-full text-left px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 transition-colors cursor-pointer hover:bg-muted/40 ${
                 isExpanded ? "bg-muted/30" : ""
               }`}
               aria-expanded={isExpanded}
@@ -142,11 +142,13 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
 
             {/* Detalle compacto — mismo lenguaje "Ruta" que /viajes */}
             {isExpanded && (
-              <div className="px-4 sm:px-5 pb-3.5 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+              <div className="px-3 sm:px-5 pb-3.5 animate-in fade-in-50 slide-in-from-top-1 duration-200">
                 <div className="rounded-lg border border-border/80 bg-card shadow-2xs overflow-hidden">
-                  {/* La ruta, dibujada */}
-                  <div className="flex items-center gap-3 px-3.5 pt-3 pb-2">
-                    <div className="flex items-center gap-2 min-w-0 max-w-[34%]">
+                  {/* La ruta, dibujada. En celular se apila (origen / ruta /
+                      destino): a 375px las tres piezas lado a lado dejaban la
+                      chapa del camión pisando los nombres. */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 px-3 sm:px-3.5 pt-3 pb-2">
+                    <div className="flex items-center gap-2 min-w-0 sm:max-w-[34%]">
                       <span className="size-2 rounded-full bg-[#10B981] ring-4 ring-[#10B981]/15 shrink-0" aria-hidden />
                       <div className="min-w-0">
                         <div className="text-[8.5px] font-extrabold uppercase tracking-wider text-muted-foreground/80">
@@ -161,7 +163,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                       </div>
                     </div>
 
-                    <div className="flex-1 min-w-[48px]">
+                    <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[48px]">
                       <div className="relative h-7" aria-hidden>
                         <span
                           className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[2px] opacity-45"
@@ -194,7 +196,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 min-w-0 max-w-[34%]">
+                    <div className="flex items-center gap-2 min-w-0 sm:max-w-[34%]">
                       <MapPin
                         size={14}
                         className={`shrink-0 ${v.destino ? "text-[#C00000]" : "text-muted-foreground/40"}`}
@@ -215,7 +217,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                   </div>
 
                   {/* Chofer · camión · kms · flete */}
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3.5 pb-3">
+                  <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-5 gap-y-2 px-3 sm:px-3.5 pb-3">
                     <span className="inline-flex items-center gap-1.5 min-w-0">
                       {v.chofer ? (
                         <>
@@ -270,29 +272,32 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                     )}
                   </div>
 
-                  {/* Notas + acciones */}
-                  <div className="flex items-center justify-between gap-3 px-3.5 py-2 border-t border-border/70 bg-muted/30">
+                  {/* Notas + acciones. En celular las acciones bajan de renglón;
+                      el alto táctil de los Button ya lo resuelve la primitiva
+                      (size="xs" trae `max-md:h-9`), así que sólo se replica en
+                      el <a>, que no es un Button. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 sm:px-3.5 py-2 border-t border-border/70 bg-muted/30">
                     <p
-                      className={`text-[11px] italic truncate ${notas ? "text-muted-foreground" : "text-muted-foreground/50"}`}
+                      className={`text-[11px] italic truncate min-w-0 flex-1 ${notas ? "text-muted-foreground" : "text-muted-foreground/50"}`}
                       title={notas || undefined}
                     >
                       {notas || "Sin notas adicionales"}
                     </p>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex flex-wrap items-center gap-1 shrink-0">
                       <a
                         href="/viajes"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-bold text-primary hover:bg-[#E1F5FE] dark:hover:bg-sky-950/40 transition-colors"
+                        className="inline-flex items-center gap-1 h-6 max-md:h-9 px-2 max-md:px-3 rounded-md text-[11px] font-bold text-primary hover:bg-[#E1F5FE] transition-colors"
                       >
                         Abrir en Viajes <ArrowRight size={11} />
                       </a>
                       {deletingId === v.id ? (
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
                           <span className="text-[10px] text-red-600 font-bold">¿Confirmar?</span>
                           <Button
                             variant="destructive"
                             size="xs"
-                            className="h-6 px-2 text-[10px] font-bold"
+                            className="px-2 text-[10px] font-bold"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(v.id);
@@ -303,7 +308,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                           <Button
                             variant="outline"
                             size="xs"
-                            className="h-6 px-2 text-[10px]"
+                            className="px-2 text-[10px]"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeletingId(null);
@@ -316,7 +321,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
                         <Button
                           variant="ghost"
                           size="xs"
-                          className="h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-[11px] gap-1"
+                          className="px-2 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1"
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeletingId(v.id);

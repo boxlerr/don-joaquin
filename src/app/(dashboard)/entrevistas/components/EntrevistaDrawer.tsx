@@ -176,8 +176,8 @@ export default function EntrevistaDrawer({
         {e && form && (
           <>
             {/* Encabezado */}
-            <div className="shrink-0 border-b border-border p-5 pb-4 pr-14">
-              <DialogTitle className="flex flex-wrap items-center gap-3 text-lg font-bold text-foreground">
+            <div className="shrink-0 border-b border-border p-4 pr-12 sm:p-5 sm:pb-4 sm:pr-14">
+              <DialogTitle className="flex flex-wrap items-center gap-2 sm:gap-3 text-base sm:text-lg font-bold text-foreground">
                 {e.nombre}
                 {/* Solo lectura: la etapa se maneja acá abajo con los pills. */}
                 <Semaforo entrevistaId={e.id} etapa={e.etapa} canWrite={false} />
@@ -198,7 +198,7 @@ export default function EntrevistaDrawer({
                       type="button"
                       disabled={!canWrite || moviendo}
                       onClick={() => moverEtapa(et.id)}
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:cursor-default ${
+                      className={`inline-flex min-h-9 items-center rounded-full px-3 py-2 text-[11px] font-semibold transition-colors disabled:cursor-default sm:min-h-0 sm:px-2.5 sm:py-1 ${
                         activa
                           ? et.id === "descartado" ? "bg-rose-600 text-white" : et.id === "ingresado" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
                           : `bg-muted text-muted-foreground ${canWrite ? "hover:text-foreground" : ""}`
@@ -214,7 +214,7 @@ export default function EntrevistaDrawer({
             </div>
 
             {/* Cuerpo */}
-            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 space-y-5 sm:space-y-6 overflow-y-auto p-4 sm:p-5">
               {error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>
               )}
@@ -402,18 +402,25 @@ export default function EntrevistaDrawer({
 
             {/* Barra de guardado: aparece cuando hay cambios sin guardar */}
             {canWrite && (
-              <div className={`shrink-0 border-t border-border bg-card p-3 px-5 transition-all ${dirty ? "" : "opacity-70"}`}>
-                <div className="flex items-center justify-between gap-2">
+              <div className={`shrink-0 border-t border-border bg-card p-3 px-4 sm:px-5 transition-all ${dirty ? "" : "opacity-70"}`}>
+                {/* En celular el aviso va arriba y los botones abajo, a lo ancho:
+                    en una sola fila el texto y los dos botones no entran. */}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-muted-foreground">
                     {dirty ? "Hay cambios sin guardar." : "Todo guardado."}
                   </p>
                   <div className="flex items-center gap-2">
                     <EntrevistaFormDialog entrevista={e}>
-                      <Button variant="outline" size="sm" className="gap-1.5">
+                      <Button variant="outline" size="sm" className="flex-1 gap-1.5 sm:flex-none">
                         <Pencil size={13} /> Editar todo
                       </Button>
                     </EntrevistaFormDialog>
-                    <Button size="sm" className="gap-1.5" disabled={!dirty || guardando} onClick={guardar}>
+                    <Button
+                      size="sm"
+                      className="flex-1 gap-1.5 sm:flex-none"
+                      disabled={!dirty || guardando}
+                      onClick={guardar}
+                    >
                       {guardando ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                       Guardar
                     </Button>

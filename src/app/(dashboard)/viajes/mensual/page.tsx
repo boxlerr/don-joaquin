@@ -9,7 +9,7 @@ export default async function ViajesMensualPage() {
   await requireSeccion("viajes_listado", "read");
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Viajes por chofer — mensual"
         description="Resumen de viajes, km, tonelaje y flete de cada chofer en el mes seleccionado"

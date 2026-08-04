@@ -44,7 +44,7 @@ export default function EmpresaCard({
 
   return (
     <div className="bg-card rounded-[10px] border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border bg-muted/30 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 sm:px-5 py-4 border-b border-border bg-muted/30 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#E0F2FE] text-[#0369A1] shrink-0">
             <Building2 size={17} />
@@ -60,13 +60,13 @@ export default function EmpresaCard({
       </div>
 
       <div
-        className={`px-5 py-2.5 flex items-center gap-2 text-xs border-b ${
+        className={`px-4 sm:px-5 py-2.5 flex items-start sm:items-center gap-2 text-xs border-b ${
           todoListo
             ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]"
             : "bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]"
         }`}
       >
-        <ShieldCheck size={14} className="shrink-0" />
+        <ShieldCheck size={14} className="shrink-0 mt-0.5 sm:mt-0" />
         <span className="font-medium">
           {todoListo
             ? "Todos los datos están completos."
@@ -74,7 +74,7 @@ export default function EmpresaCard({
         </span>
       </div>
 
-      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+      <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 sm:gap-y-5">
         {campos.map((c) => {
           const Icon = c.icon;
           const vacio = c.valor.trim() === "";
@@ -96,8 +96,8 @@ export default function EmpresaCard({
         })}
       </div>
 
-      <div className="px-5 py-3 border-t border-border bg-muted/20 flex flex-wrap items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="px-4 sm:px-5 py-3 border-t border-border bg-muted/20 flex flex-wrap items-center justify-between gap-2">
+        <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <Coins size={13} />
           Moneda del sistema: <strong className="text-foreground">{moneda || "—"}</strong>
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">

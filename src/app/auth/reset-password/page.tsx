@@ -11,7 +11,7 @@ export default function ResetPasswordPage() {
     <main className="flex min-h-screen bg-white">
       <LoginDecoration />
 
-      <div className="flex w-full flex-col justify-center px-8 lg:w-[45%] xl:w-[40%] xl:px-24">
+      <div className="flex w-full flex-col justify-center px-5 sm:px-8 lg:w-[45%] xl:w-[40%] xl:px-24">
         <div className="mx-auto w-full max-w-md">
           <div className="mb-8">
             <h3 className="text-xl font-bold text-[#0088D1] mb-2">Seguridad</h3>

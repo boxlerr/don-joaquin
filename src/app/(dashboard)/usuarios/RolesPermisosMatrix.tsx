@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Combobox } from "@/components/ui/combobox";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import {
   updateRolAreaAction,
   crearRolAction,
@@ -132,14 +133,15 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="px-5 py-4 border-b border-border space-y-2">
+      <div className="px-4 sm:px-5 py-4 border-b border-border space-y-2">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={16} className="text-primary" />
+          <ShieldCheck size={16} className="text-primary shrink-0" />
           <h2 className="text-foreground text-sm font-semibold">Roles y permisos (vista del sidebar)</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          Cada <b className="text-foreground">fila</b> es un rol (pasá el mouse por el nombre para
-          renombrarlo o borrarlo) y cada <b className="text-foreground">columna</b> un grupo del menú.
+          Cada <b className="text-foreground">fila</b> es un rol (en la computadora, pasá el mouse por
+          el nombre para renombrarlo o borrarlo) y cada <b className="text-foreground">columna</b> un
+          grupo del menú. En celular la tabla se corre para el costado: la columna del rol queda fija.
           Lo <b className="text-foreground">confidencial</b> (Sueldos, Caja, Métricas…) queda cerrado para todos
           salvo el Administrador, aunque el grupo esté en Edición. El rol{" "}
           <b className="text-foreground">Administrador</b> siempre tiene todo.
@@ -154,17 +156,17 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
-          <AlertCircle size={13} />
+        <div className="flex items-center gap-2 px-4 sm:px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
+          <AlertCircle size={13} className="shrink-0" />
           {error}
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <HorizontalScrollHint fadeBg="from-card">
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead>
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky left-0 top-0 bg-muted z-20 border-b border-border min-w-[220px]">
+              <th className="text-left px-3 sm:px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky left-0 top-0 bg-muted z-20 border-b border-border min-w-[150px] sm:min-w-[220px]">
                 Rol
               </th>
               {GRUPOS_SIDEBAR.map((g) => (
@@ -184,7 +186,7 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
               const usuarios = conteoPorRol[rol.id] ?? 0;
               return (
                 <tr key={rol.id} className="hover:bg-muted/20 group/rol">
-                  <td className="px-4 py-2 sticky left-0 bg-card z-10 border-b border-border align-middle" title={`Código interno: ${rol.codigo}`}>
+                  <td className="px-3 sm:px-4 py-2 sticky left-0 bg-card z-10 border-b border-border align-middle" title={`Código interno: ${rol.codigo}`}>
                     {editandoId === rol.id ? (
                       <div className="flex items-center gap-1">
                         <input
@@ -193,12 +195,12 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
                           disabled={isPending}
                           onChange={(e) => setNombreEdit(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") guardarNombre(rol); if (e.key === "Escape") setEditandoId(null); }}
-                          className="h-8 w-40 rounded-md border border-border bg-card px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
+                          className="h-8 max-md:h-10 w-32 sm:w-40 rounded-md border border-border bg-card px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
                         />
-                        <button type="button" title="Guardar" onClick={() => guardarNombre(rol)} disabled={isPending} className="flex items-center justify-center size-7 rounded-md text-emerald-600 hover:bg-emerald-50">
+                        <button type="button" title="Guardar" onClick={() => guardarNombre(rol)} disabled={isPending} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-emerald-600 hover:bg-emerald-50">
                           <Check size={15} />
                         </button>
-                        <button type="button" title="Cancelar" onClick={() => setEditandoId(null)} disabled={isPending} className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted">
+                        <button type="button" title="Cancelar" onClick={() => setEditandoId(null)} disabled={isPending} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-muted-foreground hover:bg-muted">
                           <X size={15} />
                         </button>
                       </div>
@@ -217,12 +219,13 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
                             {usuarios} usuario{usuarios === 1 ? "" : "s"}
                           </span>
                         </div>
+                        {/* En celular no hay hover: los botones se ven siempre. */}
                         {!isAdminRow && (
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover/rol:opacity-100 transition-opacity">
-                            <button type="button" title="Renombrar" onClick={() => { setEditandoId(rol.id); setNombreEdit(rol.nombre); setError(null); }} className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-primary hover:bg-muted">
+                          <div className="flex items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover/rol:opacity-100">
+                            <button type="button" title="Renombrar" onClick={() => { setEditandoId(rol.id); setNombreEdit(rol.nombre); setError(null); }} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-muted-foreground hover:text-primary hover:bg-muted">
                               <Pencil size={13} />
                             </button>
-                            <button type="button" title={usuarios > 0 ? "No se puede borrar: tiene usuarios asignados" : "Eliminar rol"} disabled={usuarios > 0} onClick={() => { setBorrando(rol); setError(null); }} className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:bg-transparent">
+                            <button type="button" title={usuarios > 0 ? "No se puede borrar: tiene usuarios asignados" : "Eliminar rol"} disabled={usuarios > 0} onClick={() => { setBorrando(rol); setError(null); }} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-muted-foreground disabled:hover:bg-transparent">
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -247,7 +250,7 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
                             onValueChange={(v) => setGrupo(rol.id, g, v as AreaNivel)}
                             options={NIVELES.map((n) => ({ id: n, label: NIVEL_INFO[n].label }))}
                             searchable={false}
-                            triggerClassName={`h-8 w-32 text-xs font-medium ${NIVEL_INFO[value].clase} ${saving ? "opacity-60" : ""}`}
+                            triggerClassName={`h-8 max-md:h-10 w-32 text-xs font-medium ${NIVEL_INFO[value].clase} ${saving ? "opacity-60" : ""}`}
                           />
                         )}
                       </td>
@@ -259,7 +262,7 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
 
             {/* Fila para crear un rol nuevo, inline (sin modal). */}
             <tr className="bg-muted/10">
-              <td className="px-4 py-2.5 sticky left-0 bg-muted/10 z-10 border-b border-border">
+              <td className="px-3 sm:px-4 py-2.5 sticky left-0 bg-muted/10 z-10 border-b border-border">
                 {creando ? (
                   <div className="flex items-center gap-1">
                     <input
@@ -269,17 +272,17 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
                       placeholder="Nombre del rol nuevo"
                       onChange={(e) => setNombreNuevo(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") crear(); if (e.key === "Escape") { setCreando(false); setNombreNuevo(""); } }}
-                      className="h-8 w-48 rounded-md border border-border bg-card px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
+                      className="h-8 max-md:h-10 w-36 sm:w-48 rounded-md border border-border bg-card px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
                     />
-                    <button type="button" title="Crear" onClick={crear} disabled={isPending || nombreNuevo.trim().length < 2} className="flex items-center justify-center size-7 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-40">
+                    <button type="button" title="Crear" onClick={crear} disabled={isPending || nombreNuevo.trim().length < 2} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-40">
                       <Check size={15} />
                     </button>
-                    <button type="button" title="Cancelar" onClick={() => { setCreando(false); setNombreNuevo(""); }} disabled={isPending} className="flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-muted">
+                    <button type="button" title="Cancelar" onClick={() => { setCreando(false); setNombreNuevo(""); }} disabled={isPending} className="flex items-center justify-center size-7 max-md:size-9 shrink-0 rounded-md text-muted-foreground hover:bg-muted">
                       <X size={15} />
                     </button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => { setCreando(true); setError(null); }} className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                  <button type="button" onClick={() => { setCreando(true); setError(null); }} className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-primary hover:underline max-md:min-h-9">
                     <Plus size={15} /> Crear rol
                   </button>
                 )}
@@ -294,7 +297,7 @@ export default function RolesPermisosMatrix({ roles, initialMatriz, conteoPorRol
             </tr>
           </tbody>
         </table>
-      </div>
+      </HorizontalScrollHint>
 
       <ConfirmDialog
         open={!!borrando}

@@ -24,7 +24,7 @@ import { EvolucionRotacionChart, BajasPorTipoChart, AntiguedadTramosChart } from
 import GestionBajaDialog from "./GestionBajaDialog";
 import { eliminarBajaAction, guardarParametrosAnioAction } from "./actions";
 
-const card = "bg-card border border-border rounded-[8px] p-5";
+const card = "bg-card border border-border rounded-[8px] p-4 sm:p-5";
 
 export default function RotacionClient({
   dataset, canWrite, anioInicial,
@@ -94,18 +94,18 @@ export default function RotacionClient({
   const descripcion = comparar ? `Comparación · ${anio} vs ${anioB}` : `Año ${anio}`;
 
   return (
-    <div className="p-8 space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4">
       <PageHeader
         title="Índice de rotación de choferes"
         description={descripcion}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canWrite && (
               <Button variant="brand" size="sm" onClick={abrirNueva}>
                 <Plus size={14} /> Cargar baja
               </Button>
             )}
-            <Link href="/choferes" className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <Link href="/choferes" className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
               <Users size={14} /> Ver legajos
             </Link>
           </div>
@@ -113,7 +113,7 @@ export default function RotacionClient({
       />
 
       {/* Barra de control: año + modo + comparar + filtros */}
-      <div className={`${card} flex flex-wrap items-center gap-3`}>
+      <div className={`${card} flex flex-wrap items-center gap-2 sm:gap-3`}>
         <div className="flex items-center gap-2">
           <Calendar size={15} className="text-muted-foreground" />
           <Combobox value={String(anio)} onValueChange={(v) => setAnio(Number(v))} options={anioOptions} searchable={dataset.anios.length > 7} triggerClassName="h-9 w-28" aria-label="Año" />
@@ -121,7 +121,7 @@ export default function RotacionClient({
         <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
           {(["anio", "comparar"] as const).map((mo) => (
             <button key={mo} type="button" onClick={() => setModo(mo)}
-              className={`px-3 h-7 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${modo === mo ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`px-3 h-8 sm:h-7 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${modo === mo ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               {mo === "comparar" && <GitCompareArrows size={12} />}
               {mo === "anio" ? "Año" : "Comparar"}
             </button>
@@ -140,7 +140,7 @@ export default function RotacionClient({
         <div className="flex items-center gap-1 flex-wrap">
           {TIPO_BAJA_OPTIONS.filter((o) => dataset.bajas.some((b) => b.tipo_baja === o.value)).map((o) => (
             <button key={o.value} type="button" onClick={() => toggleTipo(o.value)}
-              className={`px-2.5 h-7 text-[11px] font-medium rounded-full border transition-colors ${filtros.tipos.includes(o.value) ? "bg-[#0088D1] text-white border-[#0088D1]" : "bg-card text-muted-foreground border-border hover:border-[#0088D1]/50"}`}>
+              className={`px-2.5 h-8 sm:h-7 text-[11px] font-medium rounded-full border transition-colors ${filtros.tipos.includes(o.value) ? "bg-[#0088D1] text-white border-[#0088D1]" : "bg-card text-muted-foreground border-border hover:border-[#0088D1]/50"}`}>
               {o.label}
             </button>
           ))}
@@ -150,11 +150,11 @@ export default function RotacionClient({
             value={filtros.base ?? ""}
             onValueChange={(v) => setFiltros((f) => ({ ...f, base: v || null }))}
             options={[{ id: "", label: "Todas las bases" }, ...dataset.bases.map((b) => ({ id: b, label: b }))]}
-            triggerClassName="h-8 w-40 text-xs" aria-label="Base / zona"
+            triggerClassName="h-9 sm:h-8 w-full sm:w-40 text-xs" aria-label="Base / zona"
           />
         )}
         {filtrosActivos && (
-          <button type="button" onClick={() => setFiltros(FILTROS_VACIOS)} className="inline-flex items-center gap-1 h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border">
+          <button type="button" onClick={() => setFiltros(FILTROS_VACIOS)} className="inline-flex items-center gap-1 h-8 sm:h-7 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md border border-border">
             <X size={12} /> Limpiar
           </button>
         )}
@@ -165,7 +165,7 @@ export default function RotacionClient({
         <span className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mr-1">Antigüedad:</span>
         {TRAMOS.filter((t) => t !== "sin_dato" || dataset.bajas.some((b) => tramoDeMeses(b.antiguedad_meses) === "sin_dato")).map((t) => (
           <button key={t} type="button" onClick={() => toggleTramo(t)}
-            className={`px-2.5 h-6 text-[11px] font-medium rounded-full border transition-colors inline-flex items-center gap-1 ${filtros.tramos.includes(t) ? "text-white border-transparent" : "bg-card text-muted-foreground border-border hover:border-foreground/30"}`}
+            className={`px-2.5 h-7 sm:h-6 text-[11px] font-medium rounded-full border transition-colors inline-flex items-center gap-1 ${filtros.tramos.includes(t) ? "text-white border-transparent" : "bg-card text-muted-foreground border-border hover:border-foreground/30"}`}
             style={filtros.tramos.includes(t) ? { background: TRAMO_COLOR[t] } : undefined}>
             <span className="size-2 rounded-full" style={{ background: TRAMO_COLOR[t] }} /> {TRAMO_LABEL[t]}
           </button>
@@ -217,17 +217,17 @@ export default function RotacionClient({
 // ── KPIs modo Año ──────────────────────────────────────────────────────────
 function KpisAnio({ m, deltaIr, dotacionActual }: { m: MetricasAnio; deltaIr: number | null; dotacionActual: number }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {/* IR total hero (2 columnas) */}
-      <div className={`${card} lg:col-span-2 flex flex-col`}>
-        <div className="flex items-start justify-between">
+      <div className={`${card} sm:col-span-2 flex flex-col`}>
+        <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             <Percent size={14} /> Índice de rotación total
           </div>
           {deltaIr != null && <DeltaBadge delta={deltaIr} unidad="pp" invertirColor />}
         </div>
-        <div className="flex items-end gap-3 mt-1">
-          <p className="text-4xl font-bold text-[#0088D1]">{m.ir_total}%</p>
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-1 mt-1">
+          <p className="text-3xl sm:text-4xl font-bold text-[#0088D1]">{m.ir_total}%</p>
           <p className="text-xs text-muted-foreground mb-1.5">{m.bajas} bajas ÷ {m.dotacion_promedio} dotación prom.</p>
         </div>
         <BenchmarkGauge ir={m.ir_total} />
@@ -235,26 +235,26 @@ function KpisAnio({ m, deltaIr, dotacionActual }: { m: MetricasAnio; deltaIr: nu
       <Kpi label="Dotación" icon={Users} tone="text-foreground"
         value={<span className="inline-flex items-center gap-1.5">{m.flota_inicial ?? "—"} <ArrowRight size={16} className="text-muted-foreground" /> {m.flota_final ?? "—"}</span>}
         hint={`promedio ${m.dotacion_promedio}${m.flota_fuente === "estimada" ? " · estimado" : ""}`} />
-      <div className="grid grid-rows-2 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-1 sm:grid-rows-2 gap-3 sm:gap-4">
         <Kpi label={`Altas ${m.anio}`} icon={UserPlus} tone="text-emerald-600" value={m.altas} hint="ingresos" compact />
         <Kpi label={`Bajas ${m.anio}`} icon={UserMinus} tone="text-red-600" value={m.bajas} hint="egresos" compact />
       </div>
       {/* Sub-fila IR desagregado */}
-      <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <MiniIr label="IR voluntaria" value={m.ir_voluntaria} count={m.por_clase.find((c) => c.clase === "voluntaria")?.count ?? 0} color={CLASE_COLOR.voluntaria} />
         <MiniIr label="IR involuntaria" value={m.ir_involuntaria} count={m.por_clase.find((c) => c.clase === "involuntaria")?.count ?? 0} color={CLASE_COLOR.involuntaria} />
         <MiniIr label="IR jubilación" value={m.ir_jubilacion} count={m.por_clase.find((c) => c.clase === "jubilacion")?.count ?? 0} color={CLASE_COLOR.jubilacion} />
       </div>
-      <p className="lg:col-span-4 text-[11px] text-muted-foreground/70 -mt-1">Dotación actual: {dotacionActual} choferes activos hoy.</p>
+      <p className="sm:col-span-2 lg:col-span-4 text-[11px] text-muted-foreground/70 -mt-1">Dotación actual: {dotacionActual} choferes activos hoy.</p>
     </div>
   );
 }
 
 function Kpi({ label, value, hint, icon: Icon, tone, compact }: { label: string; value: React.ReactNode; hint: string; icon: React.ElementType; tone: string; compact?: boolean }) {
   return (
-    <div className={`${card} ${compact ? "!p-3.5" : ""} flex flex-col justify-center`}>
+    <div className={`${card} ${compact ? "!p-3 sm:!p-3.5" : ""} flex flex-col justify-center`}>
       <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide"><Icon size={14} /> {label}</div>
-      <p className={`mt-1 ${compact ? "text-2xl" : "text-3xl"} font-bold ${tone}`}>{value}</p>
+      <p className={`mt-1 ${compact ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"} font-bold ${tone}`}>{value}</p>
       <p className="mt-0.5 text-xs text-muted-foreground/80">{hint}</p>
     </div>
   );
@@ -262,12 +262,12 @@ function Kpi({ label, value, hint, icon: Icon, tone, compact }: { label: string;
 
 function MiniIr({ label, value, count, color }: { label: string; value: number; count: number; color: string }) {
   return (
-    <div className={`${card} !p-3.5 flex items-center justify-between`}>
-      <div className="flex items-center gap-2">
-        <span className="size-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-sm text-foreground">{label}</span>
+    <div className={`${card} !p-3 sm:!p-3.5 flex items-center justify-between gap-2`}>
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="size-2.5 shrink-0 rounded-full" style={{ background: color }} />
+        <span className="truncate text-sm text-foreground">{label}</span>
       </div>
-      <div className="text-right">
+      <div className="shrink-0 text-right">
         <p className="text-lg font-bold text-foreground leading-none">{value}%</p>
         <p className="text-[11px] text-muted-foreground">{count} {count === 1 ? "baja" : "bajas"}</p>
       </div>
@@ -323,18 +323,20 @@ function ComparacionKpis({ a, b, anioA, anioB, anioActual, dotacionActual }: { a
   ];
   return (
     <div className={card}>
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 gap-y-2 items-center">
+      {/* En el celular las columnas se achican en vez de empujar la tarjeta:
+          los rótulos ("IR involuntaria") necesitan el resto del ancho. */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-2 sm:gap-x-4 gap-y-2 items-center">
         <div />
-        <div className="text-sm font-bold text-[#0088D1] text-right w-20">{anioA}{anioA === anioActual ? " (parcial)" : ""}</div>
-        <div className="text-sm font-bold text-foreground text-right w-20">{anioB}{anioB === anioActual ? " (parcial)" : ""}</div>
-        <div className="text-xs font-semibold text-muted-foreground text-right w-24">Δ</div>
+        <div className="text-xs sm:text-sm font-bold text-[#0088D1] text-right w-14 sm:w-20">{anioA}{anioA === anioActual ? " (parcial)" : ""}</div>
+        <div className="text-xs sm:text-sm font-bold text-foreground text-right w-14 sm:w-20">{anioB}{anioB === anioActual ? " (parcial)" : ""}</div>
+        <div className="text-xs font-semibold text-muted-foreground text-right w-16 sm:w-24">Δ</div>
         {filas.map((f) => {
           const delta = Math.round((f.va - f.vb) * 10) / 10;
           return (
             <div key={f.label} className="contents">
-              <div className="text-sm text-foreground border-t border-border/60 pt-2">{f.label}</div>
-              <div className="text-sm font-semibold text-foreground text-right border-t border-border/60 pt-2">{f.va}{f.suf}</div>
-              <div className="text-sm text-muted-foreground text-right border-t border-border/60 pt-2">{f.vb}{f.suf}</div>
+              <div className="text-[13px] sm:text-sm text-foreground border-t border-border/60 pt-2">{f.label}</div>
+              <div className="text-[13px] sm:text-sm font-semibold text-foreground text-right border-t border-border/60 pt-2">{f.va}{f.suf}</div>
+              <div className="text-[13px] sm:text-sm text-muted-foreground text-right border-t border-border/60 pt-2">{f.vb}{f.suf}</div>
               <div className="text-right border-t border-border/60 pt-2">
                 <DeltaBadge delta={delta} unidad={f.suf === "%" ? "pp" : ""} invertirColor={f.label.startsWith("IR") || f.label === "Bajas"} />
               </div>
@@ -373,20 +375,20 @@ function ParametrosAnioCard({ anio, m, onSaved }: { anio: number; m: MetricasAni
     });
   };
   return (
-    <div className={`${card} flex flex-wrap items-end gap-4`}>
-      <div>
+    <div className={`${card} flex flex-wrap items-end gap-3 sm:gap-4`}>
+      <div className="w-full sm:w-auto">
         <p className="text-xs font-semibold text-foreground">Parámetros de {anio}</p>
         <p className="text-[11px] text-muted-foreground">Flota inicial y final del año → dotación promedio del índice.{m.flota_fuente === "estimada" && " (hoy estimado desde legajos)"}</p>
       </div>
       <div className="space-y-1">
         <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Flota inicial</Label>
-        <Input type="number" value={ini} onChange={(e) => setIni(e.target.value)} className="h-8 w-24 text-sm" placeholder="—" />
+        <Input type="number" value={ini} onChange={(e) => setIni(e.target.value)} className="h-9 sm:h-8 w-24 text-sm" placeholder="—" />
       </div>
       <div className="space-y-1">
         <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Flota final</Label>
-        <Input type="number" value={fin} onChange={(e) => setFin(e.target.value)} className="h-8 w-24 text-sm" placeholder="—" />
+        <Input type="number" value={fin} onChange={(e) => setFin(e.target.value)} className="h-9 sm:h-8 w-24 text-sm" placeholder="—" />
       </div>
-      <Button variant="outline" size="sm" onClick={guardar} disabled={pending} className="h-8">
+      <Button variant="outline" size="sm" onClick={guardar} disabled={pending} className="h-9 sm:h-8">
         {pending ? <Loader2 size={13} className="animate-spin" /> : "Guardar"}
       </Button>
       {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
@@ -430,10 +432,10 @@ function RotacionTabla({
 
   return (
     <div className="bg-card border border-border rounded-[8px] overflow-hidden">
-      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30">
+      <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/30 overflow-x-auto">
         {(["bajas", "ingresos"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
-            className={`px-3 h-8 text-xs font-medium rounded-md transition-all ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            className={`shrink-0 whitespace-nowrap px-3 h-9 sm:h-8 text-xs font-medium rounded-md transition-all ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             {t === "bajas" ? `Bajas (${bajas.length})` : `Ingresos (${altas.length})`}
           </button>
         ))}
@@ -448,7 +450,9 @@ function RotacionTabla({
               <thead>
                 <tr className="bg-muted/40">
                   {["Chofer", "Base/zona", "Egreso", "Antigüedad", "Tipo", "Motivo", canWrite ? "" : null].filter((h) => h !== null).map((h, i) => (
-                    <th key={i} className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wide text-[11px] border-b border-border whitespace-nowrap">{h}</th>
+                    /* La primera columna queda fija al scrollear de costado:
+                       sin el nombre, las demás celdas no dicen de quién son. */
+                    <th key={i} className={`px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wide text-[11px] border-b border-border whitespace-nowrap ${i === 0 ? "sticky left-0 z-20 bg-[#F9FBFD] shadow-[1px_0_0_0_rgba(0,0,0,0.08)]" : ""}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -458,7 +462,7 @@ function RotacionTabla({
                   const tramo = tramoDeMeses(b.antiguedad_meses);
                   return (
                     <tr key={b.id} className="border-b border-border/60 hover:bg-muted/20">
-                      <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">{b.nombre}</td>
+                      <td className="sticky left-0 z-10 bg-card shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-3 py-2 font-medium text-foreground whitespace-nowrap">{b.nombre}</td>
                       <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{b.base_zona ?? "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmt(b.fecha_egreso)}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
@@ -476,9 +480,9 @@ function RotacionTabla({
                       {canWrite && (
                         <td className="px-3 py-2 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button type="button" onClick={() => onEditar(b)} className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10" title="Editar"><Pencil size={14} /></button>
+                            <button type="button" onClick={() => onEditar(b)} className="p-2 sm:p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10" title="Editar"><Pencil size={14} /></button>
                             {borrando === b.id ? <Loader2 size={14} className="animate-spin text-red-400" /> : (
-                              <button type="button" onClick={() => setBajaAEliminar(b)} className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 size={14} /></button>
+                              <button type="button" onClick={() => setBajaAEliminar(b)} className="p-2 sm:p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50" title="Eliminar"><Trash2 size={14} /></button>
                             )}
                           </div>
                         </td>
@@ -497,18 +501,18 @@ function RotacionTabla({
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="bg-muted/40">
-                {["Chofer", "Localidad", "Ingreso", "Estado"].map((h) => (
-                  <th key={h} className="px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wide text-[11px] border-b border-border whitespace-nowrap">{h}</th>
+                {["Chofer", "Localidad", "Ingreso", "Estado"].map((h, i) => (
+                  <th key={h} className={`px-3 py-2 text-left font-semibold text-muted-foreground uppercase tracking-wide text-[11px] border-b border-border whitespace-nowrap ${i === 0 ? "sticky left-0 z-20 bg-[#F9FBFD] shadow-[1px_0_0_0_rgba(0,0,0,0.08)]" : ""}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {altas.map((a) => (
                 <tr key={a.id} className="border-b border-border/60 hover:bg-muted/20">
-                  <td className="px-3 py-2 font-medium text-foreground whitespace-nowrap">
+                  <td className="sticky left-0 z-10 bg-card shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-3 py-2 font-medium text-foreground whitespace-nowrap">
                     <Link href={`/choferes/${choferSlug(a)}`} className="hover:text-primary hover:underline">{a.apellido}, {a.nombre}</Link>
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{a.localidad ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{a.localidad ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{fmt(a.fecha_ingreso)}</td>
                   <td className="px-3 py-2">
                     {/* Punto + texto, como en camiones: el color va en el punto,

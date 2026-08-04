@@ -87,7 +87,10 @@ export default function Sidebar({
     !!item.children?.some((c) => isChildActive(c));
 
   return (
-    <aside className={`flex flex-col h-screen bg-card text-card-foreground shrink-0 border-r border-border ${collapsed ? "w-14" : "w-60"}`}>
+    // `h-full` y no `h-screen`: en el celular `100vh` incluye la barra del
+    // navegador, así que el bloque del usuario (logout) quedaba abajo del borde
+    // visible y no se podía tocar. El alto lo define el contenedor.
+    <aside className={`flex flex-col h-full bg-card text-card-foreground shrink-0 border-r border-border ${collapsed ? "w-14" : "w-60"}`}>
       {/* Logo */}
       <div className={`flex items-center justify-center border-b border-border overflow-hidden ${collapsed ? "h-14 px-1.5" : "px-4 h-[84px]"}`}>
         {collapsed ? (

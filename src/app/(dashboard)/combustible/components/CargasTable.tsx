@@ -147,10 +147,25 @@ export default function CargasTable({
     router.push(`${pathname}?${params.toString()}`);
   };
 
+  // Mismo vacío para la tabla (desktop) y para las tarjetas (celular).
+  const cargasVacio = (
+    <div className="flex flex-col items-center justify-center gap-3">
+      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        <Fuel size={20} />
+      </div>
+      <div className="max-w-md text-center">
+        <p className="text-foreground text-sm font-bold">No se encontraron cargas</p>
+        <p className="text-muted-foreground text-xs mt-1">
+          No hay registros de carga de combustible que coincidan con los filtros aplicados.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-4 border-b border-border gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-border gap-1 sm:gap-4">
         <div className="flex items-center gap-2">
           <Fuel size={16} className="text-primary" />
           <h2 className="text-foreground text-sm font-semibold">
@@ -161,10 +176,10 @@ export default function CargasTable({
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-3 gap-3 bg-muted/10 border-b border-border">
-        <div className="flex flex-wrap items-center gap-3 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-5 py-3 gap-3 bg-muted/10 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full">
           {/* Selector de Chofer */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
             <Combobox
               value={activeChoferId}
@@ -178,12 +193,12 @@ export default function CargasTable({
               ]}
               searchable={true}
               placeholder="Filtrar por chofer..."
-              triggerClassName="h-9 min-w-[220px] pl-9"
+              triggerClassName="h-10 sm:h-9 w-full sm:min-w-[220px] pl-9"
             />
           </div>
 
           {/* Selector de Ordenamiento */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <ArrowUpDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
             <Combobox
               value={activeSortBy}
@@ -191,7 +206,7 @@ export default function CargasTable({
               options={SORT_OPTIONS}
               searchable={false}
               placeholder="Ordenar por..."
-              triggerClassName="h-9 min-w-[200px] pl-9"
+              triggerClassName="h-10 sm:h-9 w-full sm:min-w-[200px] pl-9"
             />
           </div>
 
@@ -201,7 +216,7 @@ export default function CargasTable({
               variant="ghost"
               size="sm"
               onClick={handleClearFilters}
-              className="h-9 text-muted-foreground text-xs hover:text-foreground gap-1.5"
+              className="h-10 sm:h-9 w-full sm:w-auto justify-center text-muted-foreground text-xs hover:text-foreground gap-1.5"
             >
               <X size={14} />
               Limpiar filtros
@@ -210,8 +225,117 @@ export default function CargasTable({
         </div>
       </div>
 
+      {/* Celular: cada carga es una tarjeta. La tabla tiene 8 columnas y es el
+          listado principal de la pantalla (con editar/eliminar por fila), así
+          que abajo de md se apila en vez de scrollear de costado. */}
+      <div className="md:hidden divide-y divide-border">
+        {cargas.length === 0 ? (
+          <div className="px-4 py-12">{cargasVacio}</div>
+        ) : (
+          cargas.map((c) => (
+            <div key={c.id} className="p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="font-mono text-[11px] font-bold bg-[#F8FAFC] border border-[#E2E8F0] text-[#334155] px-2 py-0.5 rounded shadow-sm tracking-wider uppercase inline-block select-none">
+                    {c.camion_patente}
+                  </span>
+                  <div className="mt-1 text-[11px] text-muted-foreground truncate">
+                    {new Date(c.fecha).toLocaleDateString("es-AR")}
+                    {c.camion_marca_modelo ? ` · ${c.camion_marca_modelo}` : ""}
+                  </div>
+                </div>
+                <span className="shrink-0 font-mono text-sm font-black text-foreground">
+                  ${formatARS(c.importe_total)}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                {c.chofer ? (
+                  <span className="flex items-center gap-1.5 min-w-0 font-semibold text-foreground">
+                    <span className="w-5 h-5 rounded-full bg-primary/5 flex items-center justify-center text-primary text-[10px] font-bold border border-primary/15 shrink-0 uppercase select-none">
+                      {c.chofer.charAt(0)}
+                    </span>
+                    <span className="truncate">{c.chofer}</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/70">Sin chofer asignado</span>
+                )}
+                <span className="font-mono font-bold text-foreground">
+                  {formatNum(c.litros, 2)} <span className="text-[10px] font-sans font-semibold text-primary/70">L</span>
+                </span>
+                <span className="font-mono text-muted-foreground">
+                  {formatNum(c.km_odometro)} <span className="text-[10px] font-sans font-semibold text-muted-foreground/60">km</span>
+                </span>
+                {c.estacion && (
+                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold border border-slate-200/40">
+                    {c.estacion}
+                  </span>
+                )}
+                {c.lugar_carga === "en_ruta" ? (
+                  <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-200/50">
+                    En ruta
+                  </span>
+                ) : c.lugar_carga === "propia" ? (
+                  <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-emerald-200/50">
+                    Propia
+                  </span>
+                ) : null}
+              </div>
+
+              {canWrite && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  {confirmId === c.id ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 flex-1 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                        disabled={deletingId === c.id}
+                        onClick={() => handleDelete(c.id)}
+                      >
+                        {deletingId === c.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        Confirmar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 flex-1 text-xs text-muted-foreground"
+                        onClick={() => setConfirmId(null)}
+                      >
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 flex-1 text-xs gap-1.5"
+                        onClick={() => openEdit(c)}
+                      >
+                        <Pencil size={14} />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 flex-1 text-xs text-muted-foreground gap-1.5 hover:text-red-600"
+                        onClick={() => setConfirmId(c.id)}
+                      >
+                        <Trash2 size={14} />
+                        Eliminar
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
       {/* Tabla */}
-      <Table>
+      <Table className="hidden md:table min-w-[900px]">
         <TableHeader className="bg-muted/40">
           <TableRow>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
@@ -230,17 +354,7 @@ export default function CargasTable({
           {cargas.length === 0 ? (
             <TableRow>
               <TableCell colSpan={colCount} className="py-16 text-center">
-                <div className="flex flex-col items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                    <Fuel size={20} />
-                  </div>
-                  <div className="max-w-md">
-                    <p className="text-foreground text-sm font-bold">No se encontraron cargas</p>
-                    <p className="text-muted-foreground text-xs mt-1">
-                      No hay registros de carga de combustible que coincidan con los filtros aplicados.
-                    </p>
-                  </div>
-                </div>
+                {cargasVacio}
               </TableCell>
             </TableRow>
           ) : (
@@ -367,7 +481,7 @@ export default function CargasTable({
       )}
 
       {/* Footer y Paginación */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-muted/10">
         <span className="text-xs text-muted-foreground font-medium">
           {count > 0
             ? `Mostrando ${currentPage * PAGE_SIZE + 1} a ${Math.min((currentPage + 1) * PAGE_SIZE, count)} de ${count} cargas`
@@ -380,7 +494,7 @@ export default function CargasTable({
               size="sm"
               disabled={currentPage === 0}
               onClick={() => handlePageChange(currentPage - 1)}
-              className="h-8 gap-1.5"
+              className="h-10 sm:h-8 flex-1 sm:flex-none justify-center gap-1.5"
             >
               <ChevronLeft size={14} />
               Anterior
@@ -390,7 +504,7 @@ export default function CargasTable({
               size="sm"
               disabled={currentPage >= totalPages - 1}
               onClick={() => handlePageChange(currentPage + 1)}
-              className="h-8 gap-1.5"
+              className="h-10 sm:h-8 flex-1 sm:flex-none justify-center gap-1.5"
             >
               Siguiente
               <ChevronRight size={14} />

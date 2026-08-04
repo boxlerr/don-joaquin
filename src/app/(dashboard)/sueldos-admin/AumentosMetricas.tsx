@@ -115,7 +115,7 @@ export default function AumentosMetricas({
     .sort((a, b) => b.meses - a.meses);
 
   const rangoLabel = `${mesLargo(desdeIso)} → ${mesLargo(hastaIso)}`;
-  const card = "bg-card border border-border rounded-[8px] p-4";
+  const card = "bg-card border border-border rounded-[8px] p-3.5 sm:p-4";
 
   return (
     <TooltipProvider>
@@ -126,7 +126,7 @@ export default function AumentosMetricas({
           <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg">
             {PERIODOS.map((p) => (
               <button key={p.id} type="button" onClick={() => setPeriodoN(p.id)}
-                className={`px-2.5 h-7 text-xs font-medium rounded-md transition-all ${periodoN === p.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-3 sm:px-2.5 h-9 md:h-7 text-xs font-medium rounded-md transition-all ${periodoN === p.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 {p.label}
               </button>
             ))}
@@ -135,7 +135,7 @@ export default function AumentosMetricas({
         </div>
 
         {/* Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-3">
           {/* Inflación */}
           <div className={card}>
             <div className="flex items-center justify-between">
@@ -147,7 +147,7 @@ export default function AumentosMetricas({
             </div>
             {inflacion.ultimoValor != null && inflacion.ultimoMes ? (
               <>
-                <p className="text-2xl font-black text-foreground mt-1">{inflacion.ultimoValor.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</p>
+                <p className="text-xl sm:text-2xl font-black text-foreground mt-1">{inflacion.ultimoValor.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</p>
                 <p className="text-[11px] text-muted-foreground capitalize">{mesLargo(`${inflacion.ultimoMes}-01`)}{inflVentana != null && ` · acum. período ${pct(inflVentana)}`}</p>
                 {inflacion.proximoAnuncio && (
                   <p className="text-[11px] text-muted-foreground/80 mt-1">
@@ -173,7 +173,7 @@ export default function AumentosMetricas({
             </div>
             {promedioAcum != null ? (
               <>
-                <p className="text-2xl font-black text-foreground mt-1">{pct(promedioAcum)}</p>
+                <p className="text-xl sm:text-2xl font-black text-foreground mt-1">{pct(promedioAcum)}</p>
                 <p className="text-[11px] text-muted-foreground">aumento promedio del período</p>
                 {realPromedio != null ? (
                   <p className={`text-[11px] font-semibold mt-1 ${realPromedio >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -197,7 +197,7 @@ export default function AumentosMetricas({
               </p>
               <span className={`p-1.5 rounded-lg ${atrasados.length ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600"}`}><Clock size={15} /></span>
             </div>
-            <p className="text-2xl font-black text-foreground mt-1">{atrasados.length}</p>
+            <p className="text-xl sm:text-2xl font-black text-foreground mt-1">{atrasados.length}</p>
             <p className="text-[11px] text-muted-foreground">sin aumento hace {UMBRAL}+ meses</p>
             {atrasados.length > 0 && (
               <p className="text-[11px] text-muted-foreground/80 mt-1 truncate" title={atrasados.map((a) => `${a.e.nombre} (${a.meses}m)`).join(", ")}>
@@ -208,10 +208,10 @@ export default function AumentosMetricas({
         </div>
 
         {/* Evolución + acumulado por empleado */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
           {/* Evolución del costo salarial base */}
-          <div className="bg-card border border-border rounded-[8px] p-4">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="bg-card border border-border rounded-[8px] p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <LineIcon size={15} className="text-primary" />
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 Evolución del costo salarial
@@ -247,8 +247,8 @@ export default function AumentosMetricas({
           </div>
 
           {/* Aumento acumulado por empleado */}
-          <div className="bg-card border border-border rounded-[8px] p-4">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="bg-card border border-border rounded-[8px] p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <TrendingUp size={15} className="text-emerald-600" />
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                 Aumento acumulado por empleado

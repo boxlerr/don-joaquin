@@ -75,7 +75,7 @@ export default async function ConfiguracionNotificacionesPage() {
   const emailListo = emailConfigurado();
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-8">
       <PageHeader
         title="Configuración de Notificaciones"
         description="Canales, alertas y preferencias de comunicación"

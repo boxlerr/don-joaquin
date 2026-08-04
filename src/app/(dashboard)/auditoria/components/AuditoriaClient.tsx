@@ -28,6 +28,7 @@ import {
   type GetAuditLogsParams,
 } from "../actions";
 import { Combobox } from "@/components/ui/combobox";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { accionLabel, accionClasses, entidadLabel, ACCION_LABELS, type RefsMap } from "@/lib/audit-catalog";
 import { coincideBusqueda } from "@/lib/texto";
 
@@ -48,7 +49,7 @@ type Filters = {
 const ENTIDAD_TABS = [
   { key: "todas", label: "Todas", icon: ListChecks, tipos: [] as string[] },
   { key: "logistica", label: "Logística", icon: MapPin, tipos: ["viaje", "hoja_ruta", "ruta", "carga_combustible", "planilla_diaria"] },
-  { key: "flota", label: "Flota", icon: Truck, tipos: ["camion", "mantenimiento", "rotura_goma", "insumo_catalogo"] },
+  { key: "flota", label: "Flota", icon: Truck, tipos: ["camion", "mantenimiento", "rotura_goma", "insumo_catalogo", "costo_rep_rep"] },
   { key: "seguridad", label: "Seguridad", icon: ShieldAlert, tipos: ["siniestro", "extintor"] },
   { key: "rrhh", label: "RR.HH.", icon: IdCard, tipos: ["chofer", "entrevista", "rotacion_baja", "pesos_score_chofer"] },
   { key: "comercial", label: "Comercial", icon: Users, tipos: ["cliente", "tarifa"] },
@@ -233,43 +234,49 @@ export default function AuditoriaClient({
 
   return (
     <>
-      {/* Entity tabs (multi-select) */}
-      <div className="bg-card rounded-lg border border-border px-2 py-1 mb-4 flex items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {ENTIDAD_TABS.map((t) => {
-          const Icon = t.icon;
-          const isAll = t.tipos.length === 0;
-          const active = isAll
-            ? filters.entidad_tipos.length === 0
-            : t.tipos.every((tipo) => filters.entidad_tipos.includes(tipo));
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => toggleEntidad(t.tipos)}
-              className={
-                "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-semibold rounded-md transition-colors whitespace-nowrap " +
-                (active
-                  ? "bg-[#E1F5FE] text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted")
-              }
-              title={
-                isAll
-                  ? "Mostrar todas las entidades"
-                  : active
-                    ? `Quitar ${t.label}`
-                    : `Agregar ${t.label}`
-              }
-            >
-              <Icon size={14} />
-              {t.label}
-            </button>
-          );
-        })}
+      {/* Entity tabs (multi-select). En celular la tira no entra: va con
+          HorizontalScrollHint para que se vea que hay más áreas a la derecha. */}
+      <div className="bg-card rounded-lg border border-border px-2 py-1 mb-4">
+        <HorizontalScrollHint fadeBg="from-card">
+          <div className="flex items-center gap-1">
+            {ENTIDAD_TABS.map((t) => {
+              const Icon = t.icon;
+              const isAll = t.tipos.length === 0;
+              const active = isAll
+                ? filters.entidad_tipos.length === 0
+                : t.tipos.every((tipo) => filters.entidad_tipos.includes(tipo));
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => toggleEntidad(t.tipos)}
+                  className={
+                    "inline-flex shrink-0 items-center gap-1.5 px-3 h-9 text-xs font-semibold rounded-md transition-colors whitespace-nowrap " +
+                    (active
+                      ? "bg-[#E1F5FE] text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted")
+                  }
+                  title={
+                    isAll
+                      ? "Mostrar todas las entidades"
+                      : active
+                        ? `Quitar ${t.label}`
+                        : `Agregar ${t.label}`
+                  }
+                >
+                  <Icon size={14} />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </HorizontalScrollHint>
       </div>
 
-      {/* Filter bar */}
-      <div className="bg-card rounded-lg border border-border px-5 py-4 mb-4 flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1">
+      {/* Filter bar. En celular: desde/hasta comparten renglón (son cortos) y
+          usuario / acción / buscador van a ancho completo. */}
+      <div className="bg-card rounded-lg border border-border px-4 py-3.5 sm:px-5 sm:py-4 mb-4 flex flex-wrap items-end gap-3 sm:gap-4">
+        <div className="flex flex-col gap-1 flex-1 min-w-[140px] sm:flex-none">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Desde
           </label>
@@ -277,11 +284,11 @@ export default function AuditoriaClient({
             type="date"
             value={filters.desde}
             onChange={(e) => handleFilterChange("desde", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="w-full border border-border rounded-lg px-3 h-10 sm:h-9 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 flex-1 min-w-[140px] sm:flex-none">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Hasta
           </label>
@@ -289,11 +296,11 @@ export default function AuditoriaClient({
             type="date"
             value={filters.hasta}
             onChange={(e) => handleFilterChange("hasta", e.target.value)}
-            className="border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+            className="w-full border border-border rounded-lg px-3 h-10 sm:h-9 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Usuario
           </label>
@@ -308,11 +315,11 @@ export default function AuditoriaClient({
               })),
             ]}
             searchPlaceholder="Buscar usuario..."
-            triggerClassName="h-9 min-w-[180px]"
+            triggerClassName="h-10 sm:h-9 w-full sm:w-auto sm:min-w-[180px]"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Acción
           </label>
@@ -321,15 +328,15 @@ export default function AuditoriaClient({
             onValueChange={(v) => handleFilterChange("accion", v)}
             options={[{ id: "", label: "Todas las acciones" }, ...ACCION_OPTIONS]}
             searchPlaceholder="Buscar acción..."
-            triggerClassName="h-9 min-w-[180px]"
+            triggerClassName="h-10 sm:h-9 w-full sm:w-auto sm:min-w-[180px]"
           />
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Buscar recurso
           </label>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search
               size={14}
               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
@@ -339,7 +346,7 @@ export default function AuditoriaClient({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Filtrar en esta página..."
-              className="border border-border rounded-lg pl-8 pr-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] min-w-[200px]"
+              className="w-full border border-border rounded-lg pl-8 pr-3 h-10 sm:h-9 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] sm:min-w-[200px]"
             />
           </div>
         </div>
@@ -347,7 +354,7 @@ export default function AuditoriaClient({
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted border border-border transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full sm:w-auto px-3 h-10 sm:h-9 rounded-lg text-sm text-muted-foreground hover:bg-muted border border-border transition-colors"
           >
             <X size={13} />
             Limpiar
@@ -357,7 +364,7 @@ export default function AuditoriaClient({
 
       {/* Table */}
       <div className="bg-card rounded-lg border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border">
           <p className="text-sm text-muted-foreground">
             {filtroTexto
               ? `${entriesFiltradas.length} resultado(s) en esta página`
@@ -366,7 +373,7 @@ export default function AuditoriaClient({
                 : `Mostrando ${rangeFrom}–${rangeTo} de ${total} registros`}
           </p>
           {isPending && (
-            <span className="text-xs text-muted-foreground/70">Actualizando...</span>
+            <span className="text-xs text-muted-foreground/70 shrink-0">Actualizando...</span>
           )}
         </div>
 
@@ -376,106 +383,176 @@ export default function AuditoriaClient({
             <p className="text-sm">Sin registros de auditoría</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 border-b border-border">
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Fecha
-                </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Usuario
-                </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Acción
-                </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Entidad
-                </th>
-                <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Recurso afectado
-                </th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {entriesFiltradas.map((entry) => (
-                <tr key={entry.id} className="hover:bg-muted/40 transition-colors">
-                  <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
-                    {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
-                  </td>
-                  <td className="px-5 py-3 text-foreground">
-                    {entry.usuario ? (
-                      `${entry.usuario.apellido}, ${entry.usuario.nombre}`
-                    ) : (
-                      <span className="text-muted-foreground/70">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                        accionClasses(entry.accion)
-                      }`}
-                    >
-                      {accionLabel(entry.accion)}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">
-                    {entidadLabel(entry.entidad_tipo)}
-                  </td>
-                  <td className="px-5 py-3">
-                    {entry.entidad_label ? (
-                      <div className="leading-tight">
-                        <div className="text-foreground text-sm">{entry.entidad_label}</div>
-                        {entry.entidad_detalle && (
-                          <div className="text-[10px] font-mono text-muted-foreground">
-                            {entry.entidad_detalle}
-                          </div>
-                        )}
-                      </div>
-                    ) : recursoDesdeMetadata(entry) ? (
-                      <div className="text-foreground text-sm">{recursoDesdeMetadata(entry)}</div>
-                    ) : (
-                      <span className="text-muted-foreground/60 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    {(entry.valores_anteriores || entry.valores_nuevos) && (
-                      <button
-                        onClick={() => setSelectedEntry(entry)}
-                        className="text-primary hover:text-[#0277BD] text-xs font-semibold hover:underline transition-colors"
+          <>
+            {/* Abajo de md la tabla de 6 columnas se convierte en tarjetas: el
+                log ES la pantalla de auditoría y a 375px un scroll horizontal de
+                6 columnas (con la fecha completa adelante) es ilegible. Mismo
+                dato, misma acción "Ver detalles", otra presentación. */}
+            <ul className="md:hidden divide-y divide-border">
+              {entriesFiltradas.map((entry) => {
+                const recurso = entry.entidad_label ?? recursoDesdeMetadata(entry);
+                return (
+                  <li key={entry.id} className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[11px] font-semibold ${accionClasses(
+                          entry.accion,
+                        )}`}
                       >
-                        Ver detalles
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {accionLabel(entry.accion)}
+                      </span>
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {entidadLabel(entry.entidad_tipo)}
+                      </span>
+                    </div>
+
+                    <div className="mt-1.5 leading-tight">
+                      {recurso ? (
+                        <>
+                          <p className="text-sm text-foreground break-words">{recurso}</p>
+                          {entry.entidad_label && entry.entidad_detalle && (
+                            <p className="text-[10px] font-mono text-muted-foreground break-words">
+                              {entry.entidad_detalle}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/60">Sin recurso asociado</p>
+                      )}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <p className="text-[11px] text-muted-foreground min-w-0">
+                        <span className="inline-flex items-center gap-1">
+                          <User size={11} className="shrink-0 text-muted-foreground/70" />
+                          {entry.usuario
+                            ? `${entry.usuario.apellido}, ${entry.usuario.nombre}`
+                            : "—"}
+                        </span>
+                        <span className="mx-1.5 text-muted-foreground/40">·</span>
+                        <span className="whitespace-nowrap">
+                          {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
+                        </span>
+                      </p>
+                      {(entry.valores_anteriores || entry.valores_nuevos) && (
+                        <button
+                          onClick={() => setSelectedEntry(entry)}
+                          className="inline-flex items-center h-9 px-2 -mr-2 text-primary hover:text-[#0277BD] text-xs font-semibold hover:underline transition-colors shrink-0"
+                        >
+                          Ver detalles
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[820px]">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Fecha
+                    </th>
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Usuario
+                    </th>
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Acción
+                    </th>
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Entidad
+                    </th>
+                    <th className="text-left px-5 py-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                      Recurso afectado
+                    </th>
+                    <th className="px-5 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {entriesFiltradas.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
+                        {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
+                      </td>
+                      <td className="px-5 py-3 text-foreground">
+                        {entry.usuario ? (
+                          `${entry.usuario.apellido}, ${entry.usuario.nombre}`
+                        ) : (
+                          <span className="text-muted-foreground/70">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                            accionClasses(entry.accion)
+                          }`}
+                        >
+                          {accionLabel(entry.accion)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {entidadLabel(entry.entidad_tipo)}
+                      </td>
+                      <td className="px-5 py-3">
+                        {entry.entidad_label ? (
+                          <div className="leading-tight">
+                            <div className="text-foreground text-sm">{entry.entidad_label}</div>
+                            {entry.entidad_detalle && (
+                              <div className="text-[10px] font-mono text-muted-foreground">
+                                {entry.entidad_detalle}
+                              </div>
+                            )}
+                          </div>
+                        ) : recursoDesdeMetadata(entry) ? (
+                          <div className="text-foreground text-sm">{recursoDesdeMetadata(entry)}</div>
+                        ) : (
+                          <span className="text-muted-foreground/60 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {(entry.valores_anteriores || entry.valores_nuevos) && (
+                          <button
+                            onClick={() => setSelectedEntry(entry)}
+                            className="text-primary hover:text-[#0277BD] text-xs font-semibold hover:underline transition-colors"
+                          >
+                            Ver detalles
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
+        {/* Paginador: en celular el salto de página baja a su propio renglón
+            (los tres grupos en una línea se salían de 343px). */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-border">
-            <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 border-t border-border">
+            <div className="flex items-center gap-1 order-1">
               <button
                 onClick={() => handlePageChange(0)}
                 disabled={page === 0}
                 title="Primera página"
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center justify-center size-9 sm:size-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronsLeft size={15} />
               </button>
               <button
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page === 0}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 px-2.5 h-9 sm:h-8 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronLeft size={14} />
                 Anterior
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground order-3 sm:order-2 w-full sm:w-auto">
               <span>Página</span>
               <input
                 type="number"
@@ -488,16 +565,16 @@ export default function AuditoriaClient({
                 }}
                 onBlur={commitJump}
                 aria-label="Ir a la página"
-                className="w-14 text-center rounded-md border border-border bg-card px-1 py-1 text-sm text-foreground tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-14 h-9 sm:h-8 text-center rounded-md border border-border bg-card px-1 text-sm text-foreground tabular-nums focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
               />
               <span>de {totalPages}</span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 order-2 sm:order-3">
               <button
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page >= totalPages - 1}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 px-2.5 h-9 sm:h-8 rounded-lg text-sm text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Siguiente
                 <ChevronRight size={14} />
@@ -506,7 +583,7 @@ export default function AuditoriaClient({
                 onClick={() => handlePageChange(totalPages - 1)}
                 disabled={page >= totalPages - 1}
                 title="Última página"
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center justify-center size-9 sm:size-8 rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <ChevronsRight size={15} />
               </button>
@@ -542,17 +619,19 @@ function AuditDetailDrawer({
       onClick={onClose}
     >
       <div
-        className="fixed right-0 top-0 h-full w-[min(500px,calc(100vw-2rem))] bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
+        className="fixed right-0 top-0 h-[100dvh] w-[min(500px,calc(100vw-2rem))] bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="size-9 shrink-0 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
               <Clock size={18} />
             </div>
-            <div>
-              <h2 className="text-foreground font-semibold">Detalle del registro</h2>
+            <div className="min-w-0">
+              <h2 className="text-foreground font-semibold text-sm sm:text-base">
+                Detalle del registro
+              </h2>
               <p className="text-muted-foreground text-xs">
                 {new Date(entry.created_at).toLocaleString("es-AR", { hour12: false })}
               </p>
@@ -560,7 +639,7 @@ function AuditDetailDrawer({
           </div>
           <button
             onClick={onClose}
-            className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+            className="size-9 md:size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
             aria-label="Cerrar"
           >
             <X size={16} />
@@ -568,7 +647,7 @@ function AuditDetailDrawer({
         </div>
 
         {/* Meta */}
-        <div className="px-5 py-4 border-b border-border space-y-2">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`px-2 py-0.5 rounded text-[11px] font-semibold ${accionClasses(
@@ -597,8 +676,8 @@ function AuditDetailDrawer({
           )}
 
           {entry.usuario && (
-            <p className="text-[12px] text-muted-foreground flex items-center gap-1">
-              <User size={11} className="text-primary" />
+            <p className="text-[12px] text-muted-foreground flex flex-wrap items-center gap-x-1">
+              <User size={11} className="shrink-0 text-primary" />
               <span className="text-muted-foreground/80">Modificado por:</span>{" "}
               {entry.usuario.apellido}, {entry.usuario.nombre}
             </p>
@@ -606,7 +685,7 @@ function AuditDetailDrawer({
         </div>
 
         {/* Diff */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 pt-4 pb-8 sm:pb-4">
           <FriendlyDiff entry={entry} refs={refs} />
         </div>
       </div>

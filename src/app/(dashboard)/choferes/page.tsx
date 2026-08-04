@@ -133,12 +133,15 @@ export default async function ChoferesPage({
     .slice(0, 12);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Personal"
         description="Legajo digital de todo el personal (choferes, administración, mantenimiento y fleteros)"
         action={
-          <div className="flex items-center gap-2.5">
+          // En celular la acción ocupa el ancho del header (PageHeader la baja
+          // debajo del título): los tres botones envuelven en vez de empujar
+          // la página de costado.
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <HelpTutorialButton />
             {canWrite && (
               <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">

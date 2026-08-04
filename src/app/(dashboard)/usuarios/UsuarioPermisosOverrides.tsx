@@ -155,20 +155,20 @@ export default function UsuarioPermisosOverrides({
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
-        <ShieldPlus size={16} className="text-primary" />
+      <div className="flex items-center gap-2 px-4 sm:px-5 py-4 border-b border-border">
+        <ShieldPlus size={16} className="text-primary shrink-0" />
         <h2 className="text-foreground text-sm font-semibold">Permisos individuales por usuario</h2>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
-          <AlertCircle size={13} />
+        <div className="flex items-center gap-2 px-4 sm:px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
+          <AlertCircle size={13} className="shrink-0" />
           {error}
         </div>
       )}
 
       {/* Formulario de nuevo override — compacto, en una fila */}
-      <div className="px-5 py-4 border-b border-border bg-muted/20">
+      <div className="px-4 sm:px-5 py-4 border-b border-border bg-muted/20">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
           Agregar permiso puntual
         </p>
@@ -236,13 +236,13 @@ export default function UsuarioPermisosOverrides({
                 type="datetime-local"
                 value={newVence}
                 onChange={(e) => setNewVence(e.target.value)}
-                className="flex-1 min-w-0 text-xs rounded-md px-2 py-1.5 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
+                className="h-9 max-md:h-10 flex-1 min-w-0 text-xs rounded-md px-2 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
               />
               <button
                 type="button"
                 onClick={() => setNewVence(finDeHoy())}
                 title="Habilitar solo por hoy"
-                className="px-2 py-1.5 text-[11px] rounded-md border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+                className="h-9 max-md:h-10 shrink-0 px-3 text-[11px] rounded-md border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
               >
                 Hoy
               </button>
@@ -254,7 +254,7 @@ export default function UsuarioPermisosOverrides({
             type="button"
             disabled={!selectedUsuario || secs.length === 0 || isPending}
             onClick={handleAgregar}
-            className="h-9 px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors whitespace-nowrap"
+            className="h-9 max-md:h-11 w-full px-4 text-xs font-semibold rounded-md bg-[#0088D1] text-white hover:bg-[#0077BB] disabled:opacity-40 transition-colors whitespace-nowrap xl:w-auto"
           >
             {secs.length > 0 ? `Agregar ${secs.length}` : "Agregar"}
           </button>
@@ -268,11 +268,16 @@ export default function UsuarioPermisosOverrides({
               return (
                 <span
                   key={s}
-                  className="inline-flex items-center gap-1 rounded-full border border-[#BAE6FD] bg-[#F0F9FF] px-2 py-0.5 text-[11px] font-medium text-[#075985]"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#BAE6FD] bg-[#F0F9FF] px-2 py-0.5 max-md:py-1.5 text-[11px] max-md:text-xs font-medium text-[#075985]"
                 >
                   {confidencial[s] && <Lock size={10} className="shrink-0" />}
                   {sec?.nombre ?? s}
-                  <button type="button" onClick={() => toggleSec(s)} className="text-[#075985]/60 hover:text-red-500" title="Sacar">
+                  <button
+                    type="button"
+                    onClick={() => toggleSec(s)}
+                    className="flex items-center justify-center rounded-full text-[#075985]/60 hover:text-red-500 max-md:size-8"
+                    title="Sacar"
+                  >
                     <X size={11} />
                   </button>
                 </span>
@@ -288,14 +293,14 @@ export default function UsuarioPermisosOverrides({
             value={newMotivo}
             onChange={(e) => setNewMotivo(e.target.value)}
             placeholder="Motivo (opcional)…"
-            className="w-full text-xs rounded-md px-2 py-1.5 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
+            className="h-9 max-md:h-10 w-full text-xs rounded-md px-2 border border-border bg-card focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30"
           />
         </div>
       </div>
 
       {/* Lista de overrides vigentes */}
       {usuariosConOverrides.length === 0 ? (
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground/70">
+        <div className="px-4 sm:px-5 py-8 text-center text-sm text-muted-foreground/70">
           No hay permisos individuales configurados.
         </div>
       ) : (
@@ -304,7 +309,7 @@ export default function UsuarioPermisosOverrides({
             const areaRows = areaOverrides.filter((o) => o.usuario_id === u.id);
             const seccionRows = seccionOverrides.filter((o) => o.usuario_id === u.id);
             return (
-              <div key={u.id} className="px-5 py-3">
+              <div key={u.id} className="px-4 sm:px-5 py-3">
                 <p className="text-xs font-semibold text-foreground mb-2">
                   {u.nombre} {u.apellido ?? ""}
                   <span className="text-muted-foreground font-normal ml-1">
@@ -378,7 +383,7 @@ function SeccionesPicker({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-9 max-md:h-10 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-xs text-foreground transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className={secs.length ? "text-foreground" : "text-muted-foreground"}>
           {secs.length
@@ -405,13 +410,13 @@ function SeccionesPicker({
                 {list.map((s) => (
                   <label
                     key={s.codigo}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/60"
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 max-md:py-2.5 text-xs hover:bg-muted/60"
                   >
                     <input
                       type="checkbox"
                       checked={secs.includes(s.codigo)}
                       onChange={() => onToggle(s.codigo)}
-                      className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0088D1]"
+                      className="h-3.5 w-3.5 max-md:h-4 max-md:w-4 shrink-0 cursor-pointer accent-[#0088D1]"
                     />
                     {confidencial[s.codigo] && <Lock size={11} className="shrink-0 text-amber-600" />}
                     <span className="min-w-0 truncate text-foreground">{s.nombre}</span>
@@ -441,7 +446,7 @@ function OverrideChip({
   const vencido = estaVencido(vence_en);
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
+      className={`flex max-w-full flex-wrap items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium ${
         vencido
           ? "bg-muted/30 border-dashed border-muted-foreground/30 text-muted-foreground/50"
           : "bg-[#F0F9FF] border-[#BAE6FD] text-[#075985]"
@@ -450,7 +455,7 @@ function OverrideChip({
       <span className={NIVEL_CLASS[nivel] + " px-1.5 py-0.5 rounded text-[10px]"}>
         {NIVEL_LABEL[nivel]}
       </span>
-      <span className="font-semibold inline-flex items-center gap-1">
+      <span className="font-semibold inline-flex min-w-0 items-center gap-1">
         {lock && <Lock size={10} className="shrink-0" />}
         {label}
       </span>
@@ -462,7 +467,7 @@ function OverrideChip({
         type="button"
         disabled={disabled}
         onClick={onDelete}
-        className="ml-1 text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded p-0.5 transition-colors disabled:opacity-30"
+        className="ml-auto flex items-center justify-center rounded p-0.5 max-md:size-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 transition-colors disabled:opacity-30 sm:ml-1"
         title="Quitar permiso"
       >
         <Trash2 size={13} />

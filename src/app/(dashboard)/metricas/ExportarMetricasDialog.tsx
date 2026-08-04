@@ -71,7 +71,7 @@ export default function ExportarMetricasDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Exportar planillas del mes</DialogTitle>
           <DialogDescription>
@@ -88,18 +88,18 @@ export default function ExportarMetricasDialog({
             <button
               type="button"
               onClick={seleccion.size === PLANILLAS.length ? () => setSeleccion(new Set()) : marcarTodas}
-              className="text-xs font-medium text-primary hover:underline"
+              className="inline-flex items-center text-xs font-medium text-primary hover:underline max-md:min-h-9"
             >
               {seleccion.size === PLANILLAS.length ? "Desmarcar todas" : "Marcar todas"}
             </button>
           </div>
           {PLANILLAS.map((p) => (
-            <label key={p.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-muted/40 cursor-pointer">
+            <label key={p.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-muted/40 cursor-pointer max-md:py-2.5">
               <input
                 type="checkbox"
                 checked={seleccion.has(p.id)}
                 onChange={() => toggle(p.id)}
-                className="h-4 w-4 accent-[#0088D1]"
+                className="h-4 w-4 shrink-0 accent-[#0088D1]"
               />
               {p.label}
             </label>
@@ -108,7 +108,7 @@ export default function ExportarMetricasDialog({
 
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">Excel: cómo se descarga</p>
-          <div className="flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
+          <div className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
             {([
               { id: "juntas", label: "Todas juntas (un archivo)" },
               { id: "separadas", label: "Un archivo por planilla" },
@@ -117,7 +117,7 @@ export default function ExportarMetricasDialog({
                 key={m.id}
                 type="button"
                 onClick={() => setModo(m.id)}
-                className={`h-7 rounded-md px-2.5 text-xs font-medium transition-all ${
+                className={`h-9 rounded-md px-2.5 text-xs font-medium transition-all sm:h-7 ${
                   modo === m.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >

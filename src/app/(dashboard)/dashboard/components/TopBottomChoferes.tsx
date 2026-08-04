@@ -30,9 +30,9 @@ export default function TopBottomChoferes({ top, bottom, mostrarFacturacion = fa
 
   if (sinDatos) {
     return (
-      <div className="bg-card rounded-[8px] border border-border shadow-sm p-6">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-6">
         <div className="flex items-center gap-2 mb-1">
-          <Trophy size={16} className="text-amber-500" />
+          <Trophy size={16} className="shrink-0 text-amber-500" />
           <h2 className="text-foreground text-sm font-bold">Ranking del mes</h2>
         </div>
         <p className="text-muted-foreground text-xs">
@@ -40,7 +40,7 @@ export default function TopBottomChoferes({ top, bottom, mostrarFacturacion = fa
         </p>
         <Link
           href="/viajes"
-          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
+          className="mt-3 inline-flex items-center gap-1 max-md:h-9 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
         >
           Registrar viajes →
         </Link>
@@ -90,24 +90,24 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText, mos
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className={iconColor} />
-          <div>
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon size={16} className={`shrink-0 ${iconColor}`} />
+          <div className="min-w-0">
             <h2 className="text-foreground text-sm font-bold leading-tight">{title}</h2>
             <p className="text-muted-foreground text-[11px] mt-0.5">{subtitle}</p>
           </div>
         </div>
         <Link
           href="/choferes/ranking"
-          className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors shrink-0"
+          className="inline-flex items-center max-md:h-9 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors shrink-0"
         >
           Ver todo →
         </Link>
       </div>
 
       {items.length === 0 ? (
-        <div className="px-5 py-8 text-center text-muted-foreground text-xs">
+        <div className="px-4 sm:px-5 py-8 text-center text-muted-foreground text-xs">
           {emptyText}
         </div>
       ) : (
@@ -116,9 +116,9 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText, mos
             <li key={r.id}>
               <Link
                 href={`/choferes/${choferSlug(r)}?tab=productividad`}
-                className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors group"
+                className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3 hover:bg-muted/30 transition-colors group"
               >
-                <span className="w-5 text-center text-sm font-semibold text-muted-foreground">
+                <span className="w-5 shrink-0 text-center text-sm font-semibold text-muted-foreground">
                   {idx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -135,7 +135,9 @@ function ChoferList({ items, title, subtitle, icon: Icon, accent, emptyText, mos
                     )}
                   </p>
                 </div>
-                <ScoreBadge score={r.score} size="sm" />
+                <span className="shrink-0">
+                  <ScoreBadge score={r.score} size="sm" />
+                </span>
                 <ChevronRight
                   size={14}
                   className="text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all shrink-0"

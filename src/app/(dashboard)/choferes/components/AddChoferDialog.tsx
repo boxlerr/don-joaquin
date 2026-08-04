@@ -404,12 +404,15 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={children as React.ReactElement} />
       <DialogContent className="sm:max-w-[1060px] p-0 gap-0 grid-rows-[auto_1fr] overflow-hidden">
-        <DialogHeader className="border-b border-border px-6 py-4">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+        <DialogHeader className="border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+          {/* `pr-10`: el botón de cerrar crece a 36px en touch (28 en desktop)
+              y con `pr-8` el título le quedaba abajo. */}
+          <div className="flex items-start gap-3 sm:gap-4 pr-10">
+            {/* El círculo baja a 40px en celular: 48 + el texto no entraban. */}
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <User size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-lg font-bold">
                 Agregar nuevo legajo
               </DialogTitle>
@@ -421,7 +424,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-4">
             {serverError && (
               <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
                 {serverError}
@@ -717,7 +720,9 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-border px-6 py-3">
+          {/* En celular el pie se apila: el aviso del borrador arriba y los
+              botones a ancho completo abajo (lado a lado no entraban en 343px). */}
+          <div className="flex flex-col gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6">
             <div className="min-w-0 text-xs text-muted-foreground">
               {draftTs ? (
                 <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -738,12 +743,12 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               )}
             </div>
 
-            <div className="flex flex-shrink-0 items-center gap-3">
+            <div className="flex flex-shrink-0 flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setOpen(false)}
-                className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+                className="h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
                 disabled={loading}
               >
                 Cancelar
@@ -751,7 +756,7 @@ export default function AddChoferDialog({ children }: { children: React.ReactNod
               <Button
                 type="submit"
                 disabled={loading}
-                className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+                className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex w-full sm:w-auto items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
               >
                 {loading
                   ? "Guardando..."

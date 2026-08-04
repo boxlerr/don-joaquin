@@ -95,9 +95,9 @@ export default function ImportMovimientosDialog() {
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
-            <div>
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 border-b border-border sm:px-5 sm:pt-5">
+            <div className="min-w-0">
               <Dialog.Title className="text-foreground text-base font-semibold">
                 Importar movimientos de caja
               </Dialog.Title>
@@ -109,7 +109,7 @@ export default function ImportMovimientosDialog() {
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+                  className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center sm:size-7"
                   aria-label="Cerrar"
                 />
               }
@@ -118,10 +118,10 @@ export default function ImportMovimientosDialog() {
             </Dialog.Close>
           </div>
 
-          <div className="px-5 py-4 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <FileSpreadsheet size={16} className="text-primary" />
+          <div className="px-4 py-4 space-y-4 overflow-y-auto sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                <FileSpreadsheet size={16} className="text-primary shrink-0" />
                 <span>¿No tenés el formato? Descargá el template.</span>
               </div>
               <Button
@@ -129,6 +129,7 @@ export default function ImportMovimientosDialog() {
                 variant="outline"
                 size="sm"
                 onClick={downloadTemplate}
+                className="max-sm:w-full"
               >
                 <FileDown size={14} />
                 Template
@@ -178,7 +179,7 @@ export default function ImportMovimientosDialog() {
 
               {state?.ok && <ResultPanel state={state} />}
 
-              <div className="flex justify-end gap-2 pt-1">
+              <div className="flex flex-col-reverse gap-2 pt-1 max-sm:*:w-full sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
@@ -201,7 +202,7 @@ function ResultPanel({ state }: { state: NonNullable<ImportMovimientosState> }) 
   const errs = state.errors ?? [];
   return (
     <div className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-2">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="text-[#065F46] font-semibold">
           Importados: {state.imported ?? 0}
         </span>

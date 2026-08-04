@@ -7,7 +7,7 @@ import {
 import { BENCHMARK_MIN, BENCHMARK_MAX } from "./compute";
 import type { MetricasAnio } from "./compute";
 
-const card = "bg-card border border-border rounded-[8px] p-5";
+const card = "bg-card border border-border rounded-[8px] p-4 sm:p-5";
 
 // ── Evolución del índice de rotación (multi-año) ───────────────────────────
 export type SeriePunto = { anio: number; ir_total: number; ir_voluntaria: number; ir_involuntaria: number };
@@ -17,9 +17,9 @@ export function EvolucionRotacionChart({ serie, anioSel }: { serie: SeriePunto[]
   const maxY = Math.max(BENCHMARK_MAX + 4, ...serie.map((s) => s.ir_total), 10);
   return (
     <div className={card}>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 mb-3">
         <h2 className="text-sm font-semibold text-foreground">Evolución del índice de rotación</h2>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1"><span className="w-3 h-[2px] bg-[#0088D1]" /> Total</span>
           <span className="flex items-center gap-1"><span className="w-3 h-[2px] bg-emerald-500" /> Voluntaria</span>
           <span className="flex items-center gap-1"><span className="w-3 h-[2px] bg-amber-500" /> Involuntaria</span>
@@ -67,8 +67,11 @@ export function BajasPorTipoChart({ m }: { m: MetricasAnio }) {
       {data.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Sin bajas en el período.</p>
       ) : (
-        <div className="flex items-center gap-4">
-          <ResponsiveContainer width="50%" height={160}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          {/* El donut ocupa todo el ancho en el celular (apilado) y la mitad en
+              desktop, donde la leyenda va al lado. */}
+          <div className="w-full sm:w-1/2 sm:shrink-0">
+          <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={data} dataKey="count" nameKey="label" cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={2} stroke="none">
                 {data.map((d) => <Cell key={d.clase} fill={d.color} />)}
@@ -86,11 +89,12 @@ export function BajasPorTipoChart({ m }: { m: MetricasAnio }) {
               />
             </PieChart>
           </ResponsiveContainer>
+          </div>
           <div className="flex-1 space-y-1.5">
             {data.map((d) => (
-              <div key={d.clase} className="flex items-center gap-2 text-sm">
+              <div key={d.clase} className="flex items-center gap-2 text-[13px] sm:text-sm">
                 <span className="size-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                <span className="text-foreground flex-1">{d.label}</span>
+                <span className="min-w-0 flex-1 truncate text-foreground">{d.label}</span>
                 <span className="font-semibold text-foreground">{d.count}</span>
                 <span className="text-muted-foreground text-xs w-10 text-right">{d.pct}%</span>
               </div>

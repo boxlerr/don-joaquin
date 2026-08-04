@@ -27,7 +27,7 @@ function Chip<T extends string | number>({
       type="button"
       onClick={onToggle}
       aria-pressed={activo}
-      className={`rounded-[6px] border px-2 py-1 text-[12px] transition-colors ${
+      className={`inline-flex min-h-9 items-center rounded-[6px] border px-2.5 py-1 text-[12px] transition-colors sm:min-h-0 sm:px-2 ${
         activo
           ? "border-primary/60 bg-primary/5 font-medium text-primary"
           : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -124,7 +124,10 @@ export default function FiltrosFlotaPopover({
       </button>
 
       {abierto && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[22rem] space-y-3 rounded-lg border border-border bg-card p-3 shadow-lg">
+        // En celular el panel no puede colgar del botón: es más ancho que la
+        // pantalla y la tarjeta que lo contiene tiene `overflow-hidden`, así que
+        // se abre como mini-modal centrado (mismo patrón que MonthPicker).
+        <div className="z-50 space-y-3 rounded-lg border border-border bg-card p-3 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:max-h-[80dvh] max-sm:-translate-y-1/2 max-sm:overflow-y-auto sm:absolute sm:right-0 sm:top-full sm:mt-1.5 sm:w-[22rem]">
           {marcas.length > 0 && (
             <Grupo titulo="Marca">
               {marcas.map((o) => (
@@ -140,7 +143,7 @@ export default function FiltrosFlotaPopover({
 
           {anios && (
             <Grupo titulo="Año">
-              <div className="flex w-full items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2">
                 <input
                   type="number"
                   min={anios.min}
@@ -149,7 +152,7 @@ export default function FiltrosFlotaPopover({
                   onChange={(e) => onChange({ ...filtros, anioDesde: anioNum(e.target.value) })}
                   placeholder={String(anios.min)}
                   aria-label="Año desde"
-                  className="h-8 w-20 rounded-[6px] border border-border bg-background px-2 text-[12px] text-foreground"
+                  className="h-9 w-20 rounded-[6px] border border-border bg-background px-2 text-[12px] text-foreground sm:h-8"
                 />
                 <span className="text-[12px] text-muted-foreground">a</span>
                 <input
@@ -160,7 +163,7 @@ export default function FiltrosFlotaPopover({
                   onChange={(e) => onChange({ ...filtros, anioHasta: anioNum(e.target.value) })}
                   placeholder={String(anios.max)}
                   aria-label="Año hasta"
-                  className="h-8 w-20 rounded-[6px] border border-border bg-background px-2 text-[12px] text-foreground"
+                  className="h-9 w-20 rounded-[6px] border border-border bg-background px-2 text-[12px] text-foreground sm:h-8"
                 />
                 <span className="text-[11px] text-muted-foreground">
                   la flota va de {anios.min} a {anios.max}
@@ -212,7 +215,7 @@ export default function FiltrosFlotaPopover({
             <button
               type="button"
               onClick={() => onChange(FILTROS_VACIOS)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-[6px] border border-border py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[6px] border border-border text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:h-auto sm:py-1.5"
             >
               <X size={12} />
               Limpiar {activos} filtro{activos !== 1 ? "s" : ""}

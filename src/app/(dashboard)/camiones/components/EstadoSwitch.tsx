@@ -26,15 +26,24 @@ export default function EstadoSwitch({
         onToggle();
       }}
       title={title ?? (activo ? "Desactivar unidad" : "Activar unidad")}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1]/40 ${
-        activo ? "bg-[#10B981]" : "bg-muted-foreground/30"
-      } ${pending ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
+      // El botón es la zona táctil (36px de alto en celular), la pastilla de
+      // adentro es lo que se ve. En desktop el botón vuelve a medir lo mismo
+      // que la pastilla, así que la fila no cambia de alto.
+      className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0088D1]/40 sm:size-auto ${
+        pending ? "opacity-50 cursor-wait" : "cursor-pointer"
+      }`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-          activo ? "translate-x-[18px]" : "translate-x-0.5"
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          activo ? "bg-[#10B981]" : "bg-muted-foreground/30"
         }`}
-      />
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            activo ? "translate-x-[18px]" : "translate-x-0.5"
+          }`}
+        />
+      </span>
     </button>
   );
 }

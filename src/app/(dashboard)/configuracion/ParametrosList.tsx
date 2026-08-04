@@ -104,8 +104,8 @@ export default function ParametrosList({
   return (
     <div className="space-y-4">
       {/* Buscador + resumen */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="relative w-full max-w-md sm:w-auto sm:flex-1 sm:min-w-[220px]">
           <Search
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
@@ -115,7 +115,7 @@ export default function ParametrosList({
             placeholder="Buscar parámetro por nombre o categoría…"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-9 pl-9 text-sm"
+            className="h-9 max-md:h-10 pl-9 text-sm"
           />
         </div>
         <span className="text-xs text-muted-foreground">
@@ -125,7 +125,7 @@ export default function ParametrosList({
       </div>
 
       {categoriasVisibles.length === 0 && (
-        <div className="bg-card rounded-[10px] border border-border shadow-sm p-10 text-center">
+        <div className="bg-card rounded-[10px] border border-border shadow-sm p-6 sm:p-10 text-center">
           <Search size={28} className="mx-auto text-muted-foreground/40 mb-3" />
           <p className="text-foreground text-sm font-medium">Sin resultados</p>
           <p className="text-muted-foreground text-xs mt-1">
@@ -346,7 +346,7 @@ function ParametroRow({
   }
 
   return (
-    <div className="flex items-start gap-4 px-4 py-3.5 hover:bg-muted/20 transition-colors">
+    <div className="flex flex-col gap-2 px-4 py-3.5 hover:bg-muted/20 transition-colors sm:flex-row sm:items-start sm:gap-4">
       <div className="flex-1 min-w-0">
         <p className="text-foreground text-sm font-medium">{etiquetaParam(parametro)}</p>
         {error && (
@@ -356,7 +356,7 @@ function ParametroRow({
         )}
       </div>
 
-      <div className="shrink-0 flex items-center gap-2 pt-0.5">
+      <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:pt-0.5">
         {/* Parámetro avanzado — se edita en su módulo */}
         {avanzado && (
           <>
@@ -378,7 +378,7 @@ function ParametroRow({
         {!avanzado && !editable && (
           <>
             <span
-              className="text-foreground text-sm font-semibold max-w-[240px] truncate"
+              className="text-foreground text-sm font-semibold min-w-0 max-w-[240px] truncate"
               title={displayValorParam(parametro)}
             >
               {displayValorParam(parametro)}
@@ -404,7 +404,7 @@ function ParametroRow({
         {/* Editable no-booleano — vista */}
         {editable && parametro.tipo_dato !== "boolean" && !editing && (
           <>
-            <span className="text-foreground text-sm font-semibold max-w-[240px] truncate">
+            <span className="text-foreground text-sm font-semibold min-w-0 max-w-[240px] truncate">
               {displayValorParam(parametro)}
             </span>
             {saved ? (
@@ -432,7 +432,7 @@ function ParametroRow({
         {/* Editable no-booleano — edición */}
         {editable && parametro.tipo_dato !== "boolean" && editing && (
           <>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex min-w-0 flex-col items-stretch gap-1 sm:items-end">
               {validacion.opciones ? (
                 <Combobox
                   value={valor}
@@ -442,7 +442,7 @@ function ParametroRow({
                     id: opt,
                     label: validacion.opcionesLabels?.[opt] ?? opt,
                   }))}
-                  triggerClassName="h-8 w-48 text-sm"
+                  triggerClassName="h-8 max-md:h-10 w-40 sm:w-48 text-sm"
                 />
               ) : validacion.inputTipo === "time" ? (
                 <Input
@@ -451,7 +451,7 @@ function ParametroRow({
                   onChange={(e) => setValor(e.target.value)}
                   autoFocus
                   disabled={isPending}
-                  className="h-8 w-32 text-sm"
+                  className="h-8 max-md:h-10 w-32 text-sm"
                 />
               ) : (
                 <MoneyOrTextInput
@@ -463,7 +463,7 @@ function ParametroRow({
                 />
               )}
               {validacion.pista && (
-                <span className="text-[10px] text-muted-foreground/70 text-right max-w-[220px]">
+                <span className="text-[10px] text-muted-foreground/70 max-w-[220px] sm:text-right">
                   {validacion.pista}
                 </span>
               )}
@@ -539,7 +539,7 @@ function MoneyOrTextInput({
         onChange={(e) => onChange(e.target.value)}
         autoFocus
         disabled={disabled}
-        className={`h-8 w-48 text-sm ${hasPrefix ? "pl-6" : ""}`}
+        className={`h-8 max-md:h-10 w-40 sm:w-48 text-sm ${hasPrefix ? "pl-6" : ""}`}
       />
     </div>
   );
@@ -560,6 +560,8 @@ function BooleanToggle({
 }) {
   return (
     <div className="flex items-center gap-2">
+      {/* El botón es la zona táctil (36px en celular); la pastilla de adentro es
+          lo que se ve. En desktop el botón vuelve a medir lo mismo que ella. */}
       <button
         type="button"
         role="switch"
@@ -567,15 +569,19 @@ function BooleanToggle({
         aria-label={nombre}
         disabled={disabled}
         onClick={onToggle}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          value ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
-        }`}
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md disabled:opacity-50 disabled:cursor-not-allowed sm:size-auto"
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
-            value ? "translate-x-4" : "translate-x-0.5"
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+            value ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
           }`}
-        />
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+              value ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </span>
       </button>
       <span className="text-foreground text-sm font-semibold w-20">
         {value ? "Activado" : "Desactivado"}

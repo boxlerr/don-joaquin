@@ -58,14 +58,14 @@ export default function ChoferAusenciasTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Ausencias y permisos
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
             {ausencias.length} registro{ausencias.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <AusenciasHelpButton />
           {can_write && !egresado && (
             <Button
@@ -91,7 +91,7 @@ export default function ChoferAusenciasTab({
             return (
               <div
                 key={a.id}
-                className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2"
+                className="bg-card rounded-[8px] border border-border p-3 sm:p-4 flex flex-col gap-2"
               >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -129,7 +129,7 @@ export default function ChoferAusenciasTab({
                       <button
                         onClick={() => abrirEdicion(a)}
                         disabled={busyId === a.id}
-                        className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 disabled:opacity-50"
+                        className="text-xs text-primary hover:text-primary/80 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                       >
                         <Pencil size={11} />
                         Editar
@@ -137,7 +137,7 @@ export default function ChoferAusenciasTab({
                       <button
                         onClick={() => handleCancelar(a)}
                         disabled={busyId === a.id}
-                        className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+                        className="text-xs text-red-400 hover:text-red-600 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                       >
                         <Trash2 size={11} />
                         {busyId === a.id ? "..." : "Cancelar"}

@@ -33,6 +33,7 @@ import EditViajeDialog from "../components/EditViajeDialog";
 import { aCambio, borradorDe, borradorSucio, type Borrador } from "./borradores";
 import type { ViajeBasico } from "../types";
 import { coincideBusqueda } from "@/lib/texto";
+import { etiquetaRutaVia } from "@/domain/viajes/ruta-via";
 
 // Helpers ---------------------------------------------------------------------
 
@@ -193,12 +194,16 @@ export default function HojaRutaMensualClient({
   }, [choferesMes]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-84px)] gap-3 p-4 sm:p-6">
+    // En el celular la pantalla no se parte en dos columnas de alto fijo: la
+    // lista de choferes va arriba (con su propio scroll acotado) y la hoja
+    // abajo, y scrollea la página entera. De `lg` para arriba vuelve el layout
+    // de dos paneles con alto fijo.
+    <div className="flex flex-col lg:h-[calc(100vh-84px)] gap-3 p-4 sm:p-6">
       {/* ─── Header ─── */}
       <div className="flex items-start justify-between gap-3 flex-wrap shrink-0">
         <div>
-          <h1 className="text-foreground text-xl font-bold flex items-center gap-2">
-            <FileSpreadsheet size={20} className="text-primary" />
+          <h1 className="text-foreground text-lg sm:text-xl font-bold flex items-center gap-2">
+            <FileSpreadsheet size={20} className="text-primary shrink-0" />
             Hoja de Ruta — {fmtMesLabel(mes)}
           </h1>
           <p className="text-muted-foreground text-xs mt-0.5">
@@ -206,7 +211,7 @@ export default function HojaRutaMensualClient({
             planilla Excel del cliente.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {cargandoLista && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
           <MonthPicker value={mes} onChange={cambiarMes} allowTotal />
           <ExportarHojaRuta
@@ -227,7 +232,7 @@ export default function HojaRutaMensualClient({
       </div>
 
       {/* ─── Stats del mes ─── */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 shrink-0">
         <StatChip icon={<Users size={14} />} label="Choferes con viajes" value={`${statsMes.choferesActivos}/${choferesMes.length}`} tone="info" />
         <StatChip icon={<Receipt size={14} />} label="Viajes del mes" value={fmtNum(statsMes.viajes)} tone="brand" />
         <StatChip icon={<Truck size={14} />} label="Toneladas" value={fmtNum(statsMes.tn, 1)} tone="info" />
@@ -246,12 +251,12 @@ export default function HojaRutaMensualClient({
       </div>
 
       {/* ─── Layout: sidebar + panel ─── */}
-      <div className="flex flex-1 min-h-0 gap-3 border border-border rounded-[8px] bg-card overflow-hidden">
+      <div className="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 gap-0 lg:gap-3 border border-border rounded-[8px] bg-card overflow-hidden">
         {/* Sidebar choferes (estilo tabs del Excel) */}
-        <aside className="w-72 shrink-0 border-r border-border flex flex-col">
+        <aside className="w-full lg:w-72 shrink-0 max-h-[45vh] lg:max-h-none border-b lg:border-b-0 lg:border-r border-border flex flex-col">
           <div className="p-2 space-y-1.5 border-b border-border bg-muted/40">
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70 z-10" />
               <Input
                 type="search"
                 value={busqueda}
@@ -260,28 +265,28 @@ export default function HojaRutaMensualClient({
                 className="h-8 pl-8 text-xs"
               />
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
-              <label className="inline-flex items-center gap-1 cursor-pointer">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-wider font-bold text-muted-foreground">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer py-1">
                 <input
                   type="checkbox"
                   checked={soloConViajes}
                   onChange={(e) => setSoloConViajes(e.target.checked)}
-                  className="size-3 accent-[#0088D1]"
+                  className="size-4 sm:size-3 accent-[#0088D1]"
                 />
                 Con viajes
               </label>
-              <label className="inline-flex items-center gap-1 cursor-pointer">
+              <label className="inline-flex items-center gap-1.5 cursor-pointer py-1">
                 <input
                   type="checkbox"
                   checked={soloPendientes}
                   onChange={(e) => setSoloPendientes(e.target.checked)}
-                  className="size-3 accent-[#F59E0B]"
+                  className="size-4 sm:size-3 accent-[#F59E0B]"
                 />
                 Pendientes
               </label>
             </div>
           </div>
-          <ul className="overflow-y-auto flex-1 divide-y divide-border">
+          <ul className="overflow-y-auto flex-1 min-h-0 divide-y divide-border">
             {choferesFiltrados.map((c) => {
               const active = c.id === choferId;
               return (
@@ -331,9 +336,9 @@ export default function HojaRutaMensualClient({
         </aside>
 
         {/* Panel chofer */}
-        <section className="flex-1 min-w-0 overflow-y-auto">
+        <section className="flex-1 min-w-0 lg:overflow-y-auto">
           {cargando ? (
-            <div className="flex items-center justify-center h-full text-muted-foreground gap-2">
+            <div className="flex items-center justify-center py-16 lg:h-full text-muted-foreground gap-2">
               <Loader2 size={18} className="animate-spin" />
               Cargando hoja de ruta…
             </div>
@@ -349,7 +354,7 @@ export default function HojaRutaMensualClient({
               onCerrar={() => setVistaSinRemito(false)}
             />
           ) : !panel ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 p-6 text-center">
+            <div className="flex flex-col items-center justify-center py-16 lg:h-full text-muted-foreground gap-2 p-6 text-center">
               <FileSpreadsheet size={32} className="opacity-40" />
               <p className="text-sm">Elegí un chofer del sidebar para ver su hoja de ruta.</p>
             </div>
@@ -385,7 +390,7 @@ function PanelSinRemito({
 }) {
   if (viajes === null) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground gap-2 p-6">
+      <div className="flex items-center justify-center py-16 lg:h-full text-muted-foreground gap-2 p-6">
         <Loader2 size={16} className="animate-spin" />
         <span className="text-sm">Buscando los viajes sin remito…</span>
       </div>
@@ -418,14 +423,14 @@ function PanelSinRemito({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-border bg-[#FFFBEB] px-4 sm:px-5 py-2.5">
+      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-border bg-[#FFFBEB] px-4 sm:px-5 py-2.5">
         <p className="text-[12.5px] font-semibold text-[#92400E]">
           Viajes de {fmtMesLabel(mes)} que todavía no tienen remito, de todos los choferes.
         </p>
         <button
           type="button"
           onClick={onCerrar}
-          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-card text-[12px] font-semibold text-foreground hover:bg-muted transition-colors"
+          className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-2.5 rounded-md border border-border bg-card text-[12px] font-semibold text-foreground hover:bg-muted transition-colors"
         >
           <X size={13} />
           Volver al chofer
@@ -618,7 +623,7 @@ function PanelChofer({
                     type="button"
                     onClick={limpiar}
                     disabled={guardando}
-                    className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted"
+                    className="inline-flex h-9 sm:h-8 items-center rounded-lg border border-border px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted"
                   >
                     Cancelar
                   </button>
@@ -626,7 +631,7 @@ function PanelChofer({
                     type="button"
                     onClick={() => guardarLote(panel.viajes)}
                     disabled={guardando || sucios.length === 0}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex h-9 sm:h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                   >
                     {guardando ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -648,7 +653,7 @@ function PanelChofer({
                   setEditandoId(null);
                   setModoTodos(true);
                 }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
+                className="inline-flex h-9 sm:h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
                 title="Abrir todas las filas para corregirlas de una vez"
               >
                 <Edit3 size={12} className="text-primary" />
@@ -663,13 +668,16 @@ function PanelChofer({
         )}
 
         <div className="overflow-x-auto border border-border rounded-[8px]">
-          <table className="w-full text-xs">
+          {/* El min-w obliga a la tabla a scrollear de costado en vez de
+              aplastar las columnas en el celular. */}
+          <table className="w-full min-w-[980px] text-xs">
             <thead className="bg-[#0F172A] text-white">
               <tr>
                 {mostrarChofer && <Th>Chofer</Th>}
                 <Th>Día</Th>
                 <Th>Sale de</Th>
                 <Th>Llega a</Th>
+                <Th>Ruta</Th>
                 <Th right>KM</Th>
                 <Th right>Toneladas</Th>
                 <Th>Remito Nº</Th>
@@ -707,7 +715,9 @@ function PanelChofer({
             </tbody>
             <tfoot className="bg-muted/40 border-t-2 border-border">
               <tr className="text-[11px] font-bold uppercase tracking-wider">
-                <td className="px-3 py-2.5" colSpan={3}>TOTAL del mes</td>
+                {/* Día · Sale de · Llega a · Ruta, más Chofer si la vista cruza
+                    choferes (si no, los totales salen corridos una columna). */}
+                <td className="px-3 py-2.5" colSpan={4 + (mostrarChofer ? 1 : 0)}>TOTAL del mes</td>
                 <td className="px-3 py-2.5 text-right font-mono">{fmtNum(panel.totales.km)}</td>
                 <td className="px-3 py-2.5 text-right font-mono">{fmtNum(panel.totales.tonelaje, 1)}</td>
                 <td className="px-3 py-2.5" colSpan={2}></td>
@@ -813,7 +823,7 @@ function FilaViaje({
             value={origen}
             onChange={(e) => onBorrador({ origen: e.target.value })}
             placeholder="Sale de"
-            className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
+            className="h-8 sm:h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
           />
         ) : (
           viaje.origen ?? "—"
@@ -828,7 +838,7 @@ function FilaViaje({
               value={destino}
               onChange={(e) => onBorrador({ destino: e.target.value })}
               placeholder="Llega a"
-              className="h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
+              className="h-8 sm:h-7 w-32 rounded border border-border px-2 text-xs uppercase outline-none focus:border-primary"
             />
             {/* Los lugares ya cargados, para no tipear de nuevo; igual acepta
                 uno nuevo y se da de alta solo. */}
@@ -842,6 +852,13 @@ function FilaViaje({
           viaje.destino ?? "—"
         )}
       </td>
+      {/* Sólo lectura, aun en modo edición: cambiar la vía tiene que recalcular
+          los km del par (Ruta 5 directa vs Ruta 22 por la base), y eso lo hace
+          el modal de detalle con el historial. Un select pelado acá dejaría
+          "Ruta 22" con los km de la Ruta 5, justo lo que la columna evita. */}
+      <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+        {etiquetaRutaVia(viaje.ruta_via)}
+      </td>
       <td className="px-3 py-2 text-right font-mono">
         {editando ? (
           <input
@@ -850,7 +867,7 @@ function FilaViaje({
             value={km}
             onChange={(e) => onBorrador({ km: e.target.value })}
             placeholder="0"
-            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+            className="h-8 sm:h-7 w-24 sm:w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
           />
         ) : (
           fmtNum(viaje.km_con_carga)
@@ -865,7 +882,7 @@ function FilaViaje({
             value={toneladas}
             onChange={(e) => onBorrador({ toneladas: e.target.value })}
             placeholder="0,00"
-            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+            className="h-8 sm:h-7 w-24 sm:w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
           />
         ) : viaje.tonelaje_real ? (
           fmtNum(viaje.tonelaje_real, 2)
@@ -880,7 +897,7 @@ function FilaViaje({
             value={remito}
             onChange={(e) => onBorrador({ remito: e.target.value })}
             placeholder="Nº remito"
-            className="w-24 h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none"
+            className="w-28 sm:w-24 h-8 sm:h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none"
           />
         ) : esVacio ? (
           // Igual que la planilla Excel del cliente: "VACIO" en rojo en la columna remito.
@@ -901,7 +918,7 @@ function FilaViaje({
             value={kmVacios}
             onChange={(e) => onBorrador({ kmVacios: e.target.value })}
             placeholder="0"
-            className="h-7 w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
+            className="h-8 sm:h-7 w-24 sm:w-20 rounded border border-border px-2 text-right text-xs outline-none focus:border-primary"
           />
         ) : (
           fmtNum(viaje.km_vacios)
@@ -915,7 +932,7 @@ function FilaViaje({
             onChange={(e) => onBorrador({ monto: e.target.value })}
             placeholder="0.00"
             step="0.01"
-            className="w-28 h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none text-right"
+            className="w-32 sm:w-28 h-8 sm:h-7 px-2 text-xs rounded border border-border focus:border-primary outline-none text-right"
           />
         ) : viaje.monto_flete != null ? (
           fmtARS(viaje.monto_flete)
@@ -930,7 +947,7 @@ function FilaViaje({
               type="button"
               onClick={onGuardar}
               disabled={guardando}
-              className="inline-flex items-center justify-center size-6 rounded text-[#10B981] hover:bg-[#ECFDF5]"
+              className="inline-flex items-center justify-center size-8 sm:size-6 rounded text-[#10B981] hover:bg-[#ECFDF5]"
               title="Guardar"
             >
               {guardando ? <Loader2 size={11} className="animate-spin" /> : <Check size={12} />}
@@ -939,7 +956,7 @@ function FilaViaje({
               type="button"
               onClick={onCancelar}
               disabled={guardando}
-              className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted"
+              className="inline-flex items-center justify-center size-8 sm:size-6 rounded text-muted-foreground hover:bg-muted"
               title="Cancelar"
             >
               <X size={12} />
@@ -976,7 +993,7 @@ function FilaViaje({
                 <button
                   type="button"
                   onClick={onDetalle}
-                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="inline-flex size-8 sm:size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   title="Abrir el viaje completo"
                 >
                   <Maximize2 size={11} />
@@ -985,7 +1002,7 @@ function FilaViaje({
                 <button
                   type="button"
                   onClick={onEditar}
-                  className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="inline-flex items-center justify-center size-8 sm:size-6 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   title="Editar el viaje: origen, destino, km, remito y monto"
                 >
                   <Edit3 size={11} />
@@ -997,7 +1014,7 @@ function FilaViaje({
                     setErrorBorrar(null);
                     setBorrando(true);
                   }}
-                  className="inline-flex items-center justify-center size-6 rounded text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
+                  className="inline-flex items-center justify-center size-8 sm:size-6 rounded text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
                   title="Eliminar viaje (si lo cargaste mal o se canceló)"
                 >
                   <Trash2 size={11} />

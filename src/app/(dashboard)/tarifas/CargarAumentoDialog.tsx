@@ -86,7 +86,7 @@ export default function CargarAumentoDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowUpRight size={16} className="text-amber-500" /> Cargar aumento de tarifa
@@ -114,7 +114,7 @@ export default function CargarAumentoDialog({
                 onChange={(e) => setClienteLibre(e.target.value)}
                 placeholder="Nombre del cliente"
                 required
-                className="mt-2 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                className="mt-2 h-10 sm:h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             )}
           </div>
@@ -126,7 +126,7 @@ export default function CargarAumentoDialog({
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
                 required
-                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                className="mt-1 h-10 sm:h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
               />
             </div>
             <div>
@@ -137,7 +137,7 @@ export default function CargarAumentoDialog({
                 placeholder="Ej: 3 o 2,16"
                 required
                 inputMode="decimal"
-                className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none"
+                className="mt-1 h-10 sm:h-9 w-full rounded-md border border-border bg-card px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none"
               />
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function CargarAumentoDialog({
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               placeholder="Ej: aumento mensual de tarifa"
-              className="mt-1 h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+              className="mt-1 h-10 sm:h-9 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground focus:border-primary focus:outline-none"
             />
             <p className="mt-1 text-[10px] text-muted-foreground/80">
               Si es un % interanual (un solo número por el año, como YPF), empezá la

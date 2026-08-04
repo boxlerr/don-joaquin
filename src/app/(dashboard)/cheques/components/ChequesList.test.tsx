@@ -48,6 +48,12 @@ function montar(cheques: ChequeRow[] = [recibido, propio]) {
 const filas = () => screen.getAllByRole("row").slice(1); // sin el header
 const textoDeFilas = () => filas().map((f) => f.textContent ?? "");
 
+// El listado se dibuja dos veces: tabla (desde md) y tarjetas apiladas (celular).
+// El CSS muestra una sola, pero en jsdom conviven las dos, así que las consultas
+// del menú de acciones se acotan a la tabla.
+const accionesDeLaFila = () =>
+  within(screen.getByRole("table")).getByRole("button", { name: "Acciones del cheque" });
+
 describe("ChequesList — separación por origen", () => {
   it("arranca en Recibidos y no muestra los cheques nuestros", () => {
     montar();
@@ -96,7 +102,7 @@ describe("ChequesList — separación por origen", () => {
     expect(screen.queryByRole("button", { name: /^Entregados/ })).not.toBeInTheDocument();
 
     // Y la acción de la fila.
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     expect(screen.getByRole("menuitem", { name: /Endosar a un tercero/ })).toBeInTheDocument();
   });
 
@@ -135,7 +141,7 @@ describe("ChequesList — abrir el cheque", () => {
 
   it("usar el menú de la fila no abre además la edición", () => {
     montar([recibido]);
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     expect(screen.queryByText("Editar cheque")).not.toBeInTheDocument();
   });
 
@@ -149,13 +155,13 @@ describe("ChequesList — abrir el cheque", () => {
 describe("ChequesList — acciones", () => {
   it("todo cheque se puede borrar, incluso uno anulado", () => {
     montar([{ ...recibido, estado: "anulado" }]);
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     expect(screen.getByRole("menuitem", { name: "Borrar cheque" })).toBeInTheDocument();
   });
 
   it("pide confirmación antes de borrar, con el librador y el importe", () => {
     montar([{ ...recibido, estado: "anulado", importe: 3000000 }]);
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     fireEvent.click(screen.getByRole("menuitem", { name: "Borrar cheque" }));
 
     const dialogo = screen.getByRole("dialog");
@@ -168,14 +174,14 @@ describe("ChequesList — acciones", () => {
   it("un cheque nuestro se debita; nunca se deposita", () => {
     montar([propio]);
     fireEvent.click(screen.getByRole("button", { name: /Nuestros/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     expect(screen.getByRole("menuitem", { name: "Marcar como debitado" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /Depositar/ })).not.toBeInTheDocument();
   });
 
   it("un recibido en cartera se deposita; nunca se debita", () => {
     montar([recibido]);
-    fireEvent.click(screen.getByRole("button", { name: "Acciones del cheque" }));
+    fireEvent.click(accionesDeLaFila());
     expect(screen.getByRole("menuitem", { name: "Depositar en banco" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: /debitado/ })).not.toBeInTheDocument();
   });

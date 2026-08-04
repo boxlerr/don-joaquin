@@ -87,7 +87,7 @@ export default function CargarOrganismoDocDialog({ destinatario, row, edit = fal
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {edit ? "Editar vencimiento" : "Registrar presentación"} — {destinatario.nombre}
@@ -166,7 +166,7 @@ export default function CargarOrganismoDocDialog({ destinatario, row, edit = fal
             <div className="space-y-1.5">
               <Label>Comprobante (PDF, imagen) — opcional</Label>
               <div
-                className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-[#0088D1] transition-colors"
+                className="border-2 border-dashed border-border rounded-lg p-4 min-h-11 flex items-center justify-center text-center cursor-pointer hover:border-[#0088D1] transition-colors"
                 onClick={() => fileRef.current?.click()}
               >
                 {fileName ? (

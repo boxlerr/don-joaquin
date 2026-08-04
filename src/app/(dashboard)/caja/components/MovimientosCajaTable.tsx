@@ -21,7 +21,7 @@ import {
   SelectLabel,
 } from "@/components/ui/select";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Wallet, X, Loader2, EyeOff, Eye } from "lucide-react";
+import { Wallet, X, Loader2, EyeOff, Eye, ListFilter } from "lucide-react";
 import {
   getCajaMovimientosAction,
   setMovimientoPrivadoAction,
@@ -133,6 +133,9 @@ export default function MovimientosCajaTable({
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  // En celular los filtros se despliegan: apilados ocupaban media pantalla
+  // antes de que apareciera el primer movimiento.
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -277,6 +280,81 @@ export default function MovimientosCajaTable({
   const colSpan = 7 + (mostrarColumnaCaja ? 1 : 0) + (puedeMarcarPrivado ? 1 : 0);
   const hayFiltros = !!desde || !!hasta || !!tipoFiltro || !!search;
 
+  // Los pedazos que comparten la tabla (desktop) y las tarjetas (celular): el
+  // mapeo de datos es uno solo, cambia nada más la presentación.
+  const chipTipo = (m: CajaMovimientoRow) => (
+    <span
+      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
+        CATEGORIA_CHIP[m.categoria] ?? CHIP_NEUTRO
+      }`}
+    >
+      {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
+    </span>
+  );
+
+  const chipCaja = (m: CajaMovimientoRow) => (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+        m.caja === "grande" ? "bg-[#E1F5FE] text-[#004A99]" : "bg-muted text-muted-foreground"
+      }`}
+    >
+      {m.caja === "grande" ? "General" : "Chica"}
+    </span>
+  );
+
+  const botonPrivado = (m: CajaMovimientoRow, extra = "") => (
+    <button
+      type="button"
+      onClick={() => togglePrivado(m)}
+      disabled={cambiandoPrivacidad === m.id}
+      aria-label={esVistaChica ? "Ocultar de la caja chica" : "Cambiar visibilidad"}
+      title={
+        esVistaChica
+          ? "Ocultar de la caja chica. Queda solo en la caja general."
+          : m.privado === true
+            ? "Oculto en la caja chica. Tocá para mostrarlo."
+            : m.privado === false
+              ? "Visible en la caja chica. Tocá para ocultarlo."
+              : "Se oculta si lo cargó dirección. Tocá para mostrarlo."
+      }
+      className={`inline-flex items-center justify-center gap-1 rounded text-xs transition-colors disabled:opacity-50 ${
+        !esVistaChica && m.privado !== true
+          ? "text-[#10B981] hover:bg-[#10B981]/10"
+          : "text-muted-foreground hover:bg-muted"
+      } ${extra}`}
+    >
+      {cambiandoPrivacidad === m.id ? (
+        <Loader2 size={14} className="animate-spin" />
+      ) : esVistaChica || m.privado === true ? (
+        <EyeOff size={14} />
+      ) : (
+        <Eye size={14} />
+      )}
+    </button>
+  );
+
+  const monto = (m: CajaMovimientoRow) => {
+    const esIngreso = m.tipo === "ingreso";
+    return (
+      <span
+        className={`font-semibold tabular-nums ${
+          esIngreso ? "text-emerald-600" : "text-rose-600"
+        }`}
+      >
+        <span className="mr-0.5 opacity-70">{esIngreso ? "+" : "−"}</span>$ {formatARS(m.monto)}
+      </span>
+    );
+  };
+
+  /** Mensaje único de carga / error / vacío, para no repetirlo en las dos vistas. */
+  const estado = loading
+    ? "Cargando movimientos..."
+    : error
+      ? error
+      : rows.length === 0
+        ? "Sin movimientos registrados"
+        : null;
+
   const limpiarFiltros = () => {
     onRangeChange("", "");
     setTipoFiltro("");
@@ -285,7 +363,7 @@ export default function MovimientosCajaTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex items-center gap-2">
           <Wallet size={15} className="text-primary" />
           <h2 className="text-sm font-semibold text-foreground">
@@ -296,24 +374,46 @@ export default function MovimientosCajaTable({
                 : "Movimientos de Caja Chica"}
           </h2>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        {/* Abajo de sm los filtros viven detrás de este botón; desde sm son la
+            barra de siempre y el botón no existe. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="sm:hidden"
+          aria-expanded={filtrosAbiertos}
+          onClick={() => setFiltrosAbiertos((v) => !v)}
+        >
+          <ListFilter size={14} />
+          Filtros
+          {hayFiltros && <span className="size-1.5 rounded-full bg-primary" aria-hidden />}
+        </Button>
+
+        <div
+          className={`${
+            filtrosAbiertos ? "flex" : "hidden"
+          } w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center`}
+        >
           {/* Desde–hasta se leen como un rango: van juntos en un mismo marco. */}
-          <div className="flex h-9 items-center rounded-lg border border-input bg-background px-1 transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+          {/* El marco crece a 44px abajo de md porque los campos que lleva
+              adentro miden 40px de alto en táctil (max-md:h-10 del Input). */}
+          <div className="flex h-11 w-full items-center rounded-lg border border-input bg-background px-1 transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:w-auto md:h-9">
             <Input
               type="date"
               value={desde}
               min={minDate}
               onChange={(e) => onRangeChange(e.target.value, hasta)}
-              className="h-7 w-auto border-0 bg-transparent text-sm focus-visible:ring-0"
+              className="min-w-0 flex-1 border-0 bg-transparent text-sm focus-visible:ring-0 sm:w-auto sm:flex-none md:h-7"
               aria-label="Fecha desde"
             />
-            <span className="text-muted-foreground/60">–</span>
+            <span className="shrink-0 text-muted-foreground/60">–</span>
             <Input
               type="date"
               value={hasta}
               min={minDate}
               onChange={(e) => onRangeChange(desde, e.target.value)}
-              className="h-7 w-auto border-0 bg-transparent text-sm focus-visible:ring-0"
+              className="min-w-0 flex-1 border-0 bg-transparent text-sm focus-visible:ring-0 sm:w-auto sm:flex-none md:h-7"
               aria-label="Fecha hasta"
             />
           </div>
@@ -323,7 +423,7 @@ export default function MovimientosCajaTable({
           >
             <SelectTrigger
               aria-label="Filtrar por tipo"
-              className="h-9 w-auto min-w-[200px] text-sm"
+              className="h-10 w-full min-w-0 text-sm sm:h-9 sm:w-auto sm:min-w-[200px]"
             >
               <SelectValue>
                 {(value: unknown) => {
@@ -370,7 +470,7 @@ export default function MovimientosCajaTable({
             placeholder="Buscar concepto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-44 text-sm"
+            className="h-10 w-full text-sm sm:h-9 sm:w-44"
             aria-label="Buscar por concepto"
           />
           {hayFiltros && (
@@ -378,7 +478,7 @@ export default function MovimientosCajaTable({
               variant="ghost"
               size="sm"
               onClick={limpiarFiltros}
-              className="text-muted-foreground hover:text-foreground h-9"
+              className="text-muted-foreground hover:text-foreground h-10 w-full sm:h-9 sm:w-auto"
             >
               <X size={13} className="mr-1" />
               Limpiar
@@ -388,8 +488,10 @@ export default function MovimientosCajaTable({
       </div>
 
       {/* Las celdas del sistema vienen apretadas (p-2): acá se les da aire para
-          que la lista se pueda barrer de un vistazo. */}
-      <Table className="[&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
+          que la lista se pueda barrer de un vistazo.
+          Abajo de md la tabla desaparece: 9 columnas no entran en 343px y esta
+          lista ES la pantalla, así que cada movimiento pasa a ser una tarjeta. */}
+      <Table className="hidden md:table [&_td]:px-4 [&_td]:py-3 [&_th]:px-4">
         <TableHeader className="bg-muted/30">
           <TableRow className="hover:bg-transparent">
             {[
@@ -431,94 +533,82 @@ export default function MovimientosCajaTable({
           ) : rows.length === 0 ? (
             <EmptyTableRow message="Sin movimientos registrados" />
           ) : (
-            rows.map((m) => {
-              const esIngreso = m.tipo === "ingreso";
-              return (
-                <TableRow key={m.id} className="border-border/60 hover:bg-muted/40">
-                  <TableCell className="text-sm tabular-nums text-muted-foreground">
-                    {formatFecha(m.fecha)}
-                  </TableCell>
-                  {mostrarColumnaCaja && (
-                    <TableCell>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          m.caja === "grande"
-                            ? "bg-[#E1F5FE] text-[#004A99]"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {m.caja === "grande" ? "General" : "Chica"}
-                      </span>
-                    </TableCell>
-                  )}
-                  <TableCell className="text-sm font-medium text-foreground">
-                    {m.concepto}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
-                        CATEGORIA_CHIP[m.categoria] ?? CHIP_NEUTRO
-                      }`}
-                    >
-                      {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {m.vinculado_a ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {MEDIO_LABEL[m.medio] ?? m.medio}
-                  </TableCell>
-                  {/* El signo va aparte del número para que las columnas de
-                      montos queden alineadas al leerlas de arriba a abajo. */}
-                  <TableCell
-                    className={`text-right text-sm font-semibold tabular-nums ${
-                      esIngreso ? "text-emerald-600" : "text-rose-600"
-                    }`}
-                  >
-                    <span className="mr-0.5 opacity-70">{esIngreso ? "+" : "−"}</span>${" "}
-                    {formatARS(m.monto)}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {m.usuario ?? "—"}
-                  </TableCell>
-                  {puedeMarcarPrivado && (
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => togglePrivado(m)}
-                        disabled={cambiandoPrivacidad === m.id}
-                        title={
-                          esVistaChica
-                            ? "Ocultar de la caja chica. Queda solo en la caja general."
-                            : m.privado === true
-                              ? "Oculto en la caja chica. Tocá para mostrarlo."
-                              : m.privado === false
-                                ? "Visible en la caja chica. Tocá para ocultarlo."
-                                : "Se oculta si lo cargó dirección. Tocá para mostrarlo."
-                        }
-                        className={`inline-flex items-center gap-1 text-xs rounded px-1.5 py-1 transition-colors disabled:opacity-50 ${
-                          !esVistaChica && m.privado !== true
-                            ? "text-[#10B981] hover:bg-[#10B981]/10"
-                            : "text-muted-foreground hover:bg-muted"
-                        }`}
-                      >
-                        {cambiandoPrivacidad === m.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : esVistaChica || m.privado === true ? (
-                          <EyeOff size={14} />
-                        ) : (
-                          <Eye size={14} />
-                        )}
-                      </button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })
+            rows.map((m) => (
+              <TableRow key={m.id} className="border-border/60 hover:bg-muted/40">
+                <TableCell className="text-sm tabular-nums text-muted-foreground">
+                  {formatFecha(m.fecha)}
+                </TableCell>
+                {mostrarColumnaCaja && <TableCell>{chipCaja(m)}</TableCell>}
+                <TableCell className="text-sm font-medium text-foreground">{m.concepto}</TableCell>
+                <TableCell>{chipTipo(m)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {m.vinculado_a ?? "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {MEDIO_LABEL[m.medio] ?? m.medio}
+                </TableCell>
+                {/* El signo va aparte del número para que las columnas de
+                    montos queden alineadas al leerlas de arriba a abajo. */}
+                <TableCell className="text-right text-sm">{monto(m)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{m.usuario ?? "—"}</TableCell>
+                {puedeMarcarPrivado && (
+                  <TableCell>{botonPrivado(m, "px-1.5 py-1")}</TableCell>
+                )}
+              </TableRow>
+            ))
           )}
         </TableBody>
       </Table>
+
+      {/* Celular: la misma lista como tarjetas. Concepto y monto arriba —que es
+          lo que se busca— y abajo el resto, sin perder ninguna acción. */}
+      <div className="md:hidden">
+        {estado ? (
+          <p
+            className={`px-4 py-8 text-center text-sm ${
+              error ? "text-rose-600" : "text-muted-foreground/70"
+            }`}
+          >
+            {loading && <Loader2 className="mr-2 inline-block animate-spin" size={14} />}
+            {estado}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {rows.map((m) => (
+              <li key={m.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                    {m.concepto}
+                  </p>
+                  <span className="shrink-0 text-sm">{monto(m)}</span>
+                </div>
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {formatFecha(m.fecha)}
+                  </span>
+                  <span className="text-muted-foreground/40" aria-hidden>
+                    ·
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {MEDIO_LABEL[m.medio] ?? m.medio}
+                  </span>
+                  {chipTipo(m)}
+                  {mostrarColumnaCaja && chipCaja(m)}
+                </div>
+
+                <div className="mt-1.5 flex items-end justify-between gap-3">
+                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                    {m.vinculado_a ? `${m.vinculado_a} · ` : ""}
+                    {m.usuario ?? "—"}
+                  </p>
+                  {puedeMarcarPrivado && botonPrivado(m, "size-9 shrink-0")}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {hasMore && !loading && (
         <div className="flex justify-center border-t border-border bg-muted/20 py-3">

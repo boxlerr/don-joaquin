@@ -62,7 +62,7 @@ export default function CamionDocumentosTab({ camion_id, documentos, tipos, onRe
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Documentación del vehículo
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
@@ -145,7 +145,7 @@ function DocCard({
 
   return (
     <div
-      className={`group bg-card rounded-lg border border-border border-l-[3px] ${accent} p-4 flex flex-col gap-3 hover:shadow-sm transition-shadow`}
+      className={`group bg-card rounded-lg border border-border border-l-[3px] ${accent} p-3 sm:p-4 flex flex-col gap-3 hover:shadow-sm transition-shadow`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -195,7 +195,7 @@ function DocCard({
           variant="outline"
           size="sm"
           onClick={onEdit}
-          className="h-8 flex-1 border-[#BAE6FD] text-primary hover:bg-[#E1F5FE]"
+          className="h-9 sm:h-8 flex-1 border-[#BAE6FD] text-primary hover:bg-[#E1F5FE]"
         >
           <Pencil size={13} className="mr-1" />
           Actualizar
@@ -203,7 +203,7 @@ function DocCard({
         <button
           onClick={onDelete}
           disabled={deleting}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+          className="size-9 sm:size-8 shrink-0 flex items-center justify-center rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
           title="Eliminar documento"
         >
           <Trash2 size={14} />

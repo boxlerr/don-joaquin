@@ -94,7 +94,7 @@ export const SECCIONES: Seccion[] = [
   { codigo: "extintores", area: "seguridad", nombre: "Extintores", orden: 11 },
   // --- Mantenimiento -------------------------------------------------------
   { codigo: "mantenimiento_servicios", area: "mantenimiento", nombre: "Servicios", orden: 10 },
-  { codigo: "mantenimiento_costos", area: "mantenimiento", nombre: "Costos rep. y rep.", orden: 11 },
+  { codigo: "mantenimiento_costos", area: "mantenimiento", nombre: "Costos de repuestos", orden: 11 },
   // --- Comercial -----------------------------------------------------------
   { codigo: "clientes", area: "comercial", nombre: "Clientes", orden: 10 },
   { codigo: "tarifas", area: "comercial", nombre: "Tarifas", orden: 11 },

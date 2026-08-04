@@ -104,13 +104,14 @@ export default function AddInsumoDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (loading) return; setOpen(v); }}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
+      {/* El alto máximo lo maneja la primitiva con `dvh`; acá sólo el ancho. */}
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <div className="flex items-center gap-3">
+          <div className="flex items-start sm:items-center gap-3">
             <span className="size-10 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
               <Package size={18} />
             </span>
-            <div>
+            <div className="min-w-0 pr-6 sm:pr-0">
               <DialogTitle className="text-foreground text-lg">{editing ? "Editar insumo" : "Agregar insumo"}</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs">
                 Catálogo con precio de referencia (goma, lámpara, óptica…). Al cargar una rotura se elige de acá y el costo se trae solo.
@@ -136,7 +137,7 @@ export default function AddInsumoDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="ins-tipo" className="text-sm font-medium text-foreground">Categoría</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "goma")}>
@@ -158,7 +159,8 @@ export default function AddInsumoDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Precio y Estado son cortos: entran de a dos aun en 320px. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="ins-precio" className="text-sm font-medium text-foreground">Precio $</Label>
               <Input id="ins-precio" type="number" min="0" step="any" placeholder="0" value={precio} onChange={(e) => setPrecio(e.target.value)} />

@@ -111,8 +111,11 @@ export default function MonthPicker({
         <ChevronRight size={15} />
       </button>
 
+      {/* Mismo criterio que CalendarioPopover: en celular se centra como
+          mini-modal en vez de colgar del botón, así los 264px nunca se van del
+          borde de la pantalla. */}
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[264px] rounded-xl border border-border bg-popover p-2 shadow-lg">
+        <div className="z-50 rounded-xl border border-border bg-popover p-2 shadow-lg max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:right-0 sm:top-full sm:mt-1.5 sm:w-[264px]">
           <div className="flex items-center justify-between px-1 py-0.5">
             <button type="button" onClick={() => setYearView((y) => y - 1)} className={cn(btnBase, "h-7 w-7")} aria-label="Año anterior">
               <ChevronLeft size={14} />

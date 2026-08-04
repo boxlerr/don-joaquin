@@ -66,7 +66,7 @@ export default function DocVencimientosCard({ documentos }: { documentos: DocVen
               No hay documentos próximos a vencer.
             </p>
           ) : (
-            <div className="max-h-[60vh] overflow-y-auto -mx-2 px-2">
+            <div className="max-h-[60dvh] overflow-y-auto -mx-2 px-2">
               <div className="flex flex-col divide-y divide-border">
                 {documentos.map((doc) => {
                   const vencido = (doc.dias_restantes ?? 0) < 0;
@@ -75,26 +75,30 @@ export default function DocVencimientosCard({ documentos }: { documentos: DocVen
                       key={doc.id}
                       type="button"
                       onClick={() => irADocumento(doc.camion_id)}
-                      className="flex items-center justify-between gap-4 py-3 w-full text-left rounded-md hover:bg-muted/50 transition-colors px-2 -mx-2"
+                      className="flex items-center justify-between gap-2 sm:gap-4 py-3 w-full text-left rounded-md hover:bg-muted/50 transition-colors px-2 -mx-2"
                       title="Abrir documentación del camión para actualizar"
                     >
-                      <div className="flex flex-col">
+                      <div className="flex min-w-0 flex-col">
                         <span className="font-mono font-medium text-foreground">{doc.patente}</span>
-                        <span className="text-xs text-muted-foreground">{doc.tipo_documento}</span>
+                        <span className="truncate text-xs text-muted-foreground">{doc.tipo_documento}</span>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
                         <div className="flex flex-col items-end">
                           <span className="text-sm text-foreground">{formatFecha(doc.fecha_vencimiento)}</span>
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                             {vencido
                               ? `Vencido hace ${Math.abs(doc.dias_restantes ?? 0)} d`
                               : `Faltan ${doc.dias_restantes ?? 0} d`}
                           </span>
                         </div>
-                        <StatusBadge
-                          label={vencido ? "Vencido" : "Por vencer"}
-                          tone={vencido ? "error" : "warning"}
-                        />
+                        {/* La pastilla repite lo que ya dice el texto: en celular
+                            no entra y se va, el ícono alcanza como afordancia. */}
+                        <span className="hidden sm:inline-flex">
+                          <StatusBadge
+                            label={vencido ? "Vencido" : "Por vencer"}
+                            tone={vencido ? "error" : "warning"}
+                          />
+                        </span>
                         <ChevronRight size={16} className="text-muted-foreground/50 shrink-0" />
                       </div>
                     </button>

@@ -49,8 +49,8 @@ export default function DestinatarioMatriz({
   const total = enabled.size;
 
   return (
-    <div className="p-4 bg-card rounded-[8px] border border-border">
-      <div className="flex items-center justify-between gap-4 mb-3">
+    <div className="p-3 sm:p-4 bg-card rounded-[8px] border border-border">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground truncate">{nombre}</p>
           <p className="text-xs text-muted-foreground truncate">
@@ -78,7 +78,7 @@ export default function DestinatarioMatriz({
               type="button"
               onClick={() => toggle(c.key)}
               disabled={pendingKey === c.key}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors disabled:opacity-60 ${
+              className={`inline-flex items-center gap-1.5 px-2.5 max-md:px-3 py-1 rounded-full text-[11px] max-md:text-xs font-medium border transition-colors disabled:opacity-60 max-md:min-h-9 ${
                 on
                   ? "bg-primary/10 text-primary border-primary/30"
                   : "bg-muted/40 text-muted-foreground border-border hover:border-primary/30"

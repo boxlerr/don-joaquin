@@ -247,9 +247,9 @@ export default function ImportLomaModal({
           if (!v) reset();
         }}
       >
-        <DialogContent className="sm:max-w-[860px] max-h-[88vh] flex flex-col">
+        <DialogContent className="sm:max-w-[860px] max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-xl flex items-center gap-2">
+            <DialogTitle className="text-foreground text-lg sm:text-xl flex items-center gap-2">
               <Truck size={18} className="text-primary" />
               Importar liquidación de fletes (Loma)
             </DialogTitle>
@@ -345,8 +345,8 @@ export default function ImportLomaModal({
                 <p className="text-[11px] font-semibold text-foreground mb-1.5">
                   Expedidores — marcá cuáles son de Loma (los desmarcados no se procesan)
                 </p>
-                <div className="border border-border rounded-md overflow-hidden">
-                  <table className="w-full text-xs">
+                <div className="border border-border rounded-md overflow-x-auto">
+                  <table className="w-full min-w-[420px] text-xs">
                     <thead className="bg-muted/60 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
                       <tr>
                         <th className="text-left px-3 py-2 w-10">Loma</th>
@@ -430,8 +430,8 @@ export default function ImportLomaModal({
                       const asignado =
                         asignaciones.find((a) => a.nombreLoma === c.nombreLoma)?.chofer_id ?? null;
                       return (
-                        <div key={c.nombreLoma} className="flex items-center gap-2 text-xs">
-                          <span className="font-mono text-foreground min-w-[180px]">{c.nombreLoma}</span>
+                        <div key={c.nombreLoma} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-mono text-foreground sm:min-w-[180px]">{c.nombreLoma}</span>
                           <span className={c.missing ? "text-red-600" : "text-[#92400E]"}>
                             {c.missing ? "sin match" : "ambiguo"}
                           </span>
@@ -440,7 +440,7 @@ export default function ImportLomaModal({
                             onChange={(ev) =>
                               setAsignacion(c.nombreLoma, ev.target.value === "" ? null : ev.target.value)
                             }
-                            className="h-7 max-w-[280px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
+                            className="h-9 sm:h-7 w-full max-w-full sm:max-w-[280px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
                           >
                             <option value="">— Sin chofer (revisar después) —</option>
                             {c.candidatos.map((k) => (
@@ -492,7 +492,7 @@ export default function ImportLomaModal({
 
               {/* Detalle de filas (editable) */}
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => setShowRows((v) => !v)}
@@ -508,8 +508,8 @@ export default function ImportLomaModal({
                   )}
                 </div>
                 {showRows && (
-                  <div className="mt-1.5 border border-border rounded-md overflow-hidden max-h-[260px] overflow-y-auto">
-                    <table className="w-full text-[11px]">
+                  <div className="mt-1.5 border border-border rounded-md max-h-[260px] overflow-auto">
+                    <table className="w-full min-w-[640px] text-[11px]">
                       <thead className="sticky top-0 bg-card border-b border-border text-[9px] uppercase tracking-wider text-muted-foreground">
                         <tr>
                           <th className="text-left px-2 py-1.5">Nº transp.</th>

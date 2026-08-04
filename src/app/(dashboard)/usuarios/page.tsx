@@ -154,12 +154,12 @@ export default async function UsuariosPage() {
   });
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Usuarios y Permisos"
         description="Acceso administrativo — choferes no acceden al sistema"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <HelpUsuariosDialog />
             <OpenAuditButton />
             {showMatriz && <NuevoUsuarioDialog roles={roles} />}
@@ -167,7 +167,7 @@ export default async function UsuariosPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         <StatCard label="Usuarios totales" value={String(total ?? 0)} color="brand" />
         <StatCard label="Administradores" value={String(admins ?? 0)} sub="Acceso total" color="warning" />
         <StatCard label="Operativos" value={String(operativos ?? 0)} sub="Carga y consulta" color="success" />

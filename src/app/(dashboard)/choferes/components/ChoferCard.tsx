@@ -176,8 +176,8 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
       >
         <div className={`h-[2px] w-full ${esBaja ? "bg-border" : "bg-primary"}`} />
 
-        <div className="p-5 flex-1 flex flex-col">
-          <div className="flex items-start gap-4 mb-4">
+        <div className="p-4 sm:p-5 flex-1 flex flex-col">
+          <div className="flex items-start gap-3 sm:gap-4 mb-4">
             <div className="relative flex-shrink-0 group/avatar">
               <div
                 className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center cursor-pointer overflow-hidden shadow-inner relative"
@@ -198,7 +198,9 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   <SiluetaPersona rol={chofer.rol} className="text-primary" />
                 )}
 
-                <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+                {/* Sólo desde md: en celular no hay hover y el cartel taparía
+                    la foto para siempre (ahí va el chip de abajo). */}
+                <div className="absolute inset-0 bg-black/55 hidden md:flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
                   <Camera size={16} className="text-white" />
                   <span className="text-[9px] font-medium text-white tracking-wider uppercase">
                     {fotoUrl ? "Cambiar" : "Subir"}
@@ -220,11 +222,22 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 />
               </div>
 
+              {/* En celular el hover no existe: el disparador de "cambiar foto"
+                  tiene que verse siempre o la acción queda inaccesible. */}
+              {!uploadingFoto && (
+                <span
+                  aria-hidden
+                  className="md:hidden pointer-events-none absolute -bottom-0.5 -right-0.5 size-5 rounded-full bg-card border border-border text-muted-foreground flex items-center justify-center shadow-sm"
+                >
+                  <Camera size={11} />
+                </span>
+              )}
+
               {fotoUrl && !uploadingFoto && (
                 <button
                   type="button"
                   onClick={handleFotoDelete}
-                  className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white opacity-0 group-hover/avatar:opacity-100 transition-opacity z-20"
+                  className="absolute -top-1 -right-1 size-6 md:size-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white opacity-100 md:opacity-0 md:group-hover/avatar:opacity-100 transition-opacity z-20"
                   title="Eliminar foto"
                 >
                   <Trash2 size={10} />
@@ -395,7 +408,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                     setActionError(null);
                     setEgresarOpen(true);
                   }}
-                  className="mt-1 inline-flex items-center gap-1 font-medium text-[#B45309] hover:underline"
+                  className="mt-1 inline-flex min-h-9 items-center gap-1 py-1 font-medium text-[#B45309] hover:underline sm:min-h-0 sm:py-0"
                 >
                   <LogOut size={11} />
                   Completar datos de egreso
@@ -405,12 +418,14 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           )}
         </div>
 
-        <div className="bg-muted/40 px-4 py-3 border-t border-border flex items-center justify-between gap-1">
+        {/* Pie de acciones: los íconos son 36px en celular (área táctil) y
+            vuelven a 32 en desktop. */}
+        <div className="bg-muted/40 px-3 py-2.5 sm:px-4 sm:py-3 border-t border-border flex flex-wrap items-center justify-between gap-2">
           <Link href={`/choferes/${choferSlug(chofer)}`}>
             <Button
               variant="brand"
               size="sm"
-              className="h-8 px-3 text-xs font-medium shadow-xs"
+              className="h-9 sm:h-8 px-3 text-xs font-medium shadow-xs"
             >
               <User size={13} className="mr-1.5" />
               Ver legajo
@@ -420,7 +435,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
           <div className="flex items-center gap-1">
             <Link
               href={`/viajes?choferId=${chofer.id}`}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-muted-foreground hover:text-primary hover:bg-card transition-colors border border-transparent hover:border-[#CBD5E1]"
+              className="inline-flex items-center justify-center size-9 sm:size-8 rounded-md text-muted-foreground hover:text-primary hover:bg-card transition-colors border border-transparent hover:border-[#CBD5E1]"
               title="Ver viajes asociados"
             >
               <MapPin size={14} />
@@ -430,7 +445,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <button
                 onClick={handleToggleEstado}
                 disabled={actionLoading}
-                className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition-colors border border-transparent hover:bg-card hover:border-[#CBD5E1] ${
+                className={`inline-flex items-center justify-center size-9 sm:size-8 rounded-md transition-colors border border-transparent hover:bg-card hover:border-[#CBD5E1] ${
                   chofer.estado === "activo"
                     ? "text-amber-500 hover:text-amber-600"
                     : "text-emerald-500 hover:text-emerald-600"
@@ -445,7 +460,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <button
                 onClick={handleReactivar}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
+                className="inline-flex items-center justify-center size-9 sm:size-8 rounded-md text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-200"
                 title="Reactivar chofer"
               >
                 <RotateCcw size={14} className={actionLoading ? "animate-spin" : ""} />
@@ -454,7 +469,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
               <button
                 onClick={handleEgresar}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
+                className="inline-flex items-center justify-center size-9 sm:size-8 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-200"
                 title="Egresar chofer (lo pasa al historial)"
               >
                 <LogOut size={14} />
@@ -470,7 +485,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 setConfirmDelete(true);
               }}
               disabled={actionLoading}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
+              className="inline-flex items-center justify-center size-9 sm:size-8 rounded-md text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
               title="Eliminar definitivamente del sistema"
             >
               <Trash2 size={14} />
@@ -487,12 +502,12 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                 Se borra el legajo entero y no se puede deshacer. Es para los que se cargaron por error:
                 si la persona ya tiene viajes o documentos, el sistema lo impide y hay que usar &quot;Egresar&quot;.
               </p>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex flex-wrap items-center gap-2 mt-2">
                 <button
                   type="button"
                   onClick={handleEliminar}
                   disabled={actionLoading}
-                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-md bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-1 px-3 h-9 sm:h-7 rounded-md bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60"
                 >
                   {actionLoading && <Loader2 size={11} className="animate-spin" />}
                   Sí, eliminar
@@ -501,7 +516,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   disabled={actionLoading}
-                  className="px-2.5 h-7 rounded-md border border-red-200 hover:bg-red-100"
+                  className="px-3 h-9 sm:h-7 rounded-md border border-red-200 hover:bg-red-100"
                 >
                   Cancelar
                 </button>
@@ -517,7 +532,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             <button
               type="button"
               onClick={() => setActionError(null)}
-              className="text-red-700 hover:underline"
+              className="shrink-0 self-start px-1 py-1 -my-1 text-red-700 hover:underline"
             >
               Cerrar
             </button>

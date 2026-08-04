@@ -279,7 +279,7 @@ export default function NotificacionesView({
     <div className="space-y-5">
       {/* Panel de resumen: pantallazo + filtro rápido por severidad */}
       {hasAnyAlertas && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-2.5">
           <ResumenCard
             label="Total activas"
             value={alertas.length}
@@ -316,8 +316,10 @@ export default function NotificacionesView({
       {/* Barra de filtros secundaria: búsqueda + categorías (siempre visibles) */}
       {hasAnyAlertas && (
         <div className="bg-card rounded-[8px] border border-border shadow-sm">
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="relative flex-1">
+          {/* En celular el buscador se lleva un renglón entero y los controles
+              de orden/limpiar bajan abajo: los tres juntos no entran en 343px. */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <div className="relative w-full sm:w-auto sm:flex-1">
               <Search
                 size={14}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60"
@@ -327,7 +329,7 @@ export default function NotificacionesView({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar en título o mensaje..."
-                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-muted/40 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                className="w-full h-10 sm:h-9 pl-8 pr-3 text-sm rounded-md border border-border bg-muted/40 focus:outline-none focus:ring-2 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
               />
             </div>
             <button
@@ -338,7 +340,7 @@ export default function NotificacionesView({
                   ? "Ordenado por fecha: más próximas primero (clic para invertir)"
                   : "Ordenado por fecha: más lejanas primero (clic para invertir)"
               }
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] transition-colors shrink-0 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 h-10 sm:h-9 px-2.5 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] transition-colors shrink-0 whitespace-nowrap"
             >
               {orden === "asc" ? (
                 <ArrowUpNarrowWide size={14} />
@@ -351,13 +353,13 @@ export default function NotificacionesView({
               <button
                 type="button"
                 onClick={limpiarFiltros}
-                className="text-xs text-primary hover:underline whitespace-nowrap px-1"
+                className="inline-flex items-center h-10 sm:h-9 text-xs text-primary hover:underline whitespace-nowrap px-2"
               >
                 Limpiar
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 px-3 pb-3 pt-1 border-t border-border/60">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-3 pb-3 pt-1 border-t border-border/60">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mr-0.5">
               <SlidersHorizontal size={12} />
               Categoría
@@ -427,20 +429,20 @@ export default function NotificacionesView({
                   onClick={() =>
                     setCollapsed((prev) => ({ ...prev, [sev]: !prev[sev] }))
                   }
-                  className={`w-full flex items-center gap-2.5 px-4 py-3 transition-colors hover:bg-muted/40 ${
+                  className={`w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-3 transition-colors hover:bg-muted/40 ${
                     !isCollapsed ? "border-b border-border" : ""
                   }`}
                 >
                   {isCollapsed ? (
-                    <ChevronRight size={15} className="text-muted-foreground/70" />
+                    <ChevronRight size={15} className="shrink-0 text-muted-foreground/70" />
                   ) : (
-                    <ChevronDown size={15} className="text-muted-foreground/70" />
+                    <ChevronDown size={15} className="shrink-0 text-muted-foreground/70" />
                   )}
-                  <span className={`size-2 rounded-full ${accent.dot}`} aria-hidden />
+                  <span className={`size-2 rounded-full shrink-0 ${accent.dot}`} aria-hidden />
                   <span className={`text-[11px] font-extrabold uppercase tracking-wider ${accent.label}`}>
                     {SEVERIDAD_LABEL[sev]}
                   </span>
-                  <span className="text-[13px] font-semibold text-muted-foreground">
+                  <span className="text-[13px] font-semibold text-muted-foreground whitespace-nowrap">
                     {items.length} {items.length === 1 ? "alerta" : "alertas"}
                   </span>
                 </button>
@@ -589,7 +591,7 @@ function BloqueSeccion({
         <button
           type="button"
           onClick={() => setExpandido((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 px-5 py-2 text-xs font-semibold text-primary hover:bg-[#F0F9FF]/60 transition-colors border-t border-[#F1F5F9]"
+          className="w-full flex items-center justify-center gap-1 px-4 sm:px-5 h-10 sm:h-9 text-xs font-semibold text-primary hover:bg-[#F0F9FF]/60 transition-colors border-t border-[#F1F5F9]"
         >
           {expandido ? (
             <>
@@ -611,7 +613,7 @@ function BloqueSeccion({
 function BloqueHeader({ bloque, count }: { bloque: BloqueId; count: number }) {
   const meta = BLOQUE_META[bloque];
   return (
-    <div className="flex items-center gap-2 px-5 py-2 bg-muted/20">
+    <div className="flex items-center gap-2 px-4 sm:px-5 py-2 bg-muted/20">
       <span className="text-[13px] leading-none">{meta.emoji}</span>
       <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
         {meta.label}
@@ -652,11 +654,11 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30">
+      <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-3.5 border-b border-border bg-muted/30">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-2.5 min-w-0"
+          className="flex items-center gap-2 sm:gap-2.5 min-w-0 max-md:h-9"
         >
           {open ? (
             <ChevronDown size={16} className="text-muted-foreground/70" />
@@ -671,10 +673,10 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
           type="button"
           onClick={handleBorrarTodas}
           disabled={borrandoTodas}
-          className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-40"
+          className="flex items-center gap-1.5 px-3 h-9 md:h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-40"
         >
           <Trash2 size={13} />
-          Borrar leídas
+          <span className="whitespace-nowrap">Borrar leídas</span>
         </button>
       </div>
       {open && (
@@ -684,7 +686,7 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
             return (
               <div
                 key={alerta.id}
-                className="group flex items-center gap-4 px-5 py-3 hover:bg-muted/30 transition-colors"
+                className="group flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 hover:bg-muted/30 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   {href ? (
@@ -700,10 +702,11 @@ function HistorialLeidas({ leidas }: { leidas: AlertaItem[] }) {
                   )}
                   <p className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-1">{alerta.mensaje}</p>
                 </div>
+                {/* Sin hover en celular: el botón de borrar se ve siempre abajo de md. */}
                 <button
                   type="button"
                   onClick={() => handleBorrar(alerta.id)}
-                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground/70 border border-transparent hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-30"
+                  className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 flex items-center justify-center size-9 md:size-8 rounded-lg text-muted-foreground/70 border border-transparent hover:text-[#DC2626] hover:border-[#FECACA] hover:bg-[#FEF2F2] transition-all shrink-0 disabled:opacity-30"
                   aria-label="Borrar notificación"
                 >
                   <Trash2 size={14} />
@@ -742,7 +745,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${toneCls}`}
+      className={`inline-flex items-center h-9 sm:h-auto px-3 sm:py-1 rounded-md text-xs font-medium border transition-colors ${toneCls}`}
     >
       {label}
     </button>
@@ -779,9 +782,9 @@ function AlertaRow({
     : undefined;
 
   return (
-    <div className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors">
+    <div className="group flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 hover:bg-muted/30 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
           {dias !== null && (
             <span title={fechaTitle} className="shrink-0">
               <DiasChip dias={dias} esCumple={esCumple} esPrueba={esPrueba} esAniversario={esAniversario} />
@@ -806,18 +809,19 @@ function AlertaRow({
         href ? (
           <Link
             href={href}
-            className="flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-semibold text-primary border border-[#BAE6FD] bg-[#F0F9FF] hover:bg-[#E1F5FE] transition-colors shrink-0"
+            className="flex items-center gap-1 px-3 h-9 md:h-8 rounded-lg text-xs font-semibold text-primary border border-[#BAE6FD] bg-[#F0F9FF] hover:bg-[#E1F5FE] transition-colors shrink-0"
           >
             Actualizar
             <ChevronRight size={13} />
           </Link>
         ) : null
       ) : (
+        // Abajo de md no existe el hover: el botón "Leída" tiene que verse siempre.
         <button
           type="button"
           disabled={pending}
           onClick={() => onMarcarVista(alerta.id)}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-primary hover:border-[#BAE6FD] hover:bg-[#E1F5FE] transition-all shrink-0 disabled:opacity-30"
+          className="md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 flex items-center gap-1.5 px-3 h-9 md:h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-primary hover:border-[#BAE6FD] hover:bg-[#E1F5FE] transition-all shrink-0 disabled:opacity-30"
           aria-label="Marcar como leída"
         >
           <Check size={13} />

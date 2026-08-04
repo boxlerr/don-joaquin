@@ -134,7 +134,7 @@ export default function CargarApercibimientoDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Nuevo apercibimiento o sanción</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">Nuevo apercibimiento o sanción</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Apercibimiento/acta, multa, llamado de atención o adelanto. Suma al score y queda en el
             historial del chofer. Podés adjuntar varios archivos (ej: el acta y un video).

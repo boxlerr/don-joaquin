@@ -21,7 +21,7 @@ import {
   SelectLabel,
 } from "@/components/ui/select";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Receipt, X, Loader2, AlertCircle } from "lucide-react";
+import { Receipt, X, Loader2, AlertCircle, ListFilter } from "lucide-react";
 import { getGastosAction, type GastoRow } from "../actions";
 import type {
   TipoGastoOption,
@@ -72,6 +72,9 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
+  // Son 8 controles: apilados en celular tapaban la pantalla entera antes del
+  // primer gasto, así que abajo de sm van detrás del botón "Filtros".
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -163,33 +166,83 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
     return acc;
   }, {});
 
+  // Compartido entre la tabla (desktop) y las tarjetas (celular): el mapeo de
+  // la fila es uno solo, cambia nada más cómo se muestra.
+  const asignacionesDe = (g: GastoRow) => {
+    const a: string[] = [];
+    if (g.viaje_codigo) a.push(`Viaje ${g.viaje_codigo}`);
+    if (g.camion_patente) a.push(g.camion_patente);
+    if (g.chofer_nombre) a.push(g.chofer_nombre);
+    return a;
+  };
+
+  const chipSinAsignar = (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
+      <AlertCircle size={10} />
+      Sin asignar
+    </span>
+  );
+
+  /** Mensaje único de carga / error / vacío, para no repetirlo en las dos vistas. */
+  const estado = loading
+    ? "Cargando gastos..."
+    : error
+      ? error
+      : rows.length === 0
+        ? "Sin gastos registrados"
+        : null;
+
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-2">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-border flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Receipt size={16} className="text-primary" />
           <h2 className="text-foreground text-sm font-semibold">Listado de Gastos</h2>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Input
-            type="date"
-            value={desde}
-            onChange={(e) => setDesde(e.target.value)}
-            className="text-sm w-auto"
-            aria-label="Fecha desde"
-          />
-          <Input
-            type="date"
-            value={hasta}
-            onChange={(e) => setHasta(e.target.value)}
-            className="text-sm w-auto"
-            aria-label="Fecha hasta"
-          />
+
+        {/* Abajo de sm la barra de filtros se despliega; desde sm es la de siempre. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="sm:hidden"
+          aria-expanded={filtrosAbiertos}
+          onClick={() => setFiltrosAbiertos((v) => !v)}
+        >
+          <ListFilter size={14} />
+          Filtros
+          {hayFiltros && <span className="size-1.5 rounded-full bg-primary" aria-hidden />}
+        </Button>
+
+        <div
+          className={`${
+            filtrosAbiertos ? "flex" : "hidden"
+          } w-full flex-col gap-2 sm:flex sm:w-auto sm:flex-row sm:flex-wrap sm:items-center`}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={desde}
+              onChange={(e) => setDesde(e.target.value)}
+              className="text-sm min-w-0 flex-1 sm:w-auto sm:flex-none"
+              aria-label="Fecha desde"
+            />
+            <Input
+              type="date"
+              value={hasta}
+              onChange={(e) => setHasta(e.target.value)}
+              className="text-sm min-w-0 flex-1 sm:w-auto sm:flex-none"
+              aria-label="Fecha hasta"
+            />
+          </div>
           <Select
             value={tipoGastoId || "__all__"}
             onValueChange={(v) => setTipoGastoId(v === "__all__" ? "" : v ?? "")}
           >
-            <SelectTrigger aria-label="Tipo de gasto" className="h-9 text-sm w-auto min-w-[160px]">
+            <SelectTrigger
+              aria-label="Tipo de gasto"
+              className="h-10 text-sm w-full min-w-0 sm:h-9 sm:w-auto sm:min-w-[160px]"
+            >
               <SelectValue>
                 {(value: unknown) => {
                   if (!value || value === "__all__") return "Todos los tipos";
@@ -216,7 +269,10 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             value={camionId || "__all__"}
             onValueChange={(v) => setCamionId(v === "__all__" ? "" : v ?? "")}
           >
-            <SelectTrigger aria-label="Camión" className="h-9 text-sm w-auto min-w-[140px]">
+            <SelectTrigger
+              aria-label="Camión"
+              className="h-10 text-sm w-full min-w-0 sm:h-9 sm:w-auto sm:min-w-[140px]"
+            >
               <SelectValue>
                 {(value: unknown) => {
                   if (!value || value === "__all__") return "Todos los camiones";
@@ -238,7 +294,10 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             value={viajeId || "__all__"}
             onValueChange={(v) => setViajeId(v === "__all__" ? "" : v ?? "")}
           >
-            <SelectTrigger aria-label="Viaje" className="h-9 text-sm w-auto min-w-[140px]">
+            <SelectTrigger
+              aria-label="Viaje"
+              className="h-10 text-sm w-full min-w-0 sm:h-9 sm:w-auto sm:min-w-[140px]"
+            >
               <SelectValue>
                 {(value: unknown) => {
                   if (!value || value === "__all__") return "Todos los viajes";
@@ -261,7 +320,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             variant={sinAsignar ? "brand" : "outline"}
             size="sm"
             onClick={() => setSinAsignar((v) => !v)}
-            className="h-9"
+            className="h-10 w-full sm:h-9 sm:w-auto"
           >
             <AlertCircle size={13} />
             Sin asignar
@@ -272,7 +331,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             placeholder="Buscar descripción..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-44 text-sm"
+            className="w-full text-sm sm:w-44"
             aria-label="Buscar"
           />
           {hayFiltros && (
@@ -280,7 +339,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
               variant="ghost"
               size="sm"
               onClick={limpiar}
-              className="text-muted-foreground hover:text-foreground h-9"
+              className="text-muted-foreground hover:text-foreground h-10 w-full sm:h-9 sm:w-auto"
             >
               <X size={13} className="mr-1" />
               Limpiar
@@ -289,7 +348,9 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
         </div>
       </div>
 
-      <Table>
+      {/* Abajo de md la tabla desaparece: 9 columnas no entran en 343px y este
+          listado ES la pantalla de Gastos, así que cada fila pasa a tarjeta. */}
+      <Table className="hidden md:table">
         <TableHeader className="bg-muted/40">
           <TableRow>
             {[
@@ -330,11 +391,7 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
             <EmptyTableRow message="Sin gastos registrados" />
           ) : (
             rows.map((g) => {
-              const asignaciones: string[] = [];
-              if (g.viaje_codigo) asignaciones.push(`Viaje ${g.viaje_codigo}`);
-              if (g.camion_patente) asignaciones.push(g.camion_patente);
-              if (g.chofer_nombre) asignaciones.push(g.chofer_nombre);
-              const sinAsignar = asignaciones.length === 0;
+              const asignaciones = asignacionesDe(g);
 
               return (
                 <TableRow key={g.id}>
@@ -352,11 +409,8 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{g.proveedor ?? "—"}</TableCell>
                   <TableCell className="text-sm">
-                    {sinAsignar ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
-                        <AlertCircle size={10} />
-                        Sin asignar
-                      </span>
+                    {asignaciones.length === 0 ? (
+                      chipSinAsignar
                     ) : (
                       <div className="flex flex-col gap-0.5">
                         {asignaciones.map((a, i) => (
@@ -383,6 +437,69 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
           )}
         </TableBody>
       </Table>
+
+      {/* Celular: la misma lista como tarjetas. Tipo y monto arriba, y abajo la
+          asignación, que es el dato que se viene a controlar acá. */}
+      <div className="md:hidden">
+        {estado ? (
+          <p
+            className={`px-4 py-8 text-center text-sm ${
+              error ? "text-[#EF4444]" : "text-muted-foreground/70"
+            }`}
+          >
+            {loading && <Loader2 className="mr-2 inline-block animate-spin" size={14} />}
+            {estado}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map((g) => {
+              const asignaciones = asignacionesDe(g);
+              return (
+                <li key={g.id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {g.tipo_gasto_nombre ?? "—"}
+                      </p>
+                      {g.descripcion && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{g.descripcion}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-[#EF4444]">
+                      $ {formatARS(g.monto)}
+                    </span>
+                  </div>
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {formatFecha(g.fecha)}
+                    </span>
+                    <span className="text-muted-foreground/40" aria-hidden>
+                      ·
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {MEDIO_LABEL[g.medio_pago] ?? g.medio_pago}
+                    </span>
+                    {asignaciones.length === 0 ? (
+                      chipSinAsignar
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {asignaciones.join(" · ")}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1.5 text-xs text-muted-foreground/80">
+                    {g.proveedor ? `${g.proveedor} · ` : ""}
+                    {g.numero_comprobante ? `Comp. ${g.numero_comprobante} · ` : ""}
+                    {g.usuario ?? "—"}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
 
       {hasMore && !loading && (
         <div className="flex justify-center py-4 border-t border-border">

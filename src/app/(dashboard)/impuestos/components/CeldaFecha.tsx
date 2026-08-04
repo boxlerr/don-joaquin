@@ -58,7 +58,7 @@ export default function CeldaFecha({
 
   if (editando) {
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="date"
           defaultValue={valor ?? ""}
@@ -67,7 +67,7 @@ export default function CeldaFecha({
           onChange={(e) => {
             if (e.target.value) guardar(e.target.value);
           }}
-          className="h-7 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none focus:border-[#0088D1]"
+          className="h-9 max-w-full rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none focus:border-[#0088D1] md:h-7"
         />
         {guardando && <Loader2 size={13} className="animate-spin text-muted-foreground" />}
         {permitirVaciar && valor && !guardando && (
@@ -75,16 +75,16 @@ export default function CeldaFecha({
             type="button"
             onClick={() => guardar(null)}
             title="Quitar la fecha (vuelve a pendiente)"
-            className="text-muted-foreground hover:text-red-600"
+            className="inline-flex size-9 items-center justify-center text-muted-foreground hover:text-red-600 md:size-5"
           >
-            <X size={13} />
+            <X size={14} />
           </button>
         )}
         {!guardando && (
           <button
             type="button"
             onClick={() => setEditando(false)}
-            className="text-[11px] text-muted-foreground hover:underline"
+            className="inline-flex h-9 items-center px-1 text-[11px] text-muted-foreground hover:underline md:h-auto md:px-0"
           >
             Cancelar
           </button>
@@ -103,7 +103,7 @@ export default function CeldaFecha({
         type="button"
         onClick={() => setEditando(true)}
         title="Cargar la fecha (lo marca como presentado)"
-        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-[#CBD5E1] px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-[#0088D1] hover:bg-[#0088D1]/5 hover:text-primary"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-[#CBD5E1] px-2.5 text-xs text-muted-foreground transition-colors hover:border-[#0088D1] hover:bg-[#0088D1]/5 hover:text-primary md:h-auto md:px-2 md:py-1"
       >
         <CalendarPlus size={12} />
         {placeholder}
@@ -118,12 +118,14 @@ export default function CeldaFecha({
       type="button"
       onClick={() => setEditando(true)}
       title="Editar fecha"
-      className={`group inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2 py-1 tabular-nums transition-colors hover:border-border hover:bg-muted ${
+      className={`group inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border px-2.5 tabular-nums transition-colors hover:border-border hover:bg-muted md:h-auto md:border-transparent md:px-2 md:py-1 ${
         tone === "success" ? "font-medium text-emerald-700" : "text-foreground"
       }`}
     >
       {fmt(valor)}
-      <Pencil size={11} className="opacity-0 transition-opacity group-hover:opacity-60" />
+      {/* En celular no hay hover: el lápiz se ve siempre, si no la fecha
+          no parece editable. */}
+      <Pencil size={11} className="opacity-60 transition-opacity md:opacity-0 md:group-hover:opacity-60" />
     </button>
   );
 }

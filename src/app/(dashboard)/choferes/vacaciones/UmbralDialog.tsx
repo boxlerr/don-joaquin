@@ -101,14 +101,14 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
               <button
                 type="button"
                 onClick={() => setModo("auto")}
-                className={`px-3 h-9 text-xs ${modo === "auto" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-3 h-9 text-xs whitespace-nowrap ${modo === "auto" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 % de la flota
               </button>
               <button
                 type="button"
                 onClick={() => setModo("fijo")}
-                className={`px-3 h-9 text-xs ${modo === "fijo" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-3 h-9 text-xs whitespace-nowrap ${modo === "fijo" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 Número fijo
               </button>
@@ -124,7 +124,7 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                     max={100}
                     value={porcentaje}
                     onChange={(e) => setPorcentaje(e.target.value)}
-                    className="w-28"
+                    className="w-24 sm:w-28"
                   />
                 </div>
                 <div className="space-y-1">
@@ -134,7 +134,7 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                     min={0}
                     value={minimo}
                     onChange={(e) => setMinimo(e.target.value)}
-                    className="w-28"
+                    className="w-24 sm:w-28"
                   />
                 </div>
                 <p className="text-xs text-muted-foreground pb-2.5">
@@ -151,7 +151,7 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                     min={0}
                     value={fijo}
                     onChange={(e) => setFijo(e.target.value)}
-                    className="w-28"
+                    className="w-24 sm:w-28"
                   />
                 </div>
               </div>
@@ -173,7 +173,7 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                 const efectivo = umbralDeMes(actual, mes, choferesActivos);
                 return (
                   <div key={mes} className="flex items-center gap-2">
-                    <label htmlFor={`umbral-mes-${mes}`} className="w-20 shrink-0 text-xs text-muted-foreground">
+                    <label htmlFor={`umbral-mes-${mes}`} className="w-16 sm:w-20 shrink-0 truncate text-xs text-muted-foreground">
                       {nombre}
                     </label>
                     <Input
@@ -190,7 +190,7 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                           return next;
                         })
                       }
-                      className="h-8 w-16 text-right font-mono text-sm"
+                      className="h-9 sm:h-8 w-14 sm:w-16 text-right font-mono text-sm"
                     />
                     {v.trim() !== "" && (
                       <span className="text-[10px] font-mono text-muted-foreground/70">= {efectivo}</span>

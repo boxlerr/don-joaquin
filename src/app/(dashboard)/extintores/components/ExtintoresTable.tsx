@@ -171,22 +171,22 @@ export default function ExtintoresTable({
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       {/* Header y Filtros */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between px-6 py-5 gap-4 bg-card border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#E1F5FE] rounded-lg text-primary">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between px-4 sm:px-6 py-4 sm:py-5 gap-4 bg-card border-b border-border">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-[#E1F5FE] rounded-lg text-primary shrink-0">
             <Flame size={20} className="text-[#E53935]" />
           </div>
-          <div>
-            <h2 className="text-foreground text-lg font-bold">Listado de Extintores</h2>
+          <div className="min-w-0">
+            <h2 className="text-foreground text-base sm:text-lg font-bold">Listado de Extintores</h2>
             <p className="text-muted-foreground text-xs font-medium">
               Mostrando {filtrados.length} de {extintores.length} extintores importados
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Filtro por Categoría */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
             <Combobox
               value={categoria}
@@ -198,12 +198,12 @@ export default function ExtintoresTable({
                 { id: "otros", label: `Otros/Edificios (${conteosCategoria.otros})` },
               ]}
               searchable={false}
-              triggerClassName="h-10 min-w-[200px] pl-9"
+              triggerClassName="h-10 w-full sm:min-w-[200px] pl-9"
             />
           </div>
 
           {/* Filtro por Vencimiento */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground/70 pointer-events-none" />
             <Combobox
               value={vencimiento}
@@ -216,29 +216,38 @@ export default function ExtintoresTable({
                 { id: "sin_fecha", label: `Sin fecha (${conteosVencimiento.sin_fecha})` },
               ]}
               searchable={false}
-              triggerClassName="h-10 min-w-[200px] pl-9"
+              triggerClassName="h-10 w-full sm:min-w-[200px] pl-9"
             />
           </div>
 
           {/* Buscador Global */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
             <Input
               type="search"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar patente, Nº extintor..."
-              className="w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all"
+              className="w-full sm:w-64 h-10 pl-9 text-sm rounded-lg border-border focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1] transition-all"
             />
           </div>
         </div>
       </div>
 
+      {/* La tabla es de consulta (7 columnas, sin acciones por fila): abajo de
+          md scrollea de costado con el dominio fijo a la izquierda. */}
+      <p className="md:hidden px-4 pt-3 text-[11px] text-muted-foreground">
+        Deslizá la tabla de costado para ver todas las columnas.
+      </p>
+
       {/* Tabla */}
-      <Table>
+      <Table className="min-w-[900px]">
         <TableHeader className="bg-muted/40">
           <TableRow>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pl-6">
+            {/* Columna identificadora: queda fija al scrollear de costado.
+                El color es el equivalente opaco de `bg-muted/40` sobre la
+                tarjeta — tiene que ser sólido para que no se transparente. */}
+            <TableHead className="sticky left-0 z-20 bg-[#F9FBFC] max-md:border-r max-md:border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pl-4 sm:pl-6 min-w-[132px]">
               Ubicación / Dominio
             </TableHead>
             <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
@@ -278,7 +287,7 @@ export default function ExtintoresTable({
 
               return (
                 <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="py-4 pl-6 font-semibold text-foreground">
+                  <TableCell className="sticky left-0 z-10 bg-card max-md:border-r max-md:border-border py-4 pl-4 sm:pl-6 font-semibold text-foreground">
                     {camionId ? (
                       <Link
                         href={`/camiones?camionId=${camionId}`}

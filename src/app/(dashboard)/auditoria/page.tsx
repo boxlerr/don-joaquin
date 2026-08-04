@@ -14,7 +14,7 @@ export default async function AuditoriaPage() {
   const initialData = "error" in result ? { data: [], total: 0, refs: {} } : result;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Auditoría del Sistema"
         description="Registro completo de operaciones críticas"

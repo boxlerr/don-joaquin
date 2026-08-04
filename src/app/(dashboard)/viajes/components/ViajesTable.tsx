@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import {
   Loader2,
@@ -48,6 +48,7 @@ import {
 import {
   getViajesAction,
   deleteViajeAction,
+  deleteViajesEnBloqueAction,
   updateNotasViajeAction,
   type ViajeOrderBy,
 } from "../actions";
@@ -242,7 +243,7 @@ function ViajeDetalleHeader({
   const [, anioCod, nroCod] = v.codigo.split("-");
   const nroCorrelativo = nroCod ? parseInt(nroCod, 10) : NaN;
   return (
-    <div className="rounded-lg border border-border/80 bg-card px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
+    <div className="rounded-lg border border-border/80 bg-card px-3 sm:px-4 pt-3 pb-3.5 shadow-2xs space-y-3">
       {/* Fecha del viaje + código + badges de estado + quién lo cargó */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
@@ -283,7 +284,7 @@ function ViajeDetalleHeader({
         {cargandoDet ? (
           <Skeleton className="h-3.5 w-48" />
         ) : (
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="inline-flex flex-wrap items-center gap-x-1.5 text-[11px] text-muted-foreground">
             <CalendarDays size={12} className="shrink-0" />
             Cargado el {fmtDateTime(det?.createdAt ?? null)}
             {det?.creadoPor && (
@@ -298,7 +299,7 @@ function ViajeDetalleHeader({
       </div>
 
       {/* La ruta, dibujada: origen ── 🚚 km ── destino */}
-      <div className="flex items-center gap-3 sm:gap-4 rounded-lg border border-border/60 bg-muted/40 px-3 sm:px-4 py-2.5">
+      <div className="flex items-center gap-2 sm:gap-4 rounded-lg border border-border/60 bg-muted/40 px-2.5 sm:px-4 py-2.5">
         <div className="flex items-center gap-2 min-w-0 max-w-[38%]">
           <span className="size-2.5 rounded-full bg-[#10B981] ring-4 ring-[#10B981]/15 shrink-0" aria-hidden />
           <div className="min-w-0">
@@ -665,7 +666,193 @@ function NotasEditables({
   );
 }
 
+/**
+ * Cuerpo del detalle expandido de un viaje. Lo comparten la fila desplegada de
+ * la tabla (desktop) y la tarjeta del celular: cambia el envoltorio, no el
+ * contenido — así no hay dos versiones del panel que se vayan separando.
+ */
+function ViajeDetalleBody({
+  viaje: v,
+  detalle,
+  gastoFormData,
+  deletingId,
+  onDeletingId,
+  onNotasSaved,
+  onDeleted,
+  onCerrar,
+  onEditar,
+  onHistorial,
+}: {
+  viaje: ViajeBasico;
+  detalle: ViajeDetalle | "loading" | "error" | undefined;
+  gastoFormData: GastoFormData;
+  deletingId: string | null;
+  onDeletingId: (id: string | null) => void;
+  onNotasSaved: (observaciones: string | null) => void;
+  onDeleted: () => void;
+  onCerrar: () => void;
+  onEditar: () => void;
+  onHistorial: () => void;
+}) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <ViajeDetalleHeader viaje={v} detalle={detalle} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        <ChoferCard detalle={detalle} choferNombre={v.chofer} />
+
+        <CamionFleteCard detalle={detalle} viaje={v} />
+
+        {/* Notas y acciones del viaje */}
+        <div className="flex flex-col rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-2">
+            <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#F59E0B]/14 text-[#D97706] shrink-0">
+              <FileText size={16} strokeWidth={2.1} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                Notas
+              </div>
+              {v.nro_viaje_ypf ? (
+                <div className="text-[13px] font-bold text-foreground truncate">
+                  Nº viaje <span className="font-mono text-primary">{v.nro_viaje_ypf}</span>
+                </div>
+              ) : (
+                <div className="text-[13px] font-bold text-foreground">Observaciones</div>
+              )}
+            </div>
+          </div>
+
+          <NotasEditables viajeId={v.id} observaciones={v.observaciones} onSaved={onNotasSaved} />
+
+          <div className="pt-2.5 mt-2.5 border-t border-border space-y-2">
+            {v.facturado ? (
+              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800/40 dark:bg-green-950/30 px-3 py-2">
+                <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
+                <span className="text-[11px] font-semibold text-green-700 dark:text-green-300">
+                  Viaje facturado — remito y valor cargados
+                </span>
+              </div>
+            ) : (
+              !v.es_vacio && (
+                <Button
+                  size="xs"
+                  className="h-9 w-full rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-[12px] font-bold gap-1.5 shadow-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCerrar();
+                  }}
+                >
+                  <Receipt size={13} /> Agregar remito
+                </Button>
+              )
+            )}
+
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                {/* Editar primero y con borde: es lo que más se
+                    usa acá y como botón chico de texto plano no
+                    se encontraba. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1.5 border-border px-3 text-[12px] font-medium text-foreground hover:bg-muted"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditar();
+                  }}
+                >
+                  <Pencil size={14} /> Editar viaje
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="h-9 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onHistorial();
+                  }}
+                >
+                  <Clock size={12} /> Historial
+                </Button>
+              </div>
+              {deletingId === v.id ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
+                  <Button
+                    variant="destructive"
+                    size="xs"
+                    className="h-8 px-2.5 text-[11px]"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const res = await deleteViajeAction(v.id);
+                      if (res && res.ok) onDeleted();
+                      onDeletingId(null);
+                    }}
+                  >
+                    Sí, borrar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="h-8 px-2.5 text-[11px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeletingId(null);
+                    }}
+                  >
+                    No
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="h-9 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-[11px] gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeletingId(v.id);
+                  }}
+                >
+                  <Trash2 size={12} /> Eliminar Viaje
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ViajeGastosPanel
+        viajeId={v.id}
+        formData={gastoFormData}
+        montoFlete={v.monto_flete ?? null}
+        moneda={v.moneda ?? "ARS"}
+        esVacio={v.es_vacio}
+      />
+    </div>
+  );
+}
+
+/**
+ * `true` abajo de `md` (768px), el mismo corte con el que la tabla deja paso a
+ * las tarjetas. Sirve para montar el detalle expandido UNA sola vez (en la
+ * tabla o en la tarjeta) y no pedir dos veces gastos y adjuntos.
+ * Si el entorno no tiene `matchMedia` (jsdom en los tests) queda en desktop.
+ */
+function useEsCelular(): boolean {
+  const [esCelular, setEsCelular] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(max-width: 767px)");
+    const sync = () => setEsCelular(mql.matches);
+    sync();
+    mql.addEventListener("change", sync);
+    return () => mql.removeEventListener("change", sync);
+  }, []);
+  return esCelular;
+}
+
 export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroChange, gastoFormData, initialDesde, initialHasta, initialBusqueda }: Props) {
+  const esCelular = useEsCelular();
 
   const [rows, setRows] = useState<ViajeBasico[]>([]);
   const [page, setPage] = useState(0);
@@ -735,6 +922,11 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   // Selección múltiple para facturación en bloque.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [facturarOpen, setFacturarOpen] = useState(false);
+  // Borrado en bloque: confirmación en la misma barra (sin modal) y aviso si
+  // alguno quedó afuera por tener movimientos en Caja.
+  const [confirmBorrarBloque, setConfirmBorrarBloque] = useState(false);
+  const [borrandoBloque, setBorrandoBloque] = useState(false);
+  const [avisoBorrado, setAvisoBorrado] = useState<string | null>(null);
 
   const [search, setSearch] = useState(initialBusqueda ?? "");
   const [desde, setDesde] = useState(initialDesde ?? "");
@@ -878,6 +1070,8 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
     seleccionablesCargadas.length > 0 && seleccionablesCargadas.every((v) => selectedIds.has(v.id));
 
   const toggleSeleccion = (id: string) => {
+    // Si cambia lo seleccionado, la confirmación pendiente ya no corresponde.
+    setConfirmBorrarBloque(false);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -887,6 +1081,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   };
 
   const toggleSeleccionarTodos = () => {
+    setConfirmBorrarBloque(false);
     setSelectedIds((prev) => {
       if (seleccionablesCargadas.length > 0 && seleccionablesCargadas.every((v) => prev.has(v.id))) {
         return new Set();
@@ -895,9 +1090,54 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
     });
   };
 
+  const borrarSeleccionados = async () => {
+    const ids = [...selectedIds];
+    setBorrandoBloque(true);
+    const res = await deleteViajesEnBloqueAction(ids);
+    setBorrandoBloque(false);
+    setConfirmBorrarBloque(false);
+
+    if (!res.ok) {
+      setAvisoBorrado(res.error ?? "No se pudieron eliminar los viajes.");
+      return;
+    }
+
+    // Los bloqueados siguen existiendo: se quitan de la tabla sólo los borrados.
+    const bloqueados = res.bloqueados ?? 0;
+    if (bloqueados > 0) {
+      setAvisoBorrado(
+        `Se eliminaron ${res.eliminados ?? 0}. Quedaron ${bloqueados} sin eliminar por tener movimientos vinculados en Caja.`,
+      );
+      setRefreshToken((t) => t + 1);
+    } else {
+      setAvisoBorrado(null);
+      setRows((prev) => prev.filter((v) => !selectedIds.has(v.id)));
+    }
+    if (expandedId && selectedIds.has(expandedId)) setExpandedId(null);
+    setSelectedIds(new Set());
+  };
+
   const onFacturadoEnBloque = (patches: Map<string, Partial<ViajeBasico>>) => {
     setRows((prev) => prev.map((v) => (patches.has(v.id) ? { ...v, ...patches.get(v.id)! } : v)));
     setSelectedIds(new Set());
+  };
+
+  // Acciones del detalle expandido. Viven acá porque el panel se monta tanto en
+  // la fila de la tabla como en la tarjeta del celular.
+  const onNotasSaved = (id: string, observaciones: string | null) => {
+    setRows((prev) => prev.map((item) => (item.id === id ? { ...item, observaciones } : item)));
+  };
+  const onViajeBorrado = (id: string) => {
+    setRows((prev) => prev.filter((item) => item.id !== id));
+    setExpandedId(null);
+  };
+  const abrirEdicion = (v: ViajeBasico) => {
+    if (v.facturado) setConfirmEditViaje(v);
+    else setEditingViaje(v);
+  };
+  const abrirHistorial = (id: string) => {
+    setAuditTrailViajeId(id);
+    setAuditTrailOpen(true);
   };
 
   // Totales sobre las filas ya cargadas (no sobre el total del filtro completo).
@@ -915,19 +1155,20 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-muted/40">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border bg-muted/40">
+        {/* Desde/hasta van de a dos en el celular: son cortos y se leen como par. */}
         <Input
           type="date"
           value={desde}
           onChange={(e) => setDesde(e.target.value)}
-          className="text-sm w-36"
+          className="text-sm w-[calc(50%-0.25rem)] sm:w-36"
           aria-label="Fecha desde"
         />
         <Input
           type="date"
           value={hasta}
           onChange={(e) => setHasta(e.target.value)}
-          className="text-sm w-36"
+          className="text-sm w-[calc(50%-0.25rem)] sm:w-36"
           aria-label="Fecha hasta"
         />
         <Input
@@ -935,7 +1176,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
           placeholder="Buscar por código, chofer, camión, cliente o lugar…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="text-sm flex-1 min-w-[11rem]"
+          className="text-sm w-full sm:w-auto sm:flex-1 sm:min-w-[11rem]"
           aria-label="Buscar viaje por código, chofer, camión, cliente o lugar"
         />
         {/* Los incompletos se filtraban sólo desde la tarjeta de arriba, que
@@ -983,7 +1224,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             Limpiar filtros
           </Button>
         )}
-        <div className="ml-auto">
+        <div className="w-full sm:ml-auto sm:w-auto">
           <ExportViajesButton
             choferId={choferId}
             falta={falta}
@@ -1001,8 +1242,8 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
 
       {/* Barra de selección para facturar en bloque */}
       {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-border bg-[#10B981]/5">
-          <span className="text-sm font-semibold text-foreground">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border bg-[#10B981]/5">
+          <span className="w-full sm:w-auto text-sm font-semibold text-foreground">
             {selectedIds.size} viaje{selectedIds.size !== 1 ? "s" : ""} seleccionado{selectedIds.size !== 1 ? "s" : ""}
           </span>
           {selectedFacturables.length > 0 && (
@@ -1015,11 +1256,54 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
               Agregar remito ({selectedFacturables.length})
             </Button>
           )}
+          {/* Borrar en bloque: para limpiar rápido varias filas de prueba.
+              Confirma en la misma barra, sin modal. */}
+          {confirmBorrarBloque ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold text-red-600">
+                ¿Eliminar {selectedIds.size} viaje{selectedIds.size !== 1 ? "s" : ""}?
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={borrandoBloque}
+                className="gap-1.5"
+                onClick={borrarSeleccionados}
+              >
+                {borrandoBloque ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                Sí, eliminar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={borrandoBloque}
+                onClick={() => setConfirmBorrarBloque(false)}
+              >
+                No
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/30"
+              onClick={() => {
+                setAvisoBorrado(null);
+                setConfirmBorrarBloque(true);
+              }}
+            >
+              <Trash2 size={14} />
+              Eliminar ({selectedIds.size})
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
             className="text-muted-foreground hover:text-foreground"
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => {
+              setConfirmBorrarBloque(false);
+              setSelectedIds(new Set());
+            }}
           >
             <X size={13} className="mr-1" />
             Limpiar selección
@@ -1027,10 +1311,36 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
         </div>
       )}
 
-      {/* Tabla */}
+      {/* Lo que no se pudo borrar tiene que quedar dicho: si no, parece que falló todo. */}
+      {avisoBorrado && (
+        <div className="flex items-start gap-2 border-b border-border bg-[#B45309]/5 px-3 sm:px-5 py-2.5">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-[#B45309]" />
+          <span className="text-[12px] text-foreground">{avisoBorrado}</span>
+          <button
+            type="button"
+            onClick={() => setAvisoBorrado(null)}
+            className="ml-auto text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Cerrar aviso"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* El error y el "no hay nada" se dibujan una sola vez: valen igual para
+          la tabla y para las tarjetas del celular. */}
+      {!loading && error && (
+        <div className="px-4 py-12 text-center text-sm text-red-500">{error}</div>
+      )}
+      {!loading && !error && rows.length === 0 && (
+        <EmptyState message="Sin viajes registrados" />
+      )}
+
+      {/* Tabla — desde md. En el celular no entra (14 columnas), así que abajo
+          de md la misma lista se dibuja como tarjetas apiladas. */}
       {/* container-type: el panel expandido usa 100cqw para quedar siempre
           dentro del ancho visible aunque la tabla scrollee horizontal. */}
-      <div className="overflow-x-auto [container-type:inline-size]">
+      <div className={`overflow-x-auto [container-type:inline-size] ${loading || rows.length > 0 ? "hidden md:block" : "hidden"}`}>
       {/* Línea divisoria tenue entre columnas: ayuda a seguir la fila sin
           agregar peso visual (el panel expandido va con colSpan → sin borde). */}
       <Table className="[&_tr>*:not(:last-child)]:border-r [&_tr>*:not(:last-child)]:border-border/40">
@@ -1089,17 +1399,6 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                 ))}
               </TableRow>
             ))
-          ) : error ? (
-            <TableRow>
-              <TableCell
-                colSpan={COLUMNS.length}
-                className="py-12 text-center text-red-500 text-sm"
-              >
-                {error}
-              </TableCell>
-            </TableRow>
-          ) : rows.length === 0 ? (
-            <EmptyTableRow message="Sin viajes registrados" />
           ) : (
             rows.map((v) => (
               <React.Fragment key={v.id}>
@@ -1216,161 +1515,23 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                 </TableRow>
 
                 {/* Sub-fila Desplegable de Detalles */}
-                {expandedId === v.id && (
+                {expandedId === v.id && !esCelular && (
                   <TableRow className="bg-muted/60 hover:bg-muted/60">
                     <TableCell colSpan={COLUMNS.length} className="p-0 border-b border-border">
                       {/* sticky + 100cqw: el detalle no se corta con el scroll
                           horizontal de la tabla — siempre ocupa lo visible. */}
-                      <div className="sticky left-0 w-[100cqw] p-4 sm:p-5 space-y-4 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-                        <ViajeDetalleHeader viaje={v} detalle={detalles[v.id]} />
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <ChoferCard detalle={detalles[v.id]} choferNombre={v.chofer} />
-
-                        <CamionFleteCard detalle={detalles[v.id]} viaje={v} />
-
-                        {/* Notas y acciones del viaje */}
-                        <div className="flex flex-col rounded-lg border border-border/80 bg-card p-3 shadow-2xs">
-                          <div className="flex items-center gap-2.5 border-b border-border pb-2.5 mb-2">
-                            <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#F59E0B]/14 text-[#D97706] shrink-0">
-                              <FileText size={16} strokeWidth={2.1} />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-[9.5px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                                Notas
-                              </div>
-                              {v.nro_viaje_ypf ? (
-                                <div className="text-[13px] font-bold text-foreground truncate">
-                                  Nº viaje <span className="font-mono text-primary">{v.nro_viaje_ypf}</span>
-                                </div>
-                              ) : (
-                                <div className="text-[13px] font-bold text-foreground">Observaciones</div>
-                              )}
-                            </div>
-                          </div>
-
-                          <NotasEditables
-                            viajeId={v.id}
-                            observaciones={v.observaciones}
-                            onSaved={(obs) =>
-                              setRows((prev) =>
-                                prev.map((item) =>
-                                  item.id === v.id ? { ...item, observaciones: obs } : item
-                                )
-                              )
-                            }
-                          />
-
-                          <div className="pt-2.5 mt-2.5 border-t border-border space-y-2">
-                            {v.facturado ? (
-                              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:border-green-800/40 dark:bg-green-950/30 px-3 py-2">
-                                <CheckCircle2 size={14} className="text-green-600 dark:text-green-400 shrink-0" />
-                                <span className="text-[11px] font-semibold text-green-700 dark:text-green-300">
-                                  Viaje facturado — remito y valor cargados
-                                </span>
-                              </div>
-                            ) : (
-                              !v.es_vacio && (
-                                <Button
-                                  size="xs"
-                                  className="h-9 w-full rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-[12px] font-bold gap-1.5 shadow-sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCerrandoViaje(v);
-                                  }}
-                                >
-                                  <Receipt size={13} /> Agregar remito
-                                </Button>
-                              )
-                            )}
-
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-1.5">
-                                {/* Editar primero y con borde: es lo que más se
-                                    usa acá y como botón chico de texto plano no
-                                    se encontraba. */}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-8 gap-1.5 border-border px-3 text-[12px] font-medium text-foreground hover:bg-muted"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (v.facturado) {
-                                      setConfirmEditViaje(v);
-                                    } else {
-                                      setEditingViaje(v);
-                                    }
-                                  }}
-                                >
-                                  <Pencil size={14} /> Editar viaje
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-8 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAuditTrailViajeId(v.id);
-                                    setAuditTrailOpen(true);
-                                  }}
-                                >
-                                  <Clock size={12} /> Historial
-                                </Button>
-                              </div>
-                              {deletingId === v.id ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[11px] text-red-600 font-medium">¿Confirmar?</span>
-                                  <Button
-                                    variant="destructive"
-                                    size="xs"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const res = await deleteViajeAction(v.id);
-                                      if (res && res.ok) {
-                                        setRows((prev) => prev.filter((item) => item.id !== v.id));
-                                        setExpandedId(null);
-                                      }
-                                      setDeletingId(null);
-                                    }}
-                                  >
-                                    Sí, borrar
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="xs"
-                                    className="h-6 px-2 text-[10px]"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDeletingId(null);
-                                    }}
-                                  >
-                                    No
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 text-[11px] gap-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeletingId(v.id);
-                                  }}
-                                >
-                                  <Trash2 size={12} /> Eliminar Viaje
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        </div>
-
-                        <ViajeGastosPanel
-                          viajeId={v.id}
-                          formData={gastoFormData}
-                          montoFlete={v.monto_flete ?? null}
-                          moneda={v.moneda ?? "ARS"}
-                          esVacio={v.es_vacio}
+                      <div className="sticky left-0 w-[100cqw] p-4 sm:p-5 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                        <ViajeDetalleBody
+                          viaje={v}
+                          detalle={detalles[v.id]}
+                          gastoFormData={gastoFormData}
+                          deletingId={deletingId}
+                          onDeletingId={setDeletingId}
+                          onNotasSaved={(obs) => onNotasSaved(v.id, obs)}
+                          onDeleted={() => onViajeBorrado(v.id)}
+                          onCerrar={() => setCerrandoViaje(v)}
+                          onEditar={() => abrirEdicion(v)}
+                          onHistorial={() => abrirHistorial(v.id)}
                         />
                       </div>
                     </TableCell>
@@ -1383,9 +1544,151 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
       </Table>
       </div>
 
+      {/* Tarjetas — hasta md. Es la pantalla que más se usa desde el teléfono:
+          la fila se convierte en tarjeta con lo que se necesita para reconocer
+          el viaje (fecha, cliente, ruta, chofer, importe) y se despliega el
+          mismo detalle que en la tabla. */}
+      <div className="md:hidden">
+        {loading ? (
+          <div className="divide-y divide-border">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-2 p-3">
+                <Skeleton className="h-3.5 w-2/5" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-3/5" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map((v) => {
+              const abierta = expandedId === v.id;
+              const toggle = () => setExpandedId(abierta ? null : v.id);
+              return (
+                <li
+                  key={v.id}
+                  data-viaje-id={v.id}
+                  className={viajePedido === v.id ? "bg-primary/[0.06]" : undefined}
+                >
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={abierta}
+                    onClick={toggle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggle();
+                      }
+                    }}
+                    className="flex w-full items-start gap-2.5 px-3 py-3 text-left"
+                  >
+                    <span
+                      className="flex w-5 shrink-0 items-center justify-center pt-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {esSeleccionable(v) ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar viaje ${v.codigo}`}
+                          className="size-4 accent-[#0088D1]"
+                          checked={selectedIds.has(v.id)}
+                          onChange={() => toggleSeleccion(v.id)}
+                        />
+                      ) : v.facturado ? (
+                        <CheckCircle2 size={15} className="text-[#10B981]" aria-label="Con remito" />
+                      ) : null}
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+                          {formatFecha(v.fecha_viaje)}
+                        </span>
+                        <span className="truncate font-mono text-[10px] text-muted-foreground/70">
+                          {v.codigo}
+                        </span>
+                        <span
+                          className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${
+                            v.facturado
+                              ? "border border-[#10B981]/30 bg-[#10B981]/10 text-[#10B981]"
+                              : "border border-[#C00000]/30 bg-[#C00000]/10 text-[#C00000]"
+                          }`}
+                        >
+                          {v.facturado ? "REMITO" : "SIN REMITO"}
+                        </span>
+                      </span>
+
+                      <span className="mt-1 flex items-center gap-1.5">
+                        <IncompletoMark v={v} onCompletar={abrirEdicion} />
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {v.cliente ?? "—"}
+                        </span>
+                        {v.es_vacio && (
+                          <span className="shrink-0 rounded bg-[#C00000]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#C00000]">
+                            VACÍO
+                          </span>
+                        )}
+                      </span>
+
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {v.origen ?? "—"} → {v.destino ?? "—"}
+                      </span>
+
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+                        {v.chofer && <span className="max-w-[60%] truncate">{v.chofer}</span>}
+                        {!v.es_vacio && (v.km_con_carga ?? 0) > 0 && (
+                          <span className="font-mono">
+                            {(v.km_con_carga ?? 0).toLocaleString("es-AR")} km
+                          </span>
+                        )}
+                        {(v.km_vacios ?? 0) > 0 && (
+                          <span className="font-mono text-[#C00000]">
+                            {v.km_vacios.toLocaleString("es-AR")} km vacíos
+                          </span>
+                        )}
+                        {(v.toneladas ?? 0) > 0 && (
+                          <span className="font-mono">{v.toneladas} tn</span>
+                        )}
+                        {v.monto_flete != null && (
+                          <span className="ml-auto font-mono font-semibold text-[#10B981]">
+                            $ {v.monto_flete.toLocaleString("es-AR")}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+
+                    <span className="flex size-9 shrink-0 items-center justify-center text-muted-foreground">
+                      {abierta ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </span>
+                  </div>
+
+                  {abierta && esCelular && (
+                    <div className="border-t border-border bg-muted/40 p-3 animate-in fade-in-50 duration-200">
+                      <ViajeDetalleBody
+                        viaje={v}
+                        detalle={detalles[v.id]}
+                        gastoFormData={gastoFormData}
+                        deletingId={deletingId}
+                        onDeletingId={setDeletingId}
+                        onNotasSaved={(obs) => onNotasSaved(v.id, obs)}
+                        onDeleted={() => onViajeBorrado(v.id)}
+                        onCerrar={() => setCerrandoViaje(v)}
+                        onEditar={() => abrirEdicion(v)}
+                        onHistorial={() => abrirHistorial(v.id)}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       {/* Resumen de totales sobre los viajes cargados */}
       {!loading && !error && rows.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 border-t border-border bg-muted/30 text-xs">
+        <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 px-3 sm:px-5 py-3 border-t border-border bg-muted/30 text-xs">
           <span className="text-muted-foreground/80 font-semibold uppercase tracking-wide">
             Totales <span className="font-normal normal-case">(sobre {rows.length} cargados)</span>
           </span>
@@ -1418,7 +1721,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
 
       {/* Cargar más / fin de resultados */}
       {!loading && (hasMore || allLoaded) && (
-        <div className="flex justify-center px-5 py-4 border-t border-border">
+        <div className="flex justify-center px-3 sm:px-5 py-4 border-t border-border">
           {hasMore ? (
             <Button
               variant="outline"
@@ -1426,6 +1729,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
               onClick={loadMore}
               disabled={isPending}
               aria-label="Cargar más viajes"
+              className="w-full sm:w-auto"
             >
               {isPending ? (
                 <>
@@ -1464,13 +1768,13 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
       {/* Confirm edit facturado */}
       {confirmEditViaje && (
         <Dialog open={!!confirmEditViaje} onOpenChange={(v) => { if (!v) setConfirmEditViaje(null); }}>
-          <DialogContent className="sm:max-w-[420px] p-6 gap-0">
-            <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
+          <DialogContent className="sm:max-w-[420px] p-4 sm:p-6 gap-0">
+            <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
               <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center size-11 rounded-full bg-amber-100 text-amber-600 shrink-0">
+                <div className="flex items-center justify-center size-10 sm:size-11 rounded-full bg-amber-100 text-amber-600 shrink-0">
                   <AlertTriangle size={20} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <DialogTitle className="text-foreground text-base font-bold">
                     Viaje con remito
                   </DialogTitle>
@@ -1491,18 +1795,18 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
               </p>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-border -mx-6 px-6">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setConfirmEditViaje(null)}
-                className="h-9 px-5 text-sm"
+                className="h-10 w-full sm:h-9 sm:w-auto px-5 text-sm"
               >
                 Cancelar
               </Button>
               <Button
                 size="sm"
-                className="h-9 px-5 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+                className="h-10 w-full sm:h-9 sm:w-auto px-5 text-sm bg-amber-600 hover:bg-amber-700 text-white font-semibold"
                 onClick={() => {
                   setEditingViaje(confirmEditViaje);
                   setConfirmEditViaje(null);

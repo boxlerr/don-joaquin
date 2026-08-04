@@ -191,14 +191,14 @@ function MockMatrix() {
   ];
   return (
     <div className="overflow-hidden rounded-lg border border-border">
-      <div className="grid grid-cols-[76px_repeat(4,1fr)] bg-muted/50 text-[8px] font-bold uppercase text-muted-foreground">
+      <div className="grid grid-cols-[64px_repeat(4,1fr)] sm:grid-cols-[76px_repeat(4,1fr)] bg-muted/50 text-[8px] font-bold uppercase text-muted-foreground">
         <div className="px-2 py-1.5">Rol</div>
         {cols.map((c) => (
           <div key={c} className="px-1 py-1.5 text-center">{c}</div>
         ))}
       </div>
       {rows.map((row, i) => (
-        <div key={row.r} className={`grid grid-cols-[76px_repeat(4,1fr)] items-center ${i > 0 ? "border-t border-border" : ""}`}>
+        <div key={row.r} className={`grid grid-cols-[64px_repeat(4,1fr)] sm:grid-cols-[76px_repeat(4,1fr)] items-center ${i > 0 ? "border-t border-border" : ""}`}>
           <div className="px-2 py-1.5 text-[9px] font-medium text-foreground truncate">{row.r}</div>
           {row.lv.map((l, j) => (
             <div key={j} className="px-1 py-1.5 flex justify-center">

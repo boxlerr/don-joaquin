@@ -96,10 +96,13 @@ export default function HelpTutorialDialog({
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] h-[560px] max-h-[calc(100vh-2rem)] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-            <div className="flex items-center gap-2.5">
+        {/* `dvh` en vez de `vh`: en el celular el alto con `vh` incluye la barra
+            del navegador y el pie con "Siguiente" quedaba fuera de alcance. */}
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,calc(100vw-2rem))] h-[560px] max-h-[calc(100dvh-2rem)] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          {/* Header — en celular el título y las solapas van en dos renglones:
+              en uno solo, las solapas empujaban al botón de cerrar afuera. */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border">
+            <div className="flex items-center gap-2.5 min-w-0">
               <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
               </span>
@@ -109,9 +112,9 @@ export default function HelpTutorialDialog({
                 </Dialog.Title>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* Tabs dentro del header */}
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              {/* Tabs dentro del header — scrollean de costado si no entran. */}
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg overflow-x-auto no-scrollbar min-w-0">
                 {tabs.map((t) => {
                   const active = t.id === tabId;
                   const done = completadas.has(t.id) && !active;
@@ -121,7 +124,7 @@ export default function HelpTutorialDialog({
                       type="button"
                       onClick={() => changeTab(t.id)}
                       className={
-                        "flex items-center gap-1.5 px-2.5 h-7 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
+                        "flex items-center gap-1.5 px-2.5 h-7 shrink-0 text-[11px] font-bold transition-all rounded-md whitespace-nowrap " +
                         (active
                           ? "bg-card text-primary shadow-sm"
                           : done
@@ -188,10 +191,12 @@ export default function HelpTutorialDialog({
             </div>
           </div>
 
-          {/* Contenido side-by-side */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Contenido: lado a lado en desktop, apilado en celular. Con las dos
+              columnas fijas, los 280px de instrucciones dejaban ~60px para la
+              maqueta y no se entendía nada. */}
+          <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
             {/* Columna izquierda: instrucciones */}
-            <div className="w-[280px] border-r border-[#F1F5F9] flex flex-col p-5 overflow-y-auto no-scrollbar">
+            <div className="w-full md:w-[280px] shrink-0 border-b md:border-b-0 md:border-r border-[#F1F5F9] flex flex-col p-4 sm:p-5 md:overflow-y-auto no-scrollbar">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <h3 className="text-foreground text-lg font-bold leading-tight">
@@ -218,7 +223,7 @@ export default function HelpTutorialDialog({
 
             {/* Columna derecha: preview visual — recuadro de tamaño fijo para
                 que no cambie de tamaño entre pasos ni entre solapas. */}
-            <div className="flex-1 bg-muted/40 flex flex-col overflow-hidden p-6">
+            <div className="flex-1 min-h-[220px] bg-muted/40 flex flex-col overflow-hidden p-3 sm:p-6">
               <div className="relative flex-1 min-h-0 flex flex-col rounded-xl border border-border bg-card shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden">
                 <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#F1F5F9] bg-muted/40 shrink-0">
                   <div className="flex gap-1">
@@ -241,12 +246,12 @@ export default function HelpTutorialDialog({
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex items-center justify-between">
+          <div className="px-4 sm:px-5 py-3 border-t border-border flex items-center justify-between gap-2">
             <button
               type="button"
               disabled={step === 0}
               onClick={() => setStep((s) => Math.max(0, s - 1))}
-              className="h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1 min-w-[104px]"
+              className="h-9 sm:h-8 px-3 text-sm rounded-md border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1 min-w-[92px] sm:min-w-[104px]"
             >
               <ChevronLeft size={14} />
               Anterior
@@ -258,7 +263,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[104px]"
+                className="h-9 sm:h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[92px] sm:min-w-[104px]"
               >
                 Siguiente
                 <ChevronRight size={14} />
@@ -267,7 +272,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => { completar(tabId); changeTab(nextTab.id); }}
-                className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[104px] max-w-[220px]"
+                className="h-9 sm:h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center justify-center gap-1 min-w-[92px] sm:min-w-[104px] max-w-[220px]"
                 title={`Continuar con “${nextTab.label}”`}
               >
                 <span className="truncate">Seguir: {nextTab.label}</span>
@@ -277,7 +282,7 @@ export default function HelpTutorialDialog({
               <button
                 type="button"
                 onClick={() => { completar(tabId); setOpen(false); }}
-                className="h-8 px-3 text-sm rounded-md bg-[#10B981] text-white hover:bg-[#059669] inline-flex items-center justify-center gap-1 min-w-[104px]"
+                className="h-9 sm:h-8 px-3 text-sm rounded-md bg-[#10B981] text-white hover:bg-[#059669] inline-flex items-center justify-center gap-1 min-w-[92px] sm:min-w-[104px]"
               >
                 <CheckCircle2 size={14} /> Terminar
               </button>

@@ -76,8 +76,8 @@ function Row({
       ? "border-[#FECACA] bg-[#FEF2F2]"
       : "border-border bg-card";
   return (
-    <div className="px-3 py-1.5 flex items-center gap-3 text-[11px] border-b last:border-0 border-[#F1F5F9]">
-      <span className="font-semibold text-foreground w-28 truncate">{chofer}</span>
+    <div className="px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] border-b last:border-0 border-[#F1F5F9]">
+      <span className="font-semibold text-foreground w-24 sm:w-28 truncate">{chofer}</span>
       <span className={"h-7 px-2 rounded border inline-flex items-center gap-1 " + border}>
         <Truck size={11} className={tone === "bad" ? "text-red-500" : "text-muted-foreground"} />
         <span className={tone === "bad" ? "text-[#DC2626] font-semibold" : "text-foreground"}>
@@ -125,8 +125,8 @@ function MockReemplazo() {
 function MockAtajos() {
   return (
     <div className="flex flex-col gap-2">
-      <div className="h-9 px-3 rounded-md border-2 border-[#0088D1] bg-[#E1F5FE] text-primary text-xs font-semibold inline-flex items-center gap-1.5 shadow-[0_0_0_4px_rgba(0,136,209,0.15)]">
-        <History size={13} /> Cambiá la fecha → historial de ese día
+      <div className="min-h-9 px-3 py-1.5 rounded-md border-2 border-[#0088D1] bg-[#E1F5FE] text-primary text-xs font-semibold inline-flex items-center gap-1.5 shadow-[0_0_0_4px_rgba(0,136,209,0.15)]">
+        <History size={13} className="shrink-0" /> Cambiá la fecha → historial de ese día
       </div>
       <div className="h-9 px-3 rounded-md border border-border bg-card text-muted-foreground text-xs inline-flex items-center gap-1.5">
         <RotateCcw size={13} /> Restaurar habituales
@@ -141,7 +141,7 @@ function MockEnganche() {
       <div className="px-3 py-2 border-b border-border bg-muted/40 text-[10px] flex items-center gap-1.5 text-muted-foreground">
         <Zap size={11} /> Carga rápida de viajes
       </div>
-      <div className="px-3 py-2 flex items-center gap-3 text-[11px]">
+      <div className="px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
         <span className="font-semibold text-foreground w-24">Díaz, M.</span>
         <span className="h-7 px-2 rounded border border-[#0088D1] bg-[#E1F5FE] text-primary font-semibold inline-flex items-center gap-1">
           <Truck size={11} /> AD 789 GH

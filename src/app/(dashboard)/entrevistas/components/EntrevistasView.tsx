@@ -50,7 +50,7 @@ export default function EntrevistasView({
           const Icon = o.icon;
           return (
             <button key={o.id} type="button" onClick={() => setVista(o.id)}
-              className={`px-3 h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${vista === o.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              className={`px-3 h-9 sm:h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${vista === o.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               <Icon size={13} /> {o.label}
             </button>
           );

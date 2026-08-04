@@ -44,8 +44,8 @@ export default function ComplianceHistorialDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl flex items-center gap-2">
-            <History size={18} className="text-primary" />
+          <DialogTitle className="text-foreground text-lg sm:text-xl flex items-center gap-2">
+            <History size={18} className="shrink-0 text-primary" />
             Historial — {requisito.nombre}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -140,9 +140,9 @@ function HistorialBody({
                 aria-hidden
               />
               <div className="rounded-[8px] border border-border bg-card p-3 shadow-xs">
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                   <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
                       <CalendarClock size={14} className="text-primary shrink-0" />
                       Vence {formatFecha(doc.fecha_vencimiento)}
                       {idx === 0 && (
@@ -169,7 +169,7 @@ function HistorialBody({
                       type="button"
                       onClick={() => abrirArchivo(doc.archivo_id!)}
                       disabled={openingId === doc.archivo_id}
-                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors shrink-0"
+                      className="inline-flex items-center gap-1.5 h-8 max-md:h-9 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors shrink-0"
                     >
                       {openingId === doc.archivo_id ? (
                         <Loader2 size={12} className="animate-spin" />

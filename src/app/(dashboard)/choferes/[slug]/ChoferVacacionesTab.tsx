@@ -298,7 +298,7 @@ export default function ChoferVacacionesTab({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Palmtree size={16} className="text-primary" />
           Saldo de vacaciones
@@ -306,7 +306,7 @@ export default function ChoferVacacionesTab({
         {can_write && !egresado && (
           <Button
             variant="outline"
-            className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+            className="h-10 w-full border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40 sm:w-auto"
             onClick={() => setDialogOpen(true)}
           >
             <Plus size={15} className="mr-2 text-primary" />
@@ -388,7 +388,7 @@ export default function ChoferVacacionesTab({
       )}
 
       {/* Antigüedad / hito / vencimientos (derivados del ingreso) */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-[8px] border border-border bg-muted/20 px-4 py-3 text-sm">
+      <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 rounded-[8px] border border-border bg-muted/20 px-3 sm:px-4 py-3 text-sm">
         <InfoChip label="Antigüedad" value={anios != null ? `${anios} año${anios !== 1 ? "s" : ""}` : "—"} />
         <InfoChip label="Hito" value={hito} />
         <InfoChip
@@ -418,7 +418,7 @@ export default function ChoferVacacionesTab({
       {/* Días que corresponden, año por año. Editable: los otorgados de cada año
           son la carga inicial de la planilla y a veces vienen mal. */}
       <div className="bg-card rounded-[8px] border border-border overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2 px-3 sm:px-4 py-2.5 border-b border-border">
           {/* Sin subtítulo con la fórmula: los encabezados de la tabla ya dicen
               qué es cada número, y era texto de más. */}
           <h4 className="text-sm font-semibold text-foreground">Días por año</h4>
@@ -434,11 +434,11 @@ export default function ChoferVacacionesTab({
                       setError(null);
                     }}
                     disabled={saving}
-                    className="h-7 text-xs text-muted-foreground border-border"
+                    className="h-7 max-md:h-9 text-xs text-muted-foreground border-border"
                   >
                     <X size={13} className="mr-1" /> Cancelar
                   </Button>
-                  <Button variant="brand" size="sm" onClick={guardar} disabled={saving} className="h-7 text-xs">
+                  <Button variant="brand" size="sm" onClick={guardar} disabled={saving} className="h-7 max-md:h-9 text-xs">
                     <Save size={13} className="mr-1" />
                     {saving ? "Guardando…" : "Guardar"}
                   </Button>
@@ -448,7 +448,7 @@ export default function ChoferVacacionesTab({
                   variant="outline"
                   size="sm"
                   onClick={abrirEdicion}
-                  className="h-7 text-xs text-muted-foreground border-border"
+                  className="h-7 max-md:h-9 text-xs text-muted-foreground border-border"
                 >
                   <Pencil size={12} className="mr-1" /> Editar días
                 </Button>
@@ -458,10 +458,13 @@ export default function ChoferVacacionesTab({
         </div>
 
         {editando ? (
-          <div className="p-4 space-y-2">
+          <div className="p-3 sm:p-4 space-y-2">
             {filas.map((f, i) => {
               const usados = saldo.anios.find((a) => a.anio === Number(f.anio))?.usados ?? 0;
               return (
+                // En celular el año, los días y el "tomados" comparten el primer
+                // renglón y la observación —que es el campo largo— se lleva el
+                // segundo. A cuatro columnas ninguno entraba.
                 <div key={i} className="flex flex-wrap items-center gap-2">
                   <Input
                     type="number"
@@ -469,7 +472,7 @@ export default function ChoferVacacionesTab({
                     onChange={(e) =>
                       setFilas((p) => p.map((x, j) => (j === i ? { ...x, anio: e.target.value } : x)))
                     }
-                    className="w-24 font-mono"
+                    className="w-20 sm:w-24 shrink-0 font-mono"
                     aria-label="Año"
                   />
                   <Input
@@ -479,29 +482,29 @@ export default function ChoferVacacionesTab({
                     onChange={(e) =>
                       setFilas((p) => p.map((x, j) => (j === i ? { ...x, dias: e.target.value } : x)))
                     }
-                    className="w-20 font-mono text-right"
+                    className="w-16 sm:w-20 shrink-0 font-mono text-right"
                     aria-label="Días que corresponden"
                   />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap w-28">
+                  <span className="w-20 sm:w-28 shrink-0 text-xs text-muted-foreground whitespace-nowrap">
                     {usados > 0 ? `${usados} tomados` : "sin tomar"}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setFilas((p) => p.filter((_, j) => j !== i))}
+                    title={usados > 0 ? "Tiene vacaciones imputadas: primero cambiá de qué año descuentan" : "Quitar el año"}
+                    className="order-1 sm:order-2 inline-flex size-9 sm:size-7 shrink-0 items-center justify-center text-muted-foreground hover:text-[#EF4444]"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                   <Input
                     value={f.observaciones}
                     onChange={(e) =>
                       setFilas((p) => p.map((x, j) => (j === i ? { ...x, observaciones: e.target.value } : x)))
                     }
                     placeholder="Observación (opcional)"
-                    className="flex-1 min-w-[10rem]"
+                    className="order-2 sm:order-1 w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[10rem]"
                     aria-label="Observación"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setFilas((p) => p.filter((_, j) => j !== i))}
-                    title={usados > 0 ? "Tiene vacaciones imputadas: primero cambiá de qué año descuentan" : "Quitar el año"}
-                    className="text-muted-foreground hover:text-[#EF4444] shrink-0"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
               );
             })}
@@ -520,7 +523,7 @@ export default function ChoferVacacionesTab({
                   return [...p, { anio: String(sugerido), dias: String(diasAntig), observaciones: "" }];
                 })
               }
-              className="h-7 text-xs text-muted-foreground border-border"
+              className="h-7 max-md:h-9 text-xs text-muted-foreground border-border"
             >
               <Plus size={12} className="mr-1" /> Agregar año
             </Button>
@@ -549,7 +552,7 @@ export default function ChoferVacacionesTab({
               // entera: visualmente "lleno" cuando significaba lo contrario.
               const pct = a.otorgados > 0 ? Math.min(100, (queda / a.otorgados) * 100) : 0;
               return (
-                <div key={a.anio} className="px-4 py-3.5" title={a.observaciones ?? undefined}>
+                <div key={a.anio} className="px-3 sm:px-4 py-3.5" title={a.observaciones ?? undefined}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="flex items-baseline gap-2">
                       <span className="text-base font-semibold tabular-nums text-foreground">{a.anio}</span>
@@ -618,7 +621,7 @@ export default function ChoferVacacionesTab({
                     onClick={() =>
                       setPlegados((p) => ({ ...p, [g.clave]: !(p[g.clave] ?? g.abiertoPorDefecto) }))
                     }
-                    className="flex w-full items-baseline gap-2 border-b border-border bg-muted/60 px-3.5 py-2 text-left hover:bg-muted"
+                    className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border bg-muted/60 px-3 sm:px-3.5 py-2.5 text-left hover:bg-muted"
                   >
                     <ChevronRight
                       size={13}
@@ -637,14 +640,14 @@ export default function ChoferVacacionesTab({
                       {g.items.map((a) => {
                         const estimada = marcaEstimada(a.observaciones);
                         return (
-                        <li key={a.id} className="group px-3.5 py-2.5">
+                        <li key={a.id} className="group px-3 sm:px-3.5 py-2.5">
                           {editandoFechas === a.id ? (
                             <span className="flex flex-wrap items-center gap-1.5">
                               <Input
                                 type="date"
                                 value={fechas.inicio}
                                 onChange={(e) => setFechas((p) => ({ ...p, inicio: e.target.value }))}
-                                className="h-7 w-[8.75rem] text-xs"
+                                className="h-9 sm:h-7 w-[9.5rem] sm:w-[8.75rem] text-xs"
                                 aria-label="Desde"
                               />
                               <span className="text-muted-foreground">→</span>
@@ -653,7 +656,7 @@ export default function ChoferVacacionesTab({
                                 value={fechas.fin}
                                 min={fechas.inicio || undefined}
                                 onChange={(e) => setFechas((p) => ({ ...p, fin: e.target.value }))}
-                                className="h-7 w-[8.75rem] text-xs"
+                                className="h-9 sm:h-7 w-[9.5rem] sm:w-[8.75rem] text-xs"
                                 aria-label="Hasta"
                               />
                               <span className="text-xs tabular-nums text-muted-foreground">
@@ -665,7 +668,7 @@ export default function ChoferVacacionesTab({
                                 size="sm"
                                 onClick={() => guardarFechas(a)}
                                 disabled={guardandoFechas}
-                                className="h-7 text-xs"
+                                className="h-7 max-md:h-9 text-xs"
                               >
                                 <Save size={12} className="mr-1" />
                                 {guardandoFechas ? "Guardando…" : "Guardar"}
@@ -675,7 +678,7 @@ export default function ChoferVacacionesTab({
                                 onClick={() => setEditandoFechas(null)}
                                 disabled={guardandoFechas}
                                 title="Cancelar la edición"
-                                className="text-muted-foreground hover:text-foreground"
+                                className="inline-flex size-9 sm:size-7 items-center justify-center text-muted-foreground hover:text-foreground"
                               >
                                 <X size={13} />
                               </button>
@@ -691,7 +694,7 @@ export default function ChoferVacacionesTab({
                                 disabled={!can_write}
                                 onClick={() => can_write && abrirFechas(a)}
                                 title={can_write ? "Corregir las fechas" : undefined}
-                                className={`w-[12.5rem] shrink-0 text-left text-sm font-semibold tabular-nums text-foreground ${
+                                className={`w-full sm:w-[12.5rem] shrink-0 text-left text-sm font-semibold tabular-nums text-foreground ${
                                   can_write ? "cursor-pointer hover:text-primary hover:underline" : "cursor-default"
                                 }`}
                               >
@@ -719,12 +722,12 @@ export default function ChoferVacacionesTab({
                                 )}
                               </span>
                               {reimputando === a.id ? (
-                                <span className="inline-flex shrink-0 items-center gap-1">
+                                <span className="flex w-full shrink-0 items-center gap-1 sm:inline-flex sm:w-auto">
                                   <Select
                                     value={a.anio_cargo != null ? String(a.anio_cargo) : "hist"}
                                     onValueChange={(v) => v && cambiarImputacion(a.id, v)}
                                   >
-                                    <SelectTrigger className="h-7 w-[12rem] text-xs">
+                                    <SelectTrigger className="h-9 sm:h-7 w-full sm:w-[12rem] text-xs">
                                       <span>
                                         {a.anio_cargo != null
                                           ? `Descuenta del ${a.anio_cargo}`
@@ -767,19 +770,23 @@ export default function ChoferVacacionesTab({
                                     type="button"
                                     onClick={() => setReimputando(null)}
                                     title="Cancelar"
-                                    className="text-muted-foreground hover:text-foreground"
+                                    className="inline-flex size-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground sm:size-auto"
                                   >
                                     <X size={13} />
                                   </button>
                                 </span>
                               ) : (
                                 can_write && (
-                                  <span className="flex shrink-0 items-center gap-2.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                                  // En celular no hay hover: si las acciones
+                                  // quedan en opacity-0 no hay forma de cambiar
+                                  // el año ni cancelar el período desde el
+                                  // teléfono. Se ocultan sólo de md para arriba.
+                                  <span className="flex shrink-0 items-center gap-2.5 transition md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                                     <button
                                       type="button"
                                       onClick={() => setReimputando(a.id)}
                                       title="Cambiar de qué año descuenta este período"
-                                      className="text-[13px] text-muted-foreground hover:text-primary"
+                                      className="inline-flex min-h-9 items-center text-[13px] text-muted-foreground hover:text-primary md:min-h-0"
                                     >
                                       cambiar año
                                     </button>
@@ -787,7 +794,7 @@ export default function ChoferVacacionesTab({
                                       type="button"
                                       onClick={() => setCancelando(a)}
                                       title="Cancelar este período (los días vuelven al saldo)"
-                                      className="text-muted-foreground hover:text-[#EF4444]"
+                                      className="inline-flex size-9 items-center justify-center text-muted-foreground hover:text-[#EF4444] md:size-auto"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -895,11 +902,11 @@ function SaldoCard({
     // Centrada y con el rótulo destacado: era un título en gris de 11px arriba de
     // un número pegado a la izquierda, y no se leía como una unidad.
     <div
-      className="rounded-[8px] border border-border bg-muted/30 px-4 py-3 text-center"
+      className="rounded-[8px] border border-border bg-muted/30 px-3 py-3 sm:px-4 text-center"
       title={hint}
     >
-      <div className="text-[12px] font-semibold uppercase tracking-wide text-primary">{label}</div>
-      <div className={`mt-1 text-[32px] font-bold leading-none tabular-nums ${toneClass}`}>
+      <div className="text-[11px] sm:text-[12px] font-semibold uppercase tracking-wide text-primary">{label}</div>
+      <div className={`mt-1 text-[26px] sm:text-[32px] font-bold leading-none tabular-nums ${toneClass}`}>
         {value}
       </div>
       <div className="mt-0.5 text-[11px] text-muted-foreground">

@@ -274,12 +274,12 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
 
       {/* Estado de edición. En el legajo el botón "Editar" vive en el encabezado;
           en la lista (uso no-controlado) mostramos el botón acá. */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">
           {editing ? "Editando — los cambios no se guardan hasta confirmar." : "Vista de solo lectura."}
         </span>
         {!controlled && !editing && (
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditing(true)}>
+          <Button variant="outline" size="sm" className="h-7 max-md:h-9 text-xs" onClick={() => setEditing(true)}>
             <Pencil size={12} className="mr-1.5 text-primary" /> Editar datos
           </Button>
         )}
@@ -292,7 +292,9 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Personal y laboral
           </h4>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          {/* En celular los campos van uno debajo del otro: a dos columnas, un
+              "Ciudad de nacimiento" o un <input type=date> a 16px no entran. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
             <Field label="DNI">
               {editing ? (
                 <EditField error={fieldErrors.dni}>
@@ -404,7 +406,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 ? <Input value={provincia} onChange={(e) => setProvincia(e.target.value)} className="h-8 text-sm" placeholder="—" />
                 : <Value v={chofer.provincia} />}
             </Field>
-            <div className="col-span-2">
+            <div className="col-span-full">
               <Field label="Área / Rol">
                 {editing ? (
                   <Combobox
@@ -421,7 +423,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
             </div>
             {/* El camión de la flota es solo para choferes. */}
             {esChofer && (
-              <div className="col-span-2">
+              <div className="col-span-full">
                 <Field label="Camión actual">
                   <CamionAsignacion
                     choferId={chofer.id}
@@ -440,7 +442,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             Contacto
           </h4>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
             <Field label="Nombre *">
               {editing ? (
                 <div className="space-y-0.5">
@@ -479,7 +481,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 </EditField>
               ) : <Value v={chofer.email} />}
             </Field>
-            <div className="col-span-2">
+            <div className="col-span-full">
               <Field label="Contactos de emergencia">
                 {editing ? (
                   <div className="space-y-0.5">
@@ -495,7 +497,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
                 )}
               </Field>
             </div>
-            <div className="col-span-2">
+            <div className="col-span-full">
               <Field label="Domicilio">
                 {editing
                   ? <Input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className="h-8 text-sm" placeholder="—" />
@@ -539,7 +541,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
           <h4 className="text-xs font-bold text-foreground uppercase tracking-wider border-b-2 border-primary/30 pb-2 flex items-center gap-2">
             AFIP / Período de prueba
           </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
             <Field label="Alta AFIP">
               {editing
                 ? <Input type="date" value={altaAfip} onChange={(e) => setAltaAfip(e.target.value)} className="h-8 text-sm" />
@@ -595,11 +597,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
       )}
 
       {editing && (
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isPending}>
+        <div className="flex flex-col-reverse gap-2 pt-3 border-t border-border sm:flex-row sm:items-center sm:justify-end">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleCancel} disabled={isPending}>
             <X size={13} className="mr-1.5" />Cancelar
           </Button>
-          <Button variant="brand" size="sm" onClick={handleSave} disabled={isPending}>
+          <Button variant="brand" size="sm" className="w-full sm:w-auto" onClick={handleSave} disabled={isPending}>
             {isPending ? "Guardando..." : (
               <><Check size={13} className="mr-1.5" />Guardar cambios</>
             )}
@@ -658,7 +660,7 @@ function PeriodoPruebaField({
             onClick={() =>
               onChange(addMonthsStr(fechaIngreso || new Date().toISOString().split("T")[0], 6))
             }
-            className="text-xs font-semibold text-[#0088D1] hover:underline"
+            className="inline-flex min-h-9 items-center text-left text-xs font-semibold text-[#0088D1] hover:underline md:min-h-0"
           >
             + Iniciar (6 meses desde el ingreso)
           </button>
@@ -743,7 +745,7 @@ function ClaveFiscalField({
           <button
             type="button"
             onClick={() => setVisible((v) => !v)}
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="inline-flex size-9 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground md:size-6"
             title={visible ? "Ocultar" : "Mostrar"}
           >
             {visible ? <EyeOff size={14} /> : <Eye size={14} />}

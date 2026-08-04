@@ -107,13 +107,13 @@ export default async function ViajesPage({
       : null;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Viajes"
         description="Núcleo operativo: registro, asociación y trazabilidad de viajes"
         action={
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <HelpTutorialButton triggerClassName="h-7 px-2.5 rounded-[min(var(--radius-md),12px)] border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1 text-[0.8rem] font-medium [&_svg]:size-3.5" />
+            <HelpTutorialButton triggerClassName="h-9 sm:h-7 px-2.5 rounded-[min(var(--radius-md),12px)] border border-border bg-card text-primary hover:bg-muted inline-flex items-center gap-1 text-[0.8rem] font-medium [&_svg]:size-3.5" />
             {canRegistrarGasto && (
               <AddGastoDialog
                 tiposGasto={gastoFormData.tiposGasto}

@@ -203,11 +203,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   };
 
   return (
-    <div className="space-y-5">
+    // El botón flotante de guardar tapa el final de la grilla en el celular:
+    // el padding de abajo deja pasar la última fila.
+    <div className={`space-y-5 ${editable ? "pb-20 sm:pb-0" : ""}`}>
       <CambiosDrawer open={cambiosOpen} onClose={() => setCambiosOpen(false)} />
 
       {/* Barra superior: fecha + atajos */}
-      <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex flex-wrap items-end gap-4">
+      <div className="bg-card border border-border rounded-[8px] p-4 sm:px-5 sm:py-4 flex flex-wrap items-end gap-3 sm:gap-4">
         <div className="space-y-1">
           <label className="text-xs font-semibold text-muted-foreground block">Fecha</label>
           <CalendarioPopover
@@ -247,7 +249,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {editable && (
             <Button
               type="button"
@@ -274,7 +276,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           </Button>
         </div>
 
-        <div className="self-center ml-auto flex items-center gap-3 text-xs text-muted-foreground/80">
+        <div className="w-full lg:w-auto lg:self-center lg:ml-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground/80">
           {(filasConCambio.length > 0 || soloCambios) && (
             <button
               type="button"
@@ -303,7 +305,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
       {/* Ese día nunca se guardó planilla: no hay nada que comparar */}
       {!editable && data.hay_planilla === false && (
-        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
+        <div className="flex flex-col sm:flex-row items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
           <History size={16} className="shrink-0 mt-0.5 text-muted-foreground/60" />
           <div className="flex-1">
             <p className="font-medium text-foreground">
@@ -314,7 +316,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               manejaba cada chofer ese día.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-8 text-xs shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-9 sm:h-8 text-xs shrink-0 w-full sm:w-auto">
             <CalendarClock size={13} /> Ir a hoy
           </Button>
         </div>
@@ -322,7 +324,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
       {/* Aviso: fecha pasada = solo lectura (historial) */}
       {!editable && data.hay_planilla !== false && (
-        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
+        <div className="flex flex-col sm:flex-row items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border text-muted-foreground">
           <History size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
           <div className="flex-1">
             <p className="font-medium text-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -366,7 +368,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               cada chofer, volvé a la planilla de hoy.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-8 text-xs shrink-0">
+          <Button type="button" variant="outline" size="sm" onClick={irAHoy} className="gap-1.5 h-9 sm:h-8 text-xs shrink-0 w-full sm:w-auto">
             <CalendarClock size={13} /> Ir a hoy
           </Button>
         </div>
@@ -378,10 +380,15 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="bg-muted/40">
-                {["Chofer", "Camión del día", "Cambio", "Observaciones"].map((h) => (
+                {["Chofer", "Camión del día", "Cambio", "Observaciones"].map((h, i) => (
                   <th
                     key={h}
-                    className="px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide text-xs border-b border-border whitespace-nowrap"
+                    // El chofer queda fijo a la izquierda: en el celular la
+                    // grilla se scrollea de costado y sin él se pierde la
+                    // referencia de a quién se le está poniendo el camión.
+                    className={`px-3 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide text-xs border-b border-border whitespace-nowrap ${
+                      i === 0 ? "sticky left-0 z-20 bg-[#F9FBFC]" : ""
+                    }`}
                   >
                     {h}
                   </th>
@@ -400,8 +407,14 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       duplicado ? "bg-red-50/50" : cambio ? "bg-amber-50/40" : ""
                     }`}
                   >
-                    {/* Chofer */}
-                    <td className="px-3 py-1.5 whitespace-nowrap">
+                    {/* Chofer — columna fija al scrollear de costado. El fondo
+                        va sólido (no puede ser translúcido: se vería el
+                        contenido pasando por debajo). */}
+                    <td
+                      className={`px-3 py-1.5 whitespace-nowrap sticky left-0 z-10 ${
+                        duplicado ? "bg-[#FEF9F9]" : cambio ? "bg-[#FFFDF7]" : "bg-card"
+                      }`}
+                    >
                       <span className="font-medium text-foreground">
                         {f.apellido}, {f.nombre}
                       </span>
@@ -419,7 +432,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                           clearable
                           disabled={!editable}
                           invalid={duplicado}
-                          triggerClassName="h-8 w-48 text-xs"
+                          triggerClassName="h-9 sm:h-8 w-48 text-xs"
                         />
                         {esHabitual && !duplicado && (
                           <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide">
@@ -476,7 +489,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                         placeholder="Opcional (ej: reemplaza a Pérez)"
                         maxLength={500}
                         disabled={!editable}
-                        className="h-8 w-full min-w-[220px] px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="h-9 sm:h-8 w-full min-w-[220px] px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                     </td>
                   </tr>
@@ -516,12 +529,12 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
       {/* Guardar (Flotante) */}
       {editable && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed inset-x-4 bottom-4 pb-safe sm:inset-x-auto sm:right-6 sm:bottom-6 z-50">
           <Button
             type="button"
             onClick={handleGuardar}
             disabled={guardando || hayDuplicados}
-            className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-6 h-11 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+            className="w-full sm:w-auto bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-6 h-11 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2"
           >
             {guardando ? (
               <><Loader2 size={15} className="animate-spin" /> Guardando...</>

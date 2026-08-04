@@ -34,6 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Pencil, CheckCircle2, X, PowerOff } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
@@ -214,12 +215,12 @@ export default function MantenimientoClient({
   ];
 
   return (
-    <div className="p-8 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto">
       <PageHeader
         title="Mantenimiento"
         description="Servicios, gomería y roturas de la flota — simple y al día"
         action={
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
             <HelpTutorialButton />
             <ExportMenu onToast={showToast} />
             {canWrite && (
@@ -248,47 +249,114 @@ export default function MantenimientoClient({
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5">
         <StatCard label="SERVICIOS REGISTRADOS" value={String(servicios.length)} sub="Histórico" color="brand" icon={Wrench} variant="dashboard" />
         <StatCard label="ROTURAS" value={String(totalGomasRotas)} sub={`${roturas.length} eventos`} color="warning" icon={CircleDot} variant="dashboard" />
         <StatCard label="ALERTAS PENDIENTES" value={String(alertas.length)} sub={alertasVencidas > 0 ? `${alertasVencidas} vencidas` : "Próximos services"} color={alertasVencidas > 0 ? "error" : "success"} icon={BellRing} variant="dashboard" />
       </div>
 
-      {/* Tabs */}
-      <div role="tablist" aria-label="Vistas de mantenimiento" className="flex items-center gap-1 border-b border-border overflow-x-auto">
-        {tabs.map((t) => {
-          const active = tab === t.key;
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(t.key)}
-              className={`shrink-0 flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
-                active
-                  ? "border-[#0088D1] text-[#0088D1]"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon size={15} /> {t.label}
-            </button>
-          );
-        })}
+      {/* Tabs — en celular la tira no entra: scrollea sola y avisa que hay más. */}
+      <div className="border-b border-border">
+        <HorizontalScrollHint fadeBg="from-background">
+          <div role="tablist" aria-label="Vistas de mantenimiento" className="flex w-max items-center gap-1">
+            {tabs.map((t) => {
+              const active = tab === t.key;
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(t.key)}
+                  className={`shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                    active
+                      ? "border-[#0088D1] text-[#0088D1]"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={15} /> {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </HorizontalScrollHint>
       </div>
 
       {tab === "servicios" && (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <Table>
+          {/* En celular la fila se convierte en tarjeta: la tabla de 7 columnas
+              no entra en 343px y este listado es el corazón de la pantalla. */}
+          <div className="md:hidden divide-y divide-border">
+            {servicios.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                Sin servicios cargados. Cargá el primero con el botón de arriba.
+              </p>
+            ) : (
+              servicios.map((s) => {
+                const detalle = (
+                  <>
+                    <span className="block text-sm font-medium text-foreground">{servicioLabel(s)}</span>
+                    <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      <span className="inline-flex items-baseline gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                          {s.unidad_tipo === "camion" ? "Cam" : "Acop"}
+                        </span>
+                        <span className="font-mono text-foreground">{s.unidad_patente}</span>
+                      </span>
+                      <span>{fmtFecha(s.fecha)}</span>
+                      {s.unidad_tipo !== "acoplado" && s.km_odometro != null && (
+                        <span>{fmtNum(s.km_odometro)} km</span>
+                      )}
+                    </span>
+                    {s.taller && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{s.taller}</span>}
+                  </>
+                );
+                return (
+                  <div key={s.id} className="flex items-start gap-3 p-4">
+                    {canWrite ? (
+                      <button type="button" onClick={() => setEditServicio(s)} className="min-w-0 flex-1 text-left">
+                        {detalle}
+                      </button>
+                    ) : (
+                      <div className="min-w-0 flex-1">{detalle}</div>
+                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className="text-sm font-medium text-foreground">{fmtMoneda(s.costo)}</span>
+                      {canWrite && (
+                        <div className="flex items-center gap-0.5 -mr-2">
+                          <button
+                            onClick={() => setEditServicio(s)}
+                            className="inline-flex size-9 items-center justify-center rounded text-muted-foreground active:bg-primary/10 active:text-primary"
+                            aria-label="Editar servicio"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => setConfirmDel({ tipo: "servicio", id: s.id, label: `${servicioLabel(s)} — ${s.unidad_patente}` })}
+                            className="inline-flex size-9 items-center justify-center rounded text-muted-foreground active:bg-[#EF4444]/10 active:text-[#EF4444]"
+                            aria-label="Borrar servicio"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <Table className="hidden md:table">
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-4 lg:pl-6">Fecha</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Servicio</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Taller</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">KM</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                {canWrite && <TableHead className="text-right pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
+                {canWrite && <TableHead className="text-right pr-4 lg:pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,7 +370,7 @@ export default function MantenimientoClient({
                     className={canWrite ? "group cursor-pointer" : undefined}
                     title={canWrite ? "Editar servicio" : undefined}
                   >
-                    <TableCell className="pl-6 text-muted-foreground">{fmtFecha(s.fecha)}</TableCell>
+                    <TableCell className="pl-4 lg:pl-6 text-muted-foreground">{fmtFecha(s.fecha)}</TableCell>
                     <TableCell className="font-medium">
                       <span className="inline-flex items-baseline gap-1.5">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
@@ -317,7 +385,7 @@ export default function MantenimientoClient({
                     <TableCell className="text-right text-muted-foreground">{s.unidad_tipo === "acoplado" ? "—" : fmtNum(s.km_odometro)}</TableCell>
                     <TableCell className="text-right font-medium">{fmtMoneda(s.costo)}</TableCell>
                     {canWrite && (
-                      <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="text-right pr-4 lg:pr-6" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-0.5">
                           <button
                             onClick={() => setEditServicio(s)}
@@ -349,13 +417,13 @@ export default function MantenimientoClient({
       {tab === "roturas" && (
         <div className="space-y-6">
           {chartData.length > 0 && (
-            <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
+            <div className="bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-5">
               <h2 className="text-foreground text-sm font-semibold mb-1">Roturas por chofer</h2>
               <p className="text-xs text-muted-foreground mb-4">Roturas en los últimos 6 meses (top 10)</p>
               <ResponsiveContainer width="100%" height={Math.max(160, chartData.length * 34)}>
-                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
+                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
-                  <YAxis type="category" dataKey="chofer" width={140} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                  <YAxis type="category" dataKey="chofer" width={110} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <Tooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
@@ -372,17 +440,83 @@ export default function MantenimientoClient({
           )}
 
           <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-            <Table>
+            {/* Tarjetas en celular (la tabla tiene 8 columnas). */}
+            <div className="md:hidden divide-y divide-border">
+              {roturas.length === 0 ? (
+                <p className="px-4 py-10 text-center text-sm text-muted-foreground">Sin roturas registradas.</p>
+              ) : (
+                roturas.map((r) => {
+                  const detalleTexto = [r.marca, r.estado_uso, r.posicion ?? r.observaciones].filter(Boolean).join(" · ");
+                  const detalle = (
+                    <>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-medium text-foreground">{tipoRoturaLabel(r.tipo)}</span>
+                        {r.gravedad === "grave" && (
+                          <span className="inline-flex items-center rounded-full bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                            Grave
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="text-foreground">
+                          {r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}
+                        </span>
+                        {r.unidad_patente && <span className="font-mono">{r.unidad_patente}</span>}
+                        <span>{fmtFecha(r.fecha)}</span>
+                      </span>
+                      {detalleTexto && <span className="mt-0.5 block text-xs text-muted-foreground">{detalleTexto}</span>}
+                    </>
+                  );
+                  return (
+                    <div key={r.id} className="flex items-start gap-3 p-4">
+                      {canWrite ? (
+                        <button type="button" onClick={() => setEditRotura(r)} className="min-w-0 flex-1 text-left">
+                          {detalle}
+                        </button>
+                      ) : (
+                        <div className="min-w-0 flex-1">{detalle}</div>
+                      )}
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="text-sm font-medium text-[#F59E0B]">
+                          {r.cantidad} <span className="text-xs font-normal text-muted-foreground">u.</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">{fmtMoneda(r.costo)}</span>
+                        {canWrite && (
+                          <div className="flex items-center gap-0.5 -mr-2">
+                            <button
+                              onClick={() => setEditRotura(r)}
+                              className="inline-flex size-9 items-center justify-center rounded text-muted-foreground active:bg-primary/10 active:text-primary"
+                              aria-label="Editar rotura"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDel({ tipo: "rotura", id: r.id, label: `Rotura ${r.unidad_patente ?? r.chofer_nombre ?? ""}` })}
+                              className="inline-flex size-9 items-center justify-center rounded text-muted-foreground active:bg-[#EF4444]/10 active:text-[#EF4444]"
+                              aria-label="Borrar rotura"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <Table className="hidden md:table">
               <TableHeader className="bg-muted/40">
                 <TableRow>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Fecha</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-4 lg:pl-6">Fecha</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Chofer</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Qué rompió</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Detalle</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Cantidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Costo</TableHead>
-                  {canWrite && <TableHead className="text-right pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
+                  {canWrite && <TableHead className="text-right pr-4 lg:pr-6 w-20"><span className="sr-only">Acciones</span></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -396,7 +530,7 @@ export default function MantenimientoClient({
                       className={canWrite ? "group cursor-pointer" : undefined}
                       title={canWrite ? "Editar rotura" : undefined}
                     >
-                      <TableCell className="pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
+                      <TableCell className="pl-4 lg:pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-1.5">
@@ -430,7 +564,7 @@ export default function MantenimientoClient({
                       <TableCell className="text-right font-medium text-[#F59E0B]">{r.cantidad}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{fmtMoneda(r.costo)}</TableCell>
                       {canWrite && (
-                        <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="text-right pr-4 lg:pr-6" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-0.5">
                             <button
                               onClick={() => setEditRotura(r)}
@@ -471,7 +605,7 @@ export default function MantenimientoClient({
 
       {tab === "alertas" && (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
+          <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-border">
             <h2 className="text-foreground text-sm font-semibold">Próximos services</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               Unidades con un próximo service cargado que vence pronto (≤30 días o ≤5.000 km).
@@ -480,11 +614,11 @@ export default function MantenimientoClient({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Estado</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-4 lg:pl-6">Estado</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Unidad</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Servicio</TableHead>
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Vence</TableHead>
-                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Falta</TableHead>
+                <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-4 lg:pr-6">Falta</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -493,7 +627,7 @@ export default function MantenimientoClient({
               ) : (
                 alertas.map((a, i) => (
                   <TableRow key={`${a.unidad_id}-${a.servicio}-${i}`}>
-                    <TableCell className="pl-6">
+                    <TableCell className="pl-4 lg:pl-6">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                           a.estado === "vencido"
@@ -520,7 +654,7 @@ export default function MantenimientoClient({
                         <span className="ml-1.5 text-xs">{fmtNum(a.proximo_service_km)} km</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right pr-6 text-muted-foreground">
+                    <TableCell className="text-right pr-4 lg:pr-6 text-muted-foreground">
                       {a.dias_restantes != null && (
                         <span>{a.dias_restantes < 0 ? `${Math.abs(a.dias_restantes)} d atrás` : `${a.dias_restantes} d`}</span>
                       )}
@@ -538,7 +672,7 @@ export default function MantenimientoClient({
 
       {tab === "reportes" && (
         <div className="space-y-6">
-          <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
+          <div className="bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-5">
             <h2 className="text-foreground text-sm font-semibold mb-1 inline-flex items-center gap-1.5">
               <DollarSign size={15} className="text-[#16A34A]" /> Costo de repuestos por chofer
             </h2>
@@ -552,9 +686,9 @@ export default function MantenimientoClient({
             ) : (
               <>
                 <ResponsiveContainer width="100%" height={Math.max(160, costoChartData.length * 34)}>
-                  <BarChart data={costoChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
+                  <BarChart data={costoChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
                     <XAxis type="number" tickFormatter={(v) => `$${Number(v).toLocaleString("es-AR")}`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
-                    <YAxis type="category" dataKey="chofer" width={140} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                    <YAxis type="category" dataKey="chofer" width={110} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                     <Tooltip
                       cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                       contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
@@ -571,17 +705,17 @@ export default function MantenimientoClient({
                   <Table>
                     <TableHeader className="bg-muted/40">
                       <TableRow>
-                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Chofer</TableHead>
+                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-4 lg:pl-6">Chofer</TableHead>
                         <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Roturas c/costo</TableHead>
-                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo total</TableHead>
+                        <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-4 lg:pr-6">Costo total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {costoPorChofer.map((c) => (
                         <TableRow key={c.chofer}>
-                          <TableCell className="pl-6 font-medium">{c.chofer}</TableCell>
+                          <TableCell className="pl-4 lg:pl-6 font-medium">{c.chofer}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{c.eventos}</TableCell>
-                          <TableCell className="text-right pr-6 font-medium text-[#16A34A]">{fmtMoneda(c.costo_total)}</TableCell>
+                          <TableCell className="text-right pr-4 lg:pr-6 font-medium text-[#16A34A]">{fmtMoneda(c.costo_total)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -591,7 +725,7 @@ export default function MantenimientoClient({
             )}
           </div>
 
-          <div className="bg-card rounded-[8px] border border-border shadow-sm p-5">
+          <div className="bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-5">
             <h2 className="text-foreground text-sm font-semibold mb-1">Visitas a taller por unidad</h2>
             <p className="text-xs text-muted-foreground mb-4">
               Reparaciones y gomería en los últimos 6 meses (top 10). Misma métrica que penaliza el ranking de choferes.
@@ -602,9 +736,9 @@ export default function MantenimientoClient({
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(160, tallerChartData.length * 34)}>
-                <BarChart data={tallerChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
+                <BarChart data={tallerChartData} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
-                  <YAxis type="category" dataKey="unidad" width={110} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                  <YAxis type="category" dataKey="unidad" width={96} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <Tooltip
                     cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                     contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)" }}
@@ -621,17 +755,17 @@ export default function MantenimientoClient({
           </div>
 
           <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
+            <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-border">
               <h2 className="text-foreground text-sm font-semibold">Mantenimiento por unidad</h2>
               <p className="text-xs text-muted-foreground mt-0.5">Acumulado de los últimos 6 meses.</p>
             </div>
             <Table>
               <TableHeader className="bg-muted/40">
                 <TableRow>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Unidad</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-4 lg:pl-6">Unidad</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Visitas a taller</TableHead>
                   <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right">Servicios</TableHead>
-                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Costo total</TableHead>
+                  <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-4 lg:pr-6">Costo total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -640,7 +774,7 @@ export default function MantenimientoClient({
                 ) : (
                   reportePorUnidad.map((u) => (
                     <TableRow key={`${u.unidad_tipo}-${u.unidad_patente}`}>
-                      <TableCell className="pl-6 font-medium">
+                      <TableCell className="pl-4 lg:pl-6 font-medium">
                         <span className="inline-flex items-baseline gap-1.5">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
                             {u.unidad_tipo === "camion" ? "Cam" : "Acop"}
@@ -651,7 +785,7 @@ export default function MantenimientoClient({
                       </TableCell>
                       <TableCell className="text-right font-medium text-[#0088D1]">{u.visitas_taller}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{u.servicios_total}</TableCell>
-                      <TableCell className="text-right pr-6 font-medium">{fmtMoneda(u.costo_total)}</TableCell>
+                      <TableCell className="text-right pr-4 lg:pr-6 font-medium">{fmtMoneda(u.costo_total)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -741,7 +875,7 @@ export default function MantenimientoClient({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.96 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed bottom-6 right-6 z-[100]"
+            className="fixed bottom-4 left-4 right-4 sm:left-auto sm:bottom-6 sm:right-6 z-[100] pb-safe"
           >
             <div className={`flex items-center gap-2.5 rounded-[10px] border px-4 py-3 shadow-lg text-sm font-medium ${
               toast.tone === "error"

@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
 import FiltrosFlotaPopover from "./FiltrosFlotaPopover";
-import CamionRow from "./CamionRow";
-import AcopladoRow from "./AcopladoRow";
+import CamionRow, { CamionCard } from "./CamionRow";
+import AcopladoRow, { AcopladoCard } from "./AcopladoRow";
 import CamionDetailSheet, { type TabId } from "./CamionDetailSheet";
 import AcopladoDetailSheet from "./AcopladoDetailSheet";
 import type { Camion, Acoplado } from "../types";
@@ -184,19 +184,39 @@ export default function CamionesTableClient({
   const total = esCamiones ? camiones.length : acoplados.length;
   const cols = esCamiones ? CAMION_COLS : ACOPLADO_COLS;
 
+  // Mensajes y handlers compartidos entre la tabla (desktop) y las tarjetas
+  // (celular): la presentación cambia, la lógica es una sola.
+  const vacioCamiones =
+    camiones.length === 0
+      ? "Sin camiones registrados"
+      : "Ningún camión coincide con los filtros";
+  const vacioAcoplados =
+    acoplados.length === 0
+      ? "Sin acoplados registrados"
+      : "Ningún acoplado coincide con la búsqueda";
+
+  const abrirCamion = (camion: Camion) => {
+    setSelectedCamion(camion);
+    setIsSheetOpen(true);
+  };
+  const abrirAcoplado = (ac: Acoplado) => {
+    setSelectedAcoplado(ac);
+    setIsAcopladoSheetOpen(true);
+  };
+
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       {/* Dos filas: identidad arriba, controles abajo. En una sola fila los
           controles no entraban y el título y el selector se partían en
           varias líneas. */}
-      <div className="space-y-3 bg-card px-6 py-5">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3">
+      <div className="space-y-3 bg-card px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="rounded-lg bg-[#E1F5FE] p-2 text-primary">
               {esCamiones ? <Truck size={20} /> : <Container size={20} />}
             </div>
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-foreground">
+              <h2 className="text-base font-bold text-foreground sm:text-lg">
                 {esCamiones ? "Chasis" : "Acoplados"}
               </h2>
               <p className="whitespace-nowrap text-xs font-medium text-muted-foreground">
@@ -208,7 +228,7 @@ export default function CamionesTableClient({
                       setBusqueda("");
                       setFiltros(FILTROS_VACIOS);
                     }}
-                    className="ml-2 text-primary hover:underline"
+                    className="ml-2 -my-1 px-1 py-1 text-primary hover:underline"
                   >
                     ver todas
                   </button>
@@ -217,11 +237,13 @@ export default function CamionesTableClient({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 rounded-lg bg-muted p-1">
+          {/* El selector chasis/acoplados va a ancho completo en celular: es la
+              decisión principal de la pantalla y con el dedo hay que pegarle. */}
+          <div className="flex w-full shrink-0 items-center gap-1 rounded-lg bg-muted p-1 sm:w-auto">
             <button
               type="button"
               onClick={() => setVista("camiones")}
-              className={`h-8 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${
+              className={`h-9 flex-1 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all sm:h-8 sm:flex-none ${
                 esCamiones
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -232,7 +254,7 @@ export default function CamionesTableClient({
             <button
               type="button"
               onClick={() => setVista("acoplados")}
-              className={`h-8 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all ${
+              className={`h-9 flex-1 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-all sm:h-8 sm:flex-none ${
                 !esCamiones
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -245,7 +267,7 @@ export default function CamionesTableClient({
 
         <div className="flex flex-wrap items-center gap-2">
           {esCamiones && (
-            <div className="relative shrink-0">
+            <div className="relative w-full sm:w-auto sm:shrink-0">
               <Building2
                 size={14}
                 className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70"
@@ -258,7 +280,7 @@ export default function CamionesTableClient({
                   label: `${f.label} (${conteoPorTerc[f.value]})`,
                 }))}
                 searchable={false}
-                triggerClassName="h-10 min-w-[210px] pl-9"
+                triggerClassName="h-10 w-full pl-9 sm:min-w-[210px]"
               />
             </div>
           )}
@@ -275,7 +297,7 @@ export default function CamionesTableClient({
 
           {/* Sin orden explícito la lista salía como vinieron de la base y las
               marcas quedaban mezcladas. Por defecto agrupa por marca. */}
-          <div className="relative shrink-0">
+          <div className="relative min-w-0 flex-1 sm:flex-none sm:shrink-0">
             <ArrowDownWideNarrow
               size={14}
               className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70"
@@ -285,12 +307,12 @@ export default function CamionesTableClient({
               onValueChange={(v) => setOrden(v as OrdenFlota)}
               options={ORDENES.map((o) => ({ id: o, label: ORDEN_LABEL[o] }))}
               searchable={false}
-              triggerClassName="h-10 min-w-[190px] pl-9"
+              triggerClassName="h-10 w-full pl-9 sm:min-w-[190px]"
             />
           </div>
 
           {/* Búsqueda: mira todo lo que se ve en la fila, no sólo la patente. */}
-          <div className="relative min-w-[16rem] flex-1">
+          <div className="relative w-full flex-1 sm:min-w-[16rem]">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70"
@@ -306,64 +328,70 @@ export default function CamionesTableClient({
         </div>
       </div>
 
-      <Table>
-        <TableHeader className="bg-muted/40">
-          <TableRow>
-            {cols.map((col) => (
-              <TableHead
-                key={col}
-                className={`text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 ${col === "Patente" ? "pl-6" : ""}`}
-              >
-                {col}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {esCamiones ? (
-            camionesFiltrados.length === 0 ? (
-              <EmptyTableRow
-                message={
-                  camiones.length === 0
-                    ? "Sin camiones registrados"
-                    : "Ningún camión coincide con los filtros"
-                }
-              />
+      {/* Desde md, la tabla de siempre (con scroll horizontal propio: 8
+          columnas no entran en una tablet angosta). */}
+      <div className="hidden md:block">
+        <Table className="min-w-[900px]">
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              {cols.map((col) => (
+                <TableHead
+                  key={col}
+                  className={`text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 ${col === "Patente" ? "pl-6" : ""}`}
+                >
+                  {col}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {esCamiones ? (
+              camionesFiltrados.length === 0 ? (
+                <EmptyTableRow message={vacioCamiones} />
+              ) : (
+                camionesFiltrados.map((c) => (
+                  <CamionRow
+                    key={c.id}
+                    camion={c}
+                    tiposServicio={tiposServicio}
+                    onSelect={abrirCamion}
+                  />
+                ))
+              )
+            ) : acopladosFiltrados.length === 0 ? (
+              <EmptyTableRow message={vacioAcoplados} />
             ) : (
-              camionesFiltrados.map((c) => (
-                <CamionRow
-                  key={c.id}
-                  camion={c}
-                  tiposServicio={tiposServicio}
-                  onSelect={(camion) => {
-                    setSelectedCamion(camion);
-                    setIsSheetOpen(true);
-                  }}
-                />
+              acopladosFiltrados.map((a) => (
+                <AcopladoRow key={a.id} acoplado={a} onSelect={abrirAcoplado} />
               ))
-            )
-          ) : acopladosFiltrados.length === 0 ? (
-            <EmptyTableRow
-              message={
-                acoplados.length === 0
-                  ? "Sin acoplados registrados"
-                  : "Ningún acoplado coincide con la búsqueda"
-              }
-            />
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* En celular la fila es una tarjeta: la flota es lo que se consulta
+          desde el teléfono y una tabla de 8 columnas ahí no se lee. */}
+      <div className="divide-y divide-[#F1F5F9] border-t border-border md:hidden">
+        {esCamiones ? (
+          camionesFiltrados.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              {vacioCamiones}
+            </p>
           ) : (
-            acopladosFiltrados.map((a) => (
-              <AcopladoRow
-                key={a.id}
-                acoplado={a}
-                onSelect={(ac) => {
-                  setSelectedAcoplado(ac);
-                  setIsAcopladoSheetOpen(true);
-                }}
-              />
+            camionesFiltrados.map((c) => (
+              <CamionCard key={c.id} camion={c} onSelect={abrirCamion} />
             ))
-          )}
-        </TableBody>
-      </Table>
+          )
+        ) : acopladosFiltrados.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            {vacioAcoplados}
+          </p>
+        ) : (
+          acopladosFiltrados.map((a) => (
+            <AcopladoCard key={a.id} acoplado={a} onSelect={abrirAcoplado} />
+          ))
+        )}
+      </div>
 
       {selectedCamion && (
         <CamionDetailSheet

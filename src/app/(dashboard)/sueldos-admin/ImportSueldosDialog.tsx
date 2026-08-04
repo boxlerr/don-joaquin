@@ -130,7 +130,7 @@ export default function ImportSueldosDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet size={18} className="text-primary" />
@@ -206,8 +206,10 @@ export default function ImportSueldosDialog({
                 {preview.matches.map((m) => {
                   const val = asignaciones[m.nombreExcel] ?? "";
                   return (
-                    <div key={m.nombreExcel} className="flex items-center gap-3 px-3 py-2">
-                      <span className="w-28 shrink-0 font-mono text-xs font-medium text-foreground">
+                    // En celular el nombre del Excel va en su propio renglón y
+                    // abajo el legajo elegido: los tres en fila no entran en 375px.
+                    <div key={m.nombreExcel} className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2">
+                      <span className="w-full sm:w-28 shrink-0 font-mono text-xs font-medium text-foreground">
                         {m.nombreExcel}
                       </span>
                       <select
@@ -215,7 +217,7 @@ export default function ImportSueldosDialog({
                         onChange={(e) =>
                           setAsignaciones((prev) => ({ ...prev, [m.nombreExcel]: e.target.value }))
                         }
-                        className="h-8 flex-1 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                        className="h-9 sm:h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-xs text-foreground focus:border-primary focus:outline-none"
                       >
                         <option value="">No cargar</option>
                         {preview.roster.map((r) => (

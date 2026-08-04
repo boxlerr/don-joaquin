@@ -20,9 +20,16 @@ const PUNTO: Record<EstadoKpi["estado"], string> = {
   no_obtenible: "bg-muted-foreground/30",
 };
 
-/** Cuerpo del número: baja de a poco para que un monto largo entre entero. */
+/**
+ * Cuerpo del número: baja de a poco para que un monto largo entre entero.
+ * En celular las tarjetas van de a dos (≈165px de ancho), así que cada escalón
+ * arranca un par de puntos más abajo y recién en `sm` toma el tamaño de siempre.
+ */
 const tamValor = (v: string) =>
-  v.length > 13 ? "text-[18px]" : v.length > 11 ? "text-[21px]" : v.length > 9 ? "text-[23px]" : "text-[26px]";
+  v.length > 13 ? "text-[15px] sm:text-[18px]"
+    : v.length > 11 ? "text-[17px] sm:text-[21px]"
+      : v.length > 9 ? "text-[19px] sm:text-[23px]"
+        : "text-[22px] sm:text-[26px]";
 
 export default function KpiCard({
   def, valor, sub, dPrev, dYoY, dCmp, etiquetaCmp, serie, onClick, activa, origen,
@@ -59,24 +66,26 @@ export default function KpiCard({
           onClick?.();
         }
       }}
-      className={`group relative flex flex-col rounded-lg border bg-card px-4 py-3.5 shadow-sm transition-all ${
+      className={`group relative flex flex-col rounded-lg border bg-card px-3 py-3 shadow-sm transition-all sm:px-4 sm:py-3.5 ${
         activa ? "border-primary ring-1 ring-primary/30" : "border-border"
       } ${clickeable ? "cursor-pointer hover:border-primary/50 hover:shadow-md" : ""}`}
       title={clickeable ? `Ver detalle de ${def.label}` : undefined}
     >
       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        <Icon size={13} className="shrink-0" /> {def.label}
+        <Icon size={13} className="shrink-0" /> <span className="truncate">{def.label}</span>
       </div>
 
-      <div className="mt-1.5 flex items-end justify-between gap-2">
+      {/* En celular el sparkline baja abajo del número: al lado, un monto de
+          diez cifras lo empujaba fuera de la tarjeta (media pantalla de ancho). */}
+      <div className="mt-1.5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
         <div className="min-w-0">
           {/* Los montos van completos (no "$1,51 MM"): el número achica el
               cuerpo si es largo en vez de abreviarse. */}
           <p className={`${tamValor(valor)} font-bold font-mono text-foreground leading-none tracking-tight`}>{valor}</p>
           {sub && <p className="mt-1 text-[11px] text-muted-foreground truncate" title={sub}>{sub}</p>}
         </div>
-        <div className="shrink-0 text-primary/60">
-          <Sparkline valores={serie} width={72} height={26} />
+        <div className="text-primary/60 sm:shrink-0">
+          <Sparkline valores={serie} width={72} height={26} className="h-[26px] w-full max-w-[72px]" />
         </div>
       </div>
 

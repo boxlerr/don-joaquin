@@ -22,7 +22,7 @@ export default async function LoginPage({
       <LoginDecoration />
 
       {/* Mitad Derecha: Formulario */}
-      <div className="flex w-full flex-col justify-center px-8 lg:w-[45%] xl:w-[40%] xl:px-24">
+      <div className="flex w-full flex-col justify-center px-5 sm:px-8 lg:w-[45%] xl:w-[40%] xl:px-24">
         <div className="mx-auto w-full max-w-md">
           {/* Títulos */}
           <div className="mb-8">

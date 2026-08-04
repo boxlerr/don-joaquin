@@ -218,14 +218,14 @@ export default function RequisitosTab({ clienteId }: { clienteId: string }) {
                     type="button"
                     onClick={() => handleDelete(r.id, r.descripcion)}
                     disabled={pending}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
+                    className="shrink-0 inline-flex items-center justify-center max-md:size-9 p-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
                     title="Eliminar requisito"
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1 mt-2 pl-12">
+                <div className="flex flex-wrap items-center gap-1 mt-2 pl-0 sm:pl-12">
                   {(["pendiente", "cumplido", "vencido"] as RequisitoEstado[]).map((e) => {
                     const isCurrent = r.estado === e;
                     const m = ESTADO_META[e];
@@ -235,7 +235,7 @@ export default function RequisitosTab({ clienteId }: { clienteId: string }) {
                         type="button"
                         disabled={pending || isCurrent}
                         onClick={() => handleSetEstado(r.id, e)}
-                        className={`text-[10px] px-2 h-6 rounded uppercase tracking-wide font-semibold transition-colors ${
+                        className={`text-[10px] px-2 h-9 sm:h-6 rounded uppercase tracking-wide font-semibold transition-colors ${
                           isCurrent
                             ? `${m.bg} ${m.text} border ${m.border}`
                             : "text-muted-foreground/70 hover:bg-muted hover:text-muted-foreground"
@@ -285,8 +285,8 @@ function AddRequisitoDialog({
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,calc(100vw-2rem))] max-h-[90dvh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-5 pt-5 pb-3 border-b border-border">
             <div>
               <Dialog.Title className="text-foreground text-base font-semibold">
                 Nuevo requisito
@@ -299,7 +299,7 @@ function AddRequisitoDialog({
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+                  className="size-9 md:size-7 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -311,7 +311,7 @@ function AddRequisitoDialog({
           <form
             action={formAction}
             key={open ? "open" : "closed"}
-            className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
+            className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3"
           >
             <input type="hidden" name="cliente_id" value={clienteId} />
 
@@ -322,7 +322,7 @@ function AddRequisitoDialog({
                 defaultValue="otro"
                 options={TIPOS.map((t) => ({ id: t.value, label: t.label }))}
                 searchable={false}
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-9 max-md:h-10 w-full"
               />
             </div>
 
@@ -333,7 +333,7 @@ function AddRequisitoDialog({
               error={state?.fieldErrors?.descripcion}
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                   Frecuencia
@@ -343,13 +343,13 @@ function AddRequisitoDialog({
                   defaultValue=""
                   options={FRECUENCIAS.map((f) => ({ id: f.value, label: f.label }))}
                   searchable={false}
-                  triggerClassName="h-9 w-full"
+                  triggerClassName="h-9 max-md:h-10 w-full"
                 />
               </div>
               <Field label="Próxima fecha" name="proxima_fecha" type="date" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field
                 label="Formato requerido"
                 name="formato_requerido"
@@ -369,7 +369,7 @@ function AddRequisitoDialog({
                   { id: "vencido", label: "Vencido" },
                 ]}
                 searchable={false}
-                triggerClassName="h-9 w-full"
+                triggerClassName="h-9 max-md:h-10 w-full"
               />
             </div>
 
@@ -390,8 +390,14 @@ function AddRequisitoDialog({
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => setOpen(false)}
+              >
                 Cancelar
               </Button>
               <SubmitButton />
@@ -436,7 +442,7 @@ function Field({
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="brand" size="sm" disabled={pending}>
+    <Button type="submit" variant="brand" size="sm" className="w-full sm:w-auto" disabled={pending}>
       {pending ? "Guardando..." : "Guardar requisito"}
     </Button>
   );

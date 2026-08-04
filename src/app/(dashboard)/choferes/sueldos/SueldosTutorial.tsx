@@ -85,7 +85,7 @@ export default function SueldosTutorial({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-xl p-0 gap-0 overflow-hidden" showCloseButton>
         {/* Escenario de la ilustración */}
-        <div className="relative h-52 bg-gradient-to-br from-primary/5 via-muted/30 to-transparent border-b border-border overflow-hidden">
+        <div className="relative h-44 sm:h-52 bg-gradient-to-br from-primary/5 via-muted/30 to-transparent border-b border-border overflow-hidden">
           <div className="absolute left-4 top-3.5 z-10 flex items-center gap-1.5 text-[11px] font-semibold text-primary">
             <Sparkles size={13} /> Guía rápida
           </div>
@@ -97,7 +97,7 @@ export default function SueldosTutorial({
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: dir * -40 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="absolute inset-0 flex items-center justify-center px-6"
+              className="absolute inset-0 flex items-center justify-center px-3 sm:px-6"
             >
               {paso.ilustracion}
             </motion.div>
@@ -106,7 +106,7 @@ export default function SueldosTutorial({
 
         {/* Texto del paso — alto fijo para que los controles de abajo (dots y
             botón Siguiente) queden siempre en la misma posición entre pasos. */}
-        <div className="px-6 pt-5 pb-2 h-[132px] overflow-y-auto no-scrollbar">
+        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-2 h-[148px] sm:h-[132px] overflow-y-auto no-scrollbar">
           <AnimatePresence mode="wait" custom={dir}>
             <motion.div
               key={paso.id}
@@ -123,7 +123,7 @@ export default function SueldosTutorial({
         </div>
 
         {/* Controles */}
-        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/40 px-6 py-3.5">
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 sm:px-6 py-3 sm:py-3.5">
           <div className="flex items-center gap-1.5">
             {pasos.map((p, idx) => (
               <button key={p.id} type="button" aria-label={`Ir al paso ${idx + 1}`}
@@ -158,7 +158,7 @@ function IlustracionPestanas({ canChoferes, canAdmin }: { canChoferes: boolean; 
     ] : []),
   ];
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 sm:gap-3">
       {tabs.map((t, idx) => {
         const Icon = t.icon;
         return (
@@ -166,9 +166,9 @@ function IlustracionPestanas({ canChoferes, canAdmin }: { canChoferes: boolean; 
             initial={{ opacity: 0, y: 14, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ delay: 0.1 + idx * 0.12, type: "spring", stiffness: 260, damping: 20 }}
-            className={`flex flex-col items-center justify-center gap-1.5 w-24 h-24 rounded-xl border shadow-sm bg-card`}
+            className={`flex flex-col items-center justify-center gap-1.5 w-20 h-20 sm:w-24 sm:h-24 rounded-xl border shadow-sm bg-card`}
           >
-            <span className={`h-10 w-10 rounded-full flex items-center justify-center border ${t.color}`}><Icon size={18} /></span>
+            <span className={`h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center border ${t.color}`}><Icon size={18} /></span>
             <span className="text-[11px] font-semibold text-foreground text-center px-1 leading-tight">{t.label}</span>
           </motion.div>
         );
@@ -211,12 +211,12 @@ function IlustracionPlanilla() {
     { l: "Sáb.", v: "68k" },
   ];
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
       {cols.map((c, idx) => (
         <motion.div key={c.l}
           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 + idx * 0.09 }}
-          className="flex flex-col items-center justify-center w-16 h-16 rounded-lg border border-border bg-card shadow-sm">
+          className="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-lg border border-border bg-card shadow-sm">
           <span className="text-[9px] uppercase text-muted-foreground">{c.l}</span>
           <span className="text-xs font-mono font-semibold text-foreground">{c.v}</span>
         </motion.div>
@@ -226,7 +226,7 @@ function IlustracionPlanilla() {
       <motion.div
         initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.6, type: "spring", stiffness: 240 }}
-        className="flex flex-col items-center justify-center w-20 h-20 rounded-xl border-2 border-primary/40 bg-primary/5 shadow-sm">
+        className="flex flex-col items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 border-primary/40 bg-primary/5 shadow-sm">
         <span className="text-[9px] uppercase text-primary font-semibold">Total</span>
         <span className="text-sm font-mono font-bold text-primary">3,5M</span>
       </motion.div>
@@ -301,7 +301,7 @@ const HOJA_COLOR: Record<string, string> = {
 function IlustracionExport({ hojas }: { hojas: string[] }) {
   const items = hojas.map((l) => ({ l, c: HOJA_COLOR[l] ?? "bg-muted text-foreground" }));
   return (
-    <div className="relative flex items-center gap-5">
+    <div className="relative flex items-center gap-3 sm:gap-5">
       <div className="relative w-28 h-24">
         {items.map((h, idx) => (
           <motion.div key={h.l}

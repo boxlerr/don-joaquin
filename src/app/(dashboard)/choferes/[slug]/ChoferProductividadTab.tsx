@@ -108,14 +108,14 @@ export default function ChoferProductividadTab({
   return (
     <div className="space-y-6">
       {/* Score operativo + ranking */}
-      <div className={`rounded-[8px] border px-5 py-4 flex items-start justify-between gap-4 ${sc.bg} ${sc.border}`}>
-        <div className="flex-1">
+      <div className={`rounded-[8px] border px-4 py-3.5 sm:px-5 sm:py-4 flex items-start justify-between gap-3 sm:gap-4 ${sc.bg} ${sc.border}`}>
+        <div className="min-w-0 flex-1">
           <p className="text-xs uppercase tracking-wide text-muted-foreground/70 mb-1">
             Score operativo — {periodoLabel}
           </p>
           {kpis.score !== null ? (
             <div className="flex items-baseline gap-3">
-              <span className={`text-4xl font-bold ${sc.color}`}>{kpis.score}</span>
+              <span className={`text-3xl sm:text-4xl font-bold ${sc.color}`}>{kpis.score}</span>
               <span className="text-sm text-muted-foreground">/ 100</span>
             </div>
           ) : (
@@ -137,8 +137,8 @@ export default function ChoferProductividadTab({
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          <div className={`text-sm font-semibold px-3 py-1.5 rounded-md border ${sc.color} ${sc.bg} ${sc.border}`}>
+        <div className="flex flex-col items-end gap-2 shrink-0 text-right">
+          <div className={`text-xs sm:text-sm font-semibold px-2.5 py-1.5 sm:px-3 rounded-md border ${sc.color} ${sc.bg} ${sc.border}`}>
             {sc.label}
           </div>
           {is_admin && (
@@ -153,7 +153,7 @@ export default function ChoferProductividadTab({
           Indicadores — {periodoLabel}
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
           <KPI label="Viajes" value={String(kpis.viajes_count)} color="text-primary" />
           <KPI
             label="Km totales"
@@ -250,7 +250,7 @@ export default function ChoferProductividadTab({
         </div>
 
         {(kpis.facturacion_usd > 0 || kpis.adelantos_viaticos_usd > 0) && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
             {kpis.facturacion_usd > 0 && (
               <KPI
                 label="Facturación USD"
@@ -293,17 +293,17 @@ export default function ChoferProductividadTab({
 
       {/* Gráfico evolución 6 meses */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Activity size={14} className="text-muted-foreground" />
             Evolución — últimos 6 meses
           </h3>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {(["km", "toneladas", "facturacion"] as ChartMetric[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setChartMetric(m)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
+                className={`min-h-9 md:min-h-0 px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
                   chartMetric === m
                     ? "bg-primary text-white"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -324,7 +324,7 @@ export default function ChoferProductividadTab({
             Sin datos en los últimos 6 meses.
           </div>
         ) : (
-          <div className="rounded-[8px] border border-border bg-card p-4">
+          <div className="rounded-[8px] border border-border bg-card p-3 sm:p-4">
             <p className="text-[11px] text-muted-foreground/70 mb-3 uppercase tracking-wide">
               {chartMetric === "km" ? "KM recorridos por mes" : chartMetric === "toneladas" ? "Toneladas transportadas por mes" : "Facturación ARS por mes"}
             </p>
@@ -388,9 +388,11 @@ export default function ChoferProductividadTab({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
+            {/* Los rótulos de viajes se alinean con las barras: en celular el
+                gap grande los desbordaba y quedaban corridos del gráfico. */}
+            <div className="flex items-center gap-1 sm:gap-4 mt-3 pt-3 border-t border-border">
               {evolucion.map((m) => (
-                <div key={m.mes} className="text-center flex-1">
+                <div key={m.mes} className="min-w-0 flex-1 text-center">
                   <p className={`text-[10px] font-medium ${m.mes === mesActual ? "text-primary" : "text-muted-foreground/70"}`}>
                     {m.viajes} viaje{m.viajes !== 1 ? "s" : ""}
                   </p>
@@ -419,9 +421,9 @@ export default function ChoferProductividadTab({
             {historial.map((h) => (
               <li
                 key={h.id}
-                className="flex items-center gap-3 rounded-[8px] border border-border bg-card px-4 py-3"
+                className="flex items-center gap-3 rounded-[8px] border border-border bg-card px-3 py-2.5 sm:px-4 sm:py-3"
               >
-                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-muted text-muted-foreground">
+                <div className="flex shrink-0 items-center justify-center w-8 h-8 rounded-md bg-muted text-muted-foreground">
                   <Truck size={16} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -437,7 +439,7 @@ export default function ChoferProductividadTab({
                     <p className="text-xs text-muted-foreground truncate">{h.motivo_cambio}</p>
                   )}
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
+                <div className="shrink-0 text-right text-xs text-muted-foreground">
                   <p>Desde {fmtFecha(h.desde)}</p>
                   <p>
                     {h.hasta ? `Hasta ${fmtFecha(h.hasta)}` : (
@@ -461,14 +463,18 @@ export default function ChoferProductividadTab({
           </span>
         </h3>
 
+        {/* Tabla de consulta: scrollea adentro de su caja (la primitiva Table ya
+            trae overflow-x-auto) y la fecha queda fija como referencia. */}
         <div className="rounded-[8px] border border-border overflow-hidden">
-          <Table>
+          <Table className="min-w-[420px]">
             <TableHeader className="bg-muted/40">
               <TableRow>
-                {["Fecha", "Viaje", "Moneda", "Monto"].map((col) => (
+                {["Fecha", "Viaje", "Moneda", "Monto"].map((col, i) => (
                   <TableHead
                     key={col}
-                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                    className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                      i === 0 ? "sticky left-0 z-10 bg-muted" : ""
+                    }`}
                   >
                     {col}
                   </TableHead>
@@ -481,7 +487,7 @@ export default function ChoferProductividadTab({
               ) : (
                 adelantos.map((a) => (
                   <TableRow key={a.id} className="hover:bg-muted/40">
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="sticky left-0 z-10 bg-card text-sm text-muted-foreground">
                       {fmtFecha(a.fecha_entrega)}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-primary">
@@ -512,13 +518,15 @@ export default function ChoferProductividadTab({
         </h3>
 
         <div className="rounded-[8px] border border-border overflow-hidden">
-          <Table>
+          <Table className="min-w-[600px]">
             <TableHeader className="bg-muted/40">
               <TableRow>
-                {["Fecha", "Unidad", "Posición / notas", "Cantidad", "Costo"].map((col) => (
+                {["Fecha", "Unidad", "Posición / notas", "Cantidad", "Costo"].map((col, i) => (
                   <TableHead
                     key={col}
-                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                    className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                      i === 0 ? "sticky left-0 z-10 bg-muted" : ""
+                    }`}
                   >
                     {col}
                   </TableHead>
@@ -531,7 +539,7 @@ export default function ChoferProductividadTab({
               ) : (
                 roturas.map((r) => (
                   <TableRow key={r.id} className="hover:bg-muted/40">
-                    <TableCell className="text-sm text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-card text-sm text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
                     <TableCell className="text-sm">
                       {r.unidad_patente ? (
                         <span className="inline-flex items-baseline gap-1.5">
@@ -578,9 +586,11 @@ function KPI({
   color: string;
 }) {
   return (
-    <div className="bg-card rounded-[8px] border border-border px-4 py-3">
+    <div className="bg-card rounded-[8px] border border-border px-3 py-2.5 sm:px-4 sm:py-3">
       <p className="text-xs text-muted-foreground/70 mb-1">{label}</p>
-      <p className={`text-lg font-bold ${color}`}>{value}</p>
+      {/* Los importes se van de la tarjeta en celular: bajan un escalón y, si
+          aun así no entran, cortan en vez de empujar la grilla. */}
+      <p className={`text-base sm:text-lg font-bold break-words tabular-nums ${color}`}>{value}</p>
       {sub && (
         <p className="text-xs text-muted-foreground/70 mt-0.5">{sub}</p>
       )}
@@ -642,7 +652,7 @@ function ConfigPesosDialog({
   }
 
   const triggerBtn = (
-    <button className="flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors">
+    <button className="flex min-h-9 items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors md:min-h-0">
       <Settings size={11} />
       Configurar pesos
     </button>
@@ -651,7 +661,9 @@ function ConfigPesosDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger render={triggerBtn} />
-      <DialogContent className="max-w-sm">
+      {/* El max-w va con prefijo: sin él pisa el ancho seguro de la primitiva
+          y el diálogo se corta en celular. */}
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-base">Pesos del score operativo</DialogTitle>
         </DialogHeader>
@@ -682,7 +694,7 @@ function ConfigPesosDialog({
               value={form.peso_vacios_alto}
               onChange={handleChange}
             />
-            <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
               {([
                 ["umbral_vacios_bajo", "Umbral bajo (%)"],
                 ["umbral_vacios_medio", "Umbral medio (%)"],
@@ -697,7 +709,7 @@ function ConfigPesosDialog({
                     step={1}
                     value={form[field]}
                     onChange={(e) => handleChange(field, e.target.value)}
-                    className="w-full text-sm border border-border rounded-[8px] px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full min-w-0 text-sm border border-border rounded-[8px] px-2 py-2 sm:py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
               ))}
@@ -733,11 +745,11 @@ function ConfigPesosDialog({
           <p className="text-xs text-[#EF4444]">{error}</p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={isPending}>
+        <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={isPending}>
+          <Button size="sm" className="w-full sm:w-auto" onClick={handleSave} disabled={isPending}>
             {isPending ? "Guardando…" : "Guardar"}
           </Button>
         </div>
@@ -767,7 +779,7 @@ function PesoRow({
         step={0.5}
         value={value}
         onChange={(e) => onChange(field as keyof Omit<PesosScore, "id">, e.target.value)}
-        className="w-16 text-sm text-right border border-border rounded-[8px] px-2 py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+        className="w-20 sm:w-16 shrink-0 text-sm text-right border border-border rounded-[8px] px-2 py-2 sm:py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
       />
     </div>
   );

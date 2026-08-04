@@ -1,4 +1,5 @@
 import { ExcelExportService, type ExcelColumn } from "@/shared/services/excel-export.service";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 
 export interface ViajeExportable {
   id?: string;
@@ -19,6 +20,7 @@ export interface ViajeExportable {
   observaciones?: string | null;
   notas?: string | null;
   nro_viaje_ypf?: string | null;
+  ruta_via?: string | null;
   // Permitir flexibilidad para objetos anidados o resultados de joins directos
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
@@ -134,6 +136,14 @@ export function exportViajesToExcel(
         return match ? match[1].trim() : "—";
       },
       width: 20,
+    },
+    // Va pegada al destino: la vía es un atributo del trayecto y de ella dependen
+    // los km. A diferencia del resto de las columnas, sin vía va cadena vacía y no
+    // "—", porque el guion ensucia los filtros de Excel.
+    {
+      header: "Ruta",
+      key: (v) => (v.ruta_via && RUTA_VIA_LABELS[v.ruta_via]) || "",
+      width: 10,
     },
     // Igual que la planilla del cliente: km con carga y km vacíos separados.
     {

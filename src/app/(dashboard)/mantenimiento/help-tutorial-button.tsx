@@ -100,7 +100,7 @@ function MockTabs() {
           <div className="text-base font-black text-[#EF4444] leading-tight">5</div>
         </div>
       </div>
-      <div className="flex items-center gap-1 border-b border-border overflow-hidden">
+      <div className="flex items-center gap-1 border-b border-border overflow-x-auto no-scrollbar">
         {tabs.map((t) => (
           <span
             key={t.label}
@@ -523,7 +523,7 @@ function MockExport() {
           <FileSpreadsheet size={12} className="text-[#10B981]" /> Exportar <ChevronDown size={11} className="text-muted-foreground" />
         </div>
       </div>
-      <div className="ml-auto w-[210px] rounded-lg border border-border bg-card overflow-hidden shadow-sm">
+      <div className="ml-auto w-full max-w-[210px] rounded-lg border border-border bg-card overflow-hidden shadow-sm">
         <div className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-semibold text-foreground">
           <Layers size={12} className="text-primary" /> Todo junto (Excel completo)
         </div>

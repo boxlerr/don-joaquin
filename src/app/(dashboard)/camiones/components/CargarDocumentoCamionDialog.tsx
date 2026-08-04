@@ -234,7 +234,7 @@ export default function CargarDocumentoCamionDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Número</Label>
               <Input placeholder="Opcional" value={numero} onChange={(e) => setNumero(e.target.value)} disabled={loading} />

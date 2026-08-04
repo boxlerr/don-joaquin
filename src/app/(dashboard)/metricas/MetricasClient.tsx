@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { coincideBusqueda } from "@/lib/texto";
 import {
   BarChart3, Search, Table2, ChartBarBig, ChartLine, ExternalLink,
@@ -144,8 +145,9 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
       {data.esLive && <LiveBanner mes={data.mes} esMesActual={esMesActual} info={data.liveInfo} />}
       <CoberturaBanner data={data} />
 
-      {/* KPIs con tendencia */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+      {/* KPIs con tendencia. En celular quedan de a 2: la tarjeta achica el
+          número y el sparkline se escala para que entren en media pantalla. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-4">
         {KPIS.map((k) => {
           const { dPrev, dYoY, dCmp } = kpiDeltas(k);
           return (
@@ -169,21 +171,27 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
 
       <ProcedenciaPanel data={data} />
 
-      {/* Pestañas */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
-          {TABS.map((tb) => (
-            <button
-              key={tb.id}
-              type="button"
-              onClick={() => setTab(tb.id)}
-              className={`h-8 rounded-md px-3 text-xs font-medium transition-all ${
-                tab === tb.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tb.label}
-            </button>
-          ))}
+      {/* Pestañas. Son 8 y no entran en 375px: en celular scrollean de costado
+          en una sola tira (con las flechitas de HorizontalScrollHint) en vez de
+          apilarse en tres renglones. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+        <div className="w-full min-w-0 sm:w-auto sm:max-w-full">
+          <HorizontalScrollHint className="rounded-lg bg-muted" fadeBg="from-muted">
+            <div className="flex w-max items-center gap-1 p-1">
+              {TABS.map((tb) => (
+                <button
+                  key={tb.id}
+                  type="button"
+                  onClick={() => setTab(tb.id)}
+                  className={`h-9 shrink-0 whitespace-nowrap rounded-md px-3 text-xs font-medium transition-all sm:h-8 ${
+                    tab === tb.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tb.label}
+                </button>
+              ))}
+            </div>
+          </HorizontalScrollHint>
         </div>
         <CompararSelector
           compare={data.comparacion ? data.comparacion.mes.slice(0, 7) : null}
@@ -195,8 +203,8 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
 
       {/* Toolbar de filtros (métricas y evolución) */}
       {tab !== "resumen" && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
             {([
               { id: "todas", label: `Todas (${data.choferes.length})` },
               { id: "escalables", label: `Escalables (${nEscalables})` },
@@ -206,7 +214,7 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
                 key={f.id}
                 type="button"
                 onClick={() => setFlota(f.id)}
-                className={`h-7 rounded-md px-2.5 text-xs font-medium transition-all ${
+                className={`h-9 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-all sm:h-7 ${
                   flota === f.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -217,16 +225,16 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
 
           {defActiva && (
             <>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar chofer…"
-                  className="h-8 w-44 pl-8 text-xs"
+                  className="h-8 w-full pl-8 text-xs sm:w-44"
                 />
               </div>
-              <div className="ml-auto flex items-center gap-1 rounded-lg bg-muted p-1">
+              <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1 sm:ml-auto">
                 {([
                   { id: "tabla", label: "Tabla", icon: Table2 },
                   { id: "grafico", label: "Gráfico", icon: ChartBarBig },
@@ -238,11 +246,11 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
                       key={v.id}
                       type="button"
                       onClick={() => setVista(v.id)}
-                      className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-all ${
+                      className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-all sm:h-7 ${
                         vista === v.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
-                      <Icon size={13} /> {v.label}
+                      <Icon size={13} className="shrink-0" /> {v.label}
                     </button>
                   );
                 })}
@@ -256,7 +264,7 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
       {tab === "resumen" && <ResumenTab data={data} onChofer={setChoferSel} esLive={data.esLive} />}
 
       {tab === "evolucion" && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <h3 className="text-sm font-semibold text-foreground">
             Planilla anual — {flota === "todas" ? "general" : flota}
           </h3>
@@ -273,15 +281,15 @@ export default function MetricasClient({ data }: { data: MetricasData }) {
       )}
 
       {defActiva && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground">{defActiva.titulo}</h3>
               <p className="mt-0.5 max-w-2xl text-[11px] text-muted-foreground">{defActiva.descripcion}</p>
             </div>
             <Link
               href={defActiva.fuente.href}
-              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary sm:h-auto sm:py-1"
               title="Ir a la sección viva de la que sale este dato"
             >
               <ExternalLink size={11} /> {defActiva.fuente.label}

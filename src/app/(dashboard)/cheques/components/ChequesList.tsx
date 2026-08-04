@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -221,7 +222,8 @@ function FiltroEstado({
       type="button"
       onClick={onClick}
       aria-pressed={activo}
-      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-[13px] transition-colors whitespace-nowrap ${
+      // En celular el chip llega a 36px de alto: abajo de eso el dedo no acierta.
+      className={`flex items-center gap-1.5 px-2.5 py-2.5 sm:py-1.5 rounded-[6px] text-[13px] transition-colors whitespace-nowrap ${
         activo
           ? "bg-foreground/[0.07] text-foreground font-semibold"
           : cantidad === 0
@@ -335,10 +337,76 @@ export default function ChequesList({
     });
   }, [cheques, origenTab, estadoFiltro, bancoId, search, bancosByNombre]);
 
+  const mensajeVacio =
+    cheques.length === 0
+      ? "Sin cheques registrados"
+      : origenTab === "propio" && !cheques.some((c) => c.origen === "propio")
+        ? "Todavía no hay cheques nuestros cargados"
+        : "Sin cheques para los filtros seleccionados";
+
+  /**
+   * El menú de acciones es idéntico en la tabla (desktop) y en las tarjetas
+   * (celular): se arma una sola vez para que no queden dos versiones que se
+   * desincronicen. Lo mismo con el badge de estado.
+   */
+  const menuAcciones = (c: ChequeRow) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="icon-sm" aria-label="Acciones del cheque">
+            <MoreVertical size={16} />
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="min-w-[230px]">
+        <DropdownMenuItem onClick={() => setEditando(c)}>
+          <Pencil size={14} />
+          Editar datos
+        </DropdownMenuItem>
+        {ACCIONES_POR_ESTADO[c.origen][c.estado].map((a) => (
+          <DropdownMenuItem
+            key={a.key}
+            variant={a.destructive ? "destructive" : "default"}
+            onClick={() =>
+              setTransicion({
+                chequeId: c.id,
+                numero: c.numero ?? "s/n",
+                origen: c.origen,
+                accion: a.key,
+              })
+            }
+          >
+            <a.icon size={14} />
+            {a.label}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => {
+            setErrorBorrado(null);
+            setBorrando(c);
+          }}
+        >
+          <Trash2 size={14} />
+          Borrar cheque
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const badgeEstado = (c: ChequeRow) => (
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${ESTADO_BADGE[c.estado]}`}
+    >
+      {etiquetaEstado(c.estado, c.origen)}
+    </span>
+  );
+
   return (
     <>
       <div className="bg-card rounded-[8px] border border-border shadow-sm">
-        <div className="flex items-center gap-1 px-5 pt-4 border-b border-border overflow-x-auto">
+        <div className="flex items-center gap-1 px-3 sm:px-5 pt-3 sm:pt-4 border-b border-border overflow-x-auto">
           {ORIGEN_TABS.map((tab) => {
             const active = tab.key === origenTab;
             const cantidad =
@@ -365,30 +433,35 @@ export default function ChequesList({
           })}
         </div>
 
-        <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto">
-          <FiltroEstado
-            label="Todos los estados"
-            cantidad={delOrigen.length}
-            activo={estadoFiltro === ""}
-            onClick={() => setEstadoFiltro("")}
-          />
-          {estadosDelTab.map((estado) => (
-            <FiltroEstado
-              key={estado}
-              label={etiquetaEstadoPlural(estado, origenTab)}
-              cantidad={delOrigen.filter((c) => c.estado === estado).length}
-              activo={estadoFiltro === estado}
-              onClick={() => setEstadoFiltro(estado)}
-            />
-          ))}
+        {/* Hasta 9 estados: en celular la tira scrollea sola y avisa que sigue. */}
+        <div className="border-b border-border">
+          <HorizontalScrollHint className="px-3 sm:px-5 py-2 sm:py-2.5" fadeBg="from-card">
+            <div className="flex w-max items-center gap-1.5">
+              <FiltroEstado
+                label="Todos los estados"
+                cantidad={delOrigen.length}
+                activo={estadoFiltro === ""}
+                onClick={() => setEstadoFiltro("")}
+              />
+              {estadosDelTab.map((estado) => (
+                <FiltroEstado
+                  key={estado}
+                  label={etiquetaEstadoPlural(estado, origenTab)}
+                  cantidad={delOrigen.filter((c) => c.estado === estado).length}
+                  activo={estadoFiltro === estado}
+                  onClick={() => setEstadoFiltro(estado)}
+                />
+              ))}
+            </div>
+          </HorizontalScrollHint>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border bg-muted/40">
           <div className="flex items-center gap-2">
             <FileText size={16} className="text-primary" />
             <h2 className="text-foreground text-sm font-semibold">Listado de Cheques</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Combobox
               value={bancoId}
               onValueChange={setBancoId}
@@ -397,19 +470,74 @@ export default function ChequesList({
                 ...bancos.map((b) => ({ id: b.id, label: b.nombre })),
               ]}
               searchPlaceholder="Buscar banco..."
-              triggerClassName="h-9 w-56"
+              triggerClassName="h-9 max-md:h-10 w-full sm:w-56"
             />
             <Input
               type="search"
               placeholder="N° de cheque o librador..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-64 text-sm"
+              className="w-full sm:w-64 text-sm"
             />
           </div>
         </div>
 
-        <Table>
+        {/* CELULAR — la tabla de 9 columnas no entra en 343px y el listado ES la
+            pantalla: cada cheque pasa a ser una tarjeta con lo que se mira
+            (librador, importe, vencimiento, estado) y el mismo menú de acciones. */}
+        <div className="divide-y divide-border md:hidden">
+          {filtered.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">{mensajeVacio}</p>
+          ) : (
+            filtered.map((c) => (
+              <div
+                key={c.id}
+                onClick={() => canWrite && setEditando(c)}
+                className={`px-3 py-3 ${canWrite ? "cursor-pointer" : ""}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {c.librador_nombre}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      <span className="font-mono">{c.numero ?? "s/n"}</span>
+                      {c.banco?.nombre ? ` · ${c.banco.nombre}` : ""}
+                      {origenTab === "todos" && c.origen === "propio" ? " · Cheque nuestro" : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {canWrite && menuAcciones(c)}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-base font-semibold text-foreground tabular-nums">
+                    ${formatARS(Number(c.importe))}
+                  </span>
+                  {badgeEstado(c)}
+                </div>
+
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>Cobro {formatFecha(c.fecha_vencimiento)}</span>
+                  {c.fecha_emision && <span>Emisión {formatFecha(c.fecha_emision)}</span>}
+                </div>
+                {(c.origen === "propio"
+                  ? (c.entregado_a ?? c.concepto)
+                  : (c.cliente?.razon_social ?? c.concepto)) && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {c.origen === "propio" ? "Entregado a: " : "Cliente: "}
+                    {c.origen === "propio"
+                      ? (c.entregado_a ?? c.concepto)
+                      : (c.cliente?.razon_social ?? c.concepto)}
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <Table className="hidden md:table">
           <TableHeader className="bg-muted/40">
             <TableRow>
               {[
@@ -434,117 +562,54 @@ export default function ChequesList({
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <EmptyTableRow
-                message={
-                  cheques.length === 0
-                    ? "Sin cheques registrados"
-                    : origenTab === "propio" && !cheques.some((c) => c.origen === "propio")
-                      ? "Todavía no hay cheques nuestros cargados"
-                      : "Sin cheques para los filtros seleccionados"
-                }
-              />
+              <EmptyTableRow message={mensajeVacio} />
             ) : (
-              filtered.map((c) => {
-                const acciones = ACCIONES_POR_ESTADO[c.origen][c.estado];
-                return (
-                  <TableRow
-                    key={c.id}
-                    onClick={() => canWrite && setEditando(c)}
-                    className={canWrite ? "cursor-pointer" : undefined}
-                    title={canWrite ? "Abrir el cheque para editarlo" : undefined}
+              filtered.map((c) => (
+                <TableRow
+                  key={c.id}
+                  onClick={() => canWrite && setEditando(c)}
+                  className={canWrite ? "cursor-pointer" : undefined}
+                  title={canWrite ? "Abrir el cheque para editarlo" : undefined}
+                >
+                  <TableCell className="font-mono text-sm text-foreground">
+                    {c.numero ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {c.banco?.nombre ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-foreground">
+                    {c.librador_nombre}
+                    {origenTab === "todos" && c.origen === "propio" && (
+                      <span className="block text-xs text-muted-foreground">Cheque nuestro</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm font-medium text-foreground">
+                    ${formatARS(Number(c.importe))}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatFecha(c.fecha_emision)}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatFecha(c.fecha_vencimiento)}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {c.origen === "propio"
+                      ? (c.entregado_a ?? c.concepto ?? "—")
+                      : (c.cliente?.razon_social ?? c.concepto ?? "—")}
+                  </TableCell>
+                  <TableCell>{badgeEstado(c)}</TableCell>
+                  <TableCell
+                    className="text-right"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <TableCell className="font-mono text-sm text-foreground">
-                      {c.numero ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {c.banco?.nombre ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-foreground">
-                      {c.librador_nombre}
-                      {origenTab === "todos" && c.origen === "propio" && (
-                        <span className="block text-xs text-muted-foreground">Cheque nuestro</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm font-medium text-foreground">
-                      ${formatARS(Number(c.importe))}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatFecha(c.fecha_emision)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatFecha(c.fecha_vencimiento)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {c.origen === "propio"
-                        ? (c.entregado_a ?? c.concepto ?? "—")
-                        : (c.cliente?.razon_social ?? c.concepto ?? "—")}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${ESTADO_BADGE[c.estado]}`}
-                      >
-                        {etiquetaEstado(c.estado, c.origen)}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      className="text-right"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {canWrite ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Acciones del cheque"
-                              >
-                                <MoreVertical size={16} />
-                              </Button>
-                            }
-                          />
-                          <DropdownMenuContent align="end" className="min-w-[230px]">
-                            <DropdownMenuItem onClick={() => setEditando(c)}>
-                              <Pencil size={14} />
-                              Editar datos
-                            </DropdownMenuItem>
-                            {acciones.map((a) => (
-                              <DropdownMenuItem
-                                key={a.key}
-                                variant={a.destructive ? "destructive" : "default"}
-                                onClick={() =>
-                                  setTransicion({
-                                    chequeId: c.id,
-                                    numero: c.numero ?? "s/n",
-                                    origen: c.origen,
-                                    accion: a.key,
-                                  })
-                                }
-                              >
-                                <a.icon size={14} />
-                                {a.label}
-                              </DropdownMenuItem>
-                            ))}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => {
-                                setErrorBorrado(null);
-                                setBorrando(c);
-                              }}
-                            >
-                              <Trash2 size={14} />
-                              Borrar cheque
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/70">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+                    {canWrite ? (
+                      menuAcciones(c)
+                    ) : (
+                      <span className="text-xs text-muted-foreground/70">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

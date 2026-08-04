@@ -1,16 +1,23 @@
 import ExcelJS from "exceljs";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 
 // Export "Hoja de ruta" con look profesional/corporativo (grises suaves, info
 // centrada, bordes finos, filas zebra) y fiel a la estructura del Excel maestro:
 // una hoja por chofer, fila de patentes arriba, encabezado y columnas
-// DIA · SALE DE · LLEGA A · KM REC · TN COM 29 · TN ESC 35 · TN ESC 37,5 ·
+// DIA · SALE DE · LLEGA A · RUTA · KM REC · TN COM 29 · TN ESC 35 · TN ESC 37,5 ·
 // REMITO Nº · MATERIAL · KM VACIOS · $. Cuando el viaje es vacío, "VACIO" en rojo
 // en la columna REMITO. Usa exceljs porque el SheetJS gratis no escribe estilos.
+//
+// OJO: las celdas se escriben por índice (getCell(n)), así que si se agrega o
+// mueve una columna hay que correr TODOS los índices de acá abajo y los `12` que
+// marcan el ancho de la tabla (banner, patentes, zebra, totales).
 
 export type ExportViaje = {
   fecha: string; // YYYY-MM-DD
   origen: string;
   destino: string;
+  /** 'ruta_5' | 'ruta_22' | null — por qué vía fue el camión (de ella dependen los km). */
+  ruta_via: string | null;
   km_con_carga: number;
   km_vacios: number;
   capacidad: number | null;
@@ -39,12 +46,15 @@ export type ExportChofer = {
 };
 
 const HEADER = [
-  "DIA", "SALE DE", "LLEGA A", "KM REC", "TN COM 29", "TN ESC 35",
+  "DIA", "SALE DE", "LLEGA A", "RUTA", "KM REC", "TN COM 29", "TN ESC 35",
   "TN ESC 37,5", "REMITO Nº", "MATERIAL", "KM VACIOS", "$",
 ];
-const WIDTHS = [11, 16, 16, 9, 11, 11, 11, 13, 18, 11, 16];
+const WIDTHS = [11, 16, 16, 10, 9, 11, 11, 11, 13, 18, 11, 16];
 // Alineación por columna (1-based): l=izquierda, c=centro, r=derecha.
-const ALIGN: ("l" | "c" | "r")[] = ["c", "l", "l", "c", "c", "c", "c", "c", "l", "c", "r"];
+const ALIGN: ("l" | "c" | "r")[] = ["c", "l", "l", "c", "c", "c", "c", "c", "c", "l", "c", "r"];
+// Ancho de la tabla: lo usan el banner de la ficha, la fila de patentes, la zebra
+// y la fila de totales. Está en una constante para que no se desfasen entre sí.
+const COLS = HEADER.length;
 
 // Paleta sobria.
 const GRIS_HEADER = "FF595959"; // encabezado (gris medio-oscuro)
@@ -70,15 +80,15 @@ function fmtFecha(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-/** Fila combinada A:K (banner) con texto a la izquierda — para la ficha del chofer. */
+/** Fila combinada A:L (banner) con texto a la izquierda — para la ficha del chofer. */
 function bannerRow(
   ws: ExcelJS.Worksheet,
   row: number,
   text: string,
   opts: { fillArgb: string; fontColor: string; bold: boolean; size: number; height: number },
 ) {
-  ws.mergeCells(row, 1, row, 11);
-  for (let c = 1; c <= 11; c++) {
+  ws.mergeCells(row, 1, row, COLS);
+  for (let c = 1; c <= COLS; c++) {
     const cell = ws.getCell(row, c);
     cell.fill = fill(opts.fillArgb);
     cell.border = borde();
@@ -90,12 +100,12 @@ function bannerRow(
   ws.getRow(row).height = opts.height;
 }
 
-/** Columna de toneladas según la capacidad del camión: 29 → E, 35 → F, 37,5 → G. */
-function bucketCol(capacidad: number | null): 5 | 6 | 7 {
-  if (capacidad == null) return 7;
-  if (capacidad <= 31) return 5;
-  if (capacidad <= 36) return 6;
-  return 7;
+/** Columna de toneladas según la capacidad del camión: 29 → F, 35 → G, 37,5 → H. */
+function bucketCol(capacidad: number | null): 6 | 7 | 8 {
+  if (capacidad == null) return 8;
+  if (capacidad <= 31) return 6;
+  if (capacidad <= 36) return 7;
+  return 8;
 }
 
 function sheetName(apellido: string, used: Set<string>): string {
@@ -132,10 +142,10 @@ export async function buildHojaRutaWorkbook(
     const nombreCompleto = [ch.apellido, ch.nombre].filter(Boolean).join(", ").toUpperCase() || "CHOFER";
     bannerRow(ws, 1, nombreCompleto, { fillArgb: GRIS_HEADER, fontColor: "FFFFFFFF", bold: true, size: 13, height: 22 });
     if (periodo) {
-      // Se rompe el merge A:K de la fila para reservar H:K al período.
-      ws.unMergeCells(1, 1, 1, 11);
+      // Se rompe el merge A:L de la fila para reservar H:L al período.
+      ws.unMergeCells(1, 1, 1, COLS);
       ws.mergeCells(1, 1, 1, 7);
-      ws.mergeCells(1, 8, 1, 11);
+      ws.mergeCells(1, 8, 1, COLS);
       const per = ws.getCell(1, 8);
       per.value = periodo;
       per.font = { bold: false, size: 10, color: { argb: "FFD9D9D9" } };

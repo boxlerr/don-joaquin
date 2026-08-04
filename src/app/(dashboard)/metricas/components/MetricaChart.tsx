@@ -4,7 +4,7 @@
 // verde solo el top 3 y rojo solo el fondo 3 (chau arcoíris). Línea de
 // referencia en el promedio de la selección y click en la barra → drawer.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
@@ -23,6 +23,18 @@ export default function MetricaChart({
   choferes: MetricaChofer[];
   onChofer: (c: MetricaChofer) => void;
 }) {
+  // Los nombres del eje Y ocupaban 150px fijos: en un celular eso era la mitad
+  // del gráfico y las barras quedaban en un hilito. Recharts pide números, no
+  // clases, así que el ancho se decide con una media query.
+  const [angosto, setAngosto] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setAngosto(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const serie = useMemo(() => {
     const conValor = choferes
       .map((c) => ({ chofer: c, valor: def.valorChofer(c) }))
@@ -59,13 +71,13 @@ export default function MetricaChart({
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={Math.max(240, serie.length * 24)}>
-        <BarChart data={serie} layout="vertical" margin={{ left: 30, right: 56, top: 4 }}>
+      <ResponsiveContainer width="100%" height={Math.max(240, serie.length * (angosto ? 28 : 24))}>
+        <BarChart data={serie} layout="vertical" margin={{ left: angosto ? 0 : 30, right: angosto ? 34 : 56, top: 4 }}>
           <XAxis type="number" hide domain={[0, "dataMax"]} />
           <YAxis
             type="category"
             dataKey="etiqueta"
-            width={150}
+            width={angosto ? 96 : 150}
             tick={{ fontSize: 10 }}
             interval={0}
           />

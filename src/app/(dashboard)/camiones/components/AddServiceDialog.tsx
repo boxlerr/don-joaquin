@@ -217,7 +217,7 @@ export default function AddServiceDialog({
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!editing && (
               <div className="space-y-2">
                 <Label htmlFor="camion" className="text-sm font-medium text-foreground">Camión</Label>
@@ -252,7 +252,7 @@ export default function AddServiceDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipo_service" className="text-sm font-medium text-foreground">
                 Tipo de Service
@@ -304,7 +304,7 @@ export default function AddServiceDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="proximo_km" className="text-sm font-medium text-foreground">Próximo Service (KM)</Label>
               <Input
@@ -354,7 +354,7 @@ export default function AddServiceDialog({
             />
           </div>
 
-          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
+          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent mx-0 sm:mx-0 mb-0 sm:mb-0 rounded-none px-0 sm:px-0 pb-0 sm:pb-0 mt-4">
             <Button
               type="button"
               variant="outline"

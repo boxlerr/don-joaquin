@@ -202,6 +202,105 @@ export default function EntrevistasTable({
     );
   };
 
+  /**
+   * CELULAR — la tabla tiene 9 columnas y no entra en 343px; además el listado
+   * ES la pantalla (es la vista por defecto), así que cada candidato pasa a ser
+   * una tarjeta. Los datos se filtran una sola vez arriba: acá sólo cambia cómo
+   * se muestran.
+   */
+  const tarjeta = (e: Entrevista) => {
+    const preo = PREOCUPACIONAL_META[e.preocupacional] ?? PREOCUPACIONAL_META.no_aplica;
+    const res = RESULTADO_META[e.resultado] ?? RESULTADO_META.pendiente;
+    return (
+      <div
+        key={e.id}
+        onClick={() => onVerMas(e)}
+        className="cursor-pointer px-3 py-3"
+        title={`Ver la ficha de ${e.nombre}`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">{e.nombre}</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="size-3" />
+                {fmtFecha(e.fecha_entrevista)}
+              </span>
+              {e.edad != null && <span>{e.edad} años</span>}
+              {e.localidad && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="size-3" />
+                  {e.localidad}
+                </span>
+              )}
+              {e.telefono && (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="size-3" />
+                  {e.telefono}
+                </span>
+              )}
+            </div>
+          </div>
+          <span className="shrink-0" onClick={(ev) => ev.stopPropagation()}>
+            <Semaforo entrevistaId={e.id} etapa={e.etapa} nombre={e.nombre} canWrite={canWrite} size={12} />
+          </span>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <StatusBadge label={res.label} tone={res.tone} />
+          {e.preocupacional !== "no_aplica" && <StatusBadge label={preo.label} tone={preo.tone} />}
+          <span onClick={(ev) => ev.stopPropagation()}>
+            <CvButton entrevistaId={e.id} nombre={e.nombre} count={e.cv_count ?? 0} canWrite={canWrite} />
+          </span>
+        </div>
+
+        {e.observaciones && (
+          <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">{e.observaciones}</p>
+        )}
+        {e.preocupacional_nota && (
+          <p className="mt-0.5 line-clamp-1 text-xs text-amber-600">Preocupacional: {e.preocupacional_nota}</p>
+        )}
+        {noIngreso(e) && e.motivo_descarte && (
+          <p className="mt-0.5 line-clamp-1 text-xs italic text-rose-600">Motivo: {e.motivo_descarte}</p>
+        )}
+        {e.se_mantuvo && (
+          <p className="mt-0.5 line-clamp-1 text-xs italic text-orange-600">Se mantuvo: {e.se_mantuvo}</p>
+        )}
+
+        <div className="mt-2 flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => onVerMas(e)}
+            className="inline-flex h-9 items-center rounded px-1 text-xs font-medium text-primary"
+          >
+            Ver más
+          </button>
+          {canWrite && (
+            <div className="ml-auto inline-flex items-center gap-1">
+              <EntrevistaFormDialog entrevista={e}>
+                <Button variant="ghost" size="icon" className="size-9" title="Editar">
+                  <Pencil className="size-4" />
+                </Button>
+              </EntrevistaFormDialog>
+              {canDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 text-destructive hover:text-destructive"
+                  title="Eliminar"
+                  disabled={deletingId === e.id}
+                  onClick={() => setEliminarDe(e)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl">
       {/* Filtros */}
@@ -228,8 +327,29 @@ export default function EntrevistasTable({
         </Select>
       </div>
 
-      {/* Tabla */}
-      <Table>
+      {/* Tarjetas (celular) */}
+      <div className="divide-y divide-border md:hidden">
+        {filtradas.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No hay entrevistas que coincidan con la búsqueda.
+          </p>
+        ) : (
+          <>
+            {activos.map(tarjeta)}
+            {descartados.length > 0 && (
+              <>
+                <p className="bg-muted/40 px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  No ingresaron / descartados ({descartados.length})
+                </p>
+                {descartados.map(tarjeta)}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Tabla (desde md) */}
+      <Table className="hidden md:table">
         <TableHeader>
           <TableRow>
             <TableHead>Nombre</TableHead>

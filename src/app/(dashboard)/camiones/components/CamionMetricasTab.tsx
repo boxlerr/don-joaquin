@@ -68,24 +68,24 @@ export default function CamionMetricasTab({ camionId }: Props) {
 
   return (
     <div className={`space-y-6 py-1 ${loading ? "opacity-60 pointer-events-none" : ""}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-1 items-center gap-1.5 sm:flex-none">
           <button
             type="button"
             onClick={() => irA(-1)}
-            className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors sm:size-7"
             title="Mes anterior"
           >
             <ChevronLeft size={14} />
           </button>
-          <h3 className="text-sm font-semibold text-foreground min-w-[180px] text-center capitalize">
+          <h3 className="flex-1 text-sm font-semibold text-foreground text-center capitalize sm:flex-none sm:min-w-[180px]">
             Métricas — {data.periodo_label}
           </h3>
           <button
             type="button"
             onClick={() => irA(1)}
             disabled={data.es_mes_en_curso}
-            className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-30 disabled:pointer-events-none sm:size-7"
             title="Mes siguiente"
           >
             <ChevronRight size={14} />
@@ -160,14 +160,14 @@ export default function CamionMetricasTab({ camionId }: Props) {
           <Activity size={13} className="text-muted-foreground" />
           Km — últimos 6 meses
         </h4>
-        <div className="rounded-[8px] border border-border bg-card p-4">
-          <div className="flex items-end gap-2 h-28">
+        <div className="rounded-[8px] border border-border bg-card p-3 sm:p-4">
+          <div className="flex items-end gap-1.5 h-28 sm:gap-2">
             {data.evolucion.map((m) => {
               const h = Math.round((m.km / maxKm) * 100);
               const esActual = m.mes === data.mes_actual;
               return (
-                <div key={m.mes} className="flex-1 flex flex-col items-center justify-end gap-1.5 h-full">
-                  <span className="text-[10px] font-mono text-muted-foreground/70 tabular-nums">
+                <div key={m.mes} className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1.5 h-full">
+                  <span className="max-w-full truncate text-[10px] font-mono text-muted-foreground/70 tabular-nums">
                     {m.km > 0 ? fmtNum(m.km) : ""}
                   </span>
                   <div
@@ -202,12 +202,12 @@ function KPI({
   color: string;
 }) {
   return (
-    <div className="bg-card rounded-[8px] border border-border px-4 py-3">
+    <div className="bg-card rounded-[8px] border border-border px-3 py-2.5 sm:px-4 sm:py-3">
       <div className="flex items-center gap-1.5 mb-1">
-        <Icon size={13} className="text-muted-foreground/70" />
-        <p className="text-xs text-muted-foreground/70">{label}</p>
+        <Icon size={13} className="shrink-0 text-muted-foreground/70" />
+        <p className="min-w-0 truncate text-xs text-muted-foreground/70">{label}</p>
       </div>
-      <p className={`text-lg font-bold ${color}`}>{value}</p>
+      <p className={`text-base sm:text-lg font-bold ${color}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground/70 mt-0.5">{sub}</p>}
     </div>
   );

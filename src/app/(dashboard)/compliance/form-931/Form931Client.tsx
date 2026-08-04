@@ -68,12 +68,15 @@ function EstadoBadge({ row }: { row: Form931Row }) {
 function EnvioToggle({
   enviado,
   responsable,
+  canal,
   loading,
   disabled,
   onToggle,
 }: {
   enviado: boolean;
   responsable: string;
+  /** Plataforma — sólo se imprime en la tarjeta de celular, donde no hay columna que la nombre. */
+  canal?: string;
   loading: boolean;
   disabled: boolean;
   onToggle: () => void;
@@ -84,7 +87,7 @@ function EnvioToggle({
       disabled={disabled || loading}
       onClick={onToggle}
       title={enviado ? "Marcar como NO enviado" : "Marcar como enviado"}
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+      className={`inline-flex items-center gap-1.5 px-2 py-1 max-md:h-9 max-md:px-2.5 rounded-md border text-[11px] font-semibold transition-colors disabled:opacity-50 ${
         enviado
           ? "bg-emerald-500 border-emerald-500 text-white"
           : "bg-card border-border text-muted-foreground hover:border-emerald-400"
@@ -93,10 +96,11 @@ function EnvioToggle({
       {loading ? (
         <Loader2 size={12} className="animate-spin" />
       ) : (
-        <span className={`flex items-center justify-center w-3.5 h-3.5 rounded-sm border ${enviado ? "border-white/70" : "border-border"}`}>
+        <span className={`flex items-center justify-center w-3.5 h-3.5 shrink-0 rounded-sm border ${enviado ? "border-white/70" : "border-border"}`}>
           {enviado && <Check size={10} />}
         </span>
       )}
+      {canal && <span>{canal}:</span>}
       {enviado ? "Enviado" : "Pendiente"}
       <span className={`font-normal ${enviado ? "text-white/80" : "text-muted-foreground/60"}`}>· {responsable}</span>
     </button>
@@ -169,11 +173,31 @@ export default function Form931Client({
     router.refresh();
   };
 
+  /** Editar / eliminar — se usa igual en la tabla (desktop) y en las tarjetas (celular). */
+  const renderAcciones = (p: Form931Row) =>
+    confirmId === p.id ? (
+      <div className="flex items-center justify-end gap-1">
+        <Button variant="ghost" size="sm" className="h-7 max-md:h-9 px-2 max-md:px-3 text-[11px] text-red-600 hover:bg-red-50" disabled={deletingId === p.id} onClick={() => handleDelete(p.id)}>
+          {deletingId === p.id ? <Loader2 size={13} className="animate-spin" /> : "Eliminar"}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 max-md:h-9 px-2 max-md:px-3 text-[11px] text-muted-foreground" onClick={() => setConfirmId(null)}>Cancelar</Button>
+      </div>
+    ) : (
+      <div className="flex items-center justify-end gap-1">
+        <Button variant="ghost" size="sm" className="h-7 w-7 max-md:h-9 max-md:w-9 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5" title="Editar" onClick={() => openEdit(p)}>
+          <Pencil size={14} />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-7 w-7 max-md:h-9 max-md:w-9 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Eliminar" onClick={() => setConfirmId(p.id)}>
+          <Trash2 size={14} />
+        </Button>
+      </div>
+    );
+
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <FileCheck2 size={16} className="text-primary" />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileCheck2 size={16} className="shrink-0 text-primary" />
           <h2 className="text-foreground text-sm font-semibold">Períodos del Formulario 931</h2>
         </div>
         {canWrite && (
@@ -183,82 +207,116 @@ export default function Form931Client({
         )}
       </div>
 
-      <Table>
-        <TableHeader className="bg-muted/40">
-          <TableRow>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Período</TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Fecha límite</TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">YPF</TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Loma Negra</TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Estado</TableHead>
-            {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Acciones</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {periodos.length === 0 ? (
+      {/* Celular: una tarjeta por período. La tabla de 6 columnas con los dos
+          toggles no entra en 343px y el toggle es la acción principal. */}
+      <div className="md:hidden divide-y divide-border">
+        {periodos.length === 0 ? (
+          <p className="py-10 px-4 text-center text-muted-foreground text-sm">
+            No hay períodos cargados. {canWrite && "Usá “Agregar período” para empezar."}
+          </p>
+        ) : (
+          periodos.map((p) => {
+            const completo = p.enviado_ypf && p.enviado_loma;
+            return (
+              <div key={p.id} className={`px-4 py-3.5 space-y-2.5 ${completo ? "opacity-60" : ""}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground tabular-nums">{fmtPeriodo(p.periodo)}</p>
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      Límite {fmtFecha(p.fecha_limite)}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <EstadoBadge row={p} />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <EnvioToggle
+                    enviado={p.enviado_ypf}
+                    responsable="Nico"
+                    canal="YPF"
+                    loading={togglingKey === `${p.id}:ypf`}
+                    disabled={!canWrite}
+                    onToggle={() => handleToggle(p, "ypf")}
+                  />
+                  <EnvioToggle
+                    enviado={p.enviado_loma}
+                    responsable="Noelia"
+                    canal="Loma Negra"
+                    loading={togglingKey === `${p.id}:loma`}
+                    disabled={!canWrite}
+                    onToggle={() => handleToggle(p, "loma")}
+                  />
+                </div>
+
+                {canWrite && renderAcciones(p)}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader className="bg-muted/40">
             <TableRow>
-              <TableCell colSpan={canWrite ? 6 : 5} className="py-16 text-center text-muted-foreground text-sm">
-                No hay períodos cargados. {canWrite && "Usá “Agregar período” para empezar."}
-              </TableCell>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider pl-6">Período</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Fecha límite</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">YPF</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Loma Negra</TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Estado</TableHead>
+              {canWrite && <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider text-right pr-6">Acciones</TableHead>}
             </TableRow>
-          ) : (
-            periodos.map((p) => {
-              const completo = p.enviado_ypf && p.enviado_loma;
-              return (
-                <TableRow key={p.id} className={`hover:bg-muted/10 transition-colors ${completo ? "opacity-60" : ""}`}>
-                  <TableCell className="font-semibold text-foreground pl-6 tabular-nums">{fmtPeriodo(p.periodo)}</TableCell>
-                  <TableCell className="text-foreground font-medium tabular-nums">{fmtFecha(p.fecha_limite)}</TableCell>
-                  <TableCell>
-                    <EnvioToggle
-                      enviado={p.enviado_ypf}
-                      responsable="Nico"
-                      loading={togglingKey === `${p.id}:ypf`}
-                      disabled={!canWrite}
-                      onToggle={() => handleToggle(p, "ypf")}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <EnvioToggle
-                      enviado={p.enviado_loma}
-                      responsable="Noelia"
-                      loading={togglingKey === `${p.id}:loma`}
-                      disabled={!canWrite}
-                      onToggle={() => handleToggle(p, "loma")}
-                    />
-                  </TableCell>
-                  <TableCell><EstadoBadge row={p} /></TableCell>
-                  {canWrite && (
-                    <TableCell className="text-right pr-6">
-                      {confirmId === p.id ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-red-600 hover:bg-red-50" disabled={deletingId === p.id} onClick={() => handleDelete(p.id)}>
-                            {deletingId === p.id ? <Loader2 size={13} className="animate-spin" /> : "Eliminar"}
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] text-muted-foreground" onClick={() => setConfirmId(null)}>Cancelar</Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/5" title="Editar" onClick={() => openEdit(p)}>
-                            <Pencil size={14} />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Eliminar" onClick={() => setConfirmId(p.id)}>
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      )}
+          </TableHeader>
+          <TableBody>
+            {periodos.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={canWrite ? 6 : 5} className="py-16 text-center text-muted-foreground text-sm">
+                  No hay períodos cargados. {canWrite && "Usá “Agregar período” para empezar."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              periodos.map((p) => {
+                const completo = p.enviado_ypf && p.enviado_loma;
+                return (
+                  <TableRow key={p.id} className={`hover:bg-muted/10 transition-colors ${completo ? "opacity-60" : ""}`}>
+                    <TableCell className="font-semibold text-foreground pl-6 tabular-nums">{fmtPeriodo(p.periodo)}</TableCell>
+                    <TableCell className="text-foreground font-medium tabular-nums">{fmtFecha(p.fecha_limite)}</TableCell>
+                    <TableCell>
+                      <EnvioToggle
+                        enviado={p.enviado_ypf}
+                        responsable="Nico"
+                        loading={togglingKey === `${p.id}:ypf`}
+                        disabled={!canWrite}
+                        onToggle={() => handleToggle(p, "ypf")}
+                      />
                     </TableCell>
-                  )}
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
+                    <TableCell>
+                      <EnvioToggle
+                        enviado={p.enviado_loma}
+                        responsable="Noelia"
+                        loading={togglingKey === `${p.id}:loma`}
+                        disabled={!canWrite}
+                        onToggle={() => handleToggle(p, "loma")}
+                      />
+                    </TableCell>
+                    <TableCell><EstadoBadge row={p} /></TableCell>
+                    {canWrite && (
+                      <TableCell className="text-right pr-6">{renderAcciones(p)}</TableCell>
+                    )}
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       <Dialog open={dialog.mode !== "closed"} onOpenChange={(v) => !v && setDialog({ mode: "closed" })}>
         <DialogContent className="sm:max-w-[460px]">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-xl">
+            <DialogTitle className="text-foreground text-lg sm:text-xl">
               {dialog.mode === "edit" ? "Editar período" : "Agregar período"}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -270,7 +328,7 @@ export default function Form931Client({
 
           <div className="space-y-4 py-2">
             {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="f931-periodo" className="text-sm font-medium text-foreground">Período</Label>
                 <Input id="f931-periodo" value={periodo} onChange={(e) => setPeriodo(e.target.value)} placeholder="Ej: 2026-06" />

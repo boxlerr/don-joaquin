@@ -22,7 +22,7 @@ export default function ConfigTabs() {
   return (
     <nav
       aria-label="Secciones de configuración"
-      className="flex items-center gap-1 border-b border-border -mt-2"
+      className="flex items-center gap-1 border-b border-border -mt-2 overflow-x-auto"
     >
       {TABS.map((t) => {
         const Icon = t.icon;
@@ -35,11 +35,11 @@ export default function ConfigTabs() {
             key={t.href}
             href={t.href}
             aria-current={active ? "page" : undefined}
-            className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`relative flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-4 py-3 sm:py-2.5 text-sm font-medium transition-colors ${
               active ? "text-primary" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Icon size={15} />
+            <Icon size={15} className="shrink-0" />
             {t.label}
             {active && (
               <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 rounded-full bg-[#0088D1]" />

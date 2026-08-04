@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,18 @@ export const metadata: Metadata = {
     nocache: true,
     googleBot: { index: false, follow: false, noimageindex: true },
   },
+};
+
+// El sistema se usa desde el celular (Julián, 04/08). `viewportFit: cover` deja
+// que el contenido llegue al borde en iPhone con notch; el padding real lo pone
+// el CSS con env(safe-area-inset-*). NO se limita `maximumScale`: bloquear el
+// zoom rompe la accesibilidad, y el zoom automático de iOS al tocar un campo se
+// evita con el tamaño de fuente de 16px de globals.css, no capando el pinch.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({

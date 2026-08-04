@@ -177,7 +177,7 @@ export default function ViajeAdjuntosStrip({
                   href={a.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="max-w-[160px] truncate hover:underline underline-offset-2"
+                  className="max-w-[120px] sm:max-w-[160px] truncate hover:underline underline-offset-2"
                   title={`${a.nombre_original} · ${fmtSize(a.tamano_bytes)} — ver / descargar`}
                 >
                   {a.nombre_original}

@@ -178,8 +178,8 @@ export default function LiqLomaListClient({
       )}
 
       {/* Toolbar */}
-      <div className="bg-card border border-border rounded-[8px] p-3 flex items-end gap-3 flex-wrap">
-        <div className="flex-1 min-w-[220px] max-w-md">
+      <div className="bg-card border border-border rounded-[8px] p-3 flex items-end gap-2 sm:gap-3 flex-wrap">
+        <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
             Búsqueda
           </label>
@@ -202,7 +202,7 @@ export default function LiqLomaListClient({
           <button
             type="button"
             onClick={() => setBusqueda("")}
-            className="inline-flex items-center gap-1 h-9 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
+            className="inline-flex items-center justify-center gap-1 h-10 sm:h-9 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
           >
             <X size={12} />
             Limpiar
@@ -211,7 +211,7 @@ export default function LiqLomaListClient({
         <Link
           href="/viajes"
           prefetch
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm ml-auto"
+          className="inline-flex w-full items-center justify-center gap-1.5 h-10 sm:h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm sm:w-auto sm:ml-auto"
         >
           <FileSpreadsheet size={14} />
           Importar liquidación
@@ -339,24 +339,25 @@ function LiqCard({
         </span>
       </div>
 
-      {/* Body con grid de stats */}
-      <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
-        <div className="px-4 py-3">
+      {/* Body con grid de stats. En el celular el total se lleva la fila entera:
+          "$ 1.234.567,89" no entra en un tercio de 343px. */}
+      <div className="grid grid-cols-2 border-b border-border sm:grid-cols-3">
+        <div className="col-span-2 min-w-0 border-b border-border px-3 py-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:px-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
             Total
           </p>
           <p className="text-foreground text-sm font-bold font-mono mt-0.5 flex items-baseline gap-1">
             <span className="text-[10px] text-muted-foreground/80">$</span>
-            <span>{formatARS(liq.total_importe_ars)}</span>
+            <span className="truncate">{formatARS(liq.total_importe_ars)}</span>
           </p>
         </div>
-        <div className="px-4 py-3">
+        <div className="min-w-0 border-r border-border px-3 py-3 sm:px-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
             Fletes
           </p>
           <p className="text-foreground text-sm font-bold mt-0.5">{liq.fletes_count}</p>
         </div>
-        <div className="px-4 py-3">
+        <div className="min-w-0 px-3 py-3 sm:px-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
             Viajes
           </p>
@@ -368,7 +369,7 @@ function LiqCard({
       </div>
 
       {/* Footer con acciones */}
-      <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 py-2.5 border-t border-border bg-muted/20 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground/80 truncate" title={liq.archivo_nombre ?? undefined}>
           Importado {formatFecha(liq.importado_en)}
         </span>
@@ -379,7 +380,7 @@ function LiqCard({
               onClick={onEliminar}
               disabled={deleting}
               title="Eliminar liquidación (los viajes no se borran)"
-              className="inline-flex items-center justify-center size-8 rounded-md text-muted-foreground hover:text-[#DC2626] hover:bg-[#FEF2F2] border border-border transition-colors disabled:opacity-40"
+              className="inline-flex items-center justify-center size-9 sm:size-8 rounded-md text-muted-foreground hover:text-[#DC2626] hover:bg-[#FEF2F2] border border-border transition-colors disabled:opacity-40"
             >
               {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={13} />}
             </button>
@@ -389,7 +390,7 @@ function LiqCard({
             onClick={onDescargar}
             disabled={!liq.archivo_id || downloading}
             title={liq.archivo_id ? "Abrir / descargar el Excel de Loma" : "Esta liquidación no tiene archivo"}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
             {downloading ? "Abriendo…" : "Descargar Excel"}

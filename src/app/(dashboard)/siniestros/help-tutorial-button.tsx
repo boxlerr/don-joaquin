@@ -215,7 +215,7 @@ function MockRowExpand() {
         <TipoChip label="Abierto" tone="green" />
         <ChevronDown size={14} className="text-muted-foreground justify-self-end" />
       </div>
-      <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 bg-muted/40">
         <div className="rounded border border-border bg-card p-2">
           <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
             <Truck size={10} className="text-primary" /> Unidad

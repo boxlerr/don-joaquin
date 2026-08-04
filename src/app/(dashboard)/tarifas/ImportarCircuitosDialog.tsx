@@ -104,7 +104,7 @@ export default function ImportarCircuitosDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !guardando && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Route size={16} className="text-[#0088D1]" /> Importar circuitos desde viajes
@@ -122,8 +122,8 @@ export default function ImportarCircuitosDialog({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="relative">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+              <div className="relative w-full sm:w-auto">
                 <Search
                   size={14}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
@@ -133,7 +133,7 @@ export default function ImportarCircuitosDialog({
                   placeholder="Filtrar por origen o destino…"
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="h-8 pl-8 text-sm w-64"
+                  className="h-8 pl-8 text-sm w-full sm:w-64"
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -142,8 +142,10 @@ export default function ImportarCircuitosDialog({
               </p>
             </div>
 
-            <div className="max-h-[46vh] overflow-y-auto rounded-md border border-border">
-              <table className="w-full text-sm">
+            {/* Previsualización densa (5 columnas): scroll horizontal adentro
+                del panel, nunca empujando el diálogo. */}
+            <div className="max-h-[46vh] overflow-auto rounded-md border border-border">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-muted/40 border-b border-border sticky top-0">
                   <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     <th className="px-3 py-2 w-8">
@@ -152,7 +154,7 @@ export default function ImportarCircuitosDialog({
                         checked={todosMarcados}
                         onChange={toggleTodos}
                         disabled={!nuevos.length}
-                        className="rounded"
+                        className="size-4 max-md:size-5 rounded"
                         aria-label="Seleccionar todos"
                       />
                     </th>
@@ -181,7 +183,7 @@ export default function ImportarCircuitosDialog({
                               checked={marcado}
                               onChange={() => toggle(key)}
                               onClick={(e) => e.stopPropagation()}
-                              className="rounded"
+                              className="size-4 max-md:size-5 rounded"
                               aria-label={`Importar ${s.origenLabel} a ${s.destinoLabel}`}
                             />
                           )}

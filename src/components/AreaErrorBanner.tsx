@@ -51,7 +51,9 @@ export default function AreaErrorBanner() {
   const nivelLabel = nivel ? NIVEL_LABELS[nivel] ?? nivel : null;
 
   return (
-    <div className="mx-8 mt-6 flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3">
+    // Los márgenes acompañan al padding de página (p-4 sm:p-6 lg:p-8): con
+    // `mx-8` fijo, el cartel quedaba más angosto que el contenido en celular.
+    <div className="mx-4 sm:mx-6 lg:mx-8 mt-4 sm:mt-6 flex items-start gap-3 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
         <ShieldAlert size={16} className="text-amber-600" />
       </div>

@@ -426,12 +426,14 @@ export default function CamionDetailSheet({
         else onOpenChange(v);
       }}
     >
+      {/* En celular el panel va a pantalla completa: tiene 9 solapas y un
+          formulario entero, con el diálogo chico no se podía trabajar. */}
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-[680px] p-0 gap-0 overflow-hidden"
+        className="sm:max-w-[680px] p-0 sm:p-0 gap-0 overflow-hidden max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:grid-rows-[auto_auto_1fr_auto]"
       >
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border bg-card">
-          <div className="flex items-center justify-between mb-3">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-border bg-card">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <Badge
               variant="outline"
               className="bg-muted/40 text-muted-foreground font-mono border-border text-xs"
@@ -449,17 +451,17 @@ export default function CamionDetailSheet({
               Eliminar
             </Button>
           </div>
-          <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
+          <DialogTitle className="text-lg sm:text-xl font-bold text-foreground flex flex-wrap items-center gap-x-3 gap-y-2">
             <div className="w-9 h-9 rounded-lg bg-[#0088D1]/10 flex items-center justify-center text-primary shrink-0">
               <Truck size={20} />
             </div>
-            {camion.patente}
+            <span className="min-w-0 truncate">{camion.patente}</span>
             {alertas.length > 0 && (
               <button
                 type="button"
                 onClick={handleMarcarLeidas}
                 disabled={markingRead}
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 border border-[#BAE6FD] text-[#0369A1] text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none ml-2"
+                className="inline-flex h-8 items-center gap-1.5 px-2.5 rounded-full bg-[#E0F2FE] hover:bg-[#BAE6FD]/60 border border-[#BAE6FD] text-[#0369A1] text-[11px] font-extrabold transition-all shadow-sm duration-200 hover:scale-[1.02] cursor-pointer disabled:opacity-50 select-none sm:ml-2 sm:h-auto sm:py-0.5"
                 title="Marcar todas las alertas de este camión como leídas"
               >
                 <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
@@ -479,7 +481,7 @@ export default function CamionDetailSheet({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center px-6 border-b border-border bg-muted/40 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center px-4 sm:px-6 border-b border-border bg-muted/40 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
             { id: "metricas" as TabId, label: "Métricas", icon: Activity },
@@ -495,7 +497,7 @@ export default function CamionDetailSheet({
               key={tab.id}
               type="button"
               onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
+              className={`flex shrink-0 items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                 activeTab === tab.id
                   ? "text-primary border-[#0088D1]"
                   : "text-muted-foreground border-transparent hover:text-foreground"
@@ -507,7 +509,9 @@ export default function CamionDetailSheet({
           ))}
         </div>
 
-        <div className="overflow-y-auto max-h-[50vh] p-6 bg-card">
+        {/* En celular el alto lo pone la pantalla (el panel es full screen), así
+            que el área de contenido se estira; en desktop sigue acotada. */}
+        <div className="overflow-y-auto max-h-none sm:max-h-[50dvh] p-4 sm:p-6 bg-card">
           {error && (
             <div className="mb-4">
               <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />
@@ -521,7 +525,7 @@ export default function CamionDetailSheet({
 
           {activeTab === "info" && (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Patente</Label>
                   <Input
@@ -561,7 +565,7 @@ export default function CamionDetailSheet({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Marca</Label>
                   <Input
@@ -584,7 +588,9 @@ export default function CamionDetailSheet({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              {/* Año y capacidad son números cortos y entran de a dos; el tipo
+                  es un desplegable con etiquetas largas y se lleva la fila. */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Año</Label>
                   <Input
@@ -608,7 +614,7 @@ export default function CamionDetailSheet({
                   />
                   {fieldErrors.capacidad_tn && <p className="text-xs text-red-600">{fieldErrors.capacidad_tn}</p>}
                 </div>
-                <div className="space-y-2">
+                <div className="col-span-2 sm:col-span-1 space-y-2">
                   <Label className="text-sm font-medium text-foreground">Tipo</Label>
                   <Select
                     value={formData.tipo_camion}
@@ -627,7 +633,7 @@ export default function CamionDetailSheet({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
                     <Building2 size={13} className="text-muted-foreground" />
@@ -727,10 +733,10 @@ export default function CamionDetailSheet({
                   {services.map((s) => (
                     <div
                       key={s.id}
-                      className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
+                      className="p-3 sm:p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <Badge
                             variant="secondary"
                             className="bg-[#E0F2FE] text-[#0369A1] hover:bg-[#E0F2FE]"
@@ -742,10 +748,11 @@ export default function CamionDetailSheet({
                             {formatFecha(s.fecha)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           <span className="text-sm font-bold text-foreground">
                             ${Number(s.costo || 0).toLocaleString("es-AR")}
                           </span>
+                          {/* En celular no hay hover: editar y borrar se ven siempre. */}
                           <button
                             type="button"
                             onClick={() =>
@@ -763,7 +770,7 @@ export default function CamionDetailSheet({
                                 },
                               })
                             }
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-primary"
+                            className="flex size-9 shrink-0 items-center justify-center rounded transition-opacity hover:bg-[#E1F5FE] text-primary sm:size-7 sm:opacity-0 sm:group-hover:opacity-100"
                             title="Editar service"
                           >
                             <Pencil size={13} />
@@ -771,7 +778,7 @@ export default function CamionDetailSheet({
                           <button
                             type="button"
                             onClick={() => handleDeleteService(s.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                            className="flex size-9 shrink-0 items-center justify-center rounded transition-opacity hover:bg-red-50 text-red-500 hover:text-red-600 sm:size-7 sm:opacity-0 sm:group-hover:opacity-100"
                             title="Eliminar service"
                           >
                             <Trash2 size={13} />
@@ -779,7 +786,7 @@ export default function CamionDetailSheet({
                         </div>
                       </div>
                       <p className="text-sm text-foreground font-medium mb-2">{s.descripcion}</p>
-                      <div className="flex items-center gap-4 pt-2 border-t border-[#F1F5F9]">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 border-t border-[#F1F5F9]">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Truck size={11} />
                           {s.km_odometro.toLocaleString()} KM
@@ -892,10 +899,10 @@ export default function CamionDetailSheet({
                   {gasoil.map((g) => (
                     <div
                       key={g.id}
-                      className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
+                      className="p-3 sm:p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all group"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="text-xs font-semibold text-foreground flex items-center gap-1">
                             <Fuel size={12} className="text-primary" />
                             {g.litros.toLocaleString()} Lts
@@ -905,7 +912,7 @@ export default function CamionDetailSheet({
                             {new Date(g.fecha).toLocaleDateString("es-AR")}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                           <span className="text-sm font-bold text-foreground">
                             ${Number(g.importe_total || 0).toLocaleString("es-AR")}
                           </span>
@@ -927,7 +934,7 @@ export default function CamionDetailSheet({
                                 },
                               })
                             }
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-[#E1F5FE] text-primary"
+                            className="flex size-9 shrink-0 items-center justify-center rounded transition-opacity hover:bg-[#E1F5FE] text-primary sm:size-7 sm:opacity-0 sm:group-hover:opacity-100"
                             title="Editar carga"
                           >
                             <Pencil size={13} />
@@ -935,14 +942,14 @@ export default function CamionDetailSheet({
                           <button
                             type="button"
                             onClick={() => handleDeleteGasoil(g.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600"
+                            className="flex size-9 shrink-0 items-center justify-center rounded transition-opacity hover:bg-red-50 text-red-500 hover:text-red-600 sm:size-7 sm:opacity-0 sm:group-hover:opacity-100"
                             title="Eliminar carga"
                           >
                             <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span>{g.estacion || "Estación no especificada"}</span>
                         <span className="font-mono">{g.km_odometro.toLocaleString()} KM</span>
                       </div>
@@ -984,7 +991,9 @@ export default function CamionDetailSheet({
           )}
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t border-border bg-card">
+        {/* `mx-0 mb-0`: el pie de la primitiva se sale con márgenes negativos
+            que compensan el padding del diálogo, y acá el diálogo es `p-0`. */}
+        <DialogFooter className="mx-0 mb-0 sm:mx-0 sm:mb-0 px-4 sm:px-6 py-3 sm:py-4 max-sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-border bg-card">
           <Button
             variant="outline"
             onClick={requestClose}

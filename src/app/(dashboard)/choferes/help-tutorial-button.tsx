@@ -52,7 +52,7 @@ import {
 
 function MockToolbar() {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="opacity-60">
         <div className="text-foreground text-sm font-bold">Personal</div>
         <div className="text-muted-foreground text-[10px] mt-0.5">
@@ -79,17 +79,18 @@ function MockNuevoLegajoForm() {
           Agregar nuevo legajo
         </div>
       </div>
-      <div className="p-4 space-y-3">
+      <div className="p-3 sm:p-4 space-y-3">
         <MockField label="Área / Rol *" value="Chofer" required icon={<Briefcase size={12} />} />
-        <div className="grid grid-cols-2 gap-3">
+        {/* Los pares de campos se apilan mientras el recuadro es angosto. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
           <MockField label="Nombre *" value="Juan" required />
           <MockField label="Apellido *" value="Pérez" required />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
           <MockField label="DNI *" value="30.123.456" required icon={<Fingerprint size={12} />} />
           <MockField label="CUIL *" value="20-30123456-9" required icon={<Hash size={12} />} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
           <MockField label="Teléfono *" value="+54 9 2983…" required icon={<Phone size={12} />} />
           <MockField label="Localidad *" value="Tres Arroyos" required icon={<MapPin size={12} />} />
         </div>
@@ -161,7 +162,7 @@ function MockStats() {
   ];
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div className="rounded-lg border border-[#0088D1]/40 bg-[#E1F5FE]/40 p-2.5">
           <div className="text-[9px] uppercase tracking-wide text-muted-foreground">
             Total personal
@@ -374,7 +375,7 @@ function MockReactivar() {
 
 function MockAvatarUpload() {
   return (
-    <div className="flex items-center gap-6 justify-center">
+    <div className="flex flex-wrap items-center gap-4 sm:gap-6 justify-center">
       <div className="relative">
         <div className="w-16 h-16 rounded-full bg-[#E1F5FE] border-2 border-[#B3E5FC] flex items-center justify-center text-primary font-bold text-lg shadow-inner ring-4 ring-[#0088D1]/15">
           PJ
@@ -530,7 +531,7 @@ function MockProductividad() {
 
 function MockViajesCuenta() {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
       <div className="bg-card border border-border rounded-md p-2 space-y-1">
         <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
           <MapPin size={10} className="text-primary" /> Historial viajes

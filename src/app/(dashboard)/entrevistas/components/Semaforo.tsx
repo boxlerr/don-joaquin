@@ -105,11 +105,20 @@ export default function Semaforo({
             aria-label={p.label}
             aria-pressed={activo}
             title={canWrite ? (activo ? `${p.label} — click para volver a Entrevista` : `Mover a ${p.label}`) : p.label}
-            className={`rounded-full transition-all disabled:cursor-default ${
-              activo ? `${p.color} ring-2 ${p.ring} scale-110` : `bg-muted-foreground/15 ${canWrite ? p.hover : ""}`
+            // El punto mide 10-14px: en el celular eso no se acierta con el dedo,
+            // así que cuando se puede clickear el botón crece a 36px y el punto
+            // (el <span>) queda del mismo tamaño de siempre adentro.
+            className={`inline-flex items-center justify-center rounded-full p-0 disabled:cursor-default size-[var(--dot)] ${
+              canWrite ? "max-md:size-9" : ""
             }`}
-            style={{ width: size, height: size }}
-          />
+            style={{ "--dot": `${size}px` } as React.CSSProperties}
+          >
+            <span
+              className={`block size-[var(--dot)] shrink-0 rounded-full transition-all ${
+                activo ? `${p.color} ring-2 ${p.ring} scale-110` : `bg-muted-foreground/15 ${canWrite ? p.hover : ""}`
+              }`}
+            />
+          </button>
         );
       })}
       {guardando && <Loader2 size={11} className="animate-spin text-muted-foreground" />}

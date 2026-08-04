@@ -155,8 +155,10 @@ export default function ImportEntrevistasDialog({
               </p>
             ))}
 
-            <div className="max-h-72 overflow-y-auto rounded-md border border-border">
-              <table className="w-full text-sm">
+            {/* La preview tiene 5 columnas: en celular scrollea de costado adentro
+                de su propio recuadro, no empuja el diálogo. */}
+            <div className="max-h-72 overflow-auto rounded-md border border-border">
+              <table className="w-full min-w-[520px] text-sm">
                 <thead className="sticky top-0 bg-muted/90">
                   <tr className="text-xs text-muted-foreground">
                     <th className="px-2.5 py-1.5 text-left font-medium">Nombre</th>

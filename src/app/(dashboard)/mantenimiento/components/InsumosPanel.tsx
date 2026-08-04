@@ -180,7 +180,7 @@ export default function InsumosPanel({
       <button
         type="button"
         onClick={() => startEdit(i, field)}
-        className={`w-full ${opts?.right ? "text-right" : "text-left"} rounded px-2 py-1 -mx-2 hover:bg-primary/5 hover:ring-1 hover:ring-primary/20 transition-colors`}
+        className={`w-full ${opts?.right ? "text-right" : "text-left"} rounded px-2 py-1.5 sm:py-1 -mx-2 hover:bg-primary/5 hover:ring-1 hover:ring-primary/20 transition-colors`}
         title="Tocá para editar"
       >
         {display}
@@ -196,7 +196,7 @@ export default function InsumosPanel({
         <button
           type="button"
           onClick={() => toggleSort(sortKey)}
-          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+          className={`inline-flex items-center gap-1 py-2 -my-2 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
         >
           {label}
           <Icon size={12} className={active ? "text-primary" : "text-muted-foreground/50"} />
@@ -218,7 +218,7 @@ export default function InsumosPanel({
       )}
 
       {/* KPIs del catálogo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <MiniStat label="Insumos activos" value={String(kpis.activos)} sub={`de ${kpis.total} en total`} icon={Package} tone="brand" />
         <MiniStat label="Precio promedio" value={kpis.promedio ? `$ ${kpis.promedio.toLocaleString("es-AR")}` : "—"} sub="insumos con precio" icon={DollarSign} tone="emerald" />
         <MiniStat label="Precio desactualizado" value={String(kpis.desactualizados)} sub="a revisar" icon={Clock} tone={kpis.desactualizados > 0 ? "amber" : "muted"} />
@@ -227,11 +227,11 @@ export default function InsumosPanel({
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[180px] max-w-xs">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o marca…" className="pl-8 h-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre o marca…" className="pl-8 pr-9 h-9" />
           {q && (
-            <button type="button" onClick={() => setQ("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Limpiar búsqueda">
+            <button type="button" onClick={() => setQ("")} className="absolute right-0.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground" aria-label="Limpiar búsqueda">
               <X size={14} />
             </button>
           )}
@@ -269,18 +269,21 @@ export default function InsumosPanel({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                {sortHead("Insumo", "nombre", "pl-6")}
+                {/* La columna del insumo queda fija al scrollear de costado en
+                    celular: sin ella no se sabe qué precio se está editando.
+                    El color es el mismo bg-muted/40 del thead, pero opaco. */}
+                {sortHead("Insumo", "nombre", "pl-4 lg:pl-6 max-md:sticky max-md:left-0 max-md:z-20 max-md:border-r max-md:border-border max-md:bg-[color-mix(in_srgb,var(--muted)_40%,var(--card))]")}
                 {sortHead("Marca", "marca")}
                 {sortHead("Precio", "precio", "text-right")}
                 {sortHead("Actualizado", "fecha")}
                 <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Estado</TableHead>
-                {canWrite && <TableHead className="text-right pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
+                {canWrite && <TableHead className="text-right pr-4 lg:pr-6 w-12"><span className="sr-only">Acciones</span></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtrados.map((i) => (
                 <TableRow key={i.id} className={i.estado === "inactivo" ? "opacity-60" : undefined}>
-                  <TableCell className="pl-6 font-medium">
+                  <TableCell className="pl-4 lg:pl-6 font-medium max-md:sticky max-md:left-0 max-md:z-10 max-md:border-r max-md:border-border max-md:bg-card">
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 flex-1">{textCell(i, "nombre", i.nombre)}</span>
                       {i.usos > 0 && (
@@ -315,7 +318,7 @@ export default function InsumosPanel({
                           aria-checked={i.estado === "activo"}
                           onClick={() => toggleEstado(i)}
                           disabled={savingId === i.id}
-                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${i.estado === "activo" ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors before:absolute before:-inset-2 before:content-[''] md:before:hidden ${i.estado === "activo" ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
                           title={i.estado === "activo" ? "Activo — tocá para desactivar" : "Inactivo — tocá para reactivar"}
                         >
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${i.estado === "activo" ? "translate-x-[18px]" : "translate-x-0.5"}`} />
@@ -331,12 +334,12 @@ export default function InsumosPanel({
                     </div>
                   </TableCell>
                   {canWrite && (
-                    <TableCell className="text-right pr-6">
+                    <TableCell className="text-right pr-4 lg:pr-6">
                       <div className="flex items-center justify-end gap-1.5">
                         {savingId === i.id && <Loader2 size={13} className="animate-spin text-muted-foreground" />}
                         <button
                           onClick={() => onDelete(i)}
-                          className="p-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444] transition-colors"
+                          className="inline-flex size-9 md:size-8 items-center justify-center -mr-1.5 rounded hover:bg-[#EF4444]/10 text-muted-foreground hover:text-[#EF4444] transition-colors"
                           title="Borrar insumo"
                           aria-label={`Borrar ${i.nombre}`}
                         >
@@ -371,12 +374,14 @@ const TONE_CLS: Record<string, { icon: string }> = {
 function MiniStat({ label, value, sub, icon: Icon, tone }: { label: string; value: string; sub: string; icon: typeof Package; tone: keyof typeof TONE_CLS }) {
   const c = TONE_CLS[tone] ?? TONE_CLS.muted;
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm p-3.5 flex items-center gap-3">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm p-3 sm:p-3.5 flex items-center gap-2.5 sm:gap-3">
       <span className={`size-9 rounded-lg inline-flex items-center justify-center shrink-0 ${c.icon}`}><Icon size={17} /></span>
       <div className="min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">{label}</div>
+        {/* En celular el rótulo se parte en dos renglones en vez de cortarse:
+            "Precio desactualizado" no entra en media pantalla. */}
+        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate max-sm:whitespace-normal">{label}</div>
         <div className="text-lg font-black tracking-tight text-foreground leading-tight truncate">{value}</div>
-        <div className="text-[10px] text-muted-foreground truncate">{sub}</div>
+        <div className="text-[10px] text-muted-foreground truncate max-sm:whitespace-normal">{sub}</div>
       </div>
     </div>
   );

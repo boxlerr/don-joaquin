@@ -168,7 +168,7 @@ export default function UnidadPicker({
                 <button
                   type="button"
                   onClick={() => setTab("camion")}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2.5 sm:py-1.5 text-xs font-medium transition-colors ${
                     tab === "camion" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -177,7 +177,7 @@ export default function UnidadPicker({
                 <button
                   type="button"
                   onClick={() => setTab("acoplado")}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-2.5 sm:py-1.5 text-xs font-medium transition-colors ${
                     tab === "acoplado" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -214,11 +214,11 @@ export default function UnidadPicker({
                       key={u.id}
                       type="button"
                       onClick={() => handlePick(tipo, u.id)}
-                      className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-sm transition-colors ${
+                      className={`flex w-full items-baseline gap-2 px-3 py-2.5 sm:py-1.5 text-left text-sm transition-colors ${
                         isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
                       }`}
                     >
-                      <span className="font-mono font-medium text-foreground">{u.patente}</span>
+                      <span className="font-mono font-medium text-foreground shrink-0">{u.patente}</span>
                       {sub && <span className="text-xs text-muted-foreground truncate">{sub}</span>}
                     </button>
                   );
@@ -270,7 +270,7 @@ export default function UnidadPicker({
                   onChange("");
                 }
               }}
-              className="rounded p-0.5 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              className="inline-flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               aria-label="Limpiar selección"
             >
               <X size={12} />

@@ -94,7 +94,9 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 bg-card rounded-xl border border-border shadow-lg overflow-hidden">
+        // Los 320px del panel no entran en un celular angosto (320px de
+        // pantalla): se clampea al ancho disponible menos el margen.
+        <div className="absolute right-0 top-10 z-50 w-80 max-w-[calc(100vw-1.5rem)] bg-card rounded-xl border border-border shadow-lg overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-semibold text-foreground">Notificaciones</span>
             {items.length > 0 && (
@@ -112,7 +114,7 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
             )}
           </div>
 
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-[60dvh] sm:max-h-72 overflow-y-auto">
             {loading && items.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground/70">Cargando...</div>
             ) : items.length === 0 ? (

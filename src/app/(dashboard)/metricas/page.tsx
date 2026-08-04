@@ -25,12 +25,12 @@ export default async function MetricasPage({
   const data = await getMetricasAction(month, compare);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Métricas históricas"
         description="Las planillas de gestión mensuales, comparadas contra el mes anterior y el año anterior"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <MesSelectorMetricas
               value={data.mes.slice(0, 7)}
               mesesDisponibles={data.mesesDisponibles}

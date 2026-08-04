@@ -36,7 +36,7 @@ export default async function CajaPage({
   // Sin saldo ni carga: solo el aviso de acceso restringido.
   if (!puedeVerSaldo && !puedeOperar) {
     return (
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <PageHeader
           title="Caja General"
           description="Movimientos digitales, viáticos y gastos — trazabilidad completa"
@@ -115,7 +115,7 @@ export default async function CajaPage({
   const mesesConDatos = [...new Set(fechasConDatos.map((f) => f.slice(0, 7)))].sort().reverse();
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <CajaViewCompleta
         tiposGasto={tiposGasto || []}
         mesesConDatos={mesesConDatos}

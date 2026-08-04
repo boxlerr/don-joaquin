@@ -165,7 +165,7 @@ function DesglosePanel({ r, onVerLegajo }: { r: RankingChofer; onVerLegajo: () =
       <button
         type="button"
         onClick={onVerLegajo}
-        className="inline-flex items-center gap-1.5 h-8 px-3 ml-1 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 ml-1 rounded-lg border border-border bg-card text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
       >
         Ver legajo
         <ExternalLink size={13} />
@@ -188,9 +188,9 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex items-center gap-4">
+    <div className="bg-card border border-border rounded-[8px] px-3 py-3 sm:px-5 sm:py-4 flex items-center gap-3 sm:gap-4">
       <div
-        className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color}`}
+        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${color}`}
       >
         <Icon size={18} />
       </div>
@@ -198,7 +198,7 @@ function StatCard({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {label}
         </p>
-        <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
+        <p className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{value}</p>
         {sub && (
           <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
         )}
@@ -340,8 +340,8 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
     <>
       {/* Aviso: período con muy pocos viajes cargados */}
       {pocosDatos && (
-        <div className="flex items-center gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          <TrendingUp size={15} className="shrink-0" />
+        <div className="flex items-start sm:items-center gap-2 rounded-[8px] border border-amber-200 bg-amber-50 px-3 sm:px-4 py-2.5 text-sm text-amber-800">
+          <TrendingUp size={15} className="mt-0.5 sm:mt-0 shrink-0" />
           Este período tiene sólo {totalViajesPeriodo} viaje{totalViajesPeriodo !== 1 ? "s" : ""} cargado{totalViajesPeriodo !== 1 ? "s" : ""}. El score todavía no es representativo — probá un período más amplio (3 meses o 1 año).
         </div>
       )}
@@ -393,12 +393,12 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
       {/* Tabla principal */}
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
         {/* Header de la tabla */}
-        <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">
               {conActividad.length} choferes con actividad
             </p>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
               <p className="text-xs text-muted-foreground">
                 Score por 8 conceptos (km, toneladas, combustible, gomas, roturas, seguridad, siniestros, conducta). Facturación y $/km miden productividad. Tocá una columna para ordenar · Tildá 2 para comparar
               </p>
@@ -406,7 +406,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:shrink-0">
             {/* Leyenda */}
             <div className="hidden lg:flex items-center gap-3 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
@@ -423,7 +423,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
               </span>
             </div>
             {/* Búsqueda */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search
                 size={13}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none"
@@ -433,7 +433,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar chofer..."
-                className="pl-8 pr-3 h-8 w-44 rounded-lg border border-border bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                className="pl-8 pr-3 h-9 sm:h-8 w-full sm:w-44 rounded-lg border border-border bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
           </div>
@@ -455,14 +455,18 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
           // Con las columnas de todos los conceptos la tabla puede superar el
           // ancho en pantallas chicas: scroll horizontal en vez de apretujar.
           <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* `min-w` sólo abajo de lg: en el celular la tabla no se aplasta
+              (scrollea de costado) y en desktop queda exactamente como estaba. */}
+          <table className="w-full min-w-[1100px] lg:min-w-0 text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="w-10 px-3 py-3" />
                 <th className="w-10 px-2 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   #
                 </th>
-                <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {/* Columna identificadora fija: al scrollear de costado el
+                    nombre del chofer no se pierde de referencia. */}
+                <th className="sticky left-0 z-20 bg-[#FBFCFD] shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Chofer
                 </th>
                 <SortableTh label="Score" col="score" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" className="min-w-[160px]" />
@@ -526,7 +530,11 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                       )}
                     </td>
                     {/* Nombre + avatar */}
-                    <td className="px-4 py-3.5">
+                    <td
+                      className={`sticky left-0 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-4 py-3.5 ${
+                        isSelected ? "bg-[#F2F9FD]" : isExpanded ? "bg-[#F9FBFD]" : "bg-card"
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${av.bg} ${av.text}`}
@@ -669,7 +677,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                   </tr>
                   {isExpanded && (
                     <tr className="bg-muted/20 border-l-[3px] border-l-transparent">
-                      <td colSpan={17} className="px-5 py-3">
+                      <td colSpan={17} className="px-4 sm:px-5 py-3">
                         <DesglosePanel
                           r={r}
                           onVerLegajo={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
@@ -702,9 +710,9 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             <button
               type="button"
               onClick={() => setSinActividadOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-5 py-3 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
+              className="w-full flex items-center justify-between gap-2 px-4 sm:px-5 py-3 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-left">
                 {sinActividadOpen ? (
                   <ChevronDown size={13} />
                 ) : (
@@ -716,20 +724,20 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
                     : `${sinActividad.length} choferes sin actividad (ocultos por el filtro)`}
                 </span>
               </span>
-              <span className="text-[11px] text-muted-foreground/60">
+              <span className="shrink-0 text-[11px] text-muted-foreground/60">
                 {sinActividadOpen ? "ocultar" : "mostrar"}
               </span>
             </button>
 
             {sinActividadOpen && (
-              <div className="px-5 pb-4 pt-1">
+              <div className="px-4 sm:px-5 pb-4 pt-1">
                 <div className="flex flex-wrap gap-2">
                   {filteredSinActividad.map((r) => (
                     <button
                       key={r.id}
                       type="button"
                       onClick={() => router.push(`/choferes/${choferSlug(r)}`)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/60 hover:bg-muted text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-md bg-muted/60 hover:bg-muted text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <span className="w-5 h-5 rounded-full bg-muted-foreground/10 flex items-center justify-center text-[10px] font-semibold">
                         {initials(r.nombre, r.apellido)}
@@ -746,9 +754,9 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
 
       {/* Floating compare bar */}
       {selected.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-card border border-border rounded-full shadow-lg px-4 py-2 flex items-center gap-3">
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[calc(100vw-1.5rem)] bg-card border border-border rounded-full shadow-lg px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3">
           <GitCompare size={16} className="text-primary shrink-0" />
-          <span className="text-sm text-foreground whitespace-nowrap">
+          <span className="min-w-0 truncate text-sm text-foreground">
             {selected.length === 1 ? (
               <>
                 <strong>{choferesSeleccionados[0]?.apellido}</strong>
@@ -765,7 +773,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
           <button
             type="button"
             onClick={() => setSelected([])}
-            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+            className="shrink-0 text-muted-foreground hover:text-foreground p-1.5 rounded transition-colors"
             aria-label="Limpiar selección"
           >
             <X size={14} />
@@ -774,7 +782,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             type="button"
             onClick={comparar}
             disabled={selected.length !== 2}
-            className="inline-flex items-center gap-1.5 h-8 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 sm:px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Comparar
           </button>

@@ -111,7 +111,7 @@ export default function PeriodoSelector({
     : CHIPS;
 
   const chipClase = (activo: boolean) =>
-    `inline-flex items-center h-8 px-3 rounded-lg text-sm font-medium transition-colors ${
+    `inline-flex items-center h-9 sm:h-8 px-3 rounded-lg text-sm font-medium transition-colors ${
       activo
         ? "bg-primary text-primary-foreground"
         : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -120,7 +120,7 @@ export default function PeriodoSelector({
   const hoy = new Date();
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5 sm:gap-1.5">
       {chips.map((chip) => (
         <button key={chip.key} type="button" onClick={() => onChipClick(chip.key)} className={chipClase(rangoActual === chip.key)}>
           {chip.label}
@@ -139,7 +139,9 @@ export default function PeriodoSelector({
         </button>
 
         {mesOpen && (
-          <div className="absolute right-0 top-full z-30 mt-2 w-64 rounded-lg border border-border bg-card p-3 shadow-md">
+          /* En celular se centra como mini-modal (mismo criterio que MonthPicker):
+             colgando del botón, los 256px se iban del borde de la pantalla. */
+          <div className="z-30 rounded-lg border border-border bg-card p-3 shadow-md max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:right-0 sm:top-full sm:mt-2 sm:w-64">
             <div className="mb-2 flex items-center justify-between">
               <button
                 type="button"
@@ -171,7 +173,7 @@ export default function PeriodoSelector({
                     type="button"
                     disabled={futuro}
                     onClick={() => elegirMes(yearView, m)}
-                    className={`h-8 rounded-md text-sm font-medium capitalize transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                    className={`h-9 sm:h-8 rounded-md text-sm font-medium capitalize transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
                       activo
                         ? "bg-primary text-primary-foreground"
                         : "border border-border text-foreground hover:bg-muted"
@@ -186,7 +188,7 @@ export default function PeriodoSelector({
             <button
               type="button"
               onClick={() => elegirMes(hoy.getFullYear(), hoy.getMonth())}
-              className="mt-2 w-full rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="mt-2 h-9 sm:h-auto w-full rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               Este mes
             </button>
@@ -206,7 +208,7 @@ export default function PeriodoSelector({
         {open && (
           <form
             onSubmit={onCustomSubmit}
-            className="absolute right-0 top-full mt-2 z-30 w-72 bg-card border border-border rounded-lg shadow-md p-3 space-y-2.5"
+            className="z-30 bg-card border border-border rounded-lg shadow-md p-3 space-y-2.5 max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:right-0 sm:top-full sm:mt-2 sm:w-72"
           >
             <div>
               <label className="block text-xs font-medium text-muted-foreground mb-1">Desde</label>
@@ -215,7 +217,7 @@ export default function PeriodoSelector({
                 value={desde}
                 max={hasta || undefined}
                 onChange={(e) => setDesde(e.target.value)}
-                className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full h-9 sm:h-8 px-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 required
               />
             </div>
@@ -226,14 +228,14 @@ export default function PeriodoSelector({
                 value={hasta}
                 min={desde || undefined}
                 onChange={(e) => setHasta(e.target.value)}
-                className="w-full h-8 px-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full h-9 sm:h-8 px-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 required
               />
             </div>
             <button
               type="submit"
               disabled={customInvalido}
-              className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full inline-flex items-center justify-center gap-1.5 h-9 sm:h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Check size={14} />
               Aplicar

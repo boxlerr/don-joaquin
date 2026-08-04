@@ -38,7 +38,7 @@ export default function SeccionesConfidencialEditor({ initial }: Props) {
     const on = !!conf[seccion];
     const isSaving = saving === seccion && isPending;
     return (
-      <div className={`flex items-center justify-between gap-2 py-1.5 pr-3 ${indent ? "pl-7" : "pl-3"}`}>
+      <div className={`flex items-center justify-between gap-2 py-1.5 max-md:py-2.5 pr-3 ${indent ? "pl-7" : "pl-3"}`}>
         <span className="flex items-center gap-1.5 text-xs text-foreground min-w-0">
           {on ? (
             <Lock size={12} className="text-amber-600 shrink-0" />
@@ -51,6 +51,8 @@ export default function SeccionesConfidencialEditor({ initial }: Props) {
           <span className={`text-[10px] font-semibold w-[74px] text-right ${on ? "text-amber-600" : "text-muted-foreground/50"}`}>
             {on ? "Confidencial" : "Según el rol"}
           </span>
+          {/* El botón es la zona táctil (36px en celular); la pastilla de adentro
+              es lo que se ve. En desktop mide lo mismo que ella. */}
           <button
             type="button"
             role="switch"
@@ -58,13 +60,19 @@ export default function SeccionesConfidencialEditor({ initial }: Props) {
             aria-label={`${label}: ${on ? "confidencial" : "según el rol"}`}
             disabled={isSaving}
             onClick={() => toggle(seccion)}
-            className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${
-              on ? "bg-amber-500" : "bg-muted-foreground/30"
-            } ${isSaving ? "opacity-60" : "hover:opacity-90"}`}
+            className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md sm:size-auto ${
+              isSaving ? "opacity-60" : "hover:opacity-90"
+            }`}
           >
             <span
-              className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`}
-            />
+              className={`relative block h-5 w-9 shrink-0 rounded-full transition-colors ${
+                on ? "bg-amber-500" : "bg-muted-foreground/30"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`}
+              />
+            </span>
           </button>
         </div>
       </div>
@@ -73,9 +81,9 @@ export default function SeccionesConfidencialEditor({ initial }: Props) {
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="px-5 py-4 border-b border-border space-y-2">
+      <div className="px-4 sm:px-5 py-4 border-b border-border space-y-2">
         <div className="flex items-center gap-2">
-          <ShieldAlert size={16} className="text-amber-600" />
+          <ShieldAlert size={16} className="text-amber-600 shrink-0" />
           <h2 className="text-foreground text-sm font-semibold">Secciones confidenciales</h2>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -87,13 +95,13 @@ export default function SeccionesConfidencialEditor({ initial }: Props) {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
-          <AlertCircle size={13} />
+        <div className="flex items-center gap-2 px-4 sm:px-5 py-2 bg-red-50 border-b border-red-200 text-red-600 text-xs">
+          <AlertCircle size={13} className="shrink-0" />
           {error}
         </div>
       )}
 
-      <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
         {SIDEBAR_ARBOL.map((grupo) => (
           <div key={grupo.label} className="rounded-lg border border-border overflow-hidden self-start">
             <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center gap-1.5">

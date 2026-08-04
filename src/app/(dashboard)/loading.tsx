@@ -5,7 +5,7 @@
 
 export default function DashboardLoading() {
   return (
-    <div className="p-8 animate-pulse" aria-busy="true" aria-label="Cargando…">
+    <div className="p-4 sm:p-6 lg:p-8 animate-pulse" aria-busy="true" aria-label="Cargando…">
       {/* Encabezado */}
       <div className="mb-6 space-y-2">
         <div className="h-7 w-64 rounded-md bg-muted" />
@@ -30,11 +30,13 @@ export default function DashboardLoading() {
         </div>
         <div className="divide-y divide-border/60">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-              <div className="h-4 w-28 rounded bg-muted/70" />
+            // Las dos últimas barras se ocultan en celular: sumadas a las
+            // otras se pasaban de los 343px útiles y el esqueleto desbordaba.
+            <div key={i} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5">
+              <div className="h-4 w-24 sm:w-28 rounded bg-muted/70" />
               <div className="h-4 flex-1 rounded bg-muted/50" />
-              <div className="h-4 w-24 rounded bg-muted/60" />
-              <div className="h-4 w-16 rounded bg-muted/40" />
+              <div className="hidden sm:block h-4 w-24 rounded bg-muted/60" />
+              <div className="hidden sm:block h-4 w-16 rounded bg-muted/40" />
             </div>
           ))}
         </div>

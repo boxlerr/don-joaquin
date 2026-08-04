@@ -142,7 +142,7 @@ export default function ImportarPlanillaDialog({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={cargando}
-            className="flex flex-col items-center justify-center gap-2 rounded-[8px] border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 px-6 py-10 text-sm text-muted-foreground"
+            className="flex flex-col items-center justify-center gap-2 rounded-[8px] border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 px-4 sm:px-6 py-8 sm:py-10 text-center text-sm text-muted-foreground"
           >
             {cargando ? (
               <>
@@ -186,7 +186,7 @@ export default function ImportarPlanillaDialog({
                 </h3>
                 <ul className="divide-y divide-border rounded-[8px] border border-border overflow-hidden">
                   {preview.periodos.map((p, i) => (
-                    <li key={i} className="flex items-center gap-2.5 px-3 py-2 bg-card hover:bg-muted/20">
+                    <li key={i} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 bg-card hover:bg-muted/20">
                       <input
                         type="checkbox"
                         checked={periodosSel.has(i)}
@@ -210,7 +210,7 @@ export default function ImportarPlanillaDialog({
                 </h3>
                 <ul className="divide-y divide-border rounded-[8px] border border-border overflow-hidden">
                   {preview.saldos.map((s, i) => (
-                    <li key={i} className="flex items-center gap-2.5 px-3 py-2 bg-card hover:bg-muted/20">
+                    <li key={i} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 bg-card hover:bg-muted/20">
                       <input
                         type="checkbox"
                         checked={saldosSel.has(i)}

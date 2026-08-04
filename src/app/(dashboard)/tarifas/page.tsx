@@ -28,7 +28,7 @@ export default async function TarifasPage({
   ]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader title="Tarifas" description="Aumentos de tarifa por cliente y circuitos" />
       <TarifasTabs
         clientes={clientes}

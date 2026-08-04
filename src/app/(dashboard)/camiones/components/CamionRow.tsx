@@ -32,17 +32,8 @@ const TERCERIZACION_BADGE: Record<
   tercerizado: { label: "Tercerizado", cls: "bg-muted text-muted-foreground border-border" },
 };
 
-export default function CamionRow({
-  camion,
-  tiposServicio,
-  onSelect,
-}: {
-  camion: Camion;
-  tiposServicio: TipoServicio[];
-  onSelect: (camion: Camion) => void;
-}) {
-  const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
-  const datosCompletos = !!camion.marca && camion.marca !== SIN_DATOS;
+/** Prender/apagar la unidad — lo comparten la fila (desktop) y la tarjeta (celular). */
+function useEstadoCamion(camion: Camion) {
   const router = useRouter();
   const [pendingEstado, setPendingEstado] = useState(false);
   const activo = camion.estado === "activo";
@@ -57,6 +48,53 @@ export default function CamionRow({
     }
   };
 
+  return { activo, pendingEstado, toggleEstado };
+}
+
+/** Los chips de "Datos completos / Solo patente / Tolva", iguales en fila y tarjeta. */
+function ChipsUnidad({ datosCompletos, esTolva }: { datosCompletos: boolean; esTolva?: boolean | null }) {
+  return (
+    <>
+      {datosCompletos ? (
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#0369A1] text-[10px] font-bold uppercase tracking-wide w-fit"
+          title="Unidad con datos completos — primera tanda (11 unidades)"
+        >
+          Datos completos
+        </span>
+      ) : (
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-wide w-fit"
+          title="Cargado solo con patente — faltan marca, modelo, año y demás datos"
+        >
+          Solo patente
+        </span>
+      )}
+      {esTolva && (
+        <span
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
+          title="Acoplado tolva"
+        >
+          Tolva
+        </span>
+      )}
+    </>
+  );
+}
+
+export default function CamionRow({
+  camion,
+  tiposServicio,
+  onSelect,
+}: {
+  camion: Camion;
+  tiposServicio: TipoServicio[];
+  onSelect: (camion: Camion) => void;
+}) {
+  const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
+  const datosCompletos = !!camion.marca && camion.marca !== SIN_DATOS;
+  const { activo, pendingEstado, toggleEstado } = useEstadoCamion(camion);
+
   return (
     <TableRow
       key={camion.id}
@@ -69,29 +107,7 @@ export default function CamionRow({
             <div className="flex flex-col gap-1">
               <span className="font-mono font-medium text-foreground">{camion.patente}</span>
               <div className="flex items-center gap-1">
-                {datosCompletos ? (
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#E1F5FE] text-[#0369A1] text-[10px] font-bold uppercase tracking-wide w-fit"
-                    title="Unidad con datos completos — primera tanda (11 unidades)"
-                  >
-                    Datos completos
-                  </span>
-                ) : (
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold uppercase tracking-wide w-fit"
-                    title="Cargado solo con patente — faltan marca, modelo, año y demás datos"
-                  >
-                    Solo patente
-                  </span>
-                )}
-                {camion.es_tolva && (
-                  <span
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E] text-[10px] font-bold uppercase tracking-wide w-fit"
-                    title="Acoplado tolva"
-                  >
-                    Tolva
-                  </span>
-                )}
+                <ChipsUnidad datosCompletos={datosCompletos} esTolva={camion.es_tolva} />
               </div>
             </div>
           </div>
@@ -164,6 +180,124 @@ export default function CamionRow({
           </div>
         </TableCell>
       </TableRow>
+  );
+}
+
+/**
+ * La misma unidad, pero como tarjeta: es lo que se ve abajo de `md`, donde la
+ * tabla de 8 columnas no entra. Mismos datos y mismas acciones que la fila
+ * (abrir el detalle y prender/apagar la unidad), sólo cambia el acomodo.
+ */
+export function CamionCard({
+  camion,
+  onSelect,
+}: {
+  camion: Camion;
+  onSelect: (camion: Camion) => void;
+}) {
+  const terc = TERCERIZACION_BADGE[camion.tercerizacion_estado];
+  const datosCompletos = !!camion.marca && camion.marca !== SIN_DATOS;
+  const { activo, pendingEstado, toggleEstado } = useEstadoCamion(camion);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(camion)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(camion);
+        }
+      }}
+      className="w-full cursor-pointer px-4 py-3.5 text-left transition-colors active:bg-muted/50"
+    >
+      <div className="flex items-start gap-3">
+        <MarcaLogo marca={camion.marca} foto={camion.foto_url} patente={camion.patente} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-mono font-medium text-foreground">{camion.patente}</span>
+            <StatusBadge
+              label={camion.estado}
+              tone={
+                camion.estado === "activo"
+                  ? "success"
+                  : camion.estado === "en_mantenimiento"
+                    ? "warning"
+                    : "neutral"
+              }
+            />
+          </div>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {datosCompletos ? (
+              <>
+                {camion.marca} {camion.modelo}
+                {camion.ano ? ` — ${camion.ano}` : ""}
+              </>
+            ) : (
+              <span className="italic">Sin datos de marca/modelo</span>
+            )}
+          </p>
+        </div>
+        <EstadoSwitch activo={activo} pending={pendingEstado} onToggle={toggleEstado} />
+      </div>
+
+      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <Dato label="Capacidad">
+          <span className="text-foreground">{Number(camion.capacidad_tn).toFixed(1)} TN</span>
+        </Dato>
+        <Dato label="Km">
+          <span className="font-mono text-foreground">
+            {camion.km_actual != null ? `${Number(camion.km_actual).toLocaleString("es-AR")} km` : "—"}
+          </span>
+        </Dato>
+        <Dato label="Tipo">
+          <span className="text-foreground">{camion.tipo_camion ?? "—"}</span>
+        </Dato>
+        <Dato label="Acoplado">
+          {camion.acoplados_vinculados && camion.acoplados_vinculados.length > 0 ? (
+            <span className="font-mono text-foreground">
+              {camion.acoplados_vinculados.join(", ")}
+            </span>
+          ) : (
+            <span className="italic text-muted-foreground/70">Sin acoplado</span>
+          )}
+        </Dato>
+        <div className="col-span-2">
+          <Dato label="Chofer">
+            {camion.chofer_nombre ? (
+              <span className="text-foreground">{camion.chofer_nombre}</span>
+            ) : (
+              <span className="italic text-muted-foreground/70">Sin chofer</span>
+            )}
+          </Dato>
+        </div>
+      </dl>
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <ChipsUnidad datosCompletos={datosCompletos} esTolva={camion.es_tolva} />
+        {terc && (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-md border text-[11px] font-medium whitespace-nowrap ${terc.cls}`}
+          >
+            {terc.label}
+          </span>
+        )}
+        <CategoriaCapacidadChip capacidad={camion.capacidad_tn} />
+      </div>
+    </div>
+  );
+}
+
+/** Par rótulo/valor de las tarjetas de celular. */
+export function Dato({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70">
+        {label}
+      </dt>
+      <dd className="truncate">{children}</dd>
+    </div>
   );
 }
 

@@ -47,7 +47,7 @@ export default function ExportButton({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
       >
         <Download size={14} />
         Exportar
@@ -55,7 +55,7 @@ export default function ExportButton({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-30 w-44 bg-card border border-border rounded-lg shadow-md py-1">
+        <div className="absolute right-0 top-full mt-2 z-30 w-44 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-md py-1">
           <a
             href={excelHref}
             onClick={() => setOpen(false)}

@@ -17,18 +17,20 @@ export default function ViaticosPendientesPanel({
   if (!viaticos.length) return null;
 
   return (
-    <div className="mt-6 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/10 p-4">
-      <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-3">
+    <div className="mt-6 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/10 p-3 sm:p-4">
+      <h3 className="text-sm font-semibold text-foreground flex flex-wrap items-center gap-1.5 mb-3">
         <Receipt size={15} className="text-amber-600" />
         Viáticos pendientes de rendición
         <span className="text-xs font-normal text-muted-foreground">({viaticos.length})</span>
       </h3>
 
+      {/* En celular el importe y el botón bajan a su propio renglón: los tres
+          bloques en una sola línea no entran en 343px. */}
       <ul className="space-y-1.5">
         {viaticos.map((v) => (
           <li
             key={v.id}
-            className="flex items-center gap-3 text-xs bg-card rounded-lg border border-border/70 px-3 py-2"
+            className="flex flex-col gap-2 text-xs bg-card rounded-lg border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:gap-3"
           >
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-foreground/90 truncate">{v.chofer}</p>
@@ -37,14 +39,18 @@ export default function ViaticosPendientesPanel({
                 {v.observaciones ? ` · ${v.observaciones}` : ""}
               </p>
             </div>
-            <span className="shrink-0 font-semibold text-foreground">{ars(v.monto_entregado)}</span>
-            {canWrite && (
-              <RendirViaticoDialog viatico={v}>
-                <Button size="xs" variant="outline" className="shrink-0">
-                  Rendir
-                </Button>
-              </RendirViaticoDialog>
-            )}
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
+              <span className="shrink-0 font-semibold text-foreground">
+                {ars(v.monto_entregado)}
+              </span>
+              {canWrite && (
+                <RendirViaticoDialog viatico={v}>
+                  <Button size="xs" variant="outline" className="shrink-0">
+                    Rendir
+                  </Button>
+                </RendirViaticoDialog>
+              )}
+            </div>
           </li>
         ))}
       </ul>

@@ -89,7 +89,7 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
     >
       <DialogTrigger
         render={
-          <button className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          <button className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
             <SlidersHorizontal size={14} />
             Configurar criterios
           </button>
@@ -141,13 +141,15 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
                     max={100}
                     value={String(valores.topes[c.key])}
                     onChange={(e) => setTope(c.key, e.target.value)}
-                    className="w-14 h-8 text-sm text-right"
+                    className="w-14 h-9 sm:h-8 text-sm text-right"
                   />
                   <span className="text-xs text-muted-foreground">pts</span>
                 </div>
               </div>
-              {/* Niveles editables (% de descuento del tope) */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Niveles editables (% de descuento del tope). De a 2 en el
+                  celular: a 3 columnas el rótulo del nivel ("2+ graves / 3+
+                  leves") no entraba al lado del campo. */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {TRAMOS_META[c.key].map((nivel) => (
                   <div key={nivel.key} className="rounded-md bg-muted/40 border border-border px-2 py-1.5">
                     <p className="text-[11px] font-medium text-foreground leading-tight">{nivel.label}</p>
@@ -160,7 +162,7 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
                         max={100}
                         value={String(tramoPct(c.key, nivel.key))}
                         onChange={(e) => setTramo(c.key, nivel.key, e.target.value)}
-                        className="w-12 h-7 text-xs text-right px-1.5"
+                        className="w-12 h-8 sm:h-7 text-xs text-right px-1.5"
                       />
                       <span className="text-[11px] text-muted-foreground">%</span>
                     </div>
@@ -174,24 +176,24 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground pt-1 px-1">
             Referencias
           </p>
-          <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4 rounded-lg border border-border px-3 py-2">
             <div className="min-w-0">
               <Label htmlFor="ref-km" className="text-sm font-medium text-foreground">Objetivo de km por mes</Label>
               <p className="text-[11px] text-muted-foreground">Km mensuales considerados &ldquo;muy bueno&rdquo; (100%)</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <Input id="ref-km" type="number" min={0} step={500} value={String(valores.km_ref_mensual)} onChange={(e) => setRef("km_ref_mensual", e.target.value)} className="w-24 h-8 text-sm text-right" />
+              <Input id="ref-km" type="number" min={0} step={500} value={String(valores.km_ref_mensual)} onChange={(e) => setRef("km_ref_mensual", e.target.value)} className="w-24 h-9 sm:h-8 text-sm text-right" />
               <span className="text-xs text-muted-foreground">km</span>
             </div>
           </div>
           <div className="rounded-lg border border-border px-3 py-2 space-y-2">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
               <div className="min-w-0">
                 <Label htmlFor="ref-comb" className="text-sm font-medium text-foreground">Consumo de referencia</Label>
                 <p className="text-[11px] text-muted-foreground">Hasta este consumo el chofer no pierde puntos</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <Input id="ref-comb" type="number" min={0} step={0.1} value={String(valores.combustible_ref)} onChange={(e) => setRef("combustible_ref", e.target.value)} className="w-24 h-8 text-sm text-right" />
+                <Input id="ref-comb" type="number" min={0} step={0.1} value={String(valores.combustible_ref)} onChange={(e) => setRef("combustible_ref", e.target.value)} className="w-24 h-9 sm:h-8 text-sm text-right" />
                 <span className="text-xs text-muted-foreground">L/100km</span>
               </div>
             </div>
@@ -210,7 +212,7 @@ export default function CriteriosButton({ criterios }: { criterios: RankingCrite
                     key={op.key}
                     type="button"
                     onClick={() => setRefModo(op.key)}
-                    className={`inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${
+                    className={`inline-flex items-center h-8 sm:h-7 px-2.5 rounded-lg text-xs font-medium transition-colors ${
                       activo
                         ? "bg-primary text-primary-foreground"
                         : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"

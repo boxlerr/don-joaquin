@@ -14,8 +14,12 @@ import CajaTabs from "../CajaTabs";
 import type { ViaticoPendiente } from "./RendirViaticoDialog";
 import type { CajaId } from "../actions";
 
-/** Ingreso y Egreso son las acciones del día: más grandes que el resto del header. */
-const BOTON_CARGA = "h-10 px-4 text-sm font-semibold";
+/**
+ * Ingreso y Egreso son las acciones del día: más grandes que el resto del
+ * header. En celular se reparten el ancho del renglón en vez de quedar
+ * apretados contra el borde.
+ */
+const BOTON_CARGA = "h-11 px-4 text-sm font-semibold max-sm:flex-1 sm:h-10";
 
 type Props = {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
@@ -73,7 +77,7 @@ export default function CajaViewCompleta({
             : "Últimos 30 días — se ve igual para todos los roles"
         }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <HelpTutorialButton />
             {!esGrande && puedeOperar && (
               <>

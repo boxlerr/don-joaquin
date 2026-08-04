@@ -73,6 +73,7 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   impuesto: "Impuesto",
   form931: "Formulario 931",
   mantenimiento: "Mantenimiento",
+  costo_rep_rep: "Costo de repuestos y reparaciones",
   rotura_goma: "Rotura de goma",
   siniestro: "Siniestro",
   extintor: "Extintor",

@@ -59,13 +59,13 @@ export default function CamionChoferesTab({ camionId }: { camionId: string }) {
           Chofer actual
         </h3>
         {activo ? (
-          <div className="bg-[#E1F5FE] border border-[#BAE6FD] rounded-lg p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="bg-[#E1F5FE] border border-[#BAE6FD] rounded-lg p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <span className="size-10 rounded-full bg-card text-primary flex items-center justify-center shrink-0">
                 <Users size={18} />
               </span>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
                   {activo.chofer
                     ? `${activo.chofer.apellido}, ${activo.chofer.nombre}`
                     : "Sin nombre"}
@@ -78,7 +78,7 @@ export default function CamionChoferesTab({ camionId }: { camionId: string }) {
             </div>
             <Link
               href={`/choferes/${activo.chofer_id}`}
-              className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+              className="inline-flex h-9 shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline sm:h-auto"
             >
               Ver legajo
               <ExternalLink size={11} />

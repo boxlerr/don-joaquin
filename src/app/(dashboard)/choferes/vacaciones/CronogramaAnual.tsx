@@ -61,7 +61,7 @@ export default function CronogramaAnual({ periodos, anio, umbralConfig, activos 
   return (
     <TooltipProvider delay={120}>
       {/* Leyenda: explica qué muestra el calendario */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-4 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1.5 px-3 sm:px-4 pt-4 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground">Cuánta gente está de vacaciones cada día:</span>
         <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#10B981]/25" /> pocos</span>
         <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#10B981]/55" /> varios</span>
@@ -69,7 +69,7 @@ export default function CronogramaAnual({ periodos, anio, umbralConfig, activos 
         <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-[2px] bg-[#DC2626]" /> se pasa del máximo</span>
         <span className="text-muted-foreground/70">· el máximo se configura por mes, así diciembre y enero no salen todos en rojo</span>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 p-3 sm:p-4">
         {MESES.map((mes, mi) => {
           const primero = new Date(anio, mi, 1);
           const offset = (primero.getDay() + 6) % 7; // 0 = lunes

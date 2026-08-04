@@ -95,8 +95,8 @@ export default function ViajeGastosPanel({
       className="bg-card p-3 rounded-lg border border-border/80 shadow-2xs"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5 mb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2.5 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className="flex items-center justify-center size-[34px] rounded-lg bg-[#EF4444]/12 text-[#EF4444] shrink-0">
             <Receipt size={16} strokeWidth={2.1} />
           </span>
@@ -181,9 +181,9 @@ export default function ViajeGastosPanel({
           {gastos.map((g) => (
             <div
               key={g.id}
-              className="flex items-center justify-between gap-3 text-xs px-2 py-1.5 rounded hover:bg-muted/40"
+              className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs px-2 py-1.5 rounded hover:bg-muted/40"
             >
-              <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 flex-1">
                 <span className="font-medium text-foreground shrink-0">
                   {g.tipo_gasto_nombre ?? "Gasto"}
                 </span>

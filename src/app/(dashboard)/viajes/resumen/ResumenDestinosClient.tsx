@@ -161,7 +161,7 @@ function Metrica({
       </span>
       <span className="mt-2.5 flex items-baseline gap-1.5">
         <span
-          className="text-[32px] font-bold leading-none tracking-tight tabular-nums"
+          className="text-[26px] sm:text-[32px] font-bold leading-none tracking-tight tabular-nums"
           style={{ color }}
         >
           {valor}
@@ -177,7 +177,7 @@ function Metrica({
   );
 
   const base =
-    "block rounded-[8px] border bg-card px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-all";
+    "block rounded-[8px] border bg-card px-3 py-3 sm:px-4 sm:py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.06)] transition-all";
   if (!href) {
     return <div className={`${base} border-border`}>{cuerpo}</div>;
   }
@@ -245,7 +245,7 @@ function cambiosDe(v: ViajeDelResumen, b: Borrador) {
 }
 
 const CELDA_INPUT =
-  "h-7 w-full rounded-[4px] border border-border bg-card px-1.5 text-[12px] text-foreground outline-none focus:border-primary";
+  "h-8 sm:h-7 w-full min-w-[5rem] rounded-[4px] border border-border bg-card px-1.5 text-[12px] text-foreground outline-none focus:border-primary";
 
 /** Una fila del detalle: se lee, y con el lápiz se edita en el lugar. */
 function FilaViaje({
@@ -386,7 +386,7 @@ function FilaViaje({
                 onClick={guardar}
                 disabled={guardando}
                 title="Guardar"
-                className="rounded-[4px] border border-primary/50 p-1 text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                className="inline-flex size-8 items-center justify-center rounded-[4px] border border-primary/50 text-primary transition-colors hover:bg-primary/10 disabled:opacity-50 sm:size-6"
               >
                 {guardando ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
               </button>
@@ -395,7 +395,7 @@ function FilaViaje({
                 onClick={() => setEditando(false)}
                 disabled={guardando}
                 title="Cancelar"
-                className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted"
+                className="inline-flex size-8 items-center justify-center rounded-[4px] border border-border text-muted-foreground transition-colors hover:bg-muted sm:size-6"
               >
                 <X size={12} />
               </button>
@@ -497,7 +497,7 @@ function FilaViaje({
                   abrir();
                 }}
                 title="Corregir este viaje acá"
-                className="rounded-[4px] border border-border p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                className="inline-flex size-8 items-center justify-center rounded-[4px] border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-primary sm:size-6"
               >
                 <Pencil size={12} />
               </button>
@@ -524,8 +524,8 @@ function FilaViaje({
                   placeholder="elegir chofer…"
                   searchPlaceholder="Buscar chofer…"
                   disabled={guardando}
-                  triggerClassName="h-7 text-[12px]"
-                  className="min-w-[15rem]"
+                  triggerClassName="h-9 sm:h-7 text-[12px]"
+                  className="w-full min-w-0 sm:w-auto sm:min-w-[15rem]"
                   aria-label="Asignarle un chofer a este viaje"
                 />
                 {guardando && <Loader2 size={12} className="animate-spin text-primary" />}
@@ -582,9 +582,11 @@ function TablaViajes({
   onGuardado: () => void;
 }) {
   return (
-    <div className="border-t border-border bg-muted/30 px-4 pb-3 pt-2">
-      <div className="overflow-hidden rounded-[6px] border border-border bg-card">
-      <table className="w-full text-[12.5px]">
+    <div className="border-t border-border bg-muted/30 px-3 pb-3 pt-2 sm:px-4">
+      {/* En el celular la tabla no se aplasta: scrollea de costado adentro de su
+          propio contenedor (el min-w es lo que la obliga). */}
+      <div className="overflow-x-auto rounded-[6px] border border-border bg-card">
+      <table className="w-full min-w-[720px] text-[12.5px]">
         <thead>
           <tr className="border-y border-border bg-muted text-[10.5px] uppercase tracking-wide text-muted-foreground">
             <th className="py-2 pl-3 pr-3 text-left font-bold">Fecha</th>
@@ -988,7 +990,7 @@ export default function ResumenDestinosClient({
                   <button
                     type="button"
                     onClick={() => setDestinosAbiertos((p) => alternar(p, d.destino))}
-                    className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60"
+                    className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-3 text-left transition-colors hover:bg-muted/60 sm:px-4 sm:py-3.5"
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
                       {abierto ? (
@@ -1000,7 +1002,7 @@ export default function ResumenDestinosClient({
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-[6px] border border-border bg-muted text-[#DC2626]">
                         <MapPin size={14} />
                       </span>
-                      <span className="truncate text-[16px] font-bold tracking-tight text-foreground">
+                      <span className="truncate text-[15px] sm:text-[16px] font-bold tracking-tight text-foreground">
                         {d.destino}
                       </span>
 
@@ -1010,7 +1012,7 @@ export default function ResumenDestinosClient({
                         </span>
                       )}
                     </span>
-                    <span className="flex shrink-0 items-center gap-4 text-[12.5px] tabular-nums text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] tabular-nums text-muted-foreground sm:gap-4">
                       {d.toneladas > 0 && (
                         <span>
                           <b className="font-semibold text-foreground">{fmtNum(d.toneladas, 1)}</b> tn
@@ -1081,7 +1083,7 @@ export default function ResumenDestinosClient({
                               onClick={() => setChoferesAbiertos((p) => alternar(p, clave))}
                               // El hover marca de más y con borde izquierdo, para
                               // que se vea qué fila está debajo del mouse.
-                              className={`flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 border-l-[3px] px-4 py-3 text-left transition-colors ${
+                              className={`flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-l-[3px] px-3 py-3 text-left transition-colors sm:px-4 ${
                                 verViajes
                                   ? "border-primary/60 hover:bg-primary/[0.1]"
                                   : "border-transparent hover:border-primary/40 hover:bg-primary/[0.05]"
@@ -1117,7 +1119,7 @@ export default function ResumenDestinosClient({
                                   </span>
                                 )}
                               </span>
-                              <span className="flex shrink-0 items-center gap-4 text-[12.5px] text-muted-foreground">
+                              <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted-foreground sm:gap-4">
                                 {c.toneladas > 0 && (
                                   <span className="tabular-nums">
                                     <b className="font-semibold text-foreground">

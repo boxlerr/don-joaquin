@@ -4,8 +4,10 @@ import {
   getMesesCostosAction,
   getCostosRepRepAction,
   getCostosResumenAction,
+  getProveedoresCostosAction,
 } from "./actions";
 import CostosRepRepClient from "./CostosRepRepClient";
+import HelpTutorialButton from "./help-tutorial-button";
 
 export const dynamic = "force-dynamic";
 
@@ -15,23 +17,25 @@ export default async function CostosRepRepPage() {
 
   const meses = await getMesesCostosAction();
   const mesInicial = meses[0] ?? null;
-  const [rows, resumen] = await Promise.all([
+  const [rows, resumen, proveedores] = await Promise.all([
     getCostosRepRepAction(mesInicial),
     getCostosResumenAction(),
+    getProveedoresCostosAction(),
   ]);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Costos de Repuestos y Reparaciones"
-        description="Resumen mensual por proveedor — importe neto y facturado, gravado (21%) y no gravado"
+        description="Resumen mensual por proveedor — importe neto, IVA y facturado"
+        action={<HelpTutorialButton triggerClassName="h-7 text-xs" />}
       />
       <div className="mt-6">
         <CostosRepRepClient
-          meses={meses}
           mesInicial={mesInicial}
           rowsIniciales={rows}
           resumen={resumen}
+          proveedores={proveedores}
           canWrite={canWrite}
         />
       </div>

@@ -115,7 +115,7 @@ const TABS: TutorialTab[] = [
 
 function MockToolbar() {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="opacity-50">
         <div className="text-foreground text-sm font-bold">Entrevistas</div>
         <div className="text-[10px] text-muted-foreground">Candidatos y su seguimiento</div>

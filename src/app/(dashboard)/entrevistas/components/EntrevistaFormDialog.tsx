@@ -185,7 +185,8 @@ export default function EntrevistaFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Fecha + edad son cortos: es el único par que queda lado a lado en celular. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="ent-fecha" className="text-sm font-medium text-foreground">
                 Fecha de entrevista
@@ -213,7 +214,7 @@ export default function EntrevistaFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ent-localidad" className="text-sm font-medium text-foreground">
                 De dónde es
@@ -238,7 +239,7 @@ export default function EntrevistaFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ent-dni" className="text-sm font-medium text-foreground">DNI</Label>
               <Input id="ent-dni" placeholder="Ej: 30.123.456" value={dni} onChange={(e) => setDni(e.target.value)} />
@@ -249,7 +250,7 @@ export default function EntrevistaFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="ent-puesto" className="text-sm font-medium text-foreground">Puesto al que aplica</Label>
               <Input id="ent-puesto" placeholder="Ej: Chofer larga distancia" value={puesto} onChange={(e) => setPuesto(e.target.value)} />
@@ -331,7 +332,7 @@ export default function EntrevistaFormDialog({
                 className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 resize-y"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="ent-aprobado" className="text-sm font-medium text-foreground">¿Aprobado?</Label>
                 <Input id="ent-aprobado" placeholder="Sí / No / nota" value={aprobado} onChange={(e) => setAprobado(e.target.value)} />

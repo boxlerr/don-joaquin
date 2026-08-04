@@ -74,7 +74,7 @@ export default function ChoferesStats({
   return (
     <>
       {/* Fila 1 — desglose de personal por rol */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-3">
         <StatCard
           label="Total personal"
           value={String(total)}
@@ -107,8 +107,10 @@ export default function ChoferesStats({
         />
       </div>
 
-      {/* Fila 2 — documentación */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {/* Fila 2 — documentación. En celular van de a dos como la fila de arriba:
+          apiladas de a una, el panel se comía la pantalla entera antes del
+          listado, que es a lo que se entra. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <StatCard label="Documentos" value={String(totalDocs)} sub="En legajos" color="brand" />
         <StatCard
           label="Vencidos"
@@ -127,9 +129,10 @@ export default function ChoferesStats({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto p-6 rounded-lg">
+        <DialogContent className="sm:max-w-[600px] max-h-[85dvh] overflow-y-auto rounded-lg">
           <DialogHeader className="pb-3 border-b border-[#F1F5F9] relative">
-            <DialogTitle className="text-xl font-bold text-foreground pr-6">{title}</DialogTitle>
+            {/* `pr-10`: el botón de cerrar mide 36px en touch, no 28. */}
+            <DialogTitle className="text-lg sm:text-xl font-bold text-foreground pr-10">{title}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
               {description}
             </DialogDescription>
@@ -148,6 +151,9 @@ export default function ChoferesStats({
                   : `Faltan ${dias} d`;
 
               return (
+                // En celular las tres columnas (chofer / fecha / estado) no
+                // entran en 343px: el chofer va arriba, y abajo la fecha con
+                // el estado.
                 <div
                   key={`${doc.id}-${index}`}
                   onClick={() => {
@@ -156,9 +162,9 @@ export default function ChoferesStats({
                       router.push(`/choferes/${doc.chofer_id}?tab=documentos`);
                     }
                   }}
-                  className="flex items-center justify-between p-4 border border-[#E2E8F0] rounded-[8px] hover:bg-slate-50 hover:border-primary/40 cursor-pointer transition-all"
+                  className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:p-4 border border-[#E2E8F0] rounded-[8px] hover:bg-slate-50 hover:border-primary/40 cursor-pointer transition-all"
                 >
-                  <div className="min-w-0 flex-1 pr-4">
+                  <div className="min-w-0 flex-1 sm:pr-4">
                     <div className="font-semibold text-sm text-foreground truncate">
                       {doc.chofer ?? "Chofer desconocido"}
                     </div>
@@ -167,21 +173,23 @@ export default function ChoferesStats({
                     </div>
                   </div>
 
-                  <div className="text-right pr-4 shrink-0">
-                    <div className="text-sm font-medium text-foreground">
-                      {doc.fecha_vencimiento ? formatFecha(doc.fecha_vencimiento) : "—"}
+                  <div className="flex items-center justify-between gap-3 sm:justify-end">
+                    <div className="text-left sm:text-right sm:pr-4 shrink-0">
+                      <div className="text-sm font-medium text-foreground">
+                        {doc.fecha_vencimiento ? formatFecha(doc.fecha_vencimiento) : "—"}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {diasText}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {diasText}
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <StatusBadge
-                      label={doc.estado_vigencia === "vencido" ? "VENCIDO" : "POR VENCER"}
-                      tone={doc.estado_vigencia === "vencido" ? "error" : "warning"}
-                    />
-                    <ChevronRight size={16} className="text-muted-foreground/50" />
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      <StatusBadge
+                        label={doc.estado_vigencia === "vencido" ? "VENCIDO" : "POR VENCER"}
+                        tone={doc.estado_vigencia === "vencido" ? "error" : "warning"}
+                      />
+                      <ChevronRight size={16} className="text-muted-foreground/50" />
+                    </div>
                   </div>
                 </div>
               );

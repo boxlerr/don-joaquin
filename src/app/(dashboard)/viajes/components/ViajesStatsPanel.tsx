@@ -193,7 +193,7 @@ export default function ViajesStatsPanel({
         />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-4 sm:mb-6">
         {cards.map((card) => (
           <ViajeStatCard
             key={card.key}
@@ -211,8 +211,8 @@ export default function ViajesStatsPanel({
       {children}
 
       <div className="bg-card rounded-[8px] border border-border shadow-sm mb-1">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-border">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <MapPin size={16} className="text-primary" />
             <h2 className="text-foreground text-sm font-semibold">Listado de Viajes</h2>
             {choferNombre && (

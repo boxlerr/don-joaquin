@@ -108,7 +108,7 @@ export default function CerradosBoard({
           <button
             type="button"
             onClick={() => setLimite(limite + PASO)}
-            className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-border bg-card py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-border bg-card py-2.5 sm:py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDown size={12} /> Mostrar {Math.min(PASO, restantes)} más ({restantes} restantes)
           </button>

@@ -70,7 +70,9 @@ export default function LiveBanner({
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
       </span>
-      <p className="flex-1 text-xs text-foreground">
+      {/* min-w: en celular el texto se queda con el renglón entero y el
+          "actualizado hace Xs" baja abajo, en vez de espichar las dos cosas. */}
+      <p className="min-w-[14rem] flex-1 text-xs text-foreground">
         <span className="font-semibold">EN VIVO</span> · {mesLabel(mes)} todavía no tiene planillas:
         estás viendo los <span className="font-semibold">{numAr(info?.viajes ?? 0)} viajes</span> cargados
         en el sistema (hoja de ruta){esMesActual ? "" : " — mes ya cerrado en el calendario"}.

@@ -78,19 +78,19 @@ export default function MensualPorChofer() {
   return (
     <div className="space-y-6">
       {/* Selector de mes */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <label className="text-sm font-semibold text-muted-foreground">Mes:</label>
         <input
           type="month"
           value={mes}
           onChange={(e) => setMes(e.target.value)}
-          className="h-9 px-3 text-sm border border-border rounded-[8px] bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1]"
+          className="h-10 sm:h-9 px-3 text-sm border border-border rounded-[8px] bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#0088D1]/20 focus:border-[#0088D1]"
         />
         <span className="text-sm text-muted-foreground capitalize">{labelMes(mes)}</span>
       </div>
 
       {/* StatCards de totales */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Viajes totales"
           value={loading ? "—" : String(totales.viajes)}
@@ -138,11 +138,15 @@ export default function MensualPorChofer() {
                 },
                 { label: "Flete", title: undefined },
                 { label: "", title: undefined },
-              ].map((col) => (
+              ].map((col, i) => (
                 <TableHead
                   key={col.label || "actions"}
                   title={col.title}
-                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                  // El chofer queda fijo a la izquierda cuando la tabla se
+                  // scrollea de costado en el celular.
+                  className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                    i === 0 ? "sticky left-0 z-20 bg-[#F9FBFC]" : ""
+                  }`}
                 >
                   {col.label}
                 </TableHead>
@@ -171,7 +175,7 @@ export default function MensualPorChofer() {
             ) : (
               rows.map((r) => (
                 <TableRow key={r.chofer_id} className="hover:bg-muted/40 transition-colors">
-                  <TableCell className="text-sm font-medium text-foreground">
+                  <TableCell className="text-sm font-medium text-foreground sticky left-0 z-10 bg-card">
                     {r.chofer}
                   </TableCell>
                   <TableCell className="text-sm font-mono text-foreground">

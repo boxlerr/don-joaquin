@@ -47,7 +47,7 @@ export default function ImpuestoDetalle({
   }, [impuesto.nombre, impuesto.id]);
 
   return (
-    <div className="grid grid-cols-1 gap-6 bg-muted/20 px-6 py-5 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 bg-muted/20 px-4 py-4 sm:px-6 sm:py-5 sm:gap-6 lg:grid-cols-2">
       {/* Comprobantes de ESTE período */}
       <div>
         <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -83,8 +83,8 @@ export default function ImpuestoDetalle({
             Todavía no hay otros períodos cargados de este impuesto.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full min-w-[360px] text-xs">
               <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left font-bold">Período</th>
