@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Wallet, Landmark, Receipt, type LucideIcon } from "lucide-react";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 
 export type CajaTabId = "diaria" | "grande" | "gastos";
 
@@ -34,30 +35,36 @@ export default function CajaTabs({
 
   if (tabs.length === 1) return null;
 
+  // En celular las tres solapas no entran en 343px: la tira scrollea sola
+  // dentro de su contenedor (nunca empuja la página) y avisa que hay más.
   return (
-    <nav
-      aria-label="Secciones de caja"
-      className="mb-5 inline-flex items-center gap-1 rounded-xl border border-border bg-muted/40 p-1"
-    >
-      {tabs.map((t) => {
-        const Icon = t.icon;
-        const active = activa === t.id;
-        return (
-          <Link
-            key={t.id}
-            href={t.href}
-            aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              active
-                ? "bg-card text-primary shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Icon size={15} className={active ? "" : "opacity-70"} />
-            {t.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="mb-5">
+      <HorizontalScrollHint>
+        <nav
+          aria-label="Secciones de caja"
+          className="inline-flex w-max items-center gap-1 rounded-xl border border-border bg-muted/40 p-1"
+        >
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const active = activa === t.id;
+            return (
+              <Link
+                key={t.id}
+                href={t.href}
+                aria-current={active ? "page" : undefined}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-medium transition-colors sm:px-3.5 sm:py-1.5 ${
+                  active
+                    ? "bg-card text-primary shadow-[0_1px_2px_rgba(15,23,42,0.06)]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon size={15} className={active ? "" : "opacity-70"} />
+                {t.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </HorizontalScrollHint>
+    </div>
   );
 }

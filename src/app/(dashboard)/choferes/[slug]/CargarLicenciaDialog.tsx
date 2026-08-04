@@ -75,7 +75,7 @@ export default function CargarLicenciaDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Nueva licencia médica</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">Nueva licencia médica</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Dejá la fecha hasta vacía si la licencia sigue abierta.
           </DialogDescription>
@@ -88,7 +88,7 @@ export default function CargarLicenciaDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Desde <span className="text-red-400">*</span>

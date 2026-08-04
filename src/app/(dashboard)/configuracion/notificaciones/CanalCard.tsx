@@ -86,13 +86,13 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
 
   return (
     <div className="p-4 bg-card rounded-[8px] border border-border shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4 flex-1 min-w-0">
+      <div className="flex items-start justify-between gap-2 sm:gap-4">
+        <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
           <div className="w-10 h-10 rounded-lg bg-[#E1F5FE] flex items-center justify-center shrink-0">
             <Icon size={18} className="text-primary" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <p className="text-sm font-semibold text-foreground">{canal.nombre}</p>
               <StatusBadge
                 label={activo ? "Activo" : "Inactivo"}
@@ -174,22 +174,28 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
             </DialogContent>
           </Dialog>
 
+          {/* El botón es la zona táctil (36px en celular); la pastilla de adentro
+              es lo que se ve. En desktop mide lo mismo que ella. */}
           <button
             type="button"
             role="switch"
             aria-checked={activo}
             disabled={togglePending}
             onClick={onToggle}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              activo ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
-            }`}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md disabled:opacity-50 disabled:cursor-not-allowed sm:size-auto"
             aria-label={`Activar ${canal.nombre}`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
-                activo ? "translate-x-4" : "translate-x-0.5"
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                activo ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
               }`}
-            />
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+                  activo ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </span>
           </button>
         </div>
       </div>

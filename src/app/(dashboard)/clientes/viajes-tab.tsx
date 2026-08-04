@@ -44,9 +44,12 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
     );
   }
 
+  // Tabla de consulta dentro de la ficha: scroll horizontal propio. No se
+  // convierte en tarjetas porque no es la pantalla principal del módulo.
   return (
     <div className="bg-card border border-border rounded-[8px] overflow-hidden">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-muted/40 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
           <tr>
             <th className="text-left px-3 py-2">Código</th>
@@ -94,7 +97,7 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
               <td className="px-3 py-2 text-right">
                 <Link
                   href={`/viajes?id=${v.id}`}
-                  className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:text-primary hover:bg-card border border-transparent hover:border-[#CBD5E1]"
+                  className="inline-flex items-center justify-center size-9 md:size-7 rounded-md text-muted-foreground hover:text-primary hover:bg-card border border-transparent hover:border-[#CBD5E1]"
                   title="Ver viaje"
                 >
                   <ExternalLink size={13} />
@@ -104,6 +107,7 @@ export default function ViajesTab({ clienteId }: { clienteId: string }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

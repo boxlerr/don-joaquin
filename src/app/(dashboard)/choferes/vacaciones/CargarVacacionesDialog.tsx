@@ -153,7 +153,7 @@ export default function CargarVacacionesDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Desde <span className="text-red-400">*</span>
@@ -208,7 +208,7 @@ export default function CargarVacacionesDialog({
                       setFin(s.fin);
                       setTocoFechas(true);
                     }}
-                    className="rounded-[6px] border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                    className="rounded-[6px] border border-border px-2.5 py-1.5 sm:py-1 text-xs text-foreground transition-colors hover:border-primary/50 hover:text-primary"
                   >
                     {fmtRango(s.inicio, s.fin)} · {s.ocupados} ausente{s.ocupados !== 1 ? "s" : ""}
                   </button>

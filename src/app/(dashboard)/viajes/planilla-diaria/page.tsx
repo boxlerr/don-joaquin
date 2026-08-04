@@ -23,12 +23,12 @@ export default async function PlanillaDiariaPage({
   const data = await getPlanillaDiariaData(fecha);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Planilla diaria"
         description="Asigná qué camión maneja cada chofer. Queda guardado hasta que lo cambies y se sincroniza con el legajo. La carga de viajes toma esta unidad por defecto."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <HelpTutorialButton />
             <Link href="/viajes">
               <Button variant="outline" size="sm">

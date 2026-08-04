@@ -91,9 +91,9 @@ export default function TabCircuitos({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 pointer-events-none"
@@ -103,21 +103,21 @@ export default function TabCircuitos({
               placeholder="Buscar por código, origen, destino…"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="h-9 pl-8 text-sm w-72"
+              className="h-9 pl-8 text-sm w-full sm:w-72"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <label className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={soloActivos}
               onChange={(e) => setSoloActivos(e.target.checked)}
-              className="rounded"
+              className="size-4 max-md:size-5 rounded"
             />
             Solo activos
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {savedFlash && (
             <span className="inline-flex items-center gap-1.5 text-xs text-[#10B981] font-medium">
               <CheckCircle2 size={12} />
@@ -153,7 +153,7 @@ export default function TabCircuitos({
       </div>
 
       {filtrados.length === 0 ? (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center space-y-3">
+        <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 sm:p-10 text-center space-y-3">
           <p className="text-muted-foreground text-sm">
             {circuitos.length === 0
               ? "Aún no hay circuitos cargados. Podés importarlos automáticamente desde los viajes ya cargados (cada recorrido con su km), o crear uno con Nuevo circuito."
@@ -173,7 +173,82 @@ export default function TabCircuitos({
         </div>
       ) : (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          {/* Celular: la fila se vuelve tarjeta. Son 6 columnas y el
+              identificador es el recorrido entero, así que fijar una columna y
+              scrollear no serviría de mucho. */}
+          <ul className="md:hidden divide-y divide-border">
+            {filtrados.map((c) => {
+              const activo = c.estado === "activa";
+              return (
+                <li key={c.id} className="px-4 py-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+                        {c.origen_label}
+                        <ArrowRight size={13} className="text-muted-foreground/70 shrink-0" />
+                        {c.destino_label}
+                      </p>
+                      {c.descripcion && (
+                        <p className="mt-0.5 text-[11px] text-muted-foreground/70">{c.descripcion}</p>
+                      )}
+                    </div>
+                    {activo ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#10B981]">
+                        <CheckCircle2 size={12} />
+                        Activo
+                      </span>
+                    ) : (
+                      <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground/70">
+                        <XCircle size={12} />
+                        Inactivo
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                      <span className="font-mono">
+                        {c.codigo_interno ?? <span className="text-muted-foreground/70">sin código</span>}
+                      </span>
+                      <span className="font-mono text-foreground">
+                        {c.km_oficiales.toLocaleString("es-AR")} km con carga
+                      </span>
+                      <span className="font-mono text-foreground">
+                        {c.km_vacios.toLocaleString("es-AR")} km vacíos
+                      </span>
+                    </div>
+                    {canWrite && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            setEditar(c);
+                            setModalOpen(true);
+                          }}
+                          aria-label="Editar"
+                        >
+                          <Pencil size={12} />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => onToggle(c)}
+                          aria-label={activo ? "Desactivar" : "Activar"}
+                          className={activo ? "text-[#FFB300]" : "text-[#10B981]"}
+                        >
+                          {activo ? <PauseCircle size={12} /> : <CheckCircle2 size={12} />}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <table className="hidden md:table w-full text-sm">
             <thead className="bg-muted/40 border-b border-border">
               <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 <th className="px-4 py-2.5">Código</th>

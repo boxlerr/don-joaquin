@@ -281,7 +281,7 @@ export default function AddGasoilDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input
@@ -311,7 +311,7 @@ export default function AddGasoilDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="litros" className="text-sm font-medium text-foreground">Litros</Label>
               <Input
@@ -343,7 +343,7 @@ export default function AddGasoilDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tipo" className="text-sm font-medium text-foreground">Tipo de combustible</Label>
               <Select value={tipo} onValueChange={(v) => setTipo(v ?? "grado_2")}>
@@ -386,7 +386,7 @@ export default function AddGasoilDialog({
             />
           </div>
 
-          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent -mx-0 -mb-0 rounded-none pb-0 mt-4">
+          <DialogFooter className="pt-4 border-t-transparent sm:justify-end gap-2 bg-transparent mx-0 sm:mx-0 mb-0 sm:mb-0 rounded-none px-0 sm:px-0 pb-0 sm:pb-0 mt-4">
             <Button
               type="button"
               variant="outline"

@@ -95,7 +95,7 @@ export default function RendirViaticoDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="rendido" className="text-xs font-semibold text-muted-foreground">
                 Gastado / justificado ($)
@@ -126,7 +126,7 @@ export default function RendirViaticoDialog({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs bg-muted/40 rounded-md px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs bg-muted/40 rounded-md px-3 py-2">
             <span className="text-muted-foreground">Diferencia</span>
             <span className={`font-semibold ${diferencia === 0 ? "text-foreground" : diferencia > 0 ? "text-amber-600" : "text-red-600"}`}>
               {ars(diferencia)} {diferencia > 0 ? "(falta justificar)" : diferencia < 0 ? "(gastó de más)" : "(cuadra)"}

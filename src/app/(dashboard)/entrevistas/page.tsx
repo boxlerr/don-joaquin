@@ -44,12 +44,12 @@ export default async function EntrevistasPage() {
   const preocupacionalPendiente = entrevistas.filter((e) => e.preocupacional === "pendiente").length;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Entrevistas"
         description="Registro de personas entrevistadas: observaciones, preocupacional y si ingresan al transporte"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <EntrevistasHelpButton />
             {canWrite && <ImportarButton />}
             {canWrite && (
@@ -64,7 +64,8 @@ export default async function EntrevistasPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Tarjetas con ícono y texto: una sola columna en celular, cuatro desde lg. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
         <StatCard
           label="Total entrevistados"
           value={String(total)}

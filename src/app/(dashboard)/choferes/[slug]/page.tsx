@@ -109,7 +109,7 @@ export default function ChoferDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
+      <div className="p-4 sm:p-6 lg:p-8 flex items-center justify-center min-h-[60vh]">
         <Loader2 size={36} className="animate-spin text-primary" />
       </div>
     );
@@ -117,7 +117,7 @@ export default function ChoferDetailPage() {
 
   if (!chofer) {
     return (
-      <div className="p-8 text-center">
+      <div className="p-4 sm:p-6 lg:p-8 text-center">
         <p className="text-muted-foreground mb-4">Chofer no encontrado.</p>
         <Button variant="outline" size="sm" onClick={volver}>
           <ArrowLeft size={14} className="mr-1.5" />
@@ -128,7 +128,7 @@ export default function ChoferDetailPage() {
   }
 
   return (
-    <div className="p-8 space-y-5">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-5">
       <Button
         variant="outline"
         size="sm"
@@ -156,7 +156,7 @@ export default function ChoferDetailPage() {
             con una línea. Ahora la activa toma el fondo de la tarjeta —queda
             pegada a lo que muestra abajo— y el resto va sobre gris. */}
         <div className="border-b border-border bg-muted/50">
-          <HorizontalScrollHint className="px-4" fadeBg="from-muted/50">
+          <HorizontalScrollHint className="px-3 sm:px-4" fadeBg="from-muted/50">
             <div className="flex items-end gap-0.5">
               {TABS.filter((tab) => tab.id !== "sueldos" || chofer.can_ver_sueldos).map((tab) => (
                 <button
@@ -165,7 +165,7 @@ export default function ChoferDetailPage() {
                     tabRefs.current[tab.id] = el;
                   }}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`-mb-px whitespace-nowrap rounded-t-[6px] border-b-2 px-4 py-3 text-[15px] transition-colors ${
+                  className={`-mb-px min-h-10 whitespace-nowrap rounded-t-[6px] border-b-2 px-3 py-2.5 text-sm transition-colors sm:px-4 sm:py-3 sm:text-[15px] ${
                     effectiveTab === tab.id
                       ? "border-[#0088D1] bg-card font-semibold text-foreground"
                       : "border-transparent font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
@@ -178,7 +178,7 @@ export default function ChoferDetailPage() {
           </HorizontalScrollHint>
         </div>
 
-        <div className="p-6 bg-card min-h-[50vh]">
+        <div className="p-4 sm:p-6 bg-card min-h-[50vh]">
           {effectiveTab === "info" && (
             <ChoferInfoTab
               key={chofer.updated_at}

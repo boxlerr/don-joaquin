@@ -99,14 +99,14 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[720px] p-6 gap-0">
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#10B981]/10 text-[#10B981] shrink-0">
+      <DialogContent className="sm:max-w-[720px] p-4 sm:p-6 gap-0">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#10B981]/10 text-[#10B981] shrink-0">
               <Receipt size={22} />
             </div>
-            <div>
-              <DialogTitle className="text-foreground text-lg font-bold">
+            <div className="min-w-0">
+              <DialogTitle className="text-foreground text-base sm:text-lg font-bold">
                 Agregar remito a {viajes.length} viaje{viajes.length !== 1 ? "s" : ""}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
@@ -121,9 +121,12 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
             <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />
           )}
 
+          {/* Abajo de sm la grilla se apila: cada viaje queda como un bloque con
+              sus tres campos, uno abajo del otro. Es la misma tabla — cambia el
+              `display`, no el contenido. */}
           <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 sticky top-0 z-10">
+            <table className="w-full text-sm max-sm:block">
+              <thead className="bg-muted/40 sticky top-0 z-10 max-sm:hidden">
                 <tr className="text-left">
                   <th className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Viaje</th>
                   <th className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Remito Nº</th>
@@ -131,19 +134,22 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
                   <th className="px-3 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-32">Monto $</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border max-sm:block">
                 {viajes.map((v) => {
                   const f = forms[v.id];
                   const montoFalta = (parseNum(f?.monto ?? "") ?? 0) <= 0;
                   return (
-                    <tr key={v.id} className="hover:bg-muted/30">
-                      <td className="px-3 py-2 align-top">
+                    <tr key={v.id} className="hover:bg-muted/30 max-sm:block max-sm:px-3 max-sm:py-3">
+                      <td className="px-3 py-2 align-top max-sm:block max-sm:px-0 max-sm:py-0 max-sm:pb-2">
                         <p className="font-medium text-foreground leading-tight">{v.cliente ?? "—"}</p>
                         <p className="text-[11px] text-muted-foreground">
                           {formatFecha(v.fecha_viaje)} · {v.chofer ?? "sin chofer"}
                         </p>
                       </td>
-                      <td className="px-3 py-2 align-top">
+                      <td className="px-3 py-2 align-top max-sm:block max-sm:px-0 max-sm:py-0 max-sm:pb-2">
+                        <span className="mb-1 hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:block">
+                          Remito Nº
+                        </span>
                         <input
                           type="text"
                           value={f?.nro_remito ?? ""}
@@ -152,7 +158,10 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
                           className="w-full text-sm border border-border rounded-md px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                       </td>
-                      <td className="px-3 py-2 align-top">
+                      <td className="px-3 py-2 align-top max-sm:block max-sm:px-0 max-sm:py-0 max-sm:pb-2">
+                        <span className="mb-1 hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:block">
+                          Toneladas
+                        </span>
                         <input
                           type="number"
                           min={0}
@@ -163,7 +172,10 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
                           className="w-full text-sm text-right border border-border rounded-md px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                       </td>
-                      <td className="px-3 py-2 align-top">
+                      <td className="px-3 py-2 align-top max-sm:block max-sm:px-0 max-sm:py-0">
+                        <span className="mb-1 hidden text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:block">
+                          Monto $
+                        </span>
                         <input
                           type="number"
                           min={0}
@@ -193,13 +205,13 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-border -mx-6 px-6">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 mt-4 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="h-10 px-6"
+            className="h-10 w-full sm:w-auto px-6"
           >
             Cancelar
           </Button>
@@ -207,7 +219,7 @@ export default function FacturarBloqueDialog({ viajes, open, onOpenChange, onSuc
             type="button"
             onClick={handleSubmit}
             disabled={loading || !puedeFacturar}
-            className="h-10 px-6 bg-[#10B981] hover:bg-[#059669] text-white font-bold flex items-center gap-1.5"
+            className="h-10 w-full sm:w-auto px-6 bg-[#10B981] hover:bg-[#059669] text-white font-bold flex items-center justify-center gap-1.5"
           >
             {loading ? "Guardando..." : (<><Check size={15} /> Agregar remito ({viajes.length})</>)}
           </Button>

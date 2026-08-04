@@ -53,7 +53,10 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // En celular: 16px de padding (no 24) y alto máximo por `dvh`, que
+          // sigue la barra del navegador — con `vh` el botón de guardar quedaba
+          // abajo del borde visible y no se llegaba a tocar.
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 sm:p-6 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -102,7 +105,11 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-6 -mb-6 mt-2 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-6 py-4 sm:flex-row sm:justify-end",
+        // Los márgenes negativos tienen que seguir al padding del Popup (p-4 en
+        // celular, p-6 desde sm) o el pie queda descolocado del borde.
+        // `*:w-full` en celular: los botones apilados ocupan todo el ancho, que
+        // es lo cómodo para el dedo; desde sm vuelven a su ancho natural.
+        "-mx-4 -mb-4 sm:-mx-6 sm:-mb-6 mt-2 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-4 sm:px-6 py-3 sm:py-4 max-sm:*:w-full sm:flex-row sm:justify-end",
         className
       )}
       {...props}

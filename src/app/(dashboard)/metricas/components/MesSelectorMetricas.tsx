@@ -74,12 +74,14 @@ export default function MesSelectorMetricas({
   const tieneDatos = disponibles.has(value);
 
   return (
-    <div ref={ref} className="relative inline-flex items-center gap-1">
+    // En celular ocupa el ancho de la fila (el mes es el control principal de
+    // la pantalla); desde sm vuelve a medir lo que necesita.
+    <div ref={ref} className="relative flex w-full items-center gap-1 sm:inline-flex sm:w-auto">
       <button
         type="button"
         aria-label="Mes anterior"
         onClick={() => irA(shift(value, -1))}
-        className={cn(btnBase, "h-9 w-9")}
+        className={cn(btnBase, "h-9 w-9 shrink-0")}
       >
         <ChevronLeft size={15} />
       </button>
@@ -90,10 +92,10 @@ export default function MesSelectorMetricas({
           if (!open) setYearView(sel?.y ?? new Date().getFullYear());
           setOpen(!open);
         }}
-        className={cn(btnBase, "h-9 min-w-[170px] gap-2 px-3 text-sm font-medium")}
+        className={cn(btnBase, "h-9 min-w-0 flex-1 gap-2 px-3 text-sm font-medium sm:min-w-[170px] sm:flex-none")}
       >
         <Calendar size={14} className="text-muted-foreground shrink-0" />
-        <span className="flex-1 text-left">{label}</span>
+        <span className="flex-1 truncate text-left">{label}</span>
         <span
           className={cn(
             "h-1.5 w-1.5 rounded-full shrink-0",
@@ -107,19 +109,19 @@ export default function MesSelectorMetricas({
         type="button"
         aria-label="Mes siguiente"
         onClick={() => irA(shift(value, 1))}
-        className={cn(btnBase, "h-9 w-9")}
+        className={cn(btnBase, "h-9 w-9 shrink-0")}
       >
         <ChevronRight size={15} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
-            <button type="button" onClick={() => setYearView(yearView - 1)} className={cn(btnBase, "h-7 w-7")}>
+            <button type="button" onClick={() => setYearView(yearView - 1)} className={cn(btnBase, "h-9 w-9 sm:h-7 sm:w-7")}>
               <ChevronLeft size={13} />
             </button>
             <span className="text-sm font-semibold text-foreground">{yearView}</span>
-            <button type="button" onClick={() => setYearView(yearView + 1)} className={cn(btnBase, "h-7 w-7")}>
+            <button type="button" onClick={() => setYearView(yearView + 1)} className={cn(btnBase, "h-9 w-9 sm:h-7 sm:w-7")}>
               <ChevronRight size={13} />
             </button>
           </div>
@@ -156,7 +158,7 @@ export default function MesSelectorMetricas({
             <button
               type="button"
               onClick={() => irA(hoy)}
-              className="text-xs font-medium text-primary hover:underline"
+              className="py-1.5 text-xs font-medium text-primary hover:underline max-md:py-2"
             >
               Hoy (en vivo)
             </button>
@@ -164,7 +166,7 @@ export default function MesSelectorMetricas({
               <button
                 type="button"
                 onClick={() => irA(ultimoConDatos)}
-                className="text-xs font-medium text-primary hover:underline"
+                className="py-1.5 text-xs font-medium text-primary hover:underline max-md:py-2"
               >
                 Último con planillas
               </button>

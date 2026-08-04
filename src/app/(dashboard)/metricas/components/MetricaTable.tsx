@@ -240,6 +240,9 @@ export default function MetricaTable({
   const conValor = filas.filter((c) => def.valorChofer(c) != null).length;
 
   return (
+    // Tabla de consulta densa (mismas columnas que el Excel): en celular
+    // scrollea de costado y la columna del chofer queda fija a la izquierda
+    // para no perder de vista de quién es cada número.
     <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm min-w-[560px]">
         <thead className="sticky top-0 z-10">
@@ -249,7 +252,7 @@ export default function MetricaTable({
               <th
                 key={col.key}
                 aria-sort={sortKey === col.key ? (sortAsc ? "ascending" : "descending") : undefined}
-                className={`py-2 px-3 font-medium ${col.align === "r" ? "text-right" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""}`}
+                className={`py-2 px-3 font-medium ${col.align === "r" ? "text-right" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""} ${col.key === "nombre" ? "sticky left-0 z-20 bg-muted shadow-[1px_0_0_var(--border)]" : ""}`}
               >
                 <button
                   type="button"
@@ -284,26 +287,26 @@ export default function MetricaTable({
                 className={`cursor-pointer transition-colors hover:bg-primary/5 ${i % 2 ? "bg-muted/20" : ""}`}
                 title={`Ver detalle de ${c.nombre}`}
               >
-                <td className="py-1.5 pl-3 pr-1 font-mono text-[11px] text-muted-foreground">
+                <td className="py-1.5 pl-3 pr-1 font-mono text-[11px] text-muted-foreground max-md:py-2.5">
                   {rank != null ? rank + 1 : "—"}
                 </td>
                 {cols.map((col) => (
                   <td
                     key={col.key}
-                    className={`py-1.5 px-3 ${col.align === "r" ? "text-right font-mono tabular-nums" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""}`}
+                    className={`py-1.5 px-3 max-md:py-2.5 ${col.align === "r" ? "text-right font-mono tabular-nums" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""} ${col.key === "nombre" ? `sticky left-0 z-10 shadow-[1px_0_0_var(--border)] ${i % 2 ? "bg-background" : "bg-card"}` : ""}`}
                   >
                     {col.key === "nombre" ? (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onChofer(c); }}
                         title={`Ver detalle de ${c.nombre}`}
-                        className="inline-flex items-center gap-1.5 font-medium text-foreground rounded focus-visible:outline-2 focus-visible:outline-primary hover:text-primary"
+                        className="inline-flex max-w-[8.5rem] items-center gap-1.5 font-medium text-foreground rounded focus-visible:outline-2 focus-visible:outline-primary hover:text-primary sm:max-w-none"
                       >
                         {col.principal == null && rank != null && (
-                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${cuartilDot(rank, conValor)}`} />
+                          <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${cuartilDot(rank, conValor)}`} />
                         )}
-                        {c.ingresoParcial && <span title="Entró/salió a mitad de mes" className="text-muted-foreground">◐</span>}
-                        {c.nombre}
+                        {c.ingresoParcial && <span title="Entró/salió a mitad de mes" className="shrink-0 text-muted-foreground">◐</span>}
+                        <span className="truncate">{c.nombre}</span>
                       </button>
                     ) : (
                       col.fmt(c)
@@ -336,7 +339,7 @@ export default function MetricaTable({
             {cols.map((col) => (
               <td
                 key={col.key}
-                className={`py-2 px-3 ${col.align === "r" ? "text-right font-mono tabular-nums" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""}`}
+                className={`py-2 px-3 ${col.align === "r" ? "text-right font-mono tabular-nums" : "text-left"} ${col.secundaria ? "hidden lg:table-cell" : ""} ${col.key === "nombre" ? "sticky left-0 z-10 bg-muted shadow-[1px_0_0_var(--border)]" : ""}`}
               >
                 {col.total ? col.total(filas) : ""}
               </td>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ShieldCheck, FileCheck2, ClipboardList, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import ComplianceChecklistPage from "./components/ComplianceChecklistPage";
 import OrganismoChecklistPage from "./organismos/OrganismoChecklistPage";
 import Form931Client from "./form-931/Form931Client";
@@ -144,7 +145,7 @@ export default function ComplianceUnifiedClient({
   const tab = tabs.find((t) => t.id === activo) ?? tabs[0];
 
   return (
-    <div className="p-6 sm:p-8 space-y-5">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-5">
       {/* Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
@@ -157,36 +158,43 @@ export default function ComplianceUnifiedClient({
         </p>
       </div>
 
-      {/* Selector */}
-      <div className="flex items-center gap-1 border-b border-border -mx-6 sm:-mx-8 px-6 sm:px-8 overflow-x-auto">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = t.id === tab?.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActivo(t.id)}
-              className={`relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px whitespace-nowrap ${
-                active
-                  ? "text-primary border-primary"
-                  : "text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/40"
-              }`}
-            >
-              <Icon size={15} />
-              {t.label}
-              {t.alerta > 0 && (
-                <span
-                  className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                    active ? "bg-[#FEE2E2] text-[#991B1B]" : "bg-muted text-muted-foreground"
+      {/* Selector — la tira se sale en celular: scroll propio con flechitas */}
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8">
+        <HorizontalScrollHint
+          className="flex border-b border-border px-4 sm:px-6 lg:px-8"
+          fadeBg="from-background"
+        >
+          <div className="flex items-center gap-1 w-max">
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const active = t.id === tab?.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActivo(t.id)}
+                  className={`relative inline-flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                    active
+                      ? "text-primary border-primary"
+                      : "text-muted-foreground border-transparent hover:text-foreground hover:bg-muted/40"
                   }`}
                 >
-                  {t.alerta}
-                </span>
-              )}
-            </button>
-          );
-        })}
+                  <Icon size={15} className="shrink-0" />
+                  {t.label}
+                  {t.alerta > 0 && (
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
+                        active ? "bg-[#FEE2E2] text-[#991B1B]" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {t.alerta}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </HorizontalScrollHint>
       </div>
 
       {tab?.render()}
@@ -219,7 +227,7 @@ function Form931Panel({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div className="flex items-start gap-2.5 sm:gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 sm:px-4 text-sm text-amber-800">
         <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
         <div>
           <p className="font-semibold">El F931 es bloqueante: sin presentarlo, no puede cargar nadie.</p>

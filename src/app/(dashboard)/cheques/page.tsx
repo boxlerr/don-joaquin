@@ -85,12 +85,12 @@ export default async function ChequesPage() {
   const totalPropiosPendientes = propiosPendientes.reduce((acc, c) => acc + c.importe, 0);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Gestión de Cheques"
         description="Cartera completa con trazabilidad por estado"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <HelpTutorialButton />
             <ExportChequesButton />
             {canWrite && (
@@ -105,7 +105,8 @@ export default async function ChequesPage() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* KPI: dos columnas en celular (son número + rótulo corto), cuatro desde lg. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatCard
           label="En cartera"
           value={`$${formatARS(totalEnCartera)}`}

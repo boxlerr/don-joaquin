@@ -96,6 +96,19 @@ export default function ImpuestosClient({
     setError(null); setDialog({ mode: "edit", row });
   };
 
+  // Handlers de las celdas de fecha — definidos acá para que la tabla (desktop)
+  // y las tarjetas (celular) usen exactamente la misma lógica.
+  const guardarVencimiento = (id: string) => async (f: string | null) => {
+    const res = await setFechaVencimientoAction(id, f!);
+    if ("error" in res) return res;
+    router.refresh();
+  };
+  const guardarPresentacion = (id: string) => async (f: string | null) => {
+    const res = await setFechaPresentacionAction(id, f);
+    if ("error" in res) return res;
+    router.refresh();
+  };
+
   const handleToggle = async (row: ImpuestoRow) => {
     setTogglingId(row.id);
     await togglePresentadoImpuestoAction(row.id, !row.presentado);
@@ -130,9 +143,9 @@ export default function ImpuestosClient({
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Landmark size={16} className="text-primary" />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
+        <div className="flex items-center gap-2 min-w-0">
+          <Landmark size={16} className="text-primary shrink-0" />
           <h2 className="text-foreground text-sm font-semibold">Calendario de vencimientos</h2>
         </div>
         {canWrite && (
@@ -142,7 +155,141 @@ export default function ImpuestosClient({
         )}
       </div>
 
-      <Table>
+      {/* Celular: cada impuesto es una tarjeta. La tabla tiene 8 columnas y es
+          un checklist que se opera con el dedo (tildar, editar fechas, adjuntar),
+          así que abajo de md se apila en vez de scrollear de costado. */}
+      <div className="md:hidden divide-y divide-border">
+        {impuestos.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+            No hay impuestos cargados. {canWrite && "Usá “Agregar impuesto” para empezar."}
+          </p>
+        ) : (
+          impuestos.map((i) => (
+            <div key={i.id} className={i.presentado ? "opacity-60" : ""}>
+              <div className="flex items-start gap-3 p-3.5">
+                {canWrite && (
+                  <button
+                    type="button"
+                    title={i.presentado ? "Marcar como pendiente" : "Marcar como presentado"}
+                    onClick={() => handleToggle(i)}
+                    disabled={togglingId === i.id}
+                    className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded border transition-colors ${
+                      i.presentado
+                        ? "bg-emerald-500 border-emerald-500 text-white"
+                        : "border-border hover:border-emerald-400"
+                    }`}
+                  >
+                    {togglingId === i.id ? <Loader2 size={13} className="animate-spin" /> : i.presentado ? <Check size={13} /> : null}
+                  </button>
+                )}
+
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className={`text-sm font-semibold text-foreground ${i.presentado ? "line-through" : ""}`}>
+                        {i.nombre}
+                      </div>
+                      {i.organismo && (
+                        <div className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
+                          {i.organismo}
+                        </div>
+                      )}
+                    </div>
+                    <span className="shrink-0">
+                      <VencimientoBadge fechaISO={i.fecha_vencimiento} presentado={i.presentado} />
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Vence</span>
+                      <CeldaFecha
+                        valor={i.fecha_vencimiento}
+                        canEdit={canWrite}
+                        onGuardar={guardarVencimiento(i.id)}
+                      />
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Presentado</span>
+                      <CeldaFecha
+                        valor={i.fecha_presentacion}
+                        canEdit={canWrite}
+                        permitirVaciar
+                        tone="success"
+                        placeholder="Sin presentar"
+                        onGuardar={guardarPresentacion(i.id)}
+                      />
+                    </span>
+                  </div>
+
+                  {/* flex-wrap: al pedir confirmación los dos botones bajan a su
+                      propio renglón (`w-full`), si no a 320px quedaban de 50px
+                      y sin ancho táctil. */}
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 flex-1 justify-center gap-1.5 text-xs"
+                      aria-expanded={expandidoId === i.id}
+                      onClick={() => setExpandidoId(expandidoId === i.id ? null : i.id)}
+                    >
+                      <ChevronRight size={14} className={`transition-transform ${expandidoId === i.id ? "rotate-90" : ""}`} />
+                      Comprobantes
+                      {i.archivos > 0 && (
+                        <span className="inline-flex items-center gap-0.5 font-semibold">
+                          <Paperclip size={11} />
+                          {i.archivos}
+                        </span>
+                      )}
+                    </Button>
+                    {canWrite && (confirmId === i.id ? (
+                      <div className="flex w-full items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 justify-center px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                          disabled={deletingId === i.id}
+                          onClick={() => handleDelete(i.id)}
+                        >
+                          {deletingId === i.id ? <Loader2 size={14} className="animate-spin" /> : "Eliminar"}
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-9 flex-1 justify-center px-3 text-xs text-muted-foreground" onClick={() => setConfirmId(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-9 p-0 text-muted-foreground hover:text-primary"
+                          title="Editar"
+                          onClick={() => openEdit(i)}
+                        >
+                          <Pencil size={15} />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-9 p-0 text-muted-foreground hover:text-red-600"
+                          title="Eliminar"
+                          onClick={() => setConfirmId(i.id)}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {expandidoId === i.id && <ImpuestoDetalle impuesto={i} canWrite={canWrite} />}
+            </div>
+          ))
+        )}
+      </div>
+
+      <Table className="hidden md:table min-w-[940px]">
         <TableHeader className="bg-muted/40">
           <TableRow>
             <TableHead className="w-8 pl-4" />
@@ -217,11 +364,7 @@ export default function ImpuestosClient({
                   <CeldaFecha
                     valor={i.fecha_vencimiento}
                     canEdit={canWrite}
-                    onGuardar={async (f) => {
-                      const res = await setFechaVencimientoAction(i.id, f!);
-                      if ("error" in res) return res;
-                      router.refresh();
-                    }}
+                    onGuardar={guardarVencimiento(i.id)}
                   />
                 </TableCell>
                 <TableCell>
@@ -231,11 +374,7 @@ export default function ImpuestosClient({
                     permitirVaciar
                     tone="success"
                     placeholder="Sin presentar"
-                    onGuardar={async (f) => {
-                      const res = await setFechaPresentacionAction(i.id, f);
-                      if ("error" in res) return res;
-                      router.refresh();
-                    }}
+                    onGuardar={guardarPresentacion(i.id)}
                   />
                 </TableCell>
                 <TableCell><VencimientoBadge fechaISO={i.fecha_vencimiento} presentado={i.presentado} /></TableCell>
@@ -291,7 +430,7 @@ export default function ImpuestosClient({
               <Label htmlFor="imp-nombre" className="text-sm font-medium text-foreground">Impuesto</Label>
               <Input id="imp-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: IVA, SICORE 1er. Q…" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="imp-org" className="text-sm font-medium text-foreground">Organismo</Label>
                 <Input id="imp-org" value={organismo} onChange={(e) => setOrganismo(e.target.value)} placeholder="AFIP, ARBA…" />

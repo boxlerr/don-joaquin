@@ -16,7 +16,7 @@ export default async function VacacionesPage() {
   const { saldos, periodos, finPeriodoY, umbralConfig, choferesActivos } = await getVacacionesGlobal();
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
       <PageHeader
         title="Vacaciones"
         description="Cronograma, saldos y carga de vacaciones por empleado"

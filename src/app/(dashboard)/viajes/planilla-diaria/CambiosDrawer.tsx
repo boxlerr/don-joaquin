@@ -92,9 +92,9 @@ export default function CambiosDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Cambios de camión"
-        className="fixed top-0 right-0 h-full w-[460px] max-w-[90vw] bg-card shadow-2xl z-[60] flex flex-col animate-in slide-in-from-right duration-200"
+        className="fixed top-0 right-0 h-full w-[460px] max-w-[92vw] bg-card shadow-2xl z-[60] flex flex-col animate-in slide-in-from-right duration-200"
       >
-        <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-4 sm:px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Repeat2 size={16} />
             <h2 className="text-base font-bold truncate">Cambios de camión</h2>
@@ -102,14 +102,14 @@ export default function CambiosDrawer({
           <button
             ref={cerrarRef}
             onClick={onClose}
-            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+            className="p-2.5 sm:p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
             aria-label="Cerrar"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <div className="animate-spin rounded-full h-7 w-7 border-2 border-[#0088D1] border-t-transparent" />

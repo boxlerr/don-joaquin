@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { coincideEnAlguno } from "@/lib/texto";
 import {
   ChevronDown,
@@ -92,35 +93,39 @@ export default function ClientesList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {LETTERS.map((l) => {
-          const active = letter === l;
-          return (
-            <button
-              key={l}
-              type="button"
-              onClick={() => setLetter(l)}
-              className={
-                "size-8 rounded-full text-xs font-semibold transition-colors border " +
-                (active
-                  ? "bg-[#0F172A] text-white border-[#0F172A]"
-                  : "bg-card text-muted-foreground border-border hover:bg-muted")
-              }
-            >
-              {l}
-            </button>
-          );
-        })}
-      </div>
+      {/* En celular el abecedario no entra en 343px: va en una sola tira que
+          scrollea; de sm para arriba vuelve a envolverse como siempre. */}
+      <HorizontalScrollHint className="pb-1 sm:overflow-x-visible" fadeBg="from-background">
+        <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5">
+          {LETTERS.map((l) => {
+            const active = letter === l;
+            return (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLetter(l)}
+                className={
+                  "size-9 sm:size-8 shrink-0 rounded-full text-xs font-semibold transition-colors border " +
+                  (active
+                    ? "bg-[#0F172A] text-white border-[#0F172A]"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted")
+                }
+              >
+                {l}
+              </button>
+            );
+          })}
+        </div>
+      </HorizontalScrollHint>
 
-      <div className="bg-card rounded-[8px] border border-border shadow-sm p-4">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
           <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar cliente por nombre..."
-            className="flex-1 text-sm"
+            className="w-full sm:w-auto sm:flex-1 sm:min-w-[220px] text-sm"
           />
           <Combobox
             value={estadoFiltro}
@@ -131,7 +136,7 @@ export default function ClientesList({
               { id: "todos", label: "Todos" },
             ]}
             searchable={false}
-            triggerClassName="h-9 w-36"
+            triggerClassName="h-9 max-md:h-10 w-32 sm:w-36"
           />
           <HelpTutorialButton />
           {canWrite && <ImportClientesModal />}
@@ -166,12 +171,12 @@ export default function ClientesList({
                       setExpanded(isOpen ? null : c.id);
                       setActiveTab("info");
                     }}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-[8px]"
+                    className="w-full flex items-center justify-between gap-2 px-3 sm:px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-[8px]"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span
                         className={
-                          "size-10 rounded-full font-bold text-sm flex items-center justify-center " +
+                          "size-10 shrink-0 rounded-full font-bold text-sm flex items-center justify-center " +
                           (inactivo
                             ? "bg-muted text-muted-foreground/70"
                             : "bg-[#E1F5FE] text-primary")
@@ -179,25 +184,29 @@ export default function ClientesList({
                       >
                         {initial}
                       </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-foreground font-semibold text-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="text-foreground font-semibold text-sm truncate">
                             {c.razon_social}
                           </div>
                           {inactivo && (
-                            <span className="text-[10px] font-semibold tracking-wide uppercase bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                            <span className="shrink-0 text-[10px] font-semibold tracking-wide uppercase bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
                               Inactivo
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5">
-                          <MapPin size={11} className="text-primary" />
-                          {c.localidad ?? "Sin localidad"}
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5 min-w-0">
+                          <MapPin size={11} className="text-primary shrink-0" />
+                          <span className="truncate">{c.localidad ?? "Sin localidad"}</span>
+                          {/* En celular el CUIT no entra en su columna: va acá. */}
+                          <span className="md:hidden font-mono normal-case shrink-0">
+                            · {c.cuit ?? "NO DATA"}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="text-right hidden md:block">
                         <div className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
                           Identificación
                         </div>
@@ -205,15 +214,18 @@ export default function ClientesList({
                           {c.cuit ?? "NO DATA"}
                         </div>
                       </div>
-                      <span className="size-7 rounded-full bg-[#E1F5FE] text-primary flex items-center justify-center">
+                      <span className="size-8 sm:size-7 shrink-0 rounded-full bg-[#E1F5FE] text-primary flex items-center justify-center">
                         {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </span>
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-border p-4 bg-muted/40 rounded-b-[8px]">
-                      <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <div className="border-t border-border p-3 sm:p-4 bg-muted/40 rounded-b-[8px]">
+                      {/* 6 solapas no entran en 343px: tira que scrollea en
+                          celular, y de sm para arriba envuelve como antes. */}
+                      <HorizontalScrollHint className="mb-4 pb-1 sm:overflow-x-visible">
+                        <div className="flex items-center gap-2 flex-nowrap sm:flex-wrap">
                         <TabButton
                           icon={<FileText size={14} />}
                           label="Información general"
@@ -252,7 +264,8 @@ export default function ClientesList({
                           active={activeTab === "viajes"}
                           onClick={() => setActiveTab("viajes")}
                         />
-                      </div>
+                        </div>
+                      </HorizontalScrollHint>
 
                       {activeTab === "info" && (
                         <InfoGeneral
@@ -302,7 +315,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={
-        "inline-flex items-center gap-1.5 px-3 h-8 rounded-full text-xs font-semibold uppercase tracking-wide transition-colors " +
+        "inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 px-3 h-9 sm:h-8 rounded-full text-xs font-semibold uppercase tracking-wide transition-colors " +
         (active
           ? "bg-[#0088D1] text-white"
           : "bg-card text-muted-foreground border border-border hover:bg-muted")
@@ -325,7 +338,7 @@ function InfoGeneral({
 }) {
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Field label="Firma comercial" value={cliente.nombre_comercial ?? cliente.razon_social} />
         <Field label="CUIT / CUIL" value={cliente.cuit ?? "—"} mono />
         <Field label="Domicilio" value={cliente.domicilio_fiscal ?? "—"} />
@@ -345,11 +358,11 @@ function InfoGeneral({
           <p className="text-sm text-[#78350F] italic">&ldquo;{cliente.observaciones}&rdquo;</p>
         </div>
       )}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-1">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold text-primary border border-[#0088D1]/30 hover:bg-[#E1F5FE] transition-colors"
+          className="inline-flex items-center justify-center gap-1.5 w-full sm:w-auto h-9 sm:h-8 px-3 rounded-md text-xs font-semibold text-primary border border-[#0088D1]/30 hover:bg-[#E1F5FE] transition-colors"
         >
           <Pencil size={12} />
           Editar datos

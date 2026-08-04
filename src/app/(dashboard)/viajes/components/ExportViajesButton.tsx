@@ -212,7 +212,7 @@ export default function ExportViajesButton({
         type="button"
         disabled={disabled}
         onClick={() => setAbierto((v) => !v)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50 sm:w-auto sm:justify-start"
       >
         {cargando ? (
           <Loader2 size={15} className="animate-spin text-primary" />
@@ -226,14 +226,14 @@ export default function ExportViajesButton({
       </button>
 
       {error && (
-        <p className="absolute right-0 top-full z-50 mt-1 w-64 rounded-[6px] border border-[#B91C1C]/40 bg-card px-3 py-2 text-[12px] leading-snug text-[#B91C1C] shadow-lg">
+        <p className="absolute right-0 top-full z-50 mt-1 w-[min(16rem,calc(100vw-2rem))] rounded-[6px] border border-[#B91C1C]/40 bg-card px-3 py-2 text-[12px] leading-snug text-[#B91C1C] shadow-lg">
           <AlertCircle size={12} className="mr-1 inline" />
           {error}
         </p>
       )}
 
       {abierto && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[19rem] rounded-lg border border-border bg-card p-3 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-lg border border-border bg-card p-3 shadow-lg">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Formato
           </p>
@@ -279,14 +279,14 @@ export default function ExportViajesButton({
           </div>
 
           {periodo === "mes" && (
-            <div className="mt-2 grid max-h-40 grid-cols-4 gap-1 overflow-y-auto rounded-[6px] border border-border p-1.5">
+            <div className="mt-2 grid max-h-40 grid-cols-3 sm:grid-cols-4 gap-1 overflow-y-auto rounded-[6px] border border-border p-1.5">
               {meses.map((m) => (
                 <button
                   key={m.valor}
                   type="button"
                   onClick={() => setMes(m.valor)}
                   aria-pressed={mes === m.valor}
-                  className={`rounded-[4px] px-1 py-1 text-[11px] transition-colors ${
+                  className={`rounded-[4px] px-1 py-2 sm:py-1 text-[11px] transition-colors ${
                     mes === m.valor
                       ? "bg-primary font-medium text-primary-foreground"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"

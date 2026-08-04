@@ -26,8 +26,9 @@ function fmtFecha(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+// En celular los botones llegan a 36px de alto: a 28px el dedo erra el toque.
 const accionBtn =
-  "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none";
+  "inline-flex h-9 sm:h-7 items-center gap-1 rounded-md border px-2.5 sm:px-2 text-[11px] font-semibold transition-colors disabled:opacity-40 disabled:pointer-events-none";
 
 export default function PipelineActivo({
   entrevistas, canWrite, canDelete, onVerMas,
@@ -111,11 +112,24 @@ export default function PipelineActivo({
             <Semaforo entrevistaId={e.id} etapa={e.etapa} nombre={e.nombre} canWrite={canWrite} size={11} />
             {canWrite && (
               <EntrevistaFormDialog entrevista={e}>
-                <button type="button" title="Editar" className="p-0.5 text-muted-foreground/60 hover:text-foreground"><Pencil size={13} /></button>
+                <button
+                  type="button"
+                  title="Editar"
+                  aria-label="Editar"
+                  className="inline-flex size-9 items-center justify-center rounded text-muted-foreground/60 hover:text-foreground sm:size-6"
+                >
+                  <Pencil size={13} />
+                </button>
               </EntrevistaFormDialog>
             )}
             {canDelete && (
-              <button type="button" title="Eliminar" onClick={() => setEliminarDe(e)} className="p-0.5 text-muted-foreground/60 hover:text-destructive">
+              <button
+                type="button"
+                title="Eliminar"
+                aria-label="Eliminar"
+                onClick={() => setEliminarDe(e)}
+                className="inline-flex size-9 items-center justify-center rounded text-muted-foreground/60 hover:text-destructive sm:size-6"
+              >
                 <Trash2 size={13} />
               </button>
             )}

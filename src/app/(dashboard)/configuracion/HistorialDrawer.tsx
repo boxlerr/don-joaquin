@@ -140,26 +140,26 @@ export default function HistorialDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={`Historial de ${parametroDescripcion}`}
-        className="fixed top-0 right-0 h-full w-[460px] max-w-[90vw] bg-card shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200"
+        className="fixed top-0 right-0 h-full w-full max-w-[100vw] sm:w-[460px] sm:max-w-[90vw] bg-card shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200"
       >
-        <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-6 py-4 flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-4 sm:px-6 py-4 flex items-center justify-between gap-2 shrink-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <History size={16} />
+              <History size={16} className="shrink-0" />
               <h2 className="text-base font-bold truncate">{parametroDescripcion}</h2>
             </div>
           </div>
           <button
             ref={cerrarRef}
             onClick={onClose}
-            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+            className="p-1.5 max-md:p-3 hover:bg-white/20 rounded-lg transition-colors shrink-0"
             aria-label="Cerrar historial"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3 pb-safe">
           {revertError && (
             <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-4 py-2.5 text-sm text-[#7F1D1D]">
               {revertError}

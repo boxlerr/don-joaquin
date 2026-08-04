@@ -113,16 +113,18 @@ export default function ResumenTab({
   return (
     <div className="space-y-4">
       {/* ── 1. Los números del mes: es lo primero que se quiere ver ─────── */}
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
         <TituloSeccion
           titulo={`Cómo viene ${mesLabel(data.mes)}`}
           explica="Los totales del mes separados por flota. La última fila es el conjunto de la empresa."
         />
+        {/* Tabla de consulta (3 filas × 8 columnas): scrollea de costado y la
+            columna de flota queda fija para no perder la referencia. */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-[15px]">
             <thead>
               <tr className="border-b border-border text-left text-[13px] text-muted-foreground">
-                <th className="py-2 pr-4 font-medium">Flota</th>
+                <th className="sticky left-0 z-10 bg-card shadow-[1px_0_0_var(--border)] py-2 pr-4 font-medium">Flota</th>
                 <th className="py-2 pr-4 text-right font-medium">Camiones</th>
                 <th className="py-2 pr-4 text-right font-medium">KM</th>
                 <th className="py-2 pr-4 text-right font-medium">Facturación</th>
@@ -135,7 +137,7 @@ export default function ResumenTab({
             <tbody className="divide-y divide-border">
               {filasFlota.map(({ f, tf }) => (
                 <tr key={f}>
-                  <td className="py-2.5 pr-4 capitalize text-foreground">{f}</td>
+                  <td className="sticky left-0 z-10 bg-card shadow-[1px_0_0_var(--border)] py-2.5 pr-4 capitalize text-foreground">{f}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{tf!.camiones}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{numAr(tf!.km)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{money(tf!.facturacion)}</td>
@@ -147,7 +149,11 @@ export default function ResumenTab({
               ))}
               {t && (
                 <tr className="bg-muted/40 font-semibold text-foreground">
-                  <td className="py-2.5 pr-4">TOTAL</td>
+                  {/* El tinte de la fila se repite con ::before para que la
+                      celda fija tenga fondo opaco al scrollear. */}
+                  <td className="sticky left-0 z-10 bg-card shadow-[1px_0_0_var(--border)] py-2.5 pr-4 before:absolute before:inset-0 before:bg-muted/40">
+                    <span className="relative">TOTAL</span>
+                  </td>
                   <td className="py-2.5 pr-4 text-right font-mono">{t.camiones}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{numAr(t.km)}</td>
                   <td className="py-2.5 pr-4 text-right font-mono">{money(t.facturacion)}</td>
@@ -163,14 +169,14 @@ export default function ResumenTab({
       </section>
 
       {/* ── 2. Quién se destacó ──────────────────────────────────────────── */}
-      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
         <TituloSeccion
           titulo="El mejor y el peor de cada métrica"
           explica="Solo choferes con el mes completo. Tocá un nombre para ver su detalle."
           accion={
             <Link
               href="/choferes/ranking"
-              className="shrink-0 text-[13px] font-medium text-primary hover:underline"
+              className="inline-flex shrink-0 items-center text-[13px] font-medium text-primary hover:underline max-md:min-h-9"
             >
               Ranking completo →
             </Link>
@@ -184,7 +190,7 @@ export default function ResumenTab({
                 <button
                   type="button"
                   onClick={() => onChofer(mejor.c)}
-                  className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-emerald-500/10"
+                  className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-emerald-500/10 max-md:py-2"
                   title={`Ver detalle de ${mejor.c.nombre}`}
                 >
                   <Trophy size={13} className="shrink-0 text-emerald-500" />
@@ -194,7 +200,7 @@ export default function ResumenTab({
                 <button
                   type="button"
                   onClick={() => onChofer(peor.c)}
-                  className="mt-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-red-500/10"
+                  className="mt-1 flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[13px] hover:bg-red-500/10 max-md:py-2"
                   title={`Ver detalle de ${peor.c.nombre}`}
                 >
                   <AlertTriangle size={13} className="shrink-0 text-red-400" />
@@ -214,7 +220,7 @@ export default function ResumenTab({
       {/* ── 3. Los dos análisis, lado a lado. items-start = sin estirar ──── */}
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         {/* Facturación vs costo por km (planilla COSTO VS KM) */}
-        <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <section className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <TituloSeccion
             titulo="¿El km se cobra más de lo que cuesta?"
             explica="Si la línea azul (lo que se factura) cae por debajo de la roja (lo que cuesta según el estudio), se está trabajando a pérdida."
@@ -279,7 +285,7 @@ export default function ResumenTab({
         </section>
 
         {/* Aumentos: clientes vs sueldos (paridad interanual — pedido Bárbara 14/07) */}
-        <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <section className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm sm:p-4">
           <TituloSeccion
             titulo="¿Los aumentos van a la par?"
             explica={`Lo que se le aumentó a los clientes contra lo que se le aumentó a la gente, con la inflación de referencia. Últimos 12 meses hasta ${mesLabel(data.mes)}.`}
@@ -409,12 +415,12 @@ export default function ResumenTab({
                           key={c.nombre}
                           href={`/tarifas?tab=aumentos&cliente=${encodeURIComponent(c.nombre)}`}
                           title={`Ver el historial de ${c.nombre} en Tarifas`}
-                          className="rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                          className="inline-flex items-center rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground transition-colors hover:border-primary/40 hover:text-primary max-md:min-h-9"
                         >
                           {chip}
                         </Link>
                       ) : (
-                        <span key={c.nombre} className="rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground">
+                        <span key={c.nombre} className="inline-flex items-center rounded-[6px] border border-border px-2 py-1 text-[12px] text-foreground max-md:min-h-9">
                           {chip}
                         </span>
                       );
@@ -433,14 +439,14 @@ export default function ResumenTab({
                 <button
                   type="button"
                   onClick={() => setVerMesAMes(!verMesAMes)}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground hover:text-primary"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground hover:text-primary max-md:min-h-9"
                 >
                   {verMesAMes ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                   Ver el detalle mes a mes
                 </button>
                 <Link
                   href={data.canTarifas ? "/tarifas?tab=aumentos" : "/clientes"}
-                  className="shrink-0 text-[13px] text-primary hover:underline"
+                  className="inline-flex shrink-0 items-center text-[13px] text-primary hover:underline max-md:min-h-9"
                 >
                   {data.canTarifas ? "Historial en Tarifas →" : "Clientes →"}
                 </Link>
@@ -448,11 +454,13 @@ export default function ResumenTab({
 
               {verMesAMes && (
                 <>
+                  {/* Matriz meses × clientes: scroll de costado con la columna
+                      del mes fija (los clientes se van sumando con el tiempo). */}
                   <div className="mt-2.5 overflow-x-auto rounded-md border border-border">
                     <table className="w-full min-w-[280px] border-collapse text-[13px]">
                       <thead>
-                        <tr className="border-b border-border bg-muted/40">
-                          <th className="px-2.5 py-2 text-left font-medium text-muted-foreground">Mes</th>
+                        <tr className="border-b border-border bg-muted">
+                          <th className="sticky left-0 z-10 shadow-[1px_0_0_var(--border)] bg-muted px-2.5 py-2 text-left font-medium text-muted-foreground">Mes</th>
                           {aumentosMes.clientes.map((c) => (
                             <th key={c} className="px-2.5 py-2 text-right font-medium text-foreground">
                               {data.canTarifas ? (
@@ -473,11 +481,11 @@ export default function ResumenTab({
                       <tbody>
                         {aumentosMes.meses.map((m) => (
                           <tr key={m} className="border-b border-border/50 last:border-0">
-                            <td className="whitespace-nowrap px-2.5 py-1.5 text-muted-foreground">{mesCorto(m)}</td>
+                            <td className="sticky left-0 z-10 whitespace-nowrap shadow-[1px_0_0_var(--border)] bg-card px-2.5 py-1.5 text-muted-foreground max-md:py-2.5">{mesCorto(m)}</td>
                             {aumentosMes.clientes.map((c) => {
                               const a = aumentosMes.idx.get(`${c}|${m.slice(0, 7)}`);
                               return (
-                                <td key={c} className="px-2.5 py-1.5 text-right font-mono">
+                                <td key={c} className="px-2.5 py-1.5 text-right font-mono max-md:py-2.5">
                                   {a ? (
                                     <span className="group inline-flex items-center justify-end gap-1">
                                       <span className="text-amber-600 dark:text-amber-400">+{numAr(a.porcentaje, 2)}%</span>
@@ -485,7 +493,8 @@ export default function ResumenTab({
                                         <button
                                           type="button"
                                           onClick={() => handleEliminarAumento(a.id, a.clienteNombre)}
-                                          className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                          // En celular no hay hover: el tacho tiene que verse siempre.
+                                          className="inline-flex items-center justify-center text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500 max-md:size-9 max-md:text-muted-foreground/60"
                                           title="Eliminar"
                                         >
                                           <Trash2 size={12} />
@@ -502,8 +511,8 @@ export default function ResumenTab({
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t-2 border-border bg-muted/30 font-semibold">
-                          <td className="px-2.5 py-2 text-left text-muted-foreground">Interanual</td>
+                        <tr className="border-t-2 border-border bg-muted font-semibold">
+                          <td className="sticky left-0 z-10 shadow-[1px_0_0_var(--border)] bg-muted px-2.5 py-2 text-left text-muted-foreground">Interanual</td>
                           {aumentosMes.clientes.map((c) => {
                             const v = aumentosMes.interanual.get(c);
                             const io = aumentosMes.interanualOnly.get(c);
@@ -515,7 +524,7 @@ export default function ResumenTab({
                                     <button
                                       type="button"
                                       onClick={() => handleEliminarAumento(io.id, io.clienteNombre)}
-                                      className="text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500"
+                                      className="inline-flex items-center justify-center text-transparent transition-colors group-hover:text-muted-foreground/60 hover:!text-red-500 max-md:size-9 max-md:text-muted-foreground/60"
                                       title="Eliminar interanual"
                                     >
                                       <Trash2 size={12} />

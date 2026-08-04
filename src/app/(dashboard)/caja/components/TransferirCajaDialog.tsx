@@ -89,11 +89,11 @@ export default function TransferirCajaDialog({ children }: { children: React.Rea
           {/* Toggle segmentado de dirección (sin selects nativos) */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-foreground">Dirección</Label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 onClick={() => setDireccion("diaria_a_grande")}
-                className={`flex-1 py-2 px-2 rounded-lg border text-sm font-semibold transition-all inline-flex items-center justify-center gap-1.5 ${
+                className={`flex-1 min-h-10 py-2 px-2 rounded-lg border text-sm font-semibold transition-all inline-flex items-center justify-center gap-1.5 ${
                   direccion === "diaria_a_grande"
                     ? "bg-primary/10 border-primary/50 text-primary"
                     : "bg-card border-border text-muted-foreground hover:bg-muted/40"
@@ -105,7 +105,7 @@ export default function TransferirCajaDialog({ children }: { children: React.Rea
               <button
                 type="button"
                 onClick={() => setDireccion("grande_a_diaria")}
-                className={`flex-1 py-2 px-2 rounded-lg border text-sm font-semibold transition-all inline-flex items-center justify-center gap-1.5 ${
+                className={`flex-1 min-h-10 py-2 px-2 rounded-lg border text-sm font-semibold transition-all inline-flex items-center justify-center gap-1.5 ${
                   direccion === "grande_a_diaria"
                     ? "bg-primary/10 border-primary/50 text-primary"
                     : "bg-card border-border text-muted-foreground hover:bg-muted/40"
@@ -117,7 +117,7 @@ export default function TransferirCajaDialog({ children }: { children: React.Rea
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="trf-monto" className="text-sm font-medium text-foreground">
                 Monto ($)

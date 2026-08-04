@@ -70,7 +70,7 @@ const TABS: TutorialTab[] = [
 
 function MockPeriodo() {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center bg-muted text-muted-foreground">
         Este mes
       </div>
@@ -108,15 +108,15 @@ function MockReportHeader({
   link: string;
 }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-      <div className="flex items-center gap-2">
-        <Icon size={14} className="text-primary" />
-        <div>
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2.5 border-b border-border">
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon size={14} className="text-primary shrink-0" />
+        <div className="min-w-0">
           <div className="text-[11px] font-bold text-foreground leading-tight">{title}</div>
           <div className="text-[9px] text-muted-foreground">{subtitle}</div>
         </div>
       </div>
-      <span className="text-[10px] font-semibold text-primary inline-flex items-center gap-0.5">
+      <span className="text-[10px] font-semibold text-primary inline-flex items-center gap-0.5 shrink-0">
         {link}
         <ChevronRight size={11} />
       </span>

@@ -84,7 +84,7 @@ const TABS: TutorialTab[] = [
 function MockScoreBase() {
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-2.5">
           <span className="size-8 rounded-full bg-[#ECFDF5] text-[#064E3B] inline-flex items-center justify-center text-[11px] font-bold">PA</span>
           <div>
@@ -92,7 +92,7 @@ function MockScoreBase() {
             <div className="text-[10px] text-muted-foreground">OLAVARRIA</div>
           </div>
         </div>
-        <div className="flex items-center gap-2 w-[120px]">
+        <div className="flex items-center gap-2 w-full max-w-[120px]">
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
             <div className="h-full rounded-full bg-[#10B981]" style={{ width: "100%" }} />
           </div>
@@ -152,7 +152,7 @@ function MockSemaforo() {
 
 function MockPeriodo() {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center bg-muted text-muted-foreground">Último mes</div>
       <div className="h-8 px-3 rounded-md text-[11px] font-bold inline-flex items-center bg-[#0088D1] text-white shadow-sm ring-2 ring-[#0088D1]/20">3 meses</div>
       <div className="h-8 px-3 rounded-md text-[11px] font-semibold inline-flex items-center bg-muted text-muted-foreground">1 año</div>

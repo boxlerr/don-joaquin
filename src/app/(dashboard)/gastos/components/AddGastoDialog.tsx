@@ -167,14 +167,16 @@ export default function AddGastoDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[760px] p-6 gap-0">
+      {/* p-4 en celular (el p-6 crudo se comía 48px de los 375): los márgenes
+          negativos del header y del pie tienen que seguir a ese padding. */}
+      <DialogContent className="sm:max-w-[760px] p-4 sm:p-6 gap-0">
         {/* Header */}
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Receipt size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-lg font-bold">
                 Registrar Gasto
               </DialogTitle>
@@ -187,8 +189,8 @@ export default function AddGastoDialog({
 
         {/* Lock indicator */}
         {contextLabel && (
-          <div className="flex items-center gap-2 px-4 py-2 mt-4 rounded-lg bg-[#E1F5FE]/60 border border-[#B3E5FC] text-[#004A99] text-xs font-semibold">
-            <Lock size={12} strokeWidth={2.5} />
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 sm:px-4 py-2 mt-4 rounded-lg bg-[#E1F5FE]/60 border border-[#B3E5FC] text-[#004A99] text-xs font-semibold">
+            <Lock size={12} strokeWidth={2.5} className="shrink-0" />
             Vinculado por contexto a: <span className="underline">{contextLabel}</span>
           </div>
         )}
@@ -381,13 +383,13 @@ export default function AddGastoDialog({
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
+          {/* Footer: en celular los botones se apilan y van a ancho completo. */}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3 pt-4 mt-6 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="h-11 sm:h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -395,7 +397,7 @@ export default function AddGastoDialog({
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-11 sm:h-10 w-full sm:w-auto px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
               {loading ? (
                 "Registrando..."

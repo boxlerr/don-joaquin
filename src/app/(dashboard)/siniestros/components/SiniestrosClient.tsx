@@ -55,14 +55,14 @@ export default function SiniestrosClient({ siniestros, camiones, choferes, canWr
   const camionesAfectados = new Set(siniestros.map((s) => s.camion_id)).size;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Siniestros"
         description="Historial y registro de siniestros de la flota"
         action={
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <HelpTutorialButton />
-            {canWrite && <div className="h-6 w-px bg-[#E2E8F0] mx-1" />}
+            {canWrite && <div className="hidden sm:block h-6 w-px bg-[#E2E8F0] mx-1" />}
             {canWrite && (
               <Button
                 variant="brand"
@@ -85,7 +85,7 @@ export default function SiniestrosClient({ siniestros, camiones, choferes, canWr
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         <StatCard label="Total Siniestros" value={totalSiniestros.toString()} sub="Registrados en el sistema" color="brand" icon={AlertTriangle} variant="dashboard" />
         <StatCard label="Costo Daños Estimado" value={`$ ${totalMonto.toLocaleString("es-AR")}`} sub="Monto acumulado registrado" color="error" icon={DollarSign} variant="dashboard" />
         <StatCard label="Siniestros Este Mes" value={esteMes.toString()} sub="Ocurridos en el mes en curso" color="warning" icon={Calendar} variant="dashboard" />

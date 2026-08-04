@@ -66,29 +66,29 @@ export default function ViajeStatCard({ kicker, value, sub, tone, icon: Icon, ac
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`group relative overflow-hidden text-left bg-card border rounded-xl px-4 pt-3 pb-4
+      className={`group relative overflow-hidden text-left bg-card border rounded-xl px-3 pt-2.5 pb-3.5 sm:px-4 sm:pt-3 sm:pb-4
         shadow-[0_1px_2px_rgba(2,40,80,0.04)] transition-all duration-200
         hover:-translate-y-[2px] hover:shadow-[0_10px_22px_rgba(2,40,80,0.09)]
         ${active ? `ring-2 ring-offset-1 ring-offset-background border-transparent ${t.ring}` : `border-border ${t.hoverBorder}`}`}
     >
       {/* Encabezado: medallón + etiqueta */}
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
         <span
-          className={`flex items-center justify-center size-8 rounded-lg ${t.med} ${t.ico} transition-transform duration-200 group-hover:scale-105`}
+          className={`flex items-center justify-center size-7 sm:size-8 rounded-lg ${t.med} ${t.ico} shrink-0 transition-transform duration-200 group-hover:scale-105`}
         >
-          <Icon size={16} strokeWidth={2.2} />
+          <Icon size={15} strokeWidth={2.2} />
         </span>
-        <span className="text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground leading-tight">
+        <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground leading-tight">
           {kicker}
         </span>
       </div>
 
       {/* Número */}
-      <div className={`text-[28px] leading-none font-black tracking-tight tabular-nums ${t.num}`}>
+      <div className={`text-2xl sm:text-[28px] leading-none font-black tracking-tight tabular-nums ${t.num}`}>
         {value.toLocaleString("es-AR")}
       </div>
 
-      {sub && <div className="mt-1 text-[12px] font-semibold text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-1 text-[11px] sm:text-[12px] font-semibold text-muted-foreground">{sub}</div>}
 
       {/* Línea de ruta punteada (guiño camionero) */}
       <span

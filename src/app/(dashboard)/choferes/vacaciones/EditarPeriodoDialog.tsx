@@ -110,7 +110,7 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">{error}</div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Desde <span className="text-red-400">*</span>

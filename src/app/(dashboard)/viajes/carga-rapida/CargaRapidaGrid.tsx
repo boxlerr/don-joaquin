@@ -181,6 +181,10 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         destino_nombre: o.origen_nombre,
         km_con_carga: "0",
         km_vacios: o.km_con_carga !== "0" ? o.km_con_carga : o.km_vacios,
+        // La vuelta se lleva la distancia de la ida, y esa distancia depende de
+        // la vía: sin copiarla también, la vuelta se guardaba "Sin marcar" con
+        // los km de una Ruta 5/22 y ensuciaba el historial del par.
+        ruta_via: o.ruta_via,
         es_vacio: true,
       });
       const next = [...prev];
@@ -290,8 +294,8 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
   return (
     <div className="space-y-5">
       {/* Selectores globales */}
-      <div className="bg-card border border-border rounded-[8px] px-5 py-4 flex flex-wrap items-end gap-4">
-        <div className="space-y-1 min-w-[220px]">
+      <div className="bg-card border border-border rounded-[8px] p-4 sm:px-5 sm:py-4 flex flex-wrap items-end gap-3 sm:gap-4">
+        <div className="space-y-1 w-full sm:w-auto sm:min-w-[220px]">
           <label className="text-xs font-semibold text-muted-foreground">
             Cliente <span className="text-red-500">*</span>
           </label>
@@ -301,11 +305,11 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
             options={data.clientes}
             placeholder="Seleccioná un cliente..."
             searchPlaceholder="Buscar cliente..."
-            triggerClassName="h-9"
+            triggerClassName="h-10 sm:h-9"
           />
         </div>
 
-        <div className="space-y-1 min-w-[180px]">
+        <div className="space-y-1 w-full sm:w-auto sm:min-w-[180px]">
           <label className="text-xs font-semibold text-muted-foreground">
             Tipo de carga <span className="text-red-500">*</span>
           </label>
@@ -315,7 +319,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
             options={data.tipos_carga}
             placeholder="Seleccioná..."
             searchable={false}
-            triggerClassName="h-9"
+            triggerClassName="h-10 sm:h-9"
           />
         </div>
 
@@ -352,10 +356,14 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                   "Vacío",
                   "Nº viaje",
                   "",
-                ].map((h) => (
+                ].map((h, i) => (
                   <th
                     key={h}
-                    className="px-2 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide border-b border-border whitespace-nowrap"
+                    // La fecha queda fija a la izquierda: en el celular la grilla
+                    // se scrollea de costado y sin ella se pierde de qué fila es.
+                    className={`px-2 py-2.5 text-left font-semibold text-muted-foreground uppercase tracking-wide border-b border-border whitespace-nowrap ${
+                      i === 0 ? "sticky left-0 z-20 bg-[#F9FBFC]" : ""
+                    }`}
                   >
                     {h}
                   </th>
@@ -370,13 +378,17 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                     key={fila.id}
                     className={`border-b border-border/60 hover:bg-muted/20 transition-colors ${filaError ? "bg-red-50/50" : ""}`}
                   >
-                    {/* Fecha */}
-                    <td className="px-1 py-1">
+                    {/* Fecha — columna fija al scrollear de costado */}
+                    <td
+                      className={`px-1 py-1 sticky left-0 z-10 ${
+                        filaError ? "bg-[#FEF9F9]" : "bg-card"
+                      }`}
+                    >
                       <input
                         type="date"
                         value={fila.fecha_viaje}
                         onChange={(e) => actualizarFila(fila.id, "fecha_viaje", e.target.value)}
-                        className="h-8 w-32 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-36 sm:w-32 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -388,7 +400,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         options={data.choferes}
                         placeholder="— Elegí —"
                         searchPlaceholder="Buscar chofer..."
-                        triggerClassName={`h-8 w-40 text-xs ${!fila.chofer_id ? "border-amber-300" : ""}`}
+                        triggerClassName={`h-9 sm:h-8 w-40 text-xs ${!fila.chofer_id ? "border-amber-300" : ""}`}
                       />
                     </td>
 
@@ -400,7 +412,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         options={data.camiones}
                         placeholder="— Elegí —"
                         searchPlaceholder="Buscar patente..."
-                        triggerClassName={`h-8 w-32 text-xs ${!fila.camion_id ? "border-amber-300" : ""}`}
+                        triggerClassName={`h-9 sm:h-8 w-32 text-xs ${!fila.camion_id ? "border-amber-300" : ""}`}
                       />
                     </td>
 
@@ -414,7 +426,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                           placeholder="— Opcional —"
                           searchPlaceholder="Buscar circuito..."
                           clearable
-                          triggerClassName="h-8 w-44 text-xs"
+                          triggerClassName="h-9 sm:h-8 w-44 text-xs"
                         />
                       </td>
                     )}
@@ -427,7 +439,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         onChange={(e) => actualizarFila(fila.id, "origen_nombre", e.target.value)}
                         placeholder="Origen..."
                         list="carga-rapida-puntos"
-                        className="h-8 w-28 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-32 sm:w-28 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -439,7 +451,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         onChange={(e) => actualizarFila(fila.id, "destino_nombre", e.target.value)}
                         placeholder="Destino..."
                         list="carga-rapida-puntos"
-                        className="h-8 w-28 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-32 sm:w-28 px-2 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -449,7 +461,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         value={fila.ruta_via}
                         onChange={(e) => actualizarFila(fila.id, "ruta_via", e.target.value)}
                         title="¿Por qué ruta fue? Ruta 5 = directa (más corta) · Ruta 22 = por la base/zona"
-                        className="h-8 w-[76px] px-1 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-[92px] sm:w-[76px] px-1 text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       >
                         <option value="">—</option>
                         <option value="ruta_5">Ruta 5</option>
@@ -464,7 +476,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         value={fila.km_con_carga}
                         onChange={(e) => actualizarFila(fila.id, "km_con_carga", e.target.value)}
                         min="0"
-                        className="h-8 w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-24 sm:w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -475,7 +487,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         value={fila.km_vacios}
                         onChange={(e) => actualizarFila(fila.id, "km_vacios", e.target.value)}
                         min="0"
-                        className="h-8 w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-24 sm:w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -488,7 +500,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         disabled={fila.es_vacio}
                         min="0"
                         step="0.01"
-                        className="h-8 w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
+                        className="h-9 sm:h-8 w-24 sm:w-20 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
                       />
                     </td>
 
@@ -500,7 +512,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         onChange={(e) => actualizarFila(fila.id, "monto_flete", e.target.value)}
                         disabled={fila.es_vacio}
                         min="0"
-                        className="h-8 w-24 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
+                        className="h-9 sm:h-8 w-28 sm:w-24 px-2 text-xs rounded border border-border bg-card text-foreground text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] disabled:opacity-40 disabled:bg-muted/40"
                       />
                     </td>
 
@@ -511,7 +523,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         checked={fila.es_vacio}
                         onChange={() => toggleVacio(fila.id)}
                         title="Marcar como tramo vacío"
-                        className="size-4 rounded accent-[#0088D1] align-middle"
+                        className="size-5 sm:size-4 rounded accent-[#0088D1] align-middle"
                       />
                     </td>
 
@@ -523,7 +535,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                         onChange={(e) => actualizarFila(fila.id, "nro_viaje_ypf", e.target.value)}
                         placeholder="Opcional"
                         maxLength={60}
-                        className="h-8 w-24 px-2 text-xs rounded border border-border bg-card text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
+                        className="h-9 sm:h-8 w-28 sm:w-24 px-2 text-xs rounded border border-border bg-card text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1]"
                       />
                     </td>
 
@@ -534,7 +546,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                           type="button"
                           title="Agregar viaje de vuelta (origen/destino invertidos, vacío)"
                           onClick={() => agregarVuelta(fila.id)}
-                          className="size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-colors"
+                          className="size-9 sm:size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#0088D1] hover:bg-[#E1F5FE] transition-colors"
                         >
                           <RotateCcw size={13} />
                         </button>
@@ -542,7 +554,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                           type="button"
                           title="Duplicar fila"
                           onClick={() => duplicarFila(fila.id)}
-                          className="size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs font-bold"
+                          className="size-9 sm:size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs font-bold"
                         >
                           +
                         </button>
@@ -551,7 +563,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                           title="Eliminar fila"
                           onClick={() => eliminarFila(fila.id)}
                           disabled={filas.length === 1}
-                          className="size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30"
+                          className="size-9 sm:size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -570,13 +582,13 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         </div>
 
         {/* Footer de la grilla */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/20">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-border bg-muted/20">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={agregarFila}
-            className="gap-1.5 h-8 text-xs"
+            className="gap-1.5 h-9 sm:h-8 text-xs"
           >
             <Plus size={13} /> Agregar fila
           </Button>
@@ -615,13 +627,13 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       )}
 
       {/* Acciones */}
-      <div className="flex justify-end gap-3">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
         <Button
           type="button"
           variant="outline"
           onClick={calcularImportes}
           disabled={calculando || guardando}
-          className="font-semibold h-10 gap-2"
+          className="font-semibold h-10 gap-2 w-full sm:w-auto"
           title="Completa el monto de cada fila desde la tarifa vigente del destino"
         >
           {calculando ? (
@@ -634,7 +646,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
           type="button"
           onClick={handleGuardar}
           disabled={guardando}
-          className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-8 h-10 gap-2"
+          className="bg-[#0088D1] hover:bg-[#0277BD] text-white font-bold px-8 h-10 gap-2 w-full sm:w-auto"
         >
           {guardando ? (
             <><Loader2 size={15} className="animate-spin" /> Guardando...</>

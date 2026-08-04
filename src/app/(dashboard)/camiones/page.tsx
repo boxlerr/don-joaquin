@@ -131,19 +131,21 @@ export default async function CamionesPage({
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Camiones"
         description={`Flota de ${total ?? 0} unidades — documentación, mantenimiento y gasoil`}
         action={
-          <div className="flex items-center gap-2.5">
+          // En celular la barra se apila en varias filas: los separadores
+          // verticales sólo tienen sentido cuando todo entra en una línea.
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-2.5">
             <HelpTutorialButton />
-            <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
+            <div className="hidden h-6 w-px bg-[#E2E8F0] mx-1 sm:block" />
             <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
               {canWrite && <ImportCamionesButton />}
               <ExportCamionesButton />
             </div>
-            <div className="h-6 w-px bg-[#E2E8F0] mx-1" />
+            <div className="hidden h-6 w-px bg-[#E2E8F0] mx-1 sm:block" />
             {canWrite && (
               <AddGasoilDialog camiones={camiones || []}>
                 <Button variant="outline" size="default" className="bg-card border-border text-muted-foreground hover:text-primary hover:border-[#0088D1] hover:bg-[#E1F5FE]/30 transition-all">
@@ -185,7 +187,7 @@ export default async function CamionesPage({
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
         <StatCard 
           label="Total flota" 
           value={String(total ?? 0)} 

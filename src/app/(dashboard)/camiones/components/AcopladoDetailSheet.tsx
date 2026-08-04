@@ -216,11 +216,11 @@ export default function AcopladoDetailSheet({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl flex items-center gap-2">
-            <Container size={18} className="text-muted-foreground" />
+          <DialogTitle className="text-foreground text-lg sm:text-xl flex flex-wrap items-center gap-2">
+            <Container size={18} className="text-muted-foreground shrink-0" />
             <span className="font-mono">{local.patente}</span>
             <StatusBadge label={ESTADO_LABELS[local.estado as AcopladoEstado] ?? local.estado} tone={local.estado === "activo" ? "success" : "neutral"} />
-            <span className="ml-auto mr-2">
+            <span className="ml-auto mr-2 shrink-0">
               <EstadoSwitch
                 activo={local.estado === "activo"}
                 pending={switchPending}
@@ -233,7 +233,7 @@ export default function AcopladoDetailSheet({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-1 border-b border-border">
+        <div className="flex items-center gap-1 border-b border-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map((t) => {
             const active = tab === t.id;
             const Icon = t.icon;
@@ -241,7 +241,7 @@ export default function AcopladoDetailSheet({
               <button
                 key={t.id}
                 onClick={() => handleTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   active ? "border-[#0088D1] text-[#0088D1]" : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -251,7 +251,7 @@ export default function AcopladoDetailSheet({
           })}
         </div>
 
-        <div className="py-4 max-h-[60vh] overflow-y-auto">
+        <div className="py-4 max-h-[60dvh] overflow-y-auto">
           {feedback && (
             <div className="mb-3">
               <InlineFeedback
@@ -274,6 +274,7 @@ export default function AcopladoDetailSheet({
                   <Pencil size={13} /> Editar
                 </Button>
               </div>
+              {/* Pares rótulo/valor cortos: dos columnas entran incluso a 375px. */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <Info label="Patente" value={local.patente} mono />
                 <Info label="Marca" value={local.marca || "Sin datos"} />
@@ -290,7 +291,7 @@ export default function AcopladoDetailSheet({
 
           {tab === "info" && editando && (
             <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Patente">
                   <Input
                     value={form.patente}
@@ -371,16 +372,16 @@ export default function AcopladoDetailSheet({
                 </div>
               </Field>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+              <div className="flex flex-col-reverse gap-2 pt-3 border-t border-border sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => setEditando(false)}
                   disabled={saving}
-                  className="text-muted-foreground border-border hover:bg-muted/40"
+                  className="w-full sm:w-auto text-muted-foreground border-border hover:bg-muted/40"
                 >
                   Cancelar
                 </Button>
-                <Button variant="brand" onClick={handleGuardar} disabled={saving}>
+                <Button variant="brand" onClick={handleGuardar} disabled={saving} className="w-full sm:w-auto">
                   {saving && <Loader2 size={14} className="animate-spin" />}
                   {saving ? "Guardando..." : "Guardar cambios"}
                 </Button>
@@ -467,7 +468,11 @@ export default function AcopladoDetailSheet({
         </div>
 
         <div className="flex justify-end pt-2 border-t border-border">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="text-muted-foreground border-border hover:bg-muted/40">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto text-muted-foreground border-border hover:bg-muted/40"
+          >
             Cerrar
           </Button>
         </div>
@@ -508,7 +513,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 h-8 rounded-md border text-xs font-medium transition-colors ${
+      className={`px-2.5 h-9 sm:h-8 rounded-md border text-xs font-medium transition-colors ${
         active
           ? "bg-[#E1F5FE] border-[#0088D1] text-[#0369A1]"
           : "bg-card border-border text-muted-foreground hover:text-foreground hover:bg-muted/40"

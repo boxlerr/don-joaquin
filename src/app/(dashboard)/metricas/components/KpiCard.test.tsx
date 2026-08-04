@@ -54,7 +54,14 @@ describe("KpiCard — junio 2026", () => {
 
   it("achica el cuerpo del número cuando el monto es largo, en vez de abreviarlo", () => {
     const def = kpi("facturacion");
-    const { container } = render(<KpiCard {...base} def={def} valor={def.fmt(1_513_206_230.73)} />);
-    expect(container.querySelector("p.text-\\[18px\\]")).not.toBeNull();
+    const valor = def.fmt(1_513_206_230.73);
+    const { container } = render(<KpiCard {...base} def={def} valor={valor} />);
+    // En celular la tarjeta mide la mitad de la pantalla, así que el escalón
+    // arranca más abajo (15px) y recién desde sm toma el de siempre (18px).
+    const p = container.querySelector("p.text-\\[15px\\]");
+    expect(p).not.toBeNull();
+    expect(p!.className).toContain("sm:text-[18px]");
+    // Lo que se achica es el cuerpo, no el número: el monto va entero.
+    expect(p!.textContent).toBe(valor);
   });
 });

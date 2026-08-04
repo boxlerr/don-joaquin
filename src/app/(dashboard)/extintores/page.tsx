@@ -60,14 +60,14 @@ export default async function ExtintoresPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Extintores"
         description="Vencimientos, ubicaciones y estado de vigencia de matafuegos de la flota y establecimientos"
         action={
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <HelpTutorialButton />
-            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg">
+            <div className="flex flex-wrap items-center gap-1.5 bg-muted p-1 rounded-lg">
               {canWrite && <ImportExtintoresButton />}
               <ExportExtintoresButton />
             </div>
@@ -76,7 +76,7 @@ export default async function ExtintoresPage() {
       />
 
       {/* Grid de estadísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
         <StatCard
           label="Total Extintores"
           value={String(countTotal)}

@@ -52,12 +52,12 @@ export default function NewClienteSheet() {
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(760px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(760px,calc(100vw-2rem))] max-h-[95dvh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
         >
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border">
-            <div className="flex items-start gap-4">
-              <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-6 pt-5 pb-4 border-b border-border">
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+              <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
                 <UserPlus size={22} />
               </div>
               <div>
@@ -73,7 +73,7 @@ export default function NewClienteSheet() {
               render={
                 <button
                   type="button"
-                  className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
+                  className="size-9 md:size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
                   aria-label="Cerrar"
                 />
               }
@@ -86,7 +86,7 @@ export default function NewClienteSheet() {
           <form
             action={formAction}
             key={open ? "open" : "closed"}
-            className="flex-1 overflow-y-auto px-6 py-4 space-y-4"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4"
           >
             {/* Fila 1: Razón social + Nombre comercial + CUIT */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -193,11 +193,11 @@ export default function NewClienteSheet() {
             )}
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-3.5 border-t border-border mt-4">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3.5 border-t border-border mt-4">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+                className="w-full sm:w-auto h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               >
                 Cancelar
               </button>
@@ -217,7 +217,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+      className="w-full sm:w-auto bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
     >
       {pending ? (
         "Guardando..."

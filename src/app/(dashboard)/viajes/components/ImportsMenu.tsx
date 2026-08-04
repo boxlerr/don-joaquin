@@ -38,7 +38,7 @@ export default function ImportsMenu() {
             </Button>
           }
         />
-        <DropdownMenuContent align="end" className="min-w-[280px]">
+        <DropdownMenuContent align="end" className="min-w-[280px] max-w-[calc(100vw-1.5rem)]">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Operación interna</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => setOpenModal("hoja-ruta")}>

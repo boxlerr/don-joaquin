@@ -202,10 +202,10 @@ export default function ImportYpfModal({
         }}
       >
         <DialogContent
-          className={step === "preview" ? "sm:max-w-[1150px] max-h-[90vh] flex flex-col" : "sm:max-w-[560px]"}
+          className={step === "preview" ? "sm:max-w-[1150px] max-h-[calc(100dvh-2rem)] sm:max-h-[90vh] flex flex-col" : "sm:max-w-[560px]"}
         >
           <DialogHeader>
-            <DialogTitle className="text-foreground text-xl">
+            <DialogTitle className="text-foreground text-lg sm:text-xl">
               {step === "preview"
                 ? "Vista previa — DM de YPF"
                 : step === "done"
@@ -309,7 +309,7 @@ export default function ImportYpfModal({
                 </span>
               </div>
               <div className="overflow-auto flex-1 min-h-0 border border-border rounded-md">
-                <table className="w-full text-xs border-separate border-spacing-0">
+                <table className="w-full min-w-[820px] text-xs border-separate border-spacing-0">
                   <thead className="sticky top-0 z-10">
                     <tr className="text-left text-muted-foreground text-[10px] uppercase tracking-wide bg-card">
                       <th className="px-2 py-1.5 border-b border-border bg-card" title="Aplicar esta fila">✓</th>

@@ -707,7 +707,7 @@ export default function VacacionesClient({
         {/* Selects estilados y no nativos: el desplegable del sistema operativo
             no respeta la tipografía ni los colores del sistema. */}
         <Select value={fSector} onValueChange={(v) => v && setFSector(v as typeof fSector)}>
-          <SelectTrigger className="h-9 w-[11rem] text-sm">
+          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] sm:w-[11rem] text-sm">
             <span>{SECTOR_LABEL[fSector]}</span>
           </SelectTrigger>
           <SelectContent>
@@ -719,7 +719,7 @@ export default function VacacionesClient({
           </SelectContent>
         </Select>
         <Select value={fSemaforo} onValueChange={(v) => v && setFSemaforo(v as typeof fSemaforo)}>
-          <SelectTrigger className="h-9 w-[11rem] text-sm">
+          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] sm:w-[11rem] text-sm">
             <span>{SEMAFORO_LABEL[fSemaforo]}</span>
           </SelectTrigger>
           <SelectContent>
@@ -750,7 +750,7 @@ export default function VacacionesClient({
                 onClick={() => setExportOpen(false)}
                 className="fixed inset-0 z-10 cursor-default"
               />
-              <div className="absolute left-0 z-20 mt-1 w-[19rem] overflow-hidden rounded-[8px] border border-border bg-card shadow-md">
+              <div className="absolute left-0 z-20 mt-1 w-[19rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[8px] border border-border bg-card shadow-md">
                 {[
                   {
                     titulo: "Planilla de vacaciones",
@@ -859,8 +859,8 @@ export default function VacacionesClient({
       </TooltipProvider>
 
       {desfasados > 0 && canWrite && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
-          <AlertTriangle size={15} />
+        <div className="flex items-start sm:items-center gap-2 px-3 sm:px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
+          <AlertTriangle size={15} className="mt-0.5 sm:mt-0 shrink-0" />
           {desfasados} empleado(s) tienen los días cargados desfasados de su antigüedad actual. Usá
           “Recalcular antigüedad” para ajustarlos.
         </div>
@@ -870,19 +870,19 @@ export default function VacacionesClient({
           recalcula solo: al cargar un período, esa persona sale del plan. */}
       {urgentes.length > 0 && plan.items.length > 0 && (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 px-5 py-3.5">
+          <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3.5">
             <span className="text-base">🧩</span>
             <h2 className="text-sm font-bold text-foreground">Plan sugerido</h2>
             <span className="text-xs text-muted-foreground">
               {plan.items.length} período(s) para liquidar los {diasEnRiesgo} días del {finPeriodoY - 1} antes del 31/12,
               sin pasar de {umbral} ausentes por semana. Se rearma solo a medida que cargás.
             </span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
               {planAbierto && canWrite && (
                 <Button
                   variant="brand"
                   onClick={() => setConfirmPlan(true)}
-                  className="h-8 gap-1.5 text-xs"
+                  className="h-9 sm:h-8 gap-1.5 text-xs"
                 >
                   <Check size={13} /> Cargar todo el plan
                 </Button>
@@ -890,7 +890,7 @@ export default function VacacionesClient({
               <Button
                 variant="outline"
                 onClick={() => setPlanAbierto((v) => !v)}
-                className="h-8 text-xs text-muted-foreground border-border"
+                className="h-9 sm:h-8 text-xs text-muted-foreground border-border"
               >
                 {planAbierto ? "Ocultar" : "Ver plan"}
               </Button>
@@ -899,11 +899,11 @@ export default function VacacionesClient({
           {planAbierto && (
             <div className="border-t border-border">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[460px] sm:min-w-0 text-sm">
                   <thead className="bg-muted/40">
                     <tr>
                       {["Empleado", "Desde", "Hasta", "Días", ""].map((c, i) => (
-                        <th key={i} className={`px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? "text-left" : i === 4 ? "" : "text-right"}`}>{c}</th>
+                        <th key={i} className={`px-3 sm:px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? "text-left" : i === 4 ? "" : "text-right"}`}>{c}</th>
                       ))}
                     </tr>
                   </thead>
@@ -925,7 +925,7 @@ export default function VacacionesClient({
                               onClick={() =>
                                 abrirAdd({ chofer_id: it.chofer_id, nombre: it.nombre, apellido: it.apellido }, it.fecha_inicio, it.fecha_fin)
                               }
-                              className="h-7 text-xs text-muted-foreground border-border"
+                              className="h-8 sm:h-7 text-xs text-muted-foreground border-border"
                             >
                               Cargar…
                             </Button>
@@ -937,7 +937,7 @@ export default function VacacionesClient({
                 </table>
               </div>
               {plan.sinLugar.length > 0 && (
-                <div className="px-5 py-2.5 border-t border-border text-xs text-amber-700 bg-amber-50">
+                <div className="px-4 sm:px-5 py-2.5 border-t border-border text-xs text-amber-700 bg-amber-50">
                   ⚠ Sin lugar en el año para: {plan.sinLugar.map((s) => `${s.apellido} (${s.dias} días)`).join(", ")} — habría que superar el umbral de {umbral} ausentes o mover otros períodos.
                 </div>
               )}
@@ -948,17 +948,17 @@ export default function VacacionesClient({
 
       {/* Cronograma */}
       <div id="card-cronograma" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
           <CalendarRange size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Cronograma de personal con vacaciones</h2>
-          <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
-            <div className="relative">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap sm:justify-end items-center gap-2">
+            <div className="relative w-full sm:w-auto">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar empleado…"
-                className="h-8 w-40 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
+                className="h-9 sm:h-8 w-full sm:w-40 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
               />
             </div>
             {vista === "semanas" && (
@@ -967,7 +967,7 @@ export default function VacacionesClient({
                   type="button"
                   onClick={() => setSoloEnCurso((v) => !v)}
                   title="Dejar solo a los que están de vacaciones hoy (los que ya volvieron quedan afuera)"
-                  className={`h-8 px-2.5 rounded-lg border text-xs inline-flex items-center gap-1.5 transition-colors ${
+                  className={`h-9 sm:h-8 px-2.5 rounded-lg border text-xs inline-flex items-center gap-1.5 transition-colors ${
                     soloEnCurso
                       ? "border-primary/50 bg-primary/10 text-primary"
                       : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -988,7 +988,7 @@ export default function VacacionesClient({
                     }
                   }}
                 >
-                  <SelectTrigger className="h-8 w-[8.5rem] text-xs">
+                  <SelectTrigger className="h-9 sm:h-8 w-[8.5rem] text-xs">
                     <span>{RANGO_LABEL[rango.modo === "mes" ? "mes" : rango.largo]}</span>
                   </SelectTrigger>
                   <SelectContent>
@@ -1006,7 +1006,7 @@ export default function VacacionesClient({
                     type="button"
                     onClick={() => irVentana(-1)}
                     title={rango.modo === "mes" ? "Mes anterior" : "Ventana anterior"}
-                    className="h-8 px-1.5 text-muted-foreground hover:bg-muted/50"
+                    className="h-9 sm:h-8 px-2 sm:px-1.5 text-muted-foreground hover:bg-muted/50"
                   >
                     <ChevronLeft size={14} />
                   </button>
@@ -1017,7 +1017,7 @@ export default function VacacionesClient({
                     type="button"
                     onClick={() => irVentana(1)}
                     title={rango.modo === "mes" ? "Mes siguiente" : "Ventana siguiente"}
-                    className="h-8 px-1.5 text-muted-foreground hover:bg-muted/50"
+                    className="h-9 sm:h-8 px-2 sm:px-1.5 text-muted-foreground hover:bg-muted/50"
                   >
                     <ChevronRight size={14} />
                   </button>
@@ -1026,7 +1026,7 @@ export default function VacacionesClient({
                   <button
                     type="button"
                     onClick={volverAHoy}
-                    className="h-8 px-2.5 rounded-lg border border-border bg-background text-xs text-muted-foreground hover:text-foreground"
+                    className="h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-xs text-muted-foreground hover:text-foreground"
                   >
                     Hoy
                   </button>
@@ -1036,13 +1036,13 @@ export default function VacacionesClient({
             <div className="inline-flex rounded-lg border border-border overflow-hidden">
               <button
                 onClick={() => setVista("semanas")}
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vista === "semanas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vista === "semanas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <CalendarRange size={13} /> Semanas
               </button>
               <button
                 onClick={() => setVista("anual")}
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vista === "anual" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vista === "anual" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <CalendarDays size={13} /> Año
               </button>
@@ -1058,7 +1058,7 @@ export default function VacacionesClient({
             activos={choferesActivos}
           />
         ) : filasCrono.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          <div className="px-4 sm:px-5 py-8 text-center text-sm text-muted-foreground">
             {soloEnCurso
               ? "Nadie está de vacaciones hoy dentro de esta ventana."
               : "Nadie tiene vacaciones en esta ventana para este filtro."}
@@ -1085,7 +1085,7 @@ export default function VacacionesClient({
                 <tr className="bg-muted/60">
                   <th
                     rowSpan={2}
-                    className="sticky left-0 z-20 bg-muted text-left px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-px whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)]"
+                    className="sticky left-0 z-20 bg-muted text-left px-2 sm:px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-px whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)]"
                   >
                     Empleado
                   </th>
@@ -1126,7 +1126,7 @@ export default function VacacionesClient({
                   const filaEnCurso = f.periodos.some((pp) => pp.en_curso);
                   return (
                   <tr key={f.id} className={`border-t border-border hover:bg-muted/20 ${filaEnCurso ? "bg-muted/30" : ""}`}>
-                    <td className={`sticky left-0 z-10 px-4 py-2 text-sm whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)] ${filaEnCurso ? "bg-[#F0FDF4]" : "bg-card"}`}>
+                    <td className={`sticky left-0 z-10 px-2 sm:px-4 py-2 text-[13px] sm:text-sm whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)] ${filaEnCurso ? "bg-[#F0FDF4]" : "bg-card"}`}>
                       {filaEnCurso && (
                         <span className="relative inline-flex mr-1.5 w-1.5 h-1.5 align-middle" title="De vacaciones hoy">
                           <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
@@ -1144,12 +1144,17 @@ export default function VacacionesClient({
                       {sectorDe.get(f.id) && sectorDe.get(f.id) !== "Chofer" && (
                         <span className="ml-1.5 text-[10px] text-muted-foreground/70">{sectorDe.get(f.id)}</span>
                       )}
+                      {/* En celular el ícono crece a 16px y suma padding hasta
+                          28x32 de zona de toque: a 11px no se le acertaba con el
+                          dedo. El padding sólo se compensa hacia arriba/abajo y
+                          a la derecha — hacia la izquierda quedaría encima del
+                          nombre del chofer y le robaría el toque. */}
                       <Link
                         href={`/choferes/${choferSlug(f)}?tab=vacaciones`}
                         title="Abrir legajo"
-                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary"
+                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary max-md:-my-2 max-md:-mr-1.5 max-md:px-1.5 max-md:py-2"
                       >
-                        <ExternalLink size={11} />
+                        <ExternalLink size={11} className="max-md:size-4" />
                       </Link>
                     </td>
                     {semanas.map((s, i) => {
@@ -1289,7 +1294,7 @@ export default function VacacionesClient({
           vistas mostraban lo mismo, sólo que una peor. */}
       {periodosVentanaFiltrados.length > 0 && (
         <div id="card-periodos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-4 border-b border-border">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
             <CalendarRange size={16} className="text-primary self-center" />
             <h2 className="text-sm font-bold text-foreground">Quién se va de vacaciones</h2>
             <span className="text-xs text-muted-foreground">
@@ -1299,7 +1304,7 @@ export default function VacacionesClient({
           </div>
 
           {errorP && (
-            <div className="border-b border-red-200 bg-red-50 px-5 py-2 text-sm text-red-600">{errorP}</div>
+            <div className="border-b border-red-200 bg-red-50 px-4 sm:px-5 py-2 text-sm text-red-600">{errorP}</div>
           )}
 
           <div className="max-h-[70vh] overflow-auto">
@@ -1325,7 +1330,7 @@ export default function VacacionesClient({
                         la fila que se le mete por debajo al scrollear. Con
                         bg-muted/90 se transparentaba y se leían los dos textos
                         pisados. */}
-                    <div className="sticky top-0 z-20 flex flex-wrap items-baseline gap-x-2 px-5 py-1.5 bg-muted border-b border-border">
+                    <div className="sticky top-0 z-20 flex flex-wrap items-baseline gap-x-2 px-4 sm:px-5 py-1.5 bg-muted border-b border-border">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-foreground">{g.label}</h3>
                       <span className="text-[11px] text-muted-foreground">
                         {gente} {gente === 1 ? "persona" : "personas"} · {totalDias} día
@@ -1344,7 +1349,7 @@ export default function VacacionesClient({
                                z-10). Sin eso esos z-10 salían al contexto de
                                apilado de la lista y se dibujaban encima del
                                encabezado del mes al scrollear. */
-                            className={`group relative isolate flex flex-wrap items-center gap-x-3 gap-y-1.5 px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
+                            className={`group relative isolate flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 sm:px-5 py-3 hover:bg-muted/20 ${p.en_curso ? "bg-muted/30" : ""}`}
                           >
                             {/* Toda la fila abre el legajo. El link va estirado por
                                 debajo y los controles (fechas, cruz) quedan por
@@ -1393,7 +1398,7 @@ export default function VacacionesClient({
                                     type="date"
                                     value={fechasP.inicio}
                                     onChange={(e) => setFechasP((v) => ({ ...v, inicio: e.target.value }))}
-                                    className="h-7 w-[8.75rem] text-xs"
+                                    className="h-8 sm:h-7 w-[8.75rem] max-w-full text-xs"
                                     aria-label="Desde"
                                   />
                                   <span className="text-muted-foreground">→</span>
@@ -1402,7 +1407,7 @@ export default function VacacionesClient({
                                     value={fechasP.fin}
                                     min={fechasP.inicio || undefined}
                                     onChange={(e) => setFechasP((v) => ({ ...v, fin: e.target.value }))}
-                                    className="h-7 w-[8.75rem] text-xs"
+                                    className="h-8 sm:h-7 w-[8.75rem] max-w-full text-xs"
                                     aria-label="Hasta"
                                   />
                                   <span className="text-xs text-muted-foreground tabular-nums">
@@ -1413,7 +1418,7 @@ export default function VacacionesClient({
                                     size="sm"
                                     onClick={() => guardarFechasP(p)}
                                     disabled={guardandoP}
-                                    className="h-7 text-xs"
+                                    className="h-8 sm:h-7 text-xs"
                                   >
                                     <Check size={12} className="mr-1" />
                                     {guardandoP ? "Guardando…" : "Guardar"}
@@ -1423,7 +1428,7 @@ export default function VacacionesClient({
                                     onClick={() => setEditFechas(null)}
                                     disabled={guardandoP}
                                     title="Cancelar la edición"
-                                    className="text-muted-foreground hover:text-foreground"
+                                    className="p-1.5 text-muted-foreground hover:text-foreground"
                                   >
                                     <X size={13} />
                                   </button>
@@ -1457,7 +1462,10 @@ export default function VacacionesClient({
                                 <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground/80">{nota}</p>
                               )}
                             </div>
-                            <div className="pointer-events-none relative z-10 flex shrink-0 items-center gap-2">
+                            {/* Sin `shrink-0`: con el aviso de viajes encima, los dos
+                                textos en una línea inquebrantable se pasaban del
+                                ancho de la fila en el celular. */}
+                            <div className="pointer-events-none relative z-10 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span className="pointer-events-none whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
                                 <span className="font-semibold text-foreground">{p.dias}</span> días
                                 {p.anio_cargo != null ? ` · descuenta del ${p.anio_cargo}` : " · no descuenta"}
@@ -1471,6 +1479,10 @@ export default function VacacionesClient({
                                 </span>
                               )}
                               {canWrite && !editando && (
+                                // En el celular no hay hover: si la cruz sólo
+                                // apareciera al pasar el mouse, cancelar un
+                                // período sería imposible desde el teléfono.
+                                // Por eso está siempre visible abajo de sm.
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1478,7 +1490,7 @@ export default function VacacionesClient({
                                     e.stopPropagation();
                                     setCancelar(p);
                                   }}
-                                  className="pointer-events-auto text-muted-foreground hover:text-[#EF4444] opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                                  className="pointer-events-auto p-1.5 sm:p-0 text-muted-foreground hover:text-[#EF4444] opacity-100 sm:opacity-0 transition sm:group-hover:opacity-100 focus-visible:opacity-100"
                                   title="Cancelar este período"
                                 >
                                   <X size={14} />
@@ -1498,11 +1510,11 @@ export default function VacacionesClient({
       )}
 
       <div id="card-saldos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border">
+        <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
           <Palmtree size={16} className="text-primary" />
           <h2 className="text-sm font-bold text-foreground">Saldos por empleado</h2>
           <span className="text-xs text-muted-foreground">{saldosFiltrados.length} / {saldos.length}</span>
-          <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap sm:justify-end items-center gap-2">
             <div className="relative hidden md:block">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -1515,7 +1527,7 @@ export default function VacacionesClient({
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               Ordenar
               <Select value={ordenSaldos} onValueChange={(v) => v && setOrdenSaldos(v as OrdenSaldos)}>
-                <SelectTrigger className="h-8 w-[12rem] text-xs">
+                <SelectTrigger className="h-9 sm:h-8 w-[11rem] sm:w-[12rem] text-xs">
                   <span>{ORDEN_SALDOS_LABEL[ordenSaldos]}</span>
                 </SelectTrigger>
                 <SelectContent>
@@ -1527,24 +1539,24 @@ export default function VacacionesClient({
                 </SelectContent>
               </Select>
             </label>
-            <div className="inline-flex rounded-lg border border-border overflow-hidden">
+            <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-border">
               <button
                 onClick={() => cambiarVistaTabla("resumen")}
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "resumen" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vistaTabla === "resumen" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <Table2 size={13} /> Resumen
               </button>
               <button
                 onClick={() => cambiarVistaTabla("tarjetas")}
                 title="Tarjetas con medidor de uso por empleado"
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "tarjetas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vistaTabla === "tarjetas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <LayoutGrid size={13} /> Tarjetas
               </button>
               <button
                 onClick={() => cambiarVistaTabla("anios")}
                 title="Saldo y otorgados de cada año, como la planilla"
-                className={`px-2.5 h-8 text-xs inline-flex items-center gap-1 ${vistaTabla === "anios" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vistaTabla === "anios" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
               >
                 <CalendarDays size={13} /> Por año
               </button>
@@ -1552,7 +1564,7 @@ export default function VacacionesClient({
           </div>
         </div>
         {vistaTabla === "tarjetas" ? (
-          <div className="p-4 space-y-5">
+          <div className="p-3 sm:p-4 space-y-5">
             {saldosPorSector.map((g) => (
               <section key={g.sector}>
                 {/* El título del área tiene que ganarle al resto del texto:
@@ -1731,7 +1743,11 @@ export default function VacacionesClient({
                             </span>{" "}
                             días al año
                           </span>
-                          <span className="flex shrink-0 items-center gap-2">
+                          {/* Sin `shrink-0`: el aviso del escalón ("En septiembre de
+                              2028 cumple 10 años y pasa a 21 días") mide más que la
+                              tarjeta en el celular y, clavado, se salía del borde.
+                              Ahora envuelve como el resto del pie. */}
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                             {/* "sube en 37 meses" no decía qué subía ni por qué, y
                                 nadie piensa en 37 meses. Ahora dice el año concreto y
                                 a cuántos días pasa: es el escalón de antigüedad de la
@@ -1763,6 +1779,8 @@ export default function VacacionesClient({
                               </span>
                             )}
                             {canWrite && (
+                              // Sin hover en el celular, el "+" tiene que estar
+                              // siempre a la vista.
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1773,7 +1791,7 @@ export default function VacacionesClient({
                                   abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido });
                                 }}
                                 title="Cargar vacaciones"
-                                className="opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+                                className="p-1 sm:p-0 opacity-100 sm:opacity-0 transition-opacity hover:text-primary sm:group-hover:opacity-100"
                               >
                                 <Plus size={13} />
                               </button>
@@ -1795,7 +1813,9 @@ export default function VacacionesClient({
         {/* Alto acotado: la tabla scrollea adentro y el encabezado queda fijo
             (los ancestros con overflow rompen el sticky contra la página). */}
         <div className="max-h-[70vh] overflow-auto">
-          <table className="w-full text-sm">
+          {/* Tabla ancha de consulta: abajo de lg scrollea de costado con la
+              columna del empleado fija; en desktop queda como estaba. */}
+          <table className="w-full min-w-[900px] lg:min-w-0 text-sm">
             <thead className="sticky top-0 z-20 [&_th]:bg-muted [&_th]:shadow-[0_1px_0_0_rgba(0,0,0,0.06)]">
               <tr>
                 <th className="px-2 py-2.5 w-8" />
@@ -1803,7 +1823,7 @@ export default function VacacionesClient({
                   ? ["Empleado", "Ingreso", "Antig.", "Hito", `Saldo ${finPeriodoY - 1}`, `Días ${finPeriodoY}`, "Total", "Tomados", "Disp.", "Vence", "Próx. hito"]
                   : ["Empleado", "Ingreso", "Antig.", "Hito", ...aniosColumnas.map((a) => `Saldo ${a}`), "Disp.", "Vence", "Próx. hito"]
                 ).map((c, i, arr) => (
-                  <th key={c} className={`px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap ${i === 0 || i === 3 || i >= arr.length - 2 ? "text-left" : "text-right"}`}>{c}</th>
+                  <th key={c} className={`px-3 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap ${i === 0 ? "sticky left-0 z-30 !shadow-[1px_1px_0_0_rgba(0,0,0,0.08)]" : ""} ${i === 0 || i === 3 || i >= arr.length - 2 ? "text-left" : "text-right"}`}>{c}</th>
                 ))}
                 {canWrite && <th className="px-3 py-2.5 w-20" />}
               </tr>
@@ -1834,7 +1854,11 @@ export default function VacacionesClient({
                       }`}
                     >
                       <td className="px-2 py-2 text-center">{s.semaforo}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td
+                        className={`sticky left-0 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-3 py-2 whitespace-nowrap ${
+                          resaltado === s.chofer_id ? "bg-[#E6F3FA]" : "bg-card"
+                        }`}
+                      >
                         <Link href={`/choferes/${choferSlug(s)}?tab=vacaciones`} className="font-medium text-foreground hover:text-primary inline-flex items-center gap-1.5">
                           {s.apellido}, {s.nombre}
                           {s.en_vacaciones_ahora && (
@@ -1872,7 +1896,7 @@ export default function VacacionesClient({
                                     })
                                   }
                                   title={`Días que le corresponden por ${anio}${a && a.usados > 0 ? ` · ${a.usados} ya tomados` : ""}`}
-                                  className="w-14 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm"
+                                  className="w-14 h-8 sm:h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm"
                                 />
                               </td>
                             );
@@ -1898,14 +1922,14 @@ export default function VacacionesClient({
                         <>
                           <td className="px-3 py-2 text-right">
                             {editing ? (
-                              <input value={editAdeu} onChange={(e) => setEditAdeu(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
+                              <input value={editAdeu} onChange={(e) => setEditAdeu(e.target.value)} className="w-12 h-8 sm:h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
                             ) : (
                               <span title={desglose(s)} className={`font-mono cursor-help ${s.adeudados > 0 ? "text-[#EF4444] font-semibold" : "text-muted-foreground"}`}>{s.adeudados}</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-right">
                             {editing ? (
-                              <input value={editCorr} onChange={(e) => setEditCorr(e.target.value)} className="w-12 h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
+                              <input value={editCorr} onChange={(e) => setEditCorr(e.target.value)} className="w-12 h-8 sm:h-7 text-right rounded border border-border bg-background px-1 font-mono text-sm" />
                             ) : (
                               <span className="font-mono text-muted-foreground">{s.corresponden}</span>
                             )}
@@ -1931,15 +1955,15 @@ export default function VacacionesClient({
                           <div className="flex items-center justify-end gap-1.5">
                             {editing ? (
                               <>
-                                <button onClick={() => guardarSaldo(s)} className="text-[#10B981] hover:opacity-70" title="Guardar"><Check size={15} /></button>
-                                <button onClick={() => setEditSaldo(null)} className="text-muted-foreground hover:opacity-70" title="Cancelar"><X size={15} /></button>
+                                <button onClick={() => guardarSaldo(s)} className="p-1 sm:p-0 text-[#10B981] hover:opacity-70" title="Guardar"><Check size={15} /></button>
+                                <button onClick={() => setEditSaldo(null)} className="p-1 sm:p-0 text-muted-foreground hover:opacity-70" title="Cancelar"><X size={15} /></button>
                               </>
                             ) : (
                               <>
-                                <button onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })} className="text-muted-foreground hover:text-primary" title="Cargar vacaciones"><Plus size={15} /></button>
+                                <button onClick={() => abrirAdd({ chofer_id: s.chofer_id, nombre: s.nombre, apellido: s.apellido })} className="p-1 sm:p-0 text-muted-foreground hover:text-primary" title="Cargar vacaciones"><Plus size={15} /></button>
                                 <button
                                   onClick={() => abrirEditSaldo(s)}
-                                  className="text-muted-foreground hover:text-primary"
+                                  className="p-1 sm:p-0 text-muted-foreground hover:text-primary"
                                   title={vistaTabla === "anios" ? "Editar los días que corresponden de cada año" : "Editar saldo"}
                                 >
                                   <Pencil size={13} />
@@ -2140,7 +2164,7 @@ function StatCard({
               <span className="truncate">{label}</span>
               <Info size={12} className="ml-auto shrink-0 text-muted-foreground/40" />
             </div>
-            <div className={`text-2xl font-bold ${valueClass}`}>{value}</div>
+            <div className={`text-xl sm:text-2xl font-bold ${valueClass}`}>{value}</div>
           </div>
         }
       />

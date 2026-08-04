@@ -246,8 +246,8 @@ export default function ImportProgramacionModal({
                     )}
                   </div>
 
-                  <div className="max-h-[38vh] overflow-y-auto rounded-[8px] border border-border">
-                    <table className="w-full text-[12px]">
+                  <div className="max-h-[38vh] overflow-auto rounded-[8px] border border-border">
+                    <table className="w-full min-w-[520px] text-[12px]">
                       <thead className="sticky top-0 bg-card">
                         <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
                           <th className="py-2 pl-3 pr-2 text-left font-medium">Transporte</th>

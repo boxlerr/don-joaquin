@@ -64,7 +64,7 @@ export default function SucursalPrincipalCard({
 
   if (!principal) {
     return (
-      <div className="bg-card border border-dashed border-border rounded-[8px] p-3 flex items-center justify-between gap-3">
+      <div className="bg-card border border-dashed border-border rounded-[8px] p-3 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Building size={14} className="text-muted-foreground/70" />
           <span>No hay sucursal operativa cargada.</span>
@@ -87,7 +87,7 @@ export default function SucursalPrincipalCard({
 
   return (
     <div className="bg-card border border-border rounded-[8px] p-3 group">
-      <div className="flex items-start gap-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-start gap-3">
         <span className="size-9 rounded-md bg-[#E1F5FE] text-primary flex items-center justify-center shrink-0">
           <Building size={16} />
         </span>
@@ -125,7 +125,9 @@ export default function SucursalPrincipalCard({
             </a>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        {/* En celular las acciones bajan a su propia línea: si compartieran fila
+            con el nombre y la dirección, no quedaría ancho para leerlos. */}
+        <div className="flex items-center justify-end gap-1 shrink-0 basis-full sm:basis-auto">
           <AddSucursalDialog
             clienteId={clienteId}
             onAdded={onAdded}
@@ -137,7 +139,7 @@ export default function SucursalPrincipalCard({
             type="button"
             onClick={handleDelete}
             disabled={pending}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
+            className="shrink-0 inline-flex items-center justify-center max-md:size-9 p-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
             title="Eliminar sucursal"
           >
             <Trash2 size={13} />

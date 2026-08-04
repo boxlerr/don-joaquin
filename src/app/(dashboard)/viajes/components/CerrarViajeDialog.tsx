@@ -151,14 +151,14 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-6 gap-0">
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#10B981]/10 text-[#10B981] shrink-0">
+      <DialogContent className="sm:max-w-[480px] p-4 sm:p-6 gap-0">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#10B981]/10 text-[#10B981] shrink-0">
               <Receipt size={22} />
             </div>
-            <div>
-              <DialogTitle className="text-foreground text-lg font-bold">
+            <div className="min-w-0">
+              <DialogTitle className="text-foreground text-base sm:text-lg font-bold">
                 Agregar remito · {viaje.codigo}
               </DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
@@ -272,7 +272,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
                     className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 dark:border-sky-800/50 dark:bg-sky-950/40 pl-2 pr-1 py-0.5 text-[11px] font-medium text-sky-800 dark:text-sky-300"
                   >
                     {f.type.startsWith("image/") ? <ImageIcon size={11} /> : <FileText size={11} />}
-                    <span className="max-w-[170px] truncate" title={f.name}>{f.name}</span>
+                    <span className="max-w-[130px] sm:max-w-[170px] truncate" title={f.name}>{f.name}</span>
                     <span className="text-sky-600/70 dark:text-sky-400/70">{fmtSize(f.size)}</span>
                     <button
                       type="button"
@@ -301,12 +301,12 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-border -mx-6 px-6">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40"
+              className="h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40"
               disabled={loading}
             >
               Cancelar
@@ -314,7 +314,7 @@ export default function CerrarViajeDialog({ viaje, open, onOpenChange, onSuccess
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm"
+              className="bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center justify-center gap-1.5 h-10 w-full sm:w-auto px-6 rounded-lg font-bold shadow-sm"
             >
               {subiendo
                 ? `Subiendo ${subiendo.idx}/${subiendo.total} (${subiendo.pct}%)`

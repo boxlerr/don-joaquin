@@ -30,14 +30,14 @@ export default function AlertaToggle({ alertaKey, nombre, descripcion, initialAc
   }
 
   return (
-    <label className={`p-4 bg-card rounded-[8px] border border-border hover:shadow-sm transition-shadow block ${isPending ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
+    <label className={`p-3.5 sm:p-4 bg-card rounded-[8px] border border-border hover:shadow-sm transition-shadow block ${isPending ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}>
       <div className="flex items-start gap-3">
         <input
           type="checkbox"
           checked={activo}
           onChange={onChange}
           disabled={isPending}
-          className="w-4 h-4 mt-0.5 cursor-pointer accent-[#0088D1] disabled:cursor-not-allowed"
+          className="w-4 h-4 max-md:w-5 max-md:h-5 mt-0.5 shrink-0 cursor-pointer accent-[#0088D1] disabled:cursor-not-allowed"
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">{nombre}</p>

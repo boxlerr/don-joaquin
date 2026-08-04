@@ -91,7 +91,7 @@ function MetricaItem({ metrica, cargando }: { metrica: Metrica; cargando: boolea
   const { label, value, formato, sub, tono = "neutro", href } = metrica;
   const Flecha = FLECHA[tono];
 
-  const clases = `group flex min-w-[9rem] flex-1 flex-col justify-center gap-1 px-5 py-4 ${
+  const clases = `group flex min-w-[9rem] max-sm:basis-full flex-1 flex-col justify-center gap-1 px-4 py-3 sm:px-5 sm:py-4 ${
     href ? "transition-colors hover:bg-muted/40" : ""
   }`;
 
@@ -101,9 +101,10 @@ function MetricaItem({ metrica, cargando }: { metrica: Metrica; cargando: boolea
         {Flecha && <Flecha size={11} className={`${TONO[tono]} opacity-70`} />}
         {label}
         {href && (
+          // En celular no hay hover: la flechita de "esto navega" se ve siempre.
           <ArrowUpRight
             size={12}
-            className="opacity-0 transition-opacity group-hover:opacity-100"
+            className="opacity-60 transition-opacity md:opacity-0 md:group-hover:opacity-100"
           />
         )}
       </span>
@@ -143,7 +144,7 @@ function FranjaHoy({ hoy, cargando }: { hoy: Hoy | null; cargando: boolean }) {
   const neto = hoy ? hoy.ingresos - hoy.egresos : 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-b-xl border-t border-border bg-muted/20 px-5 py-2.5">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-b-xl border-t border-border bg-muted/20 px-4 py-2.5 sm:gap-x-6 sm:px-5">
       <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         <span className="size-1.5 rounded-full bg-primary" aria-hidden />
         Hoy{hoy && ` · ${fechaCorta(hoy.fecha)}`}
@@ -218,7 +219,7 @@ export default function ResumenCaja({
   return (
     <section className="mb-5 rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       {(controles || nota) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-border bg-muted/20 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-border bg-muted/20 px-2 py-2 sm:px-3">
           {controles}
           {nota && <div className="px-2 text-xs text-muted-foreground/80">{nota}</div>}
         </div>
@@ -227,21 +228,26 @@ export default function ResumenCaja({
       <div className="flex flex-col divide-y divide-border lg:flex-row lg:divide-x lg:divide-y-0">
         {/* Saldo: el dato principal, sobre un tinte de marca apenas perceptible
             para que el bloque tenga peso sin cambiar de color la pantalla. */}
-        <div className="relative flex flex-col justify-center gap-2 bg-gradient-to-r from-primary/[0.045] to-transparent px-6 py-7 lg:w-[21rem] lg:shrink-0">
+        <div className="relative flex flex-col justify-center gap-2 bg-gradient-to-r from-primary/[0.045] to-transparent px-4 py-5 sm:px-6 sm:py-7 lg:w-[21rem] lg:shrink-0">
           <span className="absolute inset-y-6 left-0 w-[3px] rounded-r-full bg-primary" aria-hidden />
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Saldo actual
           </p>
+          {/* El saldo baja un escalón en celular: a 2.4rem un monto de 8 cifras
+              se salía del ancho de la pantalla. */}
           <Valor
             value={saldo}
             cargando={cargando}
-            className="text-[2.4rem] font-semibold leading-none text-foreground"
-            placeholder="h-9 w-56"
+            className="text-[1.75rem] font-semibold leading-none text-foreground sm:text-[2.4rem]"
+            placeholder="h-8 w-44 sm:h-9 sm:w-56"
           />
           <p className="text-[11px] text-muted-foreground/80">{saldoSub}</p>
         </div>
 
-        <div className="flex flex-1 flex-wrap divide-x divide-border sm:flex-nowrap">
+        {/* En celular las métricas se apilan (no entran dos de 9rem en 343px):
+            los divisores pasan de verticales a horizontales. Y no se fuerza el
+            `nowrap`: con cuatro métricas la fila se salía de la pantalla. */}
+        <div className="flex flex-1 flex-wrap divide-x-0 divide-y divide-border sm:divide-x sm:divide-y-0">
           {metricas.map((m) => (
             <MetricaItem key={m.label} metrica={m} cargando={cargando} />
           ))}

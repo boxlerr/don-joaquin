@@ -51,7 +51,10 @@ export default function EvolucionTab({
   }
 
   const th = "py-2 px-3 font-medium text-right whitespace-nowrap";
-  const td = "py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap";
+  const td = "py-1.5 px-3 text-right font-mono tabular-nums whitespace-nowrap max-md:py-2.5";
+  // La columna Mes queda fija al scrollear de costado: son 11 columnas y sin
+  // ella no se sabe a qué mes pertenece el número que estás mirando.
+  const tdMes = "sticky left-0 z-10 shadow-[1px_0_0_var(--border)] px-3 py-1.5 whitespace-nowrap max-md:py-2.5";
 
   return (
     <div className="space-y-3">
@@ -59,8 +62,8 @@ export default function EvolucionTab({
         {/* min-w subió con los montos completos (antes iban abreviados). */}
         <table className="w-full text-sm min-w-[1120px]">
           <thead>
-            <tr className="bg-muted/80 text-xs text-muted-foreground border-b border-border">
-              <th className="py-2 px-3 font-medium text-left">Mes</th>
+            <tr className="bg-muted text-xs text-muted-foreground border-b border-border">
+              <th className="sticky left-0 z-20 shadow-[1px_0_0_var(--border)] bg-muted py-2 px-3 font-medium text-left">Mes</th>
               <th className={th}>Camiones</th>
               <th className={th}>KM</th>
               <th className={th}>Facturación</th>
@@ -80,7 +83,7 @@ export default function EvolucionTab({
               if (!f.t) {
                 return (
                   <tr key={f.mes} className={i % 2 ? "bg-muted/20" : ""}>
-                    <td className="py-1.5 px-3 text-muted-foreground">{mesLabel(f.mes)}</td>
+                    <td className={`${tdMes} text-muted-foreground ${i % 2 ? "bg-background" : "bg-card"}`}>{mesLabel(f.mes)}</td>
                     <td colSpan={10} className="py-1.5 px-3 text-xs text-muted-foreground/70 italic">
                       Sin planilla cargada{f.mes <= hoyMes ? " todavía" : ""}
                     </td>
@@ -93,16 +96,27 @@ export default function EvolucionTab({
                   key={f.mes}
                   className={`${activo ? "bg-primary/10 font-medium" : i % 2 ? "bg-muted/20" : ""}`}
                 >
-                  <td className="py-1.5 px-3 whitespace-nowrap">
-                    <Link
-                      href={`/metricas?month=${f.mes.slice(0, 7)}`}
-                      className={`hover:text-primary hover:underline ${activo ? "text-primary font-semibold" : "text-foreground"}`}
-                      title="Ver este mes"
-                    >
-                      {mesLabel(f.mes)}
-                    </Link>
-                    {esHoy && <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">HOY</span>}
-                    {f.esAgregado && <span className="ml-1.5 text-[9px] text-muted-foreground" title="Mes histórico: solo agregados, sin detalle por chofer">agreg.</span>}
+                  {/* El resaltado del mes activo se pinta con ::before para que
+                      el fondo de la celda fija siga siendo opaco (si no, las
+                      celdas que scrollean se ven por atrás). */}
+                  <td
+                    className={`${tdMes} ${
+                      activo
+                        ? "bg-card before:absolute before:inset-0 before:bg-primary/10"
+                        : i % 2 ? "bg-background" : "bg-card"
+                    }`}
+                  >
+                    <span className="relative">
+                      <Link
+                        href={`/metricas?month=${f.mes.slice(0, 7)}`}
+                        className={`hover:text-primary hover:underline ${activo ? "text-primary font-semibold" : "text-foreground"}`}
+                        title="Ver este mes"
+                      >
+                        {mesLabel(f.mes)}
+                      </Link>
+                      {esHoy && <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">HOY</span>}
+                      {f.esAgregado && <span className="ml-1.5 text-[9px] text-muted-foreground" title="Mes histórico: solo agregados, sin detalle por chofer">agreg.</span>}
+                    </span>
                   </td>
                   <td className={td}>{t.camiones || "—"}</td>
                   <td className={td}>{numAr(t.km)}</td>
@@ -120,8 +134,11 @@ export default function EvolucionTab({
           </tbody>
           {totales && (
             <tfoot>
-              <tr className="border-t-2 border-border bg-muted/60 font-semibold text-foreground">
-                <td className="py-2 px-3">TOTAL / PROM. ({conDatos.length} meses)</td>
+              <tr className="border-t-2 border-border bg-muted font-semibold text-foreground">
+                {/* Sin "(N meses)": esa celda fijaba el ancho de la columna
+                    fija y en celular se comía media pantalla. El conteo está
+                    en la línea de abajo. */}
+                <td className="sticky left-0 z-10 shadow-[1px_0_0_var(--border)] bg-muted py-2 px-3 whitespace-nowrap">TOTAL / PROM.</td>
                 <td className={td} />
                 <td className={td}>{numAr(totales.km)}</td>
                 <td className={td}>{money(totales.fact)}</td>
@@ -138,8 +155,8 @@ export default function EvolucionTab({
         </table>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        $/km, % y toneladas del total son ponderados sobre los {conDatos.length} meses con datos.
-        Click en un mes para verlo en detalle.
+        La fila TOTAL / PROM. resume los {conDatos.length} meses con datos: $/km, % y toneladas van
+        ponderados. Click en un mes para verlo en detalle.
       </p>
     </div>
   );

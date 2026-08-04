@@ -80,23 +80,23 @@ export default function ResumenMes({ totales, periodoLabel, periodoSelector, mos
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-1 h-4 rounded-full bg-primary" />
+      <div className="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="inline-block w-1 h-4 rounded-full bg-primary shrink-0" />
           <h2 className="text-sm font-bold text-foreground">{periodoLabel}</h2>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {periodoSelector}
           <Link
             href="/choferes/ranking"
-            className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
+            className="inline-flex items-center max-md:h-9 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
           >
             Ver por chofer →
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {cards.map((c) => (
           <ResumenCard key={c.label} {...c} />
         ))}
@@ -125,15 +125,22 @@ function ResumenCard({
   accent: keyof typeof ACCENTS;
 }) {
   const a = ACCENTS[accent];
-  const valueSizeClass = value.length <= 8 ? "text-3xl" : value.length <= 12 ? "text-2xl" : "text-xl";
+  // El número lleva whitespace-nowrap, así que en celular baja un escalón: a
+  // 375px la tarjeta mide ~343px y un "1.234.567 km" a 30px se salía.
+  const valueSizeClass =
+    value.length <= 8
+      ? "text-2xl sm:text-3xl"
+      : value.length <= 12
+        ? "text-xl sm:text-2xl"
+        : "text-lg sm:text-xl";
 
   return (
     <Link
       href="/choferes/ranking"
-      className="relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/50 group flex items-center gap-4 cursor-pointer"
+      className="relative overflow-hidden bg-card rounded-[8px] border border-border p-4 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/50 group flex items-center gap-3 sm:gap-4 cursor-pointer"
     >
       <div
-        className={`w-12 h-12 rounded-full bg-gradient-to-br ${a.from} ${a.to} flex items-center justify-center text-white shrink-0 shadow-[0_4px_10px_rgba(0,0,0,0.05)] transition-transform duration-300 group-hover:scale-110`}
+        className={`size-10 sm:size-12 rounded-full bg-gradient-to-br ${a.from} ${a.to} flex items-center justify-center text-white shrink-0 shadow-[0_4px_10px_rgba(0,0,0,0.05)] transition-transform duration-300 group-hover:scale-110`}
       >
         <Icon size={20} strokeWidth={2.5} />
       </div>

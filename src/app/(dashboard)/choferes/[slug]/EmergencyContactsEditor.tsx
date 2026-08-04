@@ -52,9 +52,12 @@ export default function EmergencyContactsEditor({ value, onChange, errorClass }:
 
   return (
     <div className="space-y-1.5">
+      {/* En celular el teléfono y el nombre no entran en el mismo renglón: el
+          teléfono queda arriba con el botón de quitar, y el nombre —que es el
+          campo largo— se lleva la línea entera. Desde sm vuelven a ir juntos. */}
       {contactos.map((c, i) => (
-        <div key={i} className="flex gap-1.5 items-center">
-          <div className="relative w-[8.5rem] shrink-0">
+        <div key={i} className="flex flex-wrap items-center gap-1.5">
+          <div className="relative order-1 min-w-0 flex-1 sm:w-[8.5rem] sm:flex-none sm:shrink-0">
             <Phone size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
             <Input
               value={c.tel}
@@ -63,7 +66,18 @@ export default function EmergencyContactsEditor({ value, onChange, errorClass }:
               className={`h-8 text-sm pl-7 ${errorClass ?? ""}`}
             />
           </div>
-          <div className="relative flex-1 min-w-0">
+          {contactos.length > 1 && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="order-2 sm:order-3 shrink-0 size-9 sm:size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50"
+              title="Quitar contacto"
+              aria-label="Quitar contacto"
+            >
+              <X size={13} />
+            </button>
+          )}
+          <div className="relative order-3 sm:order-2 w-full min-w-0 sm:w-auto sm:flex-1">
             <User size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
             <Input
               value={c.nombre}
@@ -72,23 +86,12 @@ export default function EmergencyContactsEditor({ value, onChange, errorClass }:
               className="h-8 text-sm pl-7"
             />
           </div>
-          {contactos.length > 1 && (
-            <button
-              type="button"
-              onClick={() => remove(i)}
-              className="shrink-0 size-7 inline-flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50"
-              title="Quitar contacto"
-              aria-label="Quitar contacto"
-            >
-              <X size={13} />
-            </button>
-          )}
         </div>
       ))}
       <button
         type="button"
         onClick={add}
-        className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0088D1] hover:underline"
+        className="inline-flex min-h-9 items-center gap-1 text-[11px] font-medium text-[#0088D1] hover:underline md:min-h-0"
       >
         <Plus size={11} /> Agregar otro contacto
       </button>

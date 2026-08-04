@@ -140,15 +140,15 @@ export default function ImportYpfModal({ children }: { children: React.ReactNode
 
           {step === "preview" && preview && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                  <div className="text-2xl font-extrabold text-emerald-700">{num(preview.aImportar)}</div>
+                  <div className="text-xl sm:text-2xl font-extrabold text-emerald-700">{num(preview.aImportar)}</div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/80">
                     cargas a importar
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                  <div className="text-2xl font-extrabold text-foreground">{num(preview.total)}</div>
+                  <div className="text-xl sm:text-2xl font-extrabold text-foreground">{num(preview.total)}</div>
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     filas en el reporte
                   </div>

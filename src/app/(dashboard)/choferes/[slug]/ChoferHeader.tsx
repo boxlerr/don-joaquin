@@ -170,9 +170,11 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
     // de amarillo, con otro recuadro amarillo adentro. Un egreso es un archivo,
     // no un problema: misma tarjeta que el resto y el estado se dice con
     // palabras, no tiñendo el fondo.
-    <div className="rounded-[8px] border border-border bg-card shadow-sm p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
+    <div className="rounded-[8px] border border-border bg-card shadow-sm p-4 sm:p-6">
+      {/* En celular el bloque de acciones no entra al lado del nombre: se apila
+          debajo y ocupa el ancho, en vez de aplastar el avatar y los datos. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="relative flex-shrink-0 group/avatar">
             <div
               className="w-14 h-14 rounded-full bg-[#E1F5FE] flex items-center justify-center overflow-hidden border border-[#B3E5FC] cursor-pointer relative"
@@ -187,7 +189,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 <SiluetaPersona rol={chofer.rol} className="text-primary" />
               )}
 
-              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+              {/* Sólo desde md: en celular no hay hover y el cartel taparía la
+                  foto para siempre (ahí va el chip de cámara de abajo). */}
+              <div className="absolute inset-0 bg-black/55 hidden md:flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
                 <Camera size={14} className="text-white" />
                 <span className="text-[9px] font-medium text-white tracking-wider uppercase">
                   {fotoUrl ? "Cambiar" : "Subir"}
@@ -209,19 +213,36 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               />
             </div>
 
+            {/* La foto se toca para cambiarla, pero en celular el cartel de
+                "Cambiar/Subir" no aparece nunca (no hay hover): sin este chip
+                no había ninguna señal de que el avatar es un botón. Va FUERA
+                del círculo, que tiene overflow-hidden y lo recortaría. Mismo
+                recurso que la tarjeta del listado. */}
+            {!uploadingFoto && (
+              <span
+                aria-hidden
+                className="md:hidden pointer-events-none absolute -bottom-0.5 -right-0.5 size-5 rounded-full bg-card border border-border text-muted-foreground flex items-center justify-center shadow-sm"
+              >
+                <Camera size={11} />
+              </span>
+            )}
+
+            {/* En celular no hay hover: si el botón queda en opacity-0 no hay
+                forma de borrar la foto desde el teléfono. Abajo de md se ve
+                siempre y es más grande para el dedo. */}
             {fotoUrl && !uploadingFoto && (
               <button
                 type="button"
                 onClick={handleFotoDelete}
-                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white opacity-0 group-hover/avatar:opacity-100 transition-opacity z-20"
+                className="absolute -top-1.5 -right-1.5 size-7 md:-top-1 md:-right-1 md:size-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md border-2 border-white transition-opacity z-20 md:opacity-0 md:group-hover/avatar:opacity-100"
                 title="Eliminar foto"
               >
-                <Trash2 size={10} />
+                <Trash2 size={12} className="md:size-2.5" />
               </button>
             )}
           </div>
-          <div>
-            <h1 className="text-foreground text-xl font-semibold">
+          <div className="min-w-0">
+            <h1 className="text-foreground text-lg sm:text-xl font-semibold break-words">
               {chofer.apellido}, {chofer.nombre}
             </h1>
             <p className="text-muted-foreground text-sm font-mono mt-0.5">DNI {chofer.dni}</p>
@@ -326,7 +347,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                   type="button"
                   onClick={handleMarcarLeidas}
                   disabled={markingRead}
-                  className="inline-flex cursor-pointer select-none items-center gap-1.5 rounded-[6px] border border-border px-2.5 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+                  className="inline-flex min-h-9 cursor-pointer select-none items-center gap-1.5 rounded-[6px] border border-border px-2.5 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50 md:min-h-0"
                   title="Marcar todas las alertas de este legajo como leídas"
                 >
                   <Check size={12} strokeWidth={3} className={markingRead ? "animate-spin" : ""} />
@@ -337,12 +358,12 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
           </div>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:flex-nowrap">
           <ExportarLegajoButton choferId={chofer.id} canVerSueldos={chofer.can_ver_sueldos} />
           {!editing && (
             <Button
               variant="outline"
-              className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+              className="h-10 flex-1 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40 sm:flex-none"
               onClick={() => onEditar?.()}
             >
               <Edit size={15} className="mr-2 text-primary" />
@@ -352,7 +373,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
           {!editing && (
             <Button
               variant="outline"
-              className="h-10 border-red-200 px-3 text-sm text-red-600 hover:bg-red-50"
+              className="h-10 flex-1 border-red-200 px-3 text-sm text-red-600 hover:bg-red-50 sm:flex-none"
               onClick={() => {
                 setDeleteError(null);
                 setConfirmDelete(true);
@@ -375,10 +396,10 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             Se borra entero y no se puede deshacer. Es para los que se cargaron por error: si la
             persona ya tiene viajes o documentos, el sistema lo impide y hay que egresarla.
           </p>
-          <div className="mt-2.5 flex items-center gap-2">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <Button
               size="sm"
-              className="h-8 bg-red-600 text-white hover:bg-red-700"
+              className="h-8 max-md:h-9 bg-red-600 text-white hover:bg-red-700"
               onClick={handleEliminar}
               disabled={deleting}
             >
@@ -388,7 +409,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
             <Button
               size="sm"
               variant="outline"
-              className="h-8 border-red-200 text-red-700 hover:bg-red-100"
+              className="h-8 max-md:h-9 border-red-200 text-red-700 hover:bg-red-100"
               onClick={() => setConfirmDelete(false)}
               disabled={deleting}
             >
@@ -410,7 +431,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
 
       {/* Antes eran 7 columnas fijas y el texto se cortaba en "Ingreso: 01/09/20…".
           Ahora fluye y cada dato ocupa lo que necesita. */}
-      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-[#F1F5F9] pt-4">
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-[#F1F5F9] pt-4 sm:gap-x-6">
         <InfoItem icon={<Phone size={14} />} tono="#059669" label={chofer.telefono ?? "—"} />
         <InfoItem icon={<Mail size={14} />} tono="#0277BD" label={chofer.email ?? "—"} />
         <InfoItem icon={<MapPin size={14} />} tono="#DC2626" label={chofer.localidad ?? "—"} />
@@ -436,7 +457,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
       {/* Egreso — sin caja de color: es una sección más del encabezado. */}
       {esBaja && (
         <div className="mt-5 pt-4 border-t border-border">
-          <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
               <LogOut size={14} className="text-muted-foreground" />
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -447,7 +468,7 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs"
+                className="h-7 max-md:h-9 text-xs"
                 onClick={() => {
                   setEgMotivo(chofer.motivo_egreso ?? "");
                   setEgFecha(chofer.fecha_egreso ?? "");
@@ -459,10 +480,10 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
               </Button>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
+                <Button variant="outline" size="sm" className="h-7 max-md:h-9 text-xs" onClick={() => setEditandoEgreso(false)} disabled={savingEgreso}>
                   <X size={12} className="mr-1" /> Cancelar
                 </Button>
-                <Button variant="brand" size="sm" className="h-7 text-xs" onClick={handleGuardarEgreso} disabled={savingEgreso}>
+                <Button variant="brand" size="sm" className="h-7 max-md:h-9 text-xs" onClick={handleGuardarEgreso} disabled={savingEgreso}>
                   {savingEgreso ? "Guardando..." : <><Check size={12} className="mr-1" /> Guardar</>}
                 </Button>
               </div>
@@ -558,11 +579,16 @@ function InfoItem({
   tono?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-foreground/90" title={label}>
-      <span style={tono ? { color: tono } : undefined} className={tono ? "" : "text-muted-foreground/70"}>
+    <div className="flex min-w-0 max-w-full items-center gap-2 text-sm text-foreground/90" title={label}>
+      <span
+        style={tono ? { color: tono } : undefined}
+        className={`shrink-0 ${tono ? "" : "text-muted-foreground/70"}`}
+      >
         {icon}
       </span>
-      <span className="whitespace-nowrap">{label}</span>
+      {/* En celular un email largo empujaba la página de costado: se parte en
+          dos renglones en vez de truncarse (el dato entero tiene que leerse). */}
+      <span className="min-w-0 break-all sm:whitespace-nowrap sm:break-normal">{label}</span>
     </div>
   );
 }

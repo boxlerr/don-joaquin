@@ -84,7 +84,7 @@ export default function ChoferDrawer({
                 {chofer.slug && (
                   <Link
                     href={`/choferes/${chofer.slug}`}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50 sm:h-7"
                   >
                     <User size={12} /> Ver legajo
                   </Link>
@@ -92,7 +92,7 @@ export default function ChoferDrawer({
                 {chofer.choferId && (
                   <Link
                     href={`/viajes?choferId=${chofer.choferId}`}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50 sm:h-7"
                   >
                     <RouteIcon size={12} /> Ver viajes
                   </Link>
@@ -205,7 +205,7 @@ export default function ChoferDrawer({
                       key={def.id}
                       type="button"
                       onClick={() => setMetricaSel(def.id)}
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors max-md:h-9 max-md:px-3 max-md:text-xs ${
                         metricaSel === def.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >

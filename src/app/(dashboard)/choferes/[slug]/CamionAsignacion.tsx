@@ -131,7 +131,7 @@ export default function CamionAsignacion({
             </span>
           )}
           {!egresado && (
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={abrir} disabled={pending}>
+            <Button type="button" variant="outline" size="sm" className="h-7 max-md:h-9 text-xs" onClick={abrir} disabled={pending}>
               <Pencil size={11} /> {asignado ? "Cambiar" : "Asignar camión"}
             </Button>
           )}
@@ -140,7 +140,7 @@ export default function CamionAsignacion({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 text-xs text-red-600 hover:text-red-700"
+              className="h-7 max-md:h-9 text-xs text-red-600 hover:text-red-700"
               onClick={desasignar}
               disabled={pending}
             >
@@ -173,13 +173,13 @@ export default function CamionAsignacion({
                   })),
                 ]}
                 searchPlaceholder="Buscar patente..."
-                triggerClassName="h-8 min-w-[280px] text-xs"
+                triggerClassName="h-8 w-full text-xs sm:w-auto sm:min-w-[280px]"
               />
             )}
-            <Button type="button" variant="brand" size="sm" className="h-7 text-xs" onClick={confirmar} disabled={pending || !sel}>
+            <Button type="button" variant="brand" size="sm" className="h-7 max-md:h-9 text-xs" onClick={confirmar} disabled={pending || !sel}>
               {pending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirmar
             </Button>
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setEditing(false); setError(null); }} disabled={pending}>
+            <Button type="button" variant="outline" size="sm" className="h-7 max-md:h-9 text-xs" onClick={() => { setEditing(false); setError(null); }} disabled={pending}>
               Cancelar
             </Button>
           </div>
@@ -211,7 +211,7 @@ export default function CamionAsignacion({
           </p>
           <ul className="space-y-0.5">
             {historial.slice(0, 8).map((h) => (
-              <li key={h.id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <li key={h.id} className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <Truck size={11} className="text-muted-foreground/60 shrink-0" />
                 <span className="font-mono text-foreground">{h.patente}</span>
                 <span>

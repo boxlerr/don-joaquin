@@ -109,13 +109,13 @@ export default function AuditTrailDrawer({ viajeId, open, onOpenChange }: AuditT
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="fixed right-0 top-0 h-full w-[min(480px,calc(100vw-2rem))] bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
+        className="fixed right-0 top-0 h-dvh w-[min(480px,calc(100vw-2rem))] bg-card shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+        <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="size-9 shrink-0 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
               <Clock size={18} />
             </div>
             <div>
@@ -125,7 +125,7 @@ export default function AuditTrailDrawer({ viajeId, open, onOpenChange }: AuditT
           </div>
           <button
             onClick={() => onOpenChange(false)}
-            className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+            className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
             aria-label="Cerrar"
           >
             <X size={16} />
@@ -133,7 +133,7 @@ export default function AuditTrailDrawer({ viajeId, open, onOpenChange }: AuditT
         </div>
 
         {/* Timeline */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4">
           {loading ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground/70 text-sm">
               Cargando historial...
@@ -149,7 +149,7 @@ export default function AuditTrailDrawer({ viajeId, open, onOpenChange }: AuditT
 
               <div className="space-y-5">
                 {entries.map((entry) => (
-                  <div key={entry.id} className="flex gap-4">
+                  <div key={entry.id} className="flex gap-3 sm:gap-4">
                     {/* Ícono en la línea */}
                     <div className="size-9 rounded-full bg-card border-2 border-border flex items-center justify-center shrink-0 z-10">
                       <EntryIcon accion={entry.accion} valores_nuevos={entry.valores_nuevos ?? {}} />

@@ -39,7 +39,7 @@ export default function ChoferSwap({
         disabled: c.id === otherId,
       }))}
       searchPlaceholder="Buscar chofer..."
-      triggerClassName="h-8 w-full"
+      triggerClassName="h-9 sm:h-8 w-full"
     />
   );
 }

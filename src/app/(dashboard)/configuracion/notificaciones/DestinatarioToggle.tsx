@@ -35,22 +35,28 @@ export default function DestinatarioToggle({ usuarioId, initialActivo }: Props) 
           {error}
         </span>
       )}
+      {/* El botón es la zona táctil (36px en celular); la pastilla de adentro es
+          lo que se ve. En desktop mide lo mismo que ella. */}
       <button
         type="button"
         role="switch"
         aria-checked={activo}
         disabled={isPending}
         onClick={onToggle}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          activo ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
-        }`}
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md disabled:opacity-50 disabled:cursor-not-allowed sm:size-auto"
         aria-label="Activar destinatario"
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
-            activo ? "translate-x-4" : "translate-x-0.5"
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+            activo ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
           }`}
-        />
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+              activo ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </span>
       </button>
     </div>
   );

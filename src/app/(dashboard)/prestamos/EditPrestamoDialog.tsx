@@ -43,7 +43,7 @@ function LogoBanco({ banco }: { banco: string }) {
   const { logo, color } = marcaBanco(banco);
   return (
     <span
-      className="flex size-12 shrink-0 items-center justify-center rounded-full"
+      className="flex size-10 shrink-0 items-center justify-center rounded-full sm:size-12"
       style={{ background: `${color}14` }}
     >
       {logo ? (
@@ -209,9 +209,11 @@ export default function EditPrestamoDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !loading && onOpenChange(v)}>
-      <DialogContent className="gap-0 p-6 sm:max-w-[880px]">
-        <DialogHeader className="-mx-6 border-b border-border px-6 pb-4 pt-1">
-          <div className="flex items-start gap-4 pr-8">
+      {/* El padding sigue al de la primitiva (p-4 en celular, p-6 desde sm):
+          si no, el pie del diálogo queda corrido respecto del borde. */}
+      <DialogContent className="gap-0 p-4 sm:p-6 sm:max-w-[880px]">
+        <DialogHeader className="-mx-4 border-b border-border px-4 pb-4 pt-1 sm:-mx-6 sm:px-6">
+          <div className="flex items-start gap-3 pr-8 sm:gap-4">
             <LogoBanco banco={prestamo.banco} />
             <div className="min-w-0">
               <DialogTitle className="text-lg text-foreground">
@@ -287,7 +289,9 @@ export default function EditPrestamoDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_7rem_auto]">
+              {/* Apilados en celular: el importe de la cuota es un número
+                  largo y en media pantalla no se lee. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem_auto]">
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-muted-foreground">
                     Importe de la cuota
@@ -404,7 +408,7 @@ export default function EditPrestamoDialog({
                           Cancelar
                         </button>
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         <div className="space-y-1">
                           <Label className="text-[11px] font-semibold text-muted-foreground">
                             Cuotas totales
@@ -429,7 +433,9 @@ export default function EditPrestamoDialog({
                             className="h-9"
                           />
                         </div>
-                        <div className="space-y-1">
+                        {/* La fecha entera abajo: en un tercio de pantalla el
+                            campo de fecha no entra. */}
+                        <div className="col-span-2 space-y-1 sm:col-span-1">
                           <Label className="text-[11px] font-semibold text-muted-foreground">
                             Vence el
                           </Label>

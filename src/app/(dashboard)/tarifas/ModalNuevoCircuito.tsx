@@ -81,15 +81,15 @@ export default function ModalNuevoCircuito({
         className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm transition-opacity"
         onClick={() => !isPending && onClose()}
       />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(680px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(680px,calc(100vw-2rem))] max-h-[92dvh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border">
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+        <div className="flex items-start justify-between gap-2 px-4 sm:px-6 pt-4 sm:pt-5 pb-4 border-b border-border">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Route size={22} />
             </div>
-            <div>
-              <h2 className="text-foreground text-lg font-bold">
+            <div className="min-w-0">
+              <h2 className="text-foreground text-base sm:text-lg font-bold">
                 {editando ? "Editar circuito" : "Nuevo circuito"}
               </h2>
               <p className="text-muted-foreground text-xs font-medium mt-0.5">
@@ -102,7 +102,7 @@ export default function ModalNuevoCircuito({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
+            className="size-10 md:size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
             aria-label="Cerrar"
           >
             <X size={18} />
@@ -110,7 +110,7 @@ export default function ModalNuevoCircuito({
         </div>
 
         {/* Form */}
-        <form onSubmit={onSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <form onSubmit={onSubmit} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {error && (
             <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2 text-xs text-[#7F1D1D] font-medium">
               {error}
@@ -213,19 +213,19 @@ export default function ModalNuevoCircuito({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 pt-3.5 border-t border-border mt-4">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3.5 border-t border-border mt-4">
             <button
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="w-full sm:w-auto h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="w-full sm:w-auto bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
               {isPending ? (
                 "Guardando…"

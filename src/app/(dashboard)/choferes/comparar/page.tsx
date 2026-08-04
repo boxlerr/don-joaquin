@@ -135,15 +135,15 @@ function MetricRow({
       }`}
     >
       <td
-        className={`px-5 py-3 text-sm ${
+        className={`sticky left-0 z-10 bg-card shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-3 sm:px-5 py-3 text-sm ${
           m.indent
-            ? "pl-10 text-xs text-muted-foreground/80"
+            ? "pl-6 sm:pl-10 text-xs text-muted-foreground/80"
             : "font-medium text-foreground"
         }`}
       >
         {m.label}
       </td>
-      <td className={`px-5 py-3 text-right tabular-nums text-sm ${aClass}`}>
+      <td className={`px-3 sm:px-5 py-3 text-right tabular-nums text-sm ${aClass}`}>
         {aWins && <span className="mr-1 text-[#10B981]">✓</span>}
         {m.format(m.a)}
         {m.suffix}
@@ -157,7 +157,7 @@ function MetricRow({
           suffix={m.suffix}
         />
       </td>
-      <td className={`px-5 py-3 text-left tabular-nums text-sm ${bClass}`}>
+      <td className={`px-3 sm:px-5 py-3 text-left tabular-nums text-sm ${bClass}`}>
         {m.format(m.b)}
         {m.suffix}
         {bWins && <span className="ml-1 text-[#10B981]">✓</span>}
@@ -344,14 +344,14 @@ export default async function CompararChoferes({
   const bIsWinner = !!winner && winner.bWins > winner.aWins;
 
   return (
-    <div className="p-8 space-y-4 max-w-[1200px]">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 max-w-[1200px]">
       <PageHeader
         title="Comparador de Choferes"
         description={`Período: ${periodo.label}`}
         action={
           <Link
             href={backHref}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <ArrowLeft size={14} />
             Volver al ranking
@@ -382,7 +382,7 @@ export default async function CompararChoferes({
       {/* Banner resumen ganador */}
       {winner && choferA && choferB && (
         <div
-          className={`rounded-[8px] border px-5 py-3 flex items-center justify-between ${
+          className={`rounded-[8px] border px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ${
             winner.aWins === winner.bWins
               ? "bg-muted/30 border-border"
               : "bg-[#ECFDF5] border-[#A7F3D0]"
@@ -419,19 +419,22 @@ export default async function CompararChoferes({
       {/* Tabla de métricas */}
       {metrics ? (
         <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <table className="w-full">
+          {/* Tabla densa de consulta: en el celular scrollea de costado con la
+              columna "Métrica" fija, que es la que da sentido a los números. */}
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] sm:min-w-0">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <th className="sticky left-0 z-20 bg-[#FBFCFD] shadow-[1px_0_0_0_rgba(0,0,0,0.08)] px-3 sm:px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Métrica
                 </th>
-                <th className="px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-36">
+                <th className="px-3 sm:px-5 py-3 text-right text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-28 sm:w-36">
                   {choferA?.apellido ?? "Chofer A"}
                 </th>
-                <th className="px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-24">
+                <th className="px-3 py-3 text-center text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-20 sm:w-24">
                   Δ
                 </th>
-                <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-36">
+                <th className="px-3 sm:px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-28 sm:w-36">
                   {choferB?.apellido ?? "Chofer B"}
                 </th>
               </tr>
@@ -442,7 +445,7 @@ export default async function CompararChoferes({
                   <tr key={m.label} className={`bg-muted/20 ${i > 0 ? "border-t border-border" : ""}`}>
                     <td
                       colSpan={4}
-                      className="px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70"
+                      className="px-3 sm:px-5 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70"
                     >
                       {m.label}
                     </td>
@@ -453,6 +456,7 @@ export default async function CompararChoferes({
               )}
             </tbody>
           </table>
+          </div>
         </div>
       ) : (
         <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center">

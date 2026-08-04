@@ -386,7 +386,7 @@ export default function ComplianceChecklistPage({
   };
 
   return (
-    <div className={`${embedded ? "space-y-4" : "p-6 sm:p-8 space-y-4"} print:p-2`}>
+    <div className={`${embedded ? "space-y-4" : "p-4 sm:p-6 lg:p-8 space-y-4"} print:p-2`}>
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap print:hidden">
         <div>
@@ -398,7 +398,7 @@ export default function ComplianceChecklistPage({
             {subtitulo ?? "Checklist de documentación con fechas de vencimiento."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ComplianceHelpButton />
           <Button variant="outline" size="sm" onClick={handleExport} className="border-border">
             <FileSpreadsheet size={14} className="mr-1.5" />
@@ -412,8 +412,8 @@ export default function ComplianceChecklistPage({
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3 print:hidden">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
           <Input
             placeholder="Buscar documento, chofer o unidad…"
@@ -422,16 +422,16 @@ export default function ComplianceChecklistPage({
             className="pl-9"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none whitespace-nowrap">
+        <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none whitespace-nowrap max-md:min-h-9">
           <input
             type="checkbox"
             checked={soloPendientes}
             onChange={(e) => setSoloPendientes(e.target.checked)}
-            className="accent-primary"
+            className="accent-primary size-4"
           />
           Solo pendientes
         </label>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Chip n={resumen.vencido} label="vencidos" tone="error" />
           <Chip n={resumen.por_vencer} label="por vencer" tone="warning" />
           <Chip n={resumen.faltante} label="faltan" tone="neutral" />
@@ -440,7 +440,7 @@ export default function ComplianceChecklistPage({
 
       {/* Grupos */}
       {!hayResultados ? (
-        <div className="bg-card rounded-[12px] border border-border p-10 text-center text-sm text-muted-foreground">
+        <div className="bg-card rounded-[12px] border border-border p-6 sm:p-10 text-center text-sm text-muted-foreground">
           {soloPendientes ? "No hay documentos pendientes. Todo al día." : "Sin resultados con la búsqueda actual."}
         </div>
       ) : (
@@ -466,12 +466,18 @@ export default function ComplianceChecklistPage({
                 >
                   <ChevronDown size={14} />
                 </span>
-                <Icon size={15} className="text-muted-foreground" />
-                <span className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {NIVEL_LABEL[n]} · {NIVEL_SUB[n]}
+                <Icon size={15} className="shrink-0 text-muted-foreground" />
+                {/* En celular el subtítulo baja a una segunda línea en vez de
+                    romper la fila (o desaparecer). */}
+                <span className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-1 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span>{NIVEL_LABEL[n]}</span>
+                  <span aria-hidden className="hidden sm:inline">·</span>
+                  <span className="truncate text-[10px] sm:text-[12px] font-medium sm:font-semibold text-muted-foreground/70 sm:text-muted-foreground">
+                    {NIVEL_SUB[n]}
+                  </span>
                 </span>
-                <span className="text-[11px] text-muted-foreground/70">{grupo.length}</span>
-                <span className="ml-auto text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
+                <span className="shrink-0 text-[11px] text-muted-foreground/70">{grupo.length}</span>
+                <span className="ml-auto shrink-0 text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
                   {abierto ? "Ocultar" : "Mostrar"}
                 </span>
               </button>
@@ -503,7 +509,7 @@ export default function ComplianceChecklistPage({
                             onClick={() => toggleGroupColapso(g.id)}
                             aria-expanded={gAbierto}
                             title={gAbierto ? "Ocultar documentos" : "Ver documentos"}
-                            className={`group w-full text-left bg-muted/30 hover:bg-muted/60 px-4 py-2.5 flex items-center justify-between gap-3 select-none transition-colors ${
+                            className={`group w-full text-left bg-muted/30 hover:bg-muted/60 px-3 sm:px-4 py-2.5 flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 select-none transition-colors ${
                               gAbierto ? "border-b border-border" : ""
                             }`}
                           >
@@ -522,8 +528,8 @@ export default function ComplianceChecklistPage({
                             </div>
 
                             {/* Indicadores de estado resumidos */}
-                            <div className="flex items-center gap-1.5 text-[10px] shrink-0">
-                              <span className="hidden sm:inline text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors mr-1">
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] pl-7 sm:pl-0 sm:shrink-0">
+                              <span className="text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors sm:mr-1">
                                 {gAbierto ? "Ocultar" : `Ver ${g.rows.length} doc.`}
                               </span>
                               {g.vencidos > 0 && (
@@ -707,9 +713,10 @@ function ChecklistRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 sm:px-4 py-2.5 hover:bg-muted/20 ${primero ? "" : "border-t border-border"}`}
+      className={`flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 hover:bg-muted/20 ${primero ? "" : "border-t border-border"}`}
     >
-      {/* Casilla */}
+      {/* Casilla — el cuadrito mide 22px, pero en celular el área táctil se
+          extiende con un ::after invisible para llegar a ~38px. */}
       <button
         type="button"
         onClick={onCasilla}
@@ -721,7 +728,7 @@ function ChecklistRow({
             : "Marcar presentado y cargar vencimiento"
         }
         aria-label="Marcar presentado"
-        className="shrink-0 size-[22px] rounded-[6px] border-[1.5px] flex items-center justify-center transition-transform hover:scale-105"
+        className="relative shrink-0 size-[22px] rounded-[6px] border-[1.5px] flex items-center justify-center transition-transform hover:scale-105 max-md:after:absolute max-md:after:-inset-2 max-md:after:content-['']"
         style={{ backgroundColor: ui.bg, borderColor: ui.border }}
       >
         {ui.icon === "check" && <Check size={14} style={{ color: ui.border }} />}
@@ -747,7 +754,7 @@ function ChecklistRow({
               >
                 <ChevronDown size={12} />
               </span>
-              <span className="text-[11px] font-semibold text-muted-foreground/70 group-hover/exp:text-primary transition-colors">
+              <span className="hidden sm:inline text-[11px] font-semibold text-muted-foreground/70 group-hover/exp:text-primary transition-colors">
                 {panelAbierto ? "Ocultar" : "Ver presentaciones"}
               </span>
             </button>
@@ -756,7 +763,7 @@ function ChecklistRow({
           )}
           {tag && <span className="text-muted-foreground font-normal"> ({tag})</span>}
         </p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           {entidad && <span className="truncate">{entidad}</span>}
           {row.aseguradora && (
             <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
@@ -779,10 +786,20 @@ function ChecklistRow({
             </span>
           )}
         </div>
+
+        {/* Vencimiento + estado — en celular van acá abajo, porque la columna
+            de la derecha no entra. En papel manda la columna (print:hidden). */}
+        <p className="sm:hidden print:hidden mt-0.5 text-[11px] leading-tight">
+          <span style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>{subFecha(row)}</span>
+          <span className="font-semibold" style={{ color: ui.fg }}>
+            {" · "}
+            {ESTADO_LABEL[row.estado]}
+          </span>
+        </p>
       </div>
 
       {/* Vencimiento + estado */}
-      <div className="text-right shrink-0 hidden sm:block">
+      <div className="text-right shrink-0 hidden sm:block print:block">
         <p className="text-xs" style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>
           {subFecha(row)}
         </p>
@@ -825,7 +842,7 @@ function IconBtn({ title, onClick, children }: { title: string; onClick: () => v
       type="button"
       title={title}
       onClick={onClick}
-      className="size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-[#E1F5FE] transition-colors"
+      className="size-7 max-md:size-9 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-[#E1F5FE] transition-colors"
     >
       {children}
     </button>

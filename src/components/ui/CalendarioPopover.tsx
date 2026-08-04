@@ -130,7 +130,11 @@ export default function CalendarioPopover({
           {/* Backdrop para cerrar al hacer clic afuera */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
-          <div className="absolute top-[42px] left-0 z-50 bg-card border border-border shadow-lg rounded-[8px] p-4 w-[280px]">
+          {/* En celular el calendario NO se ancla al botón: anclado, si el
+              disparador cae a la derecha de la pantalla los 280px del panel se
+              salen del borde y quedan días imposibles de tocar. Abajo de sm se
+              centra como mini-modal; desde sm vuelve a colgar del botón. */}
+          <div className="z-50 bg-card border border-border shadow-lg rounded-[8px] p-4 max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:top-[42px] sm:left-0 sm:w-[280px]">
             <div className="flex items-center justify-between mb-3">
               <span className="font-semibold text-sm text-foreground">
                 {MESES[mesVisible.getMonth()]} de {mesVisible.getFullYear()}

@@ -155,28 +155,37 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-card rounded-[8px] border border-border px-5 py-4 shadow-xs flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Users size={16} className="text-primary" />
-          <h2 className="text-foreground text-sm font-semibold">{ROL_LABELS[rolFilter]} en plantilla</h2>
-          <span className="text-xs text-muted-foreground ml-2">
+      <div className="bg-card rounded-[8px] border border-border px-3 py-3 sm:px-5 sm:py-4 shadow-xs flex items-start sm:items-center justify-between gap-3 flex-wrap">
+        <div className="flex min-w-0 items-center gap-2">
+          <Users size={16} className="text-primary shrink-0" />
+          <h2 className="text-foreground text-sm font-semibold truncate">{ROL_LABELS[rolFilter]} en plantilla</h2>
+          <span className="text-xs text-muted-foreground ml-1 sm:ml-2 shrink-0">
             {filtered.length} de {conteoPorRol[rolFilter]}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-            {(["todos", "chofer", "administrativo", "mantenimiento", "fletero"] as RolFilter[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRolFilter(r)}
-                className={`px-3 h-7 text-xs font-medium rounded-md transition-all ${
-                  rolFilter === r ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {ROL_LABELS[r]} ({conteoPorRol[r]})
-              </button>
-            ))}
+        {/* En celular los filtros se apilan a ancho completo (el buscador
+            primero, que es lo que más se usa con el pulgar); desde sm vuelven a
+            ser una fila que envuelve. */}
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          {/* La tira de roles mide ~600px con los conteos puestos: no entra ni
+              en 343px ni en el celular acostado (667px de ancho dejan ~580 de
+              contenido). Scrollea de costado dentro de su propia píldora en
+              todos los tamaños — donde entra, no se ve ninguna diferencia. */}
+          <div className="-mx-1 overflow-x-auto px-1">
+            <div className="flex w-max items-center gap-1 bg-muted p-1 rounded-lg">
+              {(["todos", "chofer", "administrativo", "mantenimiento", "fletero"] as RolFilter[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRolFilter(r)}
+                  className={`shrink-0 whitespace-nowrap px-3 h-9 sm:h-7 text-xs font-medium rounded-md transition-all ${
+                    rolFilter === r ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {ROL_LABELS[r]} ({conteoPorRol[r]})
+                </button>
+              ))}
+            </div>
           </div>
           <Combobox
             value={estadoFilter}
@@ -189,22 +198,23 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
               { id: "baja", label: "Egresado" },
             ]}
             searchable={false}
-            triggerClassName="h-9 w-52"
+            triggerClassName="h-10 w-full sm:h-9 sm:w-52"
           />
           <Combobox
             value={orden}
             onValueChange={(v) => setOrden(v as OrdenFilter)}
             options={ORDEN_OPTIONS}
             searchable={false}
-            triggerClassName="h-9 w-60"
+            triggerClassName="h-10 w-full sm:h-9 sm:w-60"
             aria-label="Ordenar choferes"
           />
+          {/* El buscador va primero en celular: es lo que más se toca. */}
           <Input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Nombre, DNI, camión, marca, localidad…"
-            className="w-64 text-sm"
+            className="order-first w-full sm:order-none sm:w-64"
           />
           {!sinFiltros && (
             <button
@@ -215,7 +225,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
                 setQuery("");
                 setOrden("apellido_az");
               }}
-              className="inline-flex items-center gap-1 h-9 px-2.5 text-xs text-muted-foreground hover:bg-muted rounded-md border border-border"
+              className="inline-flex items-center justify-center gap-1 h-10 w-full sm:h-9 sm:w-auto px-2.5 text-xs text-muted-foreground hover:bg-muted rounded-md border border-border"
               title="Limpiar filtros"
             >
               <X size={12} /> Limpiar
@@ -239,7 +249,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
         <>
           {/* Activos */}
           {activos.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
               {activos.map((c) => (
                 <ChoferCard key={c.id} chofer={c} />
               ))}
@@ -248,29 +258,29 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
 
           {/* Sección egresados — siempre al final, separada y colapsable */}
           {egresados.length > 0 && (
-            <div className="mt-8 pt-6 border-t-2 border-dashed border-border">
+            <div className="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t-2 border-dashed border-border">
               <button
                 type="button"
                 onClick={() => setHistorialOpen((v) => !v)}
-                className="w-full bg-card rounded-[8px] border border-border px-5 py-4 shadow-xs flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+                className="w-full bg-card rounded-[8px] border border-border px-3 py-3 sm:px-5 sm:py-4 shadow-xs flex items-center justify-between gap-2 sm:gap-3 hover:bg-muted/30 transition-colors text-left"
               >
-                <div className="flex items-center gap-2">
-                  <Archive size={16} className="text-muted-foreground" />
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <Archive size={16} className="text-muted-foreground shrink-0" />
                   <h2 className="text-foreground text-sm font-semibold">
                     Historial de Choferes Egresados
                   </h2>
-                  <span className="text-xs text-muted-foreground ml-2">
+                  <span className="text-xs text-muted-foreground sm:ml-1">
                     {egresados.length} {egresados.length === 1 ? "chofer" : "choferes"}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                   {historialOpen ? "Ocultar" : "Ver"}
                   {historialOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </div>
               </button>
 
               {historialOpen && (
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 opacity-90">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5 opacity-90">
                   {egresados.map((c) => (
                     <ChoferCard key={c.id} chofer={c} />
                   ))}
@@ -281,7 +291,7 @@ export default function ChoferesList({ choferes }: { choferes: Chofer[] }) {
 
           {/* Mensaje cuando no hay egresados pero sí hay totalmente filtrados */}
           {egresados.length === 0 && totalEgresadosGlobal > 0 && estadoFilter === "todos" && !query && (
-            <div className="mt-8 pt-6 border-t-2 border-dashed border-border">
+            <div className="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t-2 border-dashed border-border">
               <div className="text-xs text-muted-foreground text-center py-3">
                 Hay {totalEgresadosGlobal} {totalEgresadosGlobal === 1 ? "chofer egresado" : "choferes egresados"} en el historial.
               </div>

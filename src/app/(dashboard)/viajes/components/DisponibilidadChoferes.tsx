@@ -39,17 +39,17 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
   ).size;
 
   return (
-    <div className="bg-card rounded-lg border border-border shadow-sm mb-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-b border-border">
+    <div className="bg-card rounded-lg border border-border shadow-sm mb-4 sm:mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-5 py-3 sm:py-4 border-b border-border">
         <div className="flex items-center gap-2.5">
-          <span className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary">
+          <span className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary shrink-0">
             <CalendarOff size={15} />
           </span>
           <h2 className="text-foreground text-sm font-semibold">
             Disponibilidad — próximos {dias} días
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ausentesHoy > 0 && (
             <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-400">
               <span className="size-1.5 rounded-full bg-amber-500" />
@@ -64,7 +64,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="p-3 sm:p-5">
         {ausencias.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No hay ausencias ni permisos cargados para los próximos {dias} días.
@@ -79,7 +79,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                   a.en_curso ? "border-amber-500/40" : "border-border"
                 }`}
               >
-                <AvatarPersona name={a.chofer_nombre} rol="chofer" size={44} className="mt-0.5" />
+                <AvatarPersona name={a.chofer_nombre} rol="chofer" size={40} className="mt-0.5 shrink-0" />
 
                 <div className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
@@ -88,7 +88,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
 
                   {/* Lo primero es si está o no está HOY; el tipo de ausencia va después. */}
                   {a.en_curso ? (
-                    <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
                       <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
                       {estadoAusente(a.tipo)}
                       <span className="font-normal text-muted-foreground">
@@ -96,7 +96,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                       </span>
                     </p>
                   ) : (
-                    <p className="mt-0.5 flex items-center gap-1.5 text-xs font-semibold text-foreground/70">
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-foreground/70">
                       <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/40" />
                       Disponible
                       <span className="font-normal text-muted-foreground">

@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     monto_flete: number | null;
     es_vacio: boolean | null;
     observaciones: string | null;
+    ruta_via: string | null;
     origen: { nombre: string } | { nombre: string }[] | null;
     destino: { nombre: string } | { nombre: string }[] | null;
     camion: { patente: string; capacidad_tn: number | null } | { patente: string; capacidad_tn: number | null }[] | null;
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       .from("viajes")
       .select(`
         chofer_id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
-        nro_remito, nro_viaje_ypf, material, monto_flete, es_vacio, observaciones,
+        nro_remito, nro_viaje_ypf, material, monto_flete, es_vacio, observaciones, ruta_via,
         origen:puntos_ruta!viajes_origen_id_fkey(nombre),
         destino:puntos_ruta!viajes_destino_id_fkey(nombre),
         camion:camiones(patente, capacidad_tn)
@@ -141,6 +142,7 @@ export async function GET(req: NextRequest) {
       fecha: (v.fecha_viaje ?? "").slice(0, 10),
       origen: ori?.nombre ?? "",
       destino: des?.nombre ?? "",
+      ruta_via: v.ruta_via ?? null,
       km_con_carga: Number(v.km_con_carga ?? 0),
       km_vacios: Number(v.km_vacios ?? 0),
       capacidad: cam?.capacidad_tn ?? null,

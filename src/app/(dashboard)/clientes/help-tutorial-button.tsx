@@ -44,16 +44,16 @@ import {
 
 function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="flex-1 h-8 bg-card border border-border rounded-md px-2 text-[11px] text-muted-foreground/70 inline-flex items-center opacity-60">
+    <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex-1 min-w-[110px] h-8 bg-card border border-border rounded-md px-2 text-[11px] text-muted-foreground/70 inline-flex items-center opacity-60">
         Buscar cliente…
       </div>
-      <div className="h-8 px-2 bg-card border border-border rounded-md text-[11px] text-muted-foreground inline-flex items-center gap-1 opacity-60">
+      <div className="h-8 shrink-0 px-2 bg-card border border-border rounded-md text-[11px] text-muted-foreground inline-flex items-center gap-1 opacity-60">
         Activos <ChevronDown size={11} />
       </div>
       <div
         className={
-          "h-8 px-2.5 rounded-md text-[11px] font-bold inline-flex items-center gap-1 transition-all " +
+          "h-8 shrink-0 px-2.5 rounded-md text-[11px] font-bold inline-flex items-center gap-1 transition-all " +
           (highlight === "import"
             ? "bg-card border-2 border-[#0088D1] text-primary shadow-[0_0_0_4px_rgba(0,136,209,0.2)] scale-105"
             : "bg-card border border-border text-muted-foreground opacity-60")
@@ -63,7 +63,7 @@ function MockToolbar({ highlight }: { highlight: "new" | "import" }) {
       </div>
       <div
         className={
-          "h-8 px-2.5 rounded-md text-[11px] font-bold inline-flex items-center gap-1 transition-all " +
+          "h-8 shrink-0 px-2.5 rounded-md text-[11px] font-bold inline-flex items-center gap-1 transition-all " +
           (highlight === "new"
             ? "bg-[#0088D1] text-white shadow-[0_0_0_4px_rgba(0,136,209,0.3)] ring-2 ring-white scale-105"
             : "bg-[#0088D1] text-white opacity-60")
@@ -155,11 +155,11 @@ function MockImportTemplate() {
   ];
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-2.5 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-2">
         <span className="text-[10px] text-muted-foreground">
           ¿No tenés template? Descargá el formato.
         </span>
-        <span className="h-7 px-2 rounded-md border-2 border-[#0088D1] text-primary text-[10px] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
+        <span className="h-7 shrink-0 px-2 rounded-md border-2 border-[#0088D1] text-primary text-[10px] font-semibold inline-flex items-center gap-1 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
           <FileDown size={11} /> Template
         </span>
       </div>
@@ -232,7 +232,7 @@ function PreviewFila({
 function MockImportPreview() {
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <PreviewStat label="Total" value="42" tone="neutral" />
         <PreviewStat label="A importar" value="38" tone="success" />
         <PreviewStat label="Duplic." value="3" tone="info" />
@@ -266,7 +266,7 @@ function MockImportPreview() {
 function MockImportResult() {
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      <div className="flex items-center gap-4 text-xs">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span className="text-emerald-700 font-semibold">Importados: 38</span>
         <span className="text-amber-700 font-semibold">Omitidos: 4</span>
       </div>
@@ -302,11 +302,12 @@ function MockBuscar() {
         ))}
         <span className="text-[9px] text-muted-foreground ml-1">…</span>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-8 bg-card border border-border rounded-md px-2 text-[11px] text-muted-foreground/70 inline-flex items-center gap-1.5">
-          <Search size={12} /> Buscar cliente por nombre…
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 min-w-[130px] h-8 bg-card border border-border rounded-md px-2 text-[11px] text-muted-foreground/70 inline-flex items-center gap-1.5 overflow-hidden">
+          <Search size={12} className="shrink-0" />{" "}
+          <span className="truncate">Buscar cliente por nombre…</span>
         </div>
-        <div className="h-8 px-2.5 bg-card border-2 border-[#0088D1] rounded-md text-[11px] text-primary font-semibold inline-flex items-center gap-1">
+        <div className="h-8 shrink-0 px-2.5 bg-card border-2 border-[#0088D1] rounded-md text-[11px] text-primary font-semibold inline-flex items-center gap-1">
           Activos <ChevronDown size={12} />
         </div>
       </div>
@@ -324,19 +325,19 @@ function MockFichaTabs() {
   ];
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2">
-        <div className="flex items-center gap-2.5">
-          <span className="size-9 rounded-full bg-[#E1F5FE] text-primary font-bold text-sm flex items-center justify-center">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="size-9 shrink-0 rounded-full bg-[#E1F5FE] text-primary font-bold text-sm flex items-center justify-center">
             D
           </span>
-          <div>
-            <div className="text-foreground font-semibold text-sm">Don Joaquín S.A.</div>
+          <div className="min-w-0">
+            <div className="text-foreground font-semibold text-sm truncate">Don Joaquín S.A.</div>
             <div className="flex items-center gap-1 text-[9px] text-muted-foreground uppercase tracking-wide mt-0.5">
               <MapPin size={9} className="text-primary" /> Arrecifes
             </div>
           </div>
         </div>
-        <span className="size-6 rounded-full bg-[#E1F5FE] text-primary flex items-center justify-center">
+        <span className="size-6 shrink-0 rounded-full bg-[#E1F5FE] text-primary flex items-center justify-center">
           <ChevronUp size={13} />
         </span>
       </div>
@@ -403,7 +404,7 @@ function MockContactos() {
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-[10px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
         <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-[#0088D1]/40 bg-[#0088D1]/5 px-2 py-1 font-semibold text-primary">
           <Plus size={11} /> Agregar contacto
         </span>
@@ -548,7 +549,7 @@ function MockEditar() {
           </div>
         ))}
       </div>
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <span className="inline-flex items-center gap-1 h-8 px-3 rounded-md text-[11px] font-semibold text-primary border-2 border-[#0088D1] bg-[#0088D1]/5 shadow-[0_0_0_3px_rgba(0,136,209,0.15)]">
           <Pencil size={12} /> Editar datos
         </span>
@@ -594,7 +595,7 @@ function MockBaja() {
 function MockReactivar() {
   return (
     <div className="space-y-2">
-      <div className="rounded-lg border border-border bg-card p-2.5 flex items-center justify-between opacity-90">
+      <div className="rounded-lg border border-border bg-card p-2.5 flex flex-wrap items-center justify-between gap-2 opacity-90">
         <div className="text-xs text-foreground">
           <b>Don Joaquín S.A.</b>
           <span className="ml-2 text-[9px] uppercase tracking-wide bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">

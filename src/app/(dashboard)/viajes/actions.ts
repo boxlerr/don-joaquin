@@ -12,6 +12,7 @@ import { mezclarObservaciones } from "./mezclar-observaciones";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
+import { RUTA_VIA_VALUES } from "@/domain/viajes/ruta-via";
 import {
   pickTarifaAplicable,
   computeImporteTarifa,
@@ -168,7 +169,7 @@ export async function getViajesAction(
   let query = (supabase as any)
     .from("viajes")
     .select(
-      `id, fecha_viaje, km_con_carga, km_vacios, tonelaje_real, estado, facturado, cobrado, fecha_cobro, es_vacio, codigo, observaciones, material, monto_flete, moneda, nro_viaje_ypf, nro_remito,
+      `id, fecha_viaje, km_con_carga, km_vacios, ruta_via, tonelaje_real, estado, facturado, cobrado, fecha_cobro, es_vacio, codigo, observaciones, material, monto_flete, moneda, nro_viaje_ypf, nro_remito,
        clientes(razon_social),
        choferes(nombre, apellido),
        camiones(patente, marca, modelo),
@@ -312,6 +313,9 @@ export async function getViajesAction(
       nro_remito: v.nro_remito ?? null,
       material: v.material ?? extractMaterialFromObs(v.observaciones),
       es_vacio: v.es_vacio ?? false,
+      // Viaja en la fila y no en el detalle: la columna Ruta del listado tiene
+      // que estar dibujada antes de que nadie expanda nada.
+      ruta_via: (v.ruta_via as RutaVia | null) ?? null,
     };
   });
 
@@ -765,7 +769,8 @@ const VIAJE_ESTADO_VALUES = ["pendiente", "en_curso", "cerrado"] as const;
 
 // Vía del viaje (reunión Nico 02/07): Ruta 5 = directa (más corta) · Ruta 22 =
 // por la base/zona (combustible, roturas). De la vía dependen los km del par.
-const RUTA_VIA_VALUES = ["ruta_5", "ruta_22"] as const;
+// Los valores salen de @/domain/viajes/ruta-via, que es de donde también salen
+// las etiquetas: si el enum y el mapa se separan, la UI muestra el crudo.
 export type RutaVia = (typeof RUTA_VIA_VALUES)[number];
 
 const viajeSchema = z
@@ -880,6 +885,14 @@ async function generarCodigosViaje(
   );
 }
 
+/**
+ * Punto de ruta por nombre, dándolo de alta si es la primera vez que se escribe.
+ *
+ * Si el alta falla, LANZA. Antes devolvía null y el viaje se guardaba igual con
+ * origen/destino vacíos: la pantalla decía "listo" y el error recién aparecía
+ * días después en la hoja de ruta, con el viaje mostrando dos guiones y sin
+ * forma de saber a dónde había ido el camión.
+ */
 async function getOrCreatePuntoRuta(
   supabase: ReturnType<typeof createAdminClient>,
   nombre: string
@@ -898,19 +911,20 @@ async function getOrCreatePuntoRuta(
     return data[0].id;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const insertRes = await (supabase as any)
+  // Sin `as any` a propósito: acá el tipo generado de la tabla es la única
+  // defensa contra escribir una columna que no existe. Con el cast, el insert
+  // traía `es_frontera`/`es_puerto` (columnas inexistentes), fallaba siempre y
+  // ningún lugar nuevo se llegaba a crear.
+  const insertRes = await supabase
     .from("puntos_ruta")
-    .insert({
-      nombre: trimmed,
-      estado: "activo",
-      es_frontera: false,
-      es_puerto: false,
-    })
+    .insert({ nombre: trimmed, estado: "activo", tipo: "otro" })
     .select("id")
     .single();
 
-  if (insertRes.error) return null;
+  if (insertRes.error) {
+    console.error(`Error creando el punto de ruta "${trimmed}":`, insertRes.error);
+    throw new Error(`No se pudo dar de alta el lugar "${trimmed}".`);
+  }
   return insertRes.data.id;
 }
 
@@ -1101,14 +1115,21 @@ export async function createViajeAction(
 
   // Origen/destino se persisten en sus columnas (origen_id/destino_id), que son la
   // fuente de verdad. No se duplican en observaciones.
+  //
+  // Si el lugar no se puede dar de alta, el viaje no se guarda: guardarlo sin
+  // origen ni destino es peor que devolver el error, porque queda cargado a
+  // medias y nadie se entera hasta la hoja de ruta.
   let origen_id: string | null = null;
-  if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
-    origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
-  }
-
   let destino_id: string | null = null;
-  if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
-    destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
+  try {
+    if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
+      origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
+    }
+    if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
+      destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de alta el lugar." };
   }
 
   // Defensa: aunque la UI bloquea las opciones incompletas, validar acá por
@@ -1140,17 +1161,21 @@ export async function createViajeAction(
 
   // Origen/destino de cada tramo extra.
   const tramosPuntos: { origenId: string | null; destinoId: string | null }[] = [];
-  for (const t of tramos) {
-    tramosPuntos.push({
-      origenId:
-        t.origen_nombre && t.origen_nombre !== "—"
-          ? await getOrCreatePuntoRuta(supabase, t.origen_nombre.trim())
-          : null,
-      destinoId:
-        t.destino_nombre && t.destino_nombre !== "—"
-          ? await getOrCreatePuntoRuta(supabase, t.destino_nombre.trim())
-          : null,
-    });
+  try {
+    for (const t of tramos) {
+      tramosPuntos.push({
+        origenId:
+          t.origen_nombre && t.origen_nombre !== "—"
+            ? await getOrCreatePuntoRuta(supabase, t.origen_nombre.trim())
+            : null,
+        destinoId:
+          t.destino_nombre && t.destino_nombre !== "—"
+            ? await getOrCreatePuntoRuta(supabase, t.destino_nombre.trim())
+            : null,
+      });
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de alta el lugar." };
   }
 
   let codigos: string[];
@@ -1484,6 +1509,81 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
 
   revalidatePath("/viajes");
   return { ok: true };
+}
+
+// ============================================================================
+// Eliminar viajes en bloque (mismo soft delete + auditoría, uno por uno)
+// ----------------------------------------------------------------------------
+// Sirve para limpiar rápido varias filas de prueba desde el listado. Las reglas
+// son las mismas que borrando de a uno: lo único que bloquea es tener
+// movimientos vinculados en Caja.
+// ============================================================================
+
+export async function deleteViajesEnBloqueAction(
+  ids: string[],
+): Promise<{ ok: boolean; eliminados?: number; bloqueados?: number; error?: string }> {
+  const user = await requireArea("viajes", "write");
+
+  const parsed = z.array(z.string().uuid()).min(1).max(200).safeParse(ids);
+  if (!parsed.success) return { ok: false, error: "Selección inválida." };
+
+  const supabase = createAdminClient();
+  const unicos = [...new Set(parsed.data)];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: actuales, error: fetchErr } = await (supabase as any)
+    .from("viajes")
+    .select("id, estado")
+    .in("id", unicos);
+
+  if (fetchErr) return { ok: false, error: "No se pudieron leer los viajes a eliminar." };
+
+  type Prev = { id: string; estado: string };
+  const byId = new Map<string, Prev>((actuales ?? []).map((v: Prev) => [v.id, v]));
+
+  // Los que tienen movimientos en Caja se saltean (se avisa al final).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: movs } = await (supabase as any)
+    .from("caja_movimientos")
+    .select("viaje_id")
+    .in("viaje_id", unicos);
+  const conCaja = new Set<string>((movs ?? []).map((m: { viaje_id: string }) => m.viaje_id));
+
+  let eliminados = 0;
+  let bloqueados = 0;
+
+  for (const id of unicos) {
+    const prev = byId.get(id);
+    if (!prev || conCaja.has(id)) {
+      bloqueados++;
+      continue;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (supabase as any)
+      .from("viajes")
+      .update({ estado: "cancelado" })
+      .eq("id", id);
+
+    if (updErr) {
+      bloqueados++;
+      continue;
+    }
+
+    await logViajeAudit(
+      supabase,
+      id,
+      "cambio_estado",
+      { estado: prev.estado },
+      { estado: "cancelado" },
+      user.id,
+    );
+    eliminados++;
+  }
+
+  revalidatePath("/viajes");
+  revalidatePath("/dashboard");
+  return { ok: true, eliminados, bloqueados };
 }
 
 // ============================================================================
@@ -1957,14 +2057,19 @@ export async function updateViajeAction(
   }
 
   // Origen/destino viven en origen_id/destino_id (fuente de verdad), no en observaciones.
+  // Si el lugar no se puede dar de alta, la edición no se guarda: mejor el error
+  // que borrarle el destino al viaje sin avisar.
   let origen_id: string | null = null;
-  if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
-    origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
-  }
-
   let destino_id: string | null = null;
-  if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
-    destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
+  try {
+    if (parsed.data.origen_nombre && parsed.data.origen_nombre !== "—") {
+      origen_id = await getOrCreatePuntoRuta(supabase, parsed.data.origen_nombre.trim());
+    }
+    if (parsed.data.destino_nombre && parsed.data.destino_nombre !== "—") {
+      destino_id = await getOrCreatePuntoRuta(supabase, parsed.data.destino_nombre.trim());
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de alta el lugar." };
   }
 
   // `observaciones` es una columna compartida: ahí viven la nota libre que

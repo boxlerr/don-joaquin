@@ -36,12 +36,12 @@ export default async function RankingChoferes({
   const periodoQuery = periodoUrl.toString();
 
   return (
-    <div className="p-8 space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4">
       <PageHeader
         title="Ranking de Choferes"
         description={`Período: ${periodo.label}`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <RankingHelpButton />
             {canWrite && <CriteriosButton criterios={criterios} />}
             <ExportButton
@@ -51,7 +51,7 @@ export default async function RankingChoferes({
             />
             <Link
               href="/choferes"
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               <Users size={14} />
               Ver legajos

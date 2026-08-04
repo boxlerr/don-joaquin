@@ -117,7 +117,11 @@ export default function ExportarHojaRuta({ mes, choferId, choferLabel }: Props) 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[330px] rounded-xl border border-border bg-popover p-3 shadow-lg space-y-3">
+        // En el celular el panel no puede colgar del botón: el botón es angosto
+        // y queda a la izquierda, así que `right-0` + 330px lo tiraba casi entero
+        // fuera de la pantalla. Abajo de `sm` se centra como mini-modal (mismo
+        // patrón que MonthPicker y CalendarioPopover).
+        <div className="z-50 rounded-xl border border-border bg-popover p-3 shadow-lg space-y-3 max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:right-0 sm:top-full sm:mt-1.5 sm:w-[330px]">
           {/* Período */}
           <div className="space-y-1.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -170,19 +174,19 @@ export default function ExportarHojaRuta({ mes, choferId, choferLabel }: Props) 
             </p>
           )}
 
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
             <span className="text-[11px] text-muted-foreground">{resumen}</span>
             {puedeDescargar ? (
               <a
                 href={href}
                 onClick={() => setOpen(false)}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-[#0F172A] text-white text-xs font-bold hover:bg-[#1E293B] transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-md bg-[#0F172A] text-white text-xs font-bold hover:bg-[#1E293B] transition-colors shrink-0"
               >
                 <Download size={13} />
                 Descargar
               </a>
             ) : (
-              <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-muted text-muted-foreground text-xs font-bold cursor-not-allowed shrink-0">
+              <span className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-md bg-muted text-muted-foreground text-xs font-bold cursor-not-allowed shrink-0">
                 <Download size={13} />
                 Descargar
               </span>
@@ -227,7 +231,7 @@ function Segmented<T extends string | boolean>({
             aria-pressed={active}
             onClick={() => onChange(o.v)}
             className={cn(
-              "flex-1 px-2 h-8 text-[11px] font-semibold transition-colors truncate",
+              "flex-1 px-2 h-9 sm:h-8 text-[11px] font-semibold transition-colors truncate",
               i > 0 && "border-l border-border",
               o.disabled
                 ? "bg-card text-muted-foreground/40 cursor-not-allowed"
@@ -260,7 +264,7 @@ function CampoFecha({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full h-8 px-2 rounded-md border border-border bg-card text-xs text-foreground outline-none focus:border-[#0088D1] focus:ring-2 focus:ring-[#0088D1]/20"
+        className="w-full h-9 sm:h-8 px-2 rounded-md border border-border bg-card text-xs text-foreground outline-none focus:border-[#0088D1] focus:ring-2 focus:ring-[#0088D1]/20"
       />
     </label>
   );

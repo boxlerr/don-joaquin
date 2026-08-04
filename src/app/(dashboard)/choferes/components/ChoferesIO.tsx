@@ -113,7 +113,8 @@ export function ImportChoferesButton() {
       >
         <DialogContent className={step === "preview" ? "sm:max-w-[1040px]" : "sm:max-w-[480px]"}>
           <DialogHeader>
-            <DialogTitle className="text-foreground text-xl">
+            {/* `pr-10`: el botón de cerrar mide 36px en touch, no 28. */}
+            <DialogTitle className="text-foreground text-lg sm:text-xl pr-10">
               {step === "preview" ? "Vista previa" : step === "done" ? "Importación completada" : "Importar Choferes / Vencimientos"}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -178,9 +179,12 @@ export function ImportChoferesButton() {
 
           {step === "preview" && (
             <div className="space-y-3 py-2">
-              <div className="max-h-[440px] overflow-y-auto border border-border rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/40 sticky top-0">
+              {/* Tabla de consulta (se mira una vez y se confirma): en celular
+                  no se aplasta a 343px, scrollea de costado adentro del
+                  recuadro — nunca la página. */}
+              <div className="max-h-[50dvh] sm:max-h-[440px] overflow-auto border border-border rounded-lg">
+                <table className="w-full min-w-[860px] text-sm">
+                  <thead className="bg-muted/40 sticky top-0 z-10">
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="px-3 py-2 w-10"></th>
                       <th className="px-3 py-2 w-12">Fila</th>

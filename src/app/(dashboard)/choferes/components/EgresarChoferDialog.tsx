@@ -70,13 +70,21 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
 
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : handleClose())}>
-      <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-3 bg-card border-b border-border">
-          <div className="flex items-start gap-3">
+      {/* `grid-rows-[auto_1fr_auto]`: el cuerpo scrollea solo y el pie queda
+          siempre a la vista. Con el celular acostado (alto útil ~343px) el
+          botón de confirmar quedaba recortado abajo y no se llegaba a tocar. */}
+      {/* `gap-0`: el Popup trae `gap-4` y con `p-0` eso mete dos franjas
+          blancas de 16px (una arriba del pie, que dejaba el `border-t`
+          flotando) y se come 32px de alto útil, justo lo que falta acostado. */}
+      <DialogContent className="sm:max-w-[440px] p-0 gap-0 grid-rows-[auto_1fr_auto] overflow-hidden">
+        {/* `pr-10`: el botón de cerrar mide 36px en touch (28 en desktop), así
+            que con `pr-6` el texto se le metía abajo. */}
+        <DialogHeader className="p-4 pb-3 sm:p-6 sm:pb-3 bg-card border-b border-border">
+          <div className="flex items-start gap-3 pr-10">
             <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
               <LogOut size={18} className="text-amber-600" />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-base font-semibold">
                 {esEditar ? "Datos de egreso de" : "Egresar a"} {chofer.apellido}, {chofer.nombre}
               </DialogTitle>
@@ -89,7 +97,7 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-4">
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="space-y-2">
             <Label className="text-xs font-medium text-muted-foreground">Motivo del egreso</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -98,7 +106,7 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
                   key={m.value}
                   type="button"
                   onClick={() => setMotivo(m.value)}
-                  className={`px-3 py-2 text-sm rounded-md border transition-colors ${
+                  className={`px-3 h-10 sm:h-auto sm:py-2 text-sm rounded-md border transition-colors ${
                     motivo === m.value
                       ? "border-primary bg-primary/10 text-primary font-medium"
                       : "border-border bg-card text-muted-foreground hover:bg-muted/40"
@@ -145,8 +153,16 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
           )}
         </div>
 
-        <div className="p-4 bg-muted/30 border-t border-border flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={handleClose} disabled={isPending}>
+        {/* En celular los botones van apilados y a ancho completo (el de
+            confirmar arriba, que es el que se busca con el pulgar). */}
+        <div className="p-4 bg-muted/30 border-t border-border flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClose}
+            disabled={isPending}
+            className="w-full sm:w-auto"
+          >
             Cancelar
           </Button>
           <Button
@@ -154,7 +170,7 @@ export default function EgresarChoferDialog({ open, onOpenChange, chofer, onSucc
             size="sm"
             onClick={handleConfirm}
             disabled={isPending || !fechaEgreso}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
+            className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white"
           >
             {isPending ? "Guardando..." : esEditar ? "Guardar datos" : "Confirmar egreso"}
           </Button>

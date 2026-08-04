@@ -85,7 +85,7 @@ function MockRelaciones() {
   return (
     <div className="space-y-2 max-w-[420px] mx-auto">
       <MockField label="Cliente *" value="Ejemplo S.A." required />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <MockField label="Chofer *" value="Grodz, Lucas" required />
         <MockField label="Camión *" value="AB 123 CD" required />
       </div>
@@ -97,7 +97,7 @@ function MockRuta() {
   return (
     <div className="space-y-2 max-w-[420px] mx-auto">
       <MockField label="Tipo de carga *" value="Cemento a granel" required />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Origen</div>
           <div className="h-7 px-2 text-[11px] rounded border border-border bg-card text-muted-foreground/70 inline-flex items-center gap-1 w-full">
@@ -118,7 +118,7 @@ function MockRuta() {
 function MockMetricas() {
   return (
     <div className="space-y-2 max-w-[420px] mx-auto">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <MockField label="Km con carga" value="320" />
         <MockField label="Km vacíos" value="85" />
         <MockField label="Tonelaje (tn)" value="35.00" />
@@ -133,15 +133,15 @@ function MockMetricas() {
 
 function MockViajeGuardado() {
   return (
-    <div className="bg-card border border-border rounded-md overflow-hidden">
-      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
+    <div className="bg-card border border-border rounded-md overflow-x-auto">
+      <div className="min-w-[420px] px-3 py-1.5 bg-muted/40 border-b border-border text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-4">
         <span className="w-24">Fecha</span>
         <span className="flex-1">Origen → Destino</span>
         <span className="w-16 text-right">KM</span>
         <span className="w-24">Remito</span>
         <span className="w-8"></span>
       </div>
-      <div className="px-3 py-2.5 flex items-center gap-4 text-[11px] bg-[#F0FFF4]">
+      <div className="min-w-[420px] px-3 py-2.5 flex items-center gap-4 text-[11px] bg-[#F0FFF4]">
         <span className="w-24 text-muted-foreground">13/05/2026</span>
         <span className="flex-1 text-foreground font-medium">LOMASER → LOMA NEGRA</span>
         <span className="w-16 text-right font-mono text-foreground">405 km</span>
@@ -177,7 +177,7 @@ function MockFiltroFechas() {
 
 function MockFiltroCodigo() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <div className="h-9 px-3 bg-card border border-border rounded-md text-xs text-muted-foreground/70 inline-flex items-center w-28">
         Fecha desde
       </div>
@@ -294,7 +294,7 @@ function MockAgregarRemito() {
       <p className="font-semibold text-foreground flex items-center gap-1.5">
         <Receipt size={13} className="text-[#10B981]" /> Agregar remito · V-2026-01456
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="rounded-md border border-border px-2 py-1">
           <span className="text-muted-foreground">Nº remito</span>
           <div className="font-mono text-foreground">0813R00281660</div>
@@ -359,9 +359,9 @@ function MockRemitoBloque() {
           { c: "V-2026-00041", r: "0813R00281744", m: "$ 512.300" },
           { c: "V-2026-00042", r: "0813R00281802", m: "$ 638.900" },
         ].map((row) => (
-          <div key={row.c} className="px-3 py-2 flex items-center gap-2">
+          <div key={row.c} className="px-3 py-2 flex flex-wrap items-center gap-2">
             <span className="font-mono text-foreground w-24">{row.c}</span>
-            <span className="flex-1 rounded border border-border px-1.5 py-0.5 font-mono text-muted-foreground truncate">
+            <span className="min-w-[8rem] flex-1 rounded border border-border px-1.5 py-0.5 font-mono text-muted-foreground truncate">
               {row.r}
             </span>
             <span className="w-20 text-right font-semibold text-foreground">{row.m}</span>

@@ -6,6 +6,7 @@ import {
   type ProColumn,
   type CellValue,
 } from "@/lib/excel/professional-sheet";
+import { etiquetaRutaViaExcel } from "@/domain/viajes/ruta-via";
 
 // Arma el Excel del listado de viajes con el estilo profesional del sistema y
 // lo devuelve en base64 para que el cliente dispare la descarga. Recibe los
@@ -33,6 +34,7 @@ export type ViajeExportRow = {
   observaciones?: string | null;
   notas?: string | null;
   nro_viaje_ypf?: string | null;
+  ruta_via?: string | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 };
@@ -137,6 +139,9 @@ export async function exportarViajesXlsxAction(
     { header: "Camión", width: 20, align: "l" },
     { header: "Origen", width: 20, align: "l" },
     { header: "Destino", width: 20, align: "l" },
+    // Va pegada al destino porque es un atributo del trayecto: de la vía dependen
+    // los km que siguen (Ruta 5 directa vs Ruta 22 por la base).
+    { header: "Ruta", width: 10, align: "c" },
     // Igual que la planilla del cliente: km con carga y km vacíos separados.
     { header: "KM", width: 10, align: "c", numFmt: "#,##0" },
     { header: "KM vacíos", width: 10, align: "c", numFmt: "#,##0" },
@@ -156,6 +161,8 @@ export async function exportarViajesXlsxAction(
     nombreCamion(v.camion),
     puntoConFallback(v.origen, v.origen_nombre, v.observaciones, "Origen"),
     puntoConFallback(v.destino, v.destino_nombre, v.observaciones, "Destino"),
+    // Sin vía la celda va VACÍA y no "—": el guion se cuela en los filtros de Excel.
+    etiquetaRutaViaExcel(v.ruta_via),
     Number(v.km_con_carga ?? v.km_totales ?? 0) || 0,
     Number(v.km_vacios ?? 0) || 0,
     Number(v.tonelaje_real || v.toneladas || 0),

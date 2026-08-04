@@ -1,3 +1,5 @@
+import type { RutaVia } from "@/domain/viajes/ruta-via";
+
 export type ViajeBasico = {
   id: string;
   codigo: string;
@@ -22,6 +24,12 @@ export type ViajeBasico = {
   nro_remito: string | null;
   material: string | null;
   es_vacio: boolean;
+  /**
+   * Por qué vía fue el camión. Va opcional a propósito: hay pantallas que arman
+   * un ViajeBasico a mano (la hoja de ruta) y no tienen el dato, y obligarlas a
+   * inventarlo sería peor que mostrar "—".
+   */
+  ruta_via?: RutaVia | null;
 };
 
 export type PaginatedResult<T> = {

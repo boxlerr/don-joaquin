@@ -31,19 +31,19 @@ export default async function ImpuestosPage() {
   }).length;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Impuestos"
         description="Calendario de vencimientos impositivos — checklist de presentación y alertas"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ExportImpuestosButton />
             <HelpTutorialButton />
           </div>
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Impuestos" value={String(impuestos.length)} sub="En el calendario" color="brand" icon={Landmark} variant="dashboard" />
         <StatCard label="Presentados" value={String(presentados)} sub="Marcados como hechos" color="success" icon={CheckCircle2} variant="dashboard" />
         <StatCard label="Por vencer" value={String(porVencer)} sub="Pendientes en ≤ 7 días" color="warning" icon={Clock} variant="dashboard" />

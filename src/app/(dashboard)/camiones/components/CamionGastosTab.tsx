@@ -70,7 +70,7 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <div className="text-xs text-muted-foreground">
           {gastos.length > 0 && (
             <>
@@ -115,10 +115,10 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
           return (
             <div
               key={g.id}
-              className="p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all"
+              className="p-3 sm:p-4 bg-card border border-border rounded-lg hover:border-[#CBD5E1] transition-all"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="text-xs font-semibold text-foreground flex items-center gap-1 shrink-0">
                     <Receipt size={12} className="text-primary" />
                     {g.tipo_gasto_nombre ?? "Gasto"}
@@ -137,11 +137,11 @@ export default function CamionGastosTab({ camionId }: { camionId: string }) {
                   $ {formatARS(g.monto)}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground gap-3">
-                <span className="truncate">
+              <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-x-3 gap-y-1">
+                <span className="min-w-0 truncate">
                   {g.descripcion ?? g.proveedor ?? "Sin descripción"}
                 </span>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2">
                   {asignaciones.length > 0 ? (
                     asignaciones.map((a, i) => (
                       <span key={i} className="text-[10px]">

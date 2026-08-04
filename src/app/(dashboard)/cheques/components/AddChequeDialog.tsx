@@ -119,13 +119,14 @@ export default function AddChequeDialog({
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[880px] p-6 gap-0">
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+      {/* p-4 en celular (y los -mx tienen que seguirlo o el borde queda corrido). */}
+      <DialogContent className="sm:max-w-[880px] p-4 sm:p-6 gap-0">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Landmark size={22} />
             </div>
-            <div>
+            <div className="min-w-0 pr-8">
               <DialogTitle className="text-foreground text-lg font-bold">Registrar Cheque</DialogTitle>
               <DialogDescription className="text-muted-foreground text-xs font-medium mt-0.5">
                 {esPropio
@@ -235,7 +236,7 @@ export default function AddChequeDialog({
 
           {/* Datos bancarios — opcionales */}
           <details className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-            <summary className="cursor-pointer text-xs font-semibold text-muted-foreground select-none">
+            <summary className="cursor-pointer text-xs font-semibold text-muted-foreground select-none py-2.5 sm:py-0">
               Datos del banco (opcional)
             </summary>
             <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -249,12 +250,12 @@ export default function AddChequeDialog({
             </div>
           </details>
 
-          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 mt-6 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="w-full sm:w-auto h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -262,7 +263,7 @@ export default function AddChequeDialog({
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="w-full sm:w-auto bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
               {loading ? "Registrando..." : (<><Check size={16} strokeWidth={2.5} /> Confirmar cheque</>)}
             </Button>

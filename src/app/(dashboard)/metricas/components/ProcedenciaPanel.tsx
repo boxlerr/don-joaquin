@@ -64,7 +64,7 @@ export default function ProcedenciaPanel({ data }: { data: MetricasData }) {
       <button
         type="button"
         onClick={() => setAbierto(!abierto)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 px-3 py-3 text-left sm:px-4"
       >
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-foreground">De dónde sale cada número</h3>
@@ -81,7 +81,7 @@ export default function ProcedenciaPanel({ data }: { data: MetricasData }) {
       </button>
 
       {abierto && (
-        <div className="border-t border-border px-4 pb-4 pt-3 space-y-5">
+        <div className="space-y-5 border-t border-border px-3 pb-4 pt-3 sm:px-4">
           {porFuente.map(({ fuente, filas: fs }) => {
             const nota = notaGrupo(fuente.id, fs.some((f) => f.origen.estado === "no_obtenible"));
             return (
@@ -112,23 +112,25 @@ export default function ProcedenciaPanel({ data }: { data: MetricasData }) {
                 {fs.map((f) => {
                   const fila = (
                     <>
-                      <span className={`size-1.5 rounded-full ${PUNTO[f.origen.estado]}`} />
+                      <span className={`size-1.5 shrink-0 rounded-full ${PUNTO[f.origen.estado]}`} />
                       <span className="text-[13px] text-foreground truncate">{f.label}</span>
-                      <span className="font-mono text-[11px] text-muted-foreground/70 truncate">{f.origen.campo}</span>
+                      <span className="font-mono text-[11px] text-muted-foreground/70 truncate max-md:col-start-2">{f.origen.campo}</span>
                       <span
-                        className={`text-xs text-right tabular-nums ${
+                        className={`text-xs tabular-nums md:text-right ${
                           f.origen.estado === "parcial"
                             ? "text-amber-600 dark:text-amber-500"
                             : f.origen.estado === "ok"
                               ? "text-muted-foreground/50"
                               : "text-muted-foreground"
-                        }`}
+                        } max-md:col-start-2`}
                       >
                         {f.origen.notaCorta ?? "completo"}
                       </span>
                     </>
                   );
-                  const grid = "grid grid-cols-[auto_minmax(0,11rem)_1fr_auto] items-center gap-x-3 px-3 py-2";
+                  // En celular las 4 columnas no entran: se apilan en dos
+                  // (punto + texto) y el campo y el estado bajan de renglón.
+                  const grid = "grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-0.5 px-3 py-2 md:grid-cols-[auto_minmax(0,11rem)_1fr_auto] md:gap-x-3";
                   return (
                     <li key={f.label} title={f.origen.nota ?? undefined}>
                       {f.origen.accion ? (

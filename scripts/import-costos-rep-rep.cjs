@@ -16,13 +16,25 @@ function mesToDate(s) {
   let yy = m[2]; if (yy.length === 2) yy = "20" + yy;
   return `${yy}-${mm}-01`;
 }
+// El Excel escribe los COSTOS entre paréntesis (es un export contable: el costo
+// es un movimiento negativo de la cuenta). Una línea SIN paréntesis es entonces
+// una nota de crédito, y tiene que quedar negativa. Tomar Math.abs() de todo
+// sumaba el crédito de R. G. COMERCIAL de enero '26 como si fuera un costo y
+// dejaba el mes $744.050 arriba del total del Excel (2 × 372.025,11).
 function amt(s) {
   if (s == null || s === "") return 0;
   let t = String(s).trim();
-  const neg = /^\(.*\)$/.test(t);
+  const entreParentesis = /^\(.*\)$/.test(t);
   t = t.replace(/[()]/g, "").replace(/\s/g, "").replace(/,/g, "");
   let n = parseFloat(t); if (isNaN(n)) n = 0;
-  return Math.abs(n); // magnitud del costo (positivo)
+  return entreParentesis ? Math.abs(n) : -Math.abs(n);
+}
+
+// La cuenta contable viene como "Prov/NOMBRE"; el prefijo no es parte del nombre
+// del proveedor y en el sistema se guarda limpio (si no, el mismo proveedor
+// cargado a mano queda como uno distinto).
+function nombreProveedor(s) {
+  return String(s).replace(/^\s*Prov\s*\//i, "").replace(/\s+/g, " ").trim();
 }
 
 const data = [];
@@ -36,7 +48,7 @@ for (let i = 0; i < rows.length; i++) {
   if (prov && /^total$/i.test(String(prov).trim())) { totalsExcel[mes] = amt(r[7]); continue; }
   if (!prov) continue;
   data.push({
-    mes, proveedor: String(prov).trim(),
+    mes, proveedor: nombreProveedor(prov),
     neto_gravado: amt(r[2]), facturado_gravado: amt(r[3]),
     neto_ng: amt(r[4]), facturado_ng: amt(r[5]),
     neto_total: amt(r[6]), facturado_total: amt(r[7]),

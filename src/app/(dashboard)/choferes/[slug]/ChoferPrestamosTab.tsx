@@ -96,7 +96,7 @@ export default function ChoferPrestamosTab({
             {prestamos.length} registro{prestamos.length !== 1 ? "s" : ""}
           </span>
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           {prestamos.length > 0 && (
             <span className="text-xs text-muted-foreground">
               Saldo pendiente:{" "}
@@ -107,7 +107,7 @@ export default function ChoferPrestamosTab({
             <Button
               variant="outline"
               size="sm"
-              className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+              className="w-full sm:w-auto border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
               onClick={() => setCargarOpen(true)}
             >
               <Plus size={13} className="mr-1.5 text-primary" />
@@ -124,7 +124,7 @@ export default function ChoferPrestamosTab({
           {prestamos.map((p) => (
             <div
               key={p.id}
-              className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2"
+              className="bg-card rounded-[8px] border border-border p-3 sm:p-4 flex flex-col gap-2"
             >
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -141,7 +141,7 @@ export default function ChoferPrestamosTab({
                     <button
                       onClick={() => handleActualizar(p)}
                       disabled={busyId === p.id}
-                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 disabled:opacity-50"
+                      className="text-xs text-primary hover:text-primary/80 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                     >
                       <Pencil size={11} />
                       Saldo
@@ -149,7 +149,7 @@ export default function ChoferPrestamosTab({
                     <button
                       onClick={() => handleDelete(p)}
                       disabled={busyId === p.id}
-                      className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+                      className="text-xs text-red-400 hover:text-red-600 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                     >
                       <Trash2 size={11} />
                       {busyId === p.id ? "..." : "Eliminar"}

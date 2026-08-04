@@ -24,7 +24,7 @@ export default async function ResumenViajesPage() {
   const canWrite = hasSeccion(user, "viajes_listado", "write");
 
   return (
-    <div className="w-full space-y-6 p-8">
+    <div className="w-full space-y-6 p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="A dónde fueron"
         description="El último lugar al que llegó cada uno, para saber a quién le podés dar el próximo viaje"

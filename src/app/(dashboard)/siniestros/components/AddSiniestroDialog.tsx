@@ -200,14 +200,14 @@ export default function AddSiniestroDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[620px] p-6 gap-0 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[620px] p-4 sm:p-6 gap-0 max-h-[90dvh] overflow-y-auto">
         {/* Header */}
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-[#FEE2E2] text-[#EF4444] shrink-0 animate-pulse">
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#FEE2E2] text-[#EF4444] shrink-0 animate-pulse">
               <AlertTriangle size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-lg font-bold">
                 {editing ? "Editar siniestro" : "Registrar siniestro"}
               </DialogTitle>
@@ -225,7 +225,7 @@ export default function AddSiniestroDialog({
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <SelectFieldWithIcon
               label="Camión *"
               name="camion"
@@ -258,7 +258,7 @@ export default function AddSiniestroDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <InputFieldWithIcon
               label="Fecha del Siniestro *"
               name="fecha"
@@ -281,7 +281,7 @@ export default function AddSiniestroDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <SelectFieldWithIcon
               label="Tipo de Siniestro *"
               name="tipo"
@@ -314,7 +314,7 @@ export default function AddSiniestroDialog({
             />
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <InputFieldWithIcon
               label="Compañía de Seguro"
               name="compania"
@@ -353,12 +353,12 @@ export default function AddSiniestroDialog({
             error={errors.descripcion}
           />
 
-          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 mt-6 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="w-full sm:w-auto h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -366,7 +366,7 @@ export default function AddSiniestroDialog({
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="w-full sm:w-auto bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
               {loading ? "Guardando..." : (
                 <><Check size={16} strokeWidth={2.5} /> {editing ? "Guardar cambios" : "Registrar siniestro"}</>

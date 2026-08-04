@@ -1,6 +1,5 @@
 import PageHeader from "@/components/layout/PageHeader";
 import StatCard from "@/components/ui/StatCard";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -38,6 +37,22 @@ function formatNum(n: number, decimals = 0): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+}
+
+/** Fondo/borde del podio (1º, 2º y 3º) — compartido entre la tabla y las tarjetas. */
+function podiumRowClasses(idx: number): string {
+  if (idx === 0) return "bg-amber-500/5 border-l-4 border-l-amber-500 hover:bg-amber-500/10";
+  if (idx === 1) return "bg-slate-500/5 border-l-4 border-l-slate-400 hover:bg-slate-500/10";
+  if (idx === 2) return "bg-orange-500/5 border-l-4 border-l-orange-400 hover:bg-orange-500/10";
+  return "border-l-4 border-l-transparent hover:bg-muted/30";
+}
+
+/** Chapita con el número de posición. */
+function podiumBadgeClasses(idx: number): string {
+  if (idx === 0) return "bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-sm ring-2 ring-amber-100";
+  if (idx === 1) return "bg-gradient-to-br from-slate-400 to-slate-600 text-white shadow-sm ring-2 ring-slate-100";
+  if (idx === 2) return "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-sm ring-2 ring-orange-100";
+  return "bg-muted text-muted-foreground";
 }
 
 export default async function CombustiblePage({
@@ -100,13 +115,28 @@ export default async function CombustiblePage({
 
   const topRanking = ranking.slice(0, 10);
 
+  // Mismo vacío para la tabla (desktop) y para las tarjetas (celular).
+  const rankingVacio = (
+    <div className="flex flex-col items-center justify-center gap-3">
+      <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
+        <Trophy size={20} />
+      </div>
+      <div className="max-w-md text-center">
+        <p className="text-foreground text-sm font-bold">Sin datos de eficiencia este mes</p>
+        <p className="text-muted-foreground text-xs mt-1 leading-relaxed">
+          Cargá al menos 2 gasoiles de un mismo camión con un chofer asignado para comenzar a ver el ranking de rendimiento.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Combustible & Gasoil"
         description={`Carga, eficiencia y ranking de choferes ${periodLabel}`}
         action={
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <MesSelector currentMonth={month} />
             <ExportCombustibleButton month={month} />
             {canWrite && (
@@ -131,7 +161,7 @@ export default async function CombustiblePage({
       />
 
       {/* Stats del mes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Cargas del mes"
           value={String(stats.cargasTotales)}
@@ -175,13 +205,13 @@ export default async function CombustiblePage({
       </div>
 
       {/* Premio del Mes */}
-      <div className="bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-transparent border border-amber-500/20 rounded-[12px] p-4 shadow-[0_4px_20px_rgba(245,158,11,0.03)] backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:border-amber-500/30">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-r from-amber-500/5 via-amber-500/10 to-transparent border border-amber-500/20 rounded-[12px] p-3.5 sm:p-4 shadow-[0_4px_20px_rgba(245,158,11,0.03)] backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:border-amber-500/30">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-white shrink-0 shadow-md">
               <Trophy size={18} className="animate-pulse" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-amber-600 text-[10px] font-extrabold uppercase tracking-wider block">
                 Premio de Eficiencia
               </span>
@@ -191,13 +221,13 @@ export default async function CombustiblePage({
             </div>
           </div>
           
-          <div className="flex-1 border-t sm:border-t-0 sm:border-l border-amber-500/20 pt-3 sm:pt-0 sm:pl-4 flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1 border-t sm:border-t-0 sm:border-l border-amber-500/20 pt-3 sm:pt-0 sm:pl-4 flex items-center justify-between gap-4">
             {premio ? (
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 min-w-0">
                 <span className="text-amber-950 text-base font-extrabold">
                   {premio.chofer}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <span className="text-amber-800 text-sm font-black bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
                     {premio.eficiencia.toFixed(2)}
                     <span className="text-[10px] font-bold ml-0.5">L/100km</span>
@@ -221,16 +251,57 @@ export default async function CombustiblePage({
 
       {/* Ranking */}
       <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Trophy size={16} className="text-primary" />
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
+          <div className="flex items-center gap-2 min-w-0">
+            <Trophy size={16} className="text-primary shrink-0" />
             <h2 className="text-foreground text-sm font-semibold">Ranking de eficiencia — mes en curso</h2>
           </div>
           <p className="text-xs text-muted-foreground">
             Menor L/100km = más eficiente
           </p>
         </div>
-        <Table>
+
+        {/* Celular: cada chofer del ranking es una tarjeta (la tabla de 8
+            columnas no entra en 375px y el ranking es el corazón de la página). */}
+        <div className="md:hidden divide-y divide-border">
+          {topRanking.length === 0 ? (
+            <div className="py-12 px-4">{rankingVacio}</div>
+          ) : (
+            topRanking.map((r, idx) => (
+              <div key={r.chofer_id} className={`flex items-start gap-3 p-3.5 ${podiumRowClasses(idx)}`}>
+                <span
+                  className={`inline-flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${podiumBadgeClasses(idx)}`}
+                >
+                  {idx + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                      {r.chofer}
+                    </span>
+                    <span className="shrink-0 rounded-md border border-primary/10 bg-primary/5 px-2 py-0.5 font-mono text-sm font-black text-primary">
+                      {r.eficiencia.toFixed(2)}
+                      <span className="ml-0.5 font-sans text-[10px] font-semibold">L/100km</span>
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                    <span className="font-mono">{formatNum(r.km_recorridos)} km</span>
+                    <span className="font-mono">{formatNum(r.litros_totales, 0)} L</span>
+                    <span>{r.cargas} {r.cargas === 1 ? "carga" : "cargas"}</span>
+                    {r.precio_litro != null && (
+                      <span className="font-mono">${formatARS(r.precio_litro)} / L</span>
+                    )}
+                    <span className="font-mono font-semibold text-foreground">
+                      ${formatARS(r.importe_total)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <Table className="hidden md:table min-w-[880px]">
           <TableHeader className="bg-muted/40">
             <TableRow>
               <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider w-12 pl-6">#</TableHead>
@@ -247,44 +318,15 @@ export default async function CombustiblePage({
             {topRanking.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-16 text-center">
-                  <div className="flex flex-col items-center justify-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
-                      <Trophy size={20} />
-                    </div>
-                    <div className="max-w-md">
-                      <p className="text-foreground text-sm font-bold">Sin datos de eficiencia este mes</p>
-                      <p className="text-muted-foreground text-xs mt-1 leading-relaxed">
-                        Cargá al menos 2 gasoiles de un mismo camión con un chofer asignado para comenzar a ver el ranking de rendimiento.
-                      </p>
-                    </div>
-                  </div>
+                  {rankingVacio}
                 </TableCell>
               </TableRow>
             ) : (
               topRanking.map((r, idx) => {
-                const isPodium = idx < 3;
-                const podiumClasses =
-                  idx === 0
-                    ? "bg-amber-500/5 border-l-4 border-l-amber-500 hover:bg-amber-500/10"
-                    : idx === 1
-                    ? "bg-slate-500/5 border-l-4 border-l-slate-400 hover:bg-slate-500/10"
-                    : idx === 2
-                    ? "bg-orange-500/5 border-l-4 border-l-orange-400 hover:bg-orange-500/10"
-                    : "border-l-4 border-l-transparent hover:bg-muted/30";
-
-                const badgeClass =
-                  idx === 0
-                    ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-sm ring-2 ring-amber-100"
-                    : idx === 1
-                    ? "bg-gradient-to-br from-slate-400 to-slate-600 text-white shadow-sm ring-2 ring-slate-100"
-                    : idx === 2
-                    ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-sm ring-2 ring-orange-100"
-                    : "bg-muted text-muted-foreground";
-
                 return (
-                  <TableRow key={r.chofer_id} className={`transition-colors duration-200 ${podiumClasses}`}>
+                  <TableRow key={r.chofer_id} className={`transition-colors duration-200 ${podiumRowClasses(idx)}`}>
                     <TableCell className="pl-6 py-3.5 font-bold">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${badgeClass}`}>
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${podiumBadgeClasses(idx)}`}>
                         {idx + 1}
                       </span>
                     </TableCell>

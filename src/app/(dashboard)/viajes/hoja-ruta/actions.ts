@@ -5,6 +5,9 @@ import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 import { logAudit } from "@/lib/audit";
+// Sólo el tipo: se borra en compilación, así que no arrastra el módulo de
+// server actions del listado hasta acá.
+import type { RutaVia } from "../actions";
 
 // ============================================================================
 // Vista "Hoja de Ruta mensual por chofer" — estilo Excel del cliente.
@@ -35,6 +38,8 @@ export type HrViajeItem = {
   fecha_viaje: string; // ISO
   origen: string | null;
   destino: string | null;
+  /** Por qué ruta fue el camión: de la vía dependen los km del par. */
+  ruta_via: RutaVia | null;
   km_con_carga: number;
   km_vacios: number;
   tonelaje_real: number | null;
@@ -208,7 +213,7 @@ export async function getPanelChoferAction(
       .select(`
         id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
         nro_remito, nro_viaje_ypf, monto_flete, estado, facturado, es_vacio,
-        observaciones, material,
+        observaciones, material, ruta_via,
         cliente:clientes(razon_social, nombre_comercial),
         origen:puntos_ruta!viajes_origen_id_fkey(nombre),
         destino:puntos_ruta!viajes_destino_id_fkey(nombre),
@@ -242,6 +247,7 @@ export async function getPanelChoferAction(
     es_vacio: boolean | null;
     observaciones: string | null;
     material: string | null;
+    ruta_via: string | null;
     cliente: { razon_social?: string; nombre_comercial?: string | null } | { razon_social?: string; nombre_comercial?: string | null }[] | null;
     origen: { nombre: string } | { nombre: string }[] | null;
     destino: { nombre: string } | { nombre: string }[] | null;
@@ -256,6 +262,7 @@ export async function getPanelChoferAction(
       fecha_viaje: v.fecha_viaje,
       origen: ori?.nombre ?? null,
       destino: des?.nombre ?? null,
+      ruta_via: (v.ruta_via as RutaVia | null) ?? null,
       km_con_carga: v.km_con_carga,
       km_vacios: v.km_vacios,
       tonelaje_real: v.tonelaje_real,
@@ -327,7 +334,7 @@ export async function getViajesSinRemitoMesAction(mesISO: string): Promise<HrVia
     .select(`
       id, codigo, fecha_viaje, km_con_carga, km_vacios, tonelaje_real,
       nro_remito, nro_viaje_ypf, monto_flete, estado, facturado, es_vacio,
-      observaciones, material, chofer_id,
+      observaciones, material, ruta_via, chofer_id,
       chofer:choferes(nombre, apellido),
       cliente:clientes(razon_social, nombre_comercial),
       origen:puntos_ruta!viajes_origen_id_fkey(nombre),
@@ -359,6 +366,9 @@ export async function getViajesSinRemitoMesAction(mesISO: string): Promise<HrVia
       fecha_viaje: v.fecha_viaje,
       origen: (uno(v.origen) as { nombre: string } | null)?.nombre ?? null,
       destino: (uno(v.destino) as { nombre: string } | null)?.nombre ?? null,
+      // Acá el row es `any`: si falta en el select de arriba, TypeScript no
+      // avisa y la columna Ruta sale "—" para todos los viajes sin remito.
+      ruta_via: (v.ruta_via as RutaVia | null) ?? null,
       km_con_carga: v.km_con_carga,
       km_vacios: v.km_vacios,
       tonelaje_real: v.tonelaje_real,
@@ -383,10 +393,14 @@ export async function getViajesSinRemitoMesAction(mesISO: string): Promise<HrVia
  * Resuelve un nombre de lugar a su id, creándolo si no existía. Es el mismo
  * criterio que usa el alta de viajes: los destinos nuevos se dan de alta solos
  * en vez de frenar la carga.
+ *
+ * Si el alta falla, LANZA: devolver null hacía que corregir el destino desde la
+ * hoja de ruta lo dejara vacío, y encima con cartel de guardado.
  */
 async function getOrCreatePunto(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  // Tipado a propósito (sin `as any`): el tipo generado de la tabla es lo único
+  // que impide escribir una columna que no existe.
+  supabase: ReturnType<typeof createAdminClient>,
   nombre: string | null | undefined,
 ): Promise<string | null | undefined> {
   // undefined = no lo tocaron; null/"" = lo vaciaron a propósito.
@@ -399,10 +413,14 @@ async function getOrCreatePunto(
 
   const ins = await supabase
     .from("puntos_ruta")
-    .insert({ nombre: limpio, estado: "activo", es_frontera: false, es_puerto: false })
+    .insert({ nombre: limpio, estado: "activo", tipo: "otro" })
     .select("id")
     .single();
-  return ins.error ? null : (ins.data.id as string);
+  if (ins.error) {
+    console.error(`[hoja de ruta] no se pudo crear el punto "${limpio}":`, ins.error);
+    throw new Error(`No se pudo dar de alta el lugar "${limpio}".`);
+  }
+  return ins.data.id as string;
 }
 
 /**
@@ -447,10 +465,14 @@ export async function actualizarViajeHojaRutaAction(
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-  const origenId = await getOrCreatePunto(supabase, data.origen_nombre);
-  if (origenId !== undefined) payload.origen_id = origenId;
-  const destinoId = await getOrCreatePunto(supabase, data.destino_nombre);
-  if (destinoId !== undefined) payload.destino_id = destinoId;
+  try {
+    const origenId = await getOrCreatePunto(supabase, data.origen_nombre);
+    if (origenId !== undefined) payload.origen_id = origenId;
+    const destinoId = await getOrCreatePunto(supabase, data.destino_nombre);
+    if (destinoId !== undefined) payload.destino_id = destinoId;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de alta el lugar." };
+  }
 
   for (const campo of ["km_con_carga", "km_vacios", "tonelaje_real"] as const) {
     const v = data[campo];

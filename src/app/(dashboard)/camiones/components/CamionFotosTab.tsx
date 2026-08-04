@@ -126,7 +126,7 @@ export default function CamionFotosTab({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {fotos.length === 0 ? "Sin fotos cargadas" : `${fotos.length} foto${fotos.length === 1 ? "" : "s"}`}
         </p>
@@ -166,7 +166,7 @@ export default function CamionFotosTab({
           <p className="text-xs mt-1">Frente, lateral, interior, chapa, etc.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
           {fotos.map((f) => (
             <div
               key={f.id}
@@ -195,11 +195,13 @@ export default function CamionFotosTab({
                   </span>
                 )}
 
-                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
+                {/* Sin hover en celular las acciones eran inalcanzables: abajo
+                    de sm quedan siempre visibles y con tamaño de dedo. */}
+                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent transition-opacity flex justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100">
                   <button
                     type="button"
                     onClick={() => openNotaEditor(f)}
-                    className="p-1.5 bg-card/90 hover:bg-card rounded-md text-primary shadow-sm"
+                    className="flex size-9 items-center justify-center bg-card/90 hover:bg-card rounded-md text-primary shadow-sm sm:size-7"
                     title="Editar nota"
                   >
                     <StickyNote size={13} />
@@ -208,7 +210,7 @@ export default function CamionFotosTab({
                     <button
                       type="button"
                       onClick={() => handleSetPrincipal(f.id)}
-                      className="p-1.5 bg-card/90 hover:bg-card rounded-md text-[#92400E] shadow-sm"
+                      className="flex size-9 items-center justify-center bg-card/90 hover:bg-card rounded-md text-[#92400E] shadow-sm sm:size-7"
                       title="Marcar como principal"
                     >
                       <Star size={13} />
@@ -217,7 +219,7 @@ export default function CamionFotosTab({
                   <button
                     type="button"
                     onClick={() => setConfirmarBorrado(f)}
-                    className="p-1.5 bg-card/90 hover:bg-card rounded-md text-red-600 shadow-sm"
+                    className="flex size-9 items-center justify-center bg-card/90 hover:bg-card rounded-md text-red-600 shadow-sm sm:size-7"
                     title="Eliminar foto"
                   >
                     <Trash2 size={13} />
@@ -261,14 +263,14 @@ export default function CamionFotosTab({
 
       {lightbox && (
         <div
-          className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center p-6 cursor-zoom-out"
+          className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center p-4 sm:p-6 cursor-zoom-out"
           onClick={() => setLightbox(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightbox.url}
             alt={lightbox.descripcion ?? lightbox.nombre_original}
-            className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+            className="max-w-full max-h-[80dvh] object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             decoding="async"
           />

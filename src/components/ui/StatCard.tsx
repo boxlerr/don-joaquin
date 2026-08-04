@@ -65,15 +65,24 @@ export default function StatCard({
 }: StatCardProps) {
   const styles = colorMap[color];
 
+  // El número no puede cortarse (lleva whitespace-nowrap), así que en celular
+  // baja un escalón: en una grilla de 2 columnas cada tarjeta mide ~160px y un
+  // importe largo a 30px se salía de la tarjeta.
   const len = value.length;
   const valueSizeClass =
-    len <= 8 ? "text-3xl" : len <= 11 ? "text-2xl" : len <= 14 ? "text-xl" : "text-lg";
+    len <= 8
+      ? "text-2xl sm:text-3xl"
+      : len <= 11
+        ? "text-xl sm:text-2xl"
+        : len <= 14
+          ? "text-lg sm:text-xl"
+          : "text-base sm:text-lg";
 
   // La tarjeta es interactiva si navega (href) o tiene handler (onClick).
   const interactive = Boolean(href) || Boolean(onClick);
 
   if (variant === "dashboard") {
-    const dashboardClass = `relative overflow-hidden bg-card rounded-[8px] border border-border p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-4 ${
+    const dashboardClass = `relative overflow-hidden bg-card rounded-[8px] border border-border p-4 sm:p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group flex items-center gap-3 sm:gap-4 ${
       interactive ? "cursor-pointer hover:border-primary/50" : ""
     }`;
     const Wrapper = href ? "a" : "div";
@@ -84,7 +93,7 @@ export default function StatCard({
         className={dashboardClass}
       >
         {Icon && (
-          <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${
+          <div className={`size-10 sm:size-12 rounded-full bg-gradient-to-br ${
             color === "brand" ? "from-[#0088D1] to-[#004A99]" :
             color === "success" ? "from-[#10B981] to-[#059669]" :
             color === "warning" ? "from-[#FFB300] to-[#D97706]" :
@@ -163,7 +172,7 @@ export default function StatCard({
       onClick={onClick}
       role={onClick && !href ? "button" : undefined}
       aria-pressed={onClick && !href ? active : undefined}
-      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group ${
+      className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} p-3.5 sm:p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group ${
         interactive ? "cursor-pointer hover:border-primary/50" : ""
       } ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary/60" : ""}`}
     >

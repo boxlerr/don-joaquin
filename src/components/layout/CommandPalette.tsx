@@ -90,7 +90,9 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[18vh] bg-black/50 backdrop-blur-sm"
+      // En celular arranca más arriba (pt-16): con el teclado abierto, el 18vh
+      // dejaba la lista de resultados fuera de la parte visible.
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-16 sm:pt-[18vh] bg-black/50 backdrop-blur-sm"
       onClick={closePalette}
     >
       <div
@@ -110,15 +112,17 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
               setQuery(e.target.value);
               setActiveIndex(0);
             }}
-            className="flex-1 text-sm text-foreground placeholder-[#94A3B8] outline-none bg-transparent"
+            className="flex-1 min-w-0 text-sm text-foreground placeholder-[#94A3B8] outline-none bg-transparent"
           />
-          <kbd className="flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground bg-muted rounded border border-border">
+          {/* Sin teclado físico, el cartel de ESC sólo ocupa lugar. */}
+          <kbd className="hidden sm:flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground bg-muted rounded border border-border">
             ESC
           </kbd>
         </div>
 
-        {/* Lista */}
-        <div ref={listRef} className="max-h-80 overflow-y-auto py-1.5">
+        {/* Lista — el alto se mide en dvh para que el teclado del celular no
+            deje los resultados abajo del borde visible. */}
+        <div ref={listRef} className="max-h-[50dvh] sm:max-h-80 overflow-y-auto py-1.5">
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground/70">
               No se encontraron resultados
@@ -144,9 +148,9 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
                     size={16}
                     className={active ? "text-white" : "text-muted-foreground"}
                   />
-                  <span className="flex-1 text-sm font-medium">{item.label}</span>
+                  <span className="flex-1 min-w-0 truncate text-sm font-medium">{item.label}</span>
                   <span
-                    className={`text-[10px] font-semibold uppercase tracking-wider ${
+                    className={`shrink-0 text-[10px] font-semibold uppercase tracking-wider ${
                       active ? "text-white/60" : "text-muted-foreground"
                     }`}
                   >
@@ -161,8 +165,8 @@ export default function CommandPalette({ open, onOpen, onClose }: Props) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-border bg-muted/40">
+        {/* Footer — atajos de teclado: no aplican en celular, se oculta. */}
+        <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-t border-border bg-muted/40">
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
             <kbd className="px-1 py-0.5 bg-card rounded border border-border font-mono text-[10px]">↑↓</kbd>
             navegar

@@ -2305,6 +2305,59 @@ export type Database = {
           },
         ]
       }
+      costos_rep_rep: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          facturado_gravado: number
+          facturado_ng: number
+          facturado_total: number
+          id: string
+          mes: string
+          neto_gravado: number
+          neto_ng: number
+          neto_total: number
+          observaciones: string | null
+          proveedor: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          facturado_gravado?: number
+          facturado_ng?: number
+          facturado_total?: number
+          id?: string
+          mes: string
+          neto_gravado?: number
+          neto_ng?: number
+          neto_total?: number
+          observaciones?: string | null
+          proveedor: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          facturado_gravado?: number
+          facturado_ng?: number
+          facturado_total?: number
+          id?: string
+          mes?: string
+          neto_gravado?: number
+          neto_ng?: number
+          neto_total?: number
+          observaciones?: string | null
+          proveedor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costos_rep_rep_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cta_cte_movimientos: {
         Row: {
           categoria: Database["public"]["Enums"]["cta_cte_categoria"]
@@ -4646,6 +4699,7 @@ export type Database = {
           origen_id: string | null
           requiere_doble_facturacion: boolean
           ruta_id: string | null
+          ruta_via: string | null
           tarifa_id: string | null
           tipo_cambio: number | null
           tipo_carga_id: string
@@ -4683,6 +4737,7 @@ export type Database = {
           origen_id?: string | null
           requiere_doble_facturacion?: boolean
           ruta_id?: string | null
+          ruta_via?: string | null
           tarifa_id?: string | null
           tipo_cambio?: number | null
           tipo_carga_id: string
@@ -4720,6 +4775,7 @@ export type Database = {
           origen_id?: string | null
           requiere_doble_facturacion?: boolean
           ruta_id?: string | null
+          ruta_via?: string | null
           tarifa_id?: string | null
           tipo_cambio?: number | null
           tipo_carga_id?: string

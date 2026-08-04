@@ -210,14 +210,15 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
       }}
     >
       <DialogTrigger render={children as React.ReactElement} />
-      <DialogContent className="sm:max-w-[500px] p-6 gap-0">
-        {/* Header */}
-        <DialogHeader className="border-b border-border pb-4 -mx-6 px-6 pt-1">
-          <div className="flex items-start gap-4">
+      <DialogContent className="sm:max-w-[500px] p-4 sm:p-6 gap-0">
+        {/* Header — los márgenes negativos tienen que seguir al padding del
+            diálogo (16px en celular, 24 desde sm) o el borde queda descolocado. */}
+        <DialogHeader className="border-b border-border pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
               <Truck size={22} />
             </div>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-foreground text-lg font-bold">
                 Agregar nuevo camión
               </DialogTitle>
@@ -233,7 +234,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Patente */}
             <InputFieldWithIcon
               label="Patente *"
@@ -268,7 +269,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Marca */}
             <InputFieldWithIcon
               label="Marca *"
@@ -296,8 +297,9 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            {/* Año */}
+          {/* Año y capacidad son cortos y entran de a dos en celular; el tipo,
+              que es un desplegable con etiquetas largas, se lleva la fila. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
             <InputFieldWithIcon
               label="Año *"
               name="ano"
@@ -326,19 +328,21 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             />
 
             {/* Tipo */}
-            <SelectFieldWithIcon
-              label="Tipo *"
-              name="tipo"
-              value={tipo}
-              onValueChange={(v) => setTipo(v as CamionTipo)}
-              options={TIPOS}
-              required
-              icon={Layers}
-            />
+            <div className="col-span-2 sm:col-span-1">
+              <SelectFieldWithIcon
+                label="Tipo *"
+                name="tipo"
+                value={tipo}
+                onValueChange={(v) => setTipo(v as CamionTipo)}
+                options={TIPOS}
+                required
+                icon={Layers}
+              />
+            </div>
           </div>
 
           {/* Tercerización + Km actual */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <SelectFieldWithIcon
               label="Tercerización *"
               name="tercerizacion_estado"
@@ -385,12 +389,12 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
           </label>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-border -mx-6 px-6">
+          <div className="flex flex-col-reverse gap-2 pt-4 mt-6 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6 sm:flex-row sm:justify-end sm:gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+              className="h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               disabled={loading}
             >
               Cancelar
@@ -398,7 +402,7 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
             <Button
               type="submit"
               disabled={loading}
-              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+              className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex w-full sm:w-auto items-center justify-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
             >
               {loading ? (
                 "Guardando..."

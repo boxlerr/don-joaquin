@@ -17,7 +17,7 @@ export default async function DashboardCompletoPage({
   await requireSeccion("dashboard_completo", "read");
 
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
       <PageHeader
         title="Dashboard completo"
         description="Resumen con facturación — solo dirección"

@@ -54,7 +54,7 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Documentación del chofer
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
@@ -67,7 +67,7 @@ export default function ChoferDocumentosTab({ chofer, onRefresh }: Props) {
           <Button
             variant="outline"
             size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="w-full sm:w-auto border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
             onClick={() => {
               setSelectedDocForEdit(null);
               setCargarOpen(true);
@@ -132,8 +132,8 @@ function DocCard({
   deleting: boolean;
 }) {
   return (
-    <div className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-2">
+    <div className="bg-card rounded-[8px] border border-border p-3 sm:p-4 flex flex-col gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={14} className="text-primary flex-shrink-0" />
           <span className="text-sm font-medium text-foreground truncate">
@@ -176,7 +176,7 @@ function DocCard({
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={onEdit}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 font-medium"
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex min-h-9 items-center gap-1 font-medium md:min-h-0"
           >
             <Pencil size={11} />
             Modificar
@@ -184,7 +184,7 @@ function DocCard({
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+            className="text-xs text-red-400 hover:text-red-600 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
           >
             <Trash2 size={11} />
             {deleting ? "..." : "Eliminar"}

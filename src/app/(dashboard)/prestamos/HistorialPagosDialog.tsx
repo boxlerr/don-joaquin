@@ -171,13 +171,13 @@ export default function HistorialPagosDialog({
           </p>
         ) : (
           <>
-            <div className="flex items-center justify-between border-b border-border pb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border pb-2.5">
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   disabled={idxAnio >= anios.length - 1}
                   onClick={() => setAnio(anios[idxAnio + 1]!)}
-                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 max-md:size-9"
                   aria-label="Año anterior"
                 >
                   <ChevronLeft size={16} />
@@ -189,13 +189,13 @@ export default function HistorialPagosDialog({
                   type="button"
                   disabled={idxAnio <= 0}
                   onClick={() => setAnio(anios[idxAnio - 1]!)}
-                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+                  className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 max-md:size-9"
                   aria-label="Año siguiente"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
-              <div className="text-right">
+              <div className="ml-auto text-right">
                 <span className="block text-sm font-semibold tabular-nums text-foreground">
                   {ars(totalAnioArs)}
                   {totalAnioUsd > 0 && (
@@ -230,20 +230,20 @@ export default function HistorialPagosDialog({
                     <button
                       type="button"
                       onClick={() => setAbierto(expandido ? null : m.mes)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                      className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-0.5 px-3 py-2 text-left transition-colors hover:bg-muted/40"
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
                         {expandido ? (
-                          <ChevronUp size={13} className="text-muted-foreground" />
+                          <ChevronUp size={13} className="shrink-0 text-muted-foreground" />
                         ) : (
-                          <ChevronDown size={13} className="text-muted-foreground" />
+                          <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
                         )}
                         <span className="text-sm font-medium text-foreground">{m.label}</span>
                         <span className="text-[11px] text-muted-foreground">
                           {m.items.length} cuota{m.items.length !== 1 ? "s" : ""}
                         </span>
                       </span>
-                      <span className="text-sm font-semibold tabular-nums text-foreground">
+                      <span className="ml-auto text-sm font-semibold tabular-nums text-foreground">
                         {m.totalArs > 0 && ars(m.totalArs)}
                         {m.totalUsd > 0 && (
                           <span className={m.totalArs > 0 ? "ml-2 font-normal text-muted-foreground" : ""}>
@@ -253,58 +253,62 @@ export default function HistorialPagosDialog({
                       </span>
                     </button>
 
+                    {/* Cinco columnas no entran en 343px y una de ellas es un
+                        campo de fecha para completar: en celular el pago se
+                        arma en dos renglones y desde sm vuelve a una línea. */}
                     {expandido && (
-                      <table className="w-full border-t border-border text-sm">
-                        <tbody className="divide-y divide-border/60">
-                          {[...m.items]
-                            .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
-                            .map((p) => (
-                              <tr key={p.cuotaId}>
-                                <td className="py-2 pl-3 pr-2">
-                                  <span className="block text-[13px] font-medium text-foreground">
-                                    {p.banco}
+                      <ul className="divide-y divide-border/60 border-t border-border">
+                        {[...m.items]
+                          .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
+                          .map((p) => (
+                            <li
+                              key={p.cuotaId}
+                              className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-[13px] font-medium text-foreground">
+                                  {p.banco}
+                                </span>
+                                {p.identificacion && (
+                                  <span className="block text-[11px] leading-tight text-muted-foreground">
+                                    {p.identificacion}
                                   </span>
-                                  {p.identificacion && (
-                                    <span className="block text-[11px] leading-tight text-muted-foreground">
-                                      {p.identificacion}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-2 py-2 text-center text-[12px] tabular-nums text-muted-foreground">
-                                  {p.nro}/{p.cuotasTotal}
-                                </td>
-                                <td className="px-2 py-2 text-[12px] text-muted-foreground">
-                                  vencía el {fmtFecha(p.vencimiento)}
-                                </td>
-                                <td className="px-2 py-2">
-                                  {canWrite ? (
-                                    <Input
-                                      type="date"
-                                      value={fechasPago[p.cuotaId] ?? p.pagadaEn ?? ""}
-                                      onChange={(e) =>
-                                        setFechasPago((v) => ({
-                                          ...v,
-                                          [p.cuotaId]: e.target.value,
-                                        }))
-                                      }
-                                      title="Día en que se pagó"
-                                      className="h-8 w-[9.5rem]"
-                                    />
-                                  ) : (
-                                    <span className="text-[12px] text-muted-foreground">
-                                      {p.pagadaEn ? `pagada el ${fmtFecha(p.pagadaEn)}` : "—"}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2 pl-2 pr-3 text-right text-[13px] font-medium tabular-nums text-foreground">
+                                )}
+                                <span className="block text-[11px] leading-tight text-muted-foreground">
+                                  <span className="tabular-nums">
+                                    {p.nro}/{p.cuotasTotal}
+                                  </span>{" "}
+                                  · vencía el {fmtFecha(p.vencimiento)}
+                                </span>
+                              </div>
+                              <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+                                {canWrite ? (
+                                  <Input
+                                    type="date"
+                                    value={fechasPago[p.cuotaId] ?? p.pagadaEn ?? ""}
+                                    onChange={(e) =>
+                                      setFechasPago((v) => ({
+                                        ...v,
+                                        [p.cuotaId]: e.target.value,
+                                      }))
+                                    }
+                                    title="Día en que se pagó"
+                                    className="w-[9.5rem]"
+                                  />
+                                ) : (
+                                  <span className="text-[12px] text-muted-foreground">
+                                    {p.pagadaEn ? `pagada el ${fmtFecha(p.pagadaEn)}` : "—"}
+                                  </span>
+                                )}
+                                <span className="shrink-0 text-[13px] font-medium tabular-nums text-foreground">
                                   {p.moneda === "USD"
                                     ? `US$ ${Math.round(p.importe).toLocaleString("es-AR")}`
                                     : ars(p.importe)}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                      </ul>
                     )}
                   </div>
                 );

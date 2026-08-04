@@ -75,30 +75,30 @@ export default function ChoferSueldosTab({ chofer_id }: { chofer_id: string }) {
   return (
     <div className="space-y-5">
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-lg border border-border bg-muted/30 p-3 sm:p-4">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Wallet size={13} /> Último sueldo ({mesLabel(data.ultimo!.mes)})
+            <Wallet size={13} className="shrink-0" /> Último sueldo ({mesLabel(data.ultimo!.mes)})
           </div>
-          <p className="mt-1 text-xl font-semibold font-mono text-foreground">
+          <p className="mt-1 text-lg sm:text-xl font-semibold font-mono text-foreground">
             {pesos(data.ultimo!.total)}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
+        <div className="rounded-lg border border-border bg-muted/30 p-3 sm:p-4">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarDays size={13} /> Promedio últimos 6 meses
+            <CalendarDays size={13} className="shrink-0" /> Promedio últimos 6 meses
           </div>
-          <p className="mt-1 text-xl font-semibold font-mono text-foreground">
+          <p className="mt-1 text-lg sm:text-xl font-semibold font-mono text-foreground">
             {data.promedio6 != null ? pesos(data.promedio6) : "—"}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {sube ? <TrendingUp size={13} /> : <TrendingDown size={13} />} Interanual (vs mismo mes
+        <div className="rounded-lg border border-border bg-muted/30 p-3 sm:p-4">
+          <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            {sube ? <TrendingUp size={13} className="mt-0.5 shrink-0" /> : <TrendingDown size={13} className="mt-0.5 shrink-0" />} Interanual (vs mismo mes
             del año pasado)
           </div>
           <p
-            className={`mt-1 text-xl font-semibold font-mono ${
+            className={`mt-1 text-lg sm:text-xl font-semibold font-mono ${
               data.interanualPct == null
                 ? "text-muted-foreground"
                 : sube
@@ -113,12 +113,13 @@ export default function ChoferSueldosTab({ chofer_id }: { chofer_id: string }) {
         </div>
       </div>
 
-      {/* Historial */}
+      {/* Historial — con las variables son 8 columnas: scrollea adentro de su
+          caja y el mes queda fijo a la izquierda como referencia. */}
       <div className="rounded-lg border border-border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="px-4 py-2.5 font-medium">Mes</th>
+              <th className="sticky left-0 z-10 bg-muted px-3 sm:px-4 py-2.5 font-medium">Mes</th>
               <th className="px-4 py-2.5 font-medium text-right">Sueldo base</th>
               {hayVariables && (
                 <>
@@ -135,7 +136,7 @@ export default function ChoferSueldosTab({ chofer_id }: { chofer_id: string }) {
           <tbody className="divide-y divide-border">
             {data.meses.map((m: SueldoHistorialMes) => (
               <tr key={m.mes} className="hover:bg-muted/20">
-                <td className="px-4 py-2 text-foreground whitespace-nowrap">{mesLabel(m.mes)}</td>
+                <td className="sticky left-0 z-10 bg-card px-3 sm:px-4 py-2 text-foreground whitespace-nowrap">{mesLabel(m.mes)}</td>
                 <td className="px-4 py-2 text-right font-mono text-foreground">
                   {m.sueldoBase > 0 ? pesos(m.sueldoBase) : "—"}
                 </td>

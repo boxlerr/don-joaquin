@@ -139,7 +139,7 @@ export default function CargarAusenciaDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">
+          <DialogTitle className="text-foreground text-lg sm:text-xl">
             {esEdicion ? "Editar ausencia" : "Nueva ausencia / permiso"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -166,7 +166,7 @@ export default function CargarAusenciaDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Desde <span className="text-red-400">*</span>

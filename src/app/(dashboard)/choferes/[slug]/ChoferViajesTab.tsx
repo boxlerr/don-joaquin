@@ -24,14 +24,18 @@ export default function ChoferViajesTab({ viajes }: Props) {
         </span>
       </h3>
 
+      {/* Tabla de consulta: scrollea adentro de su caja (la primitiva Table trae
+          overflow-x-auto) y el código de viaje queda fijo como referencia. */}
       <div className="rounded-[8px] border border-border overflow-hidden">
-        <Table>
+        <Table className="min-w-[420px]">
           <TableHeader className="bg-muted/40">
             <TableRow>
-              {["Código", "Fecha", "KM", "Facturado"].map((col) => (
+              {["Código", "Fecha", "KM", "Facturado"].map((col, i) => (
                 <TableHead
                   key={col}
-                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                  className={`text-xs font-semibold text-muted-foreground uppercase tracking-wide ${
+                    i === 0 ? "sticky left-0 z-10 bg-muted" : ""
+                  }`}
                 >
                   {col}
                 </TableHead>
@@ -44,7 +48,7 @@ export default function ChoferViajesTab({ viajes }: Props) {
             ) : (
               viajes.map((v) => (
                 <TableRow key={v.id} className="hover:bg-muted/40">
-                  <TableCell className="font-mono text-xs text-primary">{v.codigo}</TableCell>
+                  <TableCell className="sticky left-0 z-10 bg-card font-mono text-xs text-primary">{v.codigo}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatFecha(v.fecha_viaje)}
                   </TableCell>

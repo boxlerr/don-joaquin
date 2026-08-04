@@ -188,8 +188,10 @@ export function ImportCamionesButton() {
 
           {step === "preview" && (
             <div className="space-y-3 py-2">
-              <div className="max-h-[440px] overflow-y-auto border border-border rounded-lg">
-                <table className="w-full text-sm">
+              {/* 12 columnas: scroll propio en los dos ejes. Sin el
+                  `overflow-x` la vista previa empujaba la página de costado. */}
+              <div className="max-h-[50dvh] sm:max-h-[440px] overflow-auto border border-border rounded-lg">
+                <table className="w-full min-w-[900px] text-sm">
                   <thead className="bg-muted/40 sticky top-0">
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="px-3 py-2 w-10"></th>

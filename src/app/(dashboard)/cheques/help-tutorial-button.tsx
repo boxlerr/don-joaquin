@@ -74,12 +74,12 @@ const TABS: TutorialTab[] = [
 
 function MockToolbar() {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="opacity-50">
         <div className="text-foreground text-sm font-bold">Gestión de Cheques</div>
         <div className="text-[10px] text-muted-foreground">Cartera con trazabilidad por estado</div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="h-9 px-3 rounded-md text-xs inline-flex items-center gap-1 bg-card border border-border text-muted-foreground opacity-50">
           <FileDown size={12} /> Exportar
         </div>
@@ -150,7 +150,7 @@ function MockCiclo() {
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <span className="px-3 py-1 rounded-full text-[10px] font-semibold border bg-muted text-muted-foreground border-border">
           Entregado a tercero
         </span>

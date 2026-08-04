@@ -13,7 +13,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
 }) {
   return (
-    <div className="p-8 space-y-6 w-full">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
       <PageHeader
         title="Dashboard"
         description="Resumen operativo y financiero del día"

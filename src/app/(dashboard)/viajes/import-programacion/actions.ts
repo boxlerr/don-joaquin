@@ -250,10 +250,16 @@ async function generarCodigos(
   return Array.from({ length: count }, (_, i) => `${prefijo}${String(proximo + i).padStart(5, "0")}`);
 }
 
-/** Punto de ruta por nombre, creándolo si no existía. */
+/**
+ * Punto de ruta por nombre, creándolo si no existía.
+ *
+ * Si el alta falla, LANZA: devolver null importaba el viaje con el destino en
+ * blanco, que es justo el dato por el que se importa la programación.
+ */
 async function getOrCreatePunto(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  // Tipado a propósito (sin `as any`): el tipo generado de la tabla es lo único
+  // que impide escribir una columna que no existe.
+  supabase: ReturnType<typeof createAdminClient>,
   nombre: string | null,
 ): Promise<string | null> {
   const limpio = (nombre ?? "").trim();
@@ -262,10 +268,14 @@ async function getOrCreatePunto(
   if (data && data.length > 0) return data[0].id as string;
   const ins = await supabase
     .from("puntos_ruta")
-    .insert({ nombre: limpio, estado: "activo", es_frontera: false, es_puerto: false })
+    .insert({ nombre: limpio, estado: "activo", tipo: "otro" })
     .select("id")
     .single();
-  return ins.error ? null : (ins.data.id as string);
+  if (ins.error) {
+    console.error(`[programación] no se pudo crear el punto "${limpio}":`, ins.error);
+    throw new Error(`No se pudo dar de alta el lugar "${limpio}".`);
+  }
+  return ins.data.id as string;
 }
 
 export type ResultadoImport = {
@@ -313,8 +323,15 @@ export async function importarProgramacionAction(
     if (v.origen) nombres.add(v.origen);
     if (v.destino) nombres.add(v.destino);
   }
+  // Se resuelven antes de crear nada: si un lugar no se puede dar de alta, la
+  // importación no arranca. Es preferible al archivo entero entrando con los
+  // destinos en blanco.
   const puntoPorNombre = new Map<string, string | null>();
-  for (const n of nombres) puntoPorNombre.set(n, await getOrCreatePunto(supabase, n));
+  try {
+    for (const n of nombres) puntoPorNombre.set(n, await getOrCreatePunto(supabase, n));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de alta un lugar del archivo." };
+  }
 
   const codigos = await generarCodigos(supabase, aCrear.length);
 

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
@@ -39,10 +40,9 @@ function fmtDia(iso: string): string {
 
 // Vías con distancia propia (reunión Nico 02/07): la Ruta 5 va derecho (más
 // corta) y la Ruta 22 pasa por la base/zona (combustible, roturas).
-const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
-  ruta_5: "Ruta 5",
-  ruta_22: "Ruta 22",
-};
+// Las etiquetas salen de @/domain/viajes/ruta-via: son las mismas que muestran
+// el listado, la hoja de ruta y los Excel.
+const VIA_LABEL = RUTA_VIA_LABELS;
 
 type ViaValue = "" | "ruta_5" | "ruta_22";
 
@@ -77,7 +77,7 @@ function ViaSegmented({ value, onChange }: { value: ViaValue; onChange: (v: ViaV
     { v: "ruta_22", label: "Ruta 22", title: "Por la base/zona: cargar combustible, arreglar roturas" },
   ];
   return (
-    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border overflow-hidden">
       {opts.map((o, i) => {
         const active = value === o.v;
         return (
@@ -87,7 +87,7 @@ function ViaSegmented({ value, onChange }: { value: ViaValue; onChange: (v: ViaV
             title={o.title}
             aria-pressed={active}
             onClick={() => onChange(o.v)}
-            className={`px-3 h-8 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+            className={`flex-1 sm:flex-none px-2 sm:px-3 h-9 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
               active
                 ? "bg-[#0088D1]/10 text-[#0277BD]"
                 : "bg-card text-muted-foreground hover:bg-muted/40"
@@ -374,7 +374,12 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
         destino: prop.destino,
         kmConCarga: "0",
         kmVacios: prop.kmVacios,
-        via: "",
+        // Hereda la vía de la ida. El tramo ya se copia la DISTANCIA de la ida,
+        // y esa distancia depende de la vía: dejarlo en "Sin marcar" guardaba los
+        // km de la Ruta 5 en el bucket de los sin-marcar y ensuciaba el historial
+        // que la vía existe justamente para separar. Si esta vez volvió por otro
+        // lado, se cambia con los botones del tramo.
+        via: rutaVia,
         tonelaje: "0",
         monto: "0",
         material: "",
@@ -385,7 +390,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     // pisar la copia de la ida con una respuesta lenta hacía que el valor
     // "cambiara solo" a algo viejo (reunión Nico 02/07).
     if (prop.kmVacios === "0" && prop.origen && prop.destino) {
-      applyTramoKm(id, prop.origen, prop.destino, "vacio", "");
+      // Con la misma vía que acaba de heredar el tramo: preguntarle al historial
+      // por el bucket "sin marcar" traería la distancia de otra ruta.
+      applyTramoKm(id, prop.origen, prop.destino, "vacio", rutaVia);
     }
   };
 
@@ -513,16 +520,16 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(900px,calc(100vw-2rem))] max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(900px,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] sm:max-h-[95vh] flex flex-col bg-card rounded-[16px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95"
         >
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border">
-            <div className="flex items-start gap-4">
-              <div className="flex items-center justify-center size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-border">
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+              <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-[#E1F5FE] text-primary shrink-0">
                 <Truck size={22} />
               </div>
-              <div>
-                <Dialog.Title className="text-foreground text-lg font-bold">
+              <div className="min-w-0">
+                <Dialog.Title className="text-foreground text-base sm:text-lg font-bold">
                   Nuevo viaje
                 </Dialog.Title>
                 <Dialog.Description className="text-muted-foreground text-xs font-medium mt-0.5">
@@ -534,7 +541,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               render={
                 <button
                   type="button"
-                  className="size-8 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
+                  className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
                   aria-label="Cerrar"
                 />
               }
@@ -547,7 +554,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
           <form
             action={formAction}
             key={open ? "open" : "closed"}
-            className="flex-1 overflow-y-auto px-6 py-5 space-y-4"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4"
           >
             <input type="hidden" name="estado" value="pendiente" />
 
@@ -811,7 +818,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                   type="button"
                   onClick={agregarTramo}
                   disabled={tramos.length >= MAX_TRAMOS_UI}
-                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/40 disabled:opacity-40"
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/40 disabled:opacity-40"
                 >
                   <Plus size={13} className="text-primary" />
                   Agregar tramo
@@ -834,7 +841,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                           type="button"
                           onClick={() => quitarTramo(t.id)}
                           aria-label={`Quitar tramo ${i + 2}`}
-                          className="text-muted-foreground transition-colors hover:text-[#EF4444]"
+                          className="-m-2 inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-[#EF4444]"
                         >
                           <X size={14} />
                         </button>
@@ -843,7 +850,7 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
                       <input type="hidden" name={`tramo_${i}_modo`} value={t.modo} />
 
                       {/* Va vacío / va cargado */}
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {([
                           { v: "vacio", label: "Va vacío", sub: "Sin flete ni carga", Icon: PackageX },
                           { v: "cargado", label: "Va cargado", sub: "Lleva otra carga", Icon: PackageCheck },
@@ -996,11 +1003,11 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             )}
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-border">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-10 px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
+                className="h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-muted/40 transition-colors"
               >
                 Cancelar
               </button>
@@ -1079,7 +1086,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
+      className="bg-[#0088D1] hover:bg-[#0277BD] text-white flex items-center justify-center gap-1.5 h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-bold shadow-sm hover:shadow transition-all disabled:opacity-50"
     >
       {pending ? (
         "Guardando..."

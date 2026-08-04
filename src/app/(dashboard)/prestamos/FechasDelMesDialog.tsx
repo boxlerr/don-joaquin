@@ -165,12 +165,12 @@ export default function FechasDelMesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-between border-b border-border pb-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border pb-2.5">
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => cambiarMes(-1)}
-              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:size-9"
               aria-label="Mes anterior"
             >
               <ChevronLeft size={16} />
@@ -181,7 +181,7 @@ export default function FechasDelMesDialog({
             <button
               type="button"
               onClick={() => cambiarMes(1)}
-              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:size-9"
               aria-label="Mes siguiente"
             >
               <ChevronRight size={16} />
@@ -206,49 +206,52 @@ export default function FechasDelMesDialog({
             No hay cuotas por pagar en {labelMes(mes)}.
           </p>
         ) : (
+          /* Cada cuota es una fila de carga, no una tabla de consulta: en
+             celular el banco va arriba y los dos campos abajo, lado a lado.
+             Desde sm vuelve a leerse como la planilla, en una sola línea. */
           <div className="max-h-[52vh] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card">
-                <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2 pr-3 text-left font-medium">Banco</th>
-                  <th className="px-2 py-2 text-center font-medium">Cuota</th>
-                  <th className="px-2 py-2 text-left font-medium">Vence</th>
-                  <th className="py-2 pl-2 text-right font-medium">Importe</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {filas.map((f) => {
-                  const fecha = valorFecha(f);
-                  const tocada = fecha !== f.fechaOriginal;
-                  return (
-                    <tr key={f.cuotaId} className="align-top">
-                      <td className="py-2.5 pr-3">
-                        <span className="block font-medium text-foreground">{f.banco}</span>
-                        {f.identificacion && (
-                          <span className="block text-[11px] leading-tight text-muted-foreground">
-                            {f.identificacion}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2.5 text-center text-[12px] tabular-nums text-muted-foreground">
-                        {f.nro}/{f.cuotasTotal}
-                      </td>
-                      <td className="px-2 py-2.5">
+            <div className="sticky top-0 z-10 hidden border-b border-border bg-card pb-2 text-[11px] uppercase tracking-wide text-muted-foreground sm:flex sm:items-center sm:gap-3">
+              <span className="min-w-0 flex-1 font-medium">Banco</span>
+              <span className="w-[9.5rem] font-medium">Vence</span>
+              <span className="w-[9.5rem] text-right font-medium">Importe</span>
+            </div>
+            <ul className="divide-y divide-border/60">
+              {filas.map((f) => {
+                const fecha = valorFecha(f);
+                const tocada = fecha !== f.fechaOriginal;
+                return (
+                  <li
+                    key={f.cuotaId}
+                    className="flex flex-wrap items-start gap-x-3 gap-y-2 py-2.5 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <span className="block font-medium text-foreground">{f.banco}</span>
+                      {f.identificacion && (
+                        <span className="block text-[11px] leading-tight text-muted-foreground">
+                          {f.identificacion}
+                        </span>
+                      )}
+                      <span className="block text-[11px] tabular-nums text-muted-foreground">
+                        cuota {f.nro}/{f.cuotasTotal}
+                      </span>
+                    </div>
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:gap-3">
+                      <div className="min-w-0">
                         <Input
                           type="date"
                           value={fecha}
                           onChange={(e) =>
                             setFechas((v) => ({ ...v, [f.cuotaId]: e.target.value }))
                           }
-                          className={`h-8 w-[9.5rem] ${tocada ? "border-primary/60" : ""}`}
+                          className={`w-full sm:w-[9.5rem] ${tocada ? "border-primary/60" : ""}`}
                         />
                         {tocada && (
                           <span className="mt-1 block text-[11px] text-muted-foreground">
                             antes {fmtFecha(f.fechaOriginal)}
                           </span>
                         )}
-                      </td>
-                      <td className="py-2.5 pl-2 text-right">
+                      </div>
+                      <div className="min-w-0">
                         <Input
                           type="number"
                           min="0"
@@ -258,7 +261,7 @@ export default function FechasDelMesDialog({
                             setImportes((v) => ({ ...v, [f.cuotaId]: e.target.value }))
                           }
                           placeholder="—"
-                          className={`h-8 w-[9.5rem] text-right tabular-nums ${
+                          className={`w-full text-right tabular-nums sm:w-[9.5rem] ${
                             valorImporte(f).trim() !== "" &&
                             Number(valorImporte(f)) !== f.importeOriginal
                               ? "border-primary/60"
@@ -266,16 +269,16 @@ export default function FechasDelMesDialog({
                           }`}
                         />
                         {f.moneda === "USD" && (
-                          <span className="mt-1 block text-[10px] text-muted-foreground">
+                          <span className="mt-1 block text-right text-[10px] text-muted-foreground">
                             en dólares
                           </span>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
 

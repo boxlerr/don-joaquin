@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 import {
   Dialog,
   DialogContent,
@@ -36,11 +37,9 @@ const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 
 // Vías con distancia propia: la Ruta 5 va derecho (más corta) y la Ruta 22 pasa
-// por la base/zona. Mismas etiquetas que en Nuevo viaje.
-const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
-  ruta_5: "Ruta 5",
-  ruta_22: "Ruta 22",
-};
+// por la base/zona. Etiquetas compartidas con Nuevo viaje, el listado, la hoja
+// de ruta y los Excel.
+const VIA_LABEL = RUTA_VIA_LABELS;
 import {
   getViajeParaEditarAction,
   getViajeFormData,
@@ -419,15 +418,15 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[95vh] flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-[600px] max-h-[calc(100dvh-2rem)] sm:max-h-[95vh] flex flex-col p-0 gap-0">
         {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#E2E8F0]">
-          <div className="flex items-start gap-4">
-            <div className="flex items-center justify-center size-12 rounded-full bg-slate-100 text-slate-600 shrink-0">
+        <DialogHeader className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-[#E2E8F0]">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex items-center justify-center size-10 sm:size-12 rounded-full bg-slate-100 text-slate-600 shrink-0">
               <Pencil size={20} />
             </div>
-            <div>
-              <DialogTitle className="text-[#0F172A] text-lg font-bold">
+            <div className="min-w-0">
+              <DialogTitle className="text-[#0F172A] text-base sm:text-lg font-bold">
                 Editar viaje {viaje.codigo}
               </DialogTitle>
               <DialogDescription className="text-[#64748B] text-xs font-medium mt-0.5">
@@ -444,9 +443,9 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             Cargando datos del viaje...
           </div>
         ) : loadError ? (
-          <div className="px-6 py-10 text-center text-red-600 text-sm font-medium">{loadError}</div>
+          <div className="px-4 sm:px-6 py-10 text-center text-red-600 text-sm font-medium">{loadError}</div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4">
             {/* Alerta viaje facturado */}
             {isFacturado && (
               <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3">
@@ -733,20 +732,20 @@ export default function EditViajeDialog({ viaje, open, onOpenChange, onSuccess }
             </CField>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-border -mx-6 px-6">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-border -mx-4 px-4 sm:-mx-6 sm:px-6">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={submitting}
-                className="h-10 px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
+                className="h-10 w-full sm:w-auto px-6 rounded-lg text-sm font-semibold border border-[#E2E8F0] text-[#475569] hover:bg-[#F8FAFC]"
               >
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={submitting || loadingData}
-                className="bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center gap-1.5 h-10 px-6 rounded-lg font-bold shadow-sm"
+                className="bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center justify-center gap-1.5 h-10 w-full sm:w-auto px-6 rounded-lg font-bold shadow-sm"
               >
                 {submitting ? (
                   <><Loader2 size={14} className="animate-spin" /> Guardando...</>
@@ -776,7 +775,7 @@ function CargaSegmented({
     { v: true, label: "Vacío", title: "Vuelta sin carga: los km van a km vacíos y no factura" },
   ];
   return (
-    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border overflow-hidden">
       {opts.map((o, i) => {
         const active = value === o.v;
         return (
@@ -786,7 +785,7 @@ function CargaSegmented({
             title={o.title}
             aria-pressed={active}
             onClick={() => onChange(o.v)}
-            className={`px-3 h-8 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+            className={`flex-1 sm:flex-none px-2 sm:px-3 h-9 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
               active ? "bg-[#0088D1]/10 text-[#0277BD]" : "bg-card text-muted-foreground hover:bg-muted/40"
             }`}
           >
@@ -813,7 +812,7 @@ function ViaSegmented({
     { v: "ruta_22", label: "Ruta 22", title: "Por la base/zona: cargar combustible, arreglar roturas" },
   ];
   return (
-    <div className="inline-flex rounded-lg border border-border overflow-hidden">
+    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border overflow-hidden">
       {opts.map((o, i) => {
         const active = value === o.v;
         return (
@@ -823,7 +822,7 @@ function ViaSegmented({
             title={o.title}
             aria-pressed={active}
             onClick={() => onChange(o.v)}
-            className={`px-3 h-8 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+            className={`flex-1 sm:flex-none px-2 sm:px-3 h-9 text-xs font-semibold transition-colors ${i > 0 ? "border-l border-border" : ""} ${
               active ? "bg-[#0088D1]/10 text-[#0277BD]" : "bg-card text-muted-foreground hover:bg-muted/40"
             }`}
           >

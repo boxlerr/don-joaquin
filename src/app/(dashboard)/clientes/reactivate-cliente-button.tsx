@@ -35,7 +35,7 @@ export default function ReactivateClienteButton({
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className="text-[#065F46] hover:bg-[#ECFDF5] border-[#A7F3D0]"
+        className="w-full sm:w-auto text-[#065F46] hover:bg-[#ECFDF5] border-[#A7F3D0]"
       >
         <RotateCcw size={14} />
         Reactivar
@@ -43,8 +43,8 @@ export default function ReactivateClienteButton({
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(440px,calc(100vw-2rem))] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(440px,calc(100vw-2rem))] max-h-[90dvh] overflow-y-auto flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-5 pt-5 pb-3 border-b border-border">
             <div className="flex items-start gap-3">
               <span className="size-9 rounded-full bg-[#ECFDF5] text-[#065F46] inline-flex items-center justify-center shrink-0">
                 <CheckCircle2 size={18} />
@@ -62,7 +62,7 @@ export default function ReactivateClienteButton({
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+                  className="size-9 md:size-7 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -71,7 +71,7 @@ export default function ReactivateClienteButton({
             </Dialog.Close>
           </div>
 
-          <form action={formAction} className="px-5 py-4 space-y-3">
+          <form action={formAction} className="px-4 sm:px-5 py-4 space-y-3">
             <input type="hidden" name="id" value={id} />
             <p className="text-sm text-foreground">
               ¿Confirmás reactivar a{" "}
@@ -84,11 +84,12 @@ export default function ReactivateClienteButton({
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => setOpen(false)}
               >
                 Cancelar
@@ -105,7 +106,7 @@ export default function ReactivateClienteButton({
 function ConfirmButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="brand" size="sm" disabled={pending}>
+    <Button type="submit" variant="brand" size="sm" className="w-full sm:w-auto" disabled={pending}>
       {pending ? "Reactivando..." : "Reactivar"}
     </Button>
   );

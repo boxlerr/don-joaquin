@@ -42,7 +42,7 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
           {items.length} sucursal{items.length === 1 ? "" : "es"}
         </p>
@@ -58,7 +58,7 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
           Aún no hay sucursales cargadas.
         </div>
       ) : (
-        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <ul className="grid grid-cols-1 lg:grid-cols-2 gap-2">
           {items.map((s) => {
             const direccion = [s.domicilio, s.localidad, s.provincia, s.pais]
               .filter(Boolean)
@@ -104,7 +104,7 @@ export default function SucursalesTab({ clienteId }: { clienteId: string }) {
                   type="button"
                   onClick={() => handleDelete(s.id, s.nombre)}
                   disabled={pending}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
+                  className="shrink-0 inline-flex items-center justify-center max-md:size-9 p-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity rounded hover:bg-red-50 text-red-500 hover:text-red-600 disabled:opacity-30"
                   title="Eliminar sucursal"
                 >
                   <Trash2 size={13} />

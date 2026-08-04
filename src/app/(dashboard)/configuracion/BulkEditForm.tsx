@@ -85,7 +85,7 @@ export default function BulkEditForm({
           return (
             <div
               key={p.id}
-              className={`flex items-start gap-4 px-4 py-3.5 transition-colors ${
+              className={`flex flex-col gap-2 px-4 py-3.5 transition-colors sm:flex-row sm:items-start sm:gap-4 ${
                 changed ? "bg-[#F0F9FF]" : ""
               }`}
             >
@@ -97,7 +97,7 @@ export default function BulkEditForm({
                 {fieldError && <p className="text-[#DC2626] text-xs mt-1">{fieldError}</p>}
               </div>
 
-              <div className="shrink-0 flex flex-col items-end gap-1">
+              <div className="flex min-w-0 flex-col items-stretch gap-1 sm:shrink-0 sm:items-end">
                 {p.tipo_dato === "boolean" ? (
                   <BooleanToggleBulk
                     value={values[p.id] === "true"}
@@ -116,7 +116,7 @@ export default function BulkEditForm({
                       id: opt,
                       label: validacion.opcionesLabels?.[opt] ?? opt,
                     }))}
-                    triggerClassName="h-8 w-52 text-sm"
+                    triggerClassName="h-8 max-md:h-10 w-full sm:w-52 text-sm"
                   />
                 ) : validacion.inputTipo === "time" ? (
                   <Input
@@ -124,7 +124,7 @@ export default function BulkEditForm({
                     value={values[p.id]}
                     onChange={(e) => setValues((prev) => ({ ...prev, [p.id]: e.target.value }))}
                     disabled={isPending}
-                    className="h-8 w-36 text-sm"
+                    className="h-8 max-md:h-10 w-36 text-sm"
                   />
                 ) : (
                   <MoneyOrTextInput
@@ -136,7 +136,7 @@ export default function BulkEditForm({
                   />
                 )}
                 {validacion.pista && (
-                  <span className="text-[10px] text-muted-foreground/70 text-right max-w-[220px]">
+                  <span className="text-[10px] text-muted-foreground/70 max-w-[220px] sm:text-right">
                     {validacion.pista}
                   </span>
                 )}
@@ -148,11 +148,14 @@ export default function BulkEditForm({
         {avanzados.map((p) => {
           const modulo = moduloDeParam(p);
           return (
-            <div key={p.id} className="flex items-start gap-4 px-4 py-3.5 bg-muted/20">
+            <div
+              key={p.id}
+              className="flex flex-col gap-2 px-4 py-3.5 bg-muted/20 sm:flex-row sm:items-start sm:gap-4"
+            >
               <div className="flex-1 min-w-0">
                 <p className="text-foreground text-sm font-medium">{etiquetaParam(p)}</p>
               </div>
-              <div className="shrink-0">
+              <div className="sm:shrink-0">
                 {modulo ? (
                   <Link
                     href={modulo.href}
@@ -170,13 +173,16 @@ export default function BulkEditForm({
         })}
 
         {readOnly.map((p) => (
-          <div key={p.id} className="flex items-start gap-4 px-4 py-3.5 opacity-70">
+          <div
+            key={p.id}
+            className="flex flex-col gap-2 px-4 py-3.5 opacity-70 sm:flex-row sm:items-start sm:gap-4"
+          >
             <div className="flex-1 min-w-0">
               <p className="text-foreground text-sm font-medium">{etiquetaParam(p)}</p>
             </div>
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
               <span
-                className="text-foreground text-sm font-semibold max-w-[240px] truncate"
+                className="text-foreground text-sm font-semibold min-w-0 max-w-[240px] truncate"
                 title={displayValorParam(p)}
               >
                 {displayValorParam(p)}
@@ -190,7 +196,7 @@ export default function BulkEditForm({
         ))}
       </div>
 
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/40">
+      <div className="flex flex-col gap-2 px-4 py-3 border-t border-border bg-muted/40 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm text-muted-foreground">
           {cambiosCount === 0
             ? "Sin cambios"
@@ -199,7 +205,14 @@ export default function BulkEditForm({
               : `${cambiosCount} cambios pendientes`}
         </span>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={isPending}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1 sm:flex-none"
+          >
             <X size={13} />
             Cancelar
           </Button>
@@ -209,6 +222,7 @@ export default function BulkEditForm({
             size="sm"
             onClick={onSave}
             disabled={isPending || cambiosCount === 0}
+            className="flex-1 sm:flex-none"
           >
             <Check size={13} />
             {isPending
@@ -254,7 +268,7 @@ function MoneyOrTextInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`h-8 w-52 text-sm ${hasPrefix ? "pl-6" : ""}`}
+        className={`h-8 max-md:h-10 w-full sm:w-52 text-sm ${hasPrefix ? "pl-6" : ""}`}
       />
     </div>
   );
@@ -284,6 +298,8 @@ function BooleanToggleBulk({
 }) {
   return (
     <div className="flex items-center gap-2">
+      {/* El botón es la zona táctil (36px en celular); la pastilla de adentro es
+          lo que se ve. En desktop el botón vuelve a medir lo mismo que ella. */}
       <button
         type="button"
         role="switch"
@@ -291,15 +307,19 @@ function BooleanToggleBulk({
         aria-label={nombre}
         disabled={disabled}
         onClick={() => onChange(!value)}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-          value ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
-        }`}
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-md disabled:opacity-50 disabled:cursor-not-allowed sm:size-auto"
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
-            value ? "translate-x-4" : "translate-x-0.5"
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+            value ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
           }`}
-        />
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
+              value ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </span>
       </button>
       <span className="text-foreground text-sm font-semibold w-20">
         {value ? "Activado" : "Desactivado"}

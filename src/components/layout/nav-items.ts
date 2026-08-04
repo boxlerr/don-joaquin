@@ -95,7 +95,7 @@ export const NAV_GROUPS: NavGroup[] = [
         area: "mantenimiento",
         children: [
           { label: "Servicios", href: "/mantenimiento", seccion: "mantenimiento_servicios" },
-          { label: "Costos rep. y rep.", href: "/mantenimiento/costos", seccion: "mantenimiento_costos" },
+          { label: "Costos de repuestos", href: "/mantenimiento/costos", seccion: "mantenimiento_costos" },
         ],
       },
     ],

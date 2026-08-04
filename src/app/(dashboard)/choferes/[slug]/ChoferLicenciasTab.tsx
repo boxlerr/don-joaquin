@@ -54,7 +54,7 @@ export default function ChoferLicenciasTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Licencias médicas
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
@@ -65,7 +65,7 @@ export default function ChoferLicenciasTab({
           <Button
             variant="outline"
             size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="w-full sm:w-auto border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
             onClick={() => setCargarOpen(true)}
           >
             <Plus size={13} className="mr-1.5 text-primary" />
@@ -81,7 +81,7 @@ export default function ChoferLicenciasTab({
           {licencias.map((l) => (
             <div
               key={l.id}
-              className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2"
+              className="bg-card rounded-[8px] border border-border p-3 sm:p-4 flex flex-col gap-2"
             >
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -106,7 +106,7 @@ export default function ChoferLicenciasTab({
                       <button
                         onClick={() => handleCerrar(l)}
                         disabled={busyId === l.id}
-                        className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 disabled:opacity-50"
+                        className="text-xs text-primary hover:text-primary/80 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                       >
                         <CheckCircle2 size={11} />
                         Cerrar
@@ -115,7 +115,7 @@ export default function ChoferLicenciasTab({
                     <button
                       onClick={() => handleDelete(l)}
                       disabled={busyId === l.id}
-                      className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50"
+                      className="text-xs text-red-400 hover:text-red-600 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 md:min-h-0"
                     >
                       <Trash2 size={11} />
                       {busyId === l.id ? "..." : "Eliminar"}

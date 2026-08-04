@@ -112,7 +112,7 @@ function FilaDestino({
 }) {
   return (
     <div
-      className={`flex items-center gap-2 border-b border-border px-3 py-2 last:border-0 ${
+      className={`flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-2 last:border-0 ${
         abierto ? "bg-muted" : ""
       }`}
     >
@@ -141,7 +141,7 @@ function MockNiveles() {
   return (
     <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
       <FilaDestino nombre="LOMASER" choferes={4} viajes={4} abierto />
-      <div className="flex items-center gap-2 border-b border-border bg-muted/60 px-3 py-1.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-muted/60 px-3 py-1.5">
         <span className="size-4 shrink-0 rounded-full bg-[#0D9488]/20" />
         <span className="text-[10.5px] font-semibold text-foreground">Paz, Leonardo</span>
         <span className="font-mono text-[9px] font-semibold text-muted-foreground">AF541MH</span>
@@ -245,7 +245,7 @@ function MockAlListado() {
       <div className="inline-flex items-center gap-1.5 self-start rounded-[6px] border border-border bg-card px-2 py-1.5 text-[10px] font-semibold shadow-sm">
         Ver estos 4 viajes en el listado <ArrowUpRight size={10} className="text-primary" />
       </div>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-card p-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-2 shadow-sm">
         <span className="inline-flex items-center gap-1 rounded-[4px] border border-primary/40 bg-primary/5 px-1.5 py-1 text-[9.5px] font-semibold text-primary">
           <MapPin size={9} /> Destino: LOMASER
           <span className="font-normal opacity-80">· sin vueltas vacías</span>

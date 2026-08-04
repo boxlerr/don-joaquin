@@ -89,7 +89,7 @@ function MockKpis() {
 
 function MockViajesAlertas() {
   return (
-    <div className="grid grid-cols-[1.4fr,1fr] gap-2">
+    <div className="grid grid-cols-1 sm:grid-cols-[1.4fr,1fr] gap-2">
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <div className="px-2.5 py-1.5 border-b border-border text-[10px] font-bold text-foreground">Últimos viajes</div>
         <div className="divide-y divide-border">

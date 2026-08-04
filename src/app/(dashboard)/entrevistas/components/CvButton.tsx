@@ -22,7 +22,7 @@ export default function CvButton({
         type="button"
         onClick={() => setOpen(true)}
         title="Ver / adjuntar CV"
-        className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+        className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 max-md:h-9 max-md:px-2.5 rounded border transition-colors ${
           count > 0
             ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
             : "border-border text-muted-foreground hover:bg-muted"

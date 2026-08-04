@@ -204,9 +204,9 @@ export default function ImportHojaRutaModal({
           if (!v) reset();
         }}
       >
-        <DialogContent className="sm:max-w-[820px] max-h-[88vh] flex flex-col">
+        <DialogContent className="sm:max-w-[820px] max-h-[calc(100dvh-2rem)] sm:max-h-[88vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-foreground text-xl flex items-center gap-2">
+            <DialogTitle className="text-foreground text-lg sm:text-xl flex items-center gap-2">
               <FileSpreadsheet size={18} className="text-primary" />
               Importar HOJA DE RUTA (Excel)
             </DialogTitle>
@@ -297,8 +297,8 @@ export default function ImportHojaRutaModal({
               )}
 
               {/* Listado de sheets */}
-              <div className="overflow-y-auto flex-1 min-h-0 border border-border rounded-md">
-                <table className="w-full text-xs">
+              <div className="overflow-auto flex-1 min-h-0 border border-border rounded-md">
+                <table className="w-full min-w-[560px] text-xs">
                   <thead className="sticky top-0 bg-muted/60 border-b border-border">
                     <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       <th className="text-left px-3 py-2 w-8"></th>
@@ -477,7 +477,7 @@ function SheetRow({
               <select
                 value={asignado ?? ""}
                 onChange={(e) => onAsignar(e.target.value === "" ? null : e.target.value)}
-                className="h-7 max-w-[260px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
+                className="h-9 sm:h-7 w-full max-w-full sm:max-w-[260px] rounded border border-border bg-card px-1.5 text-[11px] focus:border-primary outline-none"
               >
                 {isMissing ? (
                   <>
@@ -541,8 +541,8 @@ function ViajesDetalle({ viajes }: { viajes: SheetViajePreview[] }) {
     return <div className="text-[11px] text-muted-foreground py-2">Sin viajes en esta pestaña.</div>;
   }
   return (
-    <div className="border border-border rounded-md overflow-hidden mt-1">
-      <table className="w-full text-[11px]">
+    <div className="border border-border rounded-md overflow-x-auto mt-1">
+      <table className="w-full min-w-[600px] text-[11px]">
         <thead className="bg-card border-b border-border text-[9px] uppercase tracking-wider text-muted-foreground">
           <tr>
             <th className="text-left px-2 py-1.5">Día</th>

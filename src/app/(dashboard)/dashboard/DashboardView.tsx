@@ -248,7 +248,8 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4">
+      {/* KPIs: 2 columnas en celular (el número de StatCard ya baja un escalón solo). */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="Viajes registrados"
           value={String(viajesPeriodo.count ?? 0)}
@@ -288,15 +289,19 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
       </div>
 
       {/* En xl los viajes toman ~71% del ancho: la lista respira y las alertas
-          (ícono + etiqueta + número) no necesitan más que eso. */}
-      <div className="grid grid-cols-3 xl:grid-cols-7 gap-4">
-        <div className="col-span-2 xl:col-span-5 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          (ícono + etiqueta + número) no necesitan más que eso. En celular y
+          tablet chica van uno debajo del otro: a 375px no entran lado a lado. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+        <div className="lg:col-span-2 xl:col-span-5 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <MapPin size={16} className="text-primary" />
               <h2 className="text-foreground text-sm font-bold">Últimos viajes</h2>
             </div>
-            <a href="/viajes" className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors">
+            <a
+              href="/viajes"
+              className="shrink-0 inline-flex items-center max-md:h-9 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
+            >
               Ver todos →
             </a>
           </div>
@@ -305,8 +310,8 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
           </div>
         </div>
 
-        <div className="xl:col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <div className="lg:col-span-1 xl:col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="text-[#F59E0B]" />
               <h2 className="text-foreground text-sm font-bold">Alertas activas</h2>
@@ -320,10 +325,10 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
               // Desglose por categoría — lista sobria (sin emojis) para no entrar
               // legajo por legajo (pedido explícito del feedback).
               <div className="flex flex-col h-full">
-                <p className="px-5 pt-3.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                <p className="px-4 sm:px-5 pt-3.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Se requiere atención
                 </p>
-                <div className="px-3 flex-1 divide-y divide-border/60">
+                <div className="px-2 sm:px-3 flex-1 divide-y divide-border/60">
                   {(
                     [
                       { id: "documentacion", label: "Documentación", Icon: FileText, count: catCounts.documentacion, warn: true },
@@ -365,17 +370,17 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
                       );
                     })}
                 </div>
-                <div className="mt-auto flex items-center justify-between px-5 py-3 border-t border-border">
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 sm:px-5 py-2.5 sm:py-3 border-t border-border">
                   <a
                     href={resolverHref}
-                    className="text-[13px] font-bold text-[#D97706] hover:text-[#B45309] inline-flex items-center gap-1 transition-colors"
+                    className="text-[13px] font-bold text-[#D97706] hover:text-[#B45309] inline-flex items-center gap-1 max-md:h-9 transition-colors"
                   >
                     Resolver alerta
                     <ChevronRight size={14} />
                   </a>
                   <a
                     href="/notificaciones"
-                    className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                    className="inline-flex items-center max-md:h-9 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Ver todas →
                   </a>
@@ -405,7 +410,9 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         href="/combustible"
         className="block bg-card border border-border rounded-[8px] shadow-sm hover:bg-muted/30 transition-colors group"
       >
-        <div className="px-4 py-2.5 flex items-center gap-3">
+        {/* En celular el detalle (km · cargas) baja de renglón en vez de salirse:
+            los tres datos en una sola línea no entran en 343px. */}
+        <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2.5 sm:gap-3">
           <div className="flex items-center justify-center size-8 rounded-md bg-primary/10 text-primary shrink-0">
             <Trophy size={15} strokeWidth={2.1} />
           </div>
@@ -413,20 +420,22 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
             Premio del mes
           </span>
           {premioMes ? (
-            <div className="flex items-baseline gap-3 flex-1 min-w-0">
-              <span className="text-foreground text-sm font-bold truncate">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 flex-1 min-w-0">
+              <span className="text-foreground text-sm font-bold truncate max-w-full">
                 {premioMes.chofer}
               </span>
               <span className="text-foreground/80 text-sm font-semibold shrink-0">
                 {premioMes.eficiencia.toFixed(2)}
                 <span className="text-[10px] font-medium text-muted-foreground ml-0.5">L/100km</span>
               </span>
-              <span className="text-muted-foreground text-[11px] shrink-0 hidden sm:inline">
+              {/* Sin `shrink-0`: en 320px este detalle no entraba en el renglón
+                  y, al no poder achicarse, se salía de la tarjeta. */}
+              <span className="text-muted-foreground text-[11px] min-w-0">
                 {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
               </span>
             </div>
           ) : (
-            <span className="text-muted-foreground text-xs flex-1">
+            <span className="text-muted-foreground text-xs flex-1 min-w-0">
               Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
             </span>
           )}
@@ -437,7 +446,7 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         </div>
       </a>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <SummaryCard
           icon={Truck}
           title="Flota de camiones"
@@ -476,7 +485,7 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <SummaryCard
           icon={ShieldAlert}
           title="Documentación crítica"
@@ -535,20 +544,20 @@ function SummaryCard({
   return (
     <CardWrapper
       href={href}
-      className={`relative overflow-hidden bg-card rounded-[8px] border border-border shadow-sm p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group block ${
+      className={`relative overflow-hidden bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group block ${
         href ? "cursor-pointer" : ""
       }`}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3 sm:gap-4">
         <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg} shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-sm`}>
           <Icon size={20} className={iconColor} />
         </div>
         <div className="flex-1 min-w-0 z-10">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-foreground text-sm font-bold group-hover:text-primary transition-colors duration-300">
               {title}
             </span>
-            <ChevronRight size={16} className="text-muted-foreground/70 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-primary transition-all duration-300" />
+            <ChevronRight size={16} className="shrink-0 text-muted-foreground/70 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-primary transition-all duration-300" />
           </div>
           <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
             {description}

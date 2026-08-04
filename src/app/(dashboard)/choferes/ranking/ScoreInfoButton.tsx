@@ -41,7 +41,7 @@ export default function ScoreInfoButton({
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(620px,calc(100vw-2rem))] max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b border-border">
             <div className="flex items-center gap-2.5">
               <span className="size-8 rounded-lg bg-[#E1F5FE] text-primary inline-flex items-center justify-center shrink-0">
                 <HelpCircle size={18} />
@@ -64,7 +64,7 @@ export default function ScoreInfoButton({
           </div>
 
           {/* Body */}
-          <div className="px-5 py-4 overflow-y-auto space-y-4">
+          <div className="px-4 sm:px-5 py-4 overflow-y-auto space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
               Cada chofer arranca el período con <b className="text-foreground">100 puntos</b>. Cada
               uno de los <b className="text-foreground">8 conceptos</b> puede restar como máximo su{" "}
@@ -121,11 +121,11 @@ export default function ScoreInfoButton({
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-border flex justify-end">
+          <div className="px-4 sm:px-5 py-3 border-t border-border flex justify-end">
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="h-8 px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
+              className="h-9 sm:h-8 w-full sm:w-auto justify-center px-3 text-sm rounded-md bg-[#0088D1] text-white hover:bg-[#0277BD] inline-flex items-center gap-1"
             >
               Entendido
             </button>

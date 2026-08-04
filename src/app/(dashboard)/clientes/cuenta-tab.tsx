@@ -61,7 +61,7 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
         <Card label="Total debe" value={fmt(data.totalDebe, moneda)} tone="debe" />
         <Card label="Total haber" value={fmt(data.totalHaber, moneda)} tone="haber" />
         <Card
@@ -72,8 +72,11 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
         />
       </div>
 
+      {/* Tabla de consulta dentro de la ficha: scroll horizontal propio, sin
+          convertirla en tarjetas (no es la pantalla, son 4 columnas). */}
       <div className="bg-card border border-border rounded-[8px] overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
           <thead className="bg-muted/40 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/70 uppercase">
             <tr>
               <th className="text-left px-3 py-2">Fecha</th>
@@ -123,6 +126,7 @@ export default function CuentaTab({ clienteId }: { clienteId: string }) {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

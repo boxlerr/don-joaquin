@@ -27,7 +27,10 @@ function fmtFecha(iso: string): string {
 
 const ars = (n: number) => `$ ${Math.round(n).toLocaleString("es-AR")}`;
 
-const CHIP = "flex items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs";
+// `max-md:min-h-9`: en el celular la pastilla es lo que se toca para marcar la
+// cuota, así que no puede quedar abajo de 36px.
+const CHIP =
+  "flex items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs max-md:min-h-9";
 
 export default function CronogramaExpandido({
   prestamo,
@@ -140,7 +143,7 @@ export default function CronogramaExpandido({
             onClick={agregar}
             disabled={nuevas.length === 0 || guardando}
             title="Agregar"
-            className="shrink-0 rounded p-0.5 text-[#059669] hover:bg-emerald-50 disabled:opacity-30"
+            className="inline-flex shrink-0 items-center justify-center rounded p-0.5 text-[#059669] hover:bg-emerald-50 disabled:opacity-30 max-md:size-8"
           >
             <Check size={13} />
           </button>
@@ -149,7 +152,7 @@ export default function CronogramaExpandido({
             onClick={cerrar}
             disabled={guardando}
             title="Cancelar"
-            className="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-foreground"
+            className="inline-flex shrink-0 items-center justify-center rounded p-0.5 text-muted-foreground/60 hover:text-foreground max-md:size-8"
           >
             <X size={13} />
           </button>
@@ -175,7 +178,9 @@ export default function CronogramaExpandido({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+      {/* Una sola columna en el celular: en dos, "12 · 05/08/2026" se cortaba
+          a la mitad y la fecha —que es todo el dato— quedaba en puntos. */}
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         {puedeAgregar && botonAgregar("inicio")}
 
         {prestamo.cuotas.map((c) => {
@@ -209,7 +214,7 @@ export default function CronogramaExpandido({
                   <button
                     type="button"
                     onClick={() => onEditCuota(c)}
-                    className="rounded p-0.5 text-muted-foreground/60 hover:text-primary"
+                    className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground/60 hover:text-primary max-md:size-8"
                     title={`Editar cuota (${ars(c.importe)})`}
                   >
                     <Pencil size={11} />
@@ -221,7 +226,7 @@ export default function CronogramaExpandido({
                     type="button"
                     onClick={() => (c.pagada ? setQuitando(c) : quitar(c))}
                     disabled={guardando}
-                    className="rounded p-0.5 text-muted-foreground/60 hover:text-red-600 disabled:opacity-40"
+                    className="inline-flex items-center justify-center rounded p-0.5 text-muted-foreground/60 hover:text-red-600 disabled:opacity-40 max-md:size-8"
                     title="Sacar esta cuota del cronograma"
                   >
                     <X size={11} />
@@ -237,20 +242,20 @@ export default function CronogramaExpandido({
 
       {/* Sacar una que figura pagada borra un pago: eso se pregunta. */}
       {quitando && (
-        <p className="mt-2 flex items-center gap-2 text-[11px] text-red-700">
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-red-700">
           La cuota {quitando.nro} ({fmtFecha(quitando.fecha_vencimiento)}) figura pagada.
           <button
             type="button"
             onClick={() => quitar(quitando)}
             disabled={guardando}
-            className="h-6 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            className="h-6 rounded bg-red-600 px-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60 max-md:h-9 max-md:px-3"
           >
             Sacarla igual
           </button>
           <button
             type="button"
             onClick={() => setQuitando(null)}
-            className="h-6 rounded border border-red-200 px-2 hover:bg-red-50"
+            className="h-6 rounded border border-red-200 px-2 hover:bg-red-50 max-md:h-9 max-md:px-3"
           >
             Cancelar
           </button>

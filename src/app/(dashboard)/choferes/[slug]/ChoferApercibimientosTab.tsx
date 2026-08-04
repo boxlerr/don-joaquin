@@ -56,7 +56,7 @@ export default function ChoferApercibimientosTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">
           Apercibimientos y sanciones
           <span className="ml-2 text-xs font-normal text-muted-foreground/70">
@@ -67,7 +67,7 @@ export default function ChoferApercibimientosTab({
           <Button
             variant="outline"
             size="sm"
-            className="border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
+            className="w-full sm:w-auto border-[#CBD5E1] text-foreground/90 hover:bg-muted/40"
             onClick={() => setCargarOpen(true)}
           >
             <Plus size={13} className="mr-1.5 text-primary" />
@@ -83,9 +83,9 @@ export default function ChoferApercibimientosTab({
           {apercibimientos.map((a) => (
             <div
               key={a.id}
-              className="bg-card rounded-[8px] border border-border p-4 flex flex-col gap-2"
+              className="bg-card rounded-[8px] border border-border p-3 sm:p-4 flex flex-col gap-2"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                 <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <span className="text-sm font-medium text-foreground">
                     {formatFecha(a.fecha)}
@@ -107,7 +107,7 @@ export default function ChoferApercibimientosTab({
                   <button
                     onClick={() => handleDelete(a)}
                     disabled={deleting === a.id}
-                    className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 disabled:opacity-50 flex-shrink-0"
+                    className="text-xs text-red-400 hover:text-red-600 inline-flex min-h-9 items-center gap-1 disabled:opacity-50 flex-shrink-0 md:min-h-0"
                   >
                     <Trash2 size={11} />
                     {deleting === a.id ? "Eliminando..." : "Eliminar"}

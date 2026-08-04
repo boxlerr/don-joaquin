@@ -103,15 +103,15 @@ function MockNewSiniestroForm() {
         <div className="text-foreground text-xs font-bold uppercase tracking-wider">Registrar siniestro</div>
       </div>
       <div className="p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Camión *" value="AB123CD" icon={<Truck size={11} />} required />
           <MockField label="Chofer" value="Juan Pérez" icon={<User size={11} />} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Fecha *" value="10/05/2026" icon={<Calendar size={11} />} required />
           <MockField label="Monto daños" value="$ 250.000" icon={<DollarSign size={11} />} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Tipo *" value="Choque" icon={<Tag size={11} />} required />
           <MockField label="Estado *" value="Abierto" icon={<Activity size={11} />} required />
         </div>
@@ -215,7 +215,7 @@ function MockRowExpand() {
         <TipoChip label="Abierto" tone="green" />
         <ChevronDown size={14} className="text-muted-foreground justify-self-end" />
       </div>
-      <div className="grid grid-cols-3 gap-2 p-2.5 bg-muted/40">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-2.5 bg-muted/40">
         <div className="rounded border border-border bg-card p-2">
           <div className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1 mb-1">
             <Truck size={10} className="text-primary" /> Unidad
@@ -390,7 +390,7 @@ function MockPagoForm() {
         <div className="text-foreground text-xs font-bold">Registrar pago de siniestro</div>
       </div>
       <div className="p-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <MockField label="Monto *" value="$ 250.000" icon={<DollarSign size={11} />} required />
           <MockField label="Fecha *" value="12/05/2026" icon={<Calendar size={11} />} required />
         </div>

@@ -92,7 +92,7 @@ export default async function ConfiguracionPage() {
   ];
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Configuración"
         description="Parámetros del sistema y servicios externos"

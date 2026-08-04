@@ -6,6 +6,7 @@ const VIAJE = {
   fecha: "2026-07-31",
   origen: "RAMALLO",
   destino: "PLANTA URIBURU",
+  ruta_via: "ruta_5",
   km_con_carga: 300,
   km_vacios: 0,
   capacidad: 29,
@@ -56,20 +57,39 @@ describe("buildHojaRutaWorkbook", () => {
     const wb = await leer(await buildHojaRutaWorkbook([CHOFER]));
     const ws = wb.getWorksheet("PEREZ")!;
     expect(ws.getCell(1, 1).value).toBe("PEREZ, JUAN");
-    // A1:K1 sigue siendo UNA sola celda combinada: H1 no tiene contenido propio,
+    // A1:L1 sigue siendo UNA sola celda combinada: H1 no tiene contenido propio,
     // devuelve el del nombre. Con período, en cambio, H1 arranca su propio merge.
     expect(ws.getCell(1, 8).value).toBe("PEREZ, JUAN");
   });
 
+  // Los índices son la posición real en la planilla del cliente. Van a mano y no
+  // vía COL a propósito: si alguien corre una columna en build.ts, este test tiene
+  // que romper (fue justo lo que pasó al agregar RUTA y quedó sin detectar).
   it("los datos del viaje caen en las columnas de la planilla del cliente", async () => {
     const wb = await leer(await buildHojaRutaWorkbook([CHOFER], "Julio 2026"));
     const fila = wb.getWorksheet("PEREZ")!.getRow(6);
-    expect(fila.getCell(2).value).toBe("RAMALLO");
-    expect(fila.getCell(3).value).toBe("PLANTA URIBURU");
-    expect(fila.getCell(4).value).toBe(300); // KM REC
-    expect(fila.getCell(5).value).toBe(28.5); // TN COM 29 (capacidad 29)
-    expect(fila.getCell(8).value).toBe("210062362");
-    expect(fila.getCell(9).value).toBe("Cemento");
+    expect(fila.getCell(2).value).toBe("RAMALLO"); // SALE DE
+    expect(fila.getCell(3).value).toBe("PLANTA URIBURU"); // LLEGA A
+    expect(fila.getCell(4).value).toBe("Ruta 5"); // RUTA
+    expect(fila.getCell(5).value).toBe(300); // KM REC
+    expect(fila.getCell(6).value).toBe(28.5); // TN COM 29 (capacidad 29)
+    expect(fila.getCell(9).value).toBe("210062362"); // REMITO Nº
+    expect(fila.getCell(10).value).toBe("Cemento"); // MATERIAL
+    expect(fila.getCell(12).value).toBe(150000); // $
+  });
+
+  it("el encabezado nombra las columnas en el orden de la planilla", async () => {
+    const wb = await leer(await buildHojaRutaWorkbook([CHOFER], "Julio 2026"));
+    const hr = wb.getWorksheet("PEREZ")!.getRow(5);
+    expect([1, 2, 3, 4, 5, 6, 9, 10, 12].map((c) => hr.getCell(c).value)).toEqual([
+      "DIA", "SALE DE", "LLEGA A", "RUTA", "KM REC", "TN COM 29", "REMITO Nº", "MATERIAL", "$",
+    ]);
+  });
+
+  it("un viaje sin vía deja la celda RUTA vacía, no con guión", async () => {
+    const chofer: ExportChofer = { ...CHOFER, viajes: [{ ...VIAJE, ruta_via: null }] };
+    const ws = (await leer(await buildHojaRutaWorkbook([chofer], "Julio 2026"))).getWorksheet("PEREZ")!;
+    expect(ws.getRow(6).getCell(4).value).toBeNull();
   });
 
   it("el viaje vacío no suma importe y se marca VACIO", async () => {
@@ -78,9 +98,9 @@ describe("buildHojaRutaWorkbook", () => {
       viajes: [{ ...VIAJE, es_vacio: true, km_con_carga: 0, km_vacios: 120, importe: null }],
     };
     const ws = (await leer(await buildHojaRutaWorkbook([chofer], "Julio 2026"))).getWorksheet("PEREZ")!;
-    expect(ws.getRow(6).getCell(8).value).toBe("VACIO");
-    expect(ws.getRow(6).getCell(4).value).toBe(120); // el km del tramo vacío va a KM REC
-    expect(ws.getRow(6).getCell(10).value).toBeNull(); // y NO se repite en KM VACIOS
+    expect(ws.getRow(6).getCell(9).value).toBe("VACIO"); // REMITO Nº
+    expect(ws.getRow(6).getCell(5).value).toBe(120); // el km del tramo vacío va a KM REC
+    expect(ws.getRow(6).getCell(11).value).toBeNull(); // y NO se repite en KM VACIOS
   });
 
   it("un chofer sin viajes en el período igual trae su hoja con encabezado", async () => {

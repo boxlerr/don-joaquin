@@ -204,7 +204,7 @@ export default function TabClientes({
 
   if (!fichas.length) {
     return (
-      <div className="bg-card rounded-[8px] border border-border shadow-sm p-10 text-center space-y-3">
+      <div className="bg-card rounded-[8px] border border-border shadow-sm p-6 sm:p-10 text-center space-y-3">
         <p className="text-muted-foreground text-sm">
           Todavía no hay aumentos de clientes cargados. Cuando el cliente informe una suba de
           tarifa (el % mensual de Loma, el interanual de YPF), cargala acá para llevar el historial.
@@ -254,11 +254,13 @@ export default function TabClientes({
                 placeholder="Buscar cliente…"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="h-8 pl-7 text-xs"
+                className="h-10 md:h-8 pl-7 text-xs"
               />
             </div>
           </div>
-          <div className="max-h-[60vh] divide-y divide-border overflow-auto">
+          {/* En celular la lista va arriba del detalle: si toma 60vh, el gráfico
+              del cliente queda a media pantalla de scroll. */}
+          <div className="max-h-[42dvh] lg:max-h-[60vh] divide-y divide-border overflow-auto">
             {visibles.map((f) => {
               const activo = actual != null && clave(actual.nombre) === clave(f.nombre);
               return (
@@ -349,7 +351,7 @@ export default function TabClientes({
             </div>
 
             {/* Evolución — se dibuja siempre, tenga los aumentos que tenga */}
-            <div className="rounded-[8px] border border-border bg-card p-4 shadow-sm">
+            <div className="rounded-[8px] border border-border bg-card p-3 sm:p-4 shadow-sm">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">Evolución de aumentos</h3>
@@ -373,7 +375,7 @@ export default function TabClientes({
                           setDesdeMes(r.d ? r.d.slice(0, 7) : "");
                           setHastaMes("");
                         }}
-                        className={`h-7 rounded-[6px] border px-2 text-[11px] transition-colors ${
+                        className={`h-9 sm:h-7 rounded-[6px] border px-3 sm:px-2 text-[11px] transition-colors ${
                           activo
                             ? "border-primary/50 bg-primary/10 text-primary"
                             : "border-border text-muted-foreground hover:text-foreground"
@@ -383,22 +385,22 @@ export default function TabClientes({
                       </button>
                     );
                   })}
-                  <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <label className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
                     Desde
                     <input
                       type="month"
                       value={desdeMes || (rangoDefault?.desde.slice(0, 7) ?? "")}
                       onChange={(e) => setDesdeMes(e.target.value)}
-                      className="h-7 rounded-[6px] border border-border bg-background px-1.5 text-[11px] text-foreground"
+                      className="h-9 sm:h-7 min-w-0 rounded-[6px] border border-border bg-background px-1.5 text-[11px] text-foreground"
                     />
                   </label>
-                  <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <label className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
                     Hasta
                     <input
                       type="month"
                       value={hastaMes || (rangoDefault?.hasta.slice(0, 7) ?? "")}
                       onChange={(e) => setHastaMes(e.target.value)}
-                      className="h-7 rounded-[6px] border border-border bg-background px-1.5 text-[11px] text-foreground"
+                      className="h-9 sm:h-7 min-w-0 rounded-[6px] border border-border bg-background px-1.5 text-[11px] text-foreground"
                     />
                   </label>
                 </div>
@@ -455,55 +457,59 @@ export default function TabClientes({
                   Cuando {actual.nombre} informe un aumento de tarifa, cargalo con “Cargar aumento”.
                 </p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/40">
-                    <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      <th className="px-4 py-2.5">Vigente desde</th>
-                      <th className="px-4 py-2.5 text-right">Aumento</th>
-                      <th className="px-4 py-2.5">Observaciones</th>
-                      <th className="px-4 py-2.5">Cargado</th>
-                      {canWrite && <th className="px-4 py-2.5 text-right">Acciones</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {[...actual.aumentos].reverse().map((a) => (
-                      <tr key={a.id} className="hover:bg-muted/40">
-                        <td className="whitespace-nowrap px-4 py-2.5 capitalize text-foreground">
-                          {mesLargo(a.vigenteDesde)}
-                          {esInteranual(a) && (
-                            <span className="ml-2 rounded-[4px] border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                              Interanual
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono font-semibold text-amber-600 dark:text-amber-400">
-                          {pctAr(a.porcentaje)}
-                        </td>
-                        <td className="max-w-[360px] px-4 py-2.5 text-[12px] text-muted-foreground">
-                          <span className="line-clamp-2">{a.observaciones ?? "—"}</span>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-[11px] text-muted-foreground">
-                          {fechaCorta(a.createdAt)}
-                          {a.createdByNombre ? ` · ${a.createdByNombre}` : ""}
-                        </td>
-                        {canWrite && (
-                          <td className="px-4 py-2.5 text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => onEliminarAumento(a)}
-                              aria-label="Eliminar aumento"
-                              className="text-muted-foreground hover:text-red-500"
-                            >
-                              <Trash2 size={12} />
-                            </Button>
-                          </td>
-                        )}
+                /* Tabla de consulta (el corazón de la pantalla es la ficha +
+                   gráfico): scroll horizontal con el mes fijo a la izquierda. */
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px] text-sm">
+                    <thead className="border-b border-border bg-muted/40">
+                      <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        <th className="sticky left-0 z-20 bg-muted px-4 py-2.5 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">Vigente desde</th>
+                        <th className="px-4 py-2.5 text-right">Aumento</th>
+                        <th className="px-4 py-2.5">Observaciones</th>
+                        <th className="px-4 py-2.5">Cargado</th>
+                        {canWrite && <th className="px-4 py-2.5 text-right">Acciones</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {[...actual.aumentos].reverse().map((a) => (
+                        <tr key={a.id} className="hover:bg-muted/40">
+                          <td className="sticky left-0 z-10 bg-card whitespace-nowrap px-4 py-2.5 capitalize text-foreground shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
+                            {mesLargo(a.vigenteDesde)}
+                            {esInteranual(a) && (
+                              <span className="ml-2 rounded-[4px] border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                Interanual
+                              </span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono font-semibold text-amber-600">
+                            {pctAr(a.porcentaje)}
+                          </td>
+                          <td className="max-w-[360px] px-4 py-2.5 text-[12px] text-muted-foreground">
+                            <span className="line-clamp-2">{a.observaciones ?? "—"}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-[11px] text-muted-foreground">
+                            {fechaCorta(a.createdAt)}
+                            {a.createdByNombre ? ` · ${a.createdByNombre}` : ""}
+                          </td>
+                          {canWrite && (
+                            <td className="px-4 py-2.5 text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => onEliminarAumento(a)}
+                                aria-label="Eliminar aumento"
+                                className="text-muted-foreground hover:text-red-500"
+                              >
+                                <Trash2 size={12} />
+                              </Button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

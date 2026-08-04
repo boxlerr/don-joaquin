@@ -303,9 +303,11 @@ export default function AddRoturaDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (loading) return; setOpen(v); }}>
       {children && <DialogTrigger render={children as React.ReactElement} />}
-      <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
+      {/* El alto máximo lo maneja la primitiva con `dvh` (sigue la barra del
+          navegador en celular); acá sólo se fija el ancho de escritorio. */}
+      <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">{editing ? "Editar rotura" : "Registrar rotura"}</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">{editing ? "Editar rotura" : "Registrar rotura"}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Cualquier rotura de la unidad (goma, guardabarros, espejo, etc.). Si cargás el chofer, suma a su productividad.
           </DialogDescription>
@@ -316,7 +318,7 @@ export default function AddRoturaDialog({
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 
           {/* Qué se rompió (unificado con el catálogo) + Marca */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="que" className="text-sm font-medium text-foreground">
                 ¿Qué se rompió? <span className="text-red-400">*</span>
@@ -326,7 +328,10 @@ export default function AddRoturaDialog({
               </Label>
               <Select value={queValue} onValueChange={(v) => elegirQueSeRompio(v ?? "")}>
                 <SelectTrigger id="que" className="w-full">
-                  <span className={queValue ? "" : "text-muted-foreground"}>{queLabel}</span>
+                  {/* El trigger es `whitespace-nowrap`: sin `truncate`, una opción
+                      larga ("Goma dirección 295/80 · Michelin — $850.000") se sale
+                      del diálogo en celular. */}
+                  <span className={`truncate ${queValue ? "" : "text-muted-foreground"}`}>{queLabel}</span>
                 </SelectTrigger>
                 <SelectContent>
                   {opcionesQue.map((o) => (
@@ -396,7 +401,7 @@ export default function AddRoturaDialog({
           )}
 
           {/* Chofer + Unidad */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="chofer" className="text-sm font-medium text-foreground">
                 Chofer <span className="text-muted-foreground font-normal">(suma a su productividad)</span>
@@ -440,9 +445,11 @@ export default function AddRoturaDialog({
             </div>
           </div>
 
-          {/* Fecha + Cantidad + Costo */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
+          {/* Fecha + Cantidad + Costo — en celular la fecha ocupa el renglón
+              entero (un date nativo en 90px es ilegible) y abajo van los dos
+              numéricos, que sí entran de a dos. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="space-y-2 col-span-2 sm:col-span-1">
               <Label htmlFor="fecha" className="text-sm font-medium text-foreground">Fecha</Label>
               <Input id="fecha" type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
@@ -469,7 +476,7 @@ export default function AddRoturaDialog({
           )}
 
           {/* % de uso (solo gomas) + Notas */}
-          <div className={`grid gap-4 ${mostrarEstadoUso ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-3 sm:gap-4 ${mostrarEstadoUso ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
             {mostrarEstadoUso && (
               <div className="space-y-2">
                 <Label htmlFor="estado-uso" className="text-sm font-medium text-foreground">

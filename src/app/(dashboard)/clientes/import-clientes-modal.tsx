@@ -106,9 +106,9 @@ export default function ImportClientesModal() {
             step === "preview"
               ? "w-[min(960px,calc(100vw-2rem))]"
               : "w-[min(560px,calc(100vw-2rem))]"
-          } max-h-[90vh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95`}
+          } max-h-[90dvh] flex flex-col bg-card rounded-[12px] shadow-2xl border border-border transition duration-150 ease-out data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95`}
         >
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
+          <div className="flex items-start justify-between gap-2 px-4 sm:px-5 pt-5 pb-3 border-b border-border">
             <div>
               <Dialog.Title className="text-foreground text-base font-semibold">
                 Importar clientes
@@ -125,7 +125,7 @@ export default function ImportClientesModal() {
               render={
                 <button
                   type="button"
-                  className="size-7 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
+                  className="size-9 md:size-7 shrink-0 rounded-full text-muted-foreground hover:bg-muted inline-flex items-center justify-center"
                   aria-label="Cerrar"
                 />
               }
@@ -134,7 +134,7 @@ export default function ImportClientesModal() {
             </Dialog.Close>
           </div>
 
-          <div className="px-5 py-4 space-y-4 overflow-y-auto">
+          <div className="px-4 sm:px-5 py-4 space-y-4 overflow-y-auto">
             <Stepper step={step} />
 
             {step === "upload" && (
@@ -185,7 +185,7 @@ function Stepper({ step }: { step: Step }) {
   ];
   const idx = steps.findIndex((s) => s.id === step);
   return (
-    <ol className="flex items-center gap-2 text-xs">
+    <ol className="flex flex-wrap items-center gap-2 text-xs">
       {steps.map((s, i) => {
         const done = i < idx;
         const active = i === idx;
@@ -240,9 +240,9 @@ function UploadStep({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <FileSpreadsheet size={16} className="text-primary" />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+          <FileSpreadsheet size={16} className="text-primary shrink-0" />
           <span>¿No tenés un template? Descargá el formato nuevo.</span>
         </div>
         <Button
@@ -300,8 +300,14 @@ function UploadStep({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={onCancel}
+          >
             Cancelar
           </Button>
           <PreviewSubmitButton />
@@ -314,7 +320,7 @@ function UploadStep({
 function PreviewSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="brand" size="sm" disabled={pending}>
+    <Button type="submit" variant="brand" size="sm" className="w-full sm:w-auto" disabled={pending}>
       {pending ? "Analizando..." : "Analizar archivo"}
     </Button>
   );
@@ -381,7 +387,7 @@ function PreviewStep({
   return (
     <div className="space-y-3">
       {/* Resumen */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <SummaryCard label="Total" value={summary.total} tone="neutral" />
         <SummaryCard
           label="A importar"
@@ -421,10 +427,11 @@ function PreviewStep({
         })}
       </div>
 
-      {/* Tabla */}
+      {/* Tabla — 8 columnas de control previo a importar: no se recorta ni se
+          convierte en tarjetas, scrollea adentro de su caja. */}
       <div className="rounded-md border border-border overflow-hidden">
-        <div className="max-h-[420px] overflow-y-auto">
-          <table className="w-full text-xs">
+        <div className="max-h-[50vh] sm:max-h-[420px] overflow-y-auto overflow-x-auto">
+          <table className="w-full min-w-[720px] text-xs">
             <thead className="bg-muted/60 sticky top-0">
               <tr className="text-left text-muted-foreground">
                 <th className="px-2 py-1.5 font-semibold w-10">#</th>
@@ -462,7 +469,7 @@ function PreviewStep({
         </div>
       )}
 
-      <form action={commitAction} className="flex items-center justify-between gap-2 pt-1">
+      <form action={commitAction} className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <input type="hidden" name="rows" value={JSON.stringify(rows)} />
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft size={14} />
@@ -575,7 +582,7 @@ function ResultStep({
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-border bg-muted/40 p-3 text-sm space-y-2">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="text-[#065F46] font-semibold">
             Importados: {state.imported ?? 0}
           </span>
@@ -602,7 +609,13 @@ function ResultStep({
       </div>
 
       <div className="flex justify-end">
-        <Button type="button" variant="brand" size="sm" onClick={onClose}>
+        <Button
+          type="button"
+          variant="brand"
+          size="sm"
+          className="w-full sm:w-auto"
+          onClick={onClose}
+        >
           Cerrar
         </Button>
       </div>

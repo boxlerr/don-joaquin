@@ -51,17 +51,20 @@ function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-3 sm:px-4"
       onClick={onClose}
     >
+      {/* El margen va en el contenedor, no en el hijo: con `w-full mx-3` el
+          visor medía 100% + 24px y se comía las flechas contra el borde. */}
       <div
-        className="relative max-w-4xl w-full mx-4 flex flex-col items-center gap-3"
+        className="relative max-w-4xl w-full flex flex-col items-center gap-3"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cerrar */}
         <button
           onClick={onClose}
-          className="absolute -top-10 right-0 text-white/70 hover:text-white transition-colors"
+          aria-label="Cerrar"
+          className="absolute -top-11 right-0 size-10 inline-flex items-center justify-center rounded-full text-white/70 hover:text-white transition-colors"
         >
           <X size={24} />
         </button>
@@ -71,7 +74,8 @@ function Lightbox({
           {images.length > 1 && (
             <button
               onClick={prev}
-              className="absolute left-2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+              aria-label="Anterior"
+              className="absolute left-1 sm:left-2 z-10 size-10 inline-flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
             >
               <ChevronLeft size={20} />
             </button>
@@ -81,13 +85,14 @@ function Lightbox({
           <img
             src={current.url}
             alt={current.descripcion || current.nombre_original}
-            className="max-h-[75vh] max-w-full rounded-xl shadow-2xl object-contain"
+            className="max-h-[65dvh] sm:max-h-[75vh] max-w-full rounded-xl shadow-2xl object-contain"
           />
 
           {images.length > 1 && (
             <button
               onClick={next}
-              className="absolute right-2 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+              aria-label="Siguiente"
+              className="absolute right-1 sm:right-2 z-10 size-10 inline-flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
             >
               <ChevronRight size={20} />
             </button>
@@ -95,7 +100,7 @@ function Lightbox({
         </div>
 
         {/* Info pie */}
-        <div className="flex items-center gap-3 text-white/80 text-xs">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-2 text-center text-white/80 text-xs">
           <span className="font-semibold">{current.descripcion || current.nombre_original}</span>
           <span className="text-white/40">·</span>
           <span>{formatBytes(current.tamano_bytes)}</span>
@@ -148,9 +153,9 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
   const docs = archivos.filter((a) => !isImage(a.mime_type));
 
   return (
-    <div className="bg-card p-4 rounded-xl border border-border shadow-sm" onClick={(e) => e.stopPropagation()}>
+    <div className="bg-card p-3 sm:p-4 rounded-xl border border-border shadow-sm" onClick={(e) => e.stopPropagation()}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2 mb-3">
         <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Paperclip size={13} className="text-primary" /> Archivos adjuntos
           {!loading && (
@@ -160,7 +165,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
         <Button
           variant="ghost"
           size="xs"
-          className="h-7 px-2 text-[11px] text-primary hover:bg-blue-50 font-bold gap-1"
+          className="h-9 md:h-7 px-3 md:px-2 text-[11px] text-primary hover:bg-blue-50 font-bold gap-1"
           onClick={() => setDialogOpen(true)}
         >
           <Plus size={12} /> Adjuntar
@@ -181,22 +186,26 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
               <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wider mb-2">
                 Fotos ({fotos.length})
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
                 {fotos.map((foto, i) => (
                   <div key={foto.id} className="group relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/40">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={foto.url}
                       alt={foto.descripcion || foto.nombre_original}
-                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-200 md:group-hover:scale-105"
                     />
 
-                    {/* Overlay con acciones */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
+                    {/* Overlay con acciones. En celular no hay hover: las acciones
+                        se ven siempre, si no la foto no se puede ni abrir. */}
+                    {/* `gap-1` en celular: con dos columnas a 320px, tres
+                        botones de 36px + gap-1.5 no entraban en la miniatura. */}
+                    <div className="absolute inset-0 bg-black/25 opacity-100 md:bg-black/0 md:opacity-0 md:group-hover:bg-black/40 md:group-hover:opacity-100 transition-colors flex items-center justify-center gap-1 sm:gap-1.5">
                       <button
                         onClick={() => setLightboxIdx(i)}
-                        className="p-1.5 rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
+                        className="size-9 md:size-auto md:p-1.5 inline-flex items-center justify-center rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
                         title="Ver"
+                        aria-label="Ver"
                       >
                         <ZoomIn size={13} />
                       </button>
@@ -204,21 +213,23 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                         href={foto.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
+                        className="size-9 md:size-auto md:p-1.5 inline-flex items-center justify-center rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"
                         title="Descargar"
+                        aria-label="Descargar"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Download size={13} />
                       </a>
                       {deletingId === foto.id ? (
-                        <span className="p-1.5">
+                        <span className="size-9 md:size-auto md:p-1.5 inline-flex items-center justify-center">
                           <Loader2 size={13} className="animate-spin text-red-400" />
                         </span>
                       ) : (
                         <button
                           onClick={() => handleDelete(foto.id)}
-                          className="p-1.5 rounded-full bg-card/90 text-red-500 hover:bg-card transition-colors"
+                          className="size-9 md:size-auto md:p-1.5 inline-flex items-center justify-center rounded-full bg-card/90 text-red-500 hover:bg-card transition-colors"
                           title="Eliminar"
+                          aria-label="Eliminar"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -258,8 +269,9 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                       href={doc.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1 rounded text-muted-foreground/70 hover:text-primary hover:bg-blue-50 transition-colors"
+                      className="shrink-0 size-9 md:size-auto md:p-1 inline-flex items-center justify-center rounded text-muted-foreground/70 hover:text-primary hover:bg-blue-50 transition-colors"
                       title="Descargar"
+                      aria-label="Descargar"
                     >
                       <Download size={12} />
                     </a>
@@ -268,8 +280,9 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
                     ) : (
                       <button
                         onClick={() => handleDelete(doc.id)}
-                        className="p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="shrink-0 size-9 md:size-auto md:p-1 inline-flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                         title="Eliminar"
+                        aria-label="Eliminar"
                       >
                         <Trash2 size={12} />
                       </button>

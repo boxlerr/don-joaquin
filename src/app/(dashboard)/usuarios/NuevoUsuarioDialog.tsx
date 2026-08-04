@@ -107,7 +107,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
           {creado ? (
             <>
               <DialogHeader>
-                <DialogTitle className="text-foreground text-xl">Usuario creado</DialogTitle>
+                <DialogTitle className="text-foreground text-lg sm:text-xl">Usuario creado</DialogTitle>
                 <DialogDescription className="text-muted-foreground">
                   Pasale estos datos por el canal que uses. La contraseña no se vuelve a mostrar:
                   después solo se puede generar un link para que la cambie.
@@ -134,7 +134,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
                       type="button"
                       onClick={() => copiar(f.valor, f.clave)}
                       title={`Copiar ${f.label.toLowerCase()}`}
-                      className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      className="shrink-0 rounded p-1.5 max-md:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       {copiado === f.clave ? <Check size={15} /> : <Copy size={15} />}
                     </button>
@@ -167,7 +167,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle className="text-foreground text-xl">Nuevo usuario</DialogTitle>
+                <DialogTitle className="text-foreground text-lg sm:text-xl">Nuevo usuario</DialogTitle>
                 <DialogDescription className="text-muted-foreground">
                   Crea un acceso administrativo. El usuario deberá cambiar la contraseña en su primer ingreso.
                 </DialogDescription>
@@ -180,7 +180,7 @@ export default function NuevoUsuarioDialog({ roles }: { roles: Rol[] }) {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium text-foreground">
                       Nombre <span className="text-red-400">*</span>

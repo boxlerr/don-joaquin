@@ -200,8 +200,13 @@ export function ImportExtintoresButton() {
 
           {step === "preview" && (
             <div className="space-y-3 py-2">
-              <div className="max-h-[440px] overflow-y-auto border border-border rounded-lg">
-                <table className="w-full text-sm">
+              {/* La vista previa tiene 10 columnas: en el celular scrollea de
+                  costado adentro de su caja, y hay que avisarlo. */}
+              <p className="md:hidden px-1 text-[11px] text-muted-foreground">
+                Deslizá la vista previa de costado para ver todas las columnas.
+              </p>
+              <div className="max-h-[50vh] sm:max-h-[440px] overflow-auto border border-border rounded-lg">
+                <table className="w-full min-w-[900px] text-sm">
                   <thead className="bg-muted/40 sticky top-0">
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="px-3 py-2 w-10"></th>

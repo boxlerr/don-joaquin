@@ -171,7 +171,7 @@ export default function DmYpfListClient({
           <Link
             href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm"
+            className="inline-flex w-full items-center justify-center gap-1.5 h-10 sm:h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm sm:w-auto"
           >
             <FileText size={14} />
             Importar nuevo DM
@@ -220,8 +220,8 @@ export default function DmYpfListClient({
       )}
 
       {/* Toolbar: búsqueda + rango de fechas + import (cuando embedded) */}
-      <div className="bg-card border border-border rounded-[8px] p-3 flex items-end gap-3 flex-wrap">
-        <div className="flex-1 min-w-[220px] max-w-md">
+      <div className="bg-card border border-border rounded-[8px] p-3 flex items-end gap-2 sm:gap-3 flex-wrap">
+        <div className="w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:max-w-md">
           <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
             Búsqueda
           </label>
@@ -241,8 +241,10 @@ export default function DmYpfListClient({
           </div>
         </div>
 
-        <div className="flex items-end gap-1.5">
-          <div>
+        {/* Desde/hasta son dos campos cortos: pueden ir lado a lado también en
+            el celular, cada uno a la mitad del ancho. */}
+        <div className="flex w-full items-end gap-2 sm:w-auto sm:gap-1.5">
+          <div className="flex-1 sm:flex-none">
             <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
               Desde
             </label>
@@ -250,12 +252,12 @@ export default function DmYpfListClient({
               type="date"
               value={fechaDesde}
               onChange={(e) => setFechaDesde(e.target.value)}
-              className="h-9 w-40 text-sm"
+              className="h-9 w-full sm:w-40 text-sm"
               disabled={dms.length === 0}
               aria-label="Período desde"
             />
           </div>
-          <div>
+          <div className="flex-1 sm:flex-none">
             <label className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/80 block mb-1">
               Hasta
             </label>
@@ -263,7 +265,7 @@ export default function DmYpfListClient({
               type="date"
               value={fechaHasta}
               onChange={(e) => setFechaHasta(e.target.value)}
-              className="h-9 w-40 text-sm"
+              className="h-9 w-full sm:w-40 text-sm"
               disabled={dms.length === 0}
               aria-label="Período hasta"
             />
@@ -274,7 +276,7 @@ export default function DmYpfListClient({
           <button
             type="button"
             onClick={limpiarFiltros}
-            className="inline-flex items-center gap-1 h-9 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
+            className="inline-flex items-center justify-center gap-1 h-10 sm:h-9 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-colors"
             title="Limpiar filtros"
           >
             <X size={12} />
@@ -286,7 +288,7 @@ export default function DmYpfListClient({
           <Link
             href="/viajes"
             prefetch
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm ml-auto"
+            className="inline-flex w-full items-center justify-center gap-1.5 h-10 sm:h-9 px-4 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-[#0277BD] transition-colors shadow-sm sm:w-auto sm:ml-auto"
           >
             <FileText size={14} />
             Importar PDF de YPF
@@ -447,16 +449,16 @@ function DmCard({
 
       {/* Body con grid de stats */}
       <div className="grid grid-cols-2 divide-x divide-border border-b border-border">
-        <div className="px-4 py-3">
+        <div className="min-w-0 px-3 py-3 sm:px-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
             Total certificado
           </p>
-          <p className="text-foreground text-base font-bold font-mono mt-0.5 flex items-baseline gap-1">
+          <p className="text-foreground text-sm sm:text-base font-bold font-mono mt-0.5 flex items-baseline gap-1">
             <span className="text-[11px] text-muted-foreground/80">$</span>
-            <span>{formatARS(dm.total_certificado_ars)}</span>
+            <span className="truncate">{formatARS(dm.total_certificado_ars)}</span>
           </p>
         </div>
-        <div className="px-4 py-3">
+        <div className="min-w-0 px-3 py-3 sm:px-4">
           <p className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70">
             Viajes vinculados
           </p>
@@ -476,7 +478,7 @@ function DmCard({
       </div>
 
       {/* Datos SAP (chips) */}
-      <div className="px-4 py-3 flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
+      <div className="px-3 sm:px-4 py-3 flex items-center gap-1.5 flex-wrap text-[11px] text-muted-foreground">
         {dm.numero_solpe && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted/60 font-mono">
             <Hash size={9} className="text-muted-foreground/70" />
@@ -503,7 +505,7 @@ function DmCard({
       </div>
 
       {/* Footer con acciones */}
-      <div className="px-4 py-2.5 border-t border-border bg-muted/20 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 py-2.5 border-t border-border bg-muted/20 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground/80">
           Importado {formatFecha(dm.importado_en)}
         </span>
@@ -516,7 +518,7 @@ function DmCard({
               ? "Abrir / descargar el PDF firmado por YPF"
               : "Este DM no tiene PDF original"
           }
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 h-9 sm:h-8 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {downloading ? (
             <Loader2 size={12} className="animate-spin" />

@@ -101,13 +101,15 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
           </Button>
         }
       />
-      <DialogContent className="gap-0 p-6 sm:max-w-[940px]">
-        <DialogHeader className="-mx-6 border-b border-border px-6 pb-4 pt-1">
-          <div className="flex items-start gap-4 pr-8">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#E1F5FE] text-primary">
+      {/* El padding tiene que seguir al de la primitiva (p-4 en celular, p-6
+          desde sm) o el pie del diálogo queda descolocado del borde. */}
+      <DialogContent className="gap-0 p-4 sm:p-6 sm:max-w-[940px]">
+        <DialogHeader className="-mx-4 border-b border-border px-4 pb-4 pt-1 sm:-mx-6 sm:px-6">
+          <div className="flex items-start gap-3 pr-8 sm:gap-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#E1F5FE] text-primary sm:size-12">
               <PiggyBank size={22} />
             </span>
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-lg text-foreground">Cargar préstamo</DialogTitle>
               <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
                 Los mismos datos de la planilla. El cronograma de cuotas (una por mes) se genera
@@ -173,7 +175,9 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_7rem_auto]">
+              {/* En celular los tres van uno abajo del otro: el importe de la
+                  cuota es un número largo y no entra en media pantalla. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem_auto]">
                 <div className="space-y-1">
                   <Label
                     htmlFor={`${uid}-cuota`}
@@ -244,7 +248,7 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                 Cómo se paga
               </h3>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div className="space-y-1">
                   <Label
                     htmlFor={`${uid}-total`}
@@ -278,7 +282,9 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                     required
                   />
                 </div>
-                <div className="space-y-1">
+                {/* La fecha ocupa el ancho entero abajo: en un tercio de
+                    pantalla el campo de fecha no se puede ni leer. */}
+                <div className="col-span-2 space-y-1 sm:col-span-1">
                   <Label
                     htmlFor={`${uid}-fecha`}
                     className="text-xs font-semibold text-muted-foreground"

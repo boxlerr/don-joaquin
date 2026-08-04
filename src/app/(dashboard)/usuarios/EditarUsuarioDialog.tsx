@@ -62,7 +62,7 @@ export default function EditarUsuarioDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">Editar usuario</DialogTitle>
+          <DialogTitle className="text-foreground text-lg sm:text-xl">Editar usuario</DialogTitle>
           <DialogDescription className="text-muted-foreground">
             Cambiá el nombre o el email de acceso. Si cambiás el email, es el que va a usar para iniciar sesión.
           </DialogDescription>
@@ -75,7 +75,7 @@ export default function EditarUsuarioDialog({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">
                 Nombre <span className="text-red-400">*</span>

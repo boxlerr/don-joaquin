@@ -40,7 +40,7 @@ export default function ExportarLegajoButton({
     return (
       <Button
         variant="outline"
-        className="h-10 flex-shrink-0 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+        className="h-10 w-full border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40 sm:w-auto sm:flex-shrink-0"
         onClick={() => window.open(base, "_blank", "noopener,noreferrer")}
       >
         <Download size={15} className="mr-2 text-primary" />
@@ -50,18 +50,20 @@ export default function ExportarLegajoButton({
   }
 
   return (
-    <div className="relative flex-shrink-0" ref={ref}>
+    <div className="relative w-full sm:w-auto sm:flex-shrink-0" ref={ref}>
       <Button
         variant="outline"
-        className="h-10 border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40"
+        className="h-10 w-full border-[#CBD5E1] px-4 text-sm text-foreground/90 hover:bg-muted/40 sm:w-auto"
         onClick={() => setAbierto((v) => !v)}
       >
         <Download size={15} className="mr-2 text-primary" />
         Exportar
       </Button>
 
+      {/* En celular el menú cuelga desde la izquierda: anclado a la derecha de un
+          disparador angosto se salía de la pantalla. */}
       {abierto && (
-        <div className="absolute right-0 z-30 mt-1 w-64 overflow-hidden rounded-[6px] border border-border bg-card shadow-lg">
+        <div className="absolute left-0 z-30 mt-1 w-[min(16rem,calc(100vw-3rem))] overflow-hidden rounded-[6px] border border-border bg-card shadow-lg sm:left-auto sm:right-0 sm:w-64">
           <button
             type="button"
             onClick={() => {

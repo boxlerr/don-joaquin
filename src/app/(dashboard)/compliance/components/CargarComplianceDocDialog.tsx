@@ -183,7 +183,7 @@ export default function CargarComplianceDocDialog({
     >
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-xl">
+          <DialogTitle className="text-foreground text-lg sm:text-xl">
             {esEdicion ? "Editar vencimiento" : "Cargar"} — {requisito.nombre}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -227,18 +227,18 @@ export default function CargarComplianceDocDialog({
           {!esEdicion && requisito.codigo === "SEGURO_UNIDAD" && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Aseguradora</Label>
-              <div className="flex items-center gap-2">
-                <Input placeholder="Nación / Segurcoop" value={aseguradora} onChange={(e) => setAseguradora(e.target.value)} className="flex-1" />
+              <div className="flex flex-wrap items-center gap-2">
+                <Input placeholder="Nación / Segurcoop" value={aseguradora} onChange={(e) => setAseguradora(e.target.value)} className="w-full sm:w-auto sm:flex-1" />
                 {["Nación", "Segurcoop"].map((a) => (
                   <button type="button" key={a} onClick={() => setAseguradora(a)}
-                    className={`text-xs px-2.5 py-1.5 rounded-md border transition-colors ${aseguradora === a ? "bg-[#0088D1]/10 border-[#0088D1]/40 text-[#0088D1] font-semibold" : "border-border text-muted-foreground hover:bg-muted"}`}>{a}</button>
+                    className={`text-xs px-2.5 py-1.5 max-md:h-9 max-md:px-3 rounded-md border transition-colors ${aseguradora === a ? "bg-[#0088D1]/10 border-[#0088D1]/40 text-[#0088D1] font-semibold" : "border-border text-muted-foreground hover:bg-muted"}`}>{a}</button>
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">La mayoría de la flota es Nación; solo algunas unidades van con Segurcoop.</p>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {!esEdicion && (
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
@@ -290,8 +290,8 @@ export default function CargarComplianceDocDialog({
           {!esEdicion && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">Archivos (opcional)</Label>
-              <label className="flex items-center gap-3 px-4 py-3 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
-                <Upload size={16} className="text-muted-foreground/70" />
+              <label className="flex items-center gap-3 px-4 py-3 min-h-11 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
+                <Upload size={16} className="shrink-0 text-muted-foreground/70" />
                 <span className="text-sm text-muted-foreground">
                   {files.length ? "Agregar más archivos…" : "Elegir archivos…"}
                 </span>
@@ -311,7 +311,7 @@ export default function CargarComplianceDocDialog({
                       <FileText size={13} className="text-muted-foreground shrink-0" />
                       <span className="truncate flex-1 text-foreground">{f.name}</span>
                       <span className="text-muted-foreground font-mono shrink-0">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                      <button type="button" onClick={() => quitarFile(i)} disabled={loading} className="text-muted-foreground/60 hover:text-destructive shrink-0" aria-label="Quitar archivo"><X size={13} /></button>
+                      <button type="button" onClick={() => quitarFile(i)} disabled={loading} className="shrink-0 inline-flex items-center justify-center size-5 max-md:size-9 rounded-md text-muted-foreground/60 hover:text-destructive" aria-label="Quitar archivo"><X size={13} /></button>
                     </li>
                   ))}
                 </ul>
