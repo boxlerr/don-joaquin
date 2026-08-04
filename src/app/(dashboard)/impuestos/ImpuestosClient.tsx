@@ -222,7 +222,10 @@ export default function ImpuestosClient({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-0.5">
+                  {/* flex-wrap: al pedir confirmación los dos botones bajan a su
+                      propio renglón (`w-full`), si no a 320px quedaban de 50px
+                      y sin ancho táctil. */}
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <Button
                       variant="outline"
                       size="sm"
@@ -240,20 +243,20 @@ export default function ImpuestosClient({
                       )}
                     </Button>
                     {canWrite && (confirmId === i.id ? (
-                      <>
+                      <div className="flex w-full items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-9 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                          className="h-9 flex-1 justify-center px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
                           disabled={deletingId === i.id}
                           onClick={() => handleDelete(i.id)}
                         >
                           {deletingId === i.id ? <Loader2 size={14} className="animate-spin" /> : "Eliminar"}
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-9 px-3 text-xs text-muted-foreground" onClick={() => setConfirmId(null)}>
+                        <Button variant="ghost" size="sm" className="h-9 flex-1 justify-center px-3 text-xs text-muted-foreground" onClick={() => setConfirmId(null)}>
                           Cancelar
                         </Button>
-                      </>
+                      </div>
                     ) : (
                       <>
                         <Button

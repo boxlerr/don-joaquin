@@ -133,7 +133,7 @@ export default function ImportarCircuitosDialog({
                   placeholder="Filtrar por origen o destino…"
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="h-8 pl-8 text-sm w-full sm:w-64"
+                  className="h-10 md:h-8 pl-8 text-sm w-full sm:w-64"
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -144,7 +144,7 @@ export default function ImportarCircuitosDialog({
 
             {/* Previsualización densa (5 columnas): scroll horizontal adentro
                 del panel, nunca empujando el diálogo. */}
-            <div className="max-h-[46vh] overflow-auto rounded-md border border-border">
+            <div className="max-h-[46dvh] overflow-auto rounded-md border border-border">
               <table className="w-full min-w-[520px] text-sm">
                 <thead className="bg-muted/40 border-b border-border sticky top-0">
                   <tr className="text-left text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

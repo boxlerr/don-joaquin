@@ -712,7 +712,12 @@ export default function CostosGrid({
           <table className="w-full min-w-[880px] text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-20">
               <tr>
-                <th className={`${thCls} ${fijaTh} text-left pl-4 min-w-[13rem]`}>
+                {/* En celular la columna fija se acota a 9,5rem: con 13rem (más
+                    lo que estiraba un nombre largo) las celdas donde se escribe
+                    quedaban fuera de la pantalla. */}
+                <th
+                  className={`${thCls} ${fijaTh} text-left pl-4 min-w-[9.5rem] max-md:max-w-[9.5rem] md:min-w-[13rem]`}
+                >
                   <button
                     type="button"
                     onClick={() => toggleSort("proveedor")}
@@ -775,7 +780,9 @@ export default function CostosGrid({
                     key={f.clave}
                     className={`transition-colors ${activa ? "bg-primary/[0.04]" : "hover:bg-muted/20"}`}
                   >
-                    <td className={`${tdCls} ${fijaTd} pl-4 pr-2 min-w-[13rem]`}>
+                    <td
+                      className={`${tdCls} ${fijaTd} pl-4 pr-2 min-w-[9.5rem] max-md:max-w-[9.5rem] md:min-w-[13rem]`}
+                    >
                       <span className="block text-[13px] font-medium text-foreground">
                         {f.proveedor}
                       </span>

@@ -254,13 +254,13 @@ export default function TabClientes({
                 placeholder="Buscar cliente…"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="h-8 pl-7 text-xs"
+                className="h-10 md:h-8 pl-7 text-xs"
               />
             </div>
           </div>
           {/* En celular la lista va arriba del detalle: si toma 60vh, el gráfico
               del cliente queda a media pantalla de scroll. */}
-          <div className="max-h-[42vh] lg:max-h-[60vh] divide-y divide-border overflow-auto">
+          <div className="max-h-[42dvh] lg:max-h-[60vh] divide-y divide-border overflow-auto">
             {visibles.map((f) => {
               const activo = actual != null && clave(actual.nombre) === clave(f.nombre);
               return (

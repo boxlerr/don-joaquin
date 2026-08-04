@@ -177,7 +177,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
           <Button
             variant="ghost"
             size="xs"
-            className="mt-3 w-full h-8 text-[11px] font-bold text-green-700 hover:text-green-800 hover:bg-green-50 border border-green-200 gap-1.5"
+            className="mt-3 w-full h-9 md:h-8 text-[11px] font-bold text-green-700 hover:text-green-800 hover:bg-green-50 border border-green-200 gap-1.5"
             onClick={(e) => { e.stopPropagation(); setPagoSiniestro(s); }}
           >
             <Banknote size={13} /> Registrar pago en caja
@@ -206,7 +206,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
             <Button
               variant="ghost"
               size="xs"
-              className="md:hidden h-8 px-2.5 text-[11px] font-bold text-primary hover:bg-blue-50 gap-1.5"
+              className="md:hidden h-9 px-3 text-[11px] font-bold text-primary hover:bg-blue-50 gap-1.5"
               onClick={(e) => { e.stopPropagation(); onEdit(s); }}
             >
               <Edit size={12} /> Editar
@@ -217,7 +217,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                 <Button
                   variant="destructive"
                   size="xs"
-                  className="h-7 px-2 text-[10px] font-bold"
+                  className="h-9 md:h-7 px-3 md:px-2 text-[10px] font-bold"
                   onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
                 >
                   Sí, borrar
@@ -225,7 +225,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
                 <Button
                   variant="outline"
                   size="xs"
-                  className="h-7 px-2 text-[10px] border-border"
+                  className="h-9 md:h-7 px-3 md:px-2 text-[10px] border-border"
                   onClick={(e) => { e.stopPropagation(); setDeletingId(null); }}
                 >
                   No
@@ -235,7 +235,7 @@ export default function SiniestrosTable({ siniestros, onEdit, onDelete }: Sinies
               <Button
                 variant="ghost"
                 size="xs"
-                className="h-8 px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1.5 font-bold"
+                className="h-9 md:h-8 px-3 md:px-2.5 text-red-600 hover:text-red-700 hover:bg-red-50 text-[11px] gap-1.5 font-bold"
                 onClick={(e) => { e.stopPropagation(); setDeletingId(s.id); }}
               >
                 <Trash2 size={12} /> Eliminar

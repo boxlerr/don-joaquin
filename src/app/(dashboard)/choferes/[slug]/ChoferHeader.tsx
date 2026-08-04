@@ -189,7 +189,9 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 <SiluetaPersona rol={chofer.rol} className="text-primary" />
               )}
 
-              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
+              {/* Sólo desde md: en celular no hay hover y el cartel taparía la
+                  foto para siempre (ahí va el chip de cámara de abajo). */}
+              <div className="absolute inset-0 bg-black/55 hidden md:flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200">
                 <Camera size={14} className="text-white" />
                 <span className="text-[9px] font-medium text-white tracking-wider uppercase">
                   {fotoUrl ? "Cambiar" : "Subir"}
@@ -210,6 +212,20 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
                 onChange={handleFotoChange}
               />
             </div>
+
+            {/* La foto se toca para cambiarla, pero en celular el cartel de
+                "Cambiar/Subir" no aparece nunca (no hay hover): sin este chip
+                no había ninguna señal de que el avatar es un botón. Va FUERA
+                del círculo, que tiene overflow-hidden y lo recortaría. Mismo
+                recurso que la tarjeta del listado. */}
+            {!uploadingFoto && (
+              <span
+                aria-hidden
+                className="md:hidden pointer-events-none absolute -bottom-0.5 -right-0.5 size-5 rounded-full bg-card border border-border text-muted-foreground flex items-center justify-center shadow-sm"
+              >
+                <Camera size={11} />
+              </span>
+            )}
 
             {/* En celular no hay hover: si el botón queda en opacity-0 no hay
                 forma de borrar la foto desde el teléfono. Abajo de md se ve

@@ -1462,7 +1462,10 @@ export default function VacacionesClient({
                                 <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground/80">{nota}</p>
                               )}
                             </div>
-                            <div className="pointer-events-none relative z-10 flex shrink-0 items-center gap-2">
+                            {/* Sin `shrink-0`: con el aviso de viajes encima, los dos
+                                textos en una línea inquebrantable se pasaban del
+                                ancho de la fila en el celular. */}
+                            <div className="pointer-events-none relative z-10 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span className="pointer-events-none whitespace-nowrap text-[13px] tabular-nums text-muted-foreground">
                                 <span className="font-semibold text-foreground">{p.dias}</span> días
                                 {p.anio_cargo != null ? ` · descuenta del ${p.anio_cargo}` : " · no descuenta"}
@@ -1740,7 +1743,11 @@ export default function VacacionesClient({
                             </span>{" "}
                             días al año
                           </span>
-                          <span className="flex shrink-0 items-center gap-2">
+                          {/* Sin `shrink-0`: el aviso del escalón ("En septiembre de
+                              2028 cumple 10 años y pasa a 21 días") mide más que la
+                              tarjeta en el celular y, clavado, se salía del borde.
+                              Ahora envuelve como el resto del pie. */}
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                             {/* "sube en 37 meses" no decía qué subía ni por qué, y
                                 nadie piensa en 37 meses. Ahora dice el año concreto y
                                 a cuántos días pasa: es el escalón de antigüedad de la

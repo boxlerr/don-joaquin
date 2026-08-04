@@ -117,7 +117,11 @@ export default function ExportarHojaRuta({ mes, choferId, choferLabel }: Props) 
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-[330px] max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-3 shadow-lg space-y-3">
+        // En el celular el panel no puede colgar del botón: el botón es angosto
+        // y queda a la izquierda, así que `right-0` + 330px lo tiraba casi entero
+        // fuera de la pantalla. Abajo de `sm` se centra como mini-modal (mismo
+        // patrón que MonthPicker y CalendarioPopover).
+        <div className="z-50 rounded-xl border border-border bg-popover p-3 shadow-lg space-y-3 max-sm:fixed max-sm:inset-x-4 max-sm:top-1/2 max-sm:-translate-y-1/2 sm:absolute sm:right-0 sm:top-full sm:mt-1.5 sm:w-[330px]">
           {/* Período */}
           <div className="space-y-1.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

@@ -428,7 +428,9 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
                 {premioMes.eficiencia.toFixed(2)}
                 <span className="text-[10px] font-medium text-muted-foreground ml-0.5">L/100km</span>
               </span>
-              <span className="text-muted-foreground text-[11px] shrink-0">
+              {/* Sin `shrink-0`: en 320px este detalle no entraba en el renglón
+                  y, al no poder achicarse, se salía de la tarjeta. */}
+              <span className="text-muted-foreground text-[11px] min-w-0">
                 {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
               </span>
             </div>

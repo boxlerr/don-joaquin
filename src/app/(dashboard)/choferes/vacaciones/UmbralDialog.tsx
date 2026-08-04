@@ -172,7 +172,11 @@ export default function UmbralDialog({ open, onOpenChange, config, choferesActiv
                 const v = porMes[mes] ?? "";
                 const efectivo = umbralDeMes(actual, mes, choferesActivos);
                 return (
-                  <div key={mes} className="flex items-center gap-2">
+                  // Envuelve: con el mes (64px) + el campo (56px) + el "= N" de
+                  // los meses con valor propio, la celda pasaba los ~150px que
+                  // deja la mitad del diálogo en el celular y el resultado
+                  // quedaba cortado contra el borde.
+                  <div key={mes} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <label htmlFor={`umbral-mes-${mes}`} className="w-16 sm:w-20 shrink-0 truncate text-xs text-muted-foreground">
                       {nombre}
                     </label>

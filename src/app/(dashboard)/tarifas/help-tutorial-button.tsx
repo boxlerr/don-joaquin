@@ -32,16 +32,16 @@ function FilaCircuito({
   vacio: string;
 }) {
   return (
-    <div className="px-3 py-2 flex items-center gap-2 text-[11px] border-b border-border last:border-0">
-      <span className="w-10 font-mono text-muted-foreground">{codigo}</span>
-      <span className="flex-1 inline-flex items-center gap-1 text-foreground truncate">
+    <div className="px-3 py-2 flex items-center gap-1.5 sm:gap-2 text-[11px] border-b border-border last:border-0">
+      <span className="w-8 sm:w-10 font-mono text-muted-foreground">{codigo}</span>
+      <span className="flex-1 min-w-0 inline-flex items-center gap-1 text-foreground truncate">
         {origen}
         <ArrowRight size={11} className="text-muted-foreground/70 shrink-0" />
         {destino}
       </span>
-      <span className="w-12 text-right font-mono text-foreground">{carga}</span>
-      <span className="w-12 text-right font-mono text-foreground">{vacio}</span>
-      <div className="w-14 flex items-center justify-end gap-1 text-muted-foreground/70">
+      <span className="w-9 sm:w-12 text-right font-mono text-foreground">{carga}</span>
+      <span className="w-9 sm:w-12 text-right font-mono text-foreground">{vacio}</span>
+      <div className="w-11 sm:w-14 flex items-center justify-end gap-1 text-muted-foreground/70">
         <Pencil size={11} />
         <PauseCircle size={11} />
       </div>
@@ -151,12 +151,14 @@ function MockCircuitoForm() {
 function MockCircuitoTable() {
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[9px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-2">
-        <span className="w-10">Cód.</span>
-        <span className="flex-1">Recorrido</span>
-        <span className="w-12 text-right">Carga</span>
-        <span className="w-12 text-right">Vacío</span>
-        <span className="w-14 text-right">Acciones</span>
+      {/* Los anchos fijos suman 192px y en el recuadro del tutorial (≈277px en
+          celular) dejaban la columna "Recorrido" en nada: bajan un escalón. */}
+      <div className="px-3 py-1.5 bg-muted/40 border-b border-border text-[9px] font-semibold uppercase tracking-widest text-muted-foreground flex gap-1.5 sm:gap-2">
+        <span className="w-8 sm:w-10">Cód.</span>
+        <span className="flex-1 min-w-0">Recorrido</span>
+        <span className="w-9 sm:w-12 text-right">Carga</span>
+        <span className="w-9 sm:w-12 text-right">Vacío</span>
+        <span className="w-11 sm:w-14 text-right truncate">Acciones</span>
       </div>
       <FilaCircuito
         codigo="110"

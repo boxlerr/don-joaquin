@@ -485,9 +485,12 @@ function FilaViaje({
         </td>
         <td className="py-2 pl-2 pr-3 text-right whitespace-nowrap">
           <span className="inline-flex items-center gap-1">
+            {/* Sin hover, en el celular la flecha quedaba en 0: nada indicaba
+                que la fila entera abre el viaje. Abajo de md se ve siempre
+                tenue; de md para arriba sigue apareciendo al pasar el mouse. */}
             <ArrowUpRight
               size={12}
-              className="text-muted-foreground/0 transition-colors group-hover:text-primary"
+              className="text-muted-foreground/40 transition-colors md:text-muted-foreground/0 md:group-hover:text-primary"
             />
             {canWrite && (
               <button

@@ -159,7 +159,13 @@ export default function CostosComparativo({
         <table className="w-full text-sm border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
             <tr>
-              <th rowSpan={2} className={`${thCls} ${fijaTh} text-left pl-4 min-w-[14rem] align-bottom`}>
+              {/* En celular la columna fija se acota a 9,5rem: con 14rem se
+                  comía 224 de los 343px y no entraba ni un mes al lado, que es
+                  justo lo que este cuadro viene a comparar. */}
+              <th
+                rowSpan={2}
+                className={`${thCls} ${fijaTh} text-left pl-4 min-w-[9.5rem] max-md:max-w-[9.5rem] md:min-w-[14rem] align-bottom`}
+              >
                 <button
                   type="button"
                   onClick={() => toggle("proveedor")}
@@ -223,7 +229,9 @@ export default function CostosComparativo({
                   : "text-[#10B981]";
               return (
                 <tr key={p.proveedor} className="hover:bg-muted/20 transition-colors">
-                  <td className={`${tdCls} ${fijaTd} pl-4 pr-2 min-w-[14rem]`}>
+                  <td
+                    className={`${tdCls} ${fijaTd} pl-4 pr-2 min-w-[9.5rem] max-md:max-w-[9.5rem] md:min-w-[14rem]`}
+                  >
                     <button
                       type="button"
                       onClick={() => onVerProveedor(p.proveedor)}

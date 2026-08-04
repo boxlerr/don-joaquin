@@ -51,11 +51,13 @@ function Lightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-3 sm:px-4"
       onClick={onClose}
     >
+      {/* El margen va en el contenedor, no en el hijo: con `w-full mx-3` el
+          visor medía 100% + 24px y se comía las flechas contra el borde. */}
       <div
-        className="relative max-w-4xl w-full mx-3 sm:mx-4 flex flex-col items-center gap-3"
+        className="relative max-w-4xl w-full flex flex-col items-center gap-3"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cerrar */}
@@ -163,7 +165,7 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
         <Button
           variant="ghost"
           size="xs"
-          className="h-7 px-2 text-[11px] text-primary hover:bg-blue-50 font-bold gap-1"
+          className="h-9 md:h-7 px-3 md:px-2 text-[11px] text-primary hover:bg-blue-50 font-bold gap-1"
           onClick={() => setDialogOpen(true)}
         >
           <Plus size={12} /> Adjuntar
@@ -196,7 +198,9 @@ export default function SiniestroArchivosPanel({ siniestro_id }: Props) {
 
                     {/* Overlay con acciones. En celular no hay hover: las acciones
                         se ven siempre, si no la foto no se puede ni abrir. */}
-                    <div className="absolute inset-0 bg-black/25 opacity-100 md:bg-black/0 md:opacity-0 md:group-hover:bg-black/40 md:group-hover:opacity-100 transition-colors flex items-center justify-center gap-1.5">
+                    {/* `gap-1` en celular: con dos columnas a 320px, tres
+                        botones de 36px + gap-1.5 no entraban en la miniatura. */}
+                    <div className="absolute inset-0 bg-black/25 opacity-100 md:bg-black/0 md:opacity-0 md:group-hover:bg-black/40 md:group-hover:opacity-100 transition-colors flex items-center justify-center gap-1 sm:gap-1.5">
                       <button
                         onClick={() => setLightboxIdx(i)}
                         className="size-9 md:size-auto md:p-1.5 inline-flex items-center justify-center rounded-full bg-card/90 text-foreground/90 hover:bg-card transition-colors"

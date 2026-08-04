@@ -113,7 +113,9 @@ export default function KpiCard({
                 · {origen.notaCorta}
               </span>
             )}
-            {destino && <ArrowRight size={11} className="ml-auto shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />}
+            {/* En celular no hay hover: la flechita tiene que verse siempre, si
+                no todo el pie de la tarjeta parece texto y no un link. */}
+            {destino && <ArrowRight size={11} className="ml-auto shrink-0 opacity-60 transition-opacity md:opacity-0 md:group-hover:opacity-60" />}
           </>
         );
         const clases = "mt-3 flex items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] leading-none text-muted-foreground";

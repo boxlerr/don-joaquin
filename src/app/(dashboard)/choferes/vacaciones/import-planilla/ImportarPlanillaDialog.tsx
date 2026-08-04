@@ -120,7 +120,9 @@ export default function ImportarPlanillaDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
+      {/* `dvh` y no `vh`: con la barra del navegador a la vista, 85vh se pasaba
+          del alto útil y el pie del diálogo quedaba abajo del borde. */}
+      <DialogContent className="sm:max-w-[640px] max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground text-lg">Importar planilla de vacaciones</DialogTitle>
           <DialogDescription className="text-muted-foreground">
@@ -187,11 +189,14 @@ export default function ImportarPlanillaDialog({
                 <ul className="divide-y divide-border rounded-[8px] border border-border overflow-hidden">
                   {preview.periodos.map((p, i) => (
                     <li key={i} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 bg-card hover:bg-muted/20">
+                      {/* La casilla es la ÚNICA forma de elegir qué se importa y
+                          venía sin tamaño: 13px del navegador. En celular pasa a
+                          24 como en el listado de viajes. */}
                       <input
                         type="checkbox"
                         checked={periodosSel.has(i)}
                         onChange={() => toggle(periodosSel, i, setPeriodosSel)}
-                        className="accent-[var(--primary)]"
+                        className="size-4 shrink-0 accent-[var(--primary)] max-md:size-6"
                       />
                       <span className="font-medium text-foreground">{p.empleado}</span>
                       <span className="ml-auto text-muted-foreground whitespace-nowrap">
@@ -215,7 +220,7 @@ export default function ImportarPlanillaDialog({
                         type="checkbox"
                         checked={saldosSel.has(i)}
                         onChange={() => toggle(saldosSel, i, setSaldosSel)}
-                        className="accent-[var(--primary)]"
+                        className="size-4 shrink-0 accent-[var(--primary)] max-md:size-6"
                       />
                       <span className="font-medium text-foreground">{s.empleado}</span>
                       <span className="text-xs text-muted-foreground">saldo {s.anio}</span>

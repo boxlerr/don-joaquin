@@ -25,10 +25,15 @@ export default async function CostosRepRepPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
+      {/* `triggerClassName` REEMPLAZA las clases del disparador, no las suma: con
+          sólo "h-7" el botón quedaba en 28px (abajo del mínimo táctil) y sin
+          alineación entre el ícono y el texto. */}
       <PageHeader
         title="Costos de Repuestos y Reparaciones"
         description="Resumen mensual por proveedor — importe neto, IVA y facturado"
-        action={<HelpTutorialButton triggerClassName="h-7 text-xs" />}
+        action={
+          <HelpTutorialButton triggerClassName="h-9 sm:h-7 inline-flex items-center gap-1.5 text-xs" />
+        }
       />
       <div className="mt-6">
         <CostosRepRepClient

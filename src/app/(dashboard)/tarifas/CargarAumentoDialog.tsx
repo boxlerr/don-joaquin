@@ -118,7 +118,9 @@ export default function CargarAumentoDialog({
               />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* En celular van uno abajo del otro: el campo de fecha con la fuente
+              de 16px que fuerza el touch no entra en media columna de 343px. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Vigente desde</label>
               <input

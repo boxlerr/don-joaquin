@@ -106,23 +106,25 @@ export default function ContactosTab({ clienteId }: { clienteId: string }) {
                     {CARGO_LABEL[c.cargo] ?? c.cargo}
                   </span>
                 </div>
-                <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
+                {/* El mail es una sola palabra sin cortes: si no puede achicarse
+                    ni partirse, un correo largo se sale de la ficha en celular. */}
+                <div className="flex items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground flex-wrap">
                   {c.email && (
                     <a
                       href={`mailto:${c.email}`}
-                      className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+                      className="inline-flex min-w-0 max-w-full items-center gap-1 hover:text-primary transition-colors"
                     >
-                      <Mail size={11} />
-                      {c.email}
+                      <Mail size={11} className="shrink-0" />
+                      <span className="min-w-0 break-all">{c.email}</span>
                     </a>
                   )}
                   {c.telefono && (
                     <a
                       href={`tel:${c.telefono}`}
-                      className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+                      className="inline-flex min-w-0 max-w-full items-center gap-1 hover:text-primary transition-colors"
                     >
-                      <Phone size={11} />
-                      {c.telefono}
+                      <Phone size={11} className="shrink-0" />
+                      <span className="min-w-0 break-all">{c.telefono}</span>
                     </a>
                   )}
                 </div>

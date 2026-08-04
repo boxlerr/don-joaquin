@@ -13,7 +13,7 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { EmptyTableRow } from "@/components/ui/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { coincideEnAlguno } from "@/lib/texto";
 
 export interface Extintor {
@@ -234,97 +234,102 @@ export default function ExtintoresTable({
         </div>
       </div>
 
-      {/* La tabla es de consulta (7 columnas, sin acciones por fila): abajo de
-          md scrollea de costado con el dominio fijo a la izquierda. */}
-      <p className="md:hidden px-4 pt-3 text-[11px] text-muted-foreground">
-        Deslizá la tabla de costado para ver todas las columnas.
-      </p>
+      {/* Sin resultados: va FUERA de la tabla. Adentro quedaba centrado sobre
+          los 900px del ancho mínimo, o sea fuera de pantalla en el celular. */}
+      {filtrados.length === 0 ? (
+        <EmptyState
+          message={
+            extintores.length === 0
+              ? "Sin extintores cargados en el sistema"
+              : "Ningún extintor coincide con los filtros aplicados"
+          }
+          icon={Flame}
+        />
+      ) : (
+        <>
+        {/* La tabla es de consulta (7 columnas, sin acciones por fila): abajo de
+            md scrollea de costado con el dominio fijo a la izquierda. */}
+        <p className="md:hidden px-4 pt-3 text-[11px] text-muted-foreground">
+          Deslizá la tabla de costado para ver todas las columnas.
+        </p>
 
-      {/* Tabla */}
-      <Table className="min-w-[900px]">
-        <TableHeader className="bg-muted/40">
-          <TableRow>
-            {/* Columna identificadora: queda fija al scrollear de costado.
-                El color es el equivalente opaco de `bg-muted/40` sobre la
-                tarjeta — tiene que ser sólido para que no se transparente. */}
-            <TableHead className="sticky left-0 z-20 bg-[#F9FBFC] max-md:border-r max-md:border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pl-4 sm:pl-6 min-w-[132px]">
-              Ubicación / Dominio
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-              Nº Extintor
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-              Nº Interno
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-              Capacidad
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-              Vencimiento / Estado
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
-              Categoría
-            </TableHead>
-            <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pr-6">
-              Observaciones
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtrados.length === 0 ? (
-            <EmptyTableRow
-              message={
-                extintores.length === 0
-                  ? "Sin extintores cargados en el sistema"
-                  : "Ningún extintor coincide con los filtros aplicados"
-              }
-            />
-          ) : (
-            filtrados.map((item) => {
+        {/* Tabla */}
+        <Table className="min-w-[900px]">
+          <TableHeader className="bg-muted/40">
+            <TableRow>
+              {/* Columna identificadora: queda fija al scrollear de costado.
+                  El color es el equivalente opaco de `bg-muted/40` sobre la
+                  tarjeta — tiene que ser sólido para que no se transparente. */}
+              <TableHead className="sticky left-0 z-20 bg-[#F9FBFC] max-md:border-r max-md:border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pl-4 sm:pl-6 min-w-[132px]">
+                Ubicación / Dominio
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
+                Nº Extintor
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
+                Nº Interno
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
+                Capacidad
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
+                Vencimiento / Estado
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4">
+                Categoría
+              </TableHead>
+              <TableHead className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider py-4 pr-6">
+                Observaciones
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtrados.map((item) => {
               // Buscar si existe un camión con esta patente
               const compactPatente = item.dominio.replace(/[\s-]/g, "").toUpperCase();
               const camionId = item.categoria === "chasis" ? camionMap.get(compactPatente) : null;
 
               return (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="sticky left-0 z-10 bg-card max-md:border-r max-md:border-border py-4 pl-4 sm:pl-6 font-semibold text-foreground">
-                    {camionId ? (
-                      <Link
-                        href={`/camiones?camionId=${camionId}`}
-                        className="inline-flex items-center gap-1 text-[#0088D1] hover:underline"
-                        title="Ver detalles del camión"
-                      >
-                        {item.dominio}
-                        <ExternalLink size={12} className="opacity-70" />
-                      </Link>
-                    ) : (
-                      item.dominio
-                    )}
-                  </TableCell>
-                  <TableCell className="py-4 text-sm font-medium text-neutral-600">
-                    {item.n_extintor}
-                  </TableCell>
-                  <TableCell className="py-4 text-sm text-neutral-600">
-                    {item.n_interno ?? "—"}
-                  </TableCell>
-                  <TableCell className="py-4 text-sm font-medium text-neutral-700">
-                    {item.capacidad ?? "—"}
-                  </TableCell>
-                  <TableCell className="py-4">
-                    {renderBadgeVencimiento(item.fecha_vencimiento)}
-                  </TableCell>
-                  <TableCell className="py-4 text-xs font-semibold text-neutral-500 uppercase">
-                    {item.categoria}
-                  </TableCell>
-                  <TableCell className="py-4 pr-6 text-sm text-muted-foreground max-w-[250px] truncate" title={item.observaciones ?? ""}>
-                    {item.observaciones ?? "—"}
-                  </TableCell>
-                </TableRow>
+                  <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="sticky left-0 z-10 bg-card max-md:border-r max-md:border-border py-4 pl-4 sm:pl-6 font-semibold text-foreground">
+                      {camionId ? (
+                        <Link
+                          href={`/camiones?camionId=${camionId}`}
+                          className="inline-flex items-center gap-1 text-[#0088D1] hover:underline"
+                          title="Ver detalles del camión"
+                        >
+                          {item.dominio}
+                          <ExternalLink size={12} className="opacity-70" />
+                        </Link>
+                      ) : (
+                        item.dominio
+                      )}
+                    </TableCell>
+                    <TableCell className="py-4 text-sm font-medium text-neutral-600">
+                      {item.n_extintor}
+                    </TableCell>
+                    <TableCell className="py-4 text-sm text-neutral-600">
+                      {item.n_interno ?? "—"}
+                    </TableCell>
+                    <TableCell className="py-4 text-sm font-medium text-neutral-700">
+                      {item.capacidad ?? "—"}
+                    </TableCell>
+                    <TableCell className="py-4">
+                      {renderBadgeVencimiento(item.fecha_vencimiento)}
+                    </TableCell>
+                    <TableCell className="py-4 text-xs font-semibold text-neutral-500 uppercase">
+                      {item.categoria}
+                    </TableCell>
+                    <TableCell className="py-4 pr-6 text-sm text-muted-foreground max-w-[250px] truncate" title={item.observaciones ?? ""}>
+                      {item.observaciones ?? "—"}
+                    </TableCell>
+                  </TableRow>
               );
-            })
-          )}
-        </TableBody>
-      </Table>
+            })}
+          </TableBody>
+        </Table>
+        </>
+      )}
     </div>
   );
 }
