@@ -32,11 +32,17 @@ function getMesInfo(monthStr?: string): { mes: string; desde: string; hasta: str
 }
 
 // Variables del mes fieles al Excel de Bárbara.
+//
+// El aguinaldo (SAC) entra acá: la 1ª cuota vence el 30/6 y la 2ª el 18/12
+// (art. 122 LCT, texto de la ley 27.073), pero con los días de gracia del
+// art. 128 la de junio se termina liquidando en julio. Qué mes lo lleva lo
+// decide quien carga, así que es una columna más y no un mes calculado.
 export type VariablesMes = {
   comisionLogistica: number;
   combustible: number;
   plusYpf: number;
   sabados: number;
+  aguinaldo: number;
 };
 
 export type SueldoAdminEmpleado = {
@@ -185,7 +191,7 @@ export async function upsertSueldoAdminMesAction(
 
   const { data: prev } = await (supabase as any)
     .from("sueldos_admin_mes")
-    .select("comision_logistica, combustible, plus_ypf, sabados, observaciones")
+    .select("comision_logistica, combustible, plus_ypf, sabados, aguinaldo, observaciones")
     .eq("chofer_id", choferId)
     .eq("mes", mes)
     .maybeSingle();
@@ -197,13 +203,18 @@ export async function upsertSueldoAdminMesAction(
     combustible: data.combustible ?? Number(prev?.combustible ?? 0),
     plus_ypf: data.plusYpf ?? Number(prev?.plus_ypf ?? 0),
     sabados: data.sabados ?? Number(prev?.sabados ?? 0),
+    aguinaldo: data.aguinaldo ?? Number(prev?.aguinaldo ?? 0),
     observaciones:
       data.observaciones !== undefined
         ? data.observaciones?.trim() || null
         : (prev?.observaciones ?? null),
     created_by: user.id,
   };
-  if ([fila.comision_logistica, fila.combustible, fila.plus_ypf, fila.sabados].some((n) => n < 0)) {
+  if (
+    [fila.comision_logistica, fila.combustible, fila.plus_ypf, fila.sabados, fila.aguinaldo].some(
+      (n) => n < 0,
+    )
+  ) {
     return { error: "Los montos no pueden ser negativos." };
   }
 

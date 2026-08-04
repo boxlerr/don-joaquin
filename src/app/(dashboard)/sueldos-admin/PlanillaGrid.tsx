@@ -17,7 +17,7 @@ import {
 } from "./actions";
 import { formatMiles, mesActual, mesCortoLabel, parseNum, pesos, pct1 } from "./formato";
 
-type CampoVar = "comisionLogistica" | "combustible" | "plusYpf" | "sabados";
+type CampoVar = "comisionLogistica" | "combustible" | "plusYpf" | "sabados" | "aguinaldo";
 type CampoEdit = "sueldoBase" | CampoVar;
 
 /** Lo que se está escribiendo, sin guardar (texto crudo, por empleado y campo). */
@@ -25,27 +25,38 @@ type Borradores = Record<string, Partial<Record<CampoEdit, string>>>;
 /** Lo último que el servidor confirmó, para no depender de un refresh completo. */
 type Confirmados = Record<string, Partial<Record<CampoEdit, number>>>;
 
-const VARIABLES: CampoVar[] = ["comisionLogistica", "combustible", "plusYpf", "sabados"];
+const VARIABLES: CampoVar[] = ["comisionLogistica", "combustible", "plusYpf", "sabados", "aguinaldo"];
 const COLS: { key: CampoEdit; label: string }[] = [
   { key: "sueldoBase", label: "Sueldo base" },
   { key: "comisionLogistica", label: "Comisión logística" },
   { key: "combustible", label: "Combustible" },
   { key: "plusYpf", label: "Plus YPF" },
   { key: "sabados", label: "Sábados" },
+  // El aguinaldo sumaba al total sin tener columna: el total no cerraba con lo
+  // que se veía y no había dónde cargarlo. Va siempre, aunque el mes no lleve.
+  { key: "aguinaldo", label: "Aguinaldo" },
 ];
+
+/**
+ * Meses en los que cae el SAC: la 1ª cuota vence el 30/6 y la 2ª el 18/12
+ * (art. 122 LCT según la ley 27.073). Con los días de gracia del art. 128 la de
+ * junio suele liquidarse en julio, así que julio también se marca. Es sólo un
+ * recordatorio en el encabezado: cargarlo o no lo decide quien liquida.
+ */
+const MESES_SAC = [6, 7, 12];
 
 const GRUPOS: { rol: SueldoAdminEmpleado["rol"]; label: string; dot: string }[] = [
   { rol: "administrativo", label: "Administración", dot: "bg-blue-500" },
   { rol: "mantenimiento", label: "Taller", dot: "bg-orange-500" },
 ];
 
-type SortCol = "nombre" | CampoEdit | "aguinaldo" | "total";
+type SortCol = "nombre" | CampoEdit | "total";
 
 // La tabla usa `border-separate`: con `border-collapse` los bordes del thead y
 // del tfoot pegajosos se pintan en la capa de la tabla y se van con el scroll.
 // Por eso cada borde va en la celda, no en la fila.
 const thCls =
-  "h-8 px-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap bg-muted border-b border-border";
+  "h-9 md:h-8 px-2 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap bg-muted border-b border-border";
 const tdCls = "py-0.5 border-b border-border/50";
 const tfCls =
   "px-2 py-1.5 text-right font-mono text-[13px] tabular-nums whitespace-nowrap bg-muted border-t border-border";
@@ -59,7 +70,9 @@ const textoDe = (e: SueldoAdminEmpleado, campo: CampoEdit, bor: Borradores, conf
   const t = bor[e.chofer_id]?.[campo];
   if (t !== undefined) return t;
   const n = confirmado(e, campo, conf);
-  return n ? String(n) : "";
+  // Redondeado: la planilla trabaja en pesos enteros (lo mismo que muestra
+  // la columna Total) y un String(3132495.84) se leería como 313.249.584.
+  return n ? String(Math.round(n)) : "";
 };
 
 /** Los montos negativos se tratan como 0: el server los rechaza igual. */
@@ -72,7 +85,7 @@ const esNegativo = (e: SueldoAdminEmpleado, campo: CampoEdit, bor: Borradores) =
   (parseNum(bor[e.chofer_id]?.[campo] ?? "") ?? 0) < 0;
 
 const totalFila = (e: SueldoAdminEmpleado, bor: Borradores, conf: Confirmados) =>
-  COLS.reduce((s, c) => s + valorDe(e, c.key, bor, conf), 0) + (e.aguinaldo ?? 0);
+  COLS.reduce((s, c) => s + valorDe(e, c.key, bor, conf), 0);
 
 /** Campos con un valor nuevo y válido, listos para mandar al servidor. */
 const pendientesDe = (e: SueldoAdminEmpleado, bor: Borradores, conf: Confirmados): CampoEdit[] =>
@@ -172,8 +185,8 @@ export default function PlanillaGrid({
   useEffect(() => { ordenRef.current = orden; }, [orden]);
   const indiceDe = useMemo(() => new Map(orden.map((e, i) => [e.chofer_id, i])), [orden]);
 
-  const hayAguinaldo = empleados.some((e) => (e.aguinaldo ?? 0) > 0);
-  const nCols = 1 + COLS.length + (hayAguinaldo ? 1 : 0) + 2; // nombre + campos + aguinaldo + total + estado
+  const nCols = 1 + COLS.length + 2; // nombre + campos + total + estado
+  const esMesDeAguinaldo = MESES_SAC.includes(parseInt(mes.slice(5, 7), 10));
 
   // ── Guardado ─────────────────────────────────────────────────────────────
   const marcarOk = useCallback((id: string) => {
@@ -209,6 +222,7 @@ export default function PlanillaGrid({
           combustible: valorDe(e, "combustible", bor, conf),
           plusYpf: valorDe(e, "plusYpf", bor, conf),
           sabados: valorDe(e, "sabados", bor, conf),
+          aguinaldo: valorDe(e, "aguinaldo", bor, conf),
         };
         const res = await upsertSueldoAdminMesAction(id, mes, vars);
         if ("error" in res) fallo = res.error;
@@ -413,12 +427,11 @@ export default function PlanillaGrid({
 
   // ── Totales ──────────────────────────────────────────────────────────────
   const totales = useMemo(() => {
-    const porCol: Record<string, number> = { aguinaldo: 0 };
+    const porCol: Record<string, number> = {};
     for (const c of COLS) porCol[c.key] = 0;
     let total = 0;
     for (const e of empleados) {
       for (const c of COLS) porCol[c.key] += valorDe(e, c.key, borradores, confirmados);
-      porCol.aguinaldo += e.aguinaldo ?? 0;
       total += totalFila(e, borradores, confirmados);
     }
     const pct = facturacionEfectiva > 0 ? (total / facturacionEfectiva) * 100 : null;
@@ -432,18 +445,20 @@ export default function PlanillaGrid({
     !guardando && empleados.some((e) => pendientesDe(e, borradores, confirmados).length > 0);
   const recienGuardado = !guardando && !sinGuardar && Object.values(estado).some((s) => s === "ok");
 
+  // En celular la celda crece a 36px: con `h-6` (24px) el dedo no le acierta y,
+  // encima, iOS agranda la fuente de los campos a 16px y el número no entraba.
   const inputCls = (neg: boolean) =>
-    `h-6 w-full rounded-[4px] border bg-transparent px-1.5 text-right font-mono text-[13px] tabular-nums outline-none transition-colors placeholder:text-muted-foreground/40 ${
+    `h-9 md:h-6 w-full rounded-[4px] border bg-transparent px-1.5 text-right font-mono text-[13px] tabular-nums outline-none transition-colors placeholder:text-muted-foreground/40 ${
       neg
         ? "border-destructive/70 text-destructive"
         : "border-transparent text-foreground hover:border-border focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/15"
     }`;
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm">
+    <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col min-h-0 h-full">
       {/* Resumen del mes en una sola línea: antes eran tres tarjetas que se comían
           el alto que necesita la planilla para entrar entera en la pantalla. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 border-b border-border">
+      <div className="shrink-0 flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 px-4 py-2 border-b border-border">
         <div className="flex items-baseline gap-2">
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total del mes</span>
           <span className="font-mono text-base font-bold text-foreground tabular-nums">{pesos(totales.total)}</span>
@@ -470,7 +485,7 @@ export default function PlanillaGrid({
           </span>
         </div>
         {canWrite && (
-          <div className="ml-auto text-[11px] text-muted-foreground inline-flex items-center gap-1.5 min-w-[7rem] justify-end">
+          <div className="sm:ml-auto text-[11px] text-muted-foreground inline-flex items-center gap-1.5 sm:min-w-[7rem] justify-end">
             {guardando ? (
               <><Loader2 size={12} className="animate-spin text-primary" /> Guardando…</>
             ) : sinGuardar ? (
@@ -483,7 +498,7 @@ export default function PlanillaGrid({
       </div>
 
       {error && (
-        <p className="text-xs text-destructive bg-destructive/5 border-b border-destructive/20 px-4 py-2">{error}</p>
+        <p className="shrink-0 text-xs text-destructive bg-destructive/5 border-b border-destructive/20 px-4 py-2">{error}</p>
       )}
 
       {empleados.length === 0 ? (
@@ -494,34 +509,36 @@ export default function PlanillaGrid({
           </span>
         </div>
       ) : (
-        // Caja con alto propio: el encabezado y la fila de totales quedan fijos y
-        // el resto scrollea adentro, sin arrastrar toda la página.
-        <div className="overflow-auto max-h-[calc(100dvh-20rem)] min-h-[15rem]">
-          <table className="w-full min-w-[860px] caption-bottom text-sm border-separate border-spacing-0">
+        // El alto sale de lo que sobra en la pantalla (flex-1), no de un calc()
+        // adivinado: si entran las 14 filas no hay scroll, y si no, el encabezado
+        // y la fila de totales quedan fijos mientras el resto scrollea adentro.
+        <div className="flex-1 min-h-[12rem] overflow-auto">
+          <table className="w-full min-w-[980px] caption-bottom text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-20">
               <tr>
-                <th className={`${thCls} text-left pl-4`}>
+                {/* La columna del nombre queda fija: en celular la planilla se
+                    scrollea de costado y sin esto no se sabe de quién es la fila. */}
+                <th className={`${thCls} text-left pl-4 sticky left-0 z-30 border-r border-border`}>
                   <button type="button" onClick={() => toggleSort("nombre")}
                     className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sort.col === "nombre" ? "text-foreground" : ""}`}>
                     Empleado {flecha("nombre")}
                   </button>
                 </th>
-                {COLS.map((c) => (
-                  <th key={c.key} className={`${thCls} text-right`}>
-                    <button type="button" onClick={() => toggleSort(c.key)}
-                      className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === c.key ? "text-foreground" : ""}`}>
-                      {c.label} {flecha(c.key)}
-                    </button>
-                  </th>
-                ))}
-                {hayAguinaldo && (
-                  <th className={`${thCls} text-right`}>
-                    <button type="button" onClick={() => toggleSort("aguinaldo")}
-                      className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === "aguinaldo" ? "text-foreground" : ""}`}>
-                      Aguinaldo {flecha("aguinaldo")}
-                    </button>
-                  </th>
-                )}
+                {COLS.map((c) => {
+                  // El mes en que cae el SAC se marca con un punto, para que no
+                  // se pase por alto la columna que ese mes sí hay que cargar.
+                  const marcado = c.key === "aguinaldo" && esMesDeAguinaldo;
+                  return (
+                    <th key={c.key} className={`${thCls} text-right`}>
+                      <button type="button" onClick={() => toggleSort(c.key)}
+                        title={marcado ? `En ${mesCortoLabel(mes)} se liquida el aguinaldo (1ª cuota vence el 30/6, 2ª el 18/12)` : undefined}
+                        className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === c.key ? "text-foreground" : ""}`}>
+                        {marcado && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                        {c.label} {flecha(c.key)}
+                      </button>
+                    </th>
+                  );
+                })}
                 <th className={`${thCls} text-right`}>
                   <button type="button" onClick={() => toggleSort("total")}
                     className={`inline-flex items-center gap-1 ml-auto hover:text-foreground transition-colors ${sort.col === "total" ? "text-foreground" : ""}`}>
@@ -556,7 +573,7 @@ export default function PlanillaGrid({
                       return (
                         <tr key={e.chofer_id}
                           className={`group/fila transition-colors ${activa ? "bg-primary/[0.04]" : "hover:bg-muted/20"}`}>
-                          <td className={`${tdCls} pl-4 pr-2 whitespace-nowrap`}>
+                          <td className={`${tdCls} pl-4 pr-2 whitespace-nowrap sticky left-0 z-10 bg-card border-r border-border`}>
                             <span className="text-[13px] font-medium text-foreground">{e.nombre}</span>
                           </td>
                           {COLS.map((c, ci) => (
@@ -584,10 +601,12 @@ export default function PlanillaGrid({
                                     className={inputCls(esNegativo(e, c.key, borradores))}
                                   />
                                   {c.key === "sueldoBase" && (
+                                    // En celular no hay hover: el ⟳ se ve siempre
+                                    // (con un poco más de área para el dedo).
                                     <button type="button" tabIndex={-1}
                                       onClick={() => onVerAumentos(e.chofer_id, mes)}
                                       title={`Historial de aumentos de ${e.nombre}`}
-                                      className="absolute left-1 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-primary opacity-0 group-hover/fila:opacity-100 transition-opacity">
+                                      className="absolute left-1 top-1/2 -translate-y-1/2 max-md:p-1.5 max-md:-ml-1.5 text-muted-foreground/50 hover:text-primary md:opacity-0 md:group-hover/fila:opacity-100 transition-opacity">
                                       <History size={12} />
                                     </button>
                                   )}
@@ -599,11 +618,6 @@ export default function PlanillaGrid({
                               )}
                             </td>
                           ))}
-                          {hayAguinaldo && (
-                            <td className={`${tdCls} px-2 text-right font-mono text-[13px] text-muted-foreground tabular-nums`}>
-                              {e.aguinaldo > 0 ? pesos(e.aguinaldo) : <span className="text-muted-foreground/40">—</span>}
-                            </td>
-                          )}
                           <td className={`${tdCls} px-2 text-right font-mono text-[13px] font-semibold text-foreground tabular-nums whitespace-nowrap`}>
                             {pesos(totalFila(e, borradores, confirmados))}
                           </td>
@@ -624,15 +638,12 @@ export default function PlanillaGrid({
 
             <tfoot className="sticky bottom-0 z-20">
               <tr>
-                <td className={`${tfCls} pl-4 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground`}>
+                <td className={`${tfCls} pl-4 text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 z-30 border-r border-border`}>
                   Total
                 </td>
                 {COLS.map((c) => (
                   <td key={c.key} className={`${tfCls} text-foreground`}>{pesos(totales.porCol[c.key])}</td>
                 ))}
-                {hayAguinaldo && (
-                  <td className={`${tfCls} text-foreground`}>{pesos(totales.porCol.aguinaldo)}</td>
-                )}
                 <td className={`${tfCls} font-black text-foreground`}>{pesos(totales.total)}</td>
                 <td className={`${tfCls} w-7`} />
               </tr>
@@ -641,13 +652,14 @@ export default function PlanillaGrid({
         </div>
       )}
 
+      {/* Una sola línea: el detalle completo está en el Tutorial, y dos renglones
+          acá son dos filas menos de planilla en pantalla. */}
       {canWrite && empleados.length > 0 && (
-        <p className="px-4 py-2 text-[11px] text-muted-foreground border-t border-border">
-          Se escribe directo en la celda y <strong className="text-foreground">se guarda solo</strong>.{" "}
-          <kbd className={kbdCls}>Tab</kbd> pasa a la siguiente, <kbd className={kbdCls}>Enter</kbd> baja una fila,{" "}
-          <kbd className={kbdCls}>Esc</kbd> deshace la celda. También podés{" "}
-          <strong className="text-foreground">copiar un bloque del Excel y pegarlo</strong> sobre la primera celda.
-          Cambiar el sueldo base lo registra como aumento desde {mesCortoLabel(mes)}.
+        <p className="shrink-0 truncate px-4 py-1.5 text-[11px] text-muted-foreground border-t border-border">
+          Se escribe en la celda y <strong className="text-foreground">se guarda solo</strong> ·{" "}
+          <kbd className={kbdCls}>Tab</kbd> al lado · <kbd className={kbdCls}>Enter</kbd> abajo ·{" "}
+          <kbd className={kbdCls}>Esc</kbd> deshace · también podés{" "}
+          <strong className="text-foreground">pegar un bloque del Excel</strong>
         </p>
       )}
     </div>

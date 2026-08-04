@@ -43,11 +43,20 @@ export function parseNum(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Formatea un monto (entero) con separador de miles AR mientras se tipea. */
+/**
+ * Formatea un monto con separador de miles AR mientras se tipea.
+ *
+ * Toma SOLO la parte entera. Los importes de la base vienen con centavos
+ * (3132495.84) y, al sacarle todo lo que no fuera dígito, ese sueldo se
+ * mostraba como 313.249.584: cien veces más. La planilla trabaja en pesos
+ * redondos —lo mismo que muestra la columna Total—, así que los centavos se
+ * cortan acá. Quien llama ya sacó los puntos de miles de lo tipeado, así que
+ * un punto o una coma que llegue hasta acá es decimal.
+ */
 export function formatMiles(s: string): string {
   if (!s) return "";
   const neg = s.trim().startsWith("-");
-  const digits = s.replace(/[^\d]/g, "");
+  const digits = s.replace(/^\s*-/, "").split(/[.,]/)[0].replace(/[^\d]/g, "");
   if (!digits) return neg ? "-" : "";
   return (neg ? "-" : "") + Number(digits).toLocaleString("es-AR");
 }

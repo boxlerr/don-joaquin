@@ -218,7 +218,7 @@ function GridCell({ value, focus, muted }: { value: string; focus?: boolean; mut
 function MockFilaEmpleado() {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-1 bg-muted text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[minmax(46px,1fr)_repeat(4,minmax(0,52px))_16px] gap-1 px-2 py-1 bg-muted text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
         <span>Empleado</span>
         <span className="text-right">Base</span>
         <span className="text-right">Comis.</span>
@@ -226,7 +226,7 @@ function MockFilaEmpleado() {
         <span className="text-right">Total</span>
         <span />
       </div>
-      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60">
+      <div className="grid grid-cols-[minmax(46px,1fr)_repeat(4,minmax(0,52px))_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60">
         <span className="text-[10px] font-medium text-foreground truncate">Gómez, Ana</span>
         <GridCell value="3.100.000" />
         <GridCell value="290.000" />
@@ -234,7 +234,7 @@ function MockFilaEmpleado() {
         <span className="text-right font-mono text-[10px] font-semibold text-foreground">3.490.000</span>
         <CheckCircle2 size={11} className="text-emerald-600" />
       </div>
-      <div className="grid grid-cols-[1fr_repeat(4,52px)_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60 bg-[#0088D1]/[0.04]">
+      <div className="grid grid-cols-[minmax(46px,1fr)_repeat(4,minmax(0,52px))_16px] gap-1 px-2 py-0.5 items-center border-t border-border/60 bg-[#0088D1]/[0.04]">
         <span className="text-[10px] font-medium text-foreground truncate">Ruiz, Marco</span>
         <GridCell value="2.900.000" />
         <GridCell value="150.000" focus />

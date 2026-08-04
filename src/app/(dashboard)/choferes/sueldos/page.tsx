@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import PageHeader from "@/components/layout/PageHeader";
 import { getCurrentUser, hasSeccion } from "@/lib/auth";
-import MesSelector from "../../combustible/components/MesSelector";
 import { getSueldosResumenAction } from "./actions";
 import { getSueldosAdminResumenAction } from "../../sueldos-admin/actions";
 import { getInflacion } from "@/lib/inflacion";
@@ -31,15 +29,11 @@ export default async function SueldosPage({
     canAdmin ? getInflacion() : Promise.resolve(null),
   ]);
 
+  // `h-full` + `flex-col`: la planilla toma el alto que sobra en vez de empujar
+  // la página. El encabezado va adentro del cliente porque comparte renglón con
+  // las pestañas, y cada renglón de más son filas que quedan fuera de pantalla.
   return (
-    // Padding vertical corto a propósito: la planilla tiene que entrar entera en
-    // la pantalla, y cada píxel de chrome son filas que quedan abajo del corte.
-    <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-      <PageHeader
-        title="Sueldos"
-        description="Liquidación de choferes por viajes, y sueldos de administración y taller"
-        action={<MesSelector currentMonth={month} />}
-      />
+    <div className="h-full flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
       <SueldosUnificadoClient
         choferes={choferes}
         admin={admin}

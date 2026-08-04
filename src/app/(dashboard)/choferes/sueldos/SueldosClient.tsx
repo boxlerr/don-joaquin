@@ -103,13 +103,16 @@ export default function SueldosClient({
   }
 
   return (
-    <div className="bg-card rounded-[8px] border border-border shadow-sm">
-      <div className="overflow-auto max-h-[calc(100dvh-16rem)] min-h-[15rem]">
+    // El alto sale de lo que sobra en la pantalla, no de un calc() adivinado.
+    <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col min-h-0 h-full">
+      <div className="flex-1 min-h-[12rem] overflow-auto">
         <table className="w-full min-w-[820px] text-sm border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
             <tr>
               <th className={`${thCls} w-8 pl-4`} />
-              <th className={`${thCls} text-left`}>Chofer</th>
+              {/* Columna identificadora fija: al scrollear la planilla de
+                  costado en el celular, el nombre no se pierde. */}
+              <th className={`${thCls} text-left sticky left-0 z-30 shadow-[1px_1px_0_0_rgba(0,0,0,0.08)]`}>Chofer</th>
               <th className={`${thCls} text-right`}>Viajes</th>
               <th className={`${thCls} text-right`}>Km 100%</th>
               <th className={`${thCls} text-right`}>Km vacíos</th>
@@ -129,7 +132,7 @@ export default function SueldosClient({
                   <td className={`${tdCls} pl-4 text-muted-foreground`}>
                     {expandedId === r.chofer_id ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </td>
-                  <td className={`${tdCls} text-[13px] font-medium text-foreground whitespace-nowrap`}>{r.chofer}</td>
+                  <td className={`${tdCls} text-[13px] font-medium text-foreground whitespace-nowrap sticky left-0 z-10 bg-card shadow-[1px_0_0_0_rgba(0,0,0,0.08)]`}>{r.chofer}</td>
                   <td className={`${tdCls} text-right text-muted-foreground font-mono text-[13px] tabular-nums`}>{num(r.viajes)}</td>
                   <td className={`${tdCls} text-right text-foreground font-mono text-[13px] font-semibold tabular-nums`}>{num(r.km_con_carga)}</td>
                   <td className={`${tdCls} text-right text-muted-foreground font-mono text-[13px] tabular-nums`}>{num(r.km_vacios)}</td>
@@ -166,7 +169,7 @@ export default function SueldosClient({
                             Marcá la zona de cada viaje (para discriminar sur / pozo)
                           </p>
                           {(viajes[r.chofer_id] ?? []).map((v) => (
-                            <div key={v.id} className="flex items-center gap-3 text-xs py-1 border-b border-border/40 last:border-0">
+                            <div key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs py-1.5 border-b border-border/40 last:border-0">
                               <span className="text-muted-foreground font-mono w-16 shrink-0">{fmtFecha(v.fecha)}</span>
                               <span className="font-mono text-[11px] text-muted-foreground w-20 shrink-0 truncate">{v.codigo}</span>
                               <span className="flex items-center gap-1 text-foreground flex-1 min-w-0 truncate">
@@ -202,7 +205,7 @@ export default function SueldosClient({
           <tfoot className="sticky bottom-0 z-20">
             <tr>
               <td className={`${tfCls} pl-4 w-8`} />
-              <td className={`${tfCls} text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground`}>
+              <td className={`${tfCls} text-left text-[11px] font-bold uppercase tracking-wider text-muted-foreground sticky left-0 z-30 shadow-[1px_-1px_0_0_rgba(0,0,0,0.08)]`}>
                 {resumen.length} chofer{resumen.length === 1 ? "" : "es"}
               </td>
               <td className={`${tfCls} text-foreground`}>{num(totales.viajes)}</td>

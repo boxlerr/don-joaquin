@@ -72,15 +72,19 @@ export default function SueldosAdminClient({
 
   const empleadoAumentos = aumentosDe ? resumen.empleados.find((e) => e.chofer_id === aumentosDe.id) ?? null : null;
 
+  // Embebido en la planilla, la tarjeta tiene que estirarse al alto disponible
+  // (la grilla reparte adentro); en los demás modos scrollea con la página.
+  const aAlturaCompleta = embedded && activeTab === "planilla";
+
   return (
-    <div className="space-y-4">
+    <div className={aAlturaCompleta ? "h-full flex flex-col min-h-0" : "space-y-4"}>
       {/* Tabs + ayuda (solo en modo standalone; embebido usa las pestañas del unificado) */}
       {!embedded && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
             {([["planilla", "Planilla del mes"], ["aumentos", "Aumentos"]] as const).map(([t, label]) => (
               <button key={t} type="button" onClick={() => setTab(t)}
-                className={`px-3 h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                className={`px-3 h-9 md:h-8 text-xs font-medium rounded-md transition-all inline-flex items-center gap-1.5 whitespace-nowrap ${tab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 {t === "aumentos" && <TrendingUp size={13} />} {label}
               </button>
             ))}
@@ -203,19 +207,19 @@ function AumentosMatriz({
   // leer los nombres mientras se scrollean los meses. El scroll vertical es el de la
   // página entera (sin caja de scroll interna). Los meses se separan con borde izq.
   const headBase = `${thCls} bg-muted border-b border-border`;
-  const cornerTh = `${headBase} pl-6 pr-3 sticky left-0 z-20 border-r border-border`;
+  const cornerTh = `${headBase} pl-4 sm:pl-6 pr-3 sticky left-0 z-20 border-r border-border`;
   const yearTh = `${headBase} text-center border-l border-border/60`;
   const mesTh = `${headBase} px-3 text-right whitespace-nowrap border-l border-border/50`;
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
       {/* z-40 + card sin overflow-hidden: el popup de "Agregar mes" flota sin recortarse. */}
-      <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-b border-border relative z-40">
-        <TrendingUp size={16} className="text-primary" />
+      <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 border-b border-border relative z-40">
+        <TrendingUp size={16} className="text-primary shrink-0" />
         <h2 className="text-foreground text-sm font-semibold">Aumentos por mes</h2>
         <span className="text-xs text-muted-foreground ml-1 hidden sm:inline">— sueldo base vigente cada mes (como el Excel)</span>
         {canWrite && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
             {addOpen ? (
               <>
                 <MonthPicker value={nuevoMes} onChange={setNuevoMes} />
@@ -261,8 +265,9 @@ function AumentosMatriz({
                       <span className="group/mes inline-flex items-center gap-1 justify-end">
                         <span className="capitalize">{mesAbrev(m)}</span>
                         {canWrite && (
+                          // En celular no hay hover: el tacho tiene que verse siempre.
                           <button type="button" onClick={() => setMesAEliminar(m)} title={`Eliminar todos los aumentos de ${mesLabel(m)}`}
-                            className="text-muted-foreground/30 hover:text-destructive opacity-0 group-hover/mes:opacity-100 transition-opacity"><Trash2 size={11} /></button>
+                            className="text-muted-foreground/50 md:text-muted-foreground/30 hover:text-destructive md:opacity-0 md:group-hover/mes:opacity-100 transition-opacity"><Trash2 size={11} /></button>
                         )}
                       </span>
                     )}
@@ -273,9 +278,9 @@ function AumentosMatriz({
             <TableBody>
               {empleados.map((e) => (
                 <TableRow key={e.chofer_id}>
-                  <TableCell className="pl-6 pr-3 whitespace-nowrap sticky left-0 z-10 bg-card border-r border-border">
+                  <TableCell className="pl-4 sm:pl-6 pr-3 whitespace-nowrap sticky left-0 z-10 bg-card border-r border-border">
                     <button type="button" disabled={!canWrite} onClick={() => onAbrir(e.chofer_id, mesActualIso)}
-                      className={`font-semibold text-foreground ${canWrite ? "hover:text-primary hover:underline" : ""}`}>
+                      className={`font-semibold text-foreground max-md:py-2 max-md:-my-2 ${canWrite ? "hover:text-primary hover:underline" : ""}`}>
                       {e.nombre}
                     </button>
                   </TableCell>
@@ -286,7 +291,7 @@ function AumentosMatriz({
                       <TableCell key={m} className="text-right font-mono text-xs whitespace-nowrap border-l border-border/40 text-foreground">
                         {canWrite ? (
                           <button type="button" onClick={() => onAbrir(e.chofer_id, m.slice(0, 7))}
-                            className="w-full text-right hover:text-primary hover:underline decoration-dotted underline-offset-2"
+                            className="w-full text-right max-md:py-2 max-md:-my-2 hover:text-primary hover:underline decoration-dotted underline-offset-2"
                             title={`Cargar o editar el aumento de ${e.nombre} desde ${mesLabel(m)}`}>
                             {contenido}
                           </button>
@@ -301,8 +306,8 @@ function AumentosMatriz({
         </div>
       )}
       {canWrite && meses.length > 0 && (
-        <p className="px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
-          Tocá una celda (o un nombre) para cargar o editar un aumento. Con <strong>Agregar mes</strong> sumás una columna nueva; la <span className="italic">itálica</span> marca las que todavía no tienen datos. Pasá el mouse sobre un mes para <strong>eliminarlo</strong>.
+        <p className="px-4 sm:px-5 py-3 text-[11px] text-muted-foreground border-t border-border">
+          Tocá una celda (o un nombre) para cargar o editar un aumento. Con <strong>Agregar mes</strong> sumás una columna nueva; la <span className="italic">itálica</span> marca las que todavía no tienen datos. Tocá el tacho de un mes para <strong>eliminarlo</strong>.
         </p>
       )}
 
@@ -383,11 +388,11 @@ function AumentosDialog({
         <DialogHeader className="sr-only"><DialogTitle>Aumentos de {empleado.nombre}</DialogTitle></DialogHeader>
 
         {/* Encabezado con identidad del empleado — deja claro de quién es la planilla. */}
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent rounded-t-xl">
+        <div className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-border bg-gradient-to-br from-muted/50 to-transparent rounded-t-xl">
           <AvatarPersona name={empleado.nombre} rol={empleado.rol} size={44} />
           <div className="min-w-0">
-            <p className="font-heading text-lg font-semibold text-foreground truncate">{empleado.nombre}</p>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+            <p className="font-heading text-base sm:text-lg font-semibold text-foreground truncate">{empleado.nombre}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className={`h-1.5 w-1.5 rounded-full ${rol.dot}`} />
                 {rol.label}
@@ -398,13 +403,13 @@ function AumentosDialog({
           </div>
         </div>
 
-        <div className={`px-6 py-5 gap-6 ${canWrite ? "grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:items-start" : ""}`}>
+        <div className={`px-4 sm:px-6 py-4 sm:py-5 gap-4 sm:gap-6 ${canWrite ? "grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:items-start" : ""}`}>
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Historial de aumentos</p>
             {aumentos.length === 0 ? (
               <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">Sin aumentos cargados. El sueldo base queda en $ 0 hasta registrar el primero.</p>
             ) : (
-              <div className="space-y-1.5 max-h-[22rem] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[15rem] sm:max-h-[22rem] overflow-y-auto pr-1">
                 <AnimatePresence initial={false}>
                   {aumentos.map((a, i) => {
                     const older = aumentos[i + 1];
@@ -466,7 +471,7 @@ function AumentosDialog({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/40 px-6 py-3 rounded-b-xl">
+        <div className="flex items-center justify-end gap-2 border-t border-border bg-muted/40 px-4 sm:px-6 py-3 rounded-b-xl">
           <DialogClose render={<Button variant="outline" size="sm" />}>Cerrar</DialogClose>
           {canWrite && <Button variant="brand" size="sm" disabled={saving} onClick={registrar}>{saving ? <Loader2 className="animate-spin" /> : <Save />} Registrar</Button>}
         </div>
