@@ -52,6 +52,7 @@ import {
   updateNotasViajeAction,
   type ViajeOrderBy,
 } from "../actions";
+import { etiquetaRutaVia } from "@/domain/viajes/ruta-via";
 import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
 import type { ViajeBasico, FaltaDato } from "../types";
 import { formatFecha } from "@/lib/utils";
@@ -157,6 +158,9 @@ const COLUMNS: ColumnDef[] = [
   { label: "Chofer", cellClass: "hidden lg:table-cell" },
   { label: "Origen", cellClass: "hidden sm:table-cell" },
   { label: "Destino", cellClass: "hidden sm:table-cell" },
+  // Va pegada al trayecto: de la vía dependen los km, así que "300 km" sólo se
+  // entiende sabiendo si fue por Ruta 5 o por Ruta 22.
+  { label: "Ruta", cellClass: "hidden sm:table-cell" },
   { label: "KM", cellClass: "hidden sm:table-cell" },
   // Igual que la planilla del cliente: los km vacíos van en su propia columna.
   { label: "KM vacíos", cellClass: "hidden sm:table-cell" },
@@ -168,7 +172,6 @@ const COLUMNS: ColumnDef[] = [
   { label: "" },
 ];
 
-const VIA_LABELS: Record<string, string> = { ruta_5: "Ruta 5", ruta_22: "Ruta 22" };
 
 function fmtDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -373,7 +376,7 @@ function ViajeDetalleHeader({
         <div className="flex flex-wrap items-center gap-1.5">
           {det?.rutaVia && (
             <span className="inline-flex items-center gap-1 rounded-md border border-[#0088D1]/30 bg-[#0088D1]/8 px-2 py-0.5 text-[10.5px] font-bold text-[#0277BD] dark:text-sky-300">
-              <Route size={11} /> {VIA_LABELS[det.rutaVia] ?? det.rutaVia}
+              <Route size={11} /> {etiquetaRutaVia(det.rutaVia)}
             </span>
           )}
           {det?.tipoCarga && v.material && (
@@ -610,7 +613,10 @@ function NotasEditables({
         {notas ? (
           <p className="text-xs text-muted-foreground italic line-clamp-4 whitespace-pre-wrap">
             {notas}
-            <Pencil size={10} className="inline-block ml-1.5 opacity-0 group-hover/notas:opacity-60 transition-opacity" />
+            {/* En el celular no hay hover: si el lápiz sale en 0 no hay nada que
+                diga que la nota se toca para editarla. Se muestra siempre abajo
+                de md; de md para arriba sigue apareciendo al pasar el mouse. */}
+            <Pencil size={10} className="inline-block ml-1.5 opacity-60 transition-opacity md:opacity-0 md:group-hover/notas:opacity-60" />
           </p>
         ) : (
           <p className="text-xs text-muted-foreground/60 italic inline-flex items-center gap-1.5">
@@ -1197,6 +1203,8 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
           {incompletoFiltro && <X size={12} />}
         </button>
         {destino && (
+          // Un destino largo ("PUERTO GENERAL SAN MARTIN · sin vueltas vacías")
+          // no entra en 375px: el texto se recorta en vez de desbordar el botón.
           <button
             type="button"
             onClick={() => {
@@ -1204,12 +1212,14 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
               setSinVacios(false);
             }}
             title="Quitar el filtro de destino"
-            className="inline-flex h-9 items-center gap-1.5 rounded-[6px] border border-primary/40 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
+            className="inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-[6px] border border-primary/40 bg-primary/5 px-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
           >
-            <MapPin size={12} />
-            Destino: {destino}
-            {sinVacios && <span className="font-normal opacity-80">· sin vueltas vacías</span>}
-            <X size={12} />
+            <MapPin size={12} className="shrink-0" />
+            <span className="truncate">
+              Destino: {destino}
+              {sinVacios && <span className="font-normal opacity-80"> · sin vueltas vacías</span>}
+            </span>
+            <X size={12} className="shrink-0" />
           </button>
         )}
         {hayFiltros && (
@@ -1449,6 +1459,15 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
                   <TableCell className="text-sm text-foreground hidden sm:table-cell">
                     {v.destino ?? <span className="text-muted-foreground/50">—</span>}
                   </TableCell>
+                  <TableCell className="text-sm hidden sm:table-cell">
+                    {v.ruta_via ? (
+                      <span className="whitespace-nowrap font-semibold text-[#0277BD] dark:text-sky-300">
+                        {etiquetaRutaVia(v.ruta_via)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm text-foreground font-mono hidden sm:table-cell">
                     {v.es_vacio ? (
                       <span className="text-muted-foreground/50">—</span>
@@ -1645,6 +1664,13 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
 
                       <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
                         {v.chofer && <span className="max-w-[60%] truncate">{v.chofer}</span>}
+                        {/* Antes de los km: la vía es lo que explica por qué ese
+                            par tiene esa distancia y no otra. */}
+                        {v.ruta_via && (
+                          <span className="font-semibold text-[#0277BD] dark:text-sky-300">
+                            {etiquetaRutaVia(v.ruta_via)}
+                          </span>
+                        )}
                         {!v.es_vacio && (v.km_con_carga ?? 0) > 0 && (
                           <span className="font-mono">
                             {(v.km_con_carga ?? 0).toLocaleString("es-AR")} km

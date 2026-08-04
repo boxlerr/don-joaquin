@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
@@ -39,10 +40,9 @@ function fmtDia(iso: string): string {
 
 // Vías con distancia propia (reunión Nico 02/07): la Ruta 5 va derecho (más
 // corta) y la Ruta 22 pasa por la base/zona (combustible, roturas).
-const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
-  ruta_5: "Ruta 5",
-  ruta_22: "Ruta 22",
-};
+// Las etiquetas salen de @/domain/viajes/ruta-via: son las mismas que muestran
+// el listado, la hoja de ruta y los Excel.
+const VIA_LABEL = RUTA_VIA_LABELS;
 
 type ViaValue = "" | "ruta_5" | "ruta_22";
 
@@ -374,7 +374,12 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
         destino: prop.destino,
         kmConCarga: "0",
         kmVacios: prop.kmVacios,
-        via: "",
+        // Hereda la vía de la ida. El tramo ya se copia la DISTANCIA de la ida,
+        // y esa distancia depende de la vía: dejarlo en "Sin marcar" guardaba los
+        // km de la Ruta 5 en el bucket de los sin-marcar y ensuciaba el historial
+        // que la vía existe justamente para separar. Si esta vez volvió por otro
+        // lado, se cambia con los botones del tramo.
+        via: rutaVia,
         tonelaje: "0",
         monto: "0",
         material: "",
@@ -385,7 +390,9 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     // pisar la copia de la ida con una respuesta lenta hacía que el valor
     // "cambiara solo" a algo viejo (reunión Nico 02/07).
     if (prop.kmVacios === "0" && prop.origen && prop.destino) {
-      applyTramoKm(id, prop.origen, prop.destino, "vacio", "");
+      // Con la misma vía que acaba de heredar el tramo: preguntarle al historial
+      // por el bucket "sin marcar" traería la distancia de otra ruta.
+      applyTramoKm(id, prop.origen, prop.destino, "vacio", rutaVia);
     }
   };
 

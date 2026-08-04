@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 import {
   Dialog,
   DialogContent,
@@ -36,11 +37,9 @@ const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 
 // Vías con distancia propia: la Ruta 5 va derecho (más corta) y la Ruta 22 pasa
-// por la base/zona. Mismas etiquetas que en Nuevo viaje.
-const VIA_LABEL: Record<"ruta_5" | "ruta_22", string> = {
-  ruta_5: "Ruta 5",
-  ruta_22: "Ruta 22",
-};
+// por la base/zona. Etiquetas compartidas con Nuevo viaje, el listado, la hoja
+// de ruta y los Excel.
+const VIA_LABEL = RUTA_VIA_LABELS;
 import {
   getViajeParaEditarAction,
   getViajeFormData,

@@ -181,6 +181,10 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         destino_nombre: o.origen_nombre,
         km_con_carga: "0",
         km_vacios: o.km_con_carga !== "0" ? o.km_con_carga : o.km_vacios,
+        // La vuelta se lleva la distancia de la ida, y esa distancia depende de
+        // la vía: sin copiarla también, la vuelta se guardaba "Sin marcar" con
+        // los km de una Ruta 5/22 y ensuciaba el historial del par.
+        ruta_via: o.ruta_via,
         es_vacio: true,
       });
       const next = [...prev];
