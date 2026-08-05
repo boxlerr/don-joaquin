@@ -199,7 +199,10 @@ export async function generarAlertas() {
   // Chofer documentos próximos a vencer
   const { data: docsCHOFER } = await supabase
     .from("chofer_documentos")
-    .select("id, chofer_id, fecha_vencimiento, choferes(nombre, apellido), tipos_documento(nombre)")
+    // `estado` para descartar egresados: conservan el legajo pero no generan
+    // novedades nuevas (ver lib/chofer-egreso.ts). Sin esto, la licencia vencida
+    // de alguien que se fue seguía disparando su mail crítico.
+    .select("id, chofer_id, fecha_vencimiento, choferes(nombre, apellido, estado), tipos_documento(nombre)")
     .not("fecha_vencimiento", "is", null)
     .lte("fecha_vencimiento", enDocStr)
     .gte("fecha_vencimiento", hoyStr);
@@ -207,7 +210,8 @@ export async function generarAlertas() {
   for (const doc of docsCHOFER ?? []) {
     const key = `vencimiento_doc_chofer:${doc.id}`;
     if (existentesSet.has(key)) continue;
-    const chofer = doc.choferes as { nombre: string; apellido: string } | null;
+    const chofer = doc.choferes as { nombre: string; apellido: string; estado?: string } | null;
+    if (chofer?.estado === "baja") continue;
     const tipoDocChofer = doc.tipos_documento as { nombre: string } | null;
     const nombre = chofer ? `${chofer.nombre} ${chofer.apellido}` : "Chofer";
     const tipoNombre = tipoDocChofer?.nombre ?? "documento";

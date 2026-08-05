@@ -79,7 +79,11 @@ export async function getDocAlertasLive(
       .select("id, tipo_documento_id, fecha_vencimiento, camiones(patente)"),
     supabase
       .from("chofer_documentos")
-      .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
+      // El estado del chofer viene para poder descartar a los egresados: un
+      // egresado conserva su historial pero no genera novedades nuevas (ver
+      // lib/chofer-egreso.ts). Sin esto, la licencia vencida de alguien que se
+      // fue seguía reclamando renovación todos los días.
+      .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido, estado)"),
   ]);
 
   const tipoById = new Map(
@@ -95,7 +99,7 @@ export async function getDocAlertasLive(
           tipo_documento_id: string;
           fecha_vencimiento: string | null;
           camiones?: { patente: string } | null;
-          choferes?: { nombre: string; apellido: string } | null;
+          choferes?: { nombre: string; apellido: string; estado?: string } | null;
         }[]
       | null
       | undefined,
@@ -104,6 +108,8 @@ export async function getDocAlertasLive(
     for (const d of docs ?? []) {
       const tipo = tipoById.get(d.tipo_documento_id);
       if (!tipo || !d.fecha_vencimiento) continue;
+      // Egresado: el legajo queda, el reclamo no.
+      if (ambito === "chofer" && d.choferes?.estado === "baja") continue;
       const dias = diasRestantes(d.fecha_vencimiento);
       if (dias === null) continue;
 

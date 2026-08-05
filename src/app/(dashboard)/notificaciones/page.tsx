@@ -50,7 +50,9 @@ export default async function NotificacionesPage() {
       .select("id, tipo_documento_id, fecha_vencimiento, camiones(patente)"),
     supabase
       .from("chofer_documentos")
-      .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
+      // `estado` para descartar egresados: conservan el legajo, no generan
+      // novedades nuevas (mismo criterio que lib/alertas-live.ts).
+      .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido, estado)"),
     // Cheques en vivo, igual que los documentos. `soloHitos: false` porque acá se
     // muestra el ESTADO completo (todo lo que está por vencer o vencido); los
     // hitos son la cadencia del mail, no de la pantalla.
@@ -96,7 +98,7 @@ export default async function NotificacionesPage() {
           tipo_documento_id: string;
           fecha_vencimiento: string | null;
           camiones?: { patente: string } | null;
-          choferes?: { nombre: string; apellido: string } | null;
+          choferes?: { nombre: string; apellido: string; estado?: string } | null;
         }[]
       | null
       | undefined,
@@ -105,6 +107,8 @@ export default async function NotificacionesPage() {
     for (const d of docs ?? []) {
       const tipo = tipoById.get(d.tipo_documento_id);
       if (!tipo) continue;
+      // Egresado: el legajo queda, el reclamo no.
+      if (ambito === "chofer" && d.choferes?.estado === "baja") continue;
       const c = conteos[d.tipo_documento_id]!;
       c.total++;
       if (!d.fecha_vencimiento) continue;
