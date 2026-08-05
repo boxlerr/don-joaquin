@@ -76,6 +76,116 @@ function filaDe(apellido: string): HTMLElement {
   return screen.getByText(new RegExp(`^${apellido},`)).closest("tr") as HTMLElement;
 }
 
+/** Planilla de HOY (editable). */
+function hoy(
+  overrides: Partial<PlanillaDiariaData["choferes"][number]>[] = [],
+): PlanillaDiariaData {
+  const base = historial();
+  return {
+    ...base,
+    fecha: "2026-07-21",
+    editable: true,
+    choferes: base.choferes.map((c, i) => ({
+      ...c,
+      camion_previo_id: c.camion_asignado_id,
+      ...(overrides[i] ?? {}),
+    })),
+  };
+}
+
+describe("PlanillaDiariaClient · buscador", () => {
+  it("filtra por apellido", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "acos" } });
+
+    expect(screen.getByText(/^Acosta,/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Bustos,/)).not.toBeInTheDocument();
+  });
+
+  it("filtra por patente del camión asignado", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "AE601GF" } });
+
+    expect(screen.getByText(/^Bustos,/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Acosta,/)).not.toBeInTheDocument();
+  });
+
+  it("encuentra sin escribir los acentos", () => {
+    const data = hoy([{ apellido: "Asteazarán" }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "asteazaran" } });
+
+    expect(screen.getByText(/^Asteazarán,/)).toBeInTheDocument();
+  });
+
+  it("dice qué se buscó cuando no hay coincidencias", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    fireEvent.change(screen.getByLabelText("Buscar"), { target: { value: "zzz" } });
+
+    expect(screen.getByText(/Ningún chofer ni patente coincide con "zzz"/)).toBeInTheDocument();
+  });
+});
+
+describe("PlanillaDiariaClient · choferes sin camión", () => {
+  it("avisa cuántos son y los nombra", () => {
+    const data = hoy([{ camion_asignado_id: null, camion_previo_id: null }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const aviso = screen.getByText("1 chofer sin camión asignado.")
+      .parentElement as HTMLElement;
+    expect(within(aviso).getByText(/Bustos, Marcelo/)).toBeInTheDocument();
+  });
+
+  it("deja aislar a los que no tienen unidad y volver atrás", () => {
+    const data = hoy([{ camion_asignado_id: null, camion_previo_id: null }]);
+    render(<PlanillaDiariaClient data={data} />);
+    const grilla = () => within(screen.getByRole("table"));
+
+    fireEvent.click(screen.getByTitle("Ver solo los choferes sin camión asignado"));
+    expect(grilla().getByText(/^Bustos,/)).toBeInTheDocument();
+    expect(grilla().queryByText(/^Acosta,/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("Ver todos los choferes"));
+    expect(grilla().getByText(/^Acosta,/)).toBeInTheDocument();
+  });
+
+  it("no avisa nada si todos tienen camión", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    expect(screen.queryByText(/sin camión asignado\./)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlanillaDiariaClient · camión repetido", () => {
+  it("dice qué patente está repetida y entre qué choferes", () => {
+    // Los dos con cam-b: el caso de Schwindt y Cepeda con AF671SI.
+    const data = hoy([{ camion_asignado_id: "cam-b" }, { camion_asignado_id: "cam-b" }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const aviso = screen.getByText("Hay un camión asignado a dos choferes.")
+      .parentElement as HTMLElement;
+    const detalle = within(aviso).getByText("AE601GF").closest("li") as HTMLElement;
+    expect(detalle.textContent).toMatch(/Bustos, Marcelo y Acosta, Pablo/);
+  });
+
+  it("apunta a la carga rápida para el viaje del otro chofer", () => {
+    const data = hoy([{ camion_asignado_id: "cam-b" }, { camion_asignado_id: "cam-b" }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(screen.getByText(/que sí permite/).textContent).toMatch(/Carga rápida/);
+  });
+
+  it("no muestra el cartel cuando no hay repetidos", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    expect(screen.queryByText(/asignado a dos choferes/)).not.toBeInTheDocument();
+  });
+});
+
 describe("PlanillaDiariaClient · marca de cambio de camión", () => {
   it("muestra de qué camión a cuál pasó el chofer que cambió", () => {
     render(<PlanillaDiariaClient data={historial()} />);

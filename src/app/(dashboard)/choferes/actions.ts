@@ -5,6 +5,7 @@ import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logChoferAudit } from "./audit";
 import { normalizarDni, validarCuil, validarDni, validarFechasLegajo } from "@/lib/chofer-validation";
+import { formatNombrePersona } from "@/lib/nombres";
 import { liberarCamionDeChofer } from "@/lib/chofer-egreso";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
@@ -70,8 +71,10 @@ export async function addChoferAction(data: {
   if (validationError) return { error: validationError };
 
   const insertData = {
-    nombre: data.nombre.trim(),
-    apellido: data.apellido.trim(),
+    // Formato parejo desde el alta: sin esto entraban "TOMAS ARIEL" o "prueba" y
+    // la planilla mezclaba mayúsculas con minúsculas en la misma columna.
+    nombre: formatNombrePersona(data.nombre),
+    apellido: formatNombrePersona(data.apellido),
     // Solo dígitos: la columna es UNIQUE y "20.393.903" entraría como otra persona.
     dni: normalizarDni(data.dni ?? "") || null,
     cuil: data.cuil?.trim() || null,
@@ -151,8 +154,8 @@ export async function updateChoferAction(id: string, data: {
     .single();
 
   const updateData = {
-    nombre: data.nombre,
-    apellido: data.apellido,
+    nombre: formatNombrePersona(data.nombre),
+    apellido: formatNombrePersona(data.apellido),
     dni: data.dni,
     telefono: data.telefono || null,
     localidad: data.localidad || null,
@@ -856,8 +859,10 @@ export async function previewChoferesImportAction(formData: FormData): Promise<{
         rowNum: i + 1,
         dni: dniClean,
         cuil: cuilClean || null,
-        nombre: nombreRaw,
-        apellido: apellidoRaw,
+        // Los Excels del cliente vienen todos en mayúsculas: se importan con el
+        // mismo formato que el resto del sistema (sólo la caja, el texto es el suyo).
+        nombre: formatNombrePersona(nombreRaw),
+        apellido: formatNombrePersona(apellidoRaw),
         telefono: telefonoRaw || null,
         localidad: localidadRaw || null,
         fecha_ingreso: fechaIngreso,

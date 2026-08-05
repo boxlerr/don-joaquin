@@ -16,11 +16,15 @@ import {
   CalendarClock,
   ArrowRight,
   Repeat2,
+  Search,
+  X,
+  TruckIcon,
 } from "lucide-react";
 import {
   guardarPlanillaDiariaAction,
   type PlanillaDiariaData,
 } from "./actions";
+import { nombreCompletoPersona, normalizarParaBuscar } from "@/lib/nombres";
 
 type Fila = {
   chofer_id: string;
@@ -83,6 +87,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   const [cambiosOpen, setCambiosOpen] = useState(false);
   const [soloCambios, setSoloCambios] = useState(false);
+  const [soloSinCamion, setSoloSinCamion] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
   const fechasGuardadas = useMemo(
     () => new Set(data.fechas_guardadas ?? []),
@@ -103,7 +109,25 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const tieneCambio = (f: Fila) => f.camion_id !== f.camion_previo_id;
 
   const filasConCambio = useMemo(() => filas.filter(tieneCambio), [filas]);
-  const filasVisibles = soloCambios ? filasConCambio : filas;
+  /** Choferes que hoy quedarían sin unidad: son los que no aparecen en la hoja de
+   *  ruta ni pueden cargar viajes, así que se avisan arriba y se pueden aislar. */
+  const filasSinCamion = useMemo(() => filas.filter((f) => !f.camion_id), [filas]);
+
+  const filasVisibles = useMemo(() => {
+    let out = filas;
+    if (soloCambios) out = out.filter(tieneCambio);
+    if (soloSinCamion) out = out.filter((f) => !f.camion_id);
+    const q = normalizarParaBuscar(busqueda);
+    if (q) {
+      out = out.filter((f) => {
+        const patente = f.camion_id ? patentePorCamion.get(f.camion_id) ?? "" : "";
+        return normalizarParaBuscar(
+          `${f.apellido} ${f.nombre} ${patente} ${f.camion_habitual_patente ?? ""}`,
+        ).includes(q);
+      });
+    }
+    return out;
+  }, [filas, soloCambios, soloSinCamion, busqueda, patentePorCamion]);
 
   // Qué chofer(es) tienen cada camión hoy — para marcar ocupado/libre en el selector.
   const ocupadoPor = useMemo(() => {
@@ -111,7 +135,10 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     for (const f of filas) {
       if (!f.camion_id) continue;
       const arr = m.get(f.camion_id) ?? [];
-      arr.push({ id: f.chofer_id, label: f.apellido });
+      // Mismo formato que la columna Chofer ("Apellido, Nombre"): en el selector
+      // hay que reconocer de quién se le está sacando el camión, y con dos Cejas
+      // o dos Asteazarán el apellido solo no alcanza.
+      arr.push({ id: f.chofer_id, label: nombreCompletoPersona(f.apellido, f.nombre) });
       m.set(f.camion_id, arr);
     }
     return m;
@@ -144,6 +171,20 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
   const hayDuplicados = camionesDuplicados.size > 0;
   const asignados = filas.filter((f) => f.camion_id).length;
 
+  /** "AF671SI — Schwindt, Jorge y Cepeda, Tomas": qué unidad está repetida y entre
+   *  quiénes. Decir sólo "hay un camión repetido" obligaba a buscarlo a ojo entre
+   *  63 filas. */
+  const detalleDuplicados = useMemo(
+    () =>
+      [...camionesDuplicados].map((camId) => ({
+        patente: patentePorCamion.get(camId) ?? "sin patente",
+        choferes: filas
+          .filter((f) => f.camion_id === camId)
+          .map((f) => nombreCompletoPersona(f.apellido, f.nombre)),
+      })),
+    [camionesDuplicados, patentePorCamion, filas],
+  );
+
   const setCamion = (choferId: string, camionId: string) =>
     setFilas((prev) =>
       prev.map((f) => (f.chofer_id === choferId ? { ...f, camion_id: camionId } : f)),
@@ -171,34 +212,51 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   const handleGuardar = async () => {
     if (hayDuplicados) {
-      setResultado({ ok: false, mensaje: "Hay un camión asignado a más de un chofer. Corregí antes de guardar." });
+      setResultado({
+        ok: false,
+        mensaje: `Corregí antes de guardar: ${detalleDuplicados
+          .map((d) => `${d.patente} está en ${d.choferes.join(" y ")}`)
+          .join("; ")}.`,
+      });
       return;
     }
     setGuardando(true);
     setResultado(null);
 
-    const res = await guardarPlanillaDiariaAction({
-      fecha: data.fecha,
-      items: filas.map((f) => ({
-        chofer_id: f.chofer_id,
-        camion_id: f.camion_id || null,
-        observaciones: f.observaciones.trim() || null,
-      })),
-    });
-
-    setGuardando(false);
-
-    if (res.ok) {
-      setResultado({
-        ok: true,
-        mensaje:
-          res.cambios > 0
-            ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es). Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
-            : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
+    // Mismo motivo que en la carga rápida: sin el try/finally, una acción que
+    // tira dejaba el botón en "Guardando..." para siempre y sin decir nada.
+    try {
+      const res = await guardarPlanillaDiariaAction({
+        fecha: data.fecha,
+        items: filas.map((f) => ({
+          chofer_id: f.chofer_id,
+          camion_id: f.camion_id || null,
+          observaciones: f.observaciones.trim() || null,
+        })),
       });
-      router.refresh();
-    } else {
-      setResultado({ ok: false, mensaje: res.error });
+
+      if (res.ok) {
+        setResultado({
+          ok: true,
+          mensaje:
+            res.cambios > 0
+              ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es). Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
+              : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
+        });
+        router.refresh();
+      } else {
+        setResultado({ ok: false, mensaje: res.error });
+      }
+    } catch (e) {
+      setResultado({
+        ok: false,
+        mensaje:
+          e instanceof Error && e.message
+            ? `No se pudo guardar la planilla: ${e.message}. Los cambios siguen en pantalla, probá de nuevo.`
+            : "No se pudo guardar la planilla. Los cambios siguen en pantalla, probá de nuevo.",
+      });
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -276,7 +334,61 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           </Button>
         </div>
 
+        {/* Buscador: con 63 choferes, encontrar a uno era scrollear a ojo. */}
+        <div className="w-full sm:w-auto sm:min-w-[240px] space-y-1">
+          <label
+            htmlFor="planilla-buscar"
+            className="text-xs font-semibold text-muted-foreground block"
+          >
+            Buscar
+          </label>
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none"
+            />
+            <input
+              id="planilla-buscar"
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Chofer o patente..."
+              // 16px en el celular: con menos, iOS hace zoom al enfocar el campo.
+              className="h-10 sm:h-9 w-full sm:w-56 pl-8 pr-8 text-base sm:text-xs rounded border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[#0088D1]/30 focus:border-[#0088D1] [&::-webkit-search-cancel-button]:hidden"
+            />
+            {busqueda && (
+              <button
+                type="button"
+                onClick={() => setBusqueda("")}
+                title="Limpiar búsqueda"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 size-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="w-full lg:w-auto lg:self-center lg:ml-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground/80">
+          {filasSinCamion.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSoloSinCamion((v) => !v)}
+              title={
+                soloSinCamion
+                  ? "Ver todos los choferes"
+                  : "Ver solo los choferes sin camión asignado"
+              }
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+                soloSinCamion
+                  ? "bg-[#0088D1] border-[#0088D1] text-white"
+                  : "bg-[#E1F5FE] border-[#B3E5FC] text-[#01579B] hover:bg-[#B3E5FC]"
+              }`}
+            >
+              <TruckIcon size={12} />
+              {filasSinCamion.length} sin camión
+            </button>
+          )}
           {(filasConCambio.length > 0 || soloCambios) && (
             <button
               type="button"
@@ -374,6 +486,68 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         </div>
       )}
 
+      {/* Choferes sin unidad: no salen en la hoja de ruta ni pueden cargar viajes,
+          así que se avisan acá en vez de quedar escondidos entre 63 filas. */}
+      {editable && filasSinCamion.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border">
+          <TruckIcon size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-foreground">
+              {filasSinCamion.length === 1
+                ? "1 chofer sin camión asignado."
+                : `${filasSinCamion.length} choferes sin camión asignado.`}
+            </p>
+            <p className="text-xs mt-0.5 text-muted-foreground">
+              {filasSinCamion
+                .slice(0, 6)
+                .map((f) => nombreCompletoPersona(f.apellido, f.nombre))
+                .join(" · ")}
+              {filasSinCamion.length > 6 && ` · y ${filasSinCamion.length - 6} más`}
+              . No aparecen en la hoja de ruta impresa y la carga de viajes no les
+              propone unidad.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSoloSinCamion((v) => !v)}
+            className="gap-1.5 h-9 sm:h-8 text-xs shrink-0 w-full sm:w-auto"
+          >
+            {soloSinCamion ? "Ver todos" : "Ver solo esos"}
+          </Button>
+        </div>
+      )}
+
+      {/* Camión repetido: en la planilla una unidad es de UN chofer por día (la
+          base lo exige con un unique por fecha+camión), así que hay que decir cuál
+          y entre quiénes, no sólo que "hay uno repetido". */}
+      {hayDuplicados && (
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#FEF2F2] border-[#FECACA] text-[#7F1D1D]">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">
+              {detalleDuplicados.length === 1
+                ? "Hay un camión asignado a dos choferes."
+                : `Hay ${detalleDuplicados.length} camiones asignados a más de un chofer.`}
+            </p>
+            <ul className="text-xs mt-1 space-y-0.5">
+              {detalleDuplicados.map((d) => (
+                <li key={d.patente}>
+                  <strong className="font-mono">{d.patente}</strong> — {d.choferes.join(" y ")}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs mt-1.5 text-[#7F1D1D]/80">
+              En la planilla del día cada unidad va con un solo chofer. Si el camión
+              se lo pasaron entre los dos, dejalo acá con el que lo tiene y cargá el
+              viaje del otro desde <strong>Carga rápida</strong>, que sí permite
+              repetir la unidad.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Grilla */}
       <div className="bg-card border border-border rounded-[8px] overflow-hidden">
         <div className="overflow-x-auto">
@@ -416,7 +590,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       }`}
                     >
                       <span className="font-medium text-foreground">
-                        {f.apellido}, {f.nombre}
+                        {nombreCompletoPersona(f.apellido, f.nombre)}
                       </span>
                     </td>
 
@@ -498,9 +672,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               {filasVisibles.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">
-                    {soloCambios
-                      ? "No hubo cambios de camión."
-                      : "No hay choferes activos."}
+                    {busqueda.trim()
+                      ? `Ningún chofer ni patente coincide con "${busqueda.trim()}".`
+                      : soloSinCamion
+                        ? "Todos los choferes tienen camión asignado."
+                        : soloCambios
+                          ? "No hubo cambios de camión."
+                          : "No hay choferes activos."}
                   </td>
                 </tr>
               )}

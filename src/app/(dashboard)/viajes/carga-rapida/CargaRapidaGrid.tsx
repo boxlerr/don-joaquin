@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -89,6 +89,38 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
     data.choferes
       .filter((c) => c.camionId)
       .map((c) => [c.id, c.camionId!]),
+  );
+
+  const nombreCamion = useMemo(
+    () => new Map(data.camiones.map((c) => [c.id, c.label])),
+    [data.camiones],
+  );
+  const nombreChofer = useMemo(
+    () => new Map(data.choferes.map((c) => [c.id, c.label])),
+    [data.choferes],
+  );
+
+  // Un mismo camión en dos filas es válido (el chofer llega y se lo pasa a otro),
+  // pero casi siempre es que se duplicó una fila y se cambió el chofer sin que el
+  // autocompletado pisara el camión —porque ese chofer no tiene unidad fija—. Se
+  // permite guardar; sólo se marca para que no pase de largo.
+  const camionesRepetidos = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const f of filas) {
+      if (f.camion_id) cuenta.set(f.camion_id, (cuenta.get(f.camion_id) ?? 0) + 1);
+    }
+    return new Set([...cuenta.entries()].filter(([, n]) => n > 1).map(([id]) => id));
+  }, [filas]);
+
+  const detalleRepetidos = useMemo(
+    () =>
+      [...camionesRepetidos].map((camId) => ({
+        patente: nombreCamion.get(camId) ?? "sin patente",
+        choferes: filas
+          .filter((f) => f.camion_id === camId)
+          .map((f) => nombreChofer.get(f.chofer_id) ?? "sin chofer"),
+      })),
+    [camionesRepetidos, filas, nombreCamion, nombreChofer],
   );
 
   const actualizarFila = useCallback(
@@ -236,6 +268,15 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
                 "No se encontró tarifa vigente para esos destinos. Cargá las tarifas en /tarifas o importá el DM de YPF.",
             },
       );
+    } catch (e) {
+      // Mismo motivo que en Guardar: sin el catch la pantalla se quedaba muda.
+      setResultado({
+        ok: false,
+        mensaje:
+          e instanceof Error && e.message
+            ? `No se pudieron calcular los importes: ${e.message}`
+            : "No se pudieron calcular los importes. Probá de nuevo.",
+      });
     } finally {
       setCalculando(false);
     }
@@ -274,20 +315,34 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
     setResultado(null);
     setErroresValidacion([]);
 
-    const res = await createViajesBatchAction(payload);
+    // El try/finally no es decorativo: si la acción del servidor tira (permisos,
+    // un lugar que no se pudo dar de alta, se cortó la red), el `await` levanta
+    // la excepción y sin esto el `setGuardando(false)` nunca corría. El botón
+    // se quedaba en "Guardando..." para siempre, sin guardar nada y sin decirlo.
+    try {
+      const res = await createViajesBatchAction(payload);
 
-    setGuardando(false);
-
-    if (res.ok) {
-      setResultado({ ok: true, creados: res.creados, mensaje: `${res.creados} viaje(s) creados correctamente.` });
-      // Limpiar filas y dejar una nueva lista para seguir cargando
-      setFilas([filaVacia()]);
-      router.refresh();
-    } else {
-      if (res.errores?.length) {
-        setErroresValidacion(res.errores);
+      if (res.ok) {
+        setResultado({ ok: true, creados: res.creados, mensaje: `${res.creados} viaje(s) creados correctamente.` });
+        // Limpiar filas y dejar una nueva lista para seguir cargando
+        setFilas([filaVacia()]);
+        router.refresh();
+      } else {
+        if (res.errores?.length) {
+          setErroresValidacion(res.errores);
+        }
+        setResultado({ ok: false, mensaje: res.error ?? "Error al guardar los viajes." });
       }
-      setResultado({ ok: false, mensaje: res.error ?? "Error al guardar los viajes." });
+    } catch (e) {
+      setResultado({
+        ok: false,
+        mensaje:
+          e instanceof Error && e.message
+            ? `No se pudieron guardar los viajes: ${e.message}. Las filas quedaron cargadas, probá de nuevo.`
+            : "No se pudieron guardar los viajes. Las filas quedaron cargadas, probá de nuevo.",
+      });
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -373,6 +428,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
             <tbody>
               {filas.map((fila, idx) => {
                 const filaError = erroresValidacion.find((e) => e.fila === idx + 1);
+                const camionRepetido = !!fila.camion_id && camionesRepetidos.has(fila.camion_id);
                 return (
                   <tr
                     key={fila.id}
@@ -406,14 +462,25 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
                     {/* Camión */}
                     <td className="px-1 py-1">
-                      <Combobox
-                        value={fila.camion_id}
-                        onValueChange={(v) => actualizarFila(fila.id, "camion_id", v)}
-                        options={data.camiones}
-                        placeholder="— Elegí —"
-                        searchPlaceholder="Buscar patente..."
-                        triggerClassName={`h-9 sm:h-8 w-32 text-xs ${!fila.camion_id ? "border-amber-300" : ""}`}
-                      />
+                      <div className="flex items-center gap-1">
+                        <Combobox
+                          value={fila.camion_id}
+                          onValueChange={(v) => actualizarFila(fila.id, "camion_id", v)}
+                          options={data.camiones}
+                          placeholder="— Elegí —"
+                          searchPlaceholder="Buscar patente..."
+                          triggerClassName={`h-9 sm:h-8 w-32 text-xs ${
+                            !fila.camion_id || camionRepetido ? "border-amber-300" : ""
+                          }`}
+                        />
+                        {camionRepetido && (
+                          <span
+                            title={`${nombreCamion.get(fila.camion_id) ?? "Este camión"} está en más de una fila. Se puede guardar igual (si el camión se lo pasaron entre choferes), pero revisá que sea así.`}
+                          >
+                            <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Circuito (autocompleta origen/destino/km) */}
@@ -597,6 +664,32 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
           </span>
         </div>
       </div>
+
+      {/* Camión repetido entre filas: se avisa, no se bloquea. */}
+      {detalleRepetidos.length > 0 && (
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#FFFBEB] border-[#FDE68A] text-[#78350F]">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-500" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">
+              {detalleRepetidos.length === 1
+                ? "Hay un camión repetido en dos filas."
+                : `Hay ${detalleRepetidos.length} camiones repetidos en más de una fila.`}
+            </p>
+            <ul className="text-xs mt-1 space-y-0.5">
+              {detalleRepetidos.map((d) => (
+                <li key={d.patente}>
+                  <strong className="font-mono">{d.patente}</strong> — {d.choferes.join(" y ")}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs mt-1.5 text-[#78350F]/80">
+              Se puede guardar así: pasa cuando un chofer llega y le deja la unidad a
+              otro. Ojo si no fue el caso — al duplicar una fila, el camión no se
+              cambia solo cuando el chofer nuevo no tiene unidad fija.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Feedback */}
       {resultado && (

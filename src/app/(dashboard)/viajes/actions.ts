@@ -900,16 +900,18 @@ async function getOrCreatePuntoRuta(
   const trimmed = nombre.trim();
   if (!trimmed) return null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("puntos_ruta")
-    .select("id")
-    .ilike("nombre", trimmed)
-    .limit(1);
+  const buscarPorNombre = async (): Promise<string | null> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("puntos_ruta")
+      .select("id")
+      .ilike("nombre", trimmed)
+      .limit(1);
+    return !error && data && data.length > 0 ? (data[0].id as string) : null;
+  };
 
-  if (!error && data && data.length > 0) {
-    return data[0].id;
-  }
+  const existente = await buscarPorNombre();
+  if (existente) return existente;
 
   // Sin `as any` a propósito: acá el tipo generado de la tabla es la única
   // defensa contra escribir una columna que no existe. Con el cast, el insert
@@ -922,6 +924,15 @@ async function getOrCreatePuntoRuta(
     .single();
 
   if (insertRes.error) {
+    // 23505 = el índice único de `puntos_ruta.nombre` rechazó el alta porque
+    // otra alta simultánea del MISMO lugar llegó primero. Eso no es un error:
+    // el lugar existe, sólo hay que volver a leerlo. Sin este reintento, cargar
+    // varias filas con un destino nuevo (LAJE9, LAJE41) hacía que todas menos
+    // una explotaran y se cayera el lote entero.
+    if (insertRes.error.code === "23505") {
+      const ganador = await buscarPorNombre();
+      if (ganador) return ganador;
+    }
     console.error(`Error creando el punto de ruta "${trimmed}":`, insertRes.error);
     throw new Error(`No se pudo dar de alta el lugar "${trimmed}".`);
   }
@@ -2300,46 +2311,75 @@ export async function createViajesBatchAction(
     }
   }
 
+  // Los lugares se resuelven UNA vez por nombre distinto y en serie. Antes cada
+  // fila resolvía los suyos dentro de un `Promise.all`: siete filas con el mismo
+  // destino nuevo disparaban siete SELECT que no encontraban nada y después
+  // siete INSERT a la vez, y el índice único de `puntos_ruta.nombre` volteaba
+  // todos menos uno. El throw resultante escapaba del Promise.all, la acción se
+  // caía sin respuesta y la pantalla quedaba clavada en "Guardando...".
+  const nombresPuntos = [
+    ...new Set(
+      parseadas
+        .flatMap((p) => [p.origen_nombre, p.destino_nombre])
+        .map((n) => n?.trim())
+        .filter((n): n is string => !!n && n !== "—"),
+    ),
+  ];
+  const puntoPorNombre = new Map<string, string | null>();
+  try {
+    for (const nombre of nombresPuntos) {
+      puntoPorNombre.set(nombre, await getOrCreatePuntoRuta(supabase, nombre));
+    }
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "No se pudo dar de alta el lugar.",
+    };
+  }
+
+  const idDelPunto = (nombre: string | null | undefined): string | null => {
+    const t = nombre?.trim();
+    if (!t || t === "—") return null;
+    return puntoPorNombre.get(t) ?? null;
+  };
+
   // Construir payload batch. `parseadas` está alineado por índice con `filas`
   // (si hubiera error de validación se retorna antes), así que tomamos es_vacio
   // de la fila original — viajeSchema no lo incluye.
-  const payload = await Promise.all(
-    parseadas.map(async (p, idx) => {
-      seq++;
-      const codigo = `${prefix}${String(seq).padStart(5, "0")}`;
-      const tipoCargaId = tipoCargaResuelto.get(p.tipo_carga_id) ?? p.tipo_carga_id;
-      const esVacio = filas[idx]?.es_vacio ?? false;
+  const payload = parseadas.map((p, idx) => {
+    seq++;
+    const codigo = `${prefix}${String(seq).padStart(5, "0")}`;
+    const tipoCargaId = tipoCargaResuelto.get(p.tipo_carga_id) ?? p.tipo_carga_id;
+    const esVacio = filas[idx]?.es_vacio ?? false;
 
-      const origen_id = p.origen_nombre ? await getOrCreatePuntoRuta(supabase, p.origen_nombre) : null;
-      const destino_id = p.destino_nombre ? await getOrCreatePuntoRuta(supabase, p.destino_nombre) : null;
+    const origen_id = idDelPunto(p.origen_nombre);
+    const destino_id = idDelPunto(p.destino_nombre);
 
-      return {
-        codigo,
-        fecha_viaje: p.fecha_viaje,
-        estado: p.estado,
-        cliente_id: p.cliente_id,
-        chofer_id: p.chofer_id,
-        camion_id: p.camion_id,
-        tipo_carga_id: tipoCargaId,
-        ruta_id: p.ruta_id ?? null,
-        origen_id,
-        destino_id,
-        km_con_carga: p.km_con_carga,
-        km_vacios: p.km_vacios,
-        ruta_via: p.ruta_via ?? null,
-        tonelaje_real: esVacio ? 0 : p.tonelaje_real,
-        monto_flete: esVacio ? 0 : p.monto_flete,
-        tarifa_id: esVacio ? null : p.tarifa_id ?? null,
-        moneda: "ARS",
-        nro_viaje_ypf: p.nro_viaje_ypf ?? null,
-        material: p.material || null,
-        es_vacio: esVacio,
-        facturado: viajeEstaFacturado(p.monto_flete, esVacio),
-        cobrado: viajeEstaFacturado(p.monto_flete, esVacio),
-        created_by: user.id,
-      };
-    }),
-  );
+    return {
+      codigo,
+      fecha_viaje: p.fecha_viaje,
+      estado: p.estado,
+      cliente_id: p.cliente_id,
+      chofer_id: p.chofer_id,
+      camion_id: p.camion_id,
+      tipo_carga_id: tipoCargaId,
+      ruta_id: p.ruta_id ?? null,
+      origen_id,
+      destino_id,
+      km_con_carga: p.km_con_carga,
+      km_vacios: p.km_vacios,
+      ruta_via: p.ruta_via ?? null,
+      tonelaje_real: esVacio ? 0 : p.tonelaje_real,
+      monto_flete: esVacio ? 0 : p.monto_flete,
+      tarifa_id: esVacio ? null : p.tarifa_id ?? null,
+      moneda: "ARS",
+      nro_viaje_ypf: p.nro_viaje_ypf ?? null,
+      material: p.material || null,
+      es_vacio: esVacio,
+      facturado: viajeEstaFacturado(p.monto_flete, esVacio),
+      cobrado: viajeEstaFacturado(p.monto_flete, esVacio),
+      created_by: user.id,
+    };
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: insertedRows, error: insertError } = await (supabase as any)
