@@ -16,10 +16,11 @@ import { revalidatePath } from "next/cache";
 // `alerta_lecturas` es tabla nueva (todavía no está en database.ts) → usamos el
 // patrón `(supabase as any)`, igual que lib/alertas.ts para tablas nuevas.
 
-// Las alertas en vivo de documentos (`docvenc-*`) no existen en la tabla `alertas`;
-// no son marcables. Filtrarlas evita una violación de FK en el upsert.
+// Las alertas en vivo de documentos y cheques (`docvenc-*` / `chequevenc-*`) no
+// existen en la tabla `alertas`; no son marcables. Filtrarlas evita una violación
+// de FK en el upsert.
 function esMarcable(alertaId: string): boolean {
-  return !alertaId.startsWith("docvenc-");
+  return !alertaId.startsWith("docvenc-") && !alertaId.startsWith("chequevenc-");
 }
 
 export async function marcarAlertaVista(alertaId: string) {

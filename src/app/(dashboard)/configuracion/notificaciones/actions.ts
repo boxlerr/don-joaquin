@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { enviarResumenPrueba } from "@/lib/notificaciones";
+import { normalizarColumnas } from "@/lib/alertas-routing";
 import {
-  ALERTAS,
   ALERTA_COLUMNAS,
+  CATEGORIAS,
   CANALES,
   DESTINATARIOS_CLAVE,
   MATRIZ_CLAVE,
@@ -162,7 +163,7 @@ export async function updateCanalConfigAction(input: unknown): Promise<Result> {
 }
 
 const alertaToggleSchema = z.object({
-  alerta: z.enum(ALERTAS.map((a) => a.key) as [string, ...string[]]),
+  alerta: z.enum(CATEGORIAS.map((a) => a.key) as [string, ...string[]]),
   activo: z.boolean(),
 });
 
@@ -171,7 +172,7 @@ export async function toggleAlertaAction(input: unknown): Promise<Result> {
   const parsed = alertaToggleSchema.safeParse(input);
   if (!parsed.success) return { error: "Entrada inválida" };
 
-  const alerta = ALERTAS.find((a) => a.key === parsed.data.alerta);
+  const alerta = CATEGORIAS.find((a) => a.key === parsed.data.alerta);
   if (!alerta) return { error: "Alerta desconocida" };
 
   const res = await upsertParametro(
@@ -277,7 +278,11 @@ export async function setUsuarioAlertaPrefAction(input: unknown): Promise<Result
   if (!COLUMNAS_VALIDAS.has(parsed.data.alertaKey)) return { error: "Tipo de alerta desconocido" };
 
   const matriz = await leerMatriz();
-  const cur = new Set(matriz[parsed.data.usuarioId] ?? []);
+  // Normalizar ANTES de tocar: quien tenía "Otros avisos" y todavía no vio las
+  // categorías que salieron de ahí (impuestos, mantenimiento, efemérides,
+  // ausencias) las tiene tildadas en pantalla. Sin esto, el primer clic guardaría
+  // sólo lo viejo y le apagaría en silencio cuatro categorías que sí recibía.
+  const cur = new Set(normalizarColumnas(matriz[parsed.data.usuarioId] ?? []));
   if (parsed.data.activo) cur.add(parsed.data.alertaKey);
   else cur.delete(parsed.data.alertaKey);
   matriz[parsed.data.usuarioId] = [...cur];

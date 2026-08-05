@@ -22,10 +22,20 @@ import { visiblePara } from "@/lib/alertas-visibilidad";
  * el patrón `(supabase as any)` que ya emplea `lib/alertas.ts` para tablas nuevas.
  */
 
-// Tipos calculados EN VIVO en /notificaciones (ids sintéticos `docvenc-*`, no están
-// en la tabla `alertas`). No son "marcables" y por construcción no entran al conteo
-// ni al toaster: así el badge puede llegar a 0 cuando el usuario marca todo leído.
-export const DOC_LIVE = ["vencimiento_doc_camion", "vencimiento_doc_chofer"] as const;
+// Tipos calculados EN VIVO en /notificaciones (ids sintéticos `docvenc-*` /
+// `chequevenc-*`, no están en la tabla `alertas`). No son "marcables" y por
+// construcción no entran al conteo ni al toaster: así el badge puede llegar a 0
+// cuando el usuario marca todo leído.
+//
+// Los cheques entraron acá porque su fila de la tabla se escribe UNA vez y el
+// texto queda congelado: el dedup impide regenerarla, así que la campana decía
+// "vence en 6 días" para siempre — incluso el día que vencía. Calculado en vivo
+// escala solo a "vence hoy" y "venció hace N", y se apaga al salir de cartera.
+export const DOC_LIVE = [
+  "vencimiento_doc_camion",
+  "vencimiento_doc_chofer",
+  "vencimiento_cheque",
+] as const;
 
 export type ResumenItem = {
   id: string;

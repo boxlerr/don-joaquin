@@ -30,8 +30,19 @@ export type AlertaLive = {
 
 // Umbral crítico (mismo que la vista): dentro de estos días o ya vencido → crítica.
 const DIAS_CRITICO = 7;
-// Ventana de aviso de cheques en cartera (igual que el default de generarAlertas).
-const DIAS_VENTANA_CHEQUE = 30;
+// Ventana de aviso de cheques si el parámetro no está cargado (igual que generarAlertas).
+const DIAS_VENTANA_CHEQUE_DEFAULT = 30;
+
+/** Ventana de aviso de cheques configurada en Configuración (`dias_alerta_cheque`). */
+async function ventanaCheque(supabase: Supabase): Promise<number> {
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", "dias_alerta_cheque")
+    .maybeSingle();
+  const n = Number(data?.valor);
+  return Number.isFinite(n) && n > 0 ? n : DIAS_VENTANA_CHEQUE_DEFAULT;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supabase = any;
@@ -41,12 +52,23 @@ function plural(n: number): string {
 }
 
 /**
- * Alertas de documentos de camión/chofer para el mail, calculadas en vivo.
- * A diferencia de la pantalla (que muestra todo el estado), el mail solo recuerda
- * en hitos: 14 y 7 días antes y el día del vencimiento, y después todos los días
- * mientras siga vencido. El texto se arma igual que en la vista.
+ * `soloHitos: true` (el mail de todos los días) recuerda en hitos y no a diario.
+ * `false` (el resumen completo del lunes) trae todo lo que está por vencer o
+ * vencido, que es de lo que se trata ese correo.
  */
-export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[]> {
+export type OpcionesLive = { soloHitos?: boolean };
+
+/**
+ * Alertas de documentos de camión/chofer para el mail, calculadas en vivo.
+ * A diferencia de la pantalla (que muestra todo el estado), el mail diario solo
+ * recuerda en hitos: 14 y 7 días antes y el día del vencimiento, y después todos
+ * los días mientras siga vencido. El texto se arma igual que en la vista.
+ */
+export async function getDocAlertasLive(
+  supabase: Supabase,
+  opts: OpcionesLive = {},
+): Promise<AlertaLive[]> {
+  const soloHitos = opts.soloHitos ?? true;
   const [{ data: tiposDoc }, { data: camionDocs }, { data: choferDocs }] = await Promise.all([
     supabase
       .from("tipos_documento")
@@ -86,11 +108,12 @@ export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[
       if (dias === null) continue;
 
       const vencido = dias < 0;
-      // El mail recuerda documentos en hitos: 14 y 7 días antes y el día del
-      // vencimiento; una vez vencido, sigue avisando todos los días. Los días
+      // El mail diario recuerda documentos en hitos: 14 y 7 días antes y el día
+      // del vencimiento; una vez vencido, sigue avisando todos los días. Los días
       // intermedios no generan correo (la pantalla in-app muestra el estado igual).
+      const dentroDeVentana = dias <= 14;
       const esHito = dias === 14 || dias === 7 || dias === 0;
-      if (!vencido && !esHito) continue;
+      if (!vencido && !(soloHitos ? esHito : dentroDeVentana)) continue;
 
       const entidad =
         ambito === "camion"
@@ -123,13 +146,27 @@ export async function getDocAlertasLive(supabase: Supabase): Promise<AlertaLive[
 /**
  * Alertas de cheques en cartera próximos a vencer o vencidos, en vivo. Escala a
  * "vencido" (la generación original solo miraba los que aún no habían vencido).
+ *
+ * Igual que los documentos, el mail recuerda en HITOS y no todos los días: al
+ * entrar en la ventana configurada, a 7, a 3, mañana, el día que vence, y
+ * después todos los días mientras siga vencido sin gestionar. La pantalla y la
+ * campana muestran el estado completo igual.
  */
-export async function getChequeAlertasLive(supabase: Supabase): Promise<AlertaLive[]> {
-  const { data: cheques } = await supabase
-    .from("cheques")
-    .select("id, librador_nombre, importe, fecha_vencimiento")
-    .eq("estado", "cartera")
-    .not("fecha_vencimiento", "is", null);
+export async function getChequeAlertasLive(
+  supabase: Supabase,
+  opts: OpcionesLive = {},
+): Promise<AlertaLive[]> {
+  const soloHitos = opts.soloHitos ?? true;
+  const [ventana, { data: cheques }] = await Promise.all([
+    ventanaCheque(supabase),
+    supabase
+      .from("cheques")
+      .select("id, librador_nombre, importe, fecha_vencimiento")
+      .eq("estado", "cartera")
+      .not("fecha_vencimiento", "is", null),
+  ]);
+
+  const hitos = new Set([ventana, 7, 3, 1, 0].filter((d) => d <= ventana));
 
   const out: AlertaLive[] = [];
   for (const c of (cheques ?? []) as {
@@ -142,8 +179,7 @@ export async function getChequeAlertasLive(supabase: Supabase): Promise<AlertaLi
     if (dias === null) continue;
 
     const vencido = dias < 0;
-    const proximo = !vencido && dias <= DIAS_VENTANA_CHEQUE;
-    if (!vencido && !proximo) continue;
+    if (!vencido && !(soloHitos ? hitos.has(dias) : dias <= ventana)) continue;
 
     const importeLabel = `$${Number(c.importe).toLocaleString("es-AR")}`;
 

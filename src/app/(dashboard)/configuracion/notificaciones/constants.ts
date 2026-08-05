@@ -45,47 +45,106 @@ export const CANALES = [
 
 export type CanalKey = (typeof CANALES)[number]["key"];
 
+/**
+ * Categorías de aviso.
+ *
+ * `cubre` no es decorativo: es la lista textual de lo que entra en cada
+ * categoría, y se muestra en pantalla. Antes media docena de avisos (impuestos,
+ * services, cumpleaños, ausencias, el tope de préstamos) caían en un cajón
+ * llamado "Otros avisos" que no decía qué contenía, así que tildarlo o
+ * destildarlo era a ciegas. Si se agrega un generador nuevo en lib/alertas.ts,
+ * agregarlo también acá y en ENTIDAD_A_COLUMNA (lib/alertas-routing.ts).
+ */
 export const ALERTAS = [
   {
     key: "vencimiento_docs",
     nombre: "Vencimiento de Documentos",
-    descripcion: "Licencia de conducir, VTV, seguro de camión",
+    descripcion: "Documentación de choferes y camiones por vencer o vencida",
+    cubre: ["Licencia de conducir, LiNTI, libreta sanitaria", "VTV, seguro y cédula del camión"],
   },
   {
     key: "cheques_vencidos",
-    nombre: "Cheques Vencidos",
-    descripcion: "Alertas de cheques por cobrar/pagar",
+    nombre: "Cheques",
+    descripcion: "Cheques en cartera próximos a vencer, que vencen hoy o ya vencidos",
+    cubre: ["Cheque en cartera por vencer", "Cheque que vence hoy", "Cheque vencido sin gestionar"],
   },
   {
     key: "viaticos_sin_rendir",
     nombre: "Viáticos sin Rendir",
     descripcion: "Recordatorio de viáticos pendientes de liquidación",
+    cubre: ["Viático entregado y no rendido"],
   },
   {
     key: "gastos_pendientes",
     nombre: "Gastos Pendientes",
     descripcion: "Registro de gastos sin aprobación",
+    cubre: ["Gasto cargado sin comprobante"],
   },
   {
     key: "cambios_caja",
     nombre: "Cambios en Caja",
     descripcion: "Movimientos de caja relevantes",
+    cubre: ["Movimientos de caja marcados como relevantes"],
   },
   {
     key: "nuevo_viaje",
     nombre: "Nuevo Viaje",
     descripcion: "Notificación de viajes asignados a chofer",
+    cubre: ["Viaje asignado a un chofer", "Viaje sin cerrar pasadas las horas configuradas"],
   },
   {
     key: "vencimiento_compliance",
     nombre: "Compliance Loma Negra / YPF",
     descripcion: "Documentos por vencer o vencidos a presentar a clientes principales",
+    cubre: [
+      "Requisitos de Loma Negra y YPF (30 / 15 / 5 días y vencido)",
+      "Organismos previos: SICOP, Secondi y demás",
+      "Formulario 931 sin enviar (bloqueante)",
+    ],
   },
   {
     key: "prestamos_vencimiento",
-    nombre: "Préstamos por vencer",
-    descripcion:
-      "Cuotas de préstamos bancarios que vencen en 7 días, mañana, o que vencieron sin marcarse como pagadas",
+    nombre: "Préstamos",
+    descripcion: "Cuotas bancarias y tope mensual. Trae montos: sección confidencial",
+    cubre: [
+      "Cuota que vence esta semana, mañana o que vence hoy",
+      "Cuota vencida sin marcarse como pagada",
+      "Un mes que se pasa del tope de pagos fijado",
+    ],
+  },
+  {
+    key: "impuestos",
+    nombre: "Impuestos",
+    descripcion: "Vencimientos impositivos sin marcar como presentados",
+    cubre: ["Impuesto por vencer (30 / 15 / 5 días)", "Impuesto vencido y no presentado"],
+  },
+  {
+    key: "mantenimiento",
+    nombre: "Mantenimiento",
+    descripcion: "Services programados e insumos del catálogo",
+    cubre: [
+      "Próximo service por fecha, próximo o vencido",
+      "Insumos del catálogo con el precio sin actualizar",
+    ],
+  },
+  {
+    key: "rrhh_eventos",
+    nombre: "Efemérides de personal",
+    descripcion: "Cumpleaños, aniversarios y fin de período de prueba",
+    cubre: [
+      "Cumpleaños de choferes, administración y taller",
+      "Aniversarios de antigüedad",
+      "Fin del período de prueba (30 / 15 / 5 días)",
+    ],
+  },
+  {
+    key: "ausencias_vacaciones",
+    nombre: "Ausencias y vacaciones",
+    descripcion: "Quién no va a estar, y días de vacaciones que se pierden",
+    cubre: [
+      "Ausencia o permiso programado que arranca esta semana",
+      "Saldo de vacaciones del año anterior que vence el 31/12",
+    ],
   },
 ] as const;
 
@@ -101,9 +160,22 @@ export const DESTINATARIOS_CLAVE = "notificaciones_destinatarios_ids";
 // Formato JSON: { [usuarioId]: ["cheques_vencidos", "nuevo_viaje", ...] }
 export const MATRIZ_CLAVE = "notificaciones_matriz_por_usuario";
 
-// Columnas de la matriz: los tipos de alerta + un cajón "otros avisos" para los
-// avisos sin toggle propio (cumpleaños, ausencias, impuestos, services).
-export const ALERTA_COLUMNAS = [
-  ...ALERTAS.map((a) => ({ key: a.key as string, nombre: a.nombre })),
-  { key: "otros_avisos", nombre: "Otros avisos" },
-];
+// Cajón final: sólo lo que no encaja en ninguna categoría. Hoy no lo usa ningún
+// generador — queda como red para que un aviso nuevo nunca se pierda en silencio.
+export const OTROS_AVISOS_COLUMNA = {
+  key: "otros_avisos",
+  nombre: "Otros avisos",
+  descripcion: "Red de seguridad: avisos que todavía no tienen categoría propia",
+  cubre: ["Cualquier aviso nuevo mientras no se le asigne una categoría"],
+} as const;
+
+/** Todas las categorías configurables: las nombradas + el cajón final. */
+export const CATEGORIAS: readonly {
+  key: string;
+  nombre: string;
+  descripcion: string;
+  cubre: readonly string[];
+}[] = [...ALERTAS, OTROS_AVISOS_COLUMNA];
+
+// Columnas de la matriz: las categorías + el cajón final.
+export const ALERTA_COLUMNAS = CATEGORIAS.map((c) => ({ key: c.key, nombre: c.nombre }));

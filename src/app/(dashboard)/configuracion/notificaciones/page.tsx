@@ -16,13 +16,14 @@ import AlertaToggle from "./AlertaToggle";
 import DestinatarioMatriz from "./DestinatarioMatriz";
 import TestNotificacionButton from "./TestNotificacionButton";
 import {
-  ALERTAS,
   ALERTA_COLUMNAS,
+  CATEGORIAS,
   CANALES,
   DESTINATARIOS_CLAVE,
   MATRIZ_CLAVE,
   alertaClave,
 } from "./constants";
+import { normalizarColumnas } from "@/lib/alertas-routing";
 
 function parseDestinatarios(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -55,7 +56,7 @@ export default async function ConfiguracionNotificacionesPage() {
   const clavesParametros = [
     ...CANALES.map((c) => c.activoClave),
     ...CANALES.flatMap((c) => c.configCampos.map((f) => f.clave)),
-    ...ALERTAS.map((a) => alertaClave(a.key)),
+    ...CATEGORIAS.map((a) => alertaClave(a.key)),
     DESTINATARIOS_CLAVE,
     MATRIZ_CLAVE,
   ];
@@ -154,13 +155,17 @@ export default async function ConfiguracionNotificacionesPage() {
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {ALERTAS.map((alerta) => (
+          {CATEGORIAS.map((alerta) => (
             <AlertaToggle
               key={alerta.key}
               alertaKey={alerta.key}
               nombre={alerta.nombre}
               descripcion={alerta.descripcion}
-              initialActivo={valores.get(alertaClave(alerta.key)) === "true"}
+              cubre={alerta.cubre}
+              // Sin fila del parámetro la categoría queda ENCENDIDA: una categoría
+              // nueva no puede nacer apagada y en silencio (mismo criterio que
+              // tipoHabilitado en lib/alertas-routing.ts).
+              initialActivo={valores.get(alertaClave(alerta.key)) !== "false"}
             />
           ))}
         </div>
@@ -184,8 +189,11 @@ export default async function ConfiguracionNotificacionesPage() {
               const nombreCompleto = [u.nombre, u.apellido].filter(Boolean).join(" ") || u.email;
               // Default retrocompatible: si todavía no se configuró la matriz para este
               // usuario, hereda lo viejo (si era destinatario global → recibe todo).
-              const enabledInicial =
-                matriz[u.id] ?? (destinatariosIds.has(u.id) ? TODAS_LAS_COLUMNAS : []);
+              // `normalizarColumnas` cubre el otro salto: quien tenía "Otros avisos"
+              // sigue viendo tildadas las categorías que salieron de ese cajón.
+              const enabledInicial = normalizarColumnas(
+                matriz[u.id] ?? (destinatariosIds.has(u.id) ? TODAS_LAS_COLUMNAS : []),
+              );
               return (
                 <DestinatarioMatriz
                   key={u.id}

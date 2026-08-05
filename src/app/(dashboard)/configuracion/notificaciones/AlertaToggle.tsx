@@ -8,10 +8,12 @@ interface Props {
   alertaKey: string;
   nombre: string;
   descripcion: string;
+  /** Avisos concretos que entran en esta categoría. Se listan en pantalla. */
+  cubre?: readonly string[];
   initialActivo: boolean;
 }
 
-export default function AlertaToggle({ alertaKey, nombre, descripcion, initialActivo }: Props) {
+export default function AlertaToggle({ alertaKey, nombre, descripcion, cubre, initialActivo }: Props) {
   const [activo, setActivo] = useState(initialActivo);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -42,6 +44,21 @@ export default function AlertaToggle({ alertaKey, nombre, descripcion, initialAc
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">{nombre}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{descripcion}</p>
+          {cubre && cubre.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {cubre.map((item) => (
+                <li
+                  key={item}
+                  className="text-xs text-muted-foreground/90 leading-relaxed flex gap-1.5"
+                >
+                  <span aria-hidden className="text-muted-foreground/50 shrink-0">
+                    —
+                  </span>
+                  <span className="min-w-0">{item}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {error && (
             <p className="text-xs text-[#7F1D1D] mt-1 flex items-center gap-1">
               <AlertCircle size={12} />

@@ -6,6 +6,7 @@ import { categoriaDeAlerta } from "@/app/(dashboard)/notificaciones/utils";
 import {
   alertaColumnaDe,
   COLUMNAS_TODAS,
+  normalizarColumnas,
   tipoHabilitado,
 } from "@/lib/alertas-routing";
 import {
@@ -197,7 +198,9 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
 
   for (const u of usuariosActivos ?? []) {
     if (!u.email) continue;
-    const keys = new Set(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : []));
+    const keys = new Set(
+      normalizarColumnas(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : [])),
+    );
     if (keys.size === 0) continue;
     huboDestinatario = true;
 
@@ -249,7 +252,9 @@ export type ResultadoResumen =
 async function construirResumenFiltrado(
   supabase: Supabase,
   params: Map<string, string>,
+  opts: { soloHitos?: boolean } = {},
 ): Promise<AlertaEmail[]> {
+  const soloHitos = opts.soloHitos ?? true;
   const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
     supabase
       .from("alertas")
@@ -261,8 +266,8 @@ async function construirResumenFiltrado(
       .order("severidad", { ascending: false })
       .order("fecha_disparo", { ascending: false })
       .limit(200),
-    getDocAlertasLive(supabase),
-    getChequeAlertasLive(supabase),
+    getDocAlertasLive(supabase, { soloHitos }),
+    getChequeAlertasLive(supabase, { soloHitos }),
   ]);
 
   // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
@@ -282,7 +287,9 @@ export async function enviarResumenPrueba(email: string): Promise<ResultadoResum
 
   const supabase = createAdminClient();
   const params = await leerParametros(supabase);
-  const filtradas = await construirResumenFiltrado(supabase, params);
+  // La prueba muestra TODO lo que hay pendiente (no sólo los hitos de hoy): sirve
+  // para ver el formato y verificar que el SMTP anda, no para simular el día.
+  const filtradas = await construirResumenFiltrado(supabase, params, { soloHitos: false });
 
   const html = renderEmail({
     titulo: "Prueba — Resumen de alertas",
@@ -321,17 +328,23 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
     return { enviado: false, motivo: "canal_email_inactivo" };
   }
 
-  // Cadencia: el correo NO sale todos los días.
-  //  - Días de semana → sólo lo NUEVO (alertas que todavía no se notificaron).
-  //    Así llega en las fechas de los umbrales y no repite lo mismo a diario.
+  // Cadencia: el correo NO repite lo mismo todos los días.
   //  - Lunes → resumen completo de todo lo pendiente, para arrancar la semana.
-  // Las alertas "live" (documentación y cheques) no son filas de la tabla y no
-  // tienen forma de saber si ya se avisaron: van sólo en el resumen del lunes.
+  //  - Resto → lo NUEVO de la tabla, más las alertas "live" que hoy caen en un
+  //    hito (documentación y cheques).
+  //
+  // Las "live" no son filas de la tabla, así que no se pueden marcar como
+  // notificadas: antes se las descartaba de plano y quedaban sólo en el lunes.
+  // El efecto era el peor posible — un cheque que vencía un miércoles no
+  // generaba NINGÚN mail ese día, que es exactamente cuando importa. No hacía
+  // falta ese descarte: `lib/alertas-live.ts` ya las auto-limita por hito
+  // (14/7/0 días para documentos, la ventana configurada para cheques), así que
+  // no son diarias por su cuenta.
   const esLunes = new Date().getUTCDay() === 1;
-  const todas = await construirResumenFiltrado(supabase, params);
+  const todas = await construirResumenFiltrado(supabase, params, { soloHitos: !esLunes });
   const filtradas = esLunes
     ? todas
-    : todas.filter((a) => esDeTabla(a.id) && a.notificacion_procesada === false);
+    : todas.filter((a) => (esDeTabla(a.id) ? a.notificacion_procesada === false : true));
 
   if (filtradas.length === 0) {
     return { enviado: false, motivo: esLunes ? "sin_alertas" : "nada_nuevo" };
@@ -354,7 +367,9 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
 
   for (const u of usuariosActivos ?? []) {
     if (!u.email) continue;
-    const keys = new Set(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : []));
+    const keys = new Set(
+      normalizarColumnas(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : [])),
+    );
     if (keys.size === 0) continue;
     huboDestinatario = true;
 

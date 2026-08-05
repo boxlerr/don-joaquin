@@ -6,6 +6,7 @@ import { RefreshCw, AlertOctagon, Clock, ShieldCheck } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
 import { DOC_LIVE, getHistorialLeidas, getPendientesNoLeidasIds } from "@/lib/alertas-lecturas";
+import { getChequeAlertasLive } from "@/lib/alertas-live";
 import { marcarTodasVistas, actualizarAlertas } from "./actions";
 import NotificacionesView from "./NotificacionesView";
 import TiposMonitoreados from "./TiposMonitoreados";
@@ -24,6 +25,7 @@ export default async function NotificacionesPage() {
     { data: tiposDoc },
     { data: camionDocs },
     { data: choferDocs },
+    chequeAlertasLive,
   ] = await Promise.all([
     supabase
       .from("alertas")
@@ -49,6 +51,10 @@ export default async function NotificacionesPage() {
     supabase
       .from("chofer_documentos")
       .select("id, tipo_documento_id, fecha_vencimiento, choferes(nombre, apellido)"),
+    // Cheques en vivo, igual que los documentos. `soloHitos: false` porque acá se
+    // muestra el ESTADO completo (todo lo que está por vencer o vencido); los
+    // hitos son la cadencia del mail, no de la pantalla.
+    getChequeAlertasLive(supabase, { soloHitos: false }),
   ]);
 
   // Las alertas de secciones confidenciales sólo las ve quien tiene permiso:
@@ -140,13 +146,22 @@ export default async function NotificacionesPage() {
   procesar(camionDocs, "camion");
   procesar(choferDocs, "chofer");
 
-  // Alertas reales de la tabla (cheques, cumpleaños, prueba, compliance). Excluimos las
-  // de documentos porque ya las calculamos arriba en vivo (evita duplicados).
-  const otrasAlertas = alertas.filter(
-    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
-  );
+  // Cheques en cartera, también en vivo (ver DOC_LIVE en lib/alertas-lecturas.ts).
+  // El id sintético `chequevenc-<uuid>` lleva adentro el id del cheque, que es lo
+  // que necesita `alertaHref` para poder abrirlo desde la campana.
+  const chequeAlertas: AlertaItem[] = chequeAlertasLive.map((a) => ({
+    ...a,
+    fecha_disparo: nowIso,
+    entidad_id: a.id.replace(/^chequevenc-/, ""),
+    marcable: false,
+  }));
 
-  const alertasMerged: AlertaItem[] = [...docAlertas, ...otrasAlertas];
+  // Alertas reales de la tabla (cumpleaños, prueba, compliance, préstamos…). Las de
+  // documentos y cheques ya salieron del query por DOC_LIVE y se calculan arriba en
+  // vivo, así que acá no hay duplicados.
+  const otrasAlertas = alertas;
+
+  const alertasMerged: AlertaItem[] = [...docAlertas, ...chequeAlertas, ...otrasAlertas];
 
   const docVencidos = docAlertas.filter((a) => a.mensaje.includes("venció")).length;
   const docProximos = docAlertas.length - docVencidos;
