@@ -30,6 +30,11 @@ export type AlertaLive = {
 
 // Umbral crítico (mismo que la vista): dentro de estos días o ya vencido → crítica.
 const DIAS_CRITICO = 7;
+// Cuántos días se recuerda por mail un documento YA vencido en el envío diario.
+// Pasado ese plazo sigue en la pantalla y en el resumen del lunes, pero deja de
+// repetirse todas las mañanas. Los cheques vencidos NO tienen este corte a
+// propósito: son plata a cobrar, son pocos, y ahí sí conviene que insistan.
+const DIAS_RECORDAR_VENCIDO = 7;
 // Ventana de aviso de cheques si el parámetro no está cargado (igual que generarAlertas).
 const DIAS_VENTANA_CHEQUE_DEFAULT = 30;
 
@@ -114,12 +119,20 @@ export async function getDocAlertasLive(
       if (dias === null) continue;
 
       const vencido = dias < 0;
-      // El mail diario recuerda documentos en hitos: 14 y 7 días antes y el día
-      // del vencimiento; una vez vencido, sigue avisando todos los días. Los días
-      // intermedios no generan correo (la pantalla in-app muestra el estado igual).
-      const dentroDeVentana = dias <= 14;
+      // Mail diario: hitos (14 / 7 / el día que vence) y los que vencieron en la
+      // última semana. Resumen del lunes (`soloHitos: false`): todo lo que está
+      // por vencer o vencido, sin importar hace cuánto.
+      //
+      // El corte de los vencidos existe por volumen: hoy hay 45 documentos
+      // vencidos de gente y camiones activos. Repetir esa lista entera cada
+      // mañana no la hace más urgente, hace que en una semana nadie abra el
+      // correo — y ahí se pierde el aviso del que vence mañana. La lista completa
+      // no desaparece: sigue en la pantalla todos los días y en el mail del lunes.
       const esHito = dias === 14 || dias === 7 || dias === 0;
-      if (!vencido && !(soloHitos ? esHito : dentroDeVentana)) continue;
+      const vencidoReciente = vencido && Math.abs(dias) <= DIAS_RECORDAR_VENCIDO;
+      const entraDiario = esHito || vencidoReciente;
+      const entraCompleto = vencido || dias <= 14;
+      if (!(soloHitos ? entraDiario : entraCompleto)) continue;
 
       const entidad =
         ambito === "camion"
