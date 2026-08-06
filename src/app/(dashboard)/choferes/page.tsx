@@ -9,8 +9,9 @@ import HelpTutorialButton from "./help-tutorial-button";
 import { redirect } from "next/navigation";
 import { ImportChoferesButton } from "./components/ChoferesIO";
 import ChoferesStats from "./components/ChoferesStats";
-import ChoferesLocalidadChart from "./components/ChoferesLocalidadChart";
-import type { LocalidadData } from "./components/ChoferesLocalidadChart";
+import ChoferesLocalidades from "./components/ChoferesLocalidades";
+import type { ChoferLocalidad, LocalidadData } from "./components/ChoferesLocalidades";
+import { cortesUltimos12Meses, serieDotacion } from "@/lib/dotacion";
 
 export default async function ChoferesPage({
   searchParams,
@@ -38,6 +39,7 @@ export default async function ChoferesPage({
     activos,
     inactivos,
     docs,
+    docsAlDia,
     { data: vencidosDocs },
     { data: porVencerDocs },
     { data: camionesAsignados },
@@ -55,6 +57,13 @@ export default async function ChoferesPage({
       .select("*", { count: "exact", head: true })
       .eq("estado", "inactivo"),
     supabase.from("chofer_documentos").select("*", { count: "exact", head: true }),
+    // "Al día" = los que no vencen pronto y los que directamente no vencen (un
+    // título no caduca). Se cuenta en la base y no restando del total: si algún
+    // día el total y la vista dejaran de coincidir, la resta daría negativo.
+    supabase
+      .from("v_chofer_documentos_vigencia")
+      .select("*", { count: "exact", head: true })
+      .in("estado_vigencia", ["vigente", "sin_vencimiento"]),
     supabase
       .from("v_chofer_documentos_vigencia")
       .select("id, chofer, chofer_id, tipo_documento, fecha_vencimiento, dias_restantes, estado_vigencia")
@@ -110,33 +119,95 @@ export default async function ChoferesPage({
   const fleteroCount = personal.filter((c) => rolDe(c) === "fletero").length;
   const totalPersonalActivo = personal.length;
 
-  // Distribución por localidad (excluye baja, agrupa y ordena desc)
-  const localidadMap = new Map<string, LocalidadData["choferes"]>();
+  // Dotación de los últimos 12 meses, para la línea de cada tarjeta. Entra TODA
+  // la gente (también los egresados): son ellos los que hacen bajar la curva en
+  // el mes en que se fueron.
+  const cortes = cortesUltimos12Meses(new Date());
+  const serieDe = (filtro: (c: { rol?: string | null }) => boolean) =>
+    serieDotacion((choferes ?? []).filter(filtro), cortes);
+  const series = {
+    total: serieDe(() => true),
+    chofer: serieDe((c) => rolDe(c) === "chofer"),
+    administrativo: serieDe((c) => rolDe(c) === "administrativo"),
+    mantenimiento: serieDe((c) => rolDe(c) === "mantenimiento"),
+    fletero: serieDe((c) => rolDe(c) === "fletero"),
+  };
+
+  // Distribución por localidad (excluye baja, agrupa y ordena desc).
+  //
+  // Se agrupa sin distinguir mayúsculas ni acentos: "AZUL" y "Azul" son la misma
+  // localidad y como grupos separados el resumen mentía (Azul es 13, no 11 y 2).
+  // Es sólo para este resumen — el legajo de cada persona sigue mostrando la
+  // localidad exactamente como está cargada.
+  const claveLocalidad = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const MINUSCULAS = new Set(["de", "del", "la", "las", "los", "el", "y"]);
+  const tituloLocalidad = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w, i) => (i > 0 && MINUSCULAS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+      .join(" ");
+
+  const porApellido = (a: ChoferLocalidad, b: ChoferLocalidad) =>
+    `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`, "es", {
+      sensitivity: "base",
+    });
+
+  const localidadMap = new Map<string, { grafias: string[]; gente: ChoferLocalidad[] }>();
+  const sinLocalidad: ChoferLocalidad[] = [];
   for (const c of choferes ?? []) {
     if (c.estado === "baja") continue;
-    const loc = c.localidad?.trim() || "Sin datos";
-    const lista = localidadMap.get(loc) ?? [];
-    lista.push({ id: c.id, nombre: c.nombre, apellido: c.apellido, estado: c.estado });
-    localidadMap.set(loc, lista);
+    const persona: ChoferLocalidad = {
+      id: c.id,
+      nombre: c.nombre,
+      apellido: c.apellido,
+      estado: c.estado,
+      rol: c.rol ?? null,
+    };
+    const loc = c.localidad?.trim();
+    if (!loc) {
+      sinLocalidad.push(persona);
+      continue;
+    }
+    const clave = claveLocalidad(loc);
+    const grupo = localidadMap.get(clave) ?? { grafias: [], gente: [] };
+    grupo.grafias.push(loc);
+    grupo.gente.push(persona);
+    localidadMap.set(clave, grupo);
   }
-  const localidadData: LocalidadData[] = Array.from(localidadMap.entries())
-    .map(([localidad, choferesLoc]) => ({
-      localidad,
-      cantidad: choferesLoc.length,
-      choferes: choferesLoc.sort((a, b) =>
-        `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`, "es", {
-          sensitivity: "base",
-        }),
-      ),
-    }))
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 12);
+
+  const localidadData: LocalidadData[] = Array.from(localidadMap.values())
+    .map(({ grafias, gente }) => {
+      // De todas las formas en que se escribió, gana la más usada: el nombre que
+      // se muestra sale de los datos, no de una lista nuestra.
+      const conteo = new Map<string, number>();
+      for (const g of grafias) conteo.set(g, (conteo.get(g) ?? 0) + 1);
+      const masUsada = Array.from(conteo.entries()).sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"),
+      )[0]![0];
+      return {
+        localidad: tituloLocalidad(masUsada),
+        cantidad: gente.length,
+        choferes: gente.sort(porApellido),
+      };
+    })
+    .sort((a, b) => b.cantidad - a.cantidad || a.localidad.localeCompare(b.localidad, "es"));
+
+  sinLocalidad.sort(porApellido);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
-        title="Personal"
-        description="Legajo digital de todo el personal (choferes, administración, mantenimiento y fleteros)"
+        title="Legajos"
+        description="Legajo digital de todo el personal: choferes, administración, mantenimiento y fleteros"
         action={
           // En celular la acción ocupa el ancho del header (PageHeader la baja
           // debajo del título): los tres botones envuelven en vez de empujar
@@ -168,14 +239,16 @@ export default async function ChoferesPage({
         administrativoCount={administrativoCount}
         mantenimientoCount={mantenimientoCount}
         fleteroCount={fleteroCount}
+        series={series}
         totalDocs={docs.count ?? 0}
+        alDiaCount={docsAlDia.count ?? 0}
         vencidosCount={vencidosDocs?.length ?? 0}
         porVencerCount={porVencerDocs?.length ?? 0}
         vencidosDocs={vencidosDocs ?? []}
         porVencerDocs={porVencerDocs ?? []}
       />
 
-      <ChoferesLocalidadChart data={localidadData} />
+      <ChoferesLocalidades localidades={localidadData} sinLocalidad={sinLocalidad} />
 
       <ChoferesList choferes={choferesMapeados ?? []} />
     </div>

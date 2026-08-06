@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import StatCard from "@/components/ui/StatCard";
+import {
+  Users,
+  Truck,
+  Briefcase,
+  Wrench,
+  Handshake,
+  FileText,
+  CalendarX2,
+  Hourglass,
+  ChevronRight,
+} from "lucide-react";
+import MetricCard from "@/components/ui/MetricCard";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +22,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import StatusBadge from "@/components/ui/StatusBadge";
-import { ChevronRight } from "lucide-react";
 import { formatFecha } from "@/lib/utils";
 
 export type DocVigenciaListItem = {
@@ -24,6 +34,9 @@ export type DocVigenciaListItem = {
   estado_vigencia: string | null;
 };
 
+/** Dotación al cierre de cada uno de los últimos 12 meses. La calcula la página. */
+export type SerieDotacion = number[];
+
 interface Props {
   total: number;
   activos: number;
@@ -32,11 +45,32 @@ interface Props {
   administrativoCount: number;
   mantenimientoCount: number;
   fleteroCount: number;
+  series: {
+    total: SerieDotacion;
+    chofer: SerieDotacion;
+    administrativo: SerieDotacion;
+    mantenimiento: SerieDotacion;
+    fletero: SerieDotacion;
+  };
   totalDocs: number;
+  alDiaCount: number;
   vencidosCount: number;
   porVencerCount: number;
   vencidosDocs: DocVigenciaListItem[];
   porVencerDocs: DocVigenciaListItem[];
+}
+
+/**
+ * Qué cambió en el año, dicho en una frase.
+ *
+ * Un sparkline sin leyenda obliga a adivinar la escala: "+7 en 12 meses" es el
+ * dato, la línea es sólo la forma en que llegó ahí.
+ */
+function captionTendencia(points: number[]): string {
+  if (points.length < 2) return "";
+  const delta = points[points.length - 1]! - points[0]!;
+  if (delta === 0) return "Sin cambios en 12 meses";
+  return `${delta > 0 ? "+" : "−"}${Math.abs(delta)} en 12 meses`;
 }
 
 export default function ChoferesStats({
@@ -47,7 +81,9 @@ export default function ChoferesStats({
   administrativoCount,
   mantenimientoCount,
   fleteroCount,
+  series,
   totalDocs,
+  alDiaCount,
   vencidosCount,
   porVencerCount,
   vencidosDocs,
@@ -71,39 +107,71 @@ export default function ChoferesStats({
       ? "Listado de documentación vencida que requiere renovación urgente."
       : "VTV y demás documentación por vencer dentro del plazo de alerta.";
 
+  // Desglose de los vencidos por antigüedad: 45 sueltos no dicen si es un atraso
+  // de esta semana o una deuda de un año. Los tramos cubren todo el rango, así
+  // que las tres columnas siempre suman el número grande.
+  const venc = { reciente: 0, medio: 0, viejo: 0 };
+  for (const d of vencidosDocs) {
+    const dias = d.dias_restantes ?? 0;
+    if (dias > -30) venc.reciente++;
+    else if (dias > -90) venc.medio++;
+    else venc.viejo++;
+  }
+
+  // Lo mismo del otro lado: cuánto margen queda para renovar.
+  const porVenc = { urgente: 0, quincena: 0, resto: 0 };
+  for (const d of porVencerDocs) {
+    const dias = d.dias_restantes ?? 0;
+    if (dias <= 7) porVenc.urgente++;
+    else if (dias <= 15) porVenc.quincena++;
+    else porVenc.resto++;
+  }
+
+  const pctAlDia = totalDocs > 0 ? (alDiaCount / totalDocs) * 100 : 0;
+
   return (
     <>
       {/* Fila 1 — desglose de personal por rol */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-3">
-        <StatCard
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-3 sm:mb-4">
+        <MetricCard
           label="Total personal"
           value={String(total)}
           sub={`${activos} activos · ${inactivos} inactivos`}
-          color="brand"
+          icon={Users}
+          tone="brand"
+          trend={{ points: series.total, caption: captionTendencia(series.total) }}
         />
-        <StatCard
+        <MetricCard
           label="Choferes"
           value={String(choferesCount)}
-          sub="Rol: chofer"
-          color="success"
+          sub="En ruta"
+          icon={Truck}
+          tone="success"
+          trend={{ points: series.chofer, caption: captionTendencia(series.chofer) }}
         />
-        <StatCard
+        <MetricCard
           label="Administración"
           value={String(administrativoCount)}
-          sub="Rol: administrativo"
-          color="brand"
+          sub="Oficina"
+          icon={Briefcase}
+          tone="brand"
+          trend={{ points: series.administrativo, caption: captionTendencia(series.administrativo) }}
         />
-        <StatCard
+        <MetricCard
           label="Mantenimiento"
           value={String(mantenimientoCount)}
-          sub="Rol: mantenimiento"
-          color="warning"
+          sub="Taller"
+          icon={Wrench}
+          tone="warning"
+          trend={{ points: series.mantenimiento, caption: captionTendencia(series.mantenimiento) }}
         />
-        <StatCard
+        <MetricCard
           label="Fleteros"
           value={String(fleteroCount)}
           sub="Tercerizados"
-          color="brand"
+          icon={Handshake}
+          tone="neutral"
+          trend={{ points: series.fletero, caption: captionTendencia(series.fletero) }}
         />
       </div>
 
@@ -111,20 +179,49 @@ export default function ChoferesStats({
           apiladas de a una, el panel se comía la pantalla entera antes del
           listado, que es a lo que se entra. */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <StatCard label="Documentos" value={String(totalDocs)} sub="En legajos" color="brand" />
-        <StatCard
+        <MetricCard
+          label="Documentos"
+          value={String(totalDocs)}
+          sub="En legajos"
+          icon={FileText}
+          tone="success"
+          // La barra se llena con lo que está al día, no con lo vencido: así un
+          // legajo sano se ve lleno y no vacío.
+          bar={{
+            pct: pctAlDia,
+            title: `${alDiaCount} de ${totalDocs} documentos al día (${Math.round(pctAlDia)}%)`,
+          }}
+          breakdown={[
+            { label: "Al día", value: String(alDiaCount), tone: "success" },
+            { label: "Por vencer", value: String(porVencerCount), tone: "warning" },
+            { label: "Vencidos", value: String(vencidosCount), tone: "error" },
+          ]}
+        />
+        <MetricCard
           label="Vencidos"
           value={String(vencidosCount)}
-          color="error"
-          sub="Documentos vencidos"
+          sub="Hay que renovarlos"
+          icon={CalendarX2}
+          tone="error"
           onClick={vencidosCount > 0 ? () => handleCardClick("vencido") : undefined}
+          breakdown={[
+            { label: "Menos de 30 días", value: String(venc.reciente), tone: "warning" },
+            { label: "De 30 a 90 días", value: String(venc.medio), tone: "error" },
+            { label: "Más de 90 días", value: String(venc.viejo), tone: "error" },
+          ]}
         />
-        <StatCard
+        <MetricCard
           label="Por vencer"
           value={String(porVencerCount)}
-          color="warning"
-          sub="Próximos a vencer"
+          sub="Todavía se está a tiempo"
+          icon={Hourglass}
+          tone="warning"
           onClick={porVencerCount > 0 ? () => handleCardClick("por_vencer") : undefined}
+          breakdown={[
+            { label: "En 7 días o menos", value: String(porVenc.urgente), tone: "error" },
+            { label: "De 8 a 15 días", value: String(porVenc.quincena), tone: "warning" },
+            { label: "Más de 15 días", value: String(porVenc.resto), tone: "neutral" },
+          ]}
         />
       </div>
 
