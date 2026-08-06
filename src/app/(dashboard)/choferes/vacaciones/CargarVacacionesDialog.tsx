@@ -16,9 +16,22 @@ import { crearAusenciaAction, getViajesChoferEnRangoAction } from "../[slug]/act
 import type { ViajeEnRango } from "../[slug]/types";
 import { formatFecha } from "@/lib/utils";
 import { AlertTriangle, Loader2, MapPin } from "lucide-react";
+import UmbralEditor from "./UmbralEditor";
+import { umbralOrigen, type UmbralConfig } from "./umbral";
 
 export type ChoferOpcion = { chofer_id: string; nombre: string; apellido: string };
 export type SugerenciaSemana = { inicio: string; fin: string; ocupados: number; umbral?: number };
+
+/**
+ * Cómo viene la semana más cargada del rango elegido: cuánta gente ya está de
+ * vacaciones y cuál es el tope de esa semana.
+ */
+export type OcupacionRango = {
+  /** Lunes de la semana más ajustada del rango. */
+  semana: string;
+  ocupados: number;
+  tope: number;
+};
 
 interface Props {
   open: boolean;
@@ -32,10 +45,25 @@ interface Props {
   finPreset?: string;
   /** Semanas con menos gente ocupada, para sugerir (solo si no hay preset). */
   sugerencias?: SugerenciaSemana[];
+  /** Cuánta gente ya está de vacaciones en el rango elegido, y contra qué tope. */
+  ocupacionEn?: (inicio: string, fin: string) => OcupacionRango | null;
+  /** Config del tope, para explicarlo y (si se puede) editarlo sin salir de acá. */
+  tope?: { config: UmbralConfig; activos: number; editable: boolean };
+  /** Se llama después de guardar un tope nuevo, para recargar la pantalla. */
+  onTopeGuardado?: () => void;
 }
 
 function fmtRango(inicio: string, fin: string): string {
   return `${formatFecha(inicio)} → ${formatFecha(fin)}`;
+}
+
+/** Suma días a una fecha ISO sin pasar por UTC (que en Argentina corre el día). */
+function masDias(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 export default function CargarVacacionesDialog({
@@ -47,7 +75,14 @@ export default function CargarVacacionesDialog({
   inicioPreset,
   finPreset,
   sugerencias,
+  ocupacionEn,
+  tope,
+  onTopeGuardado,
 }: Props) {
+  // El editor del tope no abre otro diálogo encima: reemplaza el contenido de
+  // éste. El formulario no se desmonta, sólo se esconde, así al volver siguen
+  // puestos el empleado y las fechas.
+  const [editandoTope, setEditandoTope] = useState(false);
   const hoy = () => new Date().toISOString().split("T")[0]!;
   const [choferId, setChoferId] = useState(choferFijo?.chofer_id ?? "");
   const [inicio, setInicio] = useState(inicioPreset ?? hoy());
@@ -113,9 +148,36 @@ export default function CargarVacacionesDialog({
       : 0;
   const mostrarSugerencias = !tocoFechas && (sugerencias?.length ?? 0) > 0;
 
+  // Cuánta gente ya está de vacaciones en la semana más cargada del rango. Es lo
+  // que hay que saber ANTES de guardar: si esa semana ya está al tope, se va a
+  // notar en la operación, no en esta pantalla.
+  const ocupacion =
+    ocupacionEn && inicio && fin && fin >= inicio ? ocupacionEn(inicio, fin) : null;
+  const alTope = ocupacion ? ocupacion.ocupados >= ocupacion.tope : false;
+  // Si el rango entra entero en esa semana alcanza con "esa semana"; si toca
+  // varias, hay que decir cuál es la que está ajustada.
+  const unaSolaSemana =
+    ocupacion !== null && inicio >= ocupacion.semana && fin <= masDias(ocupacion.semana, 6);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
+        {editandoTope && tope && (
+          <UmbralEditor
+            config={tope.config}
+            choferesActivos={tope.activos}
+            onVolver={() => setEditandoTope(false)}
+            onGuardado={() => {
+              setEditandoTope(false);
+              onTopeGuardado?.();
+            }}
+          />
+        )}
+
+        {/* `contents` para no meter un nivel extra en la grilla del diálogo;
+            `hidden` mientras se edita el tope: se esconde, no se desmonta, así
+            al volver el empleado y las fechas siguen puestos. */}
+        <div className={editandoTope ? "hidden" : "contents"}>
         <DialogHeader>
           <DialogTitle className="text-lg text-foreground">
             {choferFijo ? `${choferFijo.apellido}, ${choferFijo.nombre}` : "Cargar vacaciones"}
@@ -186,18 +248,63 @@ export default function CargarVacacionesDialog({
             </div>
           </div>
 
-          {/* Cuántos días salen del rango elegido: antes había que contarlos. */}
+          {/* Cuántos días salen del rango elegido (antes había que contarlos) y
+              cómo viene esa semana de gente. */}
           {diasElegidos > 0 && (
-            <p className="rounded-[6px] border border-border bg-muted/30 px-3 py-2 text-[13px] text-foreground">
-              <span className="font-semibold">{diasElegidos}</span> día{diasElegidos !== 1 ? "s" : ""} de
-              vacaciones, del {formatFecha(inicio)} al {formatFecha(fin)}.
-            </p>
+            <div className="space-y-1 rounded-[6px] border border-border bg-muted/30 px-3 py-2">
+              <p className="text-[13px] text-foreground">
+                <span className="font-semibold">{diasElegidos}</span> día
+                {diasElegidos !== 1 ? "s" : ""} de vacaciones, del {formatFecha(inicio)} al{" "}
+                {formatFecha(fin)}.
+              </p>
+
+              {ocupacion && (
+                <p
+                  className={`flex items-start gap-1.5 text-xs ${
+                    alTope ? "text-[#B45309]" : "text-muted-foreground"
+                  }`}
+                >
+                  {alTope && <AlertTriangle size={13} className="mt-px shrink-0" />}
+                  <span>
+                    {unaSolaSemana
+                      ? "Esa semana"
+                      : `La semana del ${formatFecha(ocupacion.semana)}`}{" "}
+                    ya hay{" "}
+                    <span className="font-semibold">
+                      {ocupacion.ocupados} de {ocupacion.tope}
+                    </span>{" "}
+                    {ocupacion.ocupados === 1 ? "persona" : "personas"} de vacaciones
+                    {alTope ? " — llegó al tope." : "."}
+                  </span>
+                </p>
+              )}
+
+              {ocupacion && tope && (
+                <p className="text-[11px] leading-snug text-muted-foreground/80">
+                  {umbralOrigen(tope.config, tope.activos)}
+                  {tope.editable && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        onClick={() => setEditandoTope(true)}
+                        className="text-primary hover:underline"
+                      >
+                        Cambiar el tope
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
           )}
 
           {/* Sugerencias de semanas con menos gente */}
           {mostrarSugerencias && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Semanas con menos gente</Label>
+              <Label className="text-xs font-medium text-muted-foreground">
+                Semanas con menos gente
+              </Label>
               <div className="flex flex-wrap gap-1.5">
                 {sugerencias!.map((s) => (
                   <button
@@ -208,9 +315,12 @@ export default function CargarVacacionesDialog({
                       setFin(s.fin);
                       setTocoFechas(true);
                     }}
-                    className="rounded-[6px] border border-border px-2.5 py-1.5 sm:py-1 text-xs text-foreground transition-colors hover:border-primary/50 hover:text-primary"
+                    className="rounded-[6px] border border-border px-2.5 py-1.5 text-xs text-foreground transition-colors hover:border-primary/50 hover:text-primary sm:py-1"
                   >
-                    {fmtRango(s.inicio, s.fin)} · {s.ocupados} ausente{s.ocupados !== 1 ? "s" : ""}
+                    {/* Con el tope al lado el número dice algo: "2" solo no
+                        distingue una semana holgada de una al límite. */}
+                    {fmtRango(s.inicio, s.fin)} · {s.ocupados}
+                    {s.umbral != null ? ` de ${s.umbral}` : ""}
                   </button>
                 ))}
               </div>
@@ -279,6 +389,7 @@ export default function CargarVacacionesDialog({
             </Button>
           </DialogFooter>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

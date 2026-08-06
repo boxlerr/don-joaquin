@@ -43,6 +43,7 @@ import {
 } from "../[slug]/actions";
 import { planSugerido } from "./plan";
 import { umbralDeSemana, type UmbralConfig } from "./umbral";
+import type { OcupacionRango } from "./CargarVacacionesDialog";
 
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
@@ -544,6 +545,33 @@ export default function VacacionesClient({
     .filter((s) => s.ocupados < s.umbral)
     .sort((a, b) => a.ocupados - b.ocupados || a.inicio.localeCompare(b.inicio))
     .slice(0, 3);
+
+  /**
+   * La semana más ajustada del rango que se está por cargar: la que tiene menos
+   * lugar respecto de su propio tope (no la que tiene más gente — diciembre
+   * puede tener un tope más alto y aguantar más).
+   *
+   * Se calcula sobre TODOS los períodos, sin los filtros de la pantalla: mirar
+   * sólo el Taller no cambia cuánta gente falta de verdad esa semana.
+   */
+  const ocupacionEnRango = (inicio: string, fin: string): OcupacionRango | null => {
+    if (!inicio || !fin || fin < inicio) return null;
+    const desde = lunesDe(new Date(inicio + "T00:00:00"));
+    const nSemanas = Math.floor(diffDias(toISO(desde), fin) / 7) + 1;
+    if (nSemanas < 1) return null;
+
+    let peor: OcupacionRango | null = null;
+    for (const s of construirSemanas(desde, nSemanas)) {
+      const ocupados = new Set(
+        periodos.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id),
+      ).size;
+      const tope = umbralDeSemana(cfgUmbral, s.start, choferesActivos);
+      if (!peor || tope - ocupados < peor.tope - peor.ocupados) {
+        peor = { semana: s.start, ocupados, tope };
+      }
+    }
+    return peor;
+  };
 
   // Navegación del cronograma: un mes / una ventana entera para cada lado.
   const irVentana = (delta: number) => {
@@ -2055,6 +2083,11 @@ export default function VacacionesClient({
         inicioPreset={addInicio}
         finPreset={addFin}
         sugerencias={sugerencias}
+        ocupacionEn={ocupacionEnRango}
+        // El tope se ve y se edita acá adentro, no en un botón del encabezado:
+        // es el único lugar donde el número se usa, así que es donde se entiende.
+        tope={{ config: cfgUmbral, activos: choferesActivos, editable: canWrite }}
+        onTopeGuardado={refrescar}
       />
 
       {/* Diálogo editar período */}

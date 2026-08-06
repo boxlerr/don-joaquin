@@ -98,13 +98,16 @@ export function umbralDeSemana(cfg: UmbralConfig, startISO: string, activos: num
   return umbralDeMes(cfg, mesDeSemana(startISO), activos);
 }
 
-/** Texto corto para explicar de dónde sale el número en la UI. */
-export function umbralDescripcion(cfg: UmbralConfig, activos: number): string {
-  const base = umbralBase(cfg, activos);
-  const detalle =
+/**
+ * De dónde sale el tope, para mostrarlo al lado del número. Sin repetir el
+ * número: al lado ya está escrito "3 de 8", y decir 8 dos veces no agrega nada.
+ */
+export function umbralOrigen(cfg: UmbralConfig, activos: number): string {
+  const base =
     cfg.modo === "fijo"
-      ? `fijo en ${cfg.fijo}`
-      : `${cfg.porcentaje}% de ${activos} activos, mínimo ${cfg.minimo}`;
+      ? `Tope fijo de ${cfg.fijo} por semana`
+      : `${cfg.porcentaje}% de los ${activos} activos, nunca menos de ${cfg.minimo}`;
   const meses = Object.keys(cfg.porMes).length;
-  return `${base} ausentes por semana (${detalle})${meses > 0 ? ` · ${meses} mes(es) con umbral propio` : ""}`;
+  if (meses === 0) return `${base}.`;
+  return `${base}, y ${meses === 1 ? "un mes tiene" : `${meses} meses tienen`} el suyo propio.`;
 }
