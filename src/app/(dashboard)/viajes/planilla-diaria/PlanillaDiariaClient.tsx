@@ -18,7 +18,6 @@ import {
   Repeat2,
   Search,
   X,
-  TruckIcon,
 } from "lucide-react";
 import {
   guardarPlanillaDiariaAction,
@@ -369,7 +368,21 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           </div>
         </div>
 
+        {/* Resumen del día, leído como frase: el color va en el número, no en un
+            fondo. Los dos conteos son además el filtro — el número que te llama la
+            atención es el que te lleva a esas filas. */}
         <div className="w-full lg:w-auto lg:self-center lg:ml-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground/80">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-emerald-500" /> libre
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-amber-500" /> ocupado
+          </span>
+          <span className="text-muted-foreground/50">·</span>
+          <span>
+            <strong className="font-semibold text-foreground">{asignados}</strong> de{" "}
+            {filas.length} con camión
+          </span>
           {filasSinCamion.length > 0 && (
             <button
               type="button"
@@ -379,14 +392,19 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                   ? "Ver todos los choferes"
                   : "Ver solo los choferes sin camión asignado"
               }
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded border transition-colors ${
                 soloSinCamion
-                  ? "bg-[#0088D1] border-[#0088D1] text-white"
-                  : "bg-[#E1F5FE] border-[#B3E5FC] text-[#01579B] hover:bg-[#B3E5FC]"
+                  ? "border-border bg-muted text-foreground"
+                  : "border-transparent hover:bg-muted hover:text-foreground"
               }`}
             >
-              <TruckIcon size={12} />
-              {filasSinCamion.length} sin camión
+              <span className="size-2 rounded-full bg-[#0088D1]" />
+              <span>
+                <strong className="font-semibold text-[#0088D1]">
+                  {filasSinCamion.length}
+                </strong>{" "}
+                sin camión
+              </span>
             </button>
           )}
           {(filasConCambio.length > 0 || soloCambios) && (
@@ -394,24 +412,21 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               type="button"
               onClick={() => setSoloCambios((v) => !v)}
               title={soloCambios ? "Ver todos los choferes" : "Ver solo los que cambiaron"}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded border transition-colors ${
                 soloCambios
-                  ? "bg-amber-500 border-amber-500 text-white"
-                  : "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100"
+                  ? "border-border bg-muted text-foreground"
+                  : "border-transparent hover:bg-muted hover:text-foreground"
               }`}
             >
-              <Repeat2 size={12} />
-              {filasConCambio.length} {filasConCambio.length === 1 ? "cambio" : "cambios"} de camión
+              <Repeat2 size={12} className="text-amber-600" />
+              <span>
+                <strong className="font-semibold text-amber-700">
+                  {filasConCambio.length}
+                </strong>{" "}
+                {filasConCambio.length === 1 ? "cambio" : "cambios"} de camión
+              </span>
             </button>
           )}
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-emerald-500" /> libre
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-amber-500" /> ocupado
-          </span>
-          <span className="text-muted-foreground/50">·</span>
-          <span>{asignados} de {filas.length} choferes con camión</span>
         </div>
       </div>
 
@@ -486,63 +501,34 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         </div>
       )}
 
-      {/* Choferes sin unidad: no salen en la hoja de ruta ni pueden cargar viajes,
-          así que se avisan acá en vez de quedar escondidos entre 63 filas. */}
-      {editable && filasSinCamion.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#F8FAFC] border-border">
-          <TruckIcon size={16} className="shrink-0 mt-0.5 text-[#0088D1]" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground">
-              {filasSinCamion.length === 1
-                ? "1 chofer sin camión asignado."
-                : `${filasSinCamion.length} choferes sin camión asignado.`}
-            </p>
-            <p className="text-xs mt-0.5 text-muted-foreground">
-              {filasSinCamion
-                .slice(0, 6)
-                .map((f) => nombreCompletoPersona(f.apellido, f.nombre))
-                .join(" · ")}
-              {filasSinCamion.length > 6 && ` · y ${filasSinCamion.length - 6} más`}
-              . No aparecen en la hoja de ruta impresa y la carga de viajes no les
-              propone unidad.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setSoloSinCamion((v) => !v)}
-            className="gap-1.5 h-9 sm:h-8 text-xs shrink-0 w-full sm:w-auto"
-          >
-            {soloSinCamion ? "Ver todos" : "Ver solo esos"}
-          </Button>
-        </div>
-      )}
-
       {/* Camión repetido: en la planilla una unidad es de UN chofer por día (la
           base lo exige con un unique por fecha+camión), así que hay que decir cuál
-          y entre quiénes, no sólo que "hay uno repetido". */}
+          y entre quiénes, no sólo que "hay uno repetido". Bloquea el guardado, por
+          eso es lo único que se anuncia con un cartel propio. */}
       {hayDuplicados && (
-        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#FEF2F2] border-[#FECACA] text-[#7F1D1D]">
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border border-border bg-card">
           <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
           <div className="flex-1 min-w-0">
-            <p className="font-medium">
+            <p className="font-medium text-foreground">
               {detalleDuplicados.length === 1
                 ? "Hay un camión asignado a dos choferes."
                 : `Hay ${detalleDuplicados.length} camiones asignados a más de un chofer.`}
             </p>
-            <ul className="text-xs mt-1 space-y-0.5">
+            <ul className="text-xs mt-1 space-y-0.5 text-muted-foreground">
               {detalleDuplicados.map((d) => (
                 <li key={d.patente}>
-                  <strong className="font-mono">{d.patente}</strong> — {d.choferes.join(" y ")}
+                  <strong className="font-mono font-semibold text-red-600">
+                    {d.patente}
+                  </strong>{" "}
+                  — {d.choferes.join(" y ")}
                 </li>
               ))}
             </ul>
-            <p className="text-xs mt-1.5 text-[#7F1D1D]/80">
+            <p className="text-xs mt-1.5 text-muted-foreground">
               En la planilla del día cada unidad va con un solo chofer. Si el camión
               se lo pasaron entre los dos, dejalo acá con el que lo tiene y cargá el
-              viaje del otro desde <strong>Carga rápida</strong>, que sí permite
-              repetir la unidad.
+              viaje del otro desde <strong className="font-semibold">Carga rápida</strong>,
+              que sí permite repetir la unidad.
             </p>
           </div>
         </div>
@@ -616,15 +602,28 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                         {!esHabitual && !duplicado && (
                           <div className="flex flex-col gap-0.5">
                             {f.camion_id ? (
-                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                                Reemplazo {f.camion_habitual_patente ? `(Habitual: ${f.camion_habitual_patente})` : ""}
+                              <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">
+                                Reemplazo{" "}
+                                {f.camion_habitual_patente && (
+                                  <span className="font-medium normal-case tracking-normal text-muted-foreground/60">
+                                    (habitual {f.camion_habitual_patente})
+                                  </span>
+                                )}
                               </span>
                             ) : (
-                              f.camion_habitual_patente && (
-                                <span className="text-[10px] font-medium text-muted-foreground/60 italic">
-                                  Habitual: {f.camion_habitual_patente}
-                                </span>
-                              )
+                              // La fila sin unidad tenía que notarse ACÁ, no sólo en
+                              // el conteo de arriba: entre 62 filas, el hueco donde
+                              // las demás dicen "habitual" se leía como fila a medio
+                              // llenar, no como chofer sin camión.
+                              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#0088D1] uppercase tracking-wide whitespace-nowrap">
+                                <span className="size-1.5 rounded-full bg-[#0088D1] shrink-0" />
+                                Sin camión
+                                {f.camion_habitual_patente && (
+                                  <span className="font-medium normal-case tracking-normal text-muted-foreground/60">
+                                    (habitual {f.camion_habitual_patente})
+                                  </span>
+                                )}
+                              </span>
                             )}
                           </div>
                         )}

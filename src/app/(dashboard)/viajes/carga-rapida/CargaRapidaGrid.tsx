@@ -667,22 +667,25 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
       {/* Camión repetido entre filas: se avisa, no se bloquea. */}
       {detalleRepetidos.length > 0 && (
-        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border bg-[#FFFBEB] border-[#FDE68A] text-[#78350F]">
+        <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border border-border bg-card">
           <AlertTriangle size={16} className="shrink-0 mt-0.5 text-amber-500" />
           <div className="flex-1 min-w-0">
-            <p className="font-medium">
+            <p className="font-medium text-foreground">
               {detalleRepetidos.length === 1
                 ? "Hay un camión repetido en dos filas."
                 : `Hay ${detalleRepetidos.length} camiones repetidos en más de una fila.`}
             </p>
-            <ul className="text-xs mt-1 space-y-0.5">
+            <ul className="text-xs mt-1 space-y-0.5 text-muted-foreground">
               {detalleRepetidos.map((d) => (
                 <li key={d.patente}>
-                  <strong className="font-mono">{d.patente}</strong> — {d.choferes.join(" y ")}
+                  <strong className="font-mono font-semibold text-amber-600">
+                    {d.patente}
+                  </strong>{" "}
+                  — {d.choferes.join(" y ")}
                 </li>
               ))}
             </ul>
-            <p className="text-xs mt-1.5 text-[#78350F]/80">
+            <p className="text-xs mt-1.5 text-muted-foreground">
               Se puede guardar así: pasa cuando un chofer llega y le deja la unidad a
               otro. Ojo si no fue el caso — al duplicar una fila, el camión no se
               cambia solo cuando el chofer nuevo no tiene unidad fija.

@@ -131,13 +131,28 @@ describe("PlanillaDiariaClient · buscador", () => {
 });
 
 describe("PlanillaDiariaClient · choferes sin camión", () => {
-  it("avisa cuántos son y los nombra", () => {
+  it("los cuenta en el resumen del día", () => {
     const data = hoy([{ camion_asignado_id: null, camion_previo_id: null }]);
     render(<PlanillaDiariaClient data={data} />);
 
-    const aviso = screen.getByText("1 chofer sin camión asignado.")
-      .parentElement as HTMLElement;
-    expect(within(aviso).getByText(/Bustos, Marcelo/)).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Ver solo los choferes sin camión asignado").textContent,
+    ).toMatch(/1 sin camión/);
+  });
+
+  it("marca la fila del chofer sin unidad, no sólo el conteo de arriba", () => {
+    // El reclamo del 05/08: el conteo estaba arriba pero la fila no se distinguía
+    // entre 62 — donde las otras dicen "habitual" quedaba un hueco.
+    const data = hoy([{ camion_asignado_id: null, camion_previo_id: null }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const fila = within(screen.getByRole("table")).getByText(/^Bustos,/)
+      .closest("tr") as HTMLElement;
+    expect(within(fila).getByText("Sin camión")).toBeInTheDocument();
+    // La fila del que sí tiene camión no lleva la marca.
+    const otra = within(screen.getByRole("table")).getByText(/^Acosta,/)
+      .closest("tr") as HTMLElement;
+    expect(within(otra).queryByText("Sin camión")).not.toBeInTheDocument();
   });
 
   it("deja aislar a los que no tienen unidad y volver atrás", () => {
@@ -204,8 +219,10 @@ describe("PlanillaDiariaClient · marca de cambio de camión", () => {
   it("cuenta los cambios del día y lo dice en el cartel del historial", () => {
     render(<PlanillaDiariaClient data={historial()} />);
 
-    // El chip del encabezado y el cartel del historial dicen lo mismo.
-    expect(screen.getAllByText(/1 cambio de camión/)).toHaveLength(2);
+    // El conteo del encabezado y el cartel del historial dicen lo mismo.
+    expect(
+      screen.getByTitle("Ver solo los que cambiaron").textContent,
+    ).toMatch(/1 cambio de camión/);
     expect(
       screen.getByText(/respecto de la planilla del 06\/07\/2026/).textContent,
     ).toMatch(/1 cambio de camión/);
@@ -227,8 +244,8 @@ describe("PlanillaDiariaClient · marca de cambio de camión", () => {
     render(<PlanillaDiariaClient data={data} />);
 
     const fila = filaDe("Bustos");
-    expect(within(fila).getByTitle("Cambió de AD916TF a sin camión")).toBeInTheDocument();
-    expect(within(fila).getByText("Sin camión")).toBeInTheDocument();
+    const cambio = within(fila).getByTitle("Cambió de AD916TF a sin camión");
+    expect(within(cambio).getByText("Sin camión")).toBeInTheDocument();
   });
 
   it("arrastra la planilla vigente en un día sin planilla propia", () => {
