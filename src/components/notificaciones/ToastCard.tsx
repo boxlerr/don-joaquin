@@ -119,7 +119,7 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
           close();
         }}
         aria-label="Cerrar notificación"
-        className="absolute right-1.5 top-1.5 flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+        className="absolute right-1.5 top-1.5 flex h-9 w-9 sm:h-7 sm:w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
       >
         <X size={15} />
       </button>

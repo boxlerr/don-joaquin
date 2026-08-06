@@ -208,7 +208,10 @@ export function Combobox({
                   disabled={item.disabled}
                   title={item.hint}
                   className={cn(
-                    "relative flex cursor-pointer items-center gap-2 rounded-md py-2 pl-2.5 pr-8 text-sm outline-none select-none",
+                    // En celular la opción llega a 40px, igual que el trigger:
+                    // estas listas se recorren con el pulgar y son largas
+                    // (choferes, destinos), donde dos filas pegadas se confunden.
+                    "relative flex cursor-pointer items-center gap-2 rounded-md py-2 max-md:py-2.5 max-md:min-h-10 pl-2.5 pr-8 text-sm outline-none select-none",
                     "data-[highlighted]:bg-primary/10 data-[highlighted]:text-foreground",
                     "data-[selected]:font-medium",
                     "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
