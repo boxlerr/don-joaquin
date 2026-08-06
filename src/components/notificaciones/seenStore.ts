@@ -3,18 +3,24 @@
 /**
  * Dedup de toasts POR USUARIO (no re-avisar lo mismo).
  *
- * - `dj_notif_toasted_<userId>` (localStorage): ids ya toasteados, FIFO cap 200.
+ * - `dj_notif_toasted_<userId>` (localStorage): ids ya toasteados, FIFO cap 500.
  *   Sobrevive a F5 → no se re-toastea la misma alerta cada 60s.
- * - `dj_notif_boot_<userId>` (sessionStorage): marca que ya hubo el toast-resumen
- *   inicial de esta sesión de pestaña. sessionStorage se limpia al cerrar la
- *   pestaña; además lo limpiamos al pasar por /login (clearForLogin) para que tras
- *   loguearte SIEMPRE veas el primer pop-up resumen si tenés sin leer.
+ * - `dj_notif_boot_<userId>` (sessionStorage): marca que el primer poll de esta
+ *   pestaña ya pasó. Ese primer poll NO toastea nada: sólo anota lo que ya
+ *   existía, para que al minuto siguiente las 48 alertas viejas no salgan de
+ *   golpe como si acabaran de aparecer. sessionStorage se limpia al cerrar la
+ *   pestaña, y además lo limpiamos al pasar por /login (clearForLogin).
+ *
+ * El "tenés N pendientes" de cada mañana NO vive acá: es el ResumenDiarioModal,
+ * que lleva su propia marca (`dj_resumen_dia_<userId>`, una por día).
  */
 
 const TOASTED_PREFIX = "dj_notif_toasted_";
 const BOOT_PREFIX = "dj_notif_boot_";
 // Tope FIFO holgado: en el bootstrap marcamos TODAS las no leídas como avisadas,
 // así que conviene que entren sin evicción aun con bastante volumen acumulado.
+// El recorte muerde SÓLO lo viejo; un lote que por sí solo pase el tope se guarda
+// entero (ver addToasted).
 const CAP = 500;
 
 function safeLocal(): Storage | null {
@@ -49,9 +55,17 @@ export function addToasted(userId: string, ids: string[]): void {
   const ls = safeLocal();
   if (!ls || ids.length === 0) return;
   try {
-    const current = [...getToastedSet(userId)];
-    const merged = [...current.filter((id) => !ids.includes(id)), ...ids];
-    const capped = merged.slice(Math.max(0, merged.length - CAP));
+    const frescos = [...new Set(ids)];
+    const previos = [...getToastedSet(userId)].filter((id) => !frescos.includes(id));
+    // El tope se le cobra a lo VIEJO, nunca a lo que se acaba de marcar. Antes se
+    // recortaba el merge entero por la cabeza y en el bootstrap eso tiraba justo
+    // los ids recién anotados: `allIds` llega ordenado crítica→advertencia→info
+    // (getResumenUsuario), así que con más de CAP no leídas las descartadas eran
+    // las críticas... que son exactamente las que devuelve el top-8 del poll
+    // siguiente. Al minuto salían 8 toasts de golpe sin nada nuevo, que es el modo
+    // de falla que el bootstrap viene a evitar.
+    const espacio = Math.max(0, CAP - frescos.length);
+    const capped = [...previos.slice(Math.max(0, previos.length - espacio)), ...frescos];
     ls.setItem(TOASTED_PREFIX + userId, JSON.stringify(capped));
   } catch {
     /* storage lleno o bloqueado: el peor caso es un toast repetido, no rompe nada */
@@ -80,7 +94,12 @@ export function setBootstrapped(userId: string): void {
 
 /**
  * Reinicia la memoria de toasts en el login (se llama desde la pantalla /login).
- * Así, tras loguearte, el primer poll vuelve a mostrar el pop-up resumen.
+ * Arrancar de cero es seguro justamente por el bootstrap: el primer poll de la
+ * sesión nueva vuelve a anotar todo lo pendiente sin toastear nada.
+ *
+ * OJO: a propósito no toca `dj_resumen_dia_*`. El pop-up del día se muestra UNA
+ * vez por día, no una vez por login: si no, quien entra y sale tres veces por la
+ * mañana se lo come tres veces.
  */
 export function clearForLogin(): void {
   for (const store of [safeLocal(), safeSession()]) {

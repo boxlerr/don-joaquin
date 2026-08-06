@@ -2,6 +2,8 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traerTodo } from "@/lib/supabase/traer-todo";
 import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
+import { ENTIDAD_TIPOS_CADUCAN, HITOS_PERIODO_PRUEBA } from "@/lib/alertas-routing";
+import { hoyArgentina } from "@/lib/fecha-ar";
 import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
 
 // Hitos de antigüedad (en años) para los que se emite una alerta de aniversario.
@@ -116,10 +118,60 @@ async function ensureProximosPeriodicos(
   }
 }
 
+/**
+ * Apaga las efemérides cuya fecha ya pasó (cumpleaños, aniversarios, fin de
+ * período de prueba).
+ *
+ * La fila nacía 'pendiente' con `fecha_vencimiento` = el día del evento y nada
+ * la resolvía después, así que un cumpleaños de julio seguía llegando en agosto
+ * — y encima como "Venció el 30/07/2026", que para un cumpleaños no significa
+ * nada. Un documento vencido sí se sigue reclamando; un evento que pasó no tiene
+ * ninguna acción posible.
+ *
+ * Cubre las efemérides y también las ausencias programadas (ver
+ * ENTIDAD_TIPOS_CADUCAN): el aviso de ausencia existe para saber que alguien no
+ * va a estar, así que apenas arranca deja de servir. Una del 13 de julio seguía
+ * llegando el 5 de agosto.
+ *
+ * Se hace acá, sobre `estado`, porque TODA la app (pantalla, campana, badge y
+ * mail) filtra por `estado = 'pendiente'`: apagarlas de raíz las saca de los
+ * cinco lados a la vez. No toca el dedup: la clave incluye la fecha del evento
+ * y las efemérides sólo se generan a futuro, así que resolver la del año pasado
+ * no impide la del que viene. Best-effort: si falla, la generación sigue.
+ *
+ * `hoyIso` TIENE que ser la fecha argentina y no la de `toISOString()`: apagar
+ * de más acá no tiene vuelta atrás. Con UTC, apretar "Actualizar alertas" un
+ * 30/07 a las 21:30 ART marcaba resuelto el cumpleaños de HOY, y no se
+ * regeneraba nunca — el bloque de cumpleaños descarta los `diffDays < 0` y el
+ * del año siguiente queda a 364 días, fuera del preaviso.
+ */
+async function resolverEventosCaducos(
+  supabase: ReturnType<typeof createAdminClient>,
+  hoyIso: string,
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from("alertas")
+      .update({ estado: "resuelta" })
+      .eq("estado", "pendiente")
+      .eq("tipo", "otro")
+      .in("entidad_tipo", [...ENTIDAD_TIPOS_CADUCAN])
+      .lt("fecha_vencimiento", hoyIso);
+    if (error) console.error("[alertas] resolverEventosCaducos:", error);
+  } catch (e) {
+    console.error("[alertas] resolverEventosCaducos:", e);
+  }
+}
+
 export async function generarAlertas() {
   const supabase = createAdminClient();
   const hoy = new Date();
-  const hoyStr = hoy.toISOString().split("T")[0]!;
+  // Día de hoy en ARGENTINA. El server corre en UTC (no hay TZ en vercel.json ni
+  // en next.config.ts), así que de las 21:00 ART en adelante `toISOString()` ya
+  // devolvía mañana y TODOS los cortes contra la base —que guarda fechas
+  // argentinas— se corrían un día: el más caro era el de resolverEventosCaducos,
+  // que apagaba para siempre el evento del día.
+  const hoyStr = hoyArgentina();
 
   // Lunes de la semana en curso. Se usa como ancla de los recordatorios
   // semanales: la clave del aviso incluye este lunes, así sale una vez por
@@ -140,6 +192,9 @@ export async function generarAlertas() {
   const enChequeDias = new Date(hoy);
   enChequeDias.setDate(hoy.getDate() + umbrales.diasVencimientoCheque);
   const enChequeStr = enChequeDias.toISOString().split("T")[0]!;
+
+  // Antes de mirar qué hay pendiente, apagar las efemérides que ya ocurrieron.
+  await resolverEventosCaducos(supabase, hoyStr);
 
   const { data: existentes } = await supabase
     .from("alertas")
@@ -350,7 +405,10 @@ export async function generarAlertas() {
     const diffTime = finPruebaMidnight.getTime() - hoyMidnight.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 30 || diffDays === 15 || diffDays === 5) {
+    // Los días de disparo salen de HITOS_PERIODO_PRUEBA (30/15/5/0), la MISMA
+    // lista con la que el mail decide qué mandar: mientras fueron dos listas
+    // separadas, el aviso del día 0 no salía nunca por correo.
+    if (HITOS_PERIODO_PRUEBA.includes(diffDays)) {
       const yyyy = finPruebaMidnight.getFullYear();
       const mm = String(finPruebaMidnight.getMonth() + 1).padStart(2, "0");
       const dd = String(finPruebaMidnight.getDate()).padStart(2, "0");
@@ -360,7 +418,7 @@ export async function generarAlertas() {
       if (existentesSet.has(key)) continue;
 
       const nombreCompleto = `${chofer.nombre} ${chofer.apellido}`;
-      const severidad = diffDays === 5 ? "critica" : diffDays === 15 ? "advertencia" : "info";
+      const severidad = diffDays <= 5 ? "critica" : diffDays === 15 ? "advertencia" : "info";
 
       const finPruebaMonthIndex = finPruebaMidnight.getMonth();
       const finPruebaDayNumber = finPruebaMidnight.getDate();
@@ -370,7 +428,10 @@ export async function generarAlertas() {
         tipo: "otro",
         severidad,
         titulo: `Fin período de prueba — ${nombreCompleto}`,
-        mensaje: `Al chofer ${nombreCompleto} le quedan ${diffDays} días para finalizar su período de prueba (Vence el ${diaMesFinRealStr}).`,
+        mensaje:
+          diffDays === 0
+            ? `El período de prueba del chofer ${nombreCompleto} termina HOY (${diaMesFinRealStr}).`
+            : `Al chofer ${nombreCompleto} le quedan ${diffDays} días para finalizar su período de prueba (Vence el ${diaMesFinRealStr}).`,
         entidad_id: chofer.id,
         entidad_tipo: "choferes_periodo_prueba",
         fecha_disparo: new Date().toISOString(),

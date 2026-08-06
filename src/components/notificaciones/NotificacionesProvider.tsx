@@ -10,7 +10,6 @@ import {
 } from "react";
 import { marcarAlertaVista, marcarTodasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import type { ResumenItem } from "@/lib/alertas-lecturas";
-import type { Severidad } from "@/app/(dashboard)/notificaciones/utils";
 import { pushToast, dismissToast } from "./toastStore";
 import { addToasted, getToastedSet, isBootstrapped, setBootstrapped } from "./seenStore";
 
@@ -28,14 +27,6 @@ export const NotificacionesContext = createContext<NotificacionesCtx | null>(nul
 const POLL_MS = 60_000;
 const MAX_BACKOFF_MS = 5 * 60_000;
 const REFRESH_THROTTLE_MS = 5_000;
-
-const SEV_RANK: Record<Severidad, number> = { critica: 3, advertencia: 2, info: 1 };
-
-function maxSeveridad(items: ResumenItem[]): Severidad {
-  let best: Severidad = "info";
-  for (const it of items) if (SEV_RANK[it.severidad] > SEV_RANK[best]) best = it.severidad;
-  return best;
-}
 
 export default function NotificacionesProvider({
   userId,
@@ -58,24 +49,19 @@ export default function NotificacionesProvider({
   // el badge dos veces por la misma alerta. El poll del finally reconcilia igual.
   const marcadasRef = useRef<Set<string>>(new Set());
 
-  // Aplica la regla de pop-up sobre el resultado de un poll:
-  //   - primer load de la sesión (no bootstrapped) y hay sin leer → 1 toast RESUMEN.
-  //   - polls siguientes → 1 toast por cada alerta genuinamente nueva (dedup localStorage).
+  // Aplica la regla de toast sobre el resultado de un poll:
+  //   - primer load de la sesión (no bootstrapped) → NINGÚN toast, sólo se toma
+  //     nota de lo que ya existe. El "tenés N sin leer" de arranque lo hace ahora
+  //     el ResumenDiarioModal, en el medio de la pantalla: el toast de la esquina
+  //     no se veía y era lo único que avisaba del pendiente acumulado.
+  //   - polls siguientes → 1 toast por cada alerta genuinamente nueva (dedup
+  //     localStorage). Eso sigue: avisa en el momento, que es otra cosa.
   const aplicarReglaToast = useCallback(
-    (nextItems: ResumenItem[], nextCount: number, allIds: string[]) => {
+    (nextItems: ResumenItem[], allIds: string[]) => {
       if (!isBootstrapped(userId)) {
-        if (nextCount > 0) {
-          pushToast({
-            key: "resumen",
-            variant: "resumen",
-            severidad: maxSeveridad(nextItems),
-            titulo: `Tenés ${nextCount} ${nextCount === 1 ? "notificación sin leer" : "notificaciones sin leer"}`,
-            mensaje: "Tocá para verlas todas.",
-            href: "/notificaciones",
-          });
-        }
         // Marcamos TODAS las no leídas como ya avisadas (no sólo el top-8 visible),
         // así una alerta vieja que después suba al top-8 no aparece como "nueva".
+        // Sin esto, el poll siguiente escupiría las 48 viejas de una.
         addToasted(userId, allIds.length ? allIds : nextItems.map((i) => i.id));
         setBootstrapped(userId);
         return;
@@ -112,7 +98,7 @@ export default function NotificacionesProvider({
       const data = (await res.json()) as { count: number; items: ResumenItem[]; allIds?: string[] };
       setCount(data.count);
       setItems(data.items);
-      aplicarReglaToast(data.items, data.count, data.allIds ?? []);
+      aplicarReglaToast(data.items, data.allIds ?? []);
       backoffRef.current = POLL_MS; // éxito → vuelve al intervalo normal
     } catch {
       backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF_MS);
@@ -135,7 +121,8 @@ export default function NotificacionesProvider({
     };
 
     // Primer disparo diferido (evita setState síncrono dentro del effect). El delay
-    // 0 lo hace prácticamente inmediato → dispara el resumen de login si corresponde.
+    // 0 lo hace prácticamente inmediato → el badge queda al día apenas entra, y de
+    // paso se toma nota de lo ya existente para no toastearlo después como nuevo.
     timerRef.current = setTimeout(tick, 0);
 
     const onVisible = () => {

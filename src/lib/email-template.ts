@@ -85,8 +85,28 @@ export const CATEGORIA_ESTILO: Record<
     color: "#3730A3", bg: "#E0E7FF", borde: "#C7D2FE",
     icono: "🏛️", cta: "Ver préstamos",
   },
+  impuestos: {
+    label: "Impuestos",
+    color: "#9A3412", bg: "#FFEDD5", borde: "#FED7AA",
+    icono: "🧾", cta: "Ver impuestos",
+  },
+  mantenimiento: {
+    label: "Mantenimiento",
+    color: "#3F6212", bg: "#ECFCCB", borde: "#D9F99D",
+    icono: "🔧", cta: "Ver mantenimiento",
+  },
+  rrhh_eventos: {
+    label: "Personal",
+    color: "#9D174D", bg: "#FCE7F3", borde: "#FBCFE8",
+    icono: "🎂", cta: "Ver personal",
+  },
+  ausencias_vacaciones: {
+    label: "Ausencias y vacaciones",
+    color: "#5B21B6", bg: "#F3E8FF", borde: "#E9D5FF",
+    icono: "🌴", cta: "Ver ausencias",
+  },
   otros_avisos: {
-    label: "Aviso",
+    label: "Otros avisos",
     color: "#334155", bg: "#F1F5F9", borde: "#E2E8F0",
     icono: "🔔", cta: "Ver aviso",
   },
@@ -112,24 +132,191 @@ export function formatFecha(f: string | null): string {
 }
 
 /**
- * Cada aviso se compone sólo con tipografía y una línea fina de separación:
- * sin caja redondeada, sin barra de color a la izquierda y sin franjas
- * pasteles. El color de la categoría aparece en dosis chicas (el rótulo y el
- * enlace), que es lo que le da carácter de comunicación seria y no de tarjeta.
+ * Estado del aviso, en un chip con color propio. Reemplaza al rótulo repetido
+ * "CRÍTICA / ADVERTENCIA": lo que hace falta saber de un vistazo no es la
+ * severidad abstracta sino CUÁNDO — vencido, hoy, o en cuántos días.
+ */
+function chipEstado(fecha: string | null, severidad: SeveridadEmail): string {
+  const hoyISO = new Date().toISOString().slice(0, 10);
+
+  let texto: string;
+  let fondo: string;
+  let color: string;
+  let borde: string;
+
+  if (!fecha) {
+    const sev = SEV_STYLE[severidad];
+    texto = sev.label;
+    fondo = sev.bg; color = sev.text; borde = sev.border;
+  } else {
+    const d = diasHasta(fecha);
+    if (d < 0) {
+      texto = `Venció hace ${Math.abs(d)} día${Math.abs(d) !== 1 ? "s" : ""}`;
+      fondo = "#FEE2E2"; color = "#991B1B"; borde = "#FCA5A5";
+    } else if (d === 0) {
+      texto = "Vence hoy";
+      fondo = "#FEE2E2"; color = "#991B1B"; borde = "#FCA5A5";
+    } else if (d <= 7) {
+      texto = d === 1 ? "Vence mañana" : `En ${d} días`;
+      fondo = "#FEF3C7"; color = "#92400E"; borde = "#FDE68A";
+    } else {
+      texto = `En ${d} días`;
+      fondo = "#F1F5F9"; color = "#475569"; borde = "#E2E8F0";
+    }
+    texto += ` · ${formatFecha(fecha)}`;
+    void hoyISO;
+  }
+
+  return `<span style="display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.02em;color:${color};background:${fondo};border:1px solid ${borde};border-radius:4px;padding:4px 9px;">${escapeHtml(texto)}</span>`;
+}
+
+/** Días desde hoy hasta una fecha ISO (negativo = ya pasó). */
+function diasHasta(fecha: string): number {
+  const [y, m, d] = fecha.split("-").map(Number);
+  if (!y || !m || !d) return 0;
+  const hoy = new Date();
+  const a = new Date(y, m - 1, d).getTime();
+  const b = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime();
+  return Math.round((a - b) / 86400000);
+}
+
+/** Hacia dónde apunta una cuenta de días: la fecha todavía viene, o ya pasó. */
+type SentidoTiempo = "futuro" | "pasado";
+
+/**
+ * Presente ↔ pretérito de los verbos que acompañan a una cláusula de días.
+ *
+ * Es un repertorio cerrado a propósito: estos mensajes no los escribe una
+ * persona, los redacta `generarAlertas()` (src/lib/alertas.ts). Lo que no está
+ * acá no se conjuga a la fuerza — ver `sincronizarDias`.
+ */
+const VERBOS_TIEMPO: readonly (readonly [presente: string, pasado: string])[] = [
+  ["vence", "venció"],
+  ["vencen", "vencieron"],
+  ["empieza", "empezó"],
+  ["empiezan", "empezaron"],
+];
+
+/** El verbo en el tiempo que pide `sentido`, o null si no sabemos conjugarlo. */
+function conjugar(verbo: string, sentido: SentidoTiempo): string | null {
+  const v = verbo.toLowerCase();
+  const par = VERBOS_TIEMPO.find(([presente, pasado]) => v === presente || v === pasado);
+  if (!par) return null;
+  const destino = sentido === "pasado" ? par[1] : par[0];
+  // "Empieza en 3 días" abre la oración: si venía en mayúscula, se conserva.
+  return verbo[0] !== verbo[0]!.toLowerCase()
+    ? destino[0]!.toUpperCase() + destino.slice(1)
+    : destino;
+}
+
+/**
+ * Cláusula que cuenta días, con el verbo pegado adelante si lo tiene.
+ *
+ * "quedan" entra como conector porque el aviso de fin de período de prueba dice
+ * "le quedan N días para finalizar…" y no caía en ningún patrón: la fila se crea
+ * una sola vez (misma clave de dedup en los hitos de 30/15/5), así que a los 15
+ * y a los 5 seguía diciendo 30 y contradecía al chip.
+ *
+ * El `(?! de\b)` evita los saldos: "N días de vacaciones" es una cantidad, no
+ * una cuenta regresiva, y reescribirla sería inventar datos.
+ */
+const RE_CLAUSULA_DIAS = /(?:([^\s.,;:()]+) )?\b(hace|en|quedan) (\d+) días?\b(?! de\b)/gi;
+
+/** Sin `g`: sólo se pregunta si la oración afirma "hoy", no se reemplaza nada. */
+const RE_HOY = /\bhoy\b/i;
+
+/**
+ * Recalcula contra la fecha real las cuentas de días del texto.
+ *
+ * El mensaje de una alerta de tabla se escribe UNA vez, el día que se genera, y
+ * el dedup impide regenerarla: la cuenta de días queda congelada ahí para
+ * siempre. Como el chip de al lado sí se calcula en vivo, el correo terminaba
+ * diciendo las dos cosas — "está vencido hace 35 días" arriba y "Venció hace 69
+ * días" abajo, en el mismo aviso. Un sistema de alertas que se contradice a sí
+ * mismo no lo lee nadie.
+ *
+ * No alcanza con el numeral: hay que corregir también el SENTIDO. A una alerta
+ * ya vencida el texto le seguía prometiendo futuro ("vence en 10 días" al lado
+ * de un chip que decía "Venció hace 10 días"), que es peor que el número viejo:
+ * afirma un vencimiento que no existe.
+ *
+ * Dar vuelta el tiempo obliga a conjugar, y conjugar castellano con una regex no
+ * se puede en general ("empieza" → "empezó" cambia la raíz). Por eso: los verbos
+ * de VERBOS_TIEMPO se conjugan, y con cualquier otro se descarta la ORACIÓN
+ * entera y el cuándo lo dice el chip, que se calcula en vivo y siempre está
+ * bien. Se descarta la oración y no sólo las dos palabras porque recortar la
+ * cláusula sola deja frases rotas ("le quedan para finalizar su período de
+ * prueba"): es preferible decir menos que decir mal.
+ *
+ * Los textos que hablan de otra unidad ("hace más de 3 meses", "lleva 52 horas",
+ * "cumple 7 años") no matchean y quedan intactos.
+ */
+export function sincronizarDias(mensaje: string, fecha: string | null): string {
+  if (!fecha) return mensaje;
+  const d = diasHasta(fecha);
+  const sentido: SentidoTiempo = d < 0 ? "pasado" : "futuro";
+  const n = Math.abs(d);
+  const dias = `${n} día${n !== 1 ? "s" : ""}`;
+
+  // Se trabaja oración por oración para poder soltar una entera sin tocar el
+  // resto. El separador queda en las posiciones impares, así que volver a unir
+  // el arreglo reconstruye el original tal cual. El punto sólo corta si le sigue
+  // un espacio o el final: si no, "$1.000.000" se partiría en tres.
+  const partes = mensaje.split(/([.!?]+(?=\s|$)\s*)/);
+  let recortada = false;
+
+  for (let i = 0; i < partes.length; i += 2) {
+    const oracion = partes[i];
+    if (!oracion) continue;
+
+    let descartar = false;
+    const corregida = oracion.replace(
+      RE_CLAUSULA_DIAS,
+      (todo: string, verbo: string | undefined, conector: string) => {
+        const sentidoTexto: SentidoTiempo = conector.toLowerCase() === "hace" ? "pasado" : "futuro";
+        // Mismo sentido: con corregir el numeral alcanza, la oración no cambia.
+        if (sentidoTexto === sentido) {
+          return verbo ? `${verbo} ${conector} ${dias}` : `${conector} ${dias}`;
+        }
+        const conjugado = verbo ? conjugar(verbo, sentido) : null;
+        if (!conjugado) {
+          descartar = true;
+          return todo;
+        }
+        return `${conjugado} ${sentido === "pasado" ? "hace" : "en"} ${dias}`;
+      },
+    );
+
+    // "hoy" es la misma mentira congelada, pero sin número que corregir: la
+    // ausencia generada el 13/07 decía "Empieza hoy" y seguía diciéndolo el 5/08.
+    // Aparece en las dos formas ("Empieza hoy", "Hoy vence la cuota…"), así que
+    // en vez de conjugar a ciegas se suelta la oración y el chip —que se calcula
+    // en vivo— dice el cuándo. `d === 0` es el único caso en que "hoy" es cierto.
+    if (!descartar && d !== 0 && RE_HOY.test(corregida)) descartar = true;
+
+    if (descartar) {
+      partes[i] = "";
+      if (i + 1 < partes.length) partes[i + 1] = "";
+      recortada = true;
+    } else {
+      partes[i] = corregida;
+    }
+  }
+
+  const salida = partes.join("");
+  // Al soltar la última oración queda colgando el espacio del separador previo.
+  return recortada ? salida.replace(/\s+$/, "") : salida;
+}
+
+/**
+ * Un aviso dentro de su sección. La categoría ya la dice el encabezado de la
+ * sección, así que acá no se repite: queda el título grande, el detalle y el
+ * chip de cuándo vence.
  */
 function renderAlerta(a: AlertaEmailView): string {
-  const sev = SEV_STYLE[a.severidad];
   const est = estiloDe(a.categoria);
-
-  // Una alerta ya vencida no puede decir "vence": se lee mal justo en el caso
-  // más urgente.
-  const hoyISO = new Date().toISOString().slice(0, 10);
-  const yaVencio = a.fecha_vencimiento !== null && a.fecha_vencimiento < hoyISO;
-  const meta = a.fecha_vencimiento
-    ? `<div style="font-size:12px;color:${yaVencio ? "#B91C1C" : "#94A3B8"};margin-top:9px;">${
-        yaVencio ? "Venció el" : "Vence el"
-      } ${formatFecha(a.fecha_vencimiento)}</div>`
-    : "";
+  const meta = `<div style="margin-top:11px;">${chipEstado(a.fecha_vencimiento, a.severidad)}</div>`;
+  const mensaje = sincronizarDias(a.mensaje, a.fecha_vencimiento);
 
   // Datos duros en dos columnas: etiqueta arriba, valor abajo. Los destacados
   // (el importe) van más grandes y en el color de la categoría.
@@ -150,21 +337,60 @@ function renderAlerta(a: AlertaEmailView): string {
 
   return `
     <tr>
-      <td style="padding:20px 0 22px 0;border-top:1px solid #E2E8F0;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:${est.color};">
-          ${escapeHtml(est.label)}
-          <span style="color:#CBD5E1;font-weight:400;">&nbsp;/&nbsp;</span>
-          <span style="color:${sev.text};">${sev.label}</span>
-        </div>
-        <div style="font-size:17px;font-weight:700;color:#0F172A;line-height:1.35;margin-top:10px;">${escapeHtml(a.titulo)}</div>
-        <div style="font-size:14px;color:#475569;margin-top:7px;line-height:1.6;">${escapeHtml(a.mensaje)}</div>
+      <td style="padding:18px 0 20px 0;border-bottom:1px solid #EEF2F6;">
+        <div style="font-size:17.5px;font-weight:800;color:#0F172A;line-height:1.35;letter-spacing:-.005em;">${escapeHtml(a.titulo)}</div>
+        ${mensaje ? `<div style="font-size:14.5px;color:#475569;margin-top:6px;line-height:1.6;">${escapeHtml(mensaje)}</div>` : ""}
         ${datos}
         ${meta}
-        <div style="margin-top:12px;">
-          <a href="${a.href}" style="font-size:13px;font-weight:600;color:${est.color};text-decoration:none;border-bottom:1px solid ${est.color};padding-bottom:1px;">${escapeHtml(est.cta)}</a>
-        </div>
       </td>
     </tr>`;
+}
+
+/**
+ * Encabezado de sección: la franja de color de la categoría con su nombre y
+ * cuántos avisos trae. Es lo que hace que 48 avisos dejen de ser una lista
+ * corrida y pasen a ser seis bloques que se reconocen sin leer.
+ */
+function renderSeccion(categoria: string, alertas: AlertaEmailView[], base: string): string {
+  const est = estiloDe(categoria);
+  const n = alertas.length;
+  const vencidos = alertas.filter(
+    (a) => a.fecha_vencimiento && diasHasta(a.fecha_vencimiento) < 0,
+  ).length;
+
+  const subtitulo = vencidos > 0
+    ? `<div style="font-size:12.5px;font-weight:700;color:#B91C1C;margin-top:3px;">${vencidos} ${vencidos === 1 ? "vencido" : "vencidos"}</div>`
+    : "";
+
+  return `
+  <tr><td style="padding:30px 0 0 0;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+      <tr>
+        <td style="background:${est.bg};border-left:4px solid ${est.color};border-radius:0 6px 6px 0;padding:13px 16px;">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <td style="vertical-align:middle;">
+                <div style="font-size:14px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:${est.color};">
+                  ${est.icono}&nbsp; ${escapeHtml(est.label)}
+                </div>
+                ${subtitulo}
+              </td>
+              <td align="right" style="vertical-align:middle;white-space:nowrap;">
+                <span style="font-size:24px;font-weight:800;color:${est.color};line-height:1;">${n}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:collapse;">
+      ${alertas.map(renderAlerta).join("")}
+      <tr><td style="padding:14px 0 0 0;">
+        <a href="${base}" style="font-size:13.5px;font-weight:700;color:${est.color};text-decoration:none;">${escapeHtml(est.cta)} &rarr;</a>
+      </td></tr>
+    </table>
+  </td></tr>`;
 }
 
 /**
@@ -190,8 +416,61 @@ export function renderEmail(opts: {
     ? `<div style="font-size:11px;font-weight:700;color:${colorAcento};letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;">${escapeHtml(acento.label)}</div>`
     : "";
 
-  const boton = `<tr><td style="padding:24px 0 0 0;border-top:1px solid #E2E8F0;">
-         <a href="${base}/notificaciones" style="display:inline-block;background:${colorAcento};color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:11px 20px;border-radius:4px;">Ver en el sistema</a>
+  // --- Agrupado por categoría ---
+  // Cuarenta y ocho avisos en una lista corrida no se leen: no se ve dónde
+  // termina compliance y empiezan los cheques. Agrupados, son seis bloques que
+  // se reconocen por color antes de leer una palabra. Las secciones con algo
+  // vencido van primero, y dentro de eso las más grandes.
+  const grupos = new Map<string, AlertaEmailView[]>();
+  for (const a of opts.alertas) {
+    const arr = grupos.get(a.categoria) ?? [];
+    arr.push(a);
+    grupos.set(a.categoria, arr);
+  }
+
+  const vencidosDe = (as: AlertaEmailView[]) =>
+    as.filter((a) => a.fecha_vencimiento && diasHasta(a.fecha_vencimiento) < 0).length;
+
+  const ordenadas = [...grupos.entries()].sort((x, y) => {
+    const vx = vencidosDe(x[1]);
+    const vy = vencidosDe(y[1]);
+    if ((vx > 0) !== (vy > 0)) return vy - vx;
+    if (vx !== vy) return vy - vx;
+    return y[1].length - x[1].length;
+  });
+
+  const totalVencidos = vencidosDe(opts.alertas);
+
+  // Índice: el mapa del correo en seis renglones, para saber qué hay sin
+  // scrollear hasta el final.
+  const indice =
+    ordenadas.length > 1
+      ? `<tr><td style="padding:20px 0 0 0;">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid #E2E8F0;border-radius:8px;border-collapse:separate;">
+            ${ordenadas
+              .map(([cat, as], i) => {
+                const e = estiloDe(cat);
+                const v = vencidosDe(as);
+                return `<tr>
+                  <td style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}">
+                    <span style="display:inline-block;width:9px;height:9px;border-radius:9px;background:${e.color};"></span>
+                    <span style="font-size:14px;font-weight:700;color:#0F172A;padding-left:9px;">${escapeHtml(e.label)}</span>
+                    ${v > 0 ? `<span style="font-size:12.5px;font-weight:700;color:#B91C1C;padding-left:8px;">${v} vencido${v !== 1 ? "s" : ""}</span>` : ""}
+                  </td>
+                  <td align="right" style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}">
+                    <span style="font-size:16px;font-weight:800;color:${e.color};">${as.length}</span>
+                  </td>
+                </tr>`;
+              })
+              .join("")}
+          </table>
+        </td></tr>`
+      : "";
+
+  const secciones = ordenadas.map(([cat, as]) => renderSeccion(cat, as, `${base}/notificaciones`)).join("");
+
+  const boton = `<tr><td style="padding:32px 0 0 0;border-top:1px solid #E2E8F0;">
+         <a href="${base}/notificaciones" style="display:inline-block;background:${colorAcento};color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 24px;border-radius:6px;">Ver todo en el sistema</a>
        </td></tr>`;
 
   return `<!DOCTYPE html>
@@ -210,14 +489,22 @@ export function renderEmail(opts: {
         <!-- Título -->
         <tr><td style="padding:26px 4px 2px 4px;">
           ${kicker}
-          <div style="font-size:22px;font-weight:800;color:#0F172A;line-height:1.25;letter-spacing:-.01em;">${escapeHtml(opts.titulo)}</div>
-          <div style="font-size:14px;color:#475569;margin-top:7px;line-height:1.6;">${escapeHtml(opts.intro)}</div>
+          <div style="font-size:26px;font-weight:800;color:#0F172A;line-height:1.2;letter-spacing:-.02em;">${escapeHtml(opts.titulo)}</div>
+          <div style="font-size:15px;color:#475569;margin-top:9px;line-height:1.6;">${escapeHtml(opts.intro)}</div>
+          ${
+            totalVencidos > 0
+              ? `<div style="font-size:15px;font-weight:800;color:#B91C1C;margin-top:8px;">${totalVencidos} ${totalVencidos === 1 ? "ya está vencido" : "ya están vencidos"}.</div>`
+              : ""
+          }
         </td></tr>
 
-        <!-- Alertas -->
-        <tr><td style="padding:22px 4px 0 4px;">
+        <!-- Índice -->
+        ${indice ? `<tr><td style="padding:0 4px;"><table width="100%" cellpadding="0" cellspacing="0" role="presentation">${indice}</table></td></tr>` : ""}
+
+        <!-- Secciones -->
+        <tr><td style="padding:0 4px 0 4px;">
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-            ${opts.alertas.map(renderAlerta).join("")}
+            ${secciones}
             ${boton}
           </table>
         </td></tr>

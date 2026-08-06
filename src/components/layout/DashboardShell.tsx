@@ -9,6 +9,7 @@ import NotificationBell from "./NotificationBell";
 import AreaErrorBanner from "@/components/AreaErrorBanner";
 import NotificacionesProvider from "@/components/notificaciones/NotificacionesProvider";
 import NotifToaster from "@/components/notificaciones/NotifToaster";
+import ResumenDiarioModal from "@/components/notificaciones/ResumenDiarioModal";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
@@ -175,6 +176,9 @@ export default function DashboardShell({
     <NotificacionesProvider userId={userId} initialCount={alertasCount}>
       {shell}
       <NotifToaster />
+      {/* Resumen del día: aparece una vez por jornada, en el medio de la pantalla.
+          Reemplaza al toast de bootstrap que se perdía abajo a la derecha. */}
+      <ResumenDiarioModal userId={userId} nombre={user?.nombre} />
     </NotificacionesProvider>
   );
 }

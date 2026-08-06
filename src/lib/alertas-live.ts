@@ -1,10 +1,14 @@
-import "server-only";
 import type { Database } from "@/types/database";
 import { diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 
 /**
  * Cálculo EN VIVO de las alertas de documentos y cheques desde su fuente real
  * (camion_documentos / chofer_documentos / cheques), no desde la tabla `alertas`.
+ *
+ * Sin `server-only` a propósito, por el mismo motivo que `lib/alertas-routing.ts`:
+ * lo usan el envío real y los scripts de previsualización. Si la vista previa
+ * duplicara este cálculo, se probaría un correo que no es el que sale. El módulo
+ * no toca credenciales — recibe el cliente ya construido por quien lo llama.
  *
  * Motivo: esas alertas se insertan una sola vez y su `mensaje`/`severidad` quedan
  * congelados (el dedup impide regenerarlas y la generación ni mira los ya vencidos).

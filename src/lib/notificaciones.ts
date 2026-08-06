@@ -2,13 +2,18 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
 import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
-import { categoriaDeAlerta } from "@/app/(dashboard)/notificaciones/utils";
+import { categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 import {
   alertaColumnaDe,
+  caducaAlPasar,
   COLUMNAS_TODAS,
+  efemerideEnMail,
+  esEfemeride,
   normalizarColumnas,
   tipoHabilitado,
+  type ModoEfemerides,
 } from "@/lib/alertas-routing";
+import { hoyArgentina } from "@/lib/fecha-ar";
 import {
   renderEmail as renderEmailTemplate,
   type AlertaEmailView,
@@ -248,13 +253,18 @@ export type ResultadoResumen =
  * Arma la lista de alertas del resumen: las pendientes de la tabla (sin documentos
  * ni cheques, que se recalculan en vivo para reflejar el estado real y escalar a
  * "vencido"), filtradas por los toggles y ordenadas para presentación.
+ *
+ * `soloHitos` recorta documentos y cheques (lib/alertas-live.ts); las efemérides
+ * van por `efemerides`, que es una regla aparte: la del lunes no es "todo lo
+ * pendiente" sino la semana que arranca (ver `efemerideEnMail`).
  */
 async function construirResumenFiltrado(
   supabase: Supabase,
   params: Map<string, string>,
-  opts: { soloHitos?: boolean } = {},
+  opts: { soloHitos?: boolean; efemerides?: ModoEfemerides } = {},
 ): Promise<AlertaEmail[]> {
   const soloHitos = opts.soloHitos ?? true;
+  const modoEfemerides = opts.efemerides ?? (soloHitos ? "hitos" : "todo");
   const [{ data: pendientes }, docLive, chequeLive] = await Promise.all([
     supabase
       .from("alertas")
@@ -273,6 +283,16 @@ async function construirResumenFiltrado(
   // Orden de presentación: severidad → bloque de evento → fecha de vencimiento.
   return [...(pendientes ?? []), ...docLive, ...chequeLive]
     .filter((a) => tipoHabilitado(a, params))
+    // Lo que caduca y ya pasó no sale, aunque la fila siga 'pendiente'. El
+    // apagado de raíz lo hace `generarAlertas`, pero corre una vez por día: sin
+    // este corte, entre que el evento pasa y el cron limpia hay una ventana en
+    // la que el correo manda una ausencia terminada hace diez días.
+    .filter((a) => !caducaAlPasar(a) || (diasRestantes(a.fecha_vencimiento) ?? 0) >= 0)
+    .filter(
+      (a) =>
+        !esEfemeride(a) ||
+        efemerideEnMail(a, diasRestantes(a.fecha_vencimiento), modoEfemerides),
+    )
     .sort(compararAlertasEmail);
 }
 
@@ -289,7 +309,10 @@ export async function enviarResumenPrueba(email: string): Promise<ResultadoResum
   const params = await leerParametros(supabase);
   // La prueba muestra TODO lo que hay pendiente (no sólo los hitos de hoy): sirve
   // para ver el formato y verificar que el SMTP anda, no para simular el día.
-  const filtradas = await construirResumenFiltrado(supabase, params, { soloHitos: false });
+  const filtradas = await construirResumenFiltrado(supabase, params, {
+    soloHitos: false,
+    efemerides: "todo",
+  });
 
   const html = renderEmail({
     titulo: "Prueba — Resumen de alertas",
@@ -329,7 +352,8 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   }
 
   // Cadencia: el correo NO repite lo mismo todos los días.
-  //  - Lunes → resumen completo de todo lo pendiente, para arrancar la semana.
+  //  - Lunes → resumen completo de todo lo pendiente, para arrancar la semana
+  //    (menos las efemérides, que se recortan a la semana que arranca).
   //  - Resto → lo NUEVO de la tabla, más las alertas "live" que hoy caen en un
   //    hito (documentación y cheques).
   //
@@ -340,11 +364,30 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   // falta ese descarte: `lib/alertas-live.ts` ya las auto-limita por hito
   // (14/7/0 días para documentos, la ventana configurada para cheques), así que
   // no son diarias por su cuenta.
-  const esLunes = new Date().getUTCDay() === 1;
-  const todas = await construirResumenFiltrado(supabase, params, { soloHitos: !esLunes });
+  //
+  // Las efemérides quedan fuera del filtro de "nuevo" por el mismo motivo:
+  // `construirResumenFiltrado` ya las recorta a sus hitos. Exigirles además
+  // `notificacion_procesada === false` las dejaba en UN solo aviso — el primer
+  // envío las marca procesadas —, así que el recordatorio de 7 días y el del día
+  // del evento no llegaban nunca.
+  //
+  // Y el lunes las efemérides NO siguen la regla de "todo lo pendiente": el
+  // resumen completo mandaba también el cumpleaños de dentro de 29 días, que es
+  // el aviso que sobra. El lunes suma la semana que arranca y nada más.
+  //
+  // Lunes en hora argentina: el cron corre 11:00 UTC (8:00 ART) y ahí los dos
+  // días coinciden, pero un disparo manual un domingo a la noche daba lunes en
+  // UTC y mandaba el resumen de la semana un día antes.
+  const esLunes = new Date(`${hoyArgentina()}T12:00:00Z`).getUTCDay() === 1;
+  const todas = await construirResumenFiltrado(supabase, params, {
+    soloHitos: !esLunes,
+    efemerides: esLunes ? "semana" : "hitos",
+  });
   const filtradas = esLunes
     ? todas
-    : todas.filter((a) => (esDeTabla(a.id) ? a.notificacion_procesada === false : true));
+    : todas.filter((a) =>
+        esDeTabla(a.id) && !esEfemeride(a) ? a.notificacion_procesada === false : true,
+      );
 
   if (filtradas.length === 0) {
     return { enviado: false, motivo: esLunes ? "sin_alertas" : "nada_nuevo" };
