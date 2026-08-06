@@ -140,11 +140,23 @@ export async function enviarEmail(input: EnviarEmailInput): Promise<EnviarEmailR
 }
 
 /**
- * URL base pública de la app (para links dentro de los emails).
- * Prioridad: `NEXT_PUBLIC_APP_URL` → `VERCEL_URL` → localhost.
+ * URL base pública de la app: de acá salen el logo y los links de los emails.
+ *
+ * `VERCEL_URL` es la trampa: apunta al deploy puntual
+ * (`don-joaquin-a1b2c3.vercel.app`), no al dominio. Ese host está detrás de la
+ * protección de deploys, así que el `<img>` del membrete no cargaba y el correo
+ * llegaba con el cuadradito del signo de pregunta. Por eso primero va
+ * `VERCEL_PROJECT_PRODUCTION_URL`, que Vercel setea sola con el dominio de
+ * producción y no hay que configurar en ningún lado.
+ *
+ * Prioridad: `NEXT_PUBLIC_APP_URL` (override manual) → dominio de producción →
+ * el deploy puntual (último recurso, sirve en previews) → localhost.
  */
 export function appUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 }

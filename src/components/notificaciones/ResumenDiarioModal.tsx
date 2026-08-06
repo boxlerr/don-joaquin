@@ -2,7 +2,24 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, X } from "lucide-react";
+import {
+  Banknote,
+  Bell,
+  Cake,
+  Calculator,
+  ChevronRight,
+  FileText,
+  Landmark,
+  PiggyBank,
+  ReceiptText,
+  ShieldCheck,
+  TreePalm,
+  Truck,
+  Wallet,
+  Wrench,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_ESTILO } from "@/lib/email-template";
 import type { GrupoResumen, ItemResumen, ResumenDiario } from "@/lib/resumen-diario";
@@ -17,6 +34,12 @@ import type { GrupoResumen, ItemResumen, ResumenDiario } from "@/lib/resumen-dia
  * Aparece UNA vez por día por usuario. La marca va en localStorage con la fecha
  * LOCAL del cliente, no la del servidor: el "día" que importa es el de quien
  * mira la pantalla.
+ *
+ * FORMA (tablero): la CATEGORÍA es el objeto principal — ícono + número grande +
+ * nombre — y el detalle queda reducido a una tira corta al pie. Antes era una
+ * tarjeta angosta con ~15 renglones de prosa y la devolución fue literal:
+ * "tanto texto me marea". Acá el número y el ícono hacen el trabajo que hacía el
+ * texto, y la tarjeta es ancha y baja (hasta 1100px) en vez de alta y angosta.
  */
 
 const CLAVE_PREFIX = "dj_resumen_dia_";
@@ -24,11 +47,55 @@ const CLAVE_PREFIX = "dj_resumen_dia_";
 const ROJO = "#DC2626";
 const MARCA = "#0088D1";
 
+/** Filas de la tira de detalle. Es letra chica: cuantas menos, mejor se lee el tablero. */
+const MAX_URGENTES = 4;
+
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
+
+/**
+ * Categoría → ícono de lucide, en un solo lugar.
+ *
+ * `CATEGORIA_ESTILO` ya trae un `icono`, pero es un EMOJI: existe para el mail,
+ * donde no se puede mandar un SVG. En pantalla el emoji lo dibuja cada sistema a
+ * su manera (y en Windows la mitad salen en blanco y negro), así que el pop-up
+ * usa lucide como todo el resto del sistema. Las claves son las mismas de la
+ * matriz de notificaciones, así que una categoría nueva cae sola en el `Bell` de
+ * `otros_avisos` en vez de romper nada.
+ */
+const ICONO_CATEGORIA: Record<string, LucideIcon> = {
+  vencimiento_docs: FileText,
+  vencimiento_compliance: ShieldCheck,
+  impuestos: ReceiptText,
+  prestamos_vencimiento: Landmark,
+  cheques_vencidos: Banknote,
+  rrhh_eventos: Cake,
+  ausencias_vacaciones: TreePalm,
+  viaticos_sin_rendir: Wallet,
+  gastos_pendientes: Calculator,
+  cambios_caja: PiggyBank,
+  nuevo_viaje: Truck,
+  mantenimiento: Wrench,
+  otros_avisos: Bell,
+};
+
+/**
+ * Las dos sombritas de arriba y abajo del cuerpo aparecen SOLAS cuando hay algo
+ * fuera de vista (truco de `background-attachment: local` contra `scroll`): con 7
+ * categorías no se ven, con 13 avisan que la lista sigue. Cero JS y cero
+ * listeners de scroll.
+ */
+const SOMBRAS_SCROLL: React.CSSProperties = {
+  background: [
+    "linear-gradient(var(--card) 30%, transparent) top / 100% 16px no-repeat local",
+    "linear-gradient(transparent, var(--card) 70%) bottom / 100% 16px no-repeat local",
+    "radial-gradient(farthest-side at 50% 0, rgba(15,23,42,.10), transparent) top / 100% 7px no-repeat scroll",
+    "radial-gradient(farthest-side at 50% 100%, rgba(15,23,42,.10), transparent) bottom / 100% 7px no-repeat scroll",
+  ].join(", "),
+};
 
 function safeLocal(): Storage | null {
   try {
@@ -89,26 +156,81 @@ function primerNombre(nombre: string | null | undefined): string {
 }
 
 /**
- * Texto de "cuándo". El rojo se reserva para `dias < 0` — exactamente el mismo
- * criterio con el que el server cuenta los vencidos del encabezado; si "vence
- * hoy" también saliera rojo, el usuario contaría más rojos que los que dice el
- * número de arriba.
+ * Texto de "cuándo", en dos largos: el `texto` completo para la celda de una
+ * categoría y el `corto` para la tira, donde la fila ya dice de qué se trata y
+ * el renglón compite con el título por el ancho.
+ *
+ * El rojo se reserva para `dias < 0` — exactamente el mismo criterio con el que
+ * el server cuenta los vencidos del encabezado; si "vence hoy" también saliera
+ * rojo, el usuario contaría más rojos que los que dice el número de arriba.
  */
-function cuando(dias: number | null): { texto: string; vencido: boolean } | null {
+function cuando(dias: number | null): { texto: string; corto: string; vencido: boolean } | null {
   if (dias === null) return null;
   if (dias < 0) {
     const n = Math.abs(dias);
-    return { texto: `Vencido hace ${n} ${n === 1 ? "día" : "días"}`, vencido: true };
+    const plural = n === 1 ? "día" : "días";
+    return { texto: `Vencido hace ${n} ${plural}`, corto: `hace ${n} ${plural}`, vencido: true };
   }
-  if (dias === 0) return { texto: "Vence hoy", vencido: false };
-  if (dias === 1) return { texto: "Vence mañana", vencido: false };
-  return { texto: `En ${dias} días`, vencido: false };
+  if (dias === 0) return { texto: "Vence hoy", corto: "hoy", vencido: false };
+  if (dias === 1) return { texto: "Vence mañana", corto: "mañana", vencido: false };
+  return { texto: `En ${dias} días`, corto: `en ${dias} días`, vencido: false };
 }
 
 /** Color de la categoría: el mismo que usa el mail, para que el aviso se reconozca igual en los dos lados. */
 function colorDe(key: string): string {
   return CATEGORIA_ESTILO[key]?.color ?? CATEGORIA_ESTILO.otros_avisos!.color;
 }
+
+/**
+ * El mismo color de la categoría al 10%, para el fondo del ícono. Los colores de
+ * `CATEGORIA_ESTILO` son hex de 6 dígitos, así que alcanza con pegarles el alfa;
+ * si alguna vez dejan de serlo, devolvemos el color entero antes que un valor
+ * inválido que el navegador tira a la basura junto con el resto de la regla.
+ */
+function tinte(color: string): string {
+  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}1A` : color;
+}
+
+/**
+ * A dónde lleva la celda de una categoría: al módulo donde viven sus avisos.
+ *
+ * Se calcula como el primer segmento de ruta COMÚN a los ítems del grupo
+ * (`/compliance`, `/prestamos`, `/impuestos`…). Si el grupo mezcla módulos —los
+ * documentos son de choferes y también de camiones— no hay uno solo y cae a
+ * /notificaciones, que sí los muestra a todos. No se usa `?categoria=` porque esa
+ * pantalla filtra con otra taxonomía (documentacion/cheques/personal…) que no es
+ * la de la matriz: dos grupos distintos caerían en el mismo filtro.
+ *
+ * Ojo: los ítems vienen recortados a 3 por el server, así que la ruta común se
+ * decide sobre esos 3. El error posible es benigno (entrar al módulo de choferes
+ * cuando además había camiones) y del lado seguro está /notificaciones.
+ */
+function destinoDe(grupo: GrupoResumen): string {
+  let comun: string | null = null;
+  for (const item of grupo.items) {
+    if (!item.href) continue;
+    const seg = item.href.split("?")[0]?.split("/").filter(Boolean)[0];
+    if (!seg) return "/notificaciones";
+    const ruta = `/${seg}`;
+    if (comun === null) comun = ruta;
+    else if (comun !== ruta) return "/notificaciones";
+  }
+  return comun ?? "/notificaciones";
+}
+
+/**
+ * "Manual de Inducción — Grassi Bruno Emmanuel" → sujeto + descripción, en ese
+ * orden. Se da vuelta a propósito: la fila trunca por la derecha, así que en
+ * 375px lo que se pierde es "Manual de Inducción" y no de quién es. Sin el
+ * separador el título va entero y no se toca.
+ */
+function partirTitulo(titulo: string): { sujeto: string; resto: string | null } {
+  const corte = titulo.lastIndexOf(" — ");
+  if (corte < 0) return { sujeto: titulo, resto: null };
+  return { sujeto: titulo.slice(corte + 3).trim(), resto: titulo.slice(0, corte).trim() };
+}
+
+type ItemConCategoria = ItemResumen & { categoria: string };
 
 export default function ResumenDiarioModal({
   userId,
@@ -219,6 +341,38 @@ export default function ResumenDiarioModal({
   const ahora = new Date();
   const quien = primerNombre(nombre);
 
+  // Los grupos ya vienen ordenados por el server (primero los que tienen
+  // vencidos): partirlos en dos no reordena nada, sólo corta la lista al medio.
+  const conVencidos = data.grupos.filter((g) => g.vencidos > 0);
+  const porVencer = data.grupos.filter((g) => g.vencidos === 0);
+
+  // La tira de detalle: lo más atrasado primero, mezclando categorías. Se ordena
+  // por días porque cada grupo llega ordenado por severidad, y a las 8 de la
+  // mañana lo que importa es cuánto hace que está esperando, no de qué color es.
+  const urgentes: ItemConCategoria[] = data.grupos
+    .flatMap((g) => g.items.map((i) => ({ ...i, categoria: g.key })))
+    .sort((a, b) => {
+      if (a.diasRestantes === null) return b.diasRestantes === null ? 0 : 1;
+      if (b.diasRestantes === null) return -1;
+      return a.diasRestantes - b.diasRestantes;
+    })
+    .slice(0, MAX_URGENTES);
+
+  // "y N más" cuenta lo que NO está a la vista, contra la magnitud que la tira
+  // está mostrando: si hay vencidos, los vencidos; si no, el total. Restar sobre
+  // el balde equivocado hacía que el pie contradijera al encabezado.
+  const vencidosEnTira = urgentes.filter((u) => u.diasRestantes !== null && u.diasRestantes < 0).length;
+  const restoVencidos = data.vencidos - vencidosEnTira;
+  const restoTotal = data.total - urgentes.length;
+  const masTexto =
+    restoVencidos > 0
+      ? `y ${restoVencidos} vencido${restoVencidos === 1 ? "" : "s"} más`
+      : restoTotal > 0
+        ? `y ${restoTotal} aviso${restoTotal === 1 ? "" : "s"} más`
+        : null;
+
+  const pctVencido = data.total > 0 ? Math.max(2, Math.round((data.vencidos / data.total) * 100)) : 0;
+
   return (
     <div
       onMouseDown={(e) => {
@@ -227,6 +381,10 @@ export default function ResumenDiarioModal({
       }}
       className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
     >
+      {/* Ancha y baja: 1100px de tope. Es lo que pidió el usuario ("más
+          horizontal, aprovechar el espacio") y de paso deja ver la pantalla de
+          atrás en vez de taparla entera. El alto sale de `dvh`, no de `vh`: en
+          iOS `vh` deja el pie abajo de la barra del navegador. */}
       <div
         ref={cardRef}
         role="dialog"
@@ -234,152 +392,312 @@ export default function ResumenDiarioModal({
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={atraparTab}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[560px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl outline-none motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:duration-150"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-[1100px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl outline-none motion-safe:animate-in motion-safe:zoom-in-95 motion-safe:duration-150"
       >
-        <div className="shrink-0 border-b border-border px-4 py-4 sm:px-5">
-          <div className="flex items-start gap-3">
-            <Bell size={18} className="mt-0.5 shrink-0" style={{ color: MARCA }} />
-            <div className="min-w-0 flex-1">
-              <h2 id={titleId} className="truncate text-base font-semibold text-foreground">
-                {quien ? `${saludo(ahora.getHours())}, ${quien}` : saludo(ahora.getHours())}
-              </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">{fechaLarga(ahora)}</p>
+        <div className="shrink-0 border-b border-border">
+          {/* El encabezado ENVUELVE: cuando no entra, los dos números se van a un
+              renglón propio a ancho completo y el saludo recupera la línea. Los
+              `order-*` son lo que mantiene la X arriba a la derecha en las dos
+              formas, sin duplicar markup. */}
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-3 px-4 py-4 sm:flex-nowrap sm:gap-5 sm:px-5 lg:px-6 lg:py-5">
+            <div className="order-1 flex min-w-0 flex-1 items-start gap-3">
+              <span
+                className="grid size-[34px] shrink-0 place-items-center rounded-md lg:size-9"
+                style={{ backgroundColor: tinte(MARCA), color: MARCA }}
+                aria-hidden
+              >
+                <Bell size={18} />
+              </span>
+              <div className="min-w-0">
+                <h2
+                  id={titleId}
+                  className="truncate text-base font-semibold leading-tight tracking-tight text-foreground sm:text-[17px] lg:text-lg"
+                >
+                  {quien ? `${saludo(ahora.getHours())}, ${quien}` : saludo(ahora.getHours())}
+                </h2>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{fechaLarga(ahora)}</p>
+              </div>
             </div>
+
+            <div className="order-3 flex basis-full items-start sm:order-2 sm:basis-auto">
+              <div className="pr-4 text-left sm:px-4 sm:text-right lg:px-5">
+                <span className="block text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground sm:text-[30px] lg:text-[34px]">
+                  {data.total}
+                </span>
+                <span className="mt-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                  Pendientes
+                </span>
+              </div>
+              <div className="border-l border-border pl-4 text-left sm:px-4 sm:text-right lg:px-5">
+                <span
+                  className="block text-[28px] font-semibold leading-none tracking-tight tabular-nums sm:text-[30px] lg:text-[34px]"
+                  style={{ color: data.vencidos > 0 ? ROJO : undefined }}
+                >
+                  {data.vencidos}
+                </span>
+                <span className="mt-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                  Vencidos
+                </span>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={cerrar}
               aria-label="Cerrar"
-              className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground sm:h-8 sm:w-8"
+              className="order-2 -mr-1 -mt-1 flex size-[38px] shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground sm:order-3 sm:size-8"
             >
-              <X size={16} />
+              <X size={17} />
             </button>
           </div>
 
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-4xl font-semibold tabular-nums leading-none" style={{ color: MARCA }}>
-              {data.total}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {data.total === 1 ? "aviso pendiente" : "avisos pendientes"}
-              {data.vencidos > 0 && (
-                <>
-                  {" · "}
-                  <span className="font-semibold tabular-nums" style={{ color: ROJO }}>
-                    {data.vencidos}
-                  </span>{" "}
-                  {data.vencidos === 1 ? "vencido" : "vencidos"}
-                </>
+          {/* Una sola magnitud —lo vencido— sobre el total del día. NO es una
+              barra apilada de siete colores: el color identifica categorías en
+              las celdas de abajo y acá sólo hay que ver cuánto de la mañana ya
+              está en rojo. Si no hay nada vencido no se dibuja: una pista vacía
+              se lee como un widget roto. */}
+          {data.vencidos > 0 && (
+            <div className="px-4 pb-3.5 sm:px-5 lg:px-6">
+              <div
+                className="h-1.5 w-full overflow-hidden rounded-[3px] bg-muted"
+                role="img"
+                aria-label={`${data.vencidos} de ${data.total} avisos están vencidos`}
+              >
+                <div className="h-full rounded-[3px]" style={{ width: `${pctVencido}%`, backgroundColor: ROJO }} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* El cuerpo es lo único que scrollea: con 13 categorías y 200 avisos la
+            tarjeta sigue entrando en pantalla y el pie nunca queda fuera de
+            alcance. La grilla se reacomoda sola (2 → 3 → 4 columnas). */}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 lg:px-6 lg:py-5"
+          style={SOMBRAS_SCROLL}
+        >
+          {conVencidos.length > 0 && (
+            <section>
+              <Rotulo texto="Vencido" />
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-2.5">
+                {conVencidos.map((grupo) => (
+                  <CeldaVencida key={grupo.key} grupo={grupo} onIr={ir} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {porVencer.length > 0 && (
+            <section className={conVencidos.length > 0 ? "mt-5" : undefined}>
+              <Rotulo texto="Se viene" />
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-2.5">
+                {porVencer.map((grupo) => (
+                  <CeldaProxima key={grupo.key} grupo={grupo} onIr={ir} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* La tira NO lleva rótulo propio a propósito: con "Vencido" y "Se
+              viene" ya hay dos niveles de jerarquía, que es lo que manda la regla
+              de la casa; un tercer título convertía la letra chica en una sección
+              más. El punto de color la ata a su categoría de arriba. */}
+          {urgentes.length > 0 && (
+            <div className="mt-4 rounded-md border border-border bg-muted/40 p-1 lg:grid lg:grid-cols-2 lg:gap-x-5">
+              {urgentes.map((item) => (
+                <FilaUrgente key={item.id} item={item} onIr={ir} />
+              ))}
+              {masTexto && (
+                <button
+                  type="button"
+                  onClick={() => ir("/notificaciones")}
+                  className="flex min-h-10 w-full items-center justify-center gap-1 rounded px-2 text-xs text-muted-foreground transition-colors hover:text-foreground sm:min-h-9 lg:col-span-2"
+                >
+                  {masTexto}
+                  <ChevronRight size={13} />
+                </button>
               )}
-            </span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 lg:px-6">
+          {/* En celular el pie son dos botones apilados y este renglón empujaba
+              el "Entendido" contra el borde: la aclaración es una cortesía, no
+              información del día, así que abajo de 640px no se dibuja. */}
+          <span className="hidden text-[11px] text-muted-foreground/80 sm:block">
+            Este resumen se muestra una vez por día
+          </span>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" size="lg" className="max-md:text-base" onClick={cerrar}>
+              Entendido
+            </Button>
+            <Button
+              variant="brand"
+              size="lg"
+              className="max-md:text-base"
+              onClick={() => {
+                router.push("/notificaciones");
+                cerrar();
+              }}
+            >
+              Ver todas
+              <ChevronRight size={15} />
+            </Button>
           </div>
         </div>
-
-        {/* El cuerpo es lo único que scrollea: con 200 avisos la tarjeta sigue
-            entrando en pantalla y el pie nunca queda fuera de alcance. */}
-        <div className="min-h-0 flex-1 divide-y divide-border overflow-y-auto overscroll-contain">
-          {data.grupos.map((grupo) => (
-            <GrupoFila key={grupo.key} grupo={grupo} onIr={ir} />
-          ))}
-        </div>
-
-        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
-          <Button variant="outline" size="lg" className="max-md:text-base" onClick={cerrar}>
-            Entendido
-          </Button>
-          <Button
-            variant="brand"
-            size="lg"
-            className="max-md:text-base"
-            onClick={() => {
-              router.push("/notificaciones");
-              cerrar();
-            }}
-          >
-            Ver todas
-          </Button>
-        </div>
       </div>
     </div>
   );
 }
 
-function GrupoFila({ grupo, onIr }: { grupo: GrupoResumen; onIr: (href: string) => void }) {
+/** Rotulito de sección: texto corto + una regla que se come el resto del ancho. */
+function Rotulo({ texto }: { texto: string }) {
   return (
-    <div className="px-4 py-3 sm:px-5">
-      <div className="flex items-center gap-2">
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: colorDe(grupo.key) }}
-          aria-hidden
-        />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{grupo.nombre}</span>
-        {grupo.vencidos > 0 && (
-          <span className="shrink-0 text-xs font-medium tabular-nums" style={{ color: ROJO }}>
-            {grupo.vencidos} vencido{grupo.vencidos === 1 ? "" : "s"}
-          </span>
-        )}
-        <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{grupo.total}</span>
-      </div>
-
-      {/* El recorte lo hace el server (por eso se dibuja `items` entero): si acá
-          se recortara de nuevo, `restantes` diría menos de los que faltan. */}
-      <ul className="mt-1.5 space-y-0.5 pl-4 max-md:space-y-1">
-        {grupo.items.map((item) => (
-          <ItemFila key={item.id} item={item} onIr={onIr} />
-        ))}
-        {grupo.restantes > 0 && (
-          <li className="px-1.5 text-xs text-muted-foreground max-md:px-2 max-md:py-1">
-            y {grupo.restantes} más
-          </li>
-        )}
-      </ul>
+    <div className="mb-2 flex items-center gap-2.5">
+      <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted-foreground/80">
+        {texto}
+      </span>
+      <span className="h-px flex-1 bg-border" aria-hidden />
     </div>
   );
 }
 
-function ItemFila({ item, onIr }: { item: ItemResumen; onIr: (href: string) => void }) {
+/** Ícono de la categoría sobre su propio color al 10%: es lo que la hace reconocible sin leerla. */
+function Tile({ categoria, chico }: { categoria: string; chico?: boolean }) {
+  // El ícono se saca del mapa directo (y no de una función que lo devuelva):
+  // `react-hooks/static-components` lee un componente que sale de una llamada
+  // como uno creado en cada render y lo marca como error.
+  const Icono = ICONO_CATEGORIA[categoria] ?? Bell;
+  const color = colorDe(categoria);
+  return (
+    <span
+      className={`grid shrink-0 place-items-center rounded-md ${chico ? "size-7" : "size-8 lg:size-[34px]"}`}
+      style={{ backgroundColor: tinte(color), color }}
+      aria-hidden
+    >
+      <Icono size={chico ? 16 : 18} />
+    </span>
+  );
+}
+
+/**
+ * Categoría con algo vencido. El número grande es el de VENCIDOS, no el total:
+ * abajo del rótulo "Vencido", un 16 gigante en Préstamos cuando sólo 2 están
+ * vencidos es el número equivocado en el lugar donde primero se mira. El total
+ * queda de apoyo, en chico. De yapa, los números grandes de esta grilla suman
+ * exactamente el "Vencidos" del encabezado.
+ */
+function CeldaVencida({ grupo, onIr }: { grupo: GrupoResumen; onIr: (href: string) => void }) {
+  const color = colorDe(grupo.key);
+  return (
+    <button
+      type="button"
+      onClick={() => onIr(destinoDe(grupo))}
+      aria-label={`${grupo.nombre}: ${grupo.vencidos} vencidos de ${grupo.total}`}
+      className="flex flex-col rounded-md border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-foreground/20 hover:bg-muted/40 focus-visible:border-foreground/20 focus-visible:bg-muted/40 focus-visible:outline-none lg:px-3.5 lg:py-3"
+    >
+      <span className="flex items-center justify-between gap-2">
+        <Tile categoria={grupo.key} />
+        <span
+          className="text-[27px] font-semibold leading-none tracking-tight tabular-nums lg:text-[32px]"
+          style={{ color }}
+        >
+          {grupo.vencidos}
+        </span>
+      </span>
+      <span className="mt-2 text-[12.5px] font-medium leading-snug text-foreground">{grupo.nombre}</span>
+      {/* `mt-auto` clava esta línea al piso: si un nombre largo se va a dos
+          renglones, los "de N en total" de toda la fila siguen alineados. */}
+      <span className="mt-auto pt-1.5 text-[11.5px] tabular-nums text-muted-foreground">
+        de {grupo.total} en total
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Categoría sin nada vencido: mismo lenguaje, la mitad del peso. Es el segundo
+ * nivel de jerarquía y no hay un tercero.
+ */
+function CeldaProxima({ grupo, onIr }: { grupo: GrupoResumen; onIr: (href: string) => void }) {
+  const color = colorDe(grupo.key);
+  // El "cuándo" se calcula sobre los ítems que llegaron (3 como mucho), así que
+  // se enuncia como el estado del grupo y no como "la próxima": si el server
+  // recortó uno más cercano, la frase seguiría siendo cierta.
+  const dias = grupo.items.reduce<number | null>((min, i) => {
+    if (i.diasRestantes === null) return min;
+    return min === null || i.diasRestantes < min ? i.diasRestantes : min;
+  }, null);
+  const c = cuando(dias);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onIr(destinoDe(grupo))}
+      aria-label={`${grupo.nombre}: ${grupo.total} avisos`}
+      className="flex min-h-[54px] items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-left transition-colors hover:border-foreground/20 hover:bg-card focus-visible:border-foreground/20 focus-visible:bg-card focus-visible:outline-none"
+    >
+      <Tile categoria={grupo.key} chico />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-medium leading-snug text-foreground">{grupo.nombre}</span>
+        {c && <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{c.texto}</span>}
+      </span>
+      <span className="shrink-0 text-[19px] font-semibold leading-none tabular-nums" style={{ color }}>
+        {grupo.total}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * La letra chica del tablero: quién, qué y cuánto hace.
+ *
+ * `min-h-10` deja la fila en 40px en celular (arriba del piso táctil); en
+ * escritorio baja a 34 y entran cuatro sin estirar la tarjeta. Sin destino
+ * resuelto igual se dibuja como fila muerta, con el mismo alto, para que la tira
+ * no quede con escalones.
+ */
+function FilaUrgente({ item, onIr }: { item: ItemConCategoria; onIr: (href: string) => void }) {
   const c = cuando(item.diasRestantes);
-  const href = item.href;
+  const { sujeto, resto } = partirTitulo(item.titulo);
 
   const contenido = (
     <>
-      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">{item.titulo}</span>
+      <span
+        className="size-[7px] shrink-0 rounded-full"
+        style={{ backgroundColor: colorDe(item.categoria) }}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1 truncate text-left text-xs leading-snug text-muted-foreground">
+        <b className="font-semibold text-foreground">{sujeto}</b>
+        {resto && ` · ${resto}`}
+      </span>
       {c && (
         <span
-          className={`shrink-0 tabular-nums ${c.vencido ? "font-medium" : "text-muted-foreground"}`}
+          className={`shrink-0 whitespace-nowrap text-[11.5px] tabular-nums ${c.vencido ? "font-medium" : "text-muted-foreground"}`}
           style={c.vencido ? { color: ROJO } : undefined}
         >
-          {c.texto}
+          {c.corto}
         </span>
       )}
     </>
   );
 
-  // Sin destino resuelto la fila es sólo texto: un botón que no lleva a ningún
-  // lado se toca igual y no pasa nada. Igual lleva el mismo alto que la clicable
-  // para que la lista no quede con escalones.
-  if (!href) {
-    return (
-      <li className="flex items-baseline justify-between gap-3 px-1.5 py-1 text-xs max-md:px-2 max-md:py-2.5">
-        {contenido}
-      </li>
-    );
+  const clases = "flex min-h-10 w-full items-center gap-2.5 rounded px-2 py-1.5 sm:min-h-[34px]";
+
+  if (!item.href) {
+    return <div className={clases}>{contenido}</div>;
   }
 
-  // Los `max-md:` dejan la fila en 36px de alto en celular (el mínimo que fija
-  // button.tsx, el mismo h-9 que la X de esta tarjeta): con `py-1` medía 24px y
-  // a 375px se erraba el toque o se abría el aviso de al lado. En desktop sigue
-  // compacta. El alto extra no desborda nada: lo único que crece es el cuerpo,
-  // que ya scrollea solo.
+  const href = item.href;
   return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onIr(href)}
-        className="flex w-full items-baseline justify-between gap-3 rounded px-1.5 py-1 text-xs transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none max-md:px-2 max-md:py-2.5"
-      >
-        {contenido}
-      </button>
-    </li>
+    <button
+      type="button"
+      onClick={() => onIr(href)}
+      className={`${clases} text-left transition-colors hover:bg-card focus-visible:bg-card focus-visible:outline-none`}
+    >
+      {contenido}
+    </button>
   );
 }
