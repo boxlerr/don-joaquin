@@ -207,6 +207,151 @@ function StatCard({
   );
 }
 
+/**
+ * La misma fila del ranking, para el celular. Las 17 columnas no entran ni
+ * scrolleando de costado con provecho: acá el score y el nombre van arriba, los
+ * números que se miran siempre quedan en una grilla, y los conceptos que en la
+ * tabla son "—" (gomas, siniestros, apercibimientos) aparecen SÓLO si pasaron
+ * —que es la única vez que importan— en vez de ocupar seis columnas de guiones.
+ */
+function ChoferRankingCard({
+  r,
+  pos,
+  mostrarMedallas,
+  isSelected,
+  isExpanded,
+  onToggleExpand,
+  onToggleSelected,
+  onVerLegajo,
+}: {
+  r: RankingChofer;
+  pos: number;
+  mostrarMedallas: boolean;
+  isSelected: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onToggleSelected: () => void;
+  onVerLegajo: () => void;
+}) {
+  const av = avatarColors(r.score);
+  const incidencias = [
+    { label: "Gomas", n: r.gomas_count, alta: true },
+    { label: "Roturas", n: r.roturas_varias_count, alta: true },
+    { label: "Siniestros", n: r.siniestros_count, alta: true },
+    { label: "Apercib.", n: r.apercibimientos_count, alta: false },
+    { label: "Conducta", n: r.conducta_count, alta: false },
+    { label: "Taller", n: r.taller_count, alta: false },
+  ].filter((i) => i.n > 0);
+
+  const dato = (label: string, valor: React.ReactNode) => (
+    <div className="min-w-0">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</p>
+      <p className="truncate text-[13px] tabular-nums text-foreground">{valor}</p>
+    </div>
+  );
+
+  return (
+    <div
+      className={`border-l-[3px] ${rowBorderColor(r.score)} ${
+        isSelected ? "bg-primary/5" : isExpanded ? "bg-muted/40" : ""
+      }`}
+    >
+      <div className="flex items-start gap-1">
+        {/* Va como <label> y con área de 36px por el mismo motivo que las
+            tarjetas de viaje: el resto de la tarjeta abre el desglose, así que
+            errarle a la casilla no era "no pasa nada". */}
+        <label
+          className="flex size-9 shrink-0 cursor-pointer items-center justify-center self-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelected}
+            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+            aria-label={`Seleccionar ${r.apellido} para comparar`}
+          />
+        </label>
+
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-expanded={isExpanded}
+          className="min-w-0 flex-1 py-3 pr-3 text-left"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 shrink-0 text-center">
+              {mostrarMedallas ? (
+                <Medalla pos={pos} />
+              ) : (
+                <span className="text-xs font-medium tabular-nums text-muted-foreground">{pos}</span>
+              )}
+            </span>
+            <span
+              className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${av.bg} ${av.text}`}
+            >
+              {initials(r.nombre, r.apellido)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-semibold leading-tight text-foreground">
+                {r.apellido}, {r.nombre}
+              </span>
+              {r.localidad && (
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                  {r.localidad}
+                </span>
+              )}
+            </span>
+          </div>
+
+          <div className="mt-2.5 pl-[3.6rem]">
+            <ScoreBar score={r.score} />
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-x-3 gap-y-2 pl-[3.6rem]">
+            {dato("Viajes", r.viajes_count > 0 ? r.viajes_count : "—")}
+            {dato("KM", r.km_total > 0 ? fmtNum(r.km_total) : "—")}
+            {dato("Tn", r.toneladas_total > 0 ? fmtNum(r.toneladas_total) : "—")}
+            {dato(
+              "Facturación",
+              r.facturacion_total > 0 ? fmtMoneda(r.facturacion_total) : "—",
+            )}
+            {dato("$ / km", r.pesos_por_km != null ? `$${fmtNum(r.pesos_por_km)}` : "—")}
+            {dato(
+              "Consumo",
+              r.combustible_lp100 != null
+                ? `${r.combustible_lp100.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L/100`
+                : "—",
+            )}
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-[3.6rem]">
+            <PctBadge pct={r.pct_vacios} viajes={r.viajes_count} />
+            {incidencias.map((i) => (
+              <span
+                key={i.label}
+                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium ${
+                  i.alta
+                    ? "border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]"
+                    : "border-[#FDE68A] bg-[#FFFBEB] text-[#92400E]"
+                }`}
+              >
+                {i.label} {i.n}
+              </span>
+            ))}
+          </div>
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="px-3 pb-3 pl-[4.1rem]">
+          <DesglosePanel r={r} onVerLegajo={onVerLegajo} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SortableTh({
   label,
   col,
@@ -452,9 +597,33 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             </p>
           </div>
         ) : (
-          // Con las columnas de todos los conceptos la tabla puede superar el
-          // ancho en pantallas chicas: scroll horizontal en vez de apretujar.
-          <div className="overflow-x-auto">
+          <>
+          {/* Abajo de lg, una tarjeta por chofer: la tabla completa son 17
+              columnas y ni scrolleando de costado se lee un ranking así. */}
+          <div className="lg:hidden divide-y divide-border">
+            {filteredActivos.map((r) => (
+              <ChoferRankingCard
+                key={r.id}
+                r={r}
+                pos={sortedActivos.indexOf(r) + 1}
+                mostrarMedallas={mostrarMedallas}
+                isSelected={selected.includes(r.id)}
+                isExpanded={expandedId === r.id}
+                onToggleExpand={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                onToggleSelected={() => toggleSelected(r.id)}
+                onVerLegajo={() => router.push(`/choferes/${choferSlug(r)}?tab=productividad`)}
+              />
+            ))}
+            {filteredActivos.length === 0 && filteredSinActividad.length === 0 && query && (
+              <p className="px-6 py-10 text-center text-sm text-muted-foreground">
+                Sin coincidencias para &ldquo;{query}&rdquo;
+              </p>
+            )}
+          </div>
+
+          {/* Con las columnas de todos los conceptos la tabla puede superar el
+              ancho en pantallas chicas: scroll horizontal en vez de apretujar. */}
+          <div className="hidden lg:block overflow-x-auto">
           {/* `min-w` sólo abajo de lg: en el celular la tabla no se aplasta
               (scrollea de costado) y en desktop queda exactamente como estaba. */}
           <table className="w-full min-w-[1100px] lg:min-w-0 text-sm">
@@ -702,6 +871,7 @@ export default function RankingTable({ ranking, periodoQuery, criterios }: Props
             </tbody>
           </table>
           </div>
+          </>
         )}
 
         {/* Sección sin actividad — colapsable */}

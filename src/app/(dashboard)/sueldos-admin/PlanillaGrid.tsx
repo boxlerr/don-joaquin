@@ -10,6 +10,7 @@ import {
   ArrowDown, ArrowUp, ArrowUpDown, Check, History, Loader2, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import {
   registrarAumentoAction,
   upsertSueldoAdminMesAction,
@@ -512,7 +513,14 @@ export default function PlanillaGrid({
         // El alto sale de lo que sobra en la pantalla (flex-1), no de un calc()
         // adivinado: si entran las 14 filas no hay scroll, y si no, el encabezado
         // y la fila de totales quedan fijos mientras el resto scrollea adentro.
-        <div className="flex-1 min-h-[12rem] overflow-auto">
+        // Por eso el `flex-1` va en el wrapper y el scroll vertical adentro: el
+        // que manda el alto sigue siendo el layout de arriba.
+        <HorizontalScrollHint
+          wrapperClassName="flex-1 min-h-[12rem]"
+          className="h-full overflow-y-auto"
+          fadeBg="from-card"
+          showLeft={false}
+        >
           <table className="w-full min-w-[980px] caption-bottom text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-20">
               <tr>
@@ -649,7 +657,7 @@ export default function PlanillaGrid({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </HorizontalScrollHint>
       )}
 
       {/* Una sola línea: el detalle completo está en el Tutorial, y dos renglones

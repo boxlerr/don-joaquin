@@ -37,6 +37,70 @@ const tdCls = "py-1 px-2 border-b border-border/50";
 const tfCls =
   "px-2 py-1.5 text-right font-mono text-[13px] tabular-nums whitespace-nowrap bg-muted border-t border-border";
 
+/** El detalle de viajes de un chofer. Igual en la tabla y en la tarjeta. */
+function ViajesZonaPanel({
+  cargando,
+  viajes,
+  savingViaje,
+  onZonaChange,
+}: {
+  cargando: boolean;
+  viajes: ViajeZonaRow[];
+  savingViaje: string | null;
+  onZonaChange: (viajeId: string, valor: string) => void;
+}) {
+  if (cargando) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+        <Loader2 size={13} className="animate-spin" /> Cargando viajes…
+      </div>
+    );
+  }
+  if (viajes.length === 0) {
+    return <p className="py-2 text-xs text-muted-foreground">Sin viajes cerrados.</p>;
+  }
+  return (
+    <div className="space-y-1">
+      <p className="mb-2 text-[11px] font-semibold uppercase text-muted-foreground">
+        Marcá la zona de cada viaje (para discriminar sur / pozo)
+      </p>
+      {viajes.map((v) => (
+        <div
+          key={v.id}
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/40 py-1.5 text-xs last:border-0"
+        >
+          <span className="w-16 shrink-0 font-mono text-muted-foreground">{fmtFecha(v.fecha)}</span>
+          <span className="w-20 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+            {v.codigo}
+          </span>
+          <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-foreground">
+            <MapPin size={12} className="shrink-0 text-muted-foreground" />
+            {v.destino}
+          </span>
+          <span className="w-24 shrink-0 text-right font-mono text-muted-foreground">
+            {num(v.km_con_carga + v.km_vacios)} km
+          </span>
+          <div onClick={(ev) => ev.stopPropagation()} className="shrink-0">
+            <Select
+              value={v.zona ?? "normal"}
+              onValueChange={(val) => onZonaChange(v.id, (val as string) ?? "normal")}
+            >
+              <SelectTrigger size="sm" disabled={savingViaje === v.id} className="w-[9.5rem] text-xs">
+                <span className={v.zona ? "" : "text-muted-foreground"}>{zonaLabel(v.zona)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {ZONAS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SueldosClient({
   resumen,
   month,
@@ -105,7 +169,98 @@ export default function SueldosClient({
   return (
     // El alto sale de lo que sobra en la pantalla, no de un calc() adivinado.
     <div className="bg-card rounded-[8px] border border-border shadow-sm flex flex-col min-h-0 h-full">
-      <div className="flex-1 min-h-[12rem] overflow-auto">
+      {/* Celular: una tarjeta por chofer. La planilla son 9 columnas de números
+          y de costado no se lee; acá el nombre manda y los km quedan abajo. */}
+      <div className="md:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border">
+        {resumen.map((r) => {
+          const abierto = expandedId === r.chofer_id;
+          return (
+            <div key={r.chofer_id}>
+              <button
+                type="button"
+                onClick={() => toggleExpand(r.chofer_id)}
+                aria-expanded={abierto}
+                className="flex w-full items-start gap-2 px-3 py-3 text-left"
+              >
+                <span className="mt-0.5 shrink-0 text-muted-foreground">
+                  {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium text-foreground">
+                    {r.chofer}
+                  </span>
+                  <span className="mt-2 grid grid-cols-3 gap-x-3 gap-y-2">
+                    {[
+                      ["Viajes", num(r.viajes)],
+                      ["Km 100%", num(r.km_con_carga)],
+                      ["Km vacíos", num(r.km_vacios)],
+                      ["Km total", num(r.km_total)],
+                      ["Toneladas", num(r.tonelaje, 1)],
+                    ].map(([label, valor]) => (
+                      <span key={label} className="block min-w-0">
+                        <span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                          {label}
+                        </span>
+                        <span className="block truncate font-mono text-[13px] tabular-nums text-foreground">
+                          {valor}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                  {(r.sur > 0 || r.pozo > 0) && (
+                    <span className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                      {r.sur > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800">
+                          <span className="h-1.5 w-1.5 rounded-full bg-sky-500" /> Sur {r.sur}
+                        </span>
+                      )}
+                      {r.pozo > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-orange-50 px-1.5 py-0.5 font-medium text-orange-800">
+                          <span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> Pozo {r.pozo}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </span>
+              </button>
+              {abierto && (
+                <div className="bg-muted/20 px-3 pb-3">
+                  <ViajesZonaPanel
+                    cargando={loadingId === r.chofer_id}
+                    viajes={viajes[r.chofer_id] ?? []}
+                    savingViaje={savingViaje}
+                    onZonaChange={(viajeId, valor) => onZonaChange(r.chofer_id, viajeId, valor)}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Los totales quedan fijos abajo, como la fila de totales de la tabla. */}
+      <div className="md:hidden shrink-0 border-t border-border bg-muted px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          {resumen.length} chofer{resumen.length === 1 ? "" : "es"}
+        </p>
+        <div className="mt-1 grid grid-cols-3 gap-x-3 gap-y-1.5">
+          {[
+            ["Viajes", num(totales.viajes)],
+            ["Km 100%", num(totales.km_con_carga)],
+            ["Km vacíos", num(totales.km_vacios)],
+            ["Km total", num(totales.km_total)],
+            ["Toneladas", num(totales.tonelaje, 1)],
+            ["Sur / Pozo", `${totales.sur || "—"} / ${totales.pozo || "—"}`],
+          ].map(([label, valor]) => (
+            <div key={label} className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70">{label}</p>
+              <p className="truncate font-mono text-[13px] tabular-nums text-foreground">{valor}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="hidden md:block flex-1 min-h-[12rem] overflow-auto">
         <table className="w-full min-w-[820px] text-sm border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
             <tr>
@@ -157,45 +312,12 @@ export default function SueldosClient({
                 {expandedId === r.chofer_id && (
                   <tr className="bg-muted/20">
                     <td colSpan={9} className="px-4 py-3 border-b border-border/50">
-                      {loadingId === r.chofer_id ? (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-                          <Loader2 size={13} className="animate-spin" /> Cargando viajes…
-                        </div>
-                      ) : (viajes[r.chofer_id] ?? []).length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">Sin viajes cerrados.</p>
-                      ) : (
-                        <div className="space-y-1">
-                          <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">
-                            Marcá la zona de cada viaje (para discriminar sur / pozo)
-                          </p>
-                          {(viajes[r.chofer_id] ?? []).map((v) => (
-                            <div key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs py-1.5 border-b border-border/40 last:border-0">
-                              <span className="text-muted-foreground font-mono w-16 shrink-0">{fmtFecha(v.fecha)}</span>
-                              <span className="font-mono text-[11px] text-muted-foreground w-20 shrink-0 truncate">{v.codigo}</span>
-                              <span className="flex items-center gap-1 text-foreground flex-1 min-w-0 truncate">
-                                <MapPin size={12} className="text-muted-foreground shrink-0" />
-                                {v.destino}
-                              </span>
-                              <span className="text-muted-foreground font-mono w-24 shrink-0 text-right">{num(v.km_con_carga + v.km_vacios)} km</span>
-                              <div onClick={(ev) => ev.stopPropagation()} className="shrink-0">
-                                <Select
-                                  value={v.zona ?? "normal"}
-                                  onValueChange={(val) => onZonaChange(r.chofer_id, v.id, (val as string) ?? "normal")}
-                                >
-                                  <SelectTrigger size="sm" disabled={savingViaje === v.id} className="w-[9.5rem] text-xs">
-                                    <span className={v.zona ? "" : "text-muted-foreground"}>{zonaLabel(v.zona)}</span>
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {ZONAS.map((o) => (
-                                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <ViajesZonaPanel
+                        cargando={loadingId === r.chofer_id}
+                        viajes={viajes[r.chofer_id] ?? []}
+                        savingViaje={savingViaje}
+                        onZonaChange={(viajeId, valor) => onZonaChange(r.chofer_id, viajeId, valor)}
+                      />
                     </td>
                   </tr>
                 )}

@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import {
   Plus,
   Trash2,
@@ -337,7 +338,9 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
       {/* Grilla */}
       <div className="bg-card border border-border rounded-[8px] overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* La grilla se carga como el Excel: no se parte en tarjetas. Lo que
+            faltaba en el celular era saber que hay más columnas al costado. */}
+        <HorizontalScrollHint fadeBg="from-card" showLeft={false}>
           <table className="w-full text-xs border-separate border-spacing-0">
             <thead>
               <tr className="bg-muted/40">
@@ -579,7 +582,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
               })}
             </tbody>
           </table>
-        </div>
+        </HorizontalScrollHint>
 
         {/* Footer de la grilla */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-border bg-muted/20">

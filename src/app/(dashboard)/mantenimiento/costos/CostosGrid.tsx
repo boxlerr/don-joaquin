@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, Check, Loader2, Plus, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { upsertCostoCeldaAction, type CostoRepRep } from "./actions";
 import { amt, ars, claveProveedor, formatMilesAR, mesLabel, parseNum } from "./formato";
 
@@ -708,7 +709,11 @@ export default function CostosGrid({
       ) : (
         // Caja con alto propio: el encabezado y los totales quedan fijos y el
         // resto scrollea adentro, sin arrastrar toda la página.
-        <div className="overflow-auto max-h-[calc(100dvh-22rem)] min-h-[15rem]">
+        <HorizontalScrollHint
+          className="max-h-[calc(100dvh-22rem)] min-h-[15rem] overflow-y-auto"
+          fadeBg="from-card"
+          showLeft={false}
+        >
           <table className="w-full min-w-[880px] text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-20">
               <tr>
@@ -875,7 +880,7 @@ export default function CostosGrid({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </HorizontalScrollHint>
       )}
 
       {canWrite && (

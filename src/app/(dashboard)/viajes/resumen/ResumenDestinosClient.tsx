@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import CalendarioPopover from "@/components/ui/CalendarioPopover";
+import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import MarcaLogo from "../../camiones/components/MarcaLogo";
 import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
@@ -587,8 +588,14 @@ function TablaViajes({
   return (
     <div className="border-t border-border bg-muted/30 px-3 pb-3 pt-2 sm:px-4">
       {/* En el celular la tabla no se aplasta: scrollea de costado adentro de su
-          propio contenedor (el min-w es lo que la obliga). */}
-      <div className="overflow-x-auto rounded-[6px] border border-border bg-card">
+          propio contenedor (el min-w es lo que la obliga). No se parte en
+          tarjetas porque las filas se editan en la celda —fecha, remito,
+          material, km, toneladas e importe—, igual que la planilla. Lo que
+          faltaba era ver que hay más columnas al costado. */}
+      <HorizontalScrollHint
+        className="rounded-[6px] border border-border bg-card"
+        fadeBg="from-card"
+      >
       <table className="w-full min-w-[720px] text-[12.5px]">
         <thead>
           <tr className="border-y border-border bg-muted text-[10.5px] uppercase tracking-wide text-muted-foreground">
@@ -619,7 +626,7 @@ function TablaViajes({
           ))}
         </tbody>
       </table>
-      </div>
+      </HorizontalScrollHint>
       <Link
         href={href}
         className="mt-2.5 inline-flex items-center gap-1.5 rounded-[6px] border border-border bg-card px-3 py-2 text-[12px] font-semibold text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/50 hover:text-primary"
