@@ -1,5 +1,5 @@
-import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
+import { getCalendario } from "@/lib/feriados-server";
 import { getVacacionesGlobal } from "./lib";
 import VacacionesClient from "./VacacionesClient";
 import HelpTutorialButton from "./help-tutorial-button";
@@ -15,20 +15,27 @@ export default async function VacacionesPage() {
   const canWrite = hasSeccion(user, "choferes_vacaciones", "write");
   const { saldos, periodos, finPeriodoY, umbralConfig, choferesActivos } = await getVacacionesGlobal();
 
+  // Feriados para el calendario día por día. Sólo los plenos: los días no
+  // laborables (Jueves Santo, los religiosos) son optativos y acá se trabaja,
+  // así que pintarlos haría creer que esos días no falta nadie.
+  const calendario = await getCalendario();
+  const feriados = Object.fromEntries(
+    [...calendario.values()].filter((f) => f.es_feriado).map((f) => [f.fecha, f.nombre]),
+  );
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full">
-      <PageHeader
-        title="Vacaciones"
-        description="Cronograma, saldos y carga de vacaciones por empleado"
-        action={<HelpTutorialButton />}
-      />
+    <div className="p-4 sm:p-6 lg:p-8 w-full">
+      {/* El encabezado lo arma el cliente: las acciones (exportar, importar,
+          cargar) van al lado del título, y ésas necesitan sus handlers. */}
       <VacacionesClient
+        tutorial={<HelpTutorialButton />}
         saldos={saldos}
         periodos={periodos}
         finPeriodoY={finPeriodoY}
         canWrite={canWrite}
         umbralConfig={umbralConfig}
         choferesActivos={choferesActivos}
+        feriados={feriados}
       />
     </div>
   );

@@ -15,10 +15,6 @@ vi.mock("../[slug]/actions", () => ({
   editarAusenciaAction: vi.fn(async () => ({ success: true })),
   getViajesChoferEnRangoAction: vi.fn(async () => []),
 }));
-vi.mock("./actions", () => ({
-  recalcularDiasPorAntiguedadAction: vi.fn(async () => ({ success: true, actualizados: 0 })),
-  guardarUmbralConfigAction: vi.fn(async () => ({ success: true })),
-}));
 
 // Fechas relativas a hoy para que el período caiga en la ventana visible.
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -85,18 +81,24 @@ const periodos: VacacionesPeriodo[] = [
   },
 ];
 
+/** Los filtros (buscar, área, estado, "solo de vacaciones hoy") viven detrás del
+ *  botón "Filtros" del encabezado. */
+const abrirFiltros = () => fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+
 describe("VacacionesClient", () => {
   it("renderiza KPIs, cronograma con barra proporcional y períodos con año de cargo", () => {
     render(<VacacionesClient saldos={saldos} periodos={periodos} finPeriodoY={finPeriodoY} canWrite />);
 
     // KPIs
-    expect(screen.getByText(`Con saldo ${finPeriodoY - 1} por vencer`)).toBeInTheDocument();
-    expect(screen.getByText("De vacaciones ahora")).toBeInTheDocument();
+    expect(screen.getByText("Activos hoy")).toBeInTheDocument();
+    expect(screen.getByText("En vacaciones")).toBeInTheDocument();
+    expect(screen.getByText("Cobertura")).toBeInTheDocument();
 
-    // Buscadores: el del cronograma (empleado) + el de la tabla de saldos.
-    // La toolbar de arriba ya no tiene buscador (era redundante).
-    expect(screen.getByPlaceholderText("Buscar empleado…")).toBeInTheDocument();
+    // Buscadores: el de la tabla de saldos siempre a la vista, y el de empleados
+    // dentro del panel de filtros.
     expect(screen.getAllByPlaceholderText("Buscar…").length).toBeGreaterThanOrEqual(1);
+    abrirFiltros();
+    expect(screen.getByPlaceholderText("Buscar empleado…")).toBeInTheDocument();
 
     // Cronograma: fila del empleado con botón que salta a la tabla
     const filaCrono = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
@@ -107,11 +109,6 @@ describe("VacacionesClient", () => {
     expect(screen.getByText("Tarjetas")).toBeInTheDocument();
     expect(screen.getByText("Por año")).toBeInTheDocument();
 
-    // Período: los días y de qué año descuentan, escrito y no abreviado.
-    expect(
-      screen.getAllByText(new RegExp(`descuenta del ${finPeriodoY - 1}`)).length,
-    ).toBeGreaterThan(0);
-
     // Tarjetas (vista por defecto): pill "Vence 31/12" para quien tiene saldo viejo.
     expect(screen.getAllByText(new RegExp(`31/12/${finPeriodoY}`)).length).toBeGreaterThanOrEqual(1);
 
@@ -119,6 +116,13 @@ describe("VacacionesClient", () => {
     const choferes = screen.getByRole("heading", { name: /Choferes/ });
     expect(choferes).toHaveTextContent("1");
     expect(screen.getByRole("heading", { name: /Taller/ })).toHaveTextContent("1");
+
+    // Período: los días y de qué año descuentan, escrito y no abreviado. Eso vive
+    // en la vista de lista, que es la misma información en prosa.
+    fireEvent.click(screen.getByText("Lista"));
+    expect(
+      screen.getAllByText(new RegExp(`descuenta del ${finPeriodoY - 1}`)).length,
+    ).toBeGreaterThan(0);
   });
 
   it("la vista Resumen muestra la columna Vence con saldo y período", () => {
@@ -149,6 +153,7 @@ describe("VacacionesClient", () => {
 
   it("el buscador filtra las filas de la tabla", () => {
     render(<VacacionesClient saldos={saldos} periodos={periodos} finPeriodoY={finPeriodoY} canWrite />);
+    abrirFiltros();
     fireEvent.change(screen.getByPlaceholderText("Buscar empleado…"), { target: { value: "heim" } });
     expect(screen.getAllByText(/Heim, Jonatan/).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Saenz Buruaga, Gaston/)).not.toBeInTheDocument();
@@ -199,6 +204,7 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
     // Sin filtro aparecen los dos en el cronograma.
     expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(2);
 
+    abrirFiltros();
     fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
     const filas = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
     expect(filas).toHaveLength(1);
@@ -214,6 +220,10 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
         canWrite
       />,
     );
+    // La navegación por ventanas es de la vista de semanas (el calendario se
+    // mueve de a un mes).
+    fireEvent.click(screen.getByText("Semanas"));
+
     // Arranca en la semana en curso: el período del mes pasado no está.
     expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(1);
 
@@ -222,11 +232,11 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
     // es la navegación, que es lo que hacía falta para liquidar a fin de mes.)
     fireEvent.click(screen.getByTitle("Ventana anterior"));
 
-    // Aparece el botón para volver, porque la ventana ya no contiene hoy.
-    expect(screen.getByText("Hoy")).toBeInTheDocument();
-    // Y al volver, desaparece.
+    // Se habilita el botón para volver, porque la ventana ya no contiene hoy.
+    expect(screen.getByText("Hoy")).toBeEnabled();
+    // Y al volver, queda deshabilitado (ya estás mirando hoy).
     fireEvent.click(screen.getByText("Hoy"));
-    expect(screen.queryByText("Hoy")).not.toBeInTheDocument();
+    expect(screen.getByText("Hoy")).toBeDisabled();
   });
 
   it("el filtro no queda aplicado (ni invisible) al pasar a la vista anual", () => {
@@ -238,45 +248,23 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
         canWrite
       />,
     );
+    abrirFiltros();
     fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
-    expect(screen.getByText("Quién se va de vacaciones").parentElement!).toHaveTextContent(
-      "1 período en las semanas que estás viendo",
-    );
+    // Con el filtro puesto, en el cronograma queda sólo quien está hoy afuera.
+    expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(1);
 
-    // En la vista anual el botón del filtro no existe: no puede seguir filtrando.
+    // El filtro sigue existiendo (y aplicando) en la vista anual: antes el botón
+    // desaparecía ahí y el filtro quedaba puesto sin nada que lo dijera.
     fireEvent.click(screen.getByText("Año"));
-    expect(screen.queryByText("Solo de vacaciones hoy")).not.toBeInTheDocument();
+    expect(screen.getByText("Solo de vacaciones hoy")).toBeInTheDocument();
+
+    // Y la lista, que también lo respeta, muestra sólo ese período.
+    fireEvent.click(screen.getByText("Lista"));
     expect(screen.getByText("Quién se va de vacaciones").parentElement!).toHaveTextContent(
-      "2 períodos en las semanas que estás viendo",
+      "1 período en el mes que estás viendo",
     );
   });
 
-  it("el máximo de ausentes puede definirse por mes", () => {
-    const { rerender } = render(
-      <VacacionesClient
-        saldos={saldos}
-        periodos={periodos}
-        finPeriodoY={finPeriodoY}
-        canWrite
-        choferesActivos={60}
-      />,
-    );
-    // Modo auto: 10% de 60 = 6
-    expect(screen.getByText(/máximo: 6 por semana/)).toBeInTheDocument();
-
-    rerender(
-      <VacacionesClient
-        saldos={saldos}
-        periodos={periodos}
-        finPeriodoY={finPeriodoY}
-        canWrite
-        choferesActivos={60}
-        umbralConfig={{ modo: "fijo", porcentaje: 10, minimo: 4, fijo: 3, porMes: { 12: 15 } }}
-      />,
-    );
-    expect(screen.getByText(/máximo: 3 por semana/)).toBeInTheDocument();
-    expect(screen.getByText(/1 mes\/es aparte/)).toBeInTheDocument();
-  });
 });
 
 describe("VacacionesClient — edición de saldo", () => {
@@ -344,6 +332,7 @@ describe("VacacionesClient — panel de quién se va", () => {
         canWrite
       />,
     );
+    fireEvent.click(screen.getByText("Lista"));
     expect(screen.queryByText(/Import cronograma/)).not.toBeInTheDocument();
   });
 
@@ -356,6 +345,7 @@ describe("VacacionesClient — panel de quién se va", () => {
         canWrite
       />,
     );
+    fireEvent.click(screen.getByText("Lista"));
     expect(screen.getByText("Se va al casamiento del hermano")).toBeInTheDocument();
   });
 
@@ -368,10 +358,14 @@ describe("VacacionesClient — panel de quién se va", () => {
         canWrite
       />,
     );
+    fireEvent.click(screen.getByText("Lista"));
     expect(screen.getAllByText(/vuelve el/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/descuenta del/).length).toBeGreaterThan(0);
   });
 
+  // "Lista" volvió, pero como una vista del cronograma (calendario / semanas /
+  // año / lista), no como el conmutador Timeline/Lista que tenía el panel de
+  // períodos y que mostraba lo mismo dos veces.
   it("ya no hay conmutador Timeline/Lista", () => {
     render(
       <VacacionesClient
@@ -382,6 +376,84 @@ describe("VacacionesClient — panel de quién se va", () => {
       />,
     );
     expect(screen.queryByText("Timeline")).not.toBeInTheDocument();
-    expect(screen.queryByText("Lista")).not.toBeInTheDocument();
+    // La única "Lista" que queda es la vista del cronograma, no el conmutador.
+    expect(screen.getAllByText("Lista")).toHaveLength(1);
+  });
+});
+
+// Rediseño del cronograma (06/08/2026): la vista que se abre primero es el
+// calendario del mes, con una columna por día.
+describe("VacacionesClient — calendario día por día", () => {
+  const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const MES_LARGO = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth(); // 0-based
+  const dd = (n: number) => String(n).padStart(2, "0");
+  /** Un día cualquiera del mes en curso. Del 10 al 16 existen en todos los meses,
+   *  así que el período nunca se escapa de la ventana visible. */
+  const diaDelMes = (n: number) => `${y}-${dd(m + 1)}-${dd(n)}`;
+
+  const periodoDelMes: VacacionesPeriodo = {
+    id: "pc1",
+    chofer_id: "c1",
+    nombre: "Gaston",
+    apellido: "Saenz Buruaga",
+    tipo: "Vacaciones",
+    fecha_inicio: diaDelMes(10),
+    fecha_fin: diaDelMes(16),
+    dias: 7,
+    estado: "autorizada",
+    observaciones: null,
+    anio_cargo: finPeriodoY,
+    en_curso: false,
+    viajes_conflicto: 0,
+  };
+
+  it("abre en el mes en curso y escribe el rango adentro de la barra", () => {
+    render(
+      <VacacionesClient saldos={saldos} periodos={[periodoDelMes]} finPeriodoY={finPeriodoY} canWrite />,
+    );
+    // El mes, escrito entero: "Agosto 2026", no "Ago 26".
+    // El mes aparece dos veces: en la navegación y como rótulo de la tarjeta
+    // "programadas" del encabezado.
+    expect(screen.getAllByText(`${MES_LARGO[m]} ${y}`).length).toBe(2);
+    // Siete días entran, así que la barra lleva sus fechas adentro.
+    expect(screen.getAllByText(`10 – 16 ${MES_CORTO[m]}`).length).toBeGreaterThan(0);
+    // Y sigue abriendo el detalle, como la vista de semanas.
+    fireEvent.click(screen.getAllByTitle(/clic: detalle/)[0]!);
+    expect(screen.getByText("Ver saldo en la tabla")).toBeInTheDocument();
+  });
+
+  it("marca los feriados con su nombre", () => {
+    render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={[periodoDelMes]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+        feriados={{ [diaDelMes(12)]: "Paso a la Inmortalidad del Gral. San Martín" }}
+      />,
+    );
+    expect(screen.getAllByTitle(/Gral. San Martín/).length).toBeGreaterThan(0);
+  });
+
+  it("pliega la lista cuando hay más gente de la que entra en pantalla", () => {
+    const muchos = Array.from({ length: 15 }, (_, i) =>
+      saldo({ chofer_id: `m${i}`, nombre: `Nombre${i}`, apellido: `Apellido${i}` }),
+    );
+    const susPeriodos: VacacionesPeriodo[] = muchos.map((s, i) => ({
+      ...periodoDelMes,
+      id: `pm${i}`,
+      chofer_id: s.chofer_id,
+      nombre: s.nombre,
+      apellido: s.apellido,
+    }));
+    render(
+      <VacacionesClient saldos={muchos} periodos={susPeriodos} finPeriodoY={finPeriodoY} canWrite />,
+    );
+    // 12 a la vista y el resto detrás de un botón.
+    expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(12);
+    fireEvent.click(screen.getByText("3 empleados más"));
+    expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(15);
   });
 });

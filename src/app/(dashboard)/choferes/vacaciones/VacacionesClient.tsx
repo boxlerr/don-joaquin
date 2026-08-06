@@ -8,14 +8,11 @@ import {
   CalendarRange,
   CalendarDays,
   Plus,
-  RefreshCw,
   Search,
   Pencil,
   Check,
   X,
-  AlertTriangle,
   Download,
-  Info,
   ExternalLink,
   Table2,
   LayoutGrid,
@@ -28,6 +25,11 @@ import {
   Truck,
   Briefcase,
   Wrench,
+  Users,
+  Clock,
+  CalendarClock,
+  BarChart3,
+  type LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { choferSlug } from "@/lib/chofer-slug";
@@ -39,9 +41,8 @@ import {
   cargarVacacionesBatchAction,
   editarAusenciaAction,
 } from "../[slug]/actions";
-import { recalcularDiasPorAntiguedadAction } from "./actions";
 import { planSugerido } from "./plan";
-import { umbralBase, umbralDeMes, umbralDeSemana, mesDeSemana, type UmbralConfig } from "./umbral";
+import { umbralDeSemana, type UmbralConfig } from "./umbral";
 
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 
@@ -49,9 +50,8 @@ const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto"
 const ICONO_SECTOR = { Chofer: Truck, Oficina: Briefcase, Taller: Wrench } as const;
 import CargarVacacionesDialog, { type ChoferOpcion, type SugerenciaSemana } from "./CargarVacacionesDialog";
 import EditarPeriodoDialog from "./EditarPeriodoDialog";
-import UmbralDialog from "./UmbralDialog";
-import ImportarPlanillaDialog from "./import-planilla/ImportarPlanillaDialog";
 import CronogramaAnual from "./CronogramaAnual";
+import CronogramaGrid, { type ColumnaCrono } from "./CronogramaGrid";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import {
   subeADiasEn,
@@ -60,6 +60,7 @@ import {
   fmtDiaLargo,
   diaSiguiente,
 } from "./derivar";
+import PageHeader from "@/components/layout/PageHeader";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
@@ -76,6 +77,7 @@ import type { VacacionesSaldoChofer, VacacionesPeriodo, VacacionesSector } from 
 
 const SECTORES: VacacionesSector[] = ["Chofer", "Oficina", "Taller"];
 const MES_LBL = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const DIA_LBL = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -148,7 +150,7 @@ function sumarMes(anio: number, mes: number, delta: number): { anio: number; mes
 // El largo se guarda como preset, no como número: "resto del año" son menos
 // semanas cada día que pasa, y guardar el número dejaba el selector en blanco si
 // la pestaña quedaba abierta de un día para el otro.
-type LargoSemanas = "10" | "13" | "26" | "resto" | "52";
+type LargoSemanas = "1" | "10" | "13" | "26" | "resto" | "52";
 type RangoCrono =
   | { modo: "mes"; anio: number; mes: number }
   | { modo: "semanas"; largo: LargoSemanas; offset: number };
@@ -173,6 +175,7 @@ const SEMAFORO_LABEL = {
 
 const RANGO_LABEL = {
   mes: "Un mes",
+  "1": "Una semana",
   "10": "10 semanas",
   "13": "3 meses",
   "26": "6 meses",
@@ -196,6 +199,14 @@ interface Props {
   canWrite: boolean;
   umbralConfig?: UmbralConfig;
   choferesActivos?: number;
+  /**
+   * Feriados plenos, ISO → nombre. Los pinta el calendario día por día: sin
+   * ellos, "el 8 se va todo el mundo" se lee como un problema de cobertura
+   * cuando en realidad ese día no trabaja nadie.
+   */
+  feriados?: Record<string, string>;
+  /** Botón de ayuda del encabezado (lo arma el servidor). */
+  tutorial?: React.ReactNode;
 }
 
 export default function VacacionesClient({
@@ -205,6 +216,8 @@ export default function VacacionesClient({
   canWrite,
   umbralConfig,
   choferesActivos = 0,
+  feriados = {},
+  tutorial,
 }: Props) {
   const cfgUmbral: UmbralConfig = umbralConfig ?? {
     modo: "auto",
@@ -213,14 +226,14 @@ export default function VacacionesClient({
     fijo: 6,
     porMes: {},
   };
-  const umbral = umbralBase(cfgUmbral, choferesActivos);
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   // --- Filtros ---------------------------------------------------------------
   const [fSector, setFSector] = useState<"Todos" | VacacionesSector>("Todos");
   const [fSemaforo, setFSemaforo] = useState<"Todos" | "🔴" | "🟠" | "🟡" | "🟢">("Todos");
   const [busqueda, setBusqueda] = useState("");
+  const [filtrosOpen, setFiltrosOpen] = useState(false);
 
   // Sólo los que están de vacaciones hoy: con 8 personas se lee bien, pero en
   // diciembre/enero el cronograma mezcla a los que ya volvieron con los que están.
@@ -228,21 +241,30 @@ export default function VacacionesClient({
 
   // --- Cronograma: rango + vista ---------------------------------------------
   const [rango, setRango] = useState<RangoCrono>({ modo: "semanas", largo: "10", offset: 0 });
-  const [vista, setVista] = useState<"semanas" | "anual">("semanas");
-  const [umbralOpen, setUmbralOpen] = useState(false);
+  // Arranca en el calendario día por día: es la pregunta de todos los días
+  // ("¿quién no está esta semana?"), y la de semanas queda para mirar lejos.
+  // "lista" es la misma información escrita en prosa (quién se va, cuándo vuelve
+  // y de qué año descuenta), que antes vivía en una tarjeta aparte siempre
+  // visible: como es OTRA forma de ver lo mismo, va en el conmutador.
+  const [vista, setVista] = useState<"dias" | "semanas" | "anual" | "lista">("dias");
+  // Mes que muestra la vista de calendario. Va aparte del rango de la vista de
+  // semanas: son dos formas distintas de moverse y pisarse una con otra hacía
+  // que volver de "Año completo" al calendario cayera en cualquier lado.
+  const [mesCal, setMesCal] = useState(() => {
+    const h = new Date();
+    return { anio: h.getFullYear(), mes: h.getMonth() + 1 };
+  });
+  // La vista anual se mueve de a un año, con su propia navegación.
+  const [anioCal, setAnioCal] = useState(finPeriodoY);
   const [exportOpen, setExportOpen] = useState(false);
   const [vistaTabla, setVistaTabla] = useState<"resumen" | "anios" | "tarjetas">("tarjetas");
   // Orden de "Saldos por empleado": con 78 personas, mirar de a uno no sirve.
   const [ordenSaldos, setOrdenSaldos] = useState<OrdenSaldos>("urgencia");
-  const [vistaPeriodos, setVistaPeriodos] = useState<"lista" | "timeline">("timeline");
   const [detalle, setDetalle] = useState<VacacionesPeriodo | null>(null);
   const [resaltado, setResaltado] = useState<string | null>(null);
   const [planAbierto, setPlanAbierto] = useState(false);
   const [confirmPlan, setConfirmPlan] = useState(false);
   const [planCargando, setPlanCargando] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  // Drag & drop de períodos entre semanas (misma fila).
-  const [dragInfo, setDragInfo] = useState<{ periodo: VacacionesPeriodo; semanaStart: string } | null>(null);
 
   // --- Diálogos --------------------------------------------------------------
   const [addOpen, setAddOpen] = useState(false);
@@ -277,6 +299,20 @@ export default function VacacionesClient({
   }));
 
   const refrescar = () => startTransition(() => router.refresh());
+
+  // Cuántos filtros hay puestos. Como viven detrás de un botón, sin este aviso
+  // se puede quedar mirando media planilla sin darse cuenta de por qué.
+  const filtrosActivos =
+    (fSector !== "Todos" ? 1 : 0) +
+    (fSemaforo !== "Todos" ? 1 : 0) +
+    (busqueda.trim() ? 1 : 0) +
+    (soloEnCurso ? 1 : 0);
+  const limpiarFiltros = () => {
+    setFSector("Todos");
+    setFSemaforo("Todos");
+    setBusqueda("");
+    setSoloEnCurso(false);
+  };
 
   const irA = (id: string) =>
     document.getElementById(id)?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -413,15 +449,6 @@ export default function VacacionesClient({
     exportarPlanillaBarbaraXlsx(saldos, finPeriodoY, hoyISO);
   };
 
-  const recalcular = async () => {
-    const res = await recalcularDiasPorAntiguedadAction();
-    if (res?.error) alert(res.error);
-    else {
-      alert(`Listo. ${res?.actualizados ?? 0} empleado(s) actualizados según su antigüedad.`);
-      refrescar();
-    }
-  };
-
   // --- Ventana de semanas (el React Compiler memoiza solo) -------------------
   // La ventana ya no arranca siempre "hoy": se puede ir hacia atrás (para ver el
   // mes que se está liquidando) o plantarse en un mes calendario completo.
@@ -449,19 +476,61 @@ export default function VacacionesClient({
       : largoSemanas;
 
   const semanas = construirSemanas(inicioSem, Math.max(1, numSemanas));
-  const finVentana = semanas[semanas.length - 1]!.end;
-  const inicioVentana = semanas[0]!.start;
 
-  // Umbral de cada semana: el del mes que se lleva la mayoría de sus días, así
-  // diciembre puede admitir más gente junta sin que todo aparezca en rojo.
-  const umbralPorSemana = semanas.map((s) => umbralDeSemana(cfgUmbral, s.start, choferesActivos));
+  // Vista de calendario: los días del mes que se está mirando.
+  const diasMes = (() => {
+    const largo = new Date(mesCal.anio, mesCal.mes, 0).getDate();
+    return Array.from({ length: largo }, (_, i) => toISO(new Date(mesCal.anio, mesCal.mes - 1, i + 1)));
+  })();
+
+  // Lo que se está mirando: el mes en la vista de calendario, la tira de semanas
+  // en las otras. De acá sale todo lo demás de la pantalla (quién aparece en el
+  // cronograma y qué períodos lista el panel de abajo), así que las dos vistas
+  // muestran siempre lo mismo que se ve arriba.
+  const esVistaDias = vista === "dias";
+  // La lista se mueve con el mismo mes que el calendario: la barra de arriba
+  // dice un solo rango y las dos vistas tienen que obedecerlo.
+  const ventanaMes = vista === "dias" || vista === "lista";
+  const inicioVentana = ventanaMes ? diasMes[0]! : semanas[0]!.start;
+  const finVentana = ventanaMes ? diasMes[diasMes.length - 1]! : semanas[semanas.length - 1]!.end;
 
   const periodosEnVentana = periodos.filter((p) => p.fecha_inicio <= finVentana && p.fecha_fin >= inicioVentana);
 
-  const conteoPorSemana = semanas.map(
-    (s) => new Set(periodosEnVentana.filter((p) => p.fecha_inicio <= s.end && p.fecha_fin >= s.start).map((p) => p.chofer_id)).size,
+
+  // Las columnas de la grilla: un día en "Calendario", una semana en "Semanas".
+  // De acá para abajo las dos vistas son la misma grilla con distinto zoom.
+  // Una semana suelta se mira día por día: con una sola columna no se vería
+  // nada, y "armar la semana" es justo la pregunta de si sale el martes o el
+  // jueves.
+  const porDia = esVistaDias || (vista === "semanas" && semanas.length === 1);
+  const columnasCrono: ColumnaCrono[] = porDia
+    ? (() => {
+        const cols: ColumnaCrono[] = [];
+        for (let d = new Date(inicioVentana + "T00:00:00"); toISO(d) <= finVentana; d.setDate(d.getDate() + 1)) {
+          const iso = toISO(d);
+          const dow = d.getDay();
+          cols.push({
+            inicio: iso,
+            fin: iso,
+            arriba: DIA_LBL[dow]!,
+            abajo: String(d.getDate()),
+            finde: dow === 0 || dow === 6,
+            feriado: feriados[iso],
+          });
+        }
+        return cols;
+      })()
+    : semanas.map((sem) => ({ inicio: sem.start, fin: sem.end, arriba: sem.label }));
+
+  // Cuánta gente distinta hay de vacaciones en cada columna. Sin filtrar: es la
+  // ocupación real, no la que quedó después de filtrar por área.
+  const ocupacionPorColumna = columnasCrono.map(
+    (c) =>
+      new Set(
+        periodosEnVentana.filter((p) => p.fecha_inicio <= c.fin && p.fecha_fin >= c.inicio).map((p) => p.chofer_id),
+      ).size,
   );
-  const { grupos: gruposMes, iniciosMes } = agruparMeses(semanas);
+  const { grupos: gruposMes } = agruparMeses(semanas);
 
   // Sugerencias: 13 semanas fijas desde hoy, las 3 con menos gente (independiente del rango que se esté mirando).
   const semanasSug = construirSemanas(lunesHoy, 13);
@@ -477,55 +546,48 @@ export default function VacacionesClient({
     .slice(0, 3);
 
   // Navegación del cronograma: un mes / una ventana entera para cada lado.
-  const irVentana = (delta: number) =>
+  const irVentana = (delta: number) => {
+    if (vista === "anual") {
+      setAnioCal((a) => a + delta);
+      return;
+    }
+    if (ventanaMes) {
+      setMesCal((m) => sumarMes(m.anio, m.mes, delta));
+      return;
+    }
     setRango((r) =>
       r.modo === "mes"
         ? { modo: "mes", ...sumarMes(r.anio, r.mes, delta) }
         : { ...r, offset: r.offset + delta * Math.max(1, largoSemanas) },
     );
-  const volverAHoy = () =>
+  };
+  const volverAHoy = () => {
+    const hoy = new Date();
+    if (vista === "anual") {
+      setAnioCal(hoy.getFullYear());
+      return;
+    }
+    if (ventanaMes) {
+      setMesCal({ anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 });
+      return;
+    }
     setRango((r) =>
       r.modo === "mes"
-        ? { modo: "mes", anio: new Date().getFullYear(), mes: new Date().getMonth() + 1 }
+        ? { modo: "mes", anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 }
         : { ...r, offset: 0 },
     );
-  const rangoLabel =
-    rango.modo === "mes"
+  };
+  const rangoLabel = vista === "anual"
+    ? String(anioCal)
+    : ventanaMes
+    ? `${MESES[mesCal.mes - 1]![0]!.toUpperCase()}${MESES[mesCal.mes - 1]!.slice(1)} ${mesCal.anio}`
+    : rango.modo === "mes"
       ? `${MES_LBL[rango.mes - 1]} ${rango.anio}`
       : `${fmtFecha(inicioVentana)} → ${fmtFecha(finVentana)}`;
-  const ventanaTieneHoy = inicioVentana <= hoyISO && finVentana >= hoyISO;
-
-  // Resumen por mes de la ventana visible (personas distintas + días-persona).
-  const resumenMeses = (() => {
-    const map = new Map<string, { personas: Set<string>; dias: number }>();
-    for (const p of periodosEnVentana) {
-      const desde = p.fecha_inicio < inicioVentana ? inicioVentana : p.fecha_inicio;
-      const hasta = p.fecha_fin > finVentana ? finVentana : p.fecha_fin;
-      const d0 = new Date(desde + "T00:00:00");
-      const d1 = new Date(hasta + "T00:00:00");
-      for (let d = new Date(d0); d <= d1; d.setDate(d.getDate() + 1)) {
-        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const e = map.get(k) ?? { personas: new Set<string>(), dias: 0 };
-        e.personas.add(p.chofer_id);
-        e.dias += 1;
-        map.set(k, e);
-      }
-    }
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => {
-        const [, m] = k.split("-");
-        const mes = Number(m);
-        return {
-          mes: k,
-          label: MES_LBL[mes - 1]!,
-          personas: v.personas.size,
-          dias: v.dias,
-          // Antes era un 5 fijo, sin relación con el umbral de las semanas.
-          umbral: umbralDeMes(cfgUmbral, mes, choferesActivos),
-        };
-      });
-  })();
+  const ventanaTieneHoy =
+    vista === "anual"
+      ? anioCal === new Date().getFullYear()
+      : inicioVentana <= hoyISO && finVentana >= hoyISO;
 
   // --- Filtro aplicado -------------------------------------------------------
   const coincide = (s: VacacionesSaldoChofer) => {
@@ -536,14 +598,17 @@ export default function VacacionesClient({
   };
   const saldosFiltrados = saldos.filter(coincide);
   const idsFiltrados = new Set(saldosFiltrados.map((s) => s.chofer_id));
-  const periodosFiltrados = periodos.filter((p) => idsFiltrados.has(p.chofer_id));
+  // "Solo de vacaciones hoy" ahora vale en las cuatro vistas. Antes se apagaba
+  // en la anual y el botón desaparecía con él: quedaba un filtro puesto que no
+  // filtraba, sin nada en pantalla que lo dijera.
+  const filtroEnCurso = soloEnCurso;
+  const periodosFiltrados = periodos
+    .filter((p) => idsFiltrados.has(p.chofer_id))
+    .filter((p) => !filtroEnCurso || p.en_curso);
 
   // El cronograma lista a quien tenga algún período que toque la ventana. Con
   // "solo de vacaciones hoy" quedan únicamente los que están afuera ahora mismo,
   // sin los que ya volvieron dentro de la misma ventana.
-  // El botón del filtro sólo existe en la vista de semanas: si se aplicara
-  // también en la anual, quedaría filtrando sin ningún control a la vista.
-  const filtroEnCurso = soloEnCurso && vista === "semanas";
   const enCursoAhora = (ps: VacacionesPeriodo[]) => ps.some((p) => p.en_curso);
   const filasCrono = [...new Set(periodosEnVentana.map((p) => p.chofer_id))]
     .filter((id) => idsFiltrados.has(id))
@@ -555,26 +620,58 @@ export default function VacacionesClient({
     .filter((f) => !filtroEnCurso || enCursoAhora(f.periodos))
     .sort((a, b) => a.apellido.localeCompare(b.apellido));
 
-  const periodoEnSemana = (ps: VacacionesPeriodo[], semIdx: number) =>
-    ps.find((p) => p.fecha_inicio <= semanas[semIdx]!.end && p.fecha_fin >= semanas[semIdx]!.start);
-
   const enVacacionesAhora = saldos.filter((s) => s.en_vacaciones_ahora);
   const urgentes = saldos.filter((s) => s.adeudados > 0);
-  const desfasados = saldos.filter((s) => s.desfasaje).length;
-  // Línea vertical de "hoy". La ventana ya no arranca necesariamente esta semana,
-  // así que hay que ubicar en qué columna cae (o no dibujarla).
-  const idxSemanaHoy = semanas.findIndex((s) => s.start <= hoyISO && s.end >= hoyISO);
-  const hoyLeftPct =
-    idxSemanaHoy >= 0 ? ((Math.min(6, Math.max(0, diffDias(semanas[idxSemanaHoy]!.start, hoyISO))) + 0.5) / 7) * 100 : 0;
-
   // KPIs
   const diasEnRiesgo = urgentes.reduce((a, s) => a + s.adeudados, 0);
-  const diasOtorgar = saldos.reduce((a, s) => a + s.corresponden, 0);
-  const planificados = periodos.filter((p) => p.fecha_inicio >= hoyISO).length;
+  // Los que salen en los próximos 15 días: es la ventana con la que se arman los
+  // viajes de las próximas dos semanas.
+  const en15Dias = toISO(new Date(new Date(hoyISO + "T00:00:00").getTime() + 15 * 86_400_000));
+  const salenEn15Dias = periodos.filter((p) => p.fecha_inicio >= hoyISO && p.fecha_inicio <= en15Dias).length;
+  // Períodos que tocan el mes que se está mirando arriba.
+  const mesIni = toISO(new Date(mesCal.anio, mesCal.mes - 1, 1));
+  const mesFin = toISO(new Date(mesCal.anio, mesCal.mes, 0));
+  const periodosDelMesVisible = periodos.filter((p) => p.fecha_inicio <= mesFin && p.fecha_fin >= mesIni).length;
+  const mesVisibleLabel = `${MESES[mesCal.mes - 1]![0]!.toUpperCase()}${MESES[mesCal.mes - 1]!.slice(1)} ${mesCal.anio}`;
+  // --- KPIs de la vista anual: el año, no el día de hoy ---------------------
+  const personasEnAnio = new Set(
+    periodosFiltrados
+      .filter((p) => p.fecha_inicio <= `${anioCal}-12-31` && p.fecha_fin >= `${anioCal}-01-01`)
+      .map((p) => p.chofer_id),
+  ).size;
+  const periodosDelAnio = periodos.filter(
+    (p) => p.fecha_inicio <= `${anioCal}-12-31` && p.fecha_fin >= `${anioCal}-01-01`,
+  );
+  const diasEnAnio = (p: VacacionesPeriodo, hasta?: string) => {
+    const ini = p.fecha_inicio < `${anioCal}-01-01` ? `${anioCal}-01-01` : p.fecha_inicio;
+    let fin = p.fecha_fin > `${anioCal}-12-31` ? `${anioCal}-12-31` : p.fecha_fin;
+    if (hasta && fin > hasta) fin = hasta;
+    return fin < ini ? 0 : diffDias(ini, fin) + 1;
+  };
+  const diasProgramados = periodosDelAnio.reduce((a, p) => a + diasEnAnio(p), 0);
+  // Tomados = lo que ya transcurrió (incluido hoy), no los períodos terminados:
+  // alguien que está afuera hoy ya se tomó los días que van del período.
+  const diasTomados = periodosDelAnio.reduce((a, p) => a + diasEnAnio(p, hoyISO), 0);
+  const diasPendientes = Math.max(0, diasProgramados - diasTomados);
+  const pctTomados = diasProgramados === 0 ? 0 : Math.round((diasTomados / diasProgramados) * 100);
+  // Cobertura promedio del año: cuánta gente hubo disponible por día, en promedio.
+  const diasDelAnio = (anioCal % 4 === 0 && anioCal % 100 !== 0) || anioCal % 400 === 0 ? 366 : 365;
+  const coberturaAnual =
+    saldos.length === 0
+      ? 100
+      : Math.max(0, Math.round((1 - diasProgramados / (saldos.length * diasDelAnio)) * 100));
 
+  // Cobertura: qué parte de la dotación está disponible hoy.
+  const cobertura =
+    saldos.length === 0 ? 100 : Math.round(((saldos.length - enVacacionesAhora.length) / saldos.length) * 100);
+
+  // Ordenados por fecha de salida: la lista los agrupa por mes dando por hecho
+  // que ya vienen en orden, y si no lo están el mes queda con las fechas
+  // salteadas (y una persona puede abrir un grupo que ya estaba cerrado).
   const periodosVentanaFiltrados = periodosEnVentana
     .filter((p) => idsFiltrados.has(p.chofer_id))
-    .filter((p) => !filtroEnCurso || p.en_curso);
+    .filter((p) => !filtroEnCurso || p.en_curso)
+    .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio) || a.apellido.localeCompare(b.apellido));
 
   // --- Plan sugerido: liquida los saldos viejos antes del 31/12 --------------
   // Se recalcula solo en cada render con los datos vivos: si se carga un
@@ -685,54 +782,14 @@ export default function VacacionesClient({
     saldos.filter((s) => s.foto_url).map((s) => [s.chofer_id, s.foto_url as string]),
   );
 
-  // Posición del tramo de un período dentro de una semana (barras proporcionales
-  // a los días reales, no bloques de semana entera).
-  const tramoEnSemana = (p: VacacionesPeriodo, sem: { start: string; end: string }) => {
-    const ini = p.fecha_inicio > sem.start ? p.fecha_inicio : sem.start;
-    const fin = p.fecha_fin < sem.end ? p.fecha_fin : sem.end;
-    const offset = diffDias(sem.start, ini);
-    const dias = diffDias(ini, fin) + 1;
-    return {
-      left: (offset / 7) * 100,
-      width: (dias / 7) * 100,
-      empiezaAca: p.fecha_inicio >= sem.start,
-      terminaAca: p.fecha_fin <= sem.end,
-    };
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Selects estilados y no nativos: el desplegable del sistema operativo
-            no respeta la tipografía ni los colores del sistema. */}
-        <Select value={fSector} onValueChange={(v) => v && setFSector(v as typeof fSector)}>
-          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] sm:w-[11rem] text-sm">
-            <span>{SECTOR_LABEL[fSector]}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((k) => (
-              <SelectItem key={k} value={k}>
-                {SECTOR_LABEL[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={fSemaforo} onValueChange={(v) => v && setFSemaforo(v as typeof fSemaforo)}>
-          <SelectTrigger className="h-9 w-[calc(50%-0.25rem)] sm:w-[11rem] text-sm">
-            <span>{SEMAFORO_LABEL[fSemaforo]}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(SEMAFORO_LABEL) as (keyof typeof SEMAFORO_LABEL)[]).map((k) => (
-              <SelectItem key={k} value={k}>
-                {SEMAFORO_LABEL[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {/* Un solo botón de exportar, como el resto del sistema: adentro se
-            elige el formato en vez de tener dos botones sueltos. */}
-        <div className="relative">
+  // Acciones de la pantalla. Van en el encabezado, al lado del título, en vez de
+  // en una fila propia debajo: los filtros (sector y estado) se fueron a la barra
+  // del cronograma, así que acá quedan sólo las acciones y entran todas juntas.
+  const acciones = (
+    <>
+      {/* Un solo botón de exportar, como el resto del sistema: adentro se
+          elige el formato en vez de tener dos botones sueltos. */}
+      <div className="relative">
           <Button
             variant="outline"
             onClick={() => setExportOpen((v) => !v)}
@@ -780,288 +837,380 @@ export default function VacacionesClient({
             </>
           )}
         </div>
-        {canWrite && (
-          <>
-            <Button
-              variant="outline"
-              onClick={() => setImportOpen(true)}
-              className="h-9 gap-1.5 text-muted-foreground border-border"
-              title="Importar la planilla de vacaciones (VACACIONES 2.xlsx) con vista previa de diferencias"
-            >
-              <Table2 size={14} /> Importar planilla
-            </Button>
-            <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
-              <Plus size={15} /> Cargar vacaciones
-            </Button>
-            <Button
-              variant="outline"
-              onClick={recalcular}
-              disabled={pending}
-              className="h-9 gap-1.5 text-muted-foreground border-border"
-              title="Ajustar los días que corresponden según la antigüedad actual"
-            >
-              <RefreshCw size={14} /> Recalcular antigüedad
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* Cards de resumen */}
-      <TooltipProvider delay={120}>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <StatCard
-            label={`Con saldo ${finPeriodoY - 1} por vencer`}
-            value={urgentes.length}
-            tone="danger"
-            emoji="🔴"
-            info={`Empleados que todavía tienen días del período ${finPeriodoY - 1} sin tomar. Vencen el 31/12/${finPeriodoY}: si no los toman, los pierden. Clic para verlos en la tabla.`}
-            onClick={() => {
-              setFSemaforo("🔴");
-              irA("card-saldos");
-            }}
-          />
-          <StatCard
-            label="Días en riesgo (31/12)"
-            value={diasEnRiesgo}
-            tone="danger"
-            emoji="⏱️"
-            info={`Suma de todos los días del año anterior que vencen el 31/12/${finPeriodoY}. Es la cantidad total de días que la empresa perdería si nadie los toma a tiempo. Clic para ver los urgentes.`}
-            onClick={() => {
-              setFSemaforo("🔴");
-              irA("card-saldos");
-            }}
-          />
-          <StatCard
-            label={`Días a otorgar ${finPeriodoY}`}
-            value={diasOtorgar}
-            tone="brand"
-            emoji="🏖️"
-            info={`Total de días que corresponden por ${finPeriodoY} a toda la dotación (según antigüedad: 14/21/28/35). Es lo que hay que ir planificando a lo largo del año.`}
-            onClick={() => irA("card-saldos")}
-          />
-          <StatCard
-            label="Períodos planificados"
-            value={planificados}
-            tone="muted"
-            emoji="📅"
-            info="Cantidad de tramos de vacaciones cargados de hoy en adelante. Aparecen en el cronograma. Cargá más con “+ Cargar vacaciones”."
-            onClick={() => irA(periodosVentanaFiltrados.length > 0 ? "card-periodos" : "card-cronograma")}
-          />
-          <StatCard
-            label="De vacaciones ahora"
-            value={enVacacionesAhora.length}
-            tone="success"
-            emoji="✈️"
-            info="Empleados que están de vacaciones hoy. Logística también los ve como no disponibles en Viajes. Clic para verlos en el cronograma."
-            onClick={() => irA("card-cronograma")}
-          />
-        </div>
-      </TooltipProvider>
-
-      {desfasados > 0 && canWrite && (
-        <div className="flex items-start sm:items-center gap-2 px-3 sm:px-4 py-2.5 rounded-[8px] border border-amber-200 bg-amber-50 text-sm text-amber-800">
-          <AlertTriangle size={15} className="mt-0.5 sm:mt-0 shrink-0" />
-          {desfasados} empleado(s) tienen los días cargados desfasados de su antigüedad actual. Usá
-          “Recalcular antigüedad” para ajustarlos.
-        </div>
-      )}
-
-      {/* Plan sugerido para liquidar los saldos viejos antes del 31/12. Se
-          recalcula solo: al cargar un período, esa persona sale del plan. */}
-      {urgentes.length > 0 && plan.items.length > 0 && (
-        <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3.5">
-            <span className="text-base">🧩</span>
-            <h2 className="text-sm font-bold text-foreground">Plan sugerido</h2>
-            <span className="text-xs text-muted-foreground">
-              {plan.items.length} período(s) para liquidar los {diasEnRiesgo} días del {finPeriodoY - 1} antes del 31/12,
-              sin pasar de {umbral} ausentes por semana. Se rearma solo a medida que cargás.
-            </span>
-            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
-              {planAbierto && canWrite && (
-                <Button
-                  variant="brand"
-                  onClick={() => setConfirmPlan(true)}
-                  className="h-9 sm:h-8 gap-1.5 text-xs"
-                >
-                  <Check size={13} /> Cargar todo el plan
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => setPlanAbierto((v) => !v)}
-                className="h-9 sm:h-8 text-xs text-muted-foreground border-border"
-              >
-                {planAbierto ? "Ocultar" : "Ver plan"}
-              </Button>
-            </div>
-          </div>
-          {planAbierto && (
-            <div className="border-t border-border">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[460px] sm:min-w-0 text-sm">
-                  <thead className="bg-muted/40">
-                    <tr>
-                      {["Empleado", "Desde", "Hasta", "Días", ""].map((c, i) => (
-                        <th key={i} className={`px-3 sm:px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? "text-left" : i === 4 ? "" : "text-right"}`}>{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {plan.items.map((it, i) => (
-                      <tr key={i} className="border-t border-border hover:bg-muted/20">
-                        <td className="px-4 py-1.5">
-                          <button type="button" onClick={() => verEnTabla(it.chofer_id)} className="font-medium text-foreground hover:text-primary" title="Ver su saldo en la tabla">
-                            {it.apellido}, {it.nombre}
-                          </button>
-                        </td>
-                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_inicio)}</td>
-                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_fin)}</td>
-                        <td className="px-4 py-1.5 text-right font-mono">{it.dias}</td>
-                        <td className="px-4 py-1.5 text-right">
-                          {canWrite && (
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                abrirAdd({ chofer_id: it.chofer_id, nombre: it.nombre, apellido: it.apellido }, it.fecha_inicio, it.fecha_fin)
-                              }
-                              className="h-8 sm:h-7 text-xs text-muted-foreground border-border"
-                            >
-                              Cargar…
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {plan.sinLugar.length > 0 && (
-                <div className="px-4 sm:px-5 py-2.5 border-t border-border text-xs text-amber-700 bg-amber-50">
-                  ⚠ Sin lugar en el año para: {plan.sinLugar.map((s) => `${s.apellido} (${s.dias} días)`).join(", ")} — habría que superar el umbral de {umbral} ausentes o mover otros períodos.
-                </div>
-              )}
-            </div>
+      {/* Filtros: lo que acota a quién estás mirando. Van juntos y detrás de un
+          botón porque son cuatro y, sueltos en la barra del cronograma, la
+          partían en dos renglones. El punto avisa cuando hay alguno puesto, que
+          es el problema de esconder filtros. */}
+      <div className="relative">
+        <Button
+          variant="outline"
+          onClick={() => setFiltrosOpen((v) => !v)}
+          aria-expanded={filtrosOpen}
+          className={`h-9 gap-1.5 border-border ${filtrosActivos > 0 ? "text-primary" : "text-muted-foreground"}`}
+        >
+          <SlidersHorizontal size={14} /> Filtros
+          {filtrosActivos > 0 && (
+            <span className="inline-block size-1.5 rounded-full bg-primary" aria-hidden />
           )}
-        </div>
-      )}
-
-      {/* Cronograma */}
-      <div id="card-cronograma" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
-          <CalendarRange size={16} className="text-primary" />
-          <h2 className="text-sm font-bold text-foreground">Cronograma de personal con vacaciones</h2>
-          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap sm:justify-end items-center gap-2">
-            <div className="relative w-full sm:w-auto">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar empleado…"
-                className="h-9 sm:h-8 w-full sm:w-40 pl-7 pr-2 rounded-lg border border-border bg-background text-xs text-foreground"
-              />
-            </div>
-            {vista === "semanas" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setSoloEnCurso((v) => !v)}
-                  title="Dejar solo a los que están de vacaciones hoy (los que ya volvieron quedan afuera)"
-                  className={`h-9 sm:h-8 px-2.5 rounded-lg border text-xs inline-flex items-center gap-1.5 transition-colors ${
-                    soloEnCurso
-                      ? "border-primary/50 bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Plane size={13} /> Solo de vacaciones hoy
-                  <span className="font-mono">{enVacacionesAhora.length}</span>
-                </button>
-                <Select
-                  value={rango.modo === "mes" ? "mes" : rango.largo}
-                  onValueChange={(v) => {
-                    if (!v) return;
-                    if (v === "mes") {
-                      const hoy = new Date();
-                      setRango({ modo: "mes", anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 });
-                    } else {
-                      setRango({ modo: "semanas", largo: v as LargoSemanas, offset: 0 });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9 sm:h-8 w-[8.5rem] text-xs">
-                    <span>{RANGO_LABEL[rango.modo === "mes" ? "mes" : rango.largo]}</span>
+        </Button>
+        {filtrosOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Cerrar"
+              onClick={() => setFiltrosOpen(false)}
+              className="fixed inset-0 z-10 cursor-default"
+            />
+            <div className="absolute right-0 z-20 mt-1 w-[19rem] max-w-[calc(100vw-2rem)] space-y-3 rounded-[8px] border border-border bg-card p-3 text-left shadow-md">
+              <label className="block">
+                <span className="mb-1 block text-[12px] text-muted-foreground">Empleado</span>
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar empleado…"
+                    className="h-9 w-full rounded-lg border border-border bg-background pl-7 pr-2 text-[13px] text-foreground"
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[12px] text-muted-foreground">Área</span>
+                <Select value={fSector} onValueChange={(v) => v && setFSector(v as typeof fSector)}>
+                  <SelectTrigger className="h-9 w-full text-[13px]">
+                    <span>{SECTOR_LABEL[fSector]}</span>
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(RANGO_LABEL) as (keyof typeof RANGO_LABEL)[]).map((k) => (
+                    {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((k) => (
                       <SelectItem key={k} value={k}>
-                        {RANGO_LABEL[k]}
+                        {SECTOR_LABEL[k]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {/* Navegación: sin esto la ventana arrancaba siempre hoy y no se
-                    podía mirar el mes que se está liquidando. */}
-                <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => irVentana(-1)}
-                    title={rango.modo === "mes" ? "Mes anterior" : "Ventana anterior"}
-                    className="h-9 sm:h-8 px-2 sm:px-1.5 text-muted-foreground hover:bg-muted/50"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <span className="px-2 text-xs font-medium text-foreground whitespace-nowrap tabular-nums">
-                    {rangoLabel}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => irVentana(1)}
-                    title={rango.modo === "mes" ? "Mes siguiente" : "Ventana siguiente"}
-                    className="h-9 sm:h-8 px-2 sm:px-1.5 text-muted-foreground hover:bg-muted/50"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-                {!ventanaTieneHoy && (
-                  <button
-                    type="button"
-                    onClick={volverAHoy}
-                    className="h-9 sm:h-8 px-2.5 rounded-lg border border-border bg-background text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Hoy
-                  </button>
-                )}
-              </>
-            )}
-            <div className="inline-flex rounded-lg border border-border overflow-hidden">
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[12px] text-muted-foreground">Estado del saldo</span>
+                <Select value={fSemaforo} onValueChange={(v) => v && setFSemaforo(v as typeof fSemaforo)}>
+                  <SelectTrigger className="h-9 w-full text-[13px]">
+                    <span>{SEMAFORO_LABEL[fSemaforo]}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SEMAFORO_LABEL) as (keyof typeof SEMAFORO_LABEL)[]).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {SEMAFORO_LABEL[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
               <button
-                onClick={() => setVista("semanas")}
-                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vista === "semanas" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                type="button"
+                onClick={() => setSoloEnCurso((v) => !v)}
+                aria-pressed={soloEnCurso}
+                className={`inline-flex h-9 w-full items-center gap-2 rounded-lg border px-2.5 text-[13px] transition-colors ${
+                  soloEnCurso
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                }`}
               >
-                <CalendarRange size={13} /> Semanas
+                <Plane size={14} /> Solo de vacaciones hoy
+                <span className="ml-auto font-mono">{enVacacionesAhora.length}</span>
               </button>
+              {filtrosActivos > 0 && (
+                <button
+                  type="button"
+                  onClick={limpiarFiltros}
+                  className="text-[12px] text-muted-foreground hover:text-primary"
+                >
+                  Quitar los filtros
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      {canWrite && (
+        <Button variant="brand" onClick={() => abrirAdd()} className="h-9 gap-1.5">
+          <Plus size={15} /> Cargar vacaciones
+        </Button>
+      )}
+      {tutorial}
+    </>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="Vacaciones"
+        description="Cronograma, saldos y carga de vacaciones por empleado"
+        action={acciones}
+      />
+      <div className="space-y-6">
+
+      {/* Tarjetas del encabezado: la foto del día de hoy y lo que viene. Los
+          números de vencimientos (cuántos días se pierden el 31/12 y quiénes)
+          viven en el Plan sugerido y en "Saldos por empleado", que es donde se
+          hace algo con ellos. */}
+      <TooltipProvider delay={120}>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+          {vista === "anual" ? (
+            <>
+              <StatCard
+                label="Total empleados"
+                value={saldos.length}
+                caption="en la empresa"
+                tone="brand"
+                icon={Users}
+                info="Toda la dotación con legajo activo: choferes, oficina y taller."
+                onClick={() => irA("card-saldos")}
+              />
+              <StatCard
+                label="Días programados"
+                value={diasProgramados}
+                caption={`en todo ${anioCal}`}
+                tone="muted"
+                icon={CalendarDays}
+                info={`Suma de los días de vacaciones cargados para ${anioCal}, contando sólo la parte que cae dentro del año.`}
+              />
+              <StatCard
+                label="Días tomados"
+                value={diasTomados}
+                caption={`${pctTomados}% del programado`}
+                tone="success"
+                icon={Plane}
+                info="Días de vacaciones que ya transcurrieron. Un período en curso cuenta los días que ya pasaron, no el período entero."
+              />
+              <StatCard
+                label="Días pendientes"
+                value={diasPendientes}
+                caption={`${100 - pctTomados}% restantes`}
+                tone="muted"
+                icon={Clock}
+                info="Días ya cargados que todavía no ocurrieron: lo que queda por delante en el año."
+              />
+              <StatCard
+                label="Cobertura promedio"
+                value={coberturaAnual}
+                sufijo="%"
+                caption="del personal disponible"
+                tone={coberturaAnual >= 85 ? "success" : "danger"}
+                icon={BarChart3}
+                info={`Promedio de gente disponible a lo largo de ${anioCal}: la dotación menos los días-persona de vacaciones, sobre el año entero.`}
+              />
+            </>
+          ) : (
+          <>
+          <StatCard
+            label="Activos hoy"
+            value={saldos.length - enVacacionesAhora.length}
+            caption={`de ${saldos.length} empleados`}
+            tone="brand"
+            icon={Users}
+            info="Gente disponible hoy: toda la dotación menos los que están de vacaciones. No descuenta ausencias de otro tipo (licencias, partes médicos)."
+            onClick={() => irA("card-saldos")}
+          />
+          <StatCard
+            label="En vacaciones"
+            value={enVacacionesAhora.length}
+            caption="hoy"
+            tone="success"
+            icon={Plane}
+            info="Empleados que están de vacaciones hoy. Logística también los ve como no disponibles en Viajes. Clic para verlos en el cronograma."
+            onClick={() => irA("card-cronograma")}
+          />
+          <StatCard
+            label="Próximas vacaciones"
+            value={salenEn15Dias}
+            caption="en los próximos 15 días"
+            tone="muted"
+            icon={CalendarClock}
+            info="Períodos que arrancan dentro de los próximos 15 días. Son los que hay que tener en cuenta al armar los viajes de estas dos semanas."
+            onClick={() => irA("card-cronograma")}
+          />
+          <StatCard
+            label={mesVisibleLabel}
+            value={periodosDelMesVisible}
+            caption="programadas"
+            tone="muted"
+            icon={CalendarDays}
+            info="Períodos de vacaciones que caen dentro del mes que estás mirando en el cronograma. Cambia al moverte de mes."
+            onClick={() => irA("card-cronograma")}
+          />
+          <StatCard
+            label="Cobertura"
+            value={cobertura}
+            sufijo="%"
+            caption="del personal disponible"
+            tone={cobertura >= 85 ? "success" : "danger"}
+            icon={BarChart3}
+            info="Qué porcentaje de la dotación está disponible hoy (los que no están de vacaciones). Es el mismo dato de “Activos hoy”, en porcentaje."
+            onClick={() => irA("card-cronograma")}
+          />
+          </>
+          )}
+        </div>
+      </TooltipProvider>
+
+
+      {/* Cronograma. Tres bloques separados, como en la referencia: la barra de
+          la vista, la referencia de colores y la grilla. Antes era una sola
+          tarjeta con todos los controles apretados contra el título. */}
+      <section id="card-cronograma" className="space-y-3">
+        <div>
+          <h2 className="text-lg font-bold text-foreground">Cronograma de vacaciones</h2>
+          <p className="text-[13px] text-muted-foreground">
+            {/* Cada vista mira un rango distinto, así que la cantidad de gente
+                cambia al conmutar. Sin decirlo, "en Año veo a Rossi y en las
+                otras no" parece un error y es que Rossi se va en enero. */}
+            {vista === "anual"
+              ? `${personasEnAnio} de ${saldos.length} empleados tienen vacaciones cargadas en ${anioCal}`
+              : `${filasCrono.length} de ${saldos.length} empleados tienen vacaciones ${
+                  ventanaMes ? "este mes" : "en este rango"
+                } · del ${fmtFecha(inicioVentana)} al ${fmtFecha(finVentana)}`}
+          </p>
+        </div>
+
+        {/* Barra: qué se mira (izquierda), cuándo (centro) y sobre quién
+            (derecha). Cada grupo flota por su cuenta sobre el fondo, sin una
+            caja que los envuelva a todos: metidos adentro de una tarjeta se leían
+            como un bloque y no como controles. Con `justify-between`, cuando no
+            entran en una línea se parten de a grupos enteros. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
+            {(
+              [
+                { id: "dias", label: "Calendario", icono: CalendarDays, title: "Día por día del mes, con el día de la semana a la vista" },
+                { id: "semanas", label: "Semanas", icono: CalendarRange, title: "Por semana: para mirar varios meses de una" },
+                { id: "anual", label: "Año", icono: LayoutGrid, title: "Los doce meses juntos, con la ocupación de cada día" },
+                { id: "lista", label: "Lista", icono: List, title: "Quién se va, cuándo vuelve y de qué año descuenta" },
+              ] as const
+            ).map((v) => (
               <button
-                onClick={() => setVista("anual")}
-                className={`px-2.5 h-9 sm:h-8 text-xs inline-flex shrink-0 whitespace-nowrap items-center gap-1 ${vista === "anual" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+                key={v.id}
+                type="button"
+                onClick={() => setVista(v.id)}
+                title={v.title}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap px-3 text-[13px] ${
+                  vista === v.id ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
+                }`}
               >
-                <CalendarDays size={13} /> Año
+                <v.icono size={14} /> {v.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Navegación: sin esto la ventana arrancaba siempre hoy y no se podía
+              mirar el mes que se está liquidando. */}
+          {vista !== "lista" || true ? (
+            <div className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+              <button
+                type="button"
+                onClick={() => irVentana(-1)}
+                title={ventanaMes || rango.modo === "mes" ? "Mes anterior" : "Ventana anterior"}
+                className="h-9 px-2 text-muted-foreground hover:bg-muted/50"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span className="min-w-[8.5rem] px-2 text-center text-[13px] font-medium tabular-nums whitespace-nowrap text-foreground">
+                {rangoLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => irVentana(1)}
+                title={ventanaMes || rango.modo === "mes" ? "Mes siguiente" : "Ventana siguiente"}
+                className="h-9 px-2 text-muted-foreground hover:bg-muted/50"
+              >
+                <ChevronRight size={15} />
               </button>
             </div>
+          ) : null}
+
+          {/* A la derecha sólo lo que cambia el rango: los filtros están todos
+              juntos en el botón "Filtros" del encabezado, y tenerlos también
+              acá era el mismo control dos veces. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* El largo sólo se elige en la vista de semanas: en el calendario un
+                mes es un mes. */}
+            {vista === "semanas" && (
+              <Select
+                value={rango.modo === "mes" ? "mes" : rango.largo}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  if (v === "mes") {
+                    const hoy = new Date();
+                    setRango({ modo: "mes", anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 });
+                  } else {
+                    setRango({ modo: "semanas", largo: v as LargoSemanas, offset: 0 });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-9 w-[8.5rem] bg-card text-[13px] shadow-sm">
+                  <span>{RANGO_LABEL[rango.modo === "mes" ? "mes" : rango.largo]}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(RANGO_LABEL) as (keyof typeof RANGO_LABEL)[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {RANGO_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <button
+                type="button"
+                onClick={volverAHoy}
+                disabled={ventanaTieneHoy}
+                title={ventanaTieneHoy ? "Ya estás mirando hoy" : "Volver al mes en curso"}
+                className="h-9 rounded-lg border border-border bg-card px-3 text-[13px] text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-40"
+              >
+                Hoy
+              </button>
           </div>
         </div>
+
+        {/* Referencia de colores, en su propio bloque. En el calendario el color
+            es el único dato de estado que llevan las barras y las columnas, así
+            que tiene que estar escrito y no adivinarse. */}
+        {vista !== "anual" && vista !== "lista" && filasCrono.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[8px] border border-border bg-card px-4 py-2.5 text-[12px] text-muted-foreground shadow-sm">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#34D399]" /> De vacaciones
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#047857]" /> De vacaciones hoy
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#F59E0B]" /> Con viajes asignados
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-[#A78BFA]" /> Feriado
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-muted-foreground/40" /> Fin de semana
+            </span>
+          </div>
+        )}
 
         {vista === "anual" ? (
           <CronogramaAnual
             periodos={periodosFiltrados}
-            anio={finPeriodoY}
-            umbralConfig={cfgUmbral}
-            activos={choferesActivos}
+            anio={anioCal}
+            hoyISO={hoyISO}
+            fotos={fotoPorChofer}
+            sectores={sectorDe}
+            onVerMes={(mes) => {
+              setMesCal({ anio: anioCal, mes: mes + 1 });
+              setVista("dias");
+            }}
           />
-        ) : filasCrono.length === 0 ? (
+        ) : vista === "lista" ? null : (
+        <div className="overflow-hidden rounded-[8px] border border-border bg-card shadow-sm">
+        {filasCrono.length === 0 ? (
           <div className="px-4 sm:px-5 py-8 text-center text-sm text-muted-foreground">
             {soloEnCurso
-              ? "Nadie está de vacaciones hoy dentro de esta ventana."
-              : "Nadie tiene vacaciones en esta ventana para este filtro."}
+              ? `Nadie está de vacaciones hoy dentro ${esVistaDias ? "de este mes" : "de esta ventana"}.`
+              : `Nadie tiene vacaciones en ${esVistaDias ? "este mes" : "esta ventana"} para este filtro.`}
             {soloEnCurso && (
               <div className="mt-1 text-[13px]">
                 Sacá el filtro{" "}
@@ -1078,230 +1227,54 @@ export default function VacacionesClient({
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                {/* Banda de meses: agrupa las semanas y separa las columnas. */}
-                <tr className="bg-muted/60">
-                  <th
-                    rowSpan={2}
-                    className="sticky left-0 z-20 bg-muted text-left px-2 sm:px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-px whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)]"
-                  >
-                    Empleado
-                  </th>
-                  {gruposMes.map((g) => (
-                    <th
-                      key={g.key}
-                      colSpan={g.span}
-                      className="px-2 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-muted-foreground border-l-2 border-border"
-                    >
-                      {g.label}
-                    </th>
-                  ))}
-                </tr>
-                <tr className="bg-muted/40">
-                  {semanas.map((s, i) => {
-                    const tope = umbralPorSemana[i]!;
-                    const excede = conteoPorSemana[i]! > tope;
-                    const esHoy = i === idxSemanaHoy;
-                    return (
-                      <th
-                        key={s.start}
-                        className={`px-1.5 py-2 text-center text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap min-w-[2rem] ${
-                          esHoy ? "bg-primary/[0.06]" : iniciosMes.has(i) ? "border-l-2 border-border" : "border-l border-border/40"
-                        } ${excede ? "text-[#EF4444]" : esHoy ? "text-primary" : "text-muted-foreground/70"}`}
-                        title={`${conteoPorSemana[i]} de vacaciones esta semana (máximo de ${MES_LBL[mesDeSemana(s.start) - 1]}: ${tope})`}
-                      >
-                        <div>{esHoy ? `${s.label} · hoy` : s.label}</div>
-                        <div className={`text-[9px] font-bold ${excede ? "text-[#EF4444]" : "text-muted-foreground/50"}`}>
-                          {conteoPorSemana[i]}
-                        </div>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {filasCrono.map((f) => {
-                  const filaEnCurso = f.periodos.some((pp) => pp.en_curso);
-                  return (
-                  <tr key={f.id} className={`border-t border-border hover:bg-muted/20 ${filaEnCurso ? "bg-muted/30" : ""}`}>
-                    <td className={`sticky left-0 z-10 px-2 sm:px-4 py-2 text-[13px] sm:text-sm whitespace-nowrap shadow-[1px_0_0_0_rgba(0,0,0,0.08)] ${filaEnCurso ? "bg-[#F0FDF4]" : "bg-card"}`}>
-                      {filaEnCurso && (
-                        <span className="relative inline-flex mr-1.5 w-1.5 h-1.5 align-middle" title="De vacaciones hoy">
-                          <span className="absolute inline-flex w-full h-full rounded-full bg-[#10B981] opacity-75 animate-ping" />
-                          <span className="relative inline-flex rounded-full w-1.5 h-1.5 bg-[#10B981]" />
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => verEnTabla(f.id)}
-                        title="Ver su saldo en la tabla de abajo"
-                        className="font-medium text-foreground hover:text-primary text-left"
-                      >
-                        {f.apellido}, {f.nombre}
-                      </button>
-                      {sectorDe.get(f.id) && sectorDe.get(f.id) !== "Chofer" && (
-                        <span className="ml-1.5 text-[10px] text-muted-foreground/70">{sectorDe.get(f.id)}</span>
-                      )}
-                      {/* En celular el ícono crece a 16px y suma padding hasta
-                          28x32 de zona de toque: a 11px no se le acertaba con el
-                          dedo. El padding sólo se compensa hacia arriba/abajo y
-                          a la derecha — hacia la izquierda quedaría encima del
-                          nombre del chofer y le robaría el toque. */}
-                      <Link
-                        href={`/choferes/${choferSlug(f)}?tab=vacaciones`}
-                        title="Abrir legajo"
-                        className="ml-1.5 inline-flex align-middle text-muted-foreground/50 hover:text-primary max-md:-my-2 max-md:-mr-1.5 max-md:px-1.5 max-md:py-2"
-                      >
-                        <ExternalLink size={11} className="max-md:size-4" />
-                      </Link>
-                    </td>
-                    {semanas.map((s, i) => {
-                      const p = periodoEnSemana(f.periodos, i);
-                      const t = p ? tramoEnSemana(p, s) : null;
-                      const dropOk = !!dragInfo && dragInfo.periodo.chofer_id === f.id && !p;
-                      return (
-                        <td
-                          key={i}
-                          className={`relative px-0.5 py-2 ${
-                            i === idxSemanaHoy
-                              ? "bg-primary/[0.04]"
-                              : iniciosMes.has(i)
-                                ? "border-l-2 border-border"
-                                : "border-l border-border/40"
-                          } ${dropOk ? "bg-primary/5" : ""}`}
-                          onDragOver={(e) => {
-                            if (dropOk) e.preventDefault();
-                          }}
-                          onDrop={() => {
-                            if (dragInfo && dropOk) {
-                              const d = dragInfo;
-                              setDragInfo(null);
-                              void moverPeriodo(d.periodo, d.semanaStart, s.start);
-                            }
-                          }}
-                        >
-                          <button
-                            type="button"
-                            disabled={!canWrite && !p}
-                            draggable={canWrite && !!p && p.fecha_fin >= hoyISO}
-                            onDragStart={() => p && setDragInfo({ periodo: p, semanaStart: s.start })}
-                            onDragEnd={() => setDragInfo(null)}
-                            onClick={() =>
-                              p
-                                ? setDetalle(p)
-                                : abrirAdd({ chofer_id: f.id, nombre: f.nombre, apellido: f.apellido }, s.start, s.end)
-                            }
-                            title={
-                              p
-                                ? `${fmtFecha(p.fecha_inicio)} → ${fmtFecha(p.fecha_fin)} · ${p.dias} día${p.dias !== 1 ? "s" : ""}${p.anio_cargo != null ? ` · descuenta ${p.anio_cargo}` : " · histórico"}${p.viajes_conflicto > 0 ? ` · ⚠ ${p.viajes_conflicto} viaje(s) asignados en esas fechas` : ""} · clic: detalle${canWrite && p.fecha_fin >= hoyISO ? " · arrastrá para mover de semana" : ""}`
-                                : canWrite
-                                  ? "Cargar esta semana"
-                                  : ""
-                            }
-                            className={`relative h-5 w-full rounded-[3px] transition-colors ${
-                              p
-                                ? "bg-transparent cursor-pointer"
-                                : canWrite
-                                  ? "bg-transparent hover:bg-primary/15 border border-dashed border-transparent hover:border-primary/40"
-                                  : "bg-transparent"
-                            }`}
-                          >
-                            {p && t && (
-                              <span
-                                style={{ left: `${t.left}%`, width: `${t.width}%` }}
-                                className={`absolute top-0 h-5 ${p.viajes_conflicto > 0 ? "bg-[#F59E0B]/80 hover:bg-[#F59E0B]" : p.en_curso ? "bg-[#059669] hover:bg-[#047857]" : "bg-[#10B981]/80 hover:bg-[#10B981]"} ${
-                                  t.empiezaAca ? "rounded-l-[3px]" : ""
-                                } ${t.terminaAca ? "rounded-r-[3px]" : ""}`}
-                              >
-                                {p.viajes_conflicto > 0 && t.terminaAca && (
-                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#EF4444] border border-white" />
-                                )}
-                              </span>
-                            )}
-                          </button>
-                          {/* Línea de "hoy": sólo si la ventana llega hasta hoy
-                              (mirando meses pasados no corresponde dibujarla). */}
-                          {i === idxSemanaHoy && (
-                            <span
-                              className="pointer-events-none absolute inset-y-0.5 w-0.5 bg-primary/70 z-[1]"
-                              style={{ left: `${hoyLeftPct}%` }}
-                              aria-hidden
-                            />
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Resumen por mes. Ojo: cuenta sólo lo que cae dentro de la ventana
-                visible, así que en los extremos un mes puede aparecer recortado
-                (con "Un mes" el número es el del mes completo). */}
-            {resumenMeses.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border text-[11px]">
-                <span className="font-semibold text-muted-foreground uppercase tracking-wide">Por mes:</span>
-                {resumenMeses.map((m) => {
-                  const excede = m.personas > m.umbral;
-                  return (
-                    <span
-                      key={m.mes}
-                      className={excede ? "text-[#EF4444] font-medium" : "text-muted-foreground"}
-                      title={`${m.personas} persona(s) con vacaciones en ${m.label} dentro de la ventana · ${m.dias} días-persona · máximo del mes: ${m.umbral}`}
-                    >
-                      {m.label} {m.personas} pers. · {m.dias} días{excede ? " ⚠️" : ""}
-                    </span>
-                  );
-                })}
-                {rango.modo !== "mes" && (
-                  <span className="text-muted-foreground/60">· recortado a la ventana visible</span>
-                )}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-t border-border text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#10B981]/80" /> de vacaciones (el largo de la barra son los días reales)</span>
-              <span className="inline-flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-[3px] bg-[#F59E0B]/80" /> con viajes asignados en esas fechas</span>
-              <span>· clic en un período: detalle{canWrite ? " · arrastralo para moverlo de semana · clic en una celda vacía: cargar" : ""}</span>
-              <span className="text-[#EF4444]">
-                · el número rojo marca las semanas que pasan el máximo de ausentes
-                {canWrite ? "" : ` (${umbral})`}
-              </span>
-              {canWrite && (
-                <button
-                  type="button"
-                  onClick={() => setUmbralOpen(true)}
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
-                  title="Cambiar el máximo de ausentes por semana (se puede definir uno distinto por mes)"
-                >
-                  <SlidersHorizontal size={11} /> máximo: {umbral} por semana
-                  {Object.keys(cfgUmbral.porMes).length > 0 && ` (${Object.keys(cfgUmbral.porMes).length} mes/es aparte)`}
-                </button>
-              )}
+          <>
+            <CronogramaGrid
+              filas={filasCrono}
+              columnas={columnasCrono}
+              bandas={vista === "semanas" && !porDia ? gruposMes.map((g) => ({ key: g.key, label: g.label, span: g.span })) : undefined}
+              hoyISO={hoyISO}
+              fotos={fotoPorChofer}
+              sectores={sectorDe}
+              ocupacion={ocupacionPorColumna}
+              canWrite={canWrite}
+              onPeriodo={setDetalle}
+              onVacio={(f, col) =>
+                abrirAdd({ chofer_id: f.id, nombre: f.nombre, apellido: f.apellido }, col.inicio, col.fin)
+              }
+              onVerSaldo={verEnTabla}
+              onMover={(p, desde, hacia) => void moverPeriodo(p, desde, hacia)}
+            />
+            <div className="border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">
+              Clic en un período: detalle
+              {canWrite ? " · arrastralo para moverlo · clic en un espacio vacío: cargar vacaciones" : ""}
             </div>
-          </div>
+          </>
         )}
-      </div>
+        </div>
+        )}
 
-      {/* Quién se va. Antes se llamaba "Períodos en la ventana": "ventana" era
-          jerga nuestra (el rango de semanas que se está mirando arriba) y nadie
-          sabía qué quería decir. Ahora el título dice para qué sirve y el rango
-          va escrito abajo. También se fue el conmutador Timeline/Lista: las dos
-          vistas mostraban lo mismo, sólo que una peor. */}
-      {periodosVentanaFiltrados.length > 0 && (
+        {/* Vista de lista: los mismos períodos escritos en prosa (cuándo se va,
+            cuándo vuelve y de qué año descuenta). Antes era una tarjeta aparte
+            siempre visible debajo del cronograma; como es otra forma de ver lo
+            mismo, ahora es una opción del conmutador. */}
+        {vista === "lista" && (
         <div id="card-periodos" className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 sm:px-5 py-3 sm:py-4 border-b border-border">
-            <CalendarRange size={16} className="text-primary self-center" />
-            <h2 className="text-sm font-bold text-foreground">Quién se va de vacaciones</h2>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-4 sm:px-5 py-3 border-b border-border">
+            <h3 className="text-sm font-bold text-foreground">Quién se va de vacaciones</h3>
             <span className="text-xs text-muted-foreground">
               {periodosVentanaFiltrados.length} período
-              {periodosVentanaFiltrados.length !== 1 ? "s" : ""} en las semanas que estás viendo
+              {periodosVentanaFiltrados.length !== 1 ? "s" : ""}{" "}
+              {ventanaMes ? "en el mes que estás viendo" : "en las semanas que estás viendo"}
             </span>
           </div>
+
+          {periodosVentanaFiltrados.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+              {soloEnCurso
+                ? "Nadie está de vacaciones hoy dentro de este mes."
+                : "Nadie tiene vacaciones en este mes para este filtro."}
+            </div>
+          )}
 
           {errorP && (
             <div className="border-b border-red-200 bg-red-50 px-4 sm:px-5 py-2 text-sm text-red-600">{errorP}</div>
@@ -1506,6 +1479,87 @@ export default function VacacionesClient({
               });
             })()}
           </div>
+        </div>
+        )}
+      </section>
+
+      {/* Plan sugerido para liquidar los saldos viejos antes del 31/12. Se
+          recalcula solo: al cargar un período, esa persona sale del plan. */}
+      {urgentes.length > 0 && plan.items.length > 0 && (
+        <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3.5">
+            <span className="text-base">🧩</span>
+            <h2 className="text-sm font-bold text-foreground">Plan sugerido</h2>
+            <span className="text-xs text-muted-foreground">
+              {plan.items.length} período(s) para liquidar los {diasEnRiesgo} días del {finPeriodoY - 1} antes del
+              31/12, repartidos para que no se vayan todos la misma semana. Se rearma solo a medida que cargás.
+            </span>
+            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
+              {planAbierto && canWrite && (
+                <Button
+                  variant="brand"
+                  onClick={() => setConfirmPlan(true)}
+                  className="h-9 sm:h-8 gap-1.5 text-xs"
+                >
+                  <Check size={13} /> Cargar todo el plan
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setPlanAbierto((v) => !v)}
+                className="h-9 sm:h-8 text-xs text-muted-foreground border-border"
+              >
+                {planAbierto ? "Ocultar" : "Ver plan"}
+              </Button>
+            </div>
+          </div>
+          {planAbierto && (
+            <div className="border-t border-border">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[460px] sm:min-w-0 text-sm">
+                  <thead className="bg-muted/40">
+                    <tr>
+                      {["Empleado", "Desde", "Hasta", "Días", ""].map((c, i) => (
+                        <th key={i} className={`px-3 sm:px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide ${i === 0 ? "text-left" : i === 4 ? "" : "text-right"}`}>{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plan.items.map((it, i) => (
+                      <tr key={i} className="border-t border-border hover:bg-muted/20">
+                        <td className="px-4 py-1.5">
+                          <button type="button" onClick={() => verEnTabla(it.chofer_id)} className="font-medium text-foreground hover:text-primary" title="Ver su saldo en la tabla">
+                            {it.apellido}, {it.nombre}
+                          </button>
+                        </td>
+                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_inicio)}</td>
+                        <td className="px-4 py-1.5 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">{fmtFecha(it.fecha_fin)}</td>
+                        <td className="px-4 py-1.5 text-right font-mono">{it.dias}</td>
+                        <td className="px-4 py-1.5 text-right">
+                          {canWrite && (
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                abrirAdd({ chofer_id: it.chofer_id, nombre: it.nombre, apellido: it.apellido }, it.fecha_inicio, it.fecha_fin)
+                              }
+                              className="h-8 sm:h-7 text-xs text-muted-foreground border-border"
+                            >
+                              Cargar…
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {plan.sinLugar.length > 0 && (
+                <div className="px-4 sm:px-5 py-2.5 border-t border-border text-xs text-amber-700 bg-amber-50">
+                  ⚠ Sin lugar en el año para: {plan.sinLugar.map((s) => `${s.apellido} (${s.dias} días)`).join(", ")} — habría que juntarlos con otra gente en la misma semana o mover períodos ya cargados.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2024,21 +2078,6 @@ export default function VacacionesClient({
         onConfirm={aplicarPlan}
       />
 
-      {/* Importar planilla de Bárbara con vista previa */}
-      <ImportarPlanillaDialog open={importOpen} onOpenChange={setImportOpen} onSuccess={refrescar} />
-
-      {/* Máximo de ausentes por semana (base + por mes) */}
-      {canWrite && (
-        <UmbralDialog
-          key={`umbral-${umbralOpen}`}
-          open={umbralOpen}
-          onOpenChange={setUmbralOpen}
-          config={cfgUmbral}
-          choferesActivos={choferesActivos}
-          onSuccess={refrescar}
-        />
-      )}
-
       {/* Detalle de un período (clic en el cronograma) */}
       <Dialog open={!!detalle} onOpenChange={(v) => !v && setDetalle(null)}>
         <DialogContent className="sm:max-w-[440px]">
@@ -2130,41 +2169,70 @@ export default function VacacionesClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
+
+/**
+ * Tarjeta de KPI: ícono al costado, rótulo, número grande y una línea que dice
+ * de qué son esos números ("de 78 empleados", "se pierden el 31/12"). El número
+ * suelto no se interpreta solo: 227 no dice nada hasta que se lee que son días
+ * que se tiran.
+ *
+ * El color va en el ícono, no en el fondo de la tarjeta. La única excepción es
+ * el número de las tarjetas de alarma, que es rojo porque el dato ES la alarma.
+ */
+const TONO_STAT = {
+  danger: { icono: "text-[#DC2626]", tile: "bg-[#DC2626]/10", valor: "text-[#DC2626]" },
+  brand: { icono: "text-primary", tile: "bg-primary/10", valor: "text-foreground" },
+  success: { icono: "text-[#059669]", tile: "bg-[#059669]/10", valor: "text-foreground" },
+  muted: { icono: "text-muted-foreground", tile: "bg-muted", valor: "text-foreground" },
+} as const;
 
 function StatCard({
   label,
   value,
+  sufijo,
+  caption,
   tone,
-  emoji,
+  icon: Icono,
   info,
   onClick,
 }: {
   label: string;
   value: number;
-  tone: "danger" | "brand" | "success" | "muted";
-  emoji: string;
+  /** Unidad pegada al número ("%"), cuando el número solo no se entiende. */
+  sufijo?: string;
+  caption: string;
+  tone: keyof typeof TONO_STAT;
+  icon: LucideIcon;
   info: string;
   onClick?: () => void;
 }) {
-  const valueClass =
-    tone === "danger" ? "text-[#EF4444]" : tone === "brand" ? "text-primary" : tone === "success" ? "text-[#10B981]" : "text-foreground";
+  const t = TONO_STAT[tone];
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <div
             onClick={onClick}
-            className={`rounded-[8px] border border-border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition-colors ${onClick ? "cursor-pointer" : "cursor-help"}`}
+            className={`flex items-start gap-3 rounded-[8px] border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:shadow-sm ${onClick ? "cursor-pointer" : "cursor-help"}`}
           >
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-              <span>{emoji}</span>
-              <span className="truncate">{label}</span>
-              <Info size={12} className="ml-auto shrink-0 text-muted-foreground/40" />
-            </div>
-            <div className={`text-xl sm:text-2xl font-bold ${valueClass}`}>{value}</div>
+            <span className={`grid size-10 shrink-0 place-items-center rounded-[8px] ${t.tile}`} aria-hidden>
+              <Icono size={19} className={t.icono} />
+            </span>
+            <span className="min-w-0 flex-1">
+              {/* Sin truncar y sin versalitas: "CON SALDO 2025 POR VEN…" no se lee
+                  ni dice qué mide la tarjeta. La explicación larga sigue estando
+                  en el tooltip de toda la tarjeta, sin ícono de ayuda al costado. */}
+              <span className="block text-[13px] leading-tight text-muted-foreground">{label}</span>
+              <span className={`mt-1 block text-2xl font-bold leading-none tabular-nums sm:text-[28px] ${t.valor}`}>
+                {value}
+                {sufijo && <span className="text-lg font-semibold">{sufijo}</span>}
+              </span>
+              <span className="mt-1.5 block text-[12px] leading-tight text-muted-foreground">{caption}</span>
+            </span>
           </div>
         }
       />
