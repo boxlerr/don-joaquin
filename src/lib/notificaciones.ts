@@ -13,6 +13,9 @@ import {
   tipoHabilitado,
   type ModoEfemerides,
 } from "@/lib/alertas-routing";
+import { puedeRecibir, usuariosPorColumna } from "@/lib/alertas-permisos";
+import { visiblePara } from "@/lib/alertas-visibilidad";
+import type { CurrentUser } from "@/lib/auth";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import {
   renderEmail as renderEmailTemplate,
@@ -192,6 +195,12 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
   const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
   const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
 
+  // Y por encima de la preferencia, el permiso: la matriz dice qué QUERÉS recibir,
+  // esto qué PODÉS. Importa sobre todo por el fallback de arriba, que le da
+  // COLUMNAS_TODAS —préstamos y cheques incluidos— a cualquiera que estuviera en la
+  // lista vieja de destinatarios.
+  const permitidos = await usuariosPorColumna(aEnviar.map(alertaColumnaDe));
+
   const { data: usuariosActivos } = await supabase
     .from("usuarios")
     .select("id, email")
@@ -209,7 +218,10 @@ export async function procesarNotificacionesCriticas(): Promise<ResultadoCritica
     if (keys.size === 0) continue;
     huboDestinatario = true;
 
-    const suyas = aEnviar.filter((a) => keys.has(alertaColumnaDe(a)));
+    const suyas = aEnviar.filter((a) => {
+      const columna = alertaColumnaDe(a);
+      return keys.has(columna) && puedeRecibir(u.id, columna, permitidos);
+    });
     if (suyas.length === 0) continue;
 
     const subject =
@@ -301,18 +313,24 @@ async function construirResumenFiltrado(
  * único correo. No exige el canal Email activo ni la lista de destinatarios y no
  * toca ningún estado en la base, así probar es inofensivo. Si no hay alertas, igual
  * envía el correo (para verificar el SMTP y el formato).
+ *
+ * Recibe el usuario y no un email suelto porque la prueba también respeta la
+ * confidencialidad: se manda a la casilla de quien apretó el botón, con lo que ESA
+ * persona puede ver. Hoy sólo lo aprieta un admin —que ve todo—, pero un botón de
+ * prueba que muestra más que el correo real deja de servir para probar.
  */
-export async function enviarResumenPrueba(email: string): Promise<ResultadoResumen> {
+export async function enviarResumenPrueba(user: CurrentUser): Promise<ResultadoResumen> {
   if (!emailConfigurado()) return { enviado: false, motivo: "smtp_no_configurado" };
 
   const supabase = createAdminClient();
   const params = await leerParametros(supabase);
   // La prueba muestra TODO lo que hay pendiente (no sólo los hitos de hoy): sirve
   // para ver el formato y verificar que el SMTP anda, no para simular el día.
-  const filtradas = await construirResumenFiltrado(supabase, params, {
+  const todas = await construirResumenFiltrado(supabase, params, {
     soloHitos: false,
     efemerides: "todo",
   });
+  const filtradas = todas.filter(visiblePara(user));
 
   const html = renderEmail({
     titulo: "Prueba — Resumen de alertas",
@@ -324,7 +342,7 @@ export async function enviarResumenPrueba(email: string): Promise<ResultadoResum
   });
 
   const res = await enviarEmail({
-    para: [email],
+    para: [user.email],
     asunto: "🧪 Prueba de notificaciones — Don Joaquín",
     html,
   });
@@ -399,6 +417,9 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
   const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
 
+  // Permiso por encima de la preferencia: ver `procesarNotificacionesCriticas`.
+  const permitidos = await usuariosPorColumna(filtradas.map(alertaColumnaDe));
+
   const { data: usuariosActivos } = await supabase
     .from("usuarios")
     .select("id, email")
@@ -407,6 +428,13 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   let huboDestinatario = false;
   let enviados = 0;
   let errorEnvio: string | undefined;
+  /**
+   * Sólo lo que le llegó a ALGUIEN se marca como notificado. Antes se marcaba
+   * `filtradas` entero apenas salía un correo, así que un aviso que no le tocaba a
+   * nadie quedaba "ya notificado" sin haberse mandado nunca: el día que a esa
+   * persona se le da la sección, el aviso no vuelve.
+   */
+  const entregadasIds = new Set<string>();
 
   for (const u of usuariosActivos ?? []) {
     if (!u.email) continue;
@@ -416,7 +444,10 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
     if (keys.size === 0) continue;
     huboDestinatario = true;
 
-    const suyas = filtradas.filter((a) => keys.has(alertaColumnaDe(a)));
+    const suyas = filtradas.filter((a) => {
+      const columna = alertaColumnaDe(a);
+      return keys.has(columna) && puedeRecibir(u.id, columna, permitidos);
+    });
     if (suyas.length === 0) continue;
 
     const html = renderEmail({
@@ -433,6 +464,7 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
 
     if (res.ok) {
       enviados++;
+      suyas.forEach((a) => entregadasIds.add(a.id));
     } else {
       errorEnvio = res.error;
       console.error(`[notificaciones] envío de resumen a ${u.email} falló:`, res.error);
@@ -447,7 +479,9 @@ export async function enviarResumenDiario(): Promise<ResultadoResumen> {
   // Lo que salió queda marcado como notificado: es lo que hace que mañana no
   // vuelva a mandarse lo mismo. (Las "live" no son filas, no se marcan.)
   const idsAMarcar = filtradas
-    .filter((a) => esDeTabla(a.id) && a.notificacion_procesada === false)
+    .filter(
+      (a) => esDeTabla(a.id) && a.notificacion_procesada === false && entregadasIds.has(a.id),
+    )
     .map((a) => a.id);
   if (idsAMarcar.length > 0) {
     await supabase

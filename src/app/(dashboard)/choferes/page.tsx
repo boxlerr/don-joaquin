@@ -11,7 +11,9 @@ import { ImportChoferesButton } from "./components/ChoferesIO";
 import ChoferesStats from "./components/ChoferesStats";
 import ChoferesLocalidades from "./components/ChoferesLocalidades";
 import type { ChoferLocalidad, LocalidadData } from "./components/ChoferesLocalidades";
+import type { DocsResumen } from "./filtros";
 import { cortesUltimos12Meses, serieDotacion } from "@/lib/dotacion";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 
 export default async function ChoferesPage({
   searchParams,
@@ -43,6 +45,7 @@ export default async function ChoferesPage({
     { data: vencidosDocs },
     { data: porVencerDocs },
     { data: camionesAsignados },
+    vigencias,
   ] = await Promise.all([
     supabase
       .from("choferes")
@@ -83,7 +86,36 @@ export default async function ChoferesPage({
       // maneja, y también se busca por eso ("iveco").
       .select("patente, marca, modelo, chofer_actual_id")
       .not("chofer_actual_id", "is", null),
+    // La vigencia de CADA documento, para la columna "Documentos" de la vista de
+    // tabla. Se agrupa por persona más abajo: sin el total no se puede
+    // distinguir "toda la documentación al día" de "no tiene ni un documento
+    // cargado", que hoy le pasa a 24 de las 88 personas.
+    traerTodo<{ chofer_id: string | null; estado_vigencia: string | null }>(
+      (desde, hasta) =>
+        supabase
+          .from("v_chofer_documentos_vigencia")
+          .select("chofer_id, estado_vigencia")
+          .order("id")
+          .range(desde, hasta),
+      { etiqueta: "vigencia de documentos de choferes" },
+    ),
   ]);
+
+  // chofer_id -> cómo está su documentación.
+  const docsPorChofer: Record<string, DocsResumen> = {};
+  for (const v of vigencias) {
+    if (!v.chofer_id) continue;
+    const r = (docsPorChofer[v.chofer_id] ??= {
+      total: 0,
+      vencidos: 0,
+      porVencer: 0,
+      alDia: 0,
+    });
+    r.total++;
+    if (v.estado_vigencia === "vencido") r.vencidos++;
+    else if (v.estado_vigencia === "por_vencer") r.porVencer++;
+    else r.alDia++; // vigente y sin_vencimiento: un título no caduca
+  }
 
   // chofer_id -> camión que tiene asignado hoy (si tiene).
   const camionPorChofer = new Map<
@@ -250,7 +282,7 @@ export default async function ChoferesPage({
 
       <ChoferesLocalidades localidades={localidadData} sinLocalidad={sinLocalidad} />
 
-      <ChoferesList choferes={choferesMapeados ?? []} />
+      <ChoferesList choferes={choferesMapeados ?? []} docsPorChofer={docsPorChofer} />
     </div>
   );
 }

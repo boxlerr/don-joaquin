@@ -99,8 +99,14 @@ export const SECCIONES: Seccion[] = [
   { codigo: "clientes", area: "comercial", nombre: "Clientes", orden: 10 },
   { codigo: "tarifas", area: "comercial", nombre: "Tarifas", orden: 11 },
   // --- Finanzas ------------------------------------------------------------
-  { codigo: "gastos", area: "finanzas", nombre: "Gastos", orden: 10 },
-  { codigo: "cheques", area: "finanzas", nombre: "Cheques", orden: 11 },
+  // Gastos y Cheques se marcaron confidenciales desde /usuarios (la tabla
+  // `secciones` PISA a este catálogo, ver auth.ts) y se otorgaron a mano a Nico,
+  // Pablo y Paula. El catálogo decía lo contrario, y eso importa: si la consulta a
+  // `secciones` falla o vuelve vacía, auth.ts cae acá — y estas dos pasaban a
+  // heredarse del área `finanzas`, o sea a abrirse. Un fallback de permisos tiene
+  // que fallar cerrado.
+  { codigo: "gastos", area: "finanzas", nombre: "Gastos", orden: 10, confidencial: true },
+  { codigo: "cheques", area: "finanzas", nombre: "Cheques", orden: 11, confidencial: true },
   // Impuestos va confidencial junto con Sueldos y Caja grande (audios Bárbara
   // 30/06, tema 8): datos fiscales de la empresa. Se destapa por rol desde
   // /usuarios → "Secciones confidenciales" si Bárbara decide abrirla.

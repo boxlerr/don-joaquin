@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { enviarResumenPrueba } from "@/lib/notificaciones";
-import { normalizarColumnas } from "@/lib/alertas-routing";
+import { normalizarColumnas, seccionDeColumna } from "@/lib/alertas-routing";
+import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
+import { SECCION_BY_CODIGO } from "@/lib/secciones";
 import {
   ALERTA_COLUMNAS,
   CATEGORIAS,
@@ -277,6 +279,20 @@ export async function setUsuarioAlertaPrefAction(input: unknown): Promise<Result
   if (!parsed.success) return { error: "Entrada inválida" };
   if (!COLUMNAS_VALIDAS.has(parsed.data.alertaKey)) return { error: "Tipo de alerta desconocido" };
 
+  // Una preferencia no puede otorgar un permiso. La pantalla ya dibuja estas
+  // columnas con candado, pero la acción es la que manda: sin este corte alcanzaba
+  // con un POST a mano para hacerse mandar por mail las cuotas del banco.
+  // Destildar siempre se puede — sacar un aviso nunca puede quedar bloqueado.
+  const seccion = seccionDeColumna(parsed.data.alertaKey);
+  if (parsed.data.activo && seccion) {
+    const conAcceso = await getUsuariosConSeccion(seccion, "read");
+    if (!conAcceso.has(parsed.data.usuarioId)) {
+      return {
+        error: `Sin acceso a ${SECCION_BY_CODIGO[seccion].nombre}: primero hay que otorgarle la sección en Usuarios y permisos.`,
+      };
+    }
+  }
+
   const matriz = await leerMatriz();
   // Normalizar ANTES de tocar: quien tenía "Otros avisos" y todavía no vio las
   // categorías que salieron de ahí (impuestos, mantenimiento, efemérides,
@@ -308,7 +324,7 @@ export async function enviarPruebaNotificacionAction(): Promise<
 > {
   const user = await requireAdmin();
 
-  const res = await enviarResumenPrueba(user.email);
+  const res = await enviarResumenPrueba(user);
   if (res.enviado) {
     return { success: true, email: user.email, total: res.total };
   }

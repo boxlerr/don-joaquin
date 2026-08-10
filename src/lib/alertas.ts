@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { traerTodo } from "@/lib/supabase/traer-todo";
 import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
 import { ENTIDAD_TIPOS_CADUCAN, HITOS_PERIODO_PRUEBA } from "@/lib/alertas-routing";
+import {
+  documentoRenovado,
+  disparoPrestamo,
+  semanalDeSemanaPasada,
+  preavisoPrestamoPasado,
+} from "@/lib/alertas-obsoletas";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
 
@@ -163,6 +169,146 @@ async function resolverEventosCaducos(
   }
 }
 
+/** Parte una lista en tandas, para no armar un `in(...)` de mil ids. */
+function enTandas<T>(xs: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+}
+
+async function marcarResueltas(
+  supabase: ReturnType<typeof createAdminClient>,
+  ids: string[],
+): Promise<number> {
+  let n = 0;
+  for (const tanda of enTandas(ids, 200)) {
+    const { error } = await supabase
+      .from("alertas")
+      .update({ estado: "resuelta" })
+      .eq("estado", "pendiente")
+      .in("id", tanda);
+    if (error) console.error("[alertas] marcarResueltas:", error);
+    else n += tanda.length;
+  }
+  return n;
+}
+
+/**
+ * Apaga los reclamos que el trabajo del día ya dejó sin objeto.
+ *
+ * `resolverEventosCaducos` apaga lo que se termina solo al pasar la fecha. Esto
+ * apaga la otra mitad, la que sí depende de que alguien haga algo: el documento
+ * que se renovó y la cuota que se pagó. Faltaba por completo, y era la queja de
+ * Ana del 10/08 — cargó 45 documentos el sábado y el lunes se los reclamaron
+ * todos de nuevo, porque la alerta se quedó con la fecha vieja congelada.
+ *
+ * Tres cosas, todas sobre `estado` (que es por donde filtran pantalla, campana,
+ * badge y mail) y todas best-effort: si algo falla, la generación sigue.
+ *
+ *  1. Documento renovado. La alerta guarda `fecha_vencimiento`; si el documento
+ *     hoy vence después, sobra. Se mira en las tres tablas donde puede vivir un
+ *     documento (chofer, camión y los de nivel empresa de compliance).
+ *  2. Cuota pagada. El generador ya no las mira (`pagada = false`), pero las que
+ *     habían quedado pendientes no se apagaban solas: 9 cuotas ya pagadas
+ *     seguían reclamándose.
+ *  3. Preaviso de préstamo que quedó atrás — el recordatorio de la semana pasada
+ *     y el "mañana vence" de una cuota que ya venció. La alerta de vencido no se
+ *     toca: ésa se reclama hasta que se pague.
+ *
+ * El aviso vuelve a salir solo cuando el documento renovado entre de nuevo en la
+ * ventana de 30 días: la clave de dedup incluye la fecha de vencimiento, así que
+ * la fecha nueva es una alerta nueva.
+ */
+async function resolverAlertasObsoletas(
+  supabase: ReturnType<typeof createAdminClient>,
+  hoyIso: string,
+  lunesActual: string,
+): Promise<void> {
+  // --- 1. Documentos ya renovados ---
+  try {
+    const { data: pendientes } = await supabase
+      .from("alertas")
+      .select("id, tipo, entidad_id, entidad_tipo, fecha_vencimiento")
+      .eq("estado", "pendiente")
+      .in("tipo", ["vencimiento_doc_chofer", "vencimiento_doc_camion", "vencimiento_compliance"])
+      .not("entidad_id", "is", null)
+      .not("fecha_vencimiento", "is", null);
+
+    // El F931 también entra como 'vencimiento_compliance' pero su entidad_id es
+    // una presentación, no un documento: se apaga cuando se marcan los dos envíos.
+    const candidatas = (pendientes ?? []).filter(
+      (a) => a.tipo !== "vencimiento_compliance" || (a.entidad_tipo ?? "").startsWith("compliance:"),
+    );
+
+    if (candidatas.length > 0) {
+      const ids = [...new Set(candidatas.map((a) => a.entidad_id!))];
+      const vencActual = new Map<string, string>();
+      for (const tabla of ["chofer_documentos", "camion_documentos", "compliance_documentos"]) {
+        for (const tanda of enTandas(ids, 200)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (supabase as any)
+            .from(tabla)
+            .select("id, fecha_vencimiento")
+            .in("id", tanda);
+          for (const d of (data ?? []) as { id: string; fecha_vencimiento: string | null }[]) {
+            if (d.fecha_vencimiento) vencActual.set(d.id, d.fecha_vencimiento);
+          }
+        }
+      }
+
+      const renovadas = candidatas
+        .filter((a) => documentoRenovado(a.fecha_vencimiento, vencActual.get(a.entidad_id!)))
+        .map((a) => a.id);
+      if (renovadas.length > 0) {
+        const n = await marcarResueltas(supabase, renovadas);
+        console.log(`[alertas] ${n} aviso(s) de documentos ya renovados`);
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] resolverAlertasObsoletas/documentos:", e);
+  }
+
+  // --- 2 y 3. Préstamos: cuota pagada o preaviso que quedó atrás ---
+  try {
+    const { data: pendPrestamo } = await supabase
+      .from("alertas")
+      .select("id, entidad_id, entidad_tipo, fecha_vencimiento")
+      .eq("estado", "pendiente")
+      .eq("tipo", "otro")
+      .like("entidad_tipo", "prestamo_cuota:%");
+
+    const filas = pendPrestamo ?? [];
+    if (filas.length > 0) {
+      const pagadas = new Set<string>();
+      const idsCuota = [...new Set(filas.map((a) => a.entidad_id).filter(Boolean))] as string[];
+      for (const tanda of enTandas(idsCuota, 200)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("prestamo_cuotas")
+          .select("id, pagada")
+          .eq("pagada", true)
+          .in("id", tanda);
+        for (const c of (data ?? []) as { id: string }[]) pagadas.add(c.id);
+      }
+
+      const obsoletas = filas
+        .filter(
+          (a) =>
+            (a.entidad_id && pagadas.has(a.entidad_id)) ||
+            semanalDeSemanaPasada(a.entidad_tipo, lunesActual) ||
+            preavisoPrestamoPasado(a.entidad_tipo, a.fecha_vencimiento, hoyIso),
+        )
+        .map((a) => a.id);
+      if (obsoletas.length > 0) {
+        const n = await marcarResueltas(supabase, obsoletas);
+        console.log(`[alertas] ${n} aviso(s) de cuotas pagadas o preavisos vencidos`);
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] resolverAlertasObsoletas/prestamos:", e);
+  }
+}
+
 export async function generarAlertas() {
   const supabase = createAdminClient();
   const hoy = new Date();
@@ -193,20 +339,26 @@ export async function generarAlertas() {
   enChequeDias.setDate(hoy.getDate() + umbrales.diasVencimientoCheque);
   const enChequeStr = enChequeDias.toISOString().split("T")[0]!;
 
-  // Antes de mirar qué hay pendiente, apagar las efemérides que ya ocurrieron.
+  // Antes de mirar qué hay pendiente, apagar lo que ya no tiene sentido: las
+  // efemérides que ocurrieron y los reclamos que alguien ya resolvió (documento
+  // renovado, cuota pagada). Tiene que ir ANTES de leer `existentes`, si no las
+  // alertas viejas bloquean por dedup la regeneración de las nuevas.
   await resolverEventosCaducos(supabase, hoyStr);
+  await resolverAlertasObsoletas(supabase, hoyStr, lunesDeLaSemana);
 
   const { data: existentes } = await supabase
     .from("alertas")
     .select("entidad_id, entidad_tipo, tipo, fecha_vencimiento")
     .or(`estado.eq.pendiente,fecha_vencimiento.gte.${hoyStr}`);
 
+  // La clave incluye SIEMPRE la fecha de vencimiento. Los avisos de documentos
+  // deduplicaban sólo por `tipo:entidad_id`, así que una vez emitido el aviso de
+  // un documento no volvía a salir NUNCA para ese documento: al renovarse, la
+  // alerta vieja seguía viva con la fecha vieja y la nueva no podía nacer.
+  // Con la fecha adentro, renovar un documento es un aviso nuevo cuando vuelva a
+  // entrar en la ventana de 30 días, y la misma fecha sigue sin duplicarse.
   const existentesSet = new Set(
-    (existentes ?? []).map((a) =>
-      a.tipo === "otro" || a.tipo === "vencimiento_compliance"
-        ? `${a.tipo}:${a.entidad_id}:${a.entidad_tipo}:${a.fecha_vencimiento}`
-        : `${a.tipo}:${a.entidad_id}`
-    )
+    (existentes ?? []).map((a) => `${a.tipo}:${a.entidad_id}:${a.entidad_tipo}:${a.fecha_vencimiento}`)
   );
 
   type NuevaAlerta = {
@@ -230,7 +382,7 @@ export async function generarAlertas() {
     .gte("fecha_vencimiento", hoyStr);
 
   for (const doc of docsCAMION ?? []) {
-    const key = `vencimiento_doc_camion:${doc.id}`;
+    const key = `vencimiento_doc_camion:${doc.id}:camion_documentos:${doc.fecha_vencimiento}`;
     if (existentesSet.has(key)) continue;
     const camion = doc.camiones as { patente: string } | null;
     const tipoDocCamion = doc.tipos_documento as { nombre: string } | null;
@@ -263,7 +415,7 @@ export async function generarAlertas() {
     .gte("fecha_vencimiento", hoyStr);
 
   for (const doc of docsCHOFER ?? []) {
-    const key = `vencimiento_doc_chofer:${doc.id}`;
+    const key = `vencimiento_doc_chofer:${doc.id}:chofer_documentos:${doc.fecha_vencimiento}`;
     if (existentesSet.has(key)) continue;
     const chofer = doc.choferes as { nombre: string; apellido: string; estado?: string } | null;
     if (chofer?.estado === "baja") continue;
@@ -294,7 +446,8 @@ export async function generarAlertas() {
     .gte("fecha_vencimiento", hoyStr);
 
   for (const cheque of cheques ?? []) {
-    const key = `vencimiento_cheque:${cheque.id}`;
+    // Un cheque que cambia de fecha es un aviso nuevo, igual que un documento.
+    const key = `vencimiento_cheque:${cheque.id}:cheques:${cheque.fecha_vencimiento}`;
     if (existentesSet.has(key)) continue;
     const diasRestantes = Math.ceil(
       (new Date(cheque.fecha_vencimiento).getTime() - hoy.getTime()) / 86400000
@@ -936,20 +1089,11 @@ export async function generarAlertas() {
     // `dias === 7` y `dias === 1`: si el cron no corría justo ese día (o los
     // datos se cargaban unas horas más tarde), el aviso no salía nunca —
     // la condición ya no volvía a ser verdadera al día siguiente.
-    type DispPrestamo = { umbral: string; clase: "vencido" | "inminente" | "semana"; severidad: "info" | "advertencia" | "critica" };
-    const disparos: DispPrestamo[] = [];
-    if (dias < 0) {
-      disparos.push({ umbral: "vencido", clase: "vencido", severidad: "critica" });
-    }
-    if (dias >= 0 && dias <= 1) {
-      disparos.push({ umbral: "T1", clase: "inminente", severidad: "advertencia" });
-    }
-    // Recordatorio semanal anclado al lunes: mientras la cuota siga impaga y
-    // caiga dentro de los próximos 7 días, vuelve a avisar UNA vez por semana.
-    // Así no depende de pegarle a un día exacto (que encima podía caer domingo).
-    if (dias >= 0 && dias <= 7) {
-      disparos.push({ umbral: `S:${lunesDeLaSemana}`, clase: "semana", severidad: "info" });
-    }
+    //
+    // UNO solo por cuota, el más urgente: las tres ventanas se superponían
+    // (`dias <= 1` y `dias <= 7` cubrían lo mismo) y la misma cuota salía como
+    // vencida, por vencer y de esta semana en el mismo mail.
+    const disparos = [disparoPrestamo(dias, lunesDeLaSemana)].filter((d) => d !== null);
     if (disparos.length === 0) continue;
 
     const cuotaLabel = `cuota ${cu.nro}/${pr.cuotas_total}`;

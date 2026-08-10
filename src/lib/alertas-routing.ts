@@ -7,11 +7,18 @@
  * se prueba — justo el bug que el ruteo propio de préstamos vino a evitar.
  */
 import type { Database } from "@/types/database";
+import type { SeccionCodigo } from "@/lib/secciones";
 
 type AlertaTipo = Database["public"]["Enums"]["alerta_tipo"];
 
 export const OTROS_AVISOS = "otros_avisos";
 export const PRESTAMOS_COL = "prestamos_vencimiento";
+/**
+ * Cumpleaños, aniversarios y fin de período de prueba. Tiene nombre propio
+ * porque el pop-up del día la dibuja distinta a todas: son personas con nombre y
+ * fecha, no un contador de cosas por hacer.
+ */
+export const RRHH_EVENTOS_COL = "rrhh_eventos";
 
 /**
  * Efemérides: los eventos de calendario del personal. Se guardan con
@@ -168,7 +175,7 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
   insumo_precio_desactualizado: "mantenimiento",
 
   // RRHH — efemérides de personal (la lista vive arriba, en ENTIDAD_TIPOS_EFEMERIDE)
-  ...Object.fromEntries(ENTIDAD_TIPOS_EFEMERIDE.map((t) => [t, "rrhh_eventos"])),
+  ...Object.fromEntries(ENTIDAD_TIPOS_EFEMERIDE.map((t) => [t, RRHH_EVENTOS_COL])),
 
   // RRHH — disponibilidad
   chofer_ausencia: "ausencias_vacaciones",
@@ -180,6 +187,48 @@ export const COLUMNAS_TODAS = [
   "cambios_caja", "nuevo_viaje", "vencimiento_compliance", PRESTAMOS_COL,
   "impuestos", "mantenimiento", "rrhh_eventos", "ausencias_vacaciones", OTROS_AVISOS,
 ];
+
+/**
+ * Qué subsección hay que TENER para poder recibir cada columna de avisos.
+ *
+ * Es la respuesta a un agujero concreto: la matriz de /configuracion/notificaciones
+ * es una PREFERENCIA ("¿querés que te llegue esto?"), no un permiso. Un admin podía
+ * tildarle Préstamos a cualquiera y el mail salía con "venció la cuota 12/48 de
+ * Nación: $7.696.212" a alguien que no puede ni abrir /prestamos. La preferencia
+ * dice qué querés recibir; esta tabla dice qué PODÉS recibir, y manda esta.
+ *
+ * Se lista la subsección, no un booleano, a propósito: `confidencial` se edita
+ * desde /usuarios y vive en la tabla `secciones` (ver auth.ts, que la usa por
+ * encima del catálogo). Preguntando `hasSeccion(user, seccion, "read")` el filtro
+ * sigue solo lo que decida el admin — si mañana Cheques deja de ser confidencial,
+ * el permiso pasa a heredarse del área y esto no hay que tocarlo.
+ *
+ * Lo que NO está acá es público a propósito, y hay un test que lo exige explícito
+ * (`alertas-visibilidad.test.ts`): una columna nueva no puede nacer sin que alguien
+ * haya decidido de qué lado cae.
+ */
+export const COLUMNA_CONFIDENCIAL: Record<string, SeccionCodigo> = {
+  // Traen montos: cuota, banco y el tope mensual de pagos.
+  [PRESTAMOS_COL]: "prestamos",
+  // Datos fiscales de la empresa (audios Bárbara 30/06, tema 8).
+  impuestos: "impuestos",
+  // Cheques en cartera: número, monto y librador.
+  cheques_vencidos: "cheques",
+  // Gastos sin comprobante: monto y proveedor.
+  gastos_pendientes: "gastos",
+  // Plata entregada a una persona con nombre. El panel de viáticos pendientes se
+  // dibuja sólo bajo la caja grande (caja/components/CajaViewCompleta.tsx, `esGrande`),
+  // así que el aviso no puede ser más abierto que el dato.
+  viaticos_sin_rendir: "caja_grande",
+  // Sin generador hoy, pero la columna es tildable: si mañana alguien emite un
+  // aviso de caja, nace tapado en vez de nacer abierto.
+  cambios_caja: "caja_saldo",
+};
+
+/** Subsección que hay que tener para recibir esta columna, o null si es pública. */
+export function seccionDeColumna(columna: string): SeccionCodigo | null {
+  return COLUMNA_CONFIDENCIAL[columna] ?? null;
+}
 
 /**
  * Columnas que hasta ahora vivían dentro de "Otros avisos" y pasaron a tener

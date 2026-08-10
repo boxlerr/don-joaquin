@@ -13,6 +13,7 @@ import {
   type HrRutaVia,
 } from "./parser-hoja-ruta";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
+import { hoyArgentina } from "@/lib/fecha-ar";
 
 // Cliente Supabase admin: los server actions pasan createAdminClient() y los
 // scripts un createClient() con service role. Solo usamos la API .from/.insert.
@@ -28,6 +29,22 @@ export type ChoferMatch =
   | { status: "ambiguo"; candidatos: { id: string; label: string }[] }
   | { status: "missing"; sheetName: string };
 
+/** El viaje que YA está cargado y contra el que choca una fila del Excel.
+ * Se guarda entero (no solo la clave) para poder mostrar en el preview cuál es
+ * el duplicado y de dónde salió, en vez de un número suelto. */
+export type ViajeYaCargado = {
+  codigo: string;
+  fecha: string;
+  remito: string | null;
+  origen: string | null;
+  destino: string | null;
+  importe: number | null;
+  /** De dónde vino el que ya está: "HOJA DE RUTA · SALTO MAXIMILIANO", "YPF"… */
+  cargadoDesde: string | null;
+  /** Día en que se cargó (no el del viaje). */
+  cargadoEl: string | null;
+};
+
 export type SheetViajePreview = {
   fecha: string;
   saleDe: string;
@@ -40,6 +57,7 @@ export type SheetViajePreview = {
   importe: number | null;
   vacio: boolean;
   dup: boolean; // ya estaba importado (no se vuelve a cargar)
+  dupDe: ViajeYaCargado | null; // contra cuál choca (solo cuando dup)
 };
 
 export type SheetPreview = {
@@ -73,10 +91,23 @@ export type AsignacionSheet = {
   chofer_id: string | null; // null = saltear · CREAR_CHOFER = alta automática (solo scripts)
 };
 
+/** Fila con fecha posterior a hoy. Un viaje que todavía no pasó no existe: es
+ * siempre un error de tipeo en el Excel (un "09/10" que era "09/06"). Se listan
+ * para poder decidir si entran o no, sin tocar el dato. */
+export type FilaFutura = {
+  sheetName: string;
+  fecha: string;
+  saleDe: string;
+  llegaA: string;
+  remito: string;
+  importe: number | null;
+};
+
 export type HojaRutaPreviewData = {
   ok?: boolean;
   error?: string;
   sheets?: SheetPreview[];
+  filasFuturas?: FilaFutura[];
   summary?: {
     totalSheets: number;
     sheetsOk: number;
@@ -86,6 +117,14 @@ export type HojaRutaPreviewData = {
     totalImportables: number;
     totalDuplicados: number;
     totalImporte: number;
+    totalVacios: number;
+    totalPendientesFacturar: number;
+    totalTon: number;
+    totalKm: number;
+    /** Período que cubre el Excel. Es el dato que explica los duplicados: una
+     * pestaña que arrastra filas de meses anteriores ya cargados. */
+    fechaMin: string | null;
+    fechaMax: string | null;
   };
   warnings?: string[];
   asignaciones?: AsignacionSheet[];
@@ -100,6 +139,8 @@ export type ConfirmImportData = {
     pendientesFacturar: number;
     duplicados: number;
     omitidos: number;
+    /** Filas con fecha posterior a hoy que se dejaron afuera a pedido. */
+    futurasOmitidas: number;
     puntosCreados: number;
     sheetsConfirmados: number;
     choferesCreados: number;
@@ -154,13 +195,44 @@ function rutaKey(saleDe: string | null, llegaA: string | null): string {
   return `${normName(saleDe ?? "")}>${normName(llegaA ?? "")}`;
 }
 
-/** Carga las claves de dedup de los viajes ya existentes en el rango de fechas
- * del Excel. Excluye vacíos (nunca se dedupean entre sí). */
+/** Clave de un viaje VACÍO: chofer + día + tramo, porque no tienen remito.
+ *
+ * Antes los vacíos no se dedupeaban y se cargaban todos. El resultado: una
+ * pestaña que arrastra días de meses ya importados (el caso «SALTO MAXIMILIANO»
+ * con marzo dentro de la planilla de junio) volvía a crear esas vueltas en
+ * vacío. Ahora se dedupean por multiplicidad: si el Excel trae dos vacíos
+ * idénticos el mismo día y en la base hay uno, se crea el que falta.
+ *
+ * El prefijo `V:` no colisiona con los que arma `dedupKey` (`R:` y `X:`). */
+export function vacioKey(choferId: string, fecha: string, ruta: string): string {
+  return `${choferId}|${fecha}|V:${ruta}`;
+}
+
+/** Cómo entró al sistema el viaje que ya está: lo dice el prefijo que deja cada
+ * importador en observaciones. Sin prefijo = lo cargó una persona a mano. */
+function cargadoDesde(observaciones: string | null): string | null {
+  const m = observaciones?.match(/^\[(?:Import\s+)?([^\]]+)\]/i);
+  if (m) return m[1].trim();
+  return observaciones ? null : "Carga manual";
+}
+
+/** Índice de lo que ya está cargado: clave → los viajes que la comparten.
+ *
+ * Es una lista y no un solo viaje porque los vacíos se dedupean por cantidad
+ * (dos vueltas iguales el mismo día son dos viajes, no uno). Para los viajes con
+ * remito la lista tiene siempre un elemento: el remito ya es único. */
+export type ExistentesIndex = Map<string, ViajeYaCargado[]>;
+
+/** Carga los viajes ya existentes en el rango de fechas del Excel, indexados por
+ * su clave (los vacíos con `vacioKey`, el resto con `dedupKey`).
+ *
+ * Guarda el viaje entero y no solo la clave: el preview necesita poder mostrar
+ * CUÁL es el viaje repetido, no nada más cuántos hay. */
 export async function loadExistentes(
   supabase: AdminDb,
   parsed: HrParseResult,
-): Promise<Set<string>> {
-  const existentes = new Set<string>();
+): Promise<ExistentesIndex> {
+  const existentes: ExistentesIndex = new Map();
   const todasLasFechas = parsed.sheets.flatMap((s) => s.viajes.map((v) => v.fecha));
   if (todasLasFechas.length === 0) return existentes;
   let fechaMin = "9999-12-31", fechaMax = "0000-01-01";
@@ -173,7 +245,8 @@ export async function loadExistentes(
     const { data } = await supabase
       .from("viajes")
       .select(`
-        chofer_id, fecha_viaje, nro_remito, tonelaje_real, es_vacio, ruta_via,
+        codigo, chofer_id, fecha_viaje, nro_remito, tonelaje_real, es_vacio, ruta_via,
+        monto_flete, observaciones, created_at,
         origen:puntos_ruta!viajes_origen_id_fkey(nombre),
         destino:puntos_ruta!viajes_destino_id_fkey(nombre)
       `)
@@ -182,33 +255,70 @@ export async function loadExistentes(
       .not("chofer_id", "is", null)
       .range(from, from + 999);
     const rows = (data ?? []) as {
+      codigo: string;
       chofer_id: string;
       fecha_viaje: string;
       nro_remito: string | null;
       tonelaje_real: number | null;
       es_vacio: boolean | null;
       ruta_via: string | null;
+      monto_flete: number | null;
+      observaciones: string | null;
+      created_at: string | null;
       origen: { nombre: string } | { nombre: string }[] | null;
       destino: { nombre: string } | { nombre: string }[] | null;
     }[];
     for (const v of rows) {
-      if (v.es_vacio) continue;
       const ori = Array.isArray(v.origen) ? v.origen[0] : v.origen;
       const des = Array.isArray(v.destino) ? v.destino[0] : v.destino;
-      existentes.add(
-        dedupKey(
-          v.chofer_id,
-          v.fecha_viaje,
-          v.nro_remito,
-          v.tonelaje_real,
-          rutaKey(ori?.nombre ?? null, des?.nombre ?? null),
-          v.ruta_via,
-        ),
-      );
+      const ruta = rutaKey(ori?.nombre ?? null, des?.nombre ?? null);
+      const key = v.es_vacio
+        ? vacioKey(v.chofer_id, v.fecha_viaje, ruta)
+        : dedupKey(
+            v.chofer_id,
+            v.fecha_viaje,
+            v.nro_remito,
+            v.tonelaje_real,
+            ruta,
+            v.ruta_via,
+          );
+      const yaEn = existentes.get(key);
+      const ref: ViajeYaCargado = {
+        codigo: v.codigo,
+        fecha: v.fecha_viaje,
+        remito: v.nro_remito,
+        origen: ori?.nombre ?? null,
+        destino: des?.nombre ?? null,
+        importe: v.monto_flete,
+        cargadoDesde: cargadoDesde(v.observaciones),
+        cargadoEl: v.created_at ? v.created_at.slice(0, 10) : null,
+      };
+      if (yaEn) yaEn.push(ref);
+      else existentes.set(key, [ref]);
     }
     if (rows.length < 1000) break;
   }
   return existentes;
+}
+
+/**
+ * Consumidor del índice de existentes: cada clave se puede "gastar" tantas veces
+ * como viajes haya cargados con ella, y no más.
+ *
+ * Sin esto, dos vueltas en vacío iguales el mismo día (misma clave) se saltearían
+ * las dos por un solo viaje cargado, y se perdería una. Devuelve el viaje contra
+ * el que choca la fila, o null si ya no queda ninguno libre.
+ */
+export function crearConsumidor(existentes: ExistentesIndex) {
+  const restantes = new Map<string, number>();
+  for (const [k, v] of existentes) restantes.set(k, v.length);
+  return (key: string): ViajeYaCargado | null => {
+    const quedan = restantes.get(key) ?? 0;
+    if (quedan <= 0) return null;
+    const lista = existentes.get(key)!;
+    restantes.set(key, quedan - 1);
+    return lista[lista.length - quedan] ?? lista[0];
+  };
 }
 
 // ============================================================================
@@ -385,10 +495,39 @@ export async function buildHojaRutaPreview(
   // Resolver TODAS las pestañas de una (determinístico, por nombre + eliminación)
   const matchPorSheet = resolverAsignaciones(parsed.sheets, choferes);
 
+  // Un solo consumidor para todas las pestañas: si dos arrastran el mismo viaje,
+  // la primera se lo lleva y la segunda ya no lo ve como duplicado (que es lo
+  // que va a pasar al importar).
+  const consumir = crearConsumidor(existentes);
   const sheets: SheetPreview[] = [];
   for (const sp of parsed.sheets) {
-    sheets.push(buildSheetPreview(sp, matchPorSheet.get(sp.sheetName)!, existentes));
+    sheets.push(buildSheetPreview(sp, matchPorSheet.get(sp.sheetName)!, consumir));
   }
+
+  // Período que cubre el archivo: se saca de los viajes parseados, no del
+  // nombre del Excel («JUNIO COMPLETA» puede traer filas de marzo).
+  let fechaMin: string | null = null;
+  let fechaMax: string | null = null;
+  const hoy = hoyArgentina();
+  const filasFuturas: FilaFutura[] = [];
+  for (const sh of sheets) {
+    for (const v of sh.viajes) {
+      if (fechaMin == null || v.fecha < fechaMin) fechaMin = v.fecha;
+      if (fechaMax == null || v.fecha > fechaMax) fechaMax = v.fecha;
+      // Los duplicados no entran: esos ya no se iban a importar igual.
+      if (v.fecha > hoy && !v.dup) {
+        filasFuturas.push({
+          sheetName: sh.sheetName,
+          fecha: v.fecha,
+          saleDe: v.saleDe,
+          llegaA: v.llegaA,
+          remito: v.remito,
+          importe: v.importe,
+        });
+      }
+    }
+  }
+  filasFuturas.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   const summary = {
     totalSheets: sheets.length,
@@ -405,6 +544,12 @@ export async function buildHojaRutaPreview(
     ),
     totalDuplicados: sheets.reduce((acc, s) => acc + s.yaImportados, 0),
     totalImporte: sheets.reduce((acc, s) => acc + s.sumaImporte, 0),
+    totalVacios: sheets.reduce((acc, s) => acc + s.vacios, 0),
+    totalPendientesFacturar: sheets.reduce((acc, s) => acc + s.pendientesFacturar, 0),
+    totalTon: sheets.reduce((acc, s) => acc + s.sumaTon, 0),
+    totalKm: sheets.reduce((acc, s) => acc + s.sumaKm + s.sumaKmVacios, 0),
+    fechaMin,
+    fechaMax,
   };
 
   // Default por sheet: ok → ese chofer · missing/ambiguo → sin asignar (missing
@@ -418,6 +563,7 @@ export async function buildHojaRutaPreview(
   return {
     ok: true,
     sheets,
+    filasFuturas,
     summary,
     warnings: parsed.warnings,
     asignaciones,
@@ -433,7 +579,7 @@ export async function buildHojaRutaPreview(
 function buildSheetPreview(
   sp: HrSheetParsed,
   chofer: ChoferMatch,
-  existentes: Set<string>,
+  consumir: (key: string) => ViajeYaCargado | null,
 ): SheetPreview {
   const warnings: string[] = [];
 
@@ -462,13 +608,13 @@ function buildSheetPreview(
     if (!vacio && v.importe == null) pendientes++;
     if (v.rutaVia === "ruta_5") viasRuta5++;
     else if (v.rutaVia === "ruta_22") viasRuta22++;
-    let dup = false;
-    if (chofer.status === "ok" && !vacio) {
-      const key = dedupKey(chofer.id, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
-      if (existentes.has(key)) {
-        yaImportados++;
-        dup = true;
-      }
+    let dupDe: ViajeYaCargado | null = null;
+    if (chofer.status === "ok") {
+      const key = vacio
+        ? vacioKey(chofer.id, v.fecha, rutaKey(v.saleDe, v.llegaA))
+        : dedupKey(chofer.id, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
+      dupDe = consumir(key);
+      if (dupDe) yaImportados++;
     }
     viajes.push({
       fecha: v.fecha,
@@ -481,7 +627,8 @@ function buildSheetPreview(
       km: v.kmRec,
       importe: vacio ? 0 : v.importe,
       vacio,
-      dup,
+      dup: dupDe != null,
+      dupDe,
     });
   }
 
@@ -525,7 +672,13 @@ export async function runHojaRutaImport(
   buffer: Buffer,
   asignaciones: AsignacionSheet[],
   userId: string,
-  opts?: { archivo?: string; permitirCrearChoferes?: boolean },
+  opts?: {
+    archivo?: string;
+    permitirCrearChoferes?: boolean;
+    /** Dejar afuera las filas con fecha posterior a hoy (typos del Excel). El
+     * dato NO se corrige: la fila simplemente no entra. */
+    omitirFechasFuturas?: boolean;
+  },
 ): Promise<NonNullable<ConfirmImportData>> {
   let parsed: HrParseResult;
   try {
@@ -584,18 +737,20 @@ export async function runHojaRutaImport(
     camionPorPatente.set(normPatente(c.patente), c.id);
   }
 
-  const existentes = await loadExistentes(supabase, parsed);
+  const consumir = crearConsumidor(await loadExistentes(supabase, parsed));
 
   let codigoSeq = ultimoCodigo;
   let puntosCreados = 0;
   let duplicados = 0;
   let omitidos = 0;
+  let futurasOmitidas = 0;
   let pendientesFacturar = 0;
   let sheetsConfirmados = 0;
   let choferesCreados = 0;
   const seenThisRun = new Set<string>();
   const viajesPayload: Record<string, unknown>[] = [];
 
+  const hoy = hoyArgentina();
   const yearPrefix = `V-${new Date().getFullYear()}-`;
 
   for (const sp of parsed.sheets) {
@@ -643,12 +798,28 @@ export async function runHojaRutaImport(
       const vacio = remito === REMITO_VACIO;
       const ton = tonelajeDe(v);
 
-      // Dedup SOLO para viajes con remito (los vacíos no tienen identidad propia
-      // y se cargan todos). La clave usa remito cuando es real, y ruta+tonelaje
-      // cuando la columna trae notas tipo "SCANIA" (ver dedupKey).
+      // Fecha que todavía no pasó = typo en el Excel. Se deja afuera solo si el
+      // usuario lo pidió; el dato del Excel no se toca nunca.
+      if (opts?.omitirFechasFuturas && v.fecha > hoy) {
+        futurasOmitidas++;
+        continue;
+      }
+
+      // Dedup contra lo que ya está cargado. Con remito la clave usa el remito
+      // (o ruta+tonelaje cuando la columna trae notas tipo "SCANIA", ver
+      // dedupKey); los vacíos van por chofer+día+tramo y se dedupean por
+      // cantidad, así que dos vueltas iguales el mismo día siguen siendo dos.
+      const key = vacio
+        ? vacioKey(choferId, v.fecha, rutaKey(v.saleDe, v.llegaA))
+        : dedupKey(choferId, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
+      if (consumir(key)) {
+        duplicados++;
+        continue;
+      }
+      // `seenThisRun` solo para los que tienen remito: el remito es único, dos
+      // filas con el mismo son la misma. Dos vacíos idénticos, no.
       if (!vacio) {
-        const key = dedupKey(choferId, v.fecha, v.remito, ton, rutaKey(v.saleDe, v.llegaA), v.rutaVia);
-        if (existentes.has(key) || seenThisRun.has(key)) {
+        if (seenThisRun.has(key)) {
           duplicados++;
           continue;
         }
@@ -708,7 +879,7 @@ export async function runHojaRutaImport(
     return {
       ok: true,
       imported: {
-        viajes: 0, pendientesFacturar, duplicados, omitidos, puntosCreados, sheetsConfirmados, choferesCreados,
+        viajes: 0, pendientesFacturar, duplicados, omitidos, futurasOmitidas, puntosCreados, sheetsConfirmados, choferesCreados,
       },
     };
   }
@@ -741,6 +912,7 @@ export async function runHojaRutaImport(
       pendientes_facturar: pendientesFacturar,
       duplicados,
       omitidos,
+      futuras_omitidas: futurasOmitidas,
       sheets: sheetsConfirmados,
       choferes_creados: choferesCreados,
     },
@@ -753,6 +925,7 @@ export async function runHojaRutaImport(
       pendientesFacturar,
       duplicados,
       omitidos,
+      futurasOmitidas,
       puntosCreados,
       sheetsConfirmados,
       choferesCreados,

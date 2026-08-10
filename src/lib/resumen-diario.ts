@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/lib/auth";
 import type { Database } from "@/types/database";
 import { DOC_LIVE } from "@/lib/alertas-lecturas";
 import { getChequeAlertasLive, getDocAlertasLive } from "@/lib/alertas-live";
-import { alertaColumnaDe, caducaAlPasar, esEfemeride } from "@/lib/alertas-routing";
+import { alertaColumnaDe, caducaAlPasar, esEfemeride, RRHH_EVENTOS_COL } from "@/lib/alertas-routing";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { alertaHref, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
@@ -52,6 +52,63 @@ type AlertaTipo = Database["public"]["Enums"]["alerta_tipo"];
  */
 const MAX_ITEMS = 3;
 
+/**
+ * Excepciones al corte, por razones de DIBUJO y no de volumen.
+ *
+ * Los cumpleaños se muestran en una banda con las personas en grilla de DOS
+ * columnas: con tres quedaba un casillero vacío al lado de un cartel que decía
+ * "+1 más" — el cuarto estaba ahí y no entraba. Cuatro llena la grilla justa.
+ */
+const MAX_ITEMS_POR_COLUMNA: Record<string, number> = {
+  [RRHH_EVENTOS_COL]: 4,
+};
+
+const maxItemsDe = (key: string): number => MAX_ITEMS_POR_COLUMNA[key] ?? MAX_ITEMS;
+
+/** Semanas del mini gráfico de cada categoría. */
+const SEMANAS_ATRASO = 12;
+
+/**
+ * Cómo se fue acumulando el atraso que HOY sigue abierto: para cada una de las
+ * últimas 12 semanas, cuántos de estos avisos ya estaban vencidos en ese momento.
+ *
+ * Es lo único honesto que se puede dibujar. NO hay historial de alertas en la
+ * base —resolver una alerta pisa `estado` y no deja fecha; no hay snapshots ni
+ * `resuelta_en`— así que "cuántos vencidos había cada semana" no se puede saber.
+ * Esto se reconstruye desde `fecha_vencimiento`, que es una fecha del negocio y
+ * no depende de que ningún proceso haya corrido (el cron de alertas estuvo caído
+ * meses: cualquier serie armada sobre `fecha_disparo` dibujaría los días en que
+ * alguien apretó un botón).
+ *
+ * Dos propiedades que hay que tener presentes al mostrarla:
+ *
+ *  - El último punto ES `vencidos`: mismo predicado, corrido en el tiempo. El
+ *    gráfico explica el número que tiene al lado, no agrega otro.
+ *  - NUNCA baja. Está armada sobre los que siguen abiertos, así que lo que se
+ *    venció y se resolvió en el medio no está. Es la ANTIGÜEDAD DEL ATRASO VIVO,
+ *    no una tendencia: rotularla como "mejora/empeora" sería mentir.
+ */
+export function serieAtraso(
+  items: { diasRestantes: number | null; efemeride: boolean }[],
+): number[] | null {
+  const serie: number[] = [];
+  for (let k = 0; k < SEMANAS_ATRASO; k++) {
+    // Corte de la semana k: hoy − 7·(11−k) días. En k = 11 el corte es hoy.
+    const offset = 7 * (SEMANAS_ATRASO - 1 - k);
+    let n = 0;
+    for (const i of items) {
+      // vencido al corte ⟺ fecha_venc < hoy − offset ⟺ diasRestantes < −offset.
+      if (i.efemeride) continue; // un cumpleaños no vence nunca
+      if (i.diasRestantes === null) continue; // sin fecha no cae en ninguna semana
+      if (i.diasRestantes < -offset) n++;
+    }
+    serie.push(n);
+  }
+  // Sin nada vencido hoy no hay atraso que contar: los cumpleaños y todo lo que
+  // es 100% a futuro caen acá y no llevan gráfico.
+  return serie[SEMANAS_ATRASO - 1] === 0 ? null : serie;
+}
+
 const SEV_ORDER: Record<Severidad, number> = { critica: 0, advertencia: 1, info: 2 };
 
 /**
@@ -71,7 +128,21 @@ export type ItemResumen = {
    * decir "es hoy", no "venció hoy".
    */
   diasRestantes: number | null;
+  /**
+   * El día del evento (YYYY-MM-DD). Viaja además de `diasRestantes` porque en un
+   * cumpleaños la fecha ES el dato: "en 4 días" no sirve para anotarlo en la
+   * agenda, "lun 11/8" sí.
+   */
+  fecha: string | null;
   href: string | null;
+  /** Id de la persona/entidad del aviso. Lo usa el pop-up para su silueta. */
+  entidadId: string | null;
+  /**
+   * Rol de la persona (chofer / administrativo / mantenimiento / fletero). Sólo
+   * se completa en las efemérides, que es donde el pop-up dibuja la silueta;
+   * en el resto queda `undefined`.
+   */
+  rol?: string | null;
 };
 
 export type GrupoResumen = {
@@ -83,6 +154,11 @@ export type GrupoResumen = {
   items: ItemResumen[];
   /** Cuántos quedaron fuera de `items` (total - items.length). */
   restantes: number;
+  /**
+   * 12 puntos semanales con la antigüedad del atraso vivo. El último ES
+   * `vencidos`. `null` cuando no hay nada vencido. Ver `serieAtraso`.
+   */
+  atraso: number[] | null;
 };
 
 /**
@@ -197,6 +273,8 @@ export async function getResumenDiario(user: CurrentUser): Promise<ResumenDiario
       severidad: a.severidad,
       efemeride,
       diasRestantes: dias,
+      fecha: a.fecha_vencimiento ? a.fecha_vencimiento.slice(0, 10) : null,
+      entidadId: a.entidad_id,
       href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
     };
     const acc = porColumna.get(columna);
@@ -228,22 +306,48 @@ export async function getResumenDiario(user: CurrentUser): Promise<ResumenDiario
       return a.diasRestantes - b.diasRestantes;
     });
 
+    // `restantes` se deriva de lo que REALMENTE se recortó, no de la constante:
+    // con un corte por columna, restar el número fijo dibujaba un "+1 más" que
+    // no correspondía a nadie.
+    const visibles = items.slice(0, maxItemsDe(key));
+
     grupos.push({
       key,
       nombre: NOMBRE_POR_COLUMNA.get(key) ?? "Otros avisos",
       total: items.length,
       vencidos: vencidosGrupo,
-      items: items.slice(0, MAX_ITEMS).map((i) => ({
+      items: visibles.map((i) => ({
         id: i.id,
         titulo: i.titulo,
         diasRestantes: i.diasRestantes,
+        fecha: i.fecha,
+        entidadId: i.entidadId,
         href: i.href,
       })),
-      restantes: Math.max(0, items.length - MAX_ITEMS),
+      restantes: items.length - visibles.length,
+      // La serie se computa sobre TODOS los ítems del grupo, no sobre los que se
+      // dibujan: si no, contaría otra cosa que el número que tiene al lado.
+      atraso: serieAtraso(items),
     });
 
     total += items.length;
     vencidos += vencidosGrupo;
+  }
+
+  // Los cumpleaños se dibujan con la silueta de cada persona (chofer, oficina o
+  // taller), así que hace falta su rol. Va DESPUÉS del recorte a propósito: se
+  // piden los tres que el pop-up va a mostrar, no los treinta del mes. Si la
+  // consulta falla, el pop-up dibuja la silueta de oficina y sigue.
+  const efemerides = grupos.find((g) => g.key === RRHH_EVENTOS_COL);
+  if (efemerides) {
+    const ids = efemerides.items.map((i) => i.entidadId).filter((v): v is string => !!v);
+    if (ids.length > 0) {
+      const { data: personas } = await supabase.from("choferes").select("id, rol").in("id", ids);
+      const rolPorId = new Map((personas ?? []).map((p) => [p.id, p.rol]));
+      for (const item of efemerides.items) {
+        item.rol = item.entidadId ? (rolPorId.get(item.entidadId) ?? null) : null;
+      }
+    }
   }
 
   // Urgencia: primero lo que ya se venció (y cuanto más vencido haya, más arriba),

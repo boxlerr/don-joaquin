@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth";
+import { visiblePara } from "@/lib/alertas-visibilidad";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
@@ -117,7 +118,15 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
   // (coherencia con la campana y /notificaciones, que son per-user).
   const currentUser = await getCurrentUser();
   const ocultasUsuario = currentUser ? await getOcultasPorUsuario(currentUser.id) : new Set<string>();
-  const alertasVisibles = (docPorVencer.data ?? []).filter((a) => !ocultasUsuario.has(a.id));
+  // Y las de secciones confidenciales sólo para quien las tenga: sin este filtro el
+  // contador de críticas sumaba las cuotas de préstamo vencidas para cualquiera, y
+  // "Resolver alerta" —que apunta a la primera de la lista, ordenada por severidad—
+  // podía mandar a /prestamos. No dibujaba el monto, pero delataba que hay uno.
+  // Falla cerrado: sin sesión no se cuenta ninguna confidencial.
+  const puedeVer = currentUser ? visiblePara(currentUser) : () => false;
+  const alertasVisibles = (docPorVencer.data ?? [])
+    .filter((a) => !ocultasUsuario.has(a.id))
+    .filter(puedeVer);
 
   // Vencimientos reales calculados desde los documentos, con la MISMA lógica
   // que /notificaciones (mismo diasRestantes + filtro por tipos activos), para

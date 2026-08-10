@@ -6,7 +6,6 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { SiluetaPersona } from "@/components/ui/AvatarPersona";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Camera,
   Loader2,
@@ -22,14 +21,12 @@ import {
   Truck,
 } from "lucide-react";
 import {
-  updateChoferEstadoAction,
-  reactivarChoferAction,
   uploadFotoChoferAction,
   deleteFotoChoferAction,
-  deleteChoferAction,
   type ChoferMotivoEgreso,
 } from "../actions";
 import EgresarChoferDialog from "./EgresarChoferDialog";
+import { useChoferAcciones } from "./useChoferAcciones";
 import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
@@ -37,12 +34,18 @@ import { logoDeMarca } from "@/app/(dashboard)/camiones/components/MarcaLogo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila de chofer (DB) con muchos campos; los tipos generados no están disponibles acá
 export default function ChoferCard({ chofer }: { chofer: any }) {
-  const router = useRouter();
-  const [actionLoading, setActionLoading] = useState(false);
+  // Las acciones (activar/inactivar, egresar, reactivar, eliminar) las comparte
+  // con la fila de la tabla: viven en el hook, no acá.
+  const acciones = useChoferAcciones(chofer);
+  const {
+    loading: actionLoading,
+    error: actionError,
+    setError: setActionError,
+    egresarOpen,
+    setEgresarOpen,
+  } = acciones;
   const [uploadingFoto, setUploadingFoto] = useState(false);
-  const [egresarOpen, setEgresarOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = createClient();
@@ -72,48 +75,15 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   // camión es lo esperado y sería ruido.
   const sinCamion = esChofer && !esBaja && chofer.estado === "activo" && !camionPatente;
 
-  const handleToggleEstado = async () => {
-    if (esBaja) return;
-    setActionLoading(true);
-    setActionError(null);
-    const nuevo = chofer.estado === "activo" ? "inactivo" : "activo";
-    const res = await updateChoferEstadoAction(chofer.id, nuevo);
-    if (res?.error) {
-      setActionError(res.error);
-    } else {
-      router.refresh();
-    }
-    setActionLoading(false);
-  };
-
-  const handleEgresar = () => {
-    setActionError(null);
-    setEgresarOpen(true);
-  };
-
-  const handleReactivar = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    const res = await reactivarChoferAction(chofer.id);
-    if (res?.error) {
-      setActionError(res.error);
-    } else {
-      router.refresh();
-    }
-    setActionLoading(false);
-  };
+  const handleToggleEstado = () => acciones.toggleEstado();
+  const handleEgresar = acciones.abrirEgresar;
+  const handleReactivar = () => acciones.reactivar();
 
   const handleEliminar = async () => {
-    setActionLoading(true);
-    setActionError(null);
-    const res = await deleteChoferAction(chofer.id);
-    if (res?.error) {
-      setActionError(res.error);
-      setConfirmDelete(false);
-    } else {
-      router.refresh();
-    }
-    setActionLoading(false);
+    // Si falló, el motivo se muestra en la tarjeta y la confirmación se cierra:
+    // el cartel rojo del server (por ejemplo "ya tiene viajes") es la respuesta.
+    await acciones.eliminar();
+    setConfirmDelete(false);
   };
 
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,7 +110,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
       if (res.error) {
         setActionError(res.error);
       } else {
-        router.refresh();
+        acciones.refrescar();
       }
     } catch (err) {
       console.error(err);
@@ -160,7 +130,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
       if (res.error) {
         setActionError(res.error);
       } else {
-        router.refresh();
+        acciones.refrescar();
       }
     } finally {
       setUploadingFoto(false);
@@ -554,7 +524,7 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
             : undefined
         }
         onSuccess={() => {
-          router.refresh();
+          acciones.refrescar();
         }}
       />
     </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { Menu, PanelLeft, Search, X } from "lucide-react";
+import { Menu, PanelLeft, Search, Sunrise, X } from "lucide-react";
 import Sidebar, { type SidebarUser } from "./Sidebar";
 import CommandPalette from "./CommandPalette";
 import { AuditDrawer } from "@/components/audit-drawer";
@@ -9,7 +9,7 @@ import NotificationBell from "./NotificationBell";
 import AreaErrorBanner from "@/components/AreaErrorBanner";
 import NotificacionesProvider from "@/components/notificaciones/NotificacionesProvider";
 import NotifToaster from "@/components/notificaciones/NotifToaster";
-import ResumenDiarioModal from "@/components/notificaciones/ResumenDiarioModal";
+import ResumenDiarioModal, { RESUMEN_DIARIO_EVENT } from "@/components/notificaciones/ResumenDiarioModal";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
@@ -144,7 +144,22 @@ export default function DashboardShell({
             </kbd>
           </button>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            {/* Vuelve a abrir el resumen del día. Va suelto en la barra, al lado
+                de la campana: es su propio botón y no una opción escondida
+                adentro del panel de notificaciones. Sólo con sesión, que es
+                cuando está montado el modal que escucha el evento. */}
+            {userId && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event(RESUMEN_DIARIO_EVENT))}
+                title="Resumen del día"
+                aria-label="Abrir el resumen del día"
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+              >
+                <Sunrise size={18} />
+              </button>
+            )}
             <NotificationBell initialCount={alertasCount} />
           </div>
         </div>

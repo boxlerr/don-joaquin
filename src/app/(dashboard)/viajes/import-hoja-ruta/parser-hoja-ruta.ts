@@ -168,10 +168,10 @@ export function parseHojaRutaXlsx(buffer: Buffer | ArrayBuffer): HrParseResult {
 
   for (const sheetName of wb.SheetNames) {
     if (SHEETS_IGNORADOS.has(sheetName.trim())) continue;
-    if (ocultas.has(sheetName)) {
-      warnings.push(`${sheetName}: pestaña oculta, se ignoró (data vieja).`);
-      continue;
-    }
+    // Sin aviso: que el cliente esconda una hoja vieja es lo normal, no algo que
+    // haya que revisar antes de importar. Avisarlo todos los meses era ruido
+    // arriba de la tabla que sí se lee.
+    if (ocultas.has(sheetName)) continue;
     const ws = wb.Sheets[sheetName];
     if (!ws) continue;
 

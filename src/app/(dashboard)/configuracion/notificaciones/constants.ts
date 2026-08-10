@@ -129,7 +129,9 @@ export const ALERTAS = [
   },
   {
     key: "rrhh_eventos",
-    nombre: "Efemérides de personal",
+    // "Efemérides" era la palabra del diccionario, no la de la oficina: nadie
+    // sabía qué había adentro sin abrirlo.
+    nombre: "Cumpleaños y aniversarios",
     descripcion: "Cumpleaños, aniversarios y fin de período de prueba",
     cubre: [
       "Cumpleaños de choferes, administración y taller",

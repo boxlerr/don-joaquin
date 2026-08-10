@@ -23,7 +23,9 @@ import {
   MATRIZ_CLAVE,
   alertaClave,
 } from "./constants";
-import { normalizarColumnas } from "@/lib/alertas-routing";
+import { COLUMNA_CONFIDENCIAL, normalizarColumnas } from "@/lib/alertas-routing";
+import { columnasBloqueadas, usuariosPorColumnaTodas } from "@/lib/alertas-permisos";
+import { SECCION_BY_CODIGO } from "@/lib/secciones";
 
 function parseDestinatarios(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -61,19 +63,31 @@ export default async function ConfiguracionNotificacionesPage() {
     MATRIZ_CLAVE,
   ];
 
-  const [{ data: parametros }, { data: usuarios }] = await Promise.all([
+  const [{ data: parametros }, { data: usuarios }, permitidos] = await Promise.all([
     supabase.from("parametros_sistema").select("clave, valor").in("clave", clavesParametros),
     supabase
       .from("usuarios")
       .select("id, nombre, apellido, email, estado, rol:roles!rol_id (nombre, codigo)")
       .eq("estado", "activo")
       .order("nombre"),
+    // Quién puede recibir cada columna confidencial. La matriz de abajo es una
+    // PREFERENCIA; esto es el permiso, y dibuja con candado lo que no corresponde.
+    usuariosPorColumnaTodas(),
   ]);
 
   const valores = new Map((parametros ?? []).map((p) => [p.clave, p.valor]));
   const destinatariosIds = new Set(parseDestinatarios(valores.get(DESTINATARIOS_CLAVE)));
   const matriz = parseMatriz(valores.get(MATRIZ_CLAVE));
   const emailListo = emailConfigurado();
+
+  // Nombre de la sección para el candado ("Sin acceso a Préstamos"). El del
+  // catálogo alcanza: es el mismo que muestra /usuarios.
+  const nombreSeccionDeColumna = new Map(
+    Object.entries(COLUMNA_CONFIDENCIAL).map(([columna, seccion]) => [
+      columna,
+      SECCION_BY_CODIGO[seccion].nombre,
+    ]),
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8">
@@ -175,7 +189,7 @@ export default async function ConfiguracionNotificacionesPage() {
         <SectionHeader
           icon={Users}
           title="Avisos por usuario"
-          descripcion="Elegí qué tipo de aviso recibe cada persona. Ej.: los cheques a Pablo, Nico y Barbie; las vacaciones solo a logística. Aplica al email (la campana muestra todo)."
+          descripcion="Elegí qué tipo de aviso recibe cada persona. Ej.: los cheques a Pablo, Nico y Barbie; las vacaciones solo a logística. Aplica al email. Lo que aparece con candado es de una sección confidencial que esa persona no tiene: no se activa acá, se otorga en Usuarios y permisos."
         />
 
         {(usuarios ?? []).length === 0 ? (
@@ -194,6 +208,10 @@ export default async function ConfiguracionNotificacionesPage() {
               const enabledInicial = normalizarColumnas(
                 matriz[u.id] ?? (destinatariosIds.has(u.id) ? TODAS_LAS_COLUMNAS : []),
               );
+              // Las confidenciales que esta persona no tiene van con candado. Ojo
+              // con el fallback de arriba: al heredar la lista vieja de
+              // destinatarios se tildaba TODO, préstamos y cheques incluidos.
+              const bloqueadas = new Set(columnasBloqueadas(u.id, permitidos));
               return (
                 <DestinatarioMatriz
                   key={u.id}
@@ -201,7 +219,12 @@ export default async function ConfiguracionNotificacionesPage() {
                   nombre={nombreCompleto}
                   email={u.email ?? ""}
                   rol={rol?.nombre ?? null}
-                  columnas={ALERTA_COLUMNAS}
+                  columnas={ALERTA_COLUMNAS.map((c) => ({
+                    ...c,
+                    bloqueadaPor: bloqueadas.has(c.key)
+                      ? (nombreSeccionDeColumna.get(c.key) ?? "una sección confidencial")
+                      : null,
+                  }))}
                   enabledInicial={enabledInicial}
                 />
               );

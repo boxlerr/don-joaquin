@@ -161,9 +161,18 @@ export async function getResumenUsuario(
 /**
  * Historial de leídas del usuario: alertas `pendiente` (sin docvenc-*) que el
  * usuario marcó leídas y todavía no borró de su historial.
+ *
+ * Toma el `CurrentUser` y no un id suelto —como sus dos hermanas de este archivo—
+ * porque devuelve `mensaje`, que en las de préstamos trae los montos: con sólo el
+ * id no hay forma de aplicar el filtro acá adentro y quedaba en manos del llamador
+ * acordarse. Hoy el único se acordaba; el segundo no tenía por qué.
  */
-export async function getHistorialLeidas(usuarioId: string, limit = 200): Promise<AlertaItem[]> {
+export async function getHistorialLeidas(
+  usuario: CurrentUser,
+  limit = 200,
+): Promise<AlertaItem[]> {
   const supabase = createAdminClient();
+  const usuarioId = usuario.id;
 
   // 1) IDs que el usuario marcó leídos (acotado por lo que marcó a mano).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,7 +199,7 @@ export async function getHistorialLeidas(usuarioId: string, limit = 200): Promis
     .not("tipo", "in", `(${DOC_LIVE.join(",")})`)
     .in("id", ids);
 
-  return ((alertas ?? []) as AlertaItem[]).sort(
-    (a, b) => (ordenLeida.get(a.id) ?? 0) - (ordenLeida.get(b.id) ?? 0),
-  );
+  return ((alertas ?? []) as AlertaItem[])
+    .filter(visiblePara(usuario))
+    .sort((a, b) => (ordenLeida.get(a.id) ?? 0) - (ordenLeida.get(b.id) ?? 0));
 }

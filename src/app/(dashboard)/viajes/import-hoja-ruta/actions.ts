@@ -18,8 +18,10 @@ import {
 export type {
   AsignacionSheet,
   ChoferMatch,
+  FilaFutura,
   SheetPreview,
   SheetViajePreview,
+  ViajeYaCargado,
 } from "./import-core";
 
 export type HojaRutaPreviewState = HojaRutaPreviewData;
@@ -65,7 +67,10 @@ export async function confirmHojaRutaImportAction(
     Buffer.from(await file.arrayBuffer()),
     asignaciones,
     user.id,
-    { archivo: file.name },
+    {
+      archivo: file.name,
+      omitirFechasFuturas: formData.get("omitirFechasFuturas") === "1",
+    },
   );
 
   if (result?.ok) {

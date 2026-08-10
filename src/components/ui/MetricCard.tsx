@@ -46,6 +46,14 @@ interface MetricCardProps {
   sub?: string;
   icon: LucideIcon;
   tone?: MetricTone;
+  /**
+   * Color propio, para las pantallas que ya tienen una paleta por categoría (el
+   * resumen del día usa la misma que el mail, así el aviso se reconoce igual en
+   * los dos lados). Pisa al `tone`, que sólo tiene cinco colores.
+   */
+  color?: string;
+  /** Nombre accesible completo, cuando el `label` va abreviado para que entre. */
+  ariaLabel?: string;
   onClick?: () => void;
   href?: string;
   /** Serie real (un punto por período) + el texto que explica qué cambió. */
@@ -123,27 +131,40 @@ export default function MetricCard({
   sub,
   icon: Icon,
   tone = "brand",
+  color,
+  ariaLabel,
   onClick,
   href,
   trend,
   bar,
   breakdown,
 }: MetricCardProps) {
-  const t = TONE[tone];
+  const base = TONE[tone];
+  // Con color propio, el ícono y el número se pintan por estilo en vez de por
+  // clase: Tailwind escanea el código y no puede armar `text-[#F43F5E]` al vuelo.
+  const t = color ? { ...base, fg: "", chip: "", hex: color } : base;
+  const estiloColor = color ? { color } : undefined;
+  const estiloChip = color ? { backgroundColor: `${color}1A`, color } : undefined;
   const interactive = Boolean(onClick || href);
   const pie = trend || bar || breakdown;
 
   const contenido = (
     <>
       <div className={`flex items-start gap-3 ${pie ? "mb-3" : ""}`}>
-        <span className={`grid size-9 sm:size-10 shrink-0 place-items-center rounded-lg ${t.chip} ${t.fg}`}>
+        <span
+          className={`grid size-9 sm:size-10 shrink-0 place-items-center rounded-lg ${t.chip} ${t.fg}`}
+          style={estiloChip}
+        >
           <Icon size={18} strokeWidth={2.2} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground leading-tight">
             {label}
           </p>
-          <p className={`mt-1 text-2xl sm:text-[28px] font-bold leading-none tracking-tight tabular-nums ${t.fg}`}>
+          <p
+            className={`mt-1 text-2xl sm:text-[28px] font-bold leading-none tracking-tight tabular-nums ${t.fg}`}
+            style={estiloColor}
+          >
             {value}
           </p>
           {sub && <p className="mt-1.5 text-[11px] sm:text-xs leading-snug text-muted-foreground">{sub}</p>}
@@ -207,14 +228,14 @@ export default function MetricCard({
 
   if (href) {
     return (
-      <a href={href} className={clase}>
+      <a href={href} className={clase} aria-label={ariaLabel}>
         {contenido}
       </a>
     );
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={clase}>
+      <button type="button" onClick={onClick} className={clase} aria-label={ariaLabel}>
         {contenido}
       </button>
     );

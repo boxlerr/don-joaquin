@@ -36,13 +36,16 @@ import nodemailer from "nodemailer";
 import { renderEmail, type AlertaEmailView, type SeveridadEmail } from "../src/lib/email-template";
 import {
   COLUMNAS_TODAS,
+  COLUMNA_CONFIDENCIAL,
   alertaColumnaDe,
   caducaAlPasar,
   efemerideEnMail,
   esEfemeride,
   normalizarColumnas,
+  seccionDeColumna,
   tipoHabilitado,
 } from "../src/lib/alertas-routing";
+import { getUsuariosConSeccionCon } from "../src/lib/permisos-usuarios-query";
 import { getDocAlertasLive, getChequeAlertasLive } from "../src/lib/alertas-live";
 import { categoriaDeAlerta, diasRestantes } from "../src/app/(dashboard)/notificaciones/utils";
 
@@ -313,6 +316,24 @@ async function main() {
     {},
   );
   const oldDest = new Set(parseJson<string[]>(paramMap.get("notificaciones_destinatarios_ids"), []));
+
+  // Por encima de la matriz, el PERMISO. Esta previsualización repartía sin mirarlo
+  // —la copia sin arreglar del bug del envío real—, y el fallback de arriba le da
+  // COLUMNAS_TODAS (préstamos y cheques incluidos) a cualquiera que esté en la lista
+  // vieja de destinatarios. Con `--to` esto no era una vista previa: salía el correo.
+  const secciones = [...new Set(Object.values(COLUMNA_CONFIDENCIAL))];
+  const conAcceso = new Map(
+    await Promise.all(
+      secciones.map(
+        async (s) => [s, await getUsuariosConSeccionCon(sb, s, "read")] as const,
+      ),
+    ),
+  );
+  const puedeRecibir = (usuarioId: string, columna: string) => {
+    const seccion = seccionDeColumna(columna);
+    return seccion ? !!conAcceso.get(seccion)?.has(usuarioId) : true;
+  };
+
   const { data: usuarios } = await sb
     .from("usuarios")
     .select("id, email")
@@ -322,7 +343,9 @@ async function main() {
     .map((u: { id: string; email: string }) => ({
       email: u.email,
       columnas: new Set(
-        normalizarColumnas(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : [])),
+        normalizarColumnas(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : [])).filter((c) =>
+          puedeRecibir(u.id, c),
+        ),
       ),
     }))
     .filter((d: { columnas: Set<string> }) => d.columnas.size > 0);

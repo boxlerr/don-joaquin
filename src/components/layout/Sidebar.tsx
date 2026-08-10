@@ -10,6 +10,7 @@ import {
   Sliders,
   Building2,
   Shield,
+  ShieldCheck,
   Bell,
   type LucideIcon,
 } from "lucide-react";
@@ -66,6 +67,12 @@ function getInitials(user: SidebarUser): string {
   const last = user.apellido?.[0] ?? "";
   const initials = `${first}${last}`.toUpperCase();
   return initials || user.email[0]?.toUpperCase() || "?";
+}
+
+/** En el riel de íconos el nombre y el rol solo existen como tooltip del avatar. */
+function userTooltip(user: SidebarUser): string {
+  const nombre = `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}`;
+  return user.rol ? `${nombre} — ${user.rol}` : nombre;
 }
 
 export default function Sidebar({
@@ -182,20 +189,23 @@ export default function Sidebar({
 
       {/* User */}
       <div className={`${collapsed ? "px-1.5" : "px-3"} py-3 border-t border-border`}>
-        <div className={collapsed ? "flex flex-col items-center gap-2 py-1" : "flex items-center gap-3 px-2 py-1.5"}>
+        {/* `items-start`: el rol largo ("Representante de Combustible") ocupa dos
+            renglones, así que el avatar y el logout se alinean con el nombre y no
+            quedan flotando en el medio del bloque. */}
+        <div className={collapsed ? "flex flex-col items-center gap-2 py-1" : "flex items-start gap-2.5 px-1.5 py-1.5"}>
           {user?.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatarUrl}
               alt={`${user.nombre} ${user.apellido ?? ""}`.trim()}
-              title={collapsed && user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : undefined}
+              title={collapsed && user ? userTooltip(user) : undefined}
               className="w-8 h-8 rounded-full object-cover shrink-0 ring-2 ring-primary/20"
               loading="lazy"
               decoding="async"
             />
           ) : (
             <div
-              title={collapsed && user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : undefined}
+              title={collapsed && user ? userTooltip(user) : undefined}
               className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-primary to-brand-900 text-primary-foreground text-xs font-bold shrink-0 ring-2 ring-primary/20"
             >
               {user ? getInitials(user) : "?"}
@@ -203,28 +213,32 @@ export default function Sidebar({
           )}
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-foreground text-sm font-semibold truncate leading-tight">
+              <p
+                className="text-foreground text-sm font-semibold truncate leading-tight"
+                title={user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : undefined}
+              >
                 {user ? `${user.nombre}${user.apellido ? ` ${user.apellido}` : ""}` : "Invitado"}
               </p>
               {user?.rol && (
-                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent-500 uppercase tracking-wider">
-                  {user.rol}
-                </span>
+                // Sin pastilla: el rol entero se lee aunque envuelva. El color va
+                // en el ícono, no en un fondo.
+                <p className="mt-1 flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+                  <ShieldCheck size={12} className="mt-[1px] shrink-0 text-primary" />
+                  <span className="min-w-0">{user.rol}</span>
+                </p>
               )}
             </div>
           )}
-          <div className="flex items-center gap-0.5">
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                aria-label="Cerrar sesión"
-                title="Cerrar sesión"
-                className="flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
-              >
-                <LogOut size={14} />
-              </button>
-            </form>
-          </div>
+          <form action={logoutAction} className="shrink-0">
+            <button
+              type="submit"
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              className="flex items-center justify-center w-7 h-7 rounded-md text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <LogOut size={14} />
+            </button>
+          </form>
         </div>
       </div>
 

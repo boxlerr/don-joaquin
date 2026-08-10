@@ -38,7 +38,7 @@ export default async function NotificacionesPage() {
       .order("fecha_disparo", { ascending: false })
       .limit(1000),
     // Historial de leídas POR USUARIO (lo que ESTE usuario marcó leído y no borró).
-    getHistorialLeidas(user.id),
+    getHistorialLeidas(user),
     // IDs de pendientes que ESTE usuario aún no leyó (para particionar más abajo).
     getPendientesNoLeidasIds(user),
     supabase
