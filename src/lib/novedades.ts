@@ -32,6 +32,13 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: "2026-08-11",
+    titulo: "SICOP y Secondi ya se cargan y se editan desde la pantalla",
+    detalle:
+      "Podés dar de alta qué se presenta ante cada organismo, editarlo, darlo de baja, adjuntar los comprobantes (varios y de cualquier tipo) y exportar el checklist a Excel.",
+    href: "/compliance",
+  },
+  {
+    fecha: "2026-08-11",
     titulo: "Importar la HOJA DE RUTA ahora avisa qué filas no son del mes",
     detalle:
       "La planilla de junio traía 30 viajes de mayo, marzo y febrero. Entran igual con la fecha que tienen, pero después no salen al filtrar junio: ahora el importador te dice cuáles son y en qué mes quedan antes de confirmar.",
