@@ -31,6 +31,13 @@ export type Novedad = {
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    fecha: "2026-08-11",
+    titulo: "Importar la HOJA DE RUTA ahora avisa qué filas no son del mes",
+    detalle:
+      "La planilla de junio traía 30 viajes de mayo, marzo y febrero. Entran igual con la fecha que tienen, pero después no salen al filtrar junio: ahora el importador te dice cuáles son y en qué mes quedan antes de confirmar.",
+    href: "/viajes",
+  },
+  {
     fecha: "2026-08-10",
     titulo: "Al renovar un vencimiento de Compliance ya podés adjuntar el documento",
     detalle:

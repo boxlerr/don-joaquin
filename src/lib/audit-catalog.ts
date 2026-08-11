@@ -97,7 +97,12 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   entrevista: "Entrevista",
   compliance_liq_loma: "Liquidación de Loma",
   compliance_dm_ypf: "DM de YPF",
+  compliance_requisitos: "Requisito de compliance",
+  // Las tres fuentes de un vencimiento de compliance: el documento puede vivir
+  // en su tabla propia o colgado del legajo del chofer / de la unidad.
   compliance_documentos: "Documento de compliance",
+  chofer_documentos: "Documento de chofer",
+  camion_documentos: "Documento de camión",
   usuarios: "Usuario",
   usuario: "Acceso",
   roles: "Rol",
