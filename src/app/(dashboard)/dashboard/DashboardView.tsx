@@ -28,6 +28,7 @@ import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 import TopBottomChoferes from "./components/TopBottomChoferes";
 import ResumenMes from "./components/ResumenMes";
+import DiaPedidoQuickAction from "./DiaPedidoQuickAction";
 import { computeRanking, computeTotalesPeriodo, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import PeriodoSelector from "@/app/(dashboard)/choferes/ranking/PeriodoSelector";
 import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
@@ -248,12 +249,19 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
         periodoLabel={rangoMes.label}
         mostrarFacturacion={conFacturacion}
         periodoSelector={
-          <PeriodoSelector
-            rangoActual={rangoMes.rango}
-            desdeActual={rangoMes.desde}
-            hastaActual={rangoMes.hasta}
-            incluirTotal
-          />
+          <>
+            {/* Alta rápida del día pedido (turno médico, trámite). Va acá, en la
+                primera barra del dashboard, porque el pedido llega por teléfono
+                en cualquier momento: si hay que entrar al legajo del chofer a
+                buscarlo, no se anota — y hoy no se anota ninguno. */}
+            <DiaPedidoQuickAction />
+            <PeriodoSelector
+              rangoActual={rangoMes.rango}
+              desdeActual={rangoMes.desde}
+              hastaActual={rangoMes.hasta}
+              incluirTotal
+            />
+          </>
         }
       />
 

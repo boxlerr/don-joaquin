@@ -32,6 +32,20 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: "2026-08-11",
+    titulo: "Vacaciones: “De vacaciones hoy” vuelve a estar a la vista",
+    detalle:
+      "Estaba adentro del panel de filtros. Ahora está suelto en la barra con el número al lado, y si no hay nadie lo dice de una.",
+    href: "/choferes/vacaciones",
+  },
+  {
+    fecha: "2026-08-11",
+    titulo: "Podés registrar un día pedido desde el dashboard",
+    detalle:
+      "El turno médico, el trámite, el dentista. Se carga en tres campos y te muestra cuántos días lleva pedidos esa persona en el año.",
+    href: "/dashboard",
+  },
+  {
+    fecha: "2026-08-11",
     titulo: "SICOP y Secondi ya se cargan y se editan desde la pantalla",
     detalle:
       "Podés dar de alta qué se presenta ante cada organismo, editarlo, darlo de baja, adjuntar los comprobantes (varios y de cualquier tipo) y exportar el checklist a Excel.",

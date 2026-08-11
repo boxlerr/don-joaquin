@@ -303,11 +303,11 @@ export default function VacacionesClient({
 
   // Cuántos filtros hay puestos. Como viven detrás de un botón, sin este aviso
   // se puede quedar mirando media planilla sin darse cuenta de por qué.
+  // Sólo los del panel: el punto del botón "Filtros" avisa que hay algo puesto
+  // que NO se ve. "Hoy" ahora vive suelto en la barra y se muestra encendido
+  // solo, así que contarlo acá haría parpadear un aviso sobre algo visible.
   const filtrosActivos =
-    (fSector !== "Todos" ? 1 : 0) +
-    (fSemaforo !== "Todos" ? 1 : 0) +
-    (busqueda.trim() ? 1 : 0) +
-    (soloEnCurso ? 1 : 0);
+    (fSector !== "Todos" ? 1 : 0) + (fSemaforo !== "Todos" ? 1 : 0) + (busqueda.trim() ? 1 : 0);
   const limpiarFiltros = () => {
     setFSector("Todos");
     setFSemaforo("Todos");
@@ -865,6 +865,32 @@ export default function VacacionesClient({
             </>
           )}
         </div>
+      {/* "Hoy" va SUELTO en la barra, no adentro del panel de filtros.
+          Es la pregunta que más se hace (¿quién falta hoy?) y esconderla detrás
+          de "Filtros" equivalía a sacarla: Bárbara la reclamó como perdida
+          —"antes tenía esa opción y me los limpiaba… yo veo que no estaba"—
+          cuando en realidad seguía estando, dos clics más adentro.
+          El número al lado contesta sin tener que apretarlo. */}
+      <button
+        type="button"
+        onClick={() => setSoloEnCurso((v) => !v)}
+        aria-pressed={soloEnCurso}
+        title={
+          enVacacionesAhora.length === 0
+            ? "Hoy no hay nadie de vacaciones"
+            : "Dejar solo a los que están de vacaciones hoy"
+        }
+        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] transition-colors ${
+          soloEnCurso
+            ? "border-primary/50 bg-primary/10 text-primary"
+            : "border-border bg-background text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        <Plane size={14} />
+        De vacaciones hoy
+        <span className="font-mono tabular-nums">{enVacacionesAhora.length}</span>
+      </button>
+
       {/* Filtros: lo que acota a quién estás mirando. Van juntos y detrás de un
           botón porque son cuatro y, sueltos en la barra del cronograma, la
           partían en dos renglones. El punto avisa cuando hay alguno puesto, que
@@ -932,19 +958,6 @@ export default function VacacionesClient({
                   </SelectContent>
                 </Select>
               </label>
-              <button
-                type="button"
-                onClick={() => setSoloEnCurso((v) => !v)}
-                aria-pressed={soloEnCurso}
-                className={`inline-flex h-9 w-full items-center gap-2 rounded-lg border px-2.5 text-[13px] transition-colors ${
-                  soloEnCurso
-                    ? "border-primary/50 bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Plane size={14} /> Solo de vacaciones hoy
-                <span className="ml-auto font-mono">{enVacacionesAhora.length}</span>
-              </button>
               {filtrosActivos > 0 && (
                 <button
                   type="button"
@@ -1236,14 +1249,24 @@ export default function VacacionesClient({
         <div className="overflow-hidden rounded-[8px] border border-border bg-card shadow-sm">
         {filasCrono.length === 0 ? (
           <div className="px-4 sm:px-5 py-8 text-center text-sm text-muted-foreground">
-            {soloEnCurso
-              ? `Nadie está de vacaciones hoy dentro ${esVistaDias ? "de este mes" : "de esta ventana"}.`
-              : `Nadie tiene vacaciones en ${esVistaDias ? "este mes" : "esta ventana"} para este filtro.`}
+            {/* Con el filtro puesto y CERO gente afuera, la respuesta no depende
+                de la ventana que se esté mirando: hoy no falta nadie, y eso se
+                dice de una. Antes salía "nadie dentro de esta ventana", que
+                deja la duda de si en otro rango la respuesta cambia. */}
+            {soloEnCurso && enVacacionesAhora.length === 0 ? (
+              <span className="text-[15px] font-semibold text-foreground">
+                Hoy no hay nadie de vacaciones.
+              </span>
+            ) : soloEnCurso ? (
+              `Nadie está de vacaciones hoy dentro ${esVistaDias ? "de este mes" : "de esta ventana"}.`
+            ) : (
+              `Nadie tiene vacaciones en ${esVistaDias ? "este mes" : "esta ventana"} para este filtro.`
+            )}
             {soloEnCurso && (
               <div className="mt-1 text-[13px]">
                 Sacá el filtro{" "}
                 <button type="button" onClick={() => setSoloEnCurso(false)} className="font-medium text-primary hover:underline">
-                  “Solo de vacaciones hoy”
+                  “De vacaciones hoy”
                 </button>{" "}
                 para ver todos los del período.
               </div>

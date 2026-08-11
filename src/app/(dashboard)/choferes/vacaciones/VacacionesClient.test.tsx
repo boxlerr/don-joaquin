@@ -81,8 +81,9 @@ const periodos: VacacionesPeriodo[] = [
   },
 ];
 
-/** Los filtros (buscar, área, estado, "solo de vacaciones hoy") viven detrás del
- *  botón "Filtros" del encabezado. */
+/** Los filtros de buscar/área/estado viven detrás del botón "Filtros" del
+ *  encabezado. "De vacaciones hoy" NO: vive suelto en la barra, porque es la
+ *  pregunta que más se hace y esconderla equivalía a sacarla. */
 const abrirFiltros = () => fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
 
 describe("VacacionesClient", () => {
@@ -192,7 +193,7 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
     dias: 5,
   };
 
-  it("“Solo de vacaciones hoy” deja fuera a los que ya volvieron o todavía no salieron", () => {
+  it("“Hoy” deja fuera a los que ya volvieron o todavía no salieron", () => {
     render(
       <VacacionesClient
         saldos={saldos}
@@ -204,11 +205,44 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
     // Sin filtro aparecen los dos en el cronograma.
     expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(2);
 
-    abrirFiltros();
-    fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
+    // Sin abrir nada: "Hoy" vive suelto en la barra. Estaba adentro del panel
+    // de filtros y Bárbara lo reclamó como perdido — "yo veo que no estaba".
+    fireEvent.click(screen.getByRole("button", { name: /De vacaciones hoy/ }));
     const filas = screen.getAllByTitle("Ver su saldo en la tabla de abajo");
     expect(filas).toHaveLength(1);
     expect(filas[0]!).toHaveTextContent("Saenz Buruaga");
+  });
+
+  it("“De vacaciones hoy” se ve sin abrir nada y dice cuántos son", () => {
+    // Video de Bárbara del 10/08: "antes tenía esa opción y me los limpiaba…
+    // yo veo que no estaba". El filtro seguía existiendo, pero adentro del panel
+    // de filtros. Esconderlo dos clics adentro fue, para ella, sacarlo.
+    render(
+      <VacacionesClient
+        saldos={saldos}
+        periodos={[...periodos, periodoFuturo]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+      />,
+    );
+    const boton = screen.getByRole("button", { name: /De vacaciones hoy/ });
+    expect(boton).toBeInTheDocument();
+    // El número contesta la pregunta sin siquiera apretarlo.
+    expect(boton).toHaveTextContent("1");
+  });
+
+  it("con nadie afuera lo dice de una, sin depender de la ventana que se mire", () => {
+    // "Quiero apretar de vacaciones hoy y que me diga nadie, cero."
+    render(
+      <VacacionesClient
+        saldos={saldos.map((s) => ({ ...s, en_vacaciones_ahora: false }))}
+        periodos={[{ ...periodoFuturo }]}
+        finPeriodoY={finPeriodoY}
+        canWrite
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /De vacaciones hoy/ }));
+    expect(screen.getByText("Hoy no hay nadie de vacaciones.")).toBeInTheDocument();
   });
 
   it("se puede navegar hacia atrás y volver a hoy", () => {
@@ -248,15 +282,14 @@ describe("VacacionesClient — ventana y filtro del cronograma", () => {
         canWrite
       />,
     );
-    abrirFiltros();
-    fireEvent.click(screen.getByText("Solo de vacaciones hoy"));
+    fireEvent.click(screen.getByRole("button", { name: /De vacaciones hoy/ }));
     // Con el filtro puesto, en el cronograma queda sólo quien está hoy afuera.
     expect(screen.getAllByTitle("Ver su saldo en la tabla de abajo")).toHaveLength(1);
 
     // El filtro sigue existiendo (y aplicando) en la vista anual: antes el botón
     // desaparecía ahí y el filtro quedaba puesto sin nada que lo dijera.
     fireEvent.click(screen.getByText("Año"));
-    expect(screen.getByText("Solo de vacaciones hoy")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /De vacaciones hoy/ })).toBeInTheDocument();
 
     // Y la lista, que también lo respeta, muestra sólo ese período.
     fireEvent.click(screen.getByText("Lista"));
