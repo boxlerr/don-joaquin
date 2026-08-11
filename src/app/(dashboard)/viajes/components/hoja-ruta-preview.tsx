@@ -15,6 +15,7 @@ import { formatFecha } from "@/lib/utils";
 import {
   AlertTriangle,
   ArrowUpRight,
+  CalendarRange,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -26,8 +27,10 @@ import {
 import type {
   HojaRutaPreviewState,
   FilaFutura,
+  FilaFueraDeMes,
   SheetPreview,
   SheetViajePreview,
+  ViajesPorMes,
   AsignacionSheet,
 } from "../import-hoja-ruta/actions";
 
@@ -38,7 +41,7 @@ export const OMITIR_SHEET = "__omitir__";
 
 /** Qué se está mirando. Las pestañas son la vista normal; las otras dos son
  * "abrí el número que te llamó la atención". */
-type Vista = "pestanas" | "duplicados" | "sin-chofer";
+type Vista = "pestanas" | "duplicados" | "sin-chofer" | "fuera-de-mes";
 
 // ---------------------------------------------------------------------------
 // Cuentas del preview (puras: las usa el diálogo para el botón de confirmar)
@@ -75,6 +78,16 @@ export function contarFuturasImportables(
   return filasFuturas.filter((f) => choferRealDe(asignaciones, f.sheetName)).length;
 }
 
+/** Filas de otro mes que hoy se importarían: las de pestañas con chofer.
+ * Entran igual (son viajes reales), pero se guardan con SU fecha, así que en la
+ * Hoja de ruta mensual salen en su mes y no en el del archivo. */
+export function filasFueraDeMesImportables(
+  filas: FilaFueraDeMes[],
+  asignaciones: AsignacionSheet[],
+): FilaFueraDeMes[] {
+  return filas.filter((f) => choferRealDe(asignaciones, f.sheetName));
+}
+
 /** Pestañas que hoy no importarían nada (sin chofer o marcadas para omitir). */
 export function sheetsSinChofer(
   sheets: SheetPreview[],
@@ -107,6 +120,20 @@ const num = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("es-AR");
 
 const entero = (n: number) => Math.round(n).toLocaleString("es-AR");
+
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** "2026-06" → "junio 2026". Sin Date de por medio: "2026-06-01" en un browser
+ * al oeste de Greenwich se lee como mayo. */
+export function nombreMes(mesISO: string | null | undefined): string {
+  if (!mesISO) return "—";
+  const [y, m] = mesISO.split("-");
+  const nombre = MESES[Number(m) - 1];
+  return nombre ? `${nombre} ${y}` : mesISO;
+}
 
 /** Vía marcada a mano en la columna MATERIAL: define los km propios del par.
  * Sin marcar no muestra nada. */
@@ -288,6 +315,169 @@ function FechasFuturas({
           </span>
         </span>
       </label>
+    </div>
+  );
+}
+
+/**
+ * El archivo dice "JUNIO" pero trae filas de otros meses. No es un error y no se
+ * corrige: la hoja de junio arrastra los últimos viajes de mayo (el que salió el
+ * 30 y llegó en junio) y filas viejas de pestañas que nunca se limpiaron.
+ *
+ * Se avisa porque tiene una consecuencia concreta y silenciosa: cada viaje se
+ * guarda con SU fecha, así que la Hoja de ruta mensual de junio va a mostrar
+ * menos viajes que el Excel y la diferencia parece un import que se comió filas.
+ */
+function FueraDelMes({
+  mesPrincipal,
+  porMes,
+  cuantas,
+  onVer,
+}: {
+  mesPrincipal: string | null;
+  porMes: ViajesPorMes[];
+  cuantas: number;
+  onVer: () => void;
+}) {
+  const una = cuantas === 1;
+  const otros = porMes.filter((m) => m.mes !== mesPrincipal);
+  return (
+    <div className="shrink-0 rounded-[8px] border border-border bg-card px-3 py-2.5 text-xs">
+      <p className="flex items-start gap-2.5 text-muted-foreground">
+        <CalendarRange size={15} className="mt-px shrink-0 text-muted-foreground" />
+        <span>
+          <span className="font-semibold text-foreground">
+            {una ? "Una fila no es" : `${entero(cuantas)} filas no son`} de{" "}
+            {nombreMes(mesPrincipal)}
+          </span>
+          : {otros.map((m) => `${entero(m.viajes)} de ${nombreMes(m.mes)}`).join(", ")}. Se
+          importan igual, con la fecha que tienen en el Excel — pero después{" "}
+          <span className="font-medium text-foreground">
+            no van a aparecer al filtrar por {nombreMes(mesPrincipal)}
+          </span>{" "}
+          en la Hoja de ruta mensual: {una ? "queda" : "quedan"} en su mes.
+        </span>
+      </p>
+      <button
+        type="button"
+        onClick={onVer}
+        className="mt-1.5 ml-[26px] text-[11px] font-medium text-primary hover:underline"
+      >
+        Ver cuáles
+      </button>
+    </div>
+  );
+}
+
+/** Las filas de otro mes, una por una: con qué fecha se van a guardar y en qué
+ * mes del sistema van a terminar. Es la respuesta a "¿cuáles son esas 30?". */
+function FueraDeMesPanel({
+  filas,
+  mesPrincipal,
+  nombreDeSheet,
+}: {
+  filas: FilaFueraDeMes[];
+  mesPrincipal: string | null;
+  nombreDeSheet: (sheetName: string) => string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 sm:min-h-0 sm:flex-1">
+      <div className="flex items-start gap-2.5 rounded-[8px] border border-border bg-card px-3 py-2.5 text-xs">
+        <CalendarRange size={15} className="mt-px shrink-0 text-muted-foreground" />
+        <p className="text-muted-foreground">
+          Estas filas tienen fecha de otro mes, así que se guardan en ese mes y no en{" "}
+          {nombreMes(mesPrincipal)}. Es lo normal cuando el viaje salió a fin de mes y
+          llegó al siguiente, o cuando la pestaña arrastra filas viejas. El dato del
+          Excel no se toca.
+        </p>
+      </div>
+
+      <div className="overflow-auto rounded-md border border-border sm:min-h-[200px] sm:flex-1">
+        {filas.length === 0 ? (
+          <p className="px-3 py-10 text-center text-xs text-muted-foreground">
+            Ninguna fila de otro mes coincide con la búsqueda.
+          </p>
+        ) : (
+          <>
+            <table className="hidden w-full min-w-[720px] text-xs md:table">
+              <thead className="sticky top-0 z-10 border-b border-border bg-muted">
+                <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="px-3 py-2 text-left">Pestaña → Chofer</th>
+                  <th className="px-3 py-2 text-left">Fecha</th>
+                  <th className="px-3 py-2 text-left">Queda en</th>
+                  <th className="px-3 py-2 text-left">Ruta</th>
+                  <th className="px-3 py-2 text-left">Remito</th>
+                  <th className="px-3 py-2 text-right">Importe</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filas.map((f, i) => (
+                  <tr key={`${f.sheetName}-${i}`} className="hover:bg-muted/20">
+                    <td className="px-3 py-2 align-top">
+                      <div className="font-semibold text-foreground">
+                        {nombreDeSheet(f.sheetName)}
+                      </div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        {f.sheetName.trim()}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 align-top font-mono whitespace-nowrap">
+                      {formatFecha(f.fecha)}
+                    </td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap text-muted-foreground">
+                      {nombreMes(f.fecha.slice(0, 7))}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      {f.saleDe} → {f.llegaA}
+                    </td>
+                    <td className="px-3 py-2 align-top font-mono">
+                      {f.vacio ? <span className="font-bold text-[#C00000]">VACIO</span> : f.remito}
+                    </td>
+                    <td className="px-3 py-2 text-right align-top font-mono">
+                      {f.vacio ? (
+                        "—"
+                      ) : f.importe == null ? (
+                        <span className="text-muted-foreground/70">sin importe</span>
+                      ) : (
+                        money(f.importe)
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="divide-y divide-border md:hidden">
+              {filas.map((f, i) => (
+                <div key={`${f.sheetName}-${i}`} className="px-3 py-2.5 text-xs">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-semibold text-foreground">
+                      {nombreDeSheet(f.sheetName)}
+                    </span>
+                    <span className="shrink-0 font-mono text-muted-foreground">
+                      {formatFecha(f.fecha)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-muted-foreground">
+                    {f.saleDe} → {f.llegaA}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                    {f.vacio ? (
+                      <span className="font-bold text-[#C00000]">VACIO</span>
+                    ) : (
+                      `Remito ${f.remito}`
+                    )}
+                    {!f.vacio && f.importe != null && ` · ${money(f.importe)}`}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    Queda en {nombreMes(f.fecha.slice(0, 7))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -727,10 +917,22 @@ export default function HojaRutaPreviewPanel({
     return out.sort((a, b) => a.viaje.fecha.localeCompare(b.viaje.fecha));
   }, [sheets]);
 
+  // Las filas de otro mes que efectivamente van a entrar (las de pestañas sin
+  // chofer no se importan, así que tampoco corresponde avisar por ellas).
+  const fueraDeMes = useMemo(
+    () => filasFueraDeMesImportables(preview.filasFueraDeMes ?? [], asignaciones),
+    [preview.filasFueraDeMes, asignaciones],
+  );
+
   const nombreDeChofer = (sh: SheetPreview) =>
     sh.chofer.status === "ok"
       ? `${sh.chofer.apellido}, ${sh.chofer.nombre}`
       : sh.sheetName.trim();
+
+  const nombreDeSheet = (sheetName: string) => {
+    const sh = sheets.find((x) => x.sheetName === sheetName);
+    return sh ? nombreDeChofer(sh) : sheetName.trim();
+  };
 
   const q = busqueda.trim().toLowerCase();
   const coincide = (sh: SheetPreview) =>
@@ -744,6 +946,12 @@ export default function HojaRutaPreviewPanel({
     return true;
   });
   const duplicadosVisibles = duplicados.filter((d) => coincide(d.sheet));
+  const fueraDeMesVisibles = fueraDeMes.filter(
+    (f) =>
+      !q ||
+      f.sheetName.toLowerCase().includes(q) ||
+      nombreDeSheet(f.sheetName).toLowerCase().includes(q),
+  );
 
   const irA = (v: Vista, filtro = "") => {
     setVista(v);
@@ -815,6 +1023,15 @@ export default function HojaRutaPreviewPanel({
         />
       )}
 
+      {fueraDeMes.length > 0 && (
+        <FueraDelMes
+          mesPrincipal={s?.mesPrincipal ?? null}
+          porMes={s?.porMes ?? []}
+          cuantas={fueraDeMes.length}
+          onVer={() => irA("fuera-de-mes")}
+        />
+      )}
+
       {/* Barra de la vista: qué se está mirando + buscador. Con 63 pestañas,
           encontrar una a ojo es scrollear toda la lista. */}
       <div className="flex flex-wrap items-center gap-2">
@@ -830,6 +1047,11 @@ export default function HojaRutaPreviewPanel({
           {sinAsignar > 0 && (
             <SegBtn activo={vista === "sin-chofer"} onClick={() => irA("sin-chofer")}>
               Sin chofer ({sinAsignar})
+            </SegBtn>
+          )}
+          {fueraDeMes.length > 0 && (
+            <SegBtn activo={vista === "fuera-de-mes"} onClick={() => irA("fuera-de-mes")}>
+              Otro mes ({fueraDeMes.length})
             </SegBtn>
           )}
         </div>
@@ -863,6 +1085,12 @@ export default function HojaRutaPreviewPanel({
           items={duplicadosVisibles}
           totales={duplicados.length}
           nombreDeChofer={nombreDeChofer}
+        />
+      ) : vista === "fuera-de-mes" ? (
+        <FueraDeMesPanel
+          filas={fueraDeMesVisibles}
+          mesPrincipal={s?.mesPrincipal ?? null}
+          nombreDeSheet={nombreDeSheet}
         />
       ) : (
         <div className="overflow-auto rounded-md border border-border sm:min-h-[200px] sm:flex-1">

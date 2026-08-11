@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  contarPorMes,
   crearConsumidor,
   dedupKey,
+  mesPrincipalDe,
   vacioKey,
   type ExistentesIndex,
   type ViajeYaCargado,
@@ -101,5 +103,36 @@ describe("crearConsumidor", () => {
     const idx: ExistentesIndex = new Map([["k", [viaje("V-1")]]]);
     expect(crearConsumidor(idx)("k")?.codigo).toBe("V-1");
     expect(crearConsumidor(idx)("k")?.codigo).toBe("V-1");
+  });
+});
+
+// De qué mes es el archivo se decide por los datos, no por el nombre: la "HOJA
+// DE RUTA JUNIO COMPLETA" del 10/08 traía 1.397 filas de junio, 25 de mayo, 4 de
+// marzo y 1 de febrero. Los 30 de otros meses se guardan con SU fecha, así que
+// después no salen al filtrar junio — y eso es exactamente lo que hay que avisar.
+describe("mes del archivo", () => {
+  const junio = (n: number) => Array.from({ length: n }, (_, i) => `2026-06-${String((i % 28) + 1).padStart(2, "0")}`);
+
+  it("el mes principal es el que más viajes tiene, no el primero ni el último", () => {
+    const fechas = ["2026-02-28", "2026-03-03", "2026-05-30", ...junio(10)];
+    expect(mesPrincipalDe(fechas)).toBe("2026-06");
+  });
+
+  it("cuenta por mes de mayor a menor", () => {
+    const fechas = ["2026-02-28", "2026-05-30", "2026-05-31", ...junio(4)];
+    expect(contarPorMes(fechas)).toEqual([
+      { mes: "2026-06", viajes: 4 },
+      { mes: "2026-05", viajes: 2 },
+      { mes: "2026-02", viajes: 1 },
+    ]);
+  });
+
+  it("a igual cantidad gana el mes más nuevo (una hoja de junio con arrastre de mayo es de junio)", () => {
+    expect(mesPrincipalDe(["2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02"])).toBe("2026-06");
+  });
+
+  it("sin fechas no inventa un mes", () => {
+    expect(mesPrincipalDe([])).toBeNull();
+    expect(contarPorMes([])).toEqual([]);
   });
 });

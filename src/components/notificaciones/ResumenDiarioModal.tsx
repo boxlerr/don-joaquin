@@ -16,6 +16,7 @@ import {
   PiggyBank,
   ReceiptText,
   ShieldCheck,
+  Sparkles,
   TreePalm,
   Truck,
   Wallet,
@@ -30,6 +31,7 @@ import MetricCard from "@/components/ui/MetricCard";
 import ChecklistYCampana from "@/components/notificaciones/ChecklistYCampana";
 import { RRHH_EVENTOS_COL } from "@/lib/alertas-routing";
 import { CATEGORIA_ESTILO } from "@/lib/email-template";
+import { novedadesRecientes } from "@/lib/novedades";
 import type { GrupoResumen, ItemResumen, ResumenDiario } from "@/lib/resumen-diario";
 
 /**
@@ -623,6 +625,11 @@ export default function ResumenDiarioModal({
           ) : (
             <Cargando />
           )}
+
+          {/* Qué cambió en el sistema. Va al final y solo si hay algo: en una
+              semana sin cambios no ocupa lugar, y nunca compite con los
+              vencimientos, que son lo que el pop-up viene a decir. */}
+          {data && <Novedades onIr={ir} />}
         </div>
 
         <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 lg:px-6">
@@ -794,6 +801,63 @@ function NoCargo() {
       >
         Reintentar
       </Button>
+    </div>
+  );
+}
+
+/**
+ * "Novedades del sistema": lo que cambió en los últimos días.
+ *
+ * Pedido de Julián (10/08/2026). Hasta ahora, que una pantalla cambiara no se
+ * anunciaba en ningún lado: el equipo se enteraba al abrirla y no reconocerla.
+ *
+ * Va abajo de todo y en tono menor a propósito — el pop-up existe para los
+ * vencimientos del día; esto es contexto, no una tarea. Por eso no lleva número
+ * ni color propio: si compitiera con las tarjetas de arriba, se leería como algo
+ * que hay que hacer.
+ */
+function Novedades({ onIr }: { onIr: (href: string) => void }) {
+  const items = novedadesRecientes(hoyLocal());
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <Rotulo texto="Novedades del sistema" icono={Sparkles} color="#64748B" />
+      <ul className="space-y-2.5">
+        {items.map((n, i) => {
+          const contenido = (
+            <>
+              <span className="mt-[3px] shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
+                {fechaCorta(n.fecha) ?? n.fecha}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] leading-snug text-foreground">{n.titulo}</span>
+                {n.detalle && (
+                  <span className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
+                    {n.detalle}
+                  </span>
+                )}
+              </span>
+            </>
+          );
+
+          return (
+            <li key={`${n.fecha}-${i}`}>
+              {n.href ? (
+                <button
+                  type="button"
+                  onClick={() => onIr(n.href!)}
+                  className="flex w-full gap-3 rounded-[6px] px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
+                >
+                  {contenido}
+                </button>
+              ) : (
+                <div className="flex gap-3 px-1 py-0.5">{contenido}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

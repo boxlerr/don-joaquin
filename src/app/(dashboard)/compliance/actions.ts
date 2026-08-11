@@ -32,6 +32,18 @@ const COMPLIANCE_ADJ: Record<"chofer" | "camion" | "compliance", ComplianceAdjCf
   compliance: { bucket: "documentos-personal", folder: "compliance", junctionTable: "compliance_documento_archivos", entityColumn: "compliance_documento_id", docTable: "compliance_documentos" },
 };
 
+// La misma config, indexada por la tabla donde vive el documento. Es la que
+// necesita el editor de vencimiento, que recibe la fuente (no el nivel) desde
+// cada fila de v_compliance_estado.
+const CFG_POR_FUENTE: Record<
+  "compliance_documentos" | "chofer_documentos" | "camion_documentos",
+  ComplianceAdjCfg
+> = {
+  compliance_documentos: COMPLIANCE_ADJ.compliance,
+  chofer_documentos: COMPLIANCE_ADJ.chofer,
+  camion_documentos: COMPLIANCE_ADJ.camion,
+};
+
 /** URL firmada para subir un archivo de compliance directo del navegador (multi-archivo). */
 export async function crearUrlSubidaComplianceDocAction(input: { filename: string }): Promise<CrearUrlResult> {
   await requireArea("compliance", "write");
@@ -427,6 +439,16 @@ export async function setComplianceVencimientoAction(input: {
   fuente: FuenteVencimiento;
   fecha_vencimiento: string;
   observaciones?: string | null;
+  /**
+   * Archivos para ARCHIVAR junto con la fecha nueva (opcional).
+   *
+   * Editar el vencimiento era el único camino que no dejaba adjuntar nada: el
+   * diálogo decía "actualizá la fecha sin volver a subir el archivo". Ana renovó
+   * 45 documentos así, o sea que quedaron 45 fechas nuevas sin el papel detrás.
+   * Se suman a los que ya tenga el documento, no los reemplazan: el sentido es
+   * tener el archivo de cada presentación, no pisar el anterior.
+   */
+  archivos?: ArchivoMeta[];
 }) {
   const user = await requireArea("compliance", "write");
   const supabase = createAdminClient();
@@ -479,18 +501,58 @@ export async function setComplianceVencimientoAction(input: {
   if (!prev) return { error: "Documento no encontrado" };
   if (updError) return { error: "No se pudo actualizar el vencimiento" };
 
+  // Archivar el papel junto con la fecha. Va DESPUÉS del update: si falla la
+  // subida, la fecha ya quedó guardada igual — que es lo que no se puede perder.
+  const archivos = input.archivos ?? [];
+  let fallidos = 0;
+  if (archivos.length > 0) {
+    const cfg = CFG_POR_FUENTE[input.fuente];
+    const r = await vincularAdjuntos(cfg, input.documento_id, archivos, user.id);
+    fallidos = r.fallidos;
+    // archivo_id es la portada (lo que muestran el checklist y el historial).
+    // Solo se completa si el documento no tenía ninguno: renovar suma archivos,
+    // no reemplaza el que ya estaba.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: doc } = await (supabase as any)
+      .from(cfg.docTable)
+      .select("archivo_id")
+      .eq("id", input.documento_id)
+      .maybeSingle();
+    if (!doc?.archivo_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: primero } = await (supabase as any)
+        .from(cfg.junctionTable)
+        .select("archivo_id")
+        .eq(cfg.entityColumn, input.documento_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (primero?.archivo_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from(cfg.docTable)
+          .update({ archivo_id: primero.archivo_id })
+          .eq("id", input.documento_id);
+      }
+    }
+  }
+
   await supabase.from("audit_log").insert({
     usuario_id: user.id,
     accion: "editar_vencimiento_compliance",
     entidad_tipo: input.fuente,
     entidad_id: input.documento_id,
     valores_anteriores: prev,
-    valores_nuevos: { fecha_vencimiento: input.fecha_vencimiento, observaciones },
+    valores_nuevos: {
+      fecha_vencimiento: input.fecha_vencimiento,
+      observaciones,
+      archivos_nuevos: archivos.length,
+    },
   });
 
   revalidatePath("/compliance");
   revalidatePath("/compliance/organismos", "layout");
-  return { success: true };
+  return fallidos > 0 ? { success: true, fallidos } : { success: true };
 }
 
 /**

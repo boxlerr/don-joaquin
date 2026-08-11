@@ -19,8 +19,10 @@ export type {
   AsignacionSheet,
   ChoferMatch,
   FilaFutura,
+  FilaFueraDeMes,
   SheetPreview,
   SheetViajePreview,
+  ViajesPorMes,
   ViajeYaCargado,
 } from "./import-core";
 

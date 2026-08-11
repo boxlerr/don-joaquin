@@ -103,11 +103,33 @@ export type FilaFutura = {
   importe: number | null;
 };
 
+/** Fila cuya fecha cae fuera del mes principal del archivo.
+ *
+ * NO es un error y no se toca: una hoja de ruta de junio arrastra los últimos
+ * viajes de mayo (salieron el 30 y llegaron en junio) y a veces filas viejas de
+ * meses ya cerrados. Lo que sí importa es saberlo ANTES de confirmar, porque el
+ * viaje se guarda con su fecha real y entonces NO aparece al filtrar por junio
+ * en la Hoja de ruta mensual: queda archivado en su mes. Sin este aviso, la
+ * cuenta del Excel y la del sistema no dan y parece que se perdieron viajes. */
+export type FilaFueraDeMes = {
+  sheetName: string;
+  fecha: string;
+  saleDe: string;
+  llegaA: string;
+  remito: string;
+  importe: number | null;
+  vacio: boolean;
+};
+
+/** Cuántos viajes del archivo caen en cada mes ("2026-06"), de mayor a menor. */
+export type ViajesPorMes = { mes: string; viajes: number };
+
 export type HojaRutaPreviewData = {
   ok?: boolean;
   error?: string;
   sheets?: SheetPreview[];
   filasFuturas?: FilaFutura[];
+  filasFueraDeMes?: FilaFueraDeMes[];
   summary?: {
     totalSheets: number;
     sheetsOk: number;
@@ -125,6 +147,11 @@ export type HojaRutaPreviewData = {
      * pestaña que arrastra filas de meses anteriores ya cargados. */
     fechaMin: string | null;
     fechaMax: string | null;
+    /** De qué mes es el archivo, leído de los datos y no del nombre: el mes con
+     * más viajes ("2026-06"). null si no hay viajes. */
+    mesPrincipal: string | null;
+    /** Reparto por mes de lo que se va a importar (sin duplicados). */
+    porMes: ViajesPorMes[];
   };
   warnings?: string[];
   asignaciones?: AsignacionSheet[];
@@ -144,6 +171,13 @@ export type ConfirmImportData = {
     puntosCreados: number;
     sheetsConfirmados: number;
     choferesCreados: number;
+    /** Mes al que pertenece el grueso de lo importado ("2026-06"). */
+    mesPrincipal: string | null;
+    /** Viajes creados con fecha de OTRO mes. Se guardaron con su fecha real, así
+     * que en la Hoja de ruta mensual salen en su mes, no en el del archivo. */
+    fueraDeMes: number;
+    /** Reparto por mes de lo efectivamente creado. */
+    porMes: ViajesPorMes[];
   };
 } | null;
 
@@ -467,6 +501,34 @@ export function choferDesdeSheetName(sheetName: string): { apellido: string; nom
 }
 
 // ============================================================================
+// Mes del archivo
+// ============================================================================
+
+/** "2026-06-30" → "2026-06". */
+export function mesDe(fecha: string): string {
+  return fecha.slice(0, 7);
+}
+
+/** Reparto por mes, de mayor a menor cantidad; a igual cantidad, el mes más
+ * nuevo primero (una hoja de junio con 20 de junio y 20 de mayo es de junio). */
+export function contarPorMes(fechas: string[]): ViajesPorMes[] {
+  const acc = new Map<string, number>();
+  for (const f of fechas) {
+    const m = mesDe(f);
+    acc.set(m, (acc.get(m) ?? 0) + 1);
+  }
+  return [...acc.entries()]
+    .map(([mes, viajes]) => ({ mes, viajes }))
+    .sort((a, b) => b.viajes - a.viajes || b.mes.localeCompare(a.mes));
+}
+
+/** De qué mes es el archivo: el que más viajes tiene. No se lee del nombre del
+ * Excel («JUNIO COMPLETA» trae filas de febrero), sino de los datos. */
+export function mesPrincipalDe(fechas: string[]): string | null {
+  return contarPorMes(fechas)[0]?.mes ?? null;
+}
+
+// ============================================================================
 // PREVIEW
 // ============================================================================
 
@@ -529,6 +591,25 @@ export async function buildHojaRutaPreview(
   }
   filasFuturas.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
+  // De qué mes es realmente el archivo y qué filas se le escapan. Se mide sobre
+  // lo que se va a importar (sin duplicados): los repetidos no entran, así que
+  // no cambian el mes de nada.
+  const aImportar = sheets.flatMap((sh) => sh.viajes.filter((v) => !v.dup).map((v) => ({ sh, v })));
+  const porMes = contarPorMes(aImportar.map((x) => x.v.fecha));
+  const mesPrincipal = porMes[0]?.mes ?? null;
+  const filasFueraDeMes: FilaFueraDeMes[] = aImportar
+    .filter(({ v }) => mesDe(v.fecha) !== mesPrincipal)
+    .map(({ sh, v }) => ({
+      sheetName: sh.sheetName,
+      fecha: v.fecha,
+      saleDe: v.saleDe,
+      llegaA: v.llegaA,
+      remito: v.remito,
+      importe: v.importe,
+      vacio: v.vacio,
+    }))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
   const summary = {
     totalSheets: sheets.length,
     sheetsOk: sheets.filter((s) => s.chofer.status === "ok").length,
@@ -550,6 +631,8 @@ export async function buildHojaRutaPreview(
     totalKm: sheets.reduce((acc, s) => acc + s.sumaKm + s.sumaKmVacios, 0),
     fechaMin,
     fechaMax,
+    mesPrincipal,
+    porMes,
   };
 
   // Default por sheet: ok → ese chofer · missing/ambiguo → sin asignar (missing
@@ -564,6 +647,7 @@ export async function buildHojaRutaPreview(
     ok: true,
     sheets,
     filasFuturas,
+    filasFueraDeMes,
     summary,
     warnings: parsed.warnings,
     asignaciones,
@@ -875,11 +959,22 @@ export async function runHojaRutaImport(
     }
   }
 
+  // Reparto por mes de lo que se está creando. El viaje va con la fecha del
+  // Excel siempre; esto es solo para poder decir después "30 de estos no son de
+  // junio", que es lo que explica por qué la Hoja de ruta de junio muestra menos
+  // viajes que el archivo.
+  const porMes = contarPorMes(viajesPayload.map((v) => v.fecha_viaje as string));
+  const mesPrincipal = porMes[0]?.mes ?? null;
+  const fueraDeMes = porMes
+    .filter((m) => m.mes !== mesPrincipal)
+    .reduce((acc, m) => acc + m.viajes, 0);
+
   if (viajesPayload.length === 0) {
     return {
       ok: true,
       imported: {
         viajes: 0, pendientesFacturar, duplicados, omitidos, futurasOmitidas, puntosCreados, sheetsConfirmados, choferesCreados,
+        mesPrincipal, fueraDeMes, porMes,
       },
     };
   }
@@ -915,6 +1010,11 @@ export async function runHojaRutaImport(
       futuras_omitidas: futurasOmitidas,
       sheets: sheetsConfirmados,
       choferes_creados: choferesCreados,
+      mes_principal: mesPrincipal,
+      fuera_del_mes: fueraDeMes,
+      // Una línea legible en el panel: "junio 2026: 1.397 · mayo 2026: 25 · …".
+      // Es la trazabilidad de por qué el mes del sistema no da igual que el Excel.
+      reparto_por_mes: porMes.map((m) => `${m.mes}: ${m.viajes}`).join(" · "),
     },
   });
 
@@ -929,6 +1029,9 @@ export async function runHojaRutaImport(
       puntosCreados,
       sheetsConfirmados,
       choferesCreados,
+      mesPrincipal,
+      fueraDeMes,
+      porMes,
     },
   };
 }

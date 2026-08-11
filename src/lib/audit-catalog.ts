@@ -15,6 +15,12 @@ export const ACCION_LABELS: Record<string, string> = {
   cambio_estado: "Cambio de estado",
   exportar: "Exportación",
   importar: "Importación",
+  importar_hoja_ruta: "Importación de hoja de ruta",
+  // Compliance: cerrar una liquidación / DM y editar sus fechas.
+  completar_liq_loma: "Liquidación de Loma completada",
+  completar_dm_ypf: "DM de YPF completado",
+  editar_envio_compliance: "Fecha de envío editada",
+  editar_vencimiento_compliance: "Vencimiento editado",
   // Acceso / seguridad
   login: "Inicio de sesión",
   login_fallido: "Intento fallido",
@@ -71,6 +77,9 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   camion: "Camión",
   carga_combustible: "Carga de combustible",
   impuesto: "Impuesto",
+  impuesto_vencimiento: "Vencimiento de impuesto",
+  impuesto_archivo: "Archivo de impuesto",
+  sueldo_admin_mes: "Sueldo de administración",
   form931: "Formulario 931",
   mantenimiento: "Mantenimiento",
   costo_rep_rep: "Costo de repuestos y reparaciones",
@@ -113,7 +122,10 @@ export function accionTono(accion: string): AccionTono {
   if (accion === "cambio_estado" || accion === "requisito_estado") return "estado";
   if (accion === "login" || accion === "logout" || accion === "login_fallido" || accion === "alerta_login")
     return "acceso";
-  if (/^crear|_cread[oa]$|_agregad[oa]$|^importar$/.test(accion)) return "crear";
+  // `^importar` y no `^importar$`: importar_hoja_ruta también crea viajes, y con
+  // el ancla estricta caía en "actualizar" (ámbar) — un import de 1.400 viajes
+  // leído como una edición menor.
+  if (/^crear|_cread[oa]$|_agregad[oa]$|^importar/.test(accion)) return "crear";
   if (/^eliminar$|_eliminad[oa]$|_cancelad[oa]$|_cerrada$/.test(accion)) return "eliminar";
   // El resto de mutaciones (actualizar, editar, *_editado, *_actualizado,
   // facturado, foto_principal, nota_foto, exportar) caen en "actualizar".

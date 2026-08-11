@@ -752,6 +752,18 @@ const FIELD_LABELS: Record<string, Record<string, string>> = {
     camion_id: "Camión",
     cliente_id: "Cliente",
     observaciones: "Observaciones",
+    // Importación de hoja de ruta / YPF / Loma.
+    archivo: "Archivo",
+    viajes_creados: "Viajes creados",
+    pendientes_facturar: "Sin importe (a facturar)",
+    duplicados: "Duplicados salteados",
+    omitidos: "Omitidos",
+    futuras_omitidas: "Filas con fecha futura dejadas afuera",
+    sheets: "Pestañas importadas",
+    choferes_creados: "Choferes creados",
+    mes_principal: "Mes del archivo",
+    fuera_del_mes: "Viajes de otro mes",
+    reparto_por_mes: "Reparto por mes",
   },
   cheque: {
     numero: "Número",

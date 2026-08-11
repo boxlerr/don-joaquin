@@ -29,6 +29,8 @@ import HojaRutaPreviewPanel, {
   OMITIR_SHEET,
   contarFuturasImportables,
   contarImportables,
+  filasFueraDeMesImportables,
+  nombreMes,
   sheetsSinChofer,
   sheetsMissingSinResolver,
 } from "./hoja-ruta-preview";
@@ -145,6 +147,13 @@ export default function ImportHojaRutaModal({
     s?.fechaMin && s?.fechaMax
       ? `${formatFecha(s.fechaMin)} → ${formatFecha(s.fechaMax)}`
       : null;
+  // Filas con fecha de otro mes que van a entrar. Entran igual —el dato del
+  // Excel no se toca— pero se guardan con SU fecha, así que después no salen al
+  // filtrar por el mes del archivo. Ver FueraDelMes en hoja-ruta-preview.
+  const fueraDeMes = filasFueraDeMesImportables(
+    preview?.filasFueraDeMes ?? [],
+    asignaciones,
+  ).length;
 
   return (
     <>
@@ -197,6 +206,14 @@ export default function ImportHojaRutaModal({
                   )}
                   {" "}· {money(s?.totalImporte)} total
                   {periodo && <> · {periodo}</>}
+                  {fueraDeMes > 0 && (
+                    <>
+                      {" "}·{" "}
+                      <span className="text-muted-foreground">
+                        {fueraDeMes} de otro mes
+                      </span>
+                    </>
+                  )}
                 </>
               )}
               {step === "done" && result?.imported && (
@@ -321,6 +338,18 @@ export default function ImportHojaRutaModal({
                 {(result.imported?.puntosCreados ?? 0) > 0 && (
                   <div className="text-muted-foreground">
                     <strong className="font-semibold text-foreground">{result.imported?.puntosCreados}</strong> puntos de ruta nuevos creados
+                  </div>
+                )}
+                {/* Dónde quedó cada viaje. Sin esto, el mes del sistema da menos
+                    que el Excel y no hay forma de saber por qué. */}
+                {(result.imported?.fueraDeMes ?? 0) > 0 && (
+                  <div className="text-muted-foreground">
+                    <strong className="font-semibold text-foreground">{result.imported?.fueraDeMes}</strong> se
+                    guardaron con fecha de otro mes ({result.imported?.porMes
+                      ?.filter((m) => m.mes !== result.imported?.mesPrincipal)
+                      .map((m) => `${m.viajes} en ${nombreMes(m.mes)}`)
+                      .join(", ")}), así que en la Hoja de ruta mensual salen ahí y no en{" "}
+                    {nombreMes(result.imported?.mesPrincipal ?? null)}.
                   </div>
                 )}
               </div>

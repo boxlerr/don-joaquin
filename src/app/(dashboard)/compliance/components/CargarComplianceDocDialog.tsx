@@ -108,35 +108,46 @@ export default function CargarComplianceDocDialog({
     setError(null);
 
     try {
+      // Subir cada archivo directo al Storage (URL firmada) y juntar sus metadatos.
+      // Se hace en los DOS modos: renovar un vencimiento también deja archivar el
+      // papel nuevo, que antes era el único camino sin adjuntos.
+      const subirSeleccionados = async (): Promise<ArchivoMeta[]> => {
+        const archivos: ArchivoMeta[] = [];
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          setSubiendo({ idx: i + 1, total: files.length, pct: 0 });
+          const url = await crearUrlSubidaComplianceDocAction({ filename: f.name });
+          if ("error" in url) throw new Error(url.error);
+          await subirArchivoConUrlFirmada({
+            signedUrl: url.signedUrl,
+            file: f,
+            onProgress: (pct) => setSubiendo({ idx: i + 1, total: files.length, pct }),
+          });
+          archivos.push({
+            bucket: url.bucket,
+            path: url.path,
+            nombre_original: f.name,
+            mime_type: f.type || "application/octet-stream",
+            tamano_bytes: f.size,
+          });
+        }
+        setSubiendo(null);
+        return archivos;
+      };
+
       const res = esEdicion
-        ? await setComplianceVencimientoAction({
-            documento_id: edit!.documento_id,
-            fuente: edit!.fuente,
-            fecha_vencimiento: fechaVencimiento,
-            observaciones: observaciones || null,
-          })
+        ? await (async () => {
+            const archivos = await subirSeleccionados();
+            return setComplianceVencimientoAction({
+              documento_id: edit!.documento_id,
+              fuente: edit!.fuente,
+              fecha_vencimiento: fechaVencimiento,
+              observaciones: observaciones || null,
+              archivos,
+            });
+          })()
         : await (async () => {
-            // Subir cada archivo directo al Storage (URL firmada) y juntar sus metadatos.
-            const archivos: ArchivoMeta[] = [];
-            for (let i = 0; i < files.length; i++) {
-              const f = files[i];
-              setSubiendo({ idx: i + 1, total: files.length, pct: 0 });
-              const url = await crearUrlSubidaComplianceDocAction({ filename: f.name });
-              if ("error" in url) throw new Error(url.error);
-              await subirArchivoConUrlFirmada({
-                signedUrl: url.signedUrl,
-                file: f,
-                onProgress: (pct) => setSubiendo({ idx: i + 1, total: files.length, pct }),
-              });
-              archivos.push({
-                bucket: url.bucket,
-                path: url.path,
-                nombre_original: f.name,
-                mime_type: f.type || "application/octet-stream",
-                tamano_bytes: f.size,
-              });
-            }
-            setSubiendo(null);
+            const archivos = await subirSeleccionados();
             return uploadComplianceDocAction({
               requisito_id: requisito.id,
               chofer_id: chofer_id ?? null,
@@ -188,7 +199,7 @@ export default function CargarComplianceDocDialog({
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             {esEdicion
-              ? "Actualizá la fecha de vencimiento y observaciones sin volver a subir el archivo."
+              ? "Actualizá la fecha de vencimiento y, si lo tenés, adjuntá el documento nuevo. Se suma a los anteriores."
               : vaAlLegajo
                 ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá. Podés adjuntar varios archivos (opcional).`
                 : "Los archivos son opcionales — podés registrar solo el vencimiento. Podés subir varios, hasta 100 MB c/u."}
@@ -287,9 +298,13 @@ export default function CargarComplianceDocDialog({
             </p>
           </div>
 
-          {!esEdicion && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Archivos (opcional)</Label>
+          {/* También al editar: renovar un vencimiento tiene que dejar archivar el papel
+              nuevo. Era el único camino del sistema que no aceptaba adjuntos, y es por
+              donde se cargaron las 45 renovaciones del 08/08 — todas sin documento. */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">
+              {esEdicion ? "Adjuntar el documento renovado (opcional)" : "Archivos (opcional)"}
+            </Label>
               <label className="flex items-center gap-3 px-4 py-3 min-h-11 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
                 <Upload size={16} className="shrink-0 text-muted-foreground/70" />
                 <span className="text-sm text-muted-foreground">
@@ -328,8 +343,7 @@ export default function CargarComplianceDocDialog({
                   </div>
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">
             <Button
