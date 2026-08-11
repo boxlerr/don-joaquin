@@ -16,6 +16,10 @@ import {
   Pencil,
   MessageSquare,
   Send,
+  Plus,
+  Download,
+  Trash2,
+  ClipboardList,
 } from "lucide-react";
 import type {
   ComplianceDestinatario,
@@ -24,7 +28,11 @@ import type {
 } from "../types";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import CargarOrganismoDocDialog from "./CargarOrganismoDocDialog";
+import RequisitoOrganismoDialog, { type RequisitoEditable } from "./RequisitoOrganismoDialog";
+import { eliminarRequisitoOrganismoAction } from "./actions";
 import ComplianceHelpButton from "../components/ComplianceHelpButton";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { exportarOrganismoXlsx } from "./export";
 import { formatFecha } from "@/lib/utils";
 
 interface Props {
@@ -56,6 +64,40 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite, e
     row: OrganismoChecklistRow;
     edit: boolean;
   } | null>(null);
+  // `null` = cerrado; `{edit: null}` = alta; `{edit: row}` = edición.
+  const [reqDialog, setReqDialog] = useState<{ edit: RequisitoEditable | null } | null>(null);
+  const [aEliminar, setAEliminar] = useState<OrganismoChecklistRow | null>(null);
+  const [borrando, setBorrando] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
+  const slug = destinatario.codigo.toLowerCase();
+
+  const refrescar = () => startTransition(() => router.refresh());
+
+  const confirmarEliminar = async () => {
+    if (!aEliminar) return;
+    setBorrando(true);
+    try {
+      const res = await eliminarRequisitoOrganismoAction({
+        id: aEliminar.requisito_id,
+        destinatario_slug: slug,
+      });
+      if ("error" in res && res.error) alert(res.error);
+      setAEliminar(null);
+      refrescar();
+    } finally {
+      setBorrando(false);
+    }
+  };
+
+  const exportar = async () => {
+    setExportando(true);
+    try {
+      await exportarOrganismoXlsx(destinatario.nombre, rows);
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const resumen = rows.reduce<Record<ComplianceEstado, number>>(
     (acc, r) => { acc[r.estado] += 1; return acc; },
@@ -84,7 +126,21 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite, e
             <p className="text-sm text-muted-foreground mt-0.5">{destinatario.descripcion}</p>
           )}
         </div>
-        <ComplianceHelpButton />
+        <div className="flex flex-wrap items-center gap-2">
+          {rows.length > 0 && (
+            <Button size="sm" variant="outline" onClick={exportar} disabled={exportando} className="gap-1.5">
+              <Download size={14} />
+              {exportando ? "Generando…" : "Exportar"}
+            </Button>
+          )}
+          {canWrite && (
+            <Button size="sm" variant="brand" onClick={() => setReqDialog({ edit: null })} className="gap-1.5">
+              <Plus size={14} />
+              Nuevo requisito
+            </Button>
+          )}
+          <ComplianceHelpButton />
+        </div>
       </div>
 
       {/* Resumen */}
@@ -99,11 +155,28 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite, e
 
       {/* Lista de requisitos */}
       {rows.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-[8px] p-6 sm:p-10 text-center text-muted-foreground text-sm">
-          No hay requisitos de compliance configurados para {destinatario.nombre}.<br />
-          <span className="text-xs mt-1 block text-muted-foreground/60">
-            Agregá requisitos desde la base de datos vinculándolos a este organismo.
-          </span>
+        /* El estado vacío antes mandaba a "agregar requisitos desde la base de
+           datos", que es una pared para quien usa el sistema. Ahora es el lugar
+           desde donde se arranca. */
+        <div className="bg-card border border-dashed border-border rounded-[8px] px-6 py-10 text-center">
+          <ClipboardList size={28} className="mx-auto mb-3 text-muted-foreground/40" />
+          <p className="text-sm font-semibold text-foreground">
+            Todavía no cargaste qué se presenta ante {destinatario.nombre}
+          </p>
+          <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+            Cargá cada trámite o documento que haya que presentar. Después vas registrando las
+            presentaciones con su vencimiento, y el sistema avisa solo cuando se acerca.
+          </p>
+          {canWrite && (
+            <Button
+              variant="brand"
+              onClick={() => setReqDialog({ edit: null })}
+              className="mt-4 gap-1.5"
+            >
+              <Plus size={15} />
+              Cargar el primero
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-card border border-border rounded-[8px] shadow-sm overflow-hidden">
@@ -116,6 +189,8 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite, e
                 onUpload={() => handleUpload(row)}
                 onEdit={() => handleEdit(row)}
                 onOpenFile={abrirSignedUrl}
+                onEditarRequisito={() => setReqDialog({ edit: row })}
+                onEliminarRequisito={() => setAEliminar(row)}
               />
             ))}
           </div>
@@ -130,8 +205,40 @@ export default function OrganismoChecklistPage({ destinatario, rows, canWrite, e
           edit={dialogState.edit}
           onClose={() => {
             setDialogState(null);
-            startTransition(() => router.refresh());
+            refrescar();
           }}
+        />
+      )}
+
+      {/* Alta y edición del requisito en sí (qué hay que presentar) */}
+      {reqDialog && (
+        <RequisitoOrganismoDialog
+          destinatario={destinatario}
+          edit={reqDialog.edit}
+          open
+          onOpenChange={(v) => !v && setReqDialog(null)}
+          onSuccess={() => {
+            setReqDialog(null);
+            refrescar();
+          }}
+        />
+      )}
+
+      {/* Baja del requisito. El texto cambia según haya presentaciones o no:
+          con historial se desactiva, sin historial se borra de verdad. */}
+      {aEliminar && (
+        <ConfirmDialog
+          open
+          onOpenChange={(v) => !v && setAEliminar(null)}
+          title={`¿Dar de baja "${aEliminar.requisito_nombre}"?`}
+          description={
+            aEliminar.documento_id
+              ? "Tiene presentaciones cargadas, así que se archiva: deja de pedirse y de aparecer en las alertas, pero el historial y los archivos quedan guardados."
+              : "No tiene ninguna presentación cargada, así que se elimina. No se puede deshacer."
+          }
+          confirmLabel={aEliminar.documento_id ? "Dar de baja" : "Eliminar"}
+          loading={borrando}
+          onConfirm={confirmarEliminar}
         />
       )}
     </div>
@@ -144,12 +251,16 @@ function RequisitoPresentacionRow({
   onUpload,
   onEdit,
   onOpenFile,
+  onEditarRequisito,
+  onEliminarRequisito,
 }: {
   row: OrganismoChecklistRow;
   canWrite: boolean;
   onUpload: () => void;
   onEdit: () => void;
   onOpenFile: (id: string) => void;
+  onEditarRequisito: () => void;
+  onEliminarRequisito: () => void;
 }) {
   const faltante = row.estado === "faltante";
   const vencido = row.estado === "vencido";
@@ -264,6 +375,30 @@ function RequisitoPresentacionRow({
             <Upload size={13} />
             {row.documento_id ? "Actualizar" : "Cargar"}
           </Button>
+        )}
+        {canWrite && (
+          <>
+            {/* Editar el REQUISITO (cómo se llama, cuándo avisa) es otra cosa que
+                editar la presentación: por eso el ícono va aparte y con su título. */}
+            <button
+              type="button"
+              onClick={onEditarRequisito}
+              title="Editar el requisito"
+              aria-label={`Editar el requisito ${row.requisito_nombre}`}
+              className="flex h-8 w-8 max-md:h-9 max-md:w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-[#BAE6FD] hover:bg-[#F0F9FF] hover:text-primary"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={onEliminarRequisito}
+              title="Dar de baja el requisito"
+              aria-label={`Dar de baja el requisito ${row.requisito_nombre}`}
+              className="flex h-8 w-8 max-md:h-9 max-md:w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-[#FCA5A5] hover:bg-[#FEF2F2] hover:text-[#DC2626]"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
         )}
       </div>
     </div>

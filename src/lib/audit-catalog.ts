@@ -21,6 +21,11 @@ export const ACCION_LABELS: Record<string, string> = {
   completar_dm_ypf: "DM de YPF completado",
   editar_envio_compliance: "Fecha de envío editada",
   editar_vencimiento_compliance: "Vencimiento editado",
+  cargar_presentacion_organismo: "Presentación cargada",
+  crear_requisito_compliance: "Requisito creado",
+  editar_requisito_compliance: "Requisito editado",
+  eliminar_requisito_compliance: "Requisito eliminado",
+  desactivar_requisito_compliance: "Requisito dado de baja",
   // Acceso / seguridad
   login: "Inicio de sesión",
   login_fallido: "Intento fallido",

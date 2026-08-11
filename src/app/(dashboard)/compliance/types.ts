@@ -123,6 +123,8 @@ export type OrganismoChecklistRow = {
   requisito_id: string;
   requisito_codigo: string;
   requisito_nombre: string;
+  // Detalle libre del requisito. Se trae para que editarlo no lo borre.
+  requisito_descripcion: string | null;
   nivel: ComplianceNivel;
   periodicidad: CompliancePeriodicidad;
   dias_alerta: number;

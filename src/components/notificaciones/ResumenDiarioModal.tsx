@@ -821,23 +821,42 @@ function Novedades({ onIr }: { onIr: (href: string) => void }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-5 border-t border-border pt-4">
-      <Rotulo texto="Novedades del sistema" icono={Sparkles} color="#64748B" />
-      <ul className="space-y-2.5">
+    <div className="mt-5">
+      <div className="mb-2.5 flex items-baseline justify-between gap-3">
+        <Rotulo texto="Novedades del sistema" icono={Sparkles} color="#64748B" />
+        <span className="shrink-0 text-[11px] text-muted-foreground/70">
+          {items.length === 1 ? "1 cambio reciente" : `${items.length} cambios recientes`}
+        </span>
+      </div>
+
+      {/* Un panel con separadores en vez de una lista suelta: le da el mismo
+          cuerpo que las tarjetas de arriba sin pedir la misma atención. */}
+      <ul className="divide-y divide-border overflow-hidden rounded-[8px] border border-border bg-card">
         {items.map((n, i) => {
           const contenido = (
             <>
-              <span className="mt-[3px] shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
+              {/* La fecha en columna fija: alineadas verticalmente se leen como
+                  una línea de tiempo, y no bailan según el largo del día. */}
+              <span className="mt-[2px] w-[52px] shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground/80">
                 {fechaCorta(n.fecha) ?? n.fecha}
               </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] leading-snug text-foreground">{n.titulo}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-medium leading-snug text-foreground">
+                  {n.titulo}
+                </span>
                 {n.detalle && (
-                  <span className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-muted-foreground">
                     {n.detalle}
                   </span>
                 )}
               </span>
+              {n.href && (
+                <ChevronRight
+                  size={14}
+                  className="mt-0.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary"
+                  aria-hidden
+                />
+              )}
             </>
           );
 
@@ -847,12 +866,12 @@ function Novedades({ onIr }: { onIr: (href: string) => void }) {
                 <button
                   type="button"
                   onClick={() => onIr(n.href!)}
-                  className="flex w-full gap-3 rounded-[6px] px-1 py-0.5 text-left transition-colors hover:bg-muted/60"
+                  className="group flex w-full gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
                 >
                   {contenido}
                 </button>
               ) : (
-                <div className="flex gap-3 px-1 py-0.5">{contenido}</div>
+                <div className="flex gap-3 px-3 py-2.5">{contenido}</div>
               )}
             </li>
           );
