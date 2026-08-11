@@ -689,7 +689,6 @@ function buildSheetPreview(
     sumaKmVacios += v.kmVacios ?? 0;
     if (vacio) vacios++;
     else conRemito++;
-    if (!vacio && v.importe == null) pendientes++;
     if (v.rutaVia === "ruta_5") viasRuta5++;
     else if (v.rutaVia === "ruta_22") viasRuta22++;
     let dupDe: ViajeYaCargado | null = null;
@@ -700,6 +699,12 @@ function buildSheetPreview(
       dupDe = consumir(key);
       if (dupDe) yaImportados++;
     }
+    // "Sin importe" es una promesa sobre lo que va a QUEDAR a facturar, no una
+    // descripción del Excel: los duplicados no se crean, así que no cuentan.
+    // (El 10/08 la tarjeta decía 17 y el import creó 12: 5 eran duplicados.)
+    // Los totales de arriba —vacíos, importe, tn, km— sí describen el archivo y
+    // se dejan igual a propósito, para que sigan cuadrando contra el Excel.
+    if (!vacio && v.importe == null && !dupDe) pendientes++;
     viajes.push({
       fecha: v.fecha,
       saleDe: v.saleDe,
