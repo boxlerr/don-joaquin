@@ -3,9 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Search,
   Check,
   AlertTriangle,
   Upload,
@@ -34,6 +32,14 @@ import {
 import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplianceDocDialog";
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
+import {
+  ComplianceFiltros,
+  ComplianceMetricas,
+  ComplianceCategorias,
+  FILTROS_VACIOS,
+  aplicaFiltroEstado,
+  type FiltrosCompliance,
+} from "./ComplianceResumen";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
 import { coincideBusqueda } from "@/lib/texto";
@@ -97,10 +103,6 @@ const ESTADO_UI: Record<
   vencido: { bg: "#FEF2F2", border: "#EF4444", fg: "#991B1B", icon: "alert" },
   faltante: { bg: "transparent", border: "#94A3B8", fg: "#64748B", icon: "none" },
 };
-
-function esPendiente(e: ComplianceEstado): boolean {
-  return e === "vencido" || e === "por_vencer" || e === "faltante";
-}
 
 // Centinela del seed de carga inicial: unidades que en el Excel vinieron solo con
 // patente quedaron con marca/modelo = "Sin datos". No tiene sentido mostrarlo.
@@ -226,8 +228,7 @@ export default function ComplianceChecklistPage({
     () => new Set(panelInicial ? [panelInicial] : []),
   );
 
-  const [busqueda, setBusqueda] = useState("");
-  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [filtros, setFiltros] = useState<FiltrosCompliance>(FILTROS_VACIOS);
   const [colapsados, setColapsados] = useState<Set<ComplianceNivel>>(() => new Set(["unidad", "chofer"]));
   const [groupsExpandidos, setGroupsExpandidos] = useState<Set<string>>(new Set());
   const [dialogState, setDialogState] = useState<{
@@ -249,17 +250,13 @@ export default function ComplianceChecklistPage({
     return m;
   }, [requisitos]);
 
-  const resumen = useMemo(() => {
-    const out: Record<ComplianceEstado, number> = { vigente: 0, por_vencer: 0, vencido: 0, faltante: 0 };
-    for (const r of rows) out[r.estado] += 1;
-    return out;
-  }, [rows]);
-
   const rowsPorNivel = useMemo(() => {
-    const q = busqueda.trim();
+    const q = filtros.busqueda.trim();
     const m: Record<ComplianceNivel, ComplianceEstadoRow[]> = { empresa: [], unidad: [], chofer: [] };
     for (const r of rows) {
-      if (soloPendientes && !esPendiente(r.estado)) continue;
+      if (!aplicaFiltroEstado(r.estado, filtros.estado)) continue;
+      if (filtros.nivel !== "todos" && r.nivel !== filtros.nivel) continue;
+      if (filtros.requisito !== "todos" && r.requisito_codigo !== filtros.requisito) continue;
       if (q) {
         const text = `${r.chofer_nombre ?? ""} ${r.camion_patente ?? ""} ${r.requisito_nombre}`;
         if (!coincideBusqueda(text, q)) continue;
@@ -277,7 +274,20 @@ export default function ComplianceChecklistPage({
       });
     }
     return m;
-  }, [rows, busqueda, soloPendientes]);
+  }, [rows, filtros]);
+
+  // Los tipos que existen en el checklist, para el selector. Salen de las filas
+  // y no del catálogo entero: ofrecer un tipo que no tiene ni una fila deja
+  // elegir un filtro que sólo puede dar cero.
+  const requisitosPresentes = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of rows) m.set(r.requisito_codigo, r.requisito_nombre);
+    return [...m.entries()]
+      .map(([codigo, nombre]) => ({ codigo, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [rows]);
+
+  const mostrados = NIVELES.reduce((acc, n) => acc + rowsPorNivel[n].length, 0);
 
   const abrirArchivo = async (archivo_id: string, download: boolean) => {
     const res = await getSignedUrlComplianceArchivoAction(archivo_id, { download });
@@ -411,37 +421,26 @@ export default function ComplianceChecklistPage({
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3 print:hidden">
-        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
-          <Input
-            placeholder="Buscar documento, chofer o unidad…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none whitespace-nowrap max-md:min-h-9">
-          <input
-            type="checkbox"
-            checked={soloPendientes}
-            onChange={(e) => setSoloPendientes(e.target.checked)}
-            className="accent-primary size-4"
-          />
-          Solo pendientes
-        </label>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Chip n={resumen.vencido} label="vencidos" tone="error" />
-          <Chip n={resumen.por_vencer} label="por vencer" tone="warning" />
-          <Chip n={resumen.faltante} label="faltan" tone="neutral" />
-        </div>
-      </div>
+      {/* En qué estás parado: las métricas son el filtro (tocar "Vencidos" deja
+          los vencidos). Antes eran tres chips que sólo contaban. */}
+      <ComplianceMetricas rows={rows} filtros={filtros} onChange={setFiltros} />
+
+      <ComplianceFiltros
+        filtros={filtros}
+        onChange={setFiltros}
+        requisitos={requisitosPresentes}
+        mostrados={mostrados}
+        total={rows.length}
+      />
+
+      <ComplianceCategorias rows={rows} filtros={filtros} onChange={setFiltros} />
 
       {/* Grupos */}
       {!hayResultados ? (
         <div className="bg-card rounded-[12px] border border-border p-6 sm:p-10 text-center text-sm text-muted-foreground">
-          {soloPendientes ? "No hay documentos pendientes. Todo al día." : "Sin resultados con la búsqueda actual."}
+          {filtros.estado === "pendientes" || filtros.estado === "vencido"
+            ? "No hay nada pendiente con este filtro. Todo al día."
+            : "Ningún documento coincide con lo que buscaste."}
         </div>
       ) : (
         NIVELES.map((n) => {
@@ -849,17 +848,3 @@ function IconBtn({ title, onClick, children }: { title: string; onClick: () => v
   );
 }
 
-function Chip({ n, label, tone }: { n: number; label: string; tone: "error" | "warning" | "neutral" }) {
-  if (n === 0) return null;
-  const cls =
-    tone === "error"
-      ? "bg-[#FEF2F2] text-[#991B1B]"
-      : tone === "warning"
-      ? "bg-[#FFFBEB] text-[#92400E]"
-      : "bg-muted text-muted-foreground";
-  return (
-    <span className={`text-[11px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${cls}`}>
-      {n} {label}
-    </span>
-  );
-}

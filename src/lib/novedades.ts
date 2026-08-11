@@ -32,6 +32,13 @@ export type Novedad = {
 export const NOVEDADES: Novedad[] = [
   {
     fecha: "2026-08-11",
+    titulo: "Compliance se filtra como Legajos: los números de arriba son el filtro",
+    detalle:
+      "Tocá “Vencidos” y quedan los vencidos. Se suma la barra de filtros (tipo de documento, estado, alcance) y un panel por tipo que muestra cuántos hay de cada uno y cuántos vencidos.",
+    href: "/compliance",
+  },
+  {
+    fecha: "2026-08-11",
     titulo: "Vacaciones: “De vacaciones hoy” vuelve a estar a la vista",
     detalle:
       "Estaba adentro del panel de filtros. Ahora está suelto en la barra con el número al lado, y si no hay nadie lo dice de una.",
