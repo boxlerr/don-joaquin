@@ -95,7 +95,10 @@ export const NOVEDADES: Novedad[] = [
     tipo: "mejora",
     ver: "todos",
     titulo: "Cuando algo falla, la pantalla te dice qué pasó y por dónde volver",
-    detalle: "Si escribís mal una dirección o se rompe algo, ya no aparece la pantalla negra en inglés sin ningún botón: ahora es una pantalla del sistema, con un botón para volver al inicio o reintentar. Si se rompió algo, además te da un código para pasar cuando lo reportes.",
+    detalle: "Si escribís mal una dirección o se rompe algo, ya no aparece la pantalla negra en inglés sin ningún botón: ahora es una pantalla del sistema, con un botón para volver al inicio o reintentar. Si se rompió algo, además te da un código para pasar cuando lo reportes. Tocá acá para verla.",
+    // A propósito una dirección que no existe: es la única forma de mostrar la
+    // pantalla de la que habla la novedad. El nombre se lee en la pantalla misma.
+    href: "/esta-pagina-no-existe",
   },
   {
     id: "lo-que-estas-cargando-ya-no-se-pierde",
