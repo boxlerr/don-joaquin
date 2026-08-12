@@ -327,11 +327,25 @@ export function ComplianceMetricas({
     filtros.estado === estado ? "ring-2 ring-primary/40 rounded-[8px]" : "";
 
   return (
+    // "Al día" va primero: es lo único que contesta "¿cómo venimos?" de un
+    // vistazo, y estaba al final después de tres números de problemas.
     // `flex-wrap` y no `grid`: con una grilla de N columnas fijas, el ancho que
     // no da para cinco deja la última tarjeta sola con un hueco al lado (se veía
     // "Al día" flotando). Con `flex-1` las de la última fila se estiran y el
     // renglón siempre queda lleno, entren 2, 3, 4 o 5.
     <div className="flex flex-wrap gap-2.5 sm:gap-3 print:hidden">
+      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("vigente")}`}>
+        <MetricCard
+          art={<IlustracionCompliance nombre="al-dia" size={42} />}
+          label="Al día"
+          value={String(c.vigente)}
+          sub="Vigentes"
+          icon={CheckCircle2}
+          color="#22C55E"
+          onClick={() => irA("vigente")}
+          ariaLabel="Ver solo los que están al día"
+        />
+      </div>
       <div className="flex min-w-0 flex-1 basis-[9.5rem]">
         <MetricCard
           art={<IlustracionCompliance nombre="total" size={42} />}
@@ -378,18 +392,6 @@ export function ComplianceMetricas({
           color="#64748B"
           onClick={() => irA("faltante")}
           ariaLabel="Ver solo los que faltan cargar"
-        />
-      </div>
-      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("vigente")}`}>
-        <MetricCard
-          art={<IlustracionCompliance nombre="al-dia" size={42} />}
-          label="Al día"
-          value={String(c.vigente)}
-          sub="Vigentes"
-          icon={CheckCircle2}
-          color="#22C55E"
-          onClick={() => irA("vigente")}
-          ariaLabel="Ver solo los que están al día"
         />
       </div>
     </div>

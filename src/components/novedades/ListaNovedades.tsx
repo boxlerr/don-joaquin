@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { ChevronRight, Sparkles, Wand2, Wrench, type LucideIcon } from "lucide-react";
-import type { Novedad, NovedadTipo } from "@/lib/novedades";
+import { ambitoDeNovedad, type Novedad, type NovedadTipo } from "@/lib/novedades";
+import { colorDeArea } from "@/lib/areas-ui";
 
 /**
  * La lista de novedades del sistema, en un solo lugar.
@@ -86,6 +87,11 @@ export function NovedadFila({
 }) {
   const estilo = TIPO_ESTILO[n.tipo];
   const Icono = estilo.icono;
+  // De qué pantalla habla. Sin esto la lista es una tira de títulos sueltos:
+  // "Ver quién está de vacaciones hoy es un vistazo" no dice dónde mirar, y a
+  // Novedades se entra justamente para enterarse de qué cambió y dónde.
+  const ambito = ambitoDeNovedad(n);
+  const colorAmbito = colorDeArea(ambito.area);
 
   const contenido = (
     <>
@@ -107,6 +113,14 @@ export function NovedadFila({
             style={{ color: estilo.color }}
           >
             {estilo.label}
+          </span>
+          {/* La sección, resaltada con el color de su área: es lo que dice a
+              dónde ir. */}
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+            style={{ backgroundColor: tinte(colorAmbito), color: colorAmbito }}
+          >
+            {ambito.nombre}
           </span>
           <span className="text-[11px] tabular-nums text-muted-foreground/70">
             {fechaCortaISO(n.fecha)}

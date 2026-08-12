@@ -18,20 +18,13 @@ import { NAV_GROUPS, type NavItem, type NavChild } from "./nav-items";
 import { logoutAction } from "@/app/login/actions";
 import type { PermisosArea, AreaCodigo, AreaNivel } from "@/lib/auth";
 import type { SeccionCodigo } from "@/lib/secciones";
+import { GRUPO_COLOR } from "@/lib/areas-ui";
 
 // Color distintivo por sección del sidebar (dot + rótulo), para diferenciarlas
-// de un vistazo (idea de Bárbara). Fallback gris si aparece un grupo nuevo.
-const GROUP_ACCENT: Record<string, string> = {
-  PRINCIPAL: "#475569",
-  "LOGÍSTICA": "#0088D1",
-  FLOTA: "#6366F1",
-  SEGURIDAD: "#EF4444",
-  RRHH: "#10B981",
-  COMERCIAL: "#A855F7",
-  FINANZAS: "#F59E0B",
-  COMPLIANCE: "#06B6D4",
-  SISTEMA: "#64748B",
-};
+// de un vistazo (idea de Bárbara). Vive en `lib/areas-ui` porque lo usa también
+// la etiqueta de las novedades: el mismo color acá y allá es lo que dice a qué
+// parte del menú hay que ir.
+const GROUP_ACCENT: Record<string, string> = GRUPO_COLOR;
 
 export type SidebarUser = {
   nombre: string;

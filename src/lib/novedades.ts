@@ -38,6 +38,7 @@
  *    quién le aparece. Ver `NovedadAlcance`.
  */
 import { SECCION_BY_CODIGO, type SeccionCodigo } from "@/lib/secciones";
+import { AREA_NOMBRE } from "@/lib/areas-ui";
 import type { AreaCodigo, AreaNivel } from "@/lib/permisos-nivel";
 
 /**
@@ -88,6 +89,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
+  {
+    id: "los-documentos-ahora-se-ven-en-una-tabla",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "compliance",
+    titulo: "Los documentos ahora se ven en una tabla, con lo que vence primero",
+    detalle: "Solapas arriba para saltar entre vencidos, por vencer y sin cargar. Si preferís verlo por chofer y por unidad, el botón \"Agrupado\" te lo devuelve.",
+    href: "/compliance",
+  },
+  {
+    id: "en-novedades-ves-de-que-parte-del-sistema",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "En Novedades ves de qué parte del sistema habla cada cambio",
+    detalle: "Cada renglón lleva su sección con el color del menú, así sabés a dónde ir a mirar.",
+    href: "/novedades",
+  },
   {
     id: "lo-que-falta-cargar-ahora-tiene-su-boton",
     fecha: "2026-08-12",
@@ -276,6 +295,26 @@ export const NOVEDADES: Novedad[] = [
  * (nunca `new Date()` acá adentro): en este repo el server corre en UTC y los
  * cortes por fecha propia ya se corrieron un día más de una vez.
  */
+/**
+ * De qué parte del sistema habla la novedad, para mostrarlo como etiqueta.
+ *
+ * Sin esto, la lista era una tira de títulos sin contexto: "Ver quién está de
+ * vacaciones hoy es un vistazo" no dice DÓNDE mirar, y quien entra a Novedades
+ * justamente viene a enterarse de qué pantalla cambió.
+ *
+ * El color es el del área, el mismo que agrupa el menú de la izquierda: así la
+ * etiqueta y el lugar donde hay que ir se reconocen por lo mismo.
+ */
+export function ambitoDeNovedad(n: Novedad): { nombre: string; area: AreaCodigo | null } {
+  if (n.ver === "todos") return { nombre: "Todo el sistema", area: null };
+  if (esSeccion(n.ver)) {
+    const s = SECCION_BY_CODIGO[n.ver];
+    return { nombre: s.nombre, area: s.area };
+  }
+  const area = n.ver as AreaCodigo;
+  return { nombre: AREA_NOMBRE[area] ?? area, area };
+}
+
 export function novedadesRecientes(
   hoyIso: string,
   dias = VENTANA_NOVEDADES_DIAS,
