@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Avisa si estás subiendo un cambio que se nota y no anuncia nada en Novedades.
+#
+# No es un guardia: es un recordatorio. Si el cambio de verdad no se nota, lo
+# declarás en el commit con `Novedad: ninguna` y deja de molestar. Y si estás
+# apurado, `git push --no-verify` lo saltea.
+#
+# Se activa con:  npm run hooks:install
+# Se saca con:    git config --unset core.hooksPath
+
+node scripts/novedades.mjs --check || {
+  echo ""
+  echo "El push se frenó acá. Tres salidas:"
+  echo "  1. Anotá la novedad en el commit (git commit --amend) y volvé a pushear."
+  echo "  2. Si el cambio no se nota, declaralo: Novedad: ninguna"
+  echo "  3. Si estás apurado: git push --no-verify"
+  echo ""
+  exit 1
+}

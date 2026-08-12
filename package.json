@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "novedades": "node scripts/novedades.mjs",
+    "novedades:check": "node scripts/novedades.mjs --check",
+    "hooks:install": "git config core.hooksPath scripts/hooks && echo 'Listo: el pre-push avisa si subís una pantalla sin anunciarla. Para sacarlo: git config --unset core.hooksPath'",
     "test:watch": "vitest"
   },
   "dependencies": {
