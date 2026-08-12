@@ -22,6 +22,19 @@ import {
   type TipoServicio,
 } from "../actions";
 import type { Camion } from "../types";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El service en blanco, para completar contra él un borrador viejo. */
+const SERVICE_VACIO = {
+  tipoServicioId: "",
+  km: "",
+  proximoKm: "",
+  taller: "",
+  costo: "",
+  descripcion: "",
+};
 
 export type ServiceEditing = {
   id: string;
@@ -77,6 +90,34 @@ export default function AddServiceDialog({
   const [costo, setCosto] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // ── Borrador. El camión y la fecha NO entran: el diálogo se abre desde una
+  // unidad concreta y traer otro camión de un borrador viejo sería cargarle el
+  // service a la unidad equivocada. Sólo se edita cuando es un alta.
+  const valorBorrador = useMemo(
+    () => ({ tipoServicioId, km, proximoKm, taller, costo, descripcion }),
+    [tipoServicioId, km, proximoKm, taller, costo, descripcion],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "camiones-service-nuevo",
+    valor: valorBorrador,
+    normalizar: objetoCon(SERVICE_VACIO),
+    hayDatos: (v) =>
+      v.taller.trim() !== "" || v.costo.trim() !== "" || v.descripcion.trim() !== "" || v.km.trim() !== "",
+    activo: open && !editing,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setTipoServicioId(b.tipoServicioId);
+    setKm(b.km);
+    setProximoKm(b.proximoKm);
+    setTaller(b.taller);
+    setCosto(b.costo);
+    setDescripcion(b.descripcion);
+  };
 
   // Filtrar opciones según tercerización del camión seleccionado.
   // Scania (tercerizado) → solo gomería/cubiertas/otro (los marcados aplica_a_tercerizado).
@@ -189,6 +230,8 @@ export default function AddServiceDialog({
       } else {
         setSuccess(editing ? "Cambios guardados" : "Service registrado");
         onSaved?.();
+        // El service ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         setTimeout(() => setOpen(false), 900);
       }
     } catch {
@@ -214,6 +257,14 @@ export default function AddServiceDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 

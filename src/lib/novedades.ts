@@ -90,6 +90,26 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "lo-que-estas-cargando-ya-no-se-pierde",
+    fecha: "2026-08-12",
+    tipo: "nuevo",
+    ver: "todos",
+    titulo: "Lo que estás cargando ya no se pierde si se corta la luz o recargás sin querer",
+    detalle:
+      "En la carga rápida de viajes, la planilla diaria, la hoja de ruta y la caja, lo que tipeás se va guardando solo en tu computadora. Si te vas y volvés, te ofrece recuperarlo diciéndote de cuándo es. Nunca lo pone solo: vos elegís si lo recuperás o lo descartás.",
+    href: "/viajes/carga-rapida",
+  },
+  {
+    id: "la-caja-se-actualiza-sola-al-instante",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "caja",
+    titulo: "La caja se actualiza sola en el momento en que otro carga un movimiento",
+    detalle:
+      "Antes tardaba hasta 15 segundos en aparecer. Ahora es al instante y sin recargar la pantalla. Si justo estás escribiendo, no se te mueve nada: aparece arriba \"movimientos nuevos · Ver\" y lo mirás cuando querés.",
+    href: "/caja",
+  },
+  {
     id: "el-tutorial-de-compliance-ahora-explica-la",
     fecha: "2026-08-12",
     tipo: "mejora",

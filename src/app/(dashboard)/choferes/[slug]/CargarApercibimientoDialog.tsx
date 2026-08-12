@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,18 @@ import {
 } from "./actions";
 import type { ApercibimientoTipo, CategoriaApercibimiento } from "./types";
 import { AlertCircle } from "lucide-react";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El apercibimiento en blanco, para completar contra él un borrador viejo. */
+const APERCIBIMIENTO_VACIO = {
+  fecha: "",
+  tipo: "apercibimiento" as ApercibimientoTipo,
+  categoriaId: "",
+  motivo: "",
+  observaciones: "",
+};
 
 // El tipo define a qué concepto del score suma el evento (planilla de Bárbara).
 const TIPO_OPCIONES: { value: ApercibimientoTipo; label: string; concepto: string }[] = [
@@ -61,6 +73,35 @@ export default function CargarApercibimientoDialog({
   const [motivo, setMotivo] = useState("");
   const [observaciones, setObservaciones] = useState("");
 
+  // ── Borrador. Los adjuntos NO entran: son archivos y no caben en el
+  // navegador. Si se recupera, hay que volver a elegirlos —y el aviso está,
+  // así que se nota.
+  //
+  // La clave lleva el chofer: un motivo escrito para uno no puede aparecerle
+  // en la ficha de otro.
+  const valorBorrador = useMemo(
+    () => ({ fecha, tipo, categoriaId, motivo, observaciones }),
+    [fecha, tipo, categoriaId, motivo, observaciones],
+  );
+
+  const borrador = useBorrador({
+    pantalla: `choferes-apercibimiento:${chofer_id}`,
+    valor: valorBorrador,
+    normalizar: objetoCon(APERCIBIMIENTO_VACIO),
+    hayDatos: (v) => v.motivo.trim() !== "" || v.observaciones.trim() !== "",
+    activo: open,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    if (b.fecha) setFecha(b.fecha);
+    setTipo(b.tipo);
+    setCategoriaId(b.categoriaId);
+    setMotivo(b.motivo);
+    setObservaciones(b.observaciones);
+  };
+
   // Adjuntos (acta, video, foto, etc.) — pueden ser VARIOS. entidadId=null: el
   // apercibimiento todavía no existe, se vinculan al crearlo.
   const adj = useAdjuntos({
@@ -84,6 +125,8 @@ export default function CargarApercibimientoDialog({
 
   const cerrarConExito = () => {
     reset();
+    // El apercibimiento ya entró: recién ahora el borrador sobra.
+    borrador.limpiar();
     onSuccess();
   };
 
@@ -142,6 +185,14 @@ export default function CargarApercibimientoDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
               <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { RUTA_VIA_LABELS } from "@/domain/viajes/ruta-via";
 import { useRouter } from "next/navigation";
@@ -108,6 +108,26 @@ import {
   type ViajeFormData,
 } from "../actions";
 import { proponerTramo } from "@/domain/viajes/tramos";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El viaje en blanco, para completar contra él un borrador viejo. */
+const VIAJE_VACIO = {
+  tipoCarga: "",
+  clienteId: "",
+  choferId: "",
+  camionId: "",
+  circuitoId: "",
+  origen: "",
+  destino: "",
+  kmConCarga: "0",
+  kmVacios: "0",
+  rutaVia: "" as "" | "ruta_5" | "ruta_22",
+  tonelaje: "0",
+  montoFlete: "0",
+  tarifaId: "",
+};
 
 export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const [open, setOpen] = useState(false);
@@ -197,11 +217,69 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
     tramoKm.current.clear();
   };
 
+  // ── Borrador: el alta de un viaje tiene dieciséis campos y hasta ahora se
+  // perdía entera si se cerraba el panel sin querer o se recargaba la pestaña.
+  //
+  // La fecha no entra: la maneja el formulario nativo y el default de hoy es
+  // casi siempre el correcto. Lo que se guarda es lo que cuesta volver a cargar.
+  const valorBorrador = useMemo(
+    () => ({
+      tipoCarga,
+      clienteId: selectedClienteId,
+      choferId: selectedChoferId,
+      camionId: selectedCamionId,
+      circuitoId: selectedCircuitoId,
+      origen,
+      destino,
+      kmConCarga,
+      kmVacios,
+      rutaVia,
+      tonelaje,
+      montoFlete,
+      tarifaId,
+    }),
+    [tipoCarga, selectedClienteId, selectedChoferId, selectedCamionId, selectedCircuitoId,
+     origen, destino, kmConCarga, kmVacios, rutaVia, tonelaje, montoFlete, tarifaId],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "viajes-nuevo",
+    valor: valorBorrador,
+    normalizar: objetoCon(VIAJE_VACIO),
+    hayDatos: (v) =>
+      v.clienteId !== "" || v.choferId !== "" || v.origen.trim() !== "" || v.destino.trim() !== "",
+    activo: open,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setTipoCarga(b.tipoCarga);
+    setSelectedClienteId(b.clienteId);
+    setSelectedChoferId(b.choferId);
+    setSelectedCamionId(b.camionId);
+    setSelectedCircuitoId(b.circuitoId);
+    setOrigen(b.origen);
+    setDestino(b.destino);
+    setKmConCarga(b.kmConCarga);
+    setKmVacios(b.kmVacios);
+    setRutaVia(b.rutaVia);
+    setTonelaje(b.tonelaje);
+    setMontoFlete(b.montoFlete);
+    setTarifaId(b.tarifaId);
+    // Lo recuperado es lo que la persona ya había decidido: el autocompletado
+    // por historial y por tarifa no tiene que pisárselo.
+    kmDirty.current = true;
+    montoDirty.current = true;
+  };
+
   useEffect(() => {
     if (state?.ok) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
       setOpen(false);
       resetCampos();
+      // El viaje ya entró: recién ahora el borrador sobra.
+      borrador.limpiar();
       window.dispatchEvent(new Event("viaje-created"));
       router.refresh();
     }
@@ -557,6 +635,14 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
             className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4"
           >
             <input type="hidden" name="estado" value="pendiente" />
+
+            {borrador.pendiente && (
+              <AvisoBorrador
+                ts={borrador.pendiente.ts}
+                onRecuperar={recuperarBorrador}
+                onDescartar={borrador.descartar}
+              />
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InputFieldWithIcon

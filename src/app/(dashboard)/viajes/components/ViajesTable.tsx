@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useTransition, useRef } from "react";
+import React, { useState, useEffect, useTransition, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Table,
@@ -53,6 +53,8 @@ import {
   type ViajeOrderBy,
 } from "../actions";
 import { etiquetaRutaVia } from "@/domain/viajes/ruta-via";
+import { useNovedades } from "@/hooks/useEnVivo";
+import BarraNovedades from "@/components/envivo/BarraNovedades";
 import { getViajeDetalleAction, type ViajeDetalle } from "../detalle-action";
 import type { ViajeBasico, FaltaDato } from "../types";
 import { formatFecha } from "@/lib/utils";
@@ -980,6 +982,56 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facturadoFiltro, esVacioFiltro, incompletoFiltro]);
 
+  // ── En vivo: los filtros vigentes en un ref, para que la recarga silenciosa
+  // no dependa de ellos y no se dispare con cada tecla del buscador.
+  const consultaRef = useRef({
+    choferId, falta, desde, hasta, facturadoFiltro, esVacioEfectivo,
+    incompletoFiltro, debouncedSearch, destino, orderBy, orderDir, page,
+  });
+  useEffect(() => {
+    consultaRef.current = {
+      choferId, falta, desde, hasta, facturadoFiltro, esVacioEfectivo,
+      incompletoFiltro, debouncedSearch, destino, orderBy, orderDir, page,
+    };
+  });
+
+  /**
+   * Trae lo que cambió en otras sesiones sin spinner, sin perder el scroll y
+   * sin reiniciar la paginación.
+   *
+   * A propósito NO es `router.refresh()` ni un bump de `refreshToken`: los dos
+   * vuelven a renderizar de más y se sienten como "se me recargó la pantalla".
+   * Acá se cambian las filas y nada más. Si el usuario cargó más páginas se
+   * saltea, para no borrarle lo que está mirando.
+   */
+  const recargarEnVivo = useCallback(() => {
+    const q = consultaRef.current;
+    if (q.page !== 0) return;
+    getViajesAction({
+      choferId: q.choferId,
+      page: 0,
+      desde: q.desde || undefined,
+      hasta: q.hasta || undefined,
+      facturado: q.facturadoFiltro ?? undefined,
+      esVacio: q.esVacioEfectivo ?? undefined,
+      incompleto: q.incompletoFiltro ?? undefined,
+      falta: q.falta,
+      search: q.debouncedSearch || undefined,
+      destino: q.destino || undefined,
+      orderBy: q.orderBy,
+      orderDir: q.orderDir,
+    }).then((result) => {
+      if ("error" in result) return;
+      setRows(result.data);
+      setHasMore(result.hasMore);
+    });
+  }, []);
+
+  const { novedades: viajesNuevos, ver: verViajesNuevos } = useNovedades({
+    seccion: "viajes",
+    recargar: recargarEnVivo,
+  });
+
   useEffect(() => {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
@@ -1160,6 +1212,15 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm">
+      {/* Alguien cargó viajes mientras estabas escribiendo: no se mueve nada
+          hasta que lo toques. */}
+      <BarraNovedades
+        cantidad={viajesNuevos}
+        onVer={verViajesNuevos}
+        sustantivo="viaje"
+        sustantivoPlural="viajes"
+      />
+
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 border-b border-border bg-muted/40">
         {/* Desde/hasta van de a dos en el celular: son cortos y se leen como par. */}

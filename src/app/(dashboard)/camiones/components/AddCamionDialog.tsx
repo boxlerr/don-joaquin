@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -32,10 +32,27 @@ const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import type { Database } from "@/types/database";
 import { addCamionAction } from "../actions";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
 
 type CamionTipo = Database["public"]["Enums"]["camion_tipo"];
 type CamionEstado = Database["public"]["Enums"]["camion_estado"];
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
+
+/** La unidad en blanco, para completar contra ella un borrador viejo. */
+const CAMION_VACIO = {
+  patente: "",
+  estado: "activo" as CamionEstado,
+  marca: "",
+  modelo: "",
+  ano: "",
+  capacidad: "",
+  tipo: "otro" as CamionTipo,
+  tercerizacion: "interno" as TercerizacionEstado,
+  esTolva: false,
+  kmActual: "",
+};
 
 const TERCERIZACIONES: { value: TercerizacionEstado; label: string }[] = [
   { value: "interno", label: "Interno" },
@@ -97,6 +114,39 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
   const [esTolva, setEsTolva] = useState(false);
   const [kmActual, setKmActual] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // ── Borrador: el alta de una unidad son doce campos y se perdía entera al
+  // cerrar el diálogo sin querer.
+  const valorBorrador = useMemo(
+    () => ({ patente, estado, marca, modelo, ano, capacidad, tipo, tercerizacion, esTolva, kmActual }),
+    [patente, estado, marca, modelo, ano, capacidad, tipo, tercerizacion, esTolva, kmActual],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "camiones-nuevo",
+    valor: valorBorrador,
+    normalizar: objetoCon(CAMION_VACIO),
+    hayDatos: (v) => v.patente.trim() !== "" || v.marca.trim() !== "" || v.modelo.trim() !== "",
+    activo: open,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setPatente(b.patente);
+    setEstado(b.estado);
+    setMarca(b.marca);
+    setModelo(b.modelo);
+    setAno(b.ano);
+    setCapacidad(b.capacidad);
+    setTipo(b.tipo);
+    setTercerizacion(b.tercerizacion);
+    // Lo recuperado es lo que la persona ya eligió: la sugerencia automática
+    // de tercerización no tiene que volver a pisarlo.
+    setTercerizacionAutoSugerida(false);
+    setEsTolva(b.esTolva);
+    setKmActual(b.kmActual);
+  };
 
   const handleMarcaChange = (value: string) => {
     setMarca(value);
@@ -177,6 +227,8 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
         setTimeout(() => {
           setOpen(false);
           reset();
+          // El camión ya entró: recién ahora el borrador sobra.
+          borrador.limpiar();
         }, 900);
       }
     } catch {
@@ -231,6 +283,14 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 

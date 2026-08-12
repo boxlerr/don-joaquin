@@ -19,6 +19,9 @@ import {
   type ViajeFormData,
   type ViajeFilaRapida,
 } from "../actions";
+import { useBorrador } from "@/hooks/useBorrador";
+import { useCambiosSinGuardar } from "@/hooks/useCambiosSinGuardar";
+import AvisoBorrador, { SelloBorrador } from "@/components/borradores/AvisoBorrador";
 
 // ── Tipos internos ────────────────────────────────────────────────────────────
 
@@ -67,6 +70,68 @@ function filaVacia(overrides?: Partial<Fila>): Fila {
   };
 }
 
+// ── Borrador ──────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que se está cargando, tal como se guarda en el navegador.
+ *
+ * Esta pantalla es la que más duele perder: son veinte filas tipeadas a mano
+ * que hasta que no se toca Guardar viven sólo en memoria. Un F5 sin querer, un
+ * corte de luz o cerrar la pestaña las borraba todas.
+ *
+ * El `id` de fila no se guarda: es un contador de la sesión, y al recuperar se
+ * asignan ids nuevos. Guardarlo traía filas con id repetido —dos filas que se
+ * editaban juntas— apenas se agregaba una más.
+ */
+type BorradorCarga = {
+  filas: Omit<Fila, "id">[];
+  clienteId: string;
+  tipoCargaId: string;
+};
+
+/** La fila sin su `id`: el id es un contador de la sesión, no un dato cargado. */
+function sinId(f: Fila): Omit<Fila, "id"> {
+  const copia: Partial<Fila> = { ...f };
+  delete copia.id;
+  return copia as Omit<Fila, "id">;
+}
+
+const FILA_REFERENCIA: Omit<Fila, "id"> = sinId(filaVacia());
+
+/** Si esto da `false` la fila está como salió de fábrica: no hay nada que salvar. */
+function filaTieneDatos(f: Omit<Fila, "id">): boolean {
+  return (
+    f.chofer_id !== "" ||
+    f.camion_id !== "" ||
+    f.ruta_id !== "" ||
+    f.origen_nombre.trim() !== "" ||
+    f.destino_nombre.trim() !== "" ||
+    f.nro_viaje_ypf.trim() !== "" ||
+    f.ruta_via !== "" ||
+    f.es_vacio ||
+    f.fecha_viaje !== FILA_REFERENCIA.fecha_viaje ||
+    f.km_con_carga !== FILA_REFERENCIA.km_con_carga ||
+    f.km_vacios !== FILA_REFERENCIA.km_vacios ||
+    f.tonelaje_real !== FILA_REFERENCIA.tonelaje_real ||
+    f.monto_flete !== FILA_REFERENCIA.monto_flete
+  );
+}
+
+function normalizarBorrador(crudo: unknown): BorradorCarga | null {
+  if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return null;
+  const c = crudo as Partial<BorradorCarga>;
+  if (!Array.isArray(c.filas) || c.filas.length === 0) return null;
+  if (c.filas.some((f) => !f || typeof f !== "object" || Array.isArray(f))) return null;
+
+  return {
+    // Contra la fila de fábrica: un borrador guardado antes de que la grilla
+    // tuviera una columna nueva no puede romper la pantalla al volver.
+    filas: c.filas.map((f) => ({ ...FILA_REFERENCIA, ...(f as Partial<Omit<Fila, "id">>) })),
+    clienteId: typeof c.clienteId === "string" ? c.clienteId : "",
+    tipoCargaId: typeof c.tipoCargaId === "string" ? c.tipoCargaId : "",
+  };
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
@@ -83,6 +148,35 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
   const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; creados?: number; mensaje: string } | null>(null);
   const [erroresValidacion, setErroresValidacion] = useState<{ fila: number; mensaje: string }[]>([]);
+
+  // ── Borrador: lo cargado sobrevive a un F5, a un corte de luz y a cerrar sin querer.
+  const valorBorrador = useMemo<BorradorCarga>(
+    () => ({
+      filas: filas.map(sinId),
+      clienteId: globalClienteId,
+      tipoCargaId: globalTipoCargaId,
+    }),
+    [filas, globalClienteId, globalTipoCargaId],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "viajes-carga-rapida",
+    valor: valorBorrador,
+    normalizar: normalizarBorrador,
+    hayDatos: (b) => b.filas.some(filaTieneDatos),
+  });
+
+  const hayCargaSinGuardar = valorBorrador.filas.some(filaTieneDatos);
+  useCambiosSinGuardar(hayCargaSinGuardar);
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    // `filaVacia` asigna un id nuevo a cada fila y le aplica encima lo guardado.
+    setFilas(b.filas.map((f) => filaVacia(f)));
+    if (b.clienteId) setGlobalClienteId(b.clienteId);
+    if (b.tipoCargaId) setGlobalTipoCargaId(b.tipoCargaId);
+  };
 
   // Mapa chofer_id → camion_id para auto-completar
   const camionPorChofer = new Map<string, string>(
@@ -326,6 +420,9 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         setResultado({ ok: true, creados: res.creados, mensaje: `${res.creados} viaje(s) creados correctamente.` });
         // Limpiar filas y dejar una nueva lista para seguir cargando
         setFilas([filaVacia()]);
+        // El borrador se tira recién acá: si el guardado falla, las filas
+        // siguen estando y el borrador con ellas.
+        borrador.limpiar();
         router.refresh();
       } else {
         if (res.errores?.length) {
@@ -348,6 +445,17 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
   return (
     <div className="space-y-5">
+      {borrador.pendiente && (
+        <AvisoBorrador
+          ts={borrador.pendiente.ts}
+          detalle={`${borrador.pendiente.valor.filas.length} fila${
+            borrador.pendiente.valor.filas.length !== 1 ? "s" : ""
+          }`}
+          onRecuperar={recuperarBorrador}
+          onDescartar={borrador.descartar}
+        />
+      )}
+
       {/* Selectores globales */}
       <div className="bg-card border border-border rounded-[8px] p-4 sm:px-5 sm:py-4 flex flex-wrap items-end gap-3 sm:gap-4">
         <div className="space-y-1 w-full sm:w-auto sm:min-w-[220px]">
@@ -723,7 +831,12 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       )}
 
       {/* Acciones */}
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
+      <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
+        {/* El sello va con las acciones y no arriba: es acá donde alguien duda
+            de si puede levantarse de la silla sin perder lo cargado. */}
+        <div className="sm:mr-auto">
+          <SelloBorrador ts={borrador.guardadoTs} />
+        </div>
         <Button
           type="button"
           variant="outline"

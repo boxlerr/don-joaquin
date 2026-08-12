@@ -10,6 +10,8 @@ import AreaErrorBanner from "@/components/AreaErrorBanner";
 import NotificacionesProvider from "@/components/notificaciones/NotificacionesProvider";
 import NotifToaster from "@/components/notificaciones/NotifToaster";
 import ResumenDiarioModal, { RESUMEN_DIARIO_EVENT } from "@/components/notificaciones/ResumenDiarioModal";
+import { UsuarioActualProvider } from "./UsuarioActualProvider";
+import LimpiezaBorradores from "@/components/borradores/LimpiezaBorradores";
 
 export const AUDIT_DRAWER_EVENT = "open-audit-drawer";
 
@@ -185,15 +187,23 @@ export default function DashboardShell({
   // El provider es la ÚNICA fuente de polling; la campana y el toaster lo consumen.
   // Sin usuario (no debería pasar: el layout redirige a /login) la campana degrada
   // a un ícono estático.
-  if (!userId) return shell;
+  //
+  // El de usuario envuelve a los dos casos: los borradores de lo que se está
+  // tipeando se guardan por usuario, y eso tiene que valer en toda la pantalla.
+  if (!userId) {
+    return <UsuarioActualProvider userId={null}>{shell}</UsuarioActualProvider>;
+  }
 
   return (
-    <NotificacionesProvider userId={userId} initialCount={alertasCount}>
-      {shell}
-      <NotifToaster />
-      {/* Resumen del día: aparece una vez por jornada, en el medio de la pantalla.
-          Reemplaza al toast de bootstrap que se perdía abajo a la derecha. */}
-      <ResumenDiarioModal userId={userId} nombre={user?.nombre} />
-    </NotificacionesProvider>
+    <UsuarioActualProvider userId={userId}>
+      <NotificacionesProvider userId={userId} initialCount={alertasCount}>
+        {shell}
+        <NotifToaster />
+        {/* Resumen del día: aparece una vez por jornada, en el medio de la pantalla.
+            Reemplaza al toast de bootstrap que se perdía abajo a la derecha. */}
+        <ResumenDiarioModal userId={userId} nombre={user?.nombre} />
+        <LimpiezaBorradores />
+      </NotificacionesProvider>
+    </UsuarioActualProvider>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -30,6 +30,20 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { addGastoAction, type GastoMedioPago } from "../actions";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El gasto en blanco, para completar contra él un borrador viejo. */
+const GASTO_VACIO = {
+  tipoGastoId: "",
+  fecha: "",
+  monto: "",
+  medioPago: "efectivo_caja" as GastoMedioPago,
+  descripcion: "",
+  proveedor: "",
+  numeroComprobante: "",
+};
 
 const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent font-medium hover:bg-transparent focus-visible:ring-0";
@@ -85,6 +99,34 @@ export default function AddGastoDialog({
   const [camionId, setCamionId] = useState(contextCamionId ?? "");
   const [choferId, setChoferId] = useState(contextChoferId ?? "");
 
+  // ── Borrador. Viaje, camión y chofer NO entran: cuando el diálogo se abre
+  // desde un viaje o una unidad, esos tres los fija el contexto, y traerlos de
+  // un borrador viejo sería colgarle el gasto a otra cosa.
+  const valorBorrador = useMemo(
+    () => ({ tipoGastoId, fecha, monto, medioPago, descripcion, proveedor, numeroComprobante }),
+    [tipoGastoId, fecha, monto, medioPago, descripcion, proveedor, numeroComprobante],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "gastos-nuevo",
+    valor: valorBorrador,
+    normalizar: objetoCon(GASTO_VACIO),
+    hayDatos: (v) => v.monto.trim() !== "" || v.descripcion.trim() !== "" || v.proveedor.trim() !== "",
+    activo: open,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setTipoGastoId(b.tipoGastoId);
+    if (b.fecha) setFecha(b.fecha);
+    setMonto(b.monto);
+    setMedioPago(b.medioPago);
+    setDescripcion(b.descripcion);
+    setProveedor(b.proveedor);
+    setNumeroComprobante(b.numeroComprobante);
+  };
+
   const reset = () => {
     setTipoGastoId("");
     setMonto("");
@@ -131,6 +173,8 @@ export default function AddGastoDialog({
       } else {
         setOpen(false);
         reset();
+        // El gasto ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         window.dispatchEvent(new CustomEvent("gastos:refresh"));
         onSuccess?.();
         router.refresh();
@@ -197,6 +241,14 @@ export default function AddGastoDialog({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-medium">
               {error}

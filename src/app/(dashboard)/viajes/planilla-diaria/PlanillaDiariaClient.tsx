@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -24,6 +24,11 @@ import {
   type PlanillaDiariaData,
 } from "./actions";
 import { nombreCompletoPersona, normalizarParaBuscar } from "@/lib/nombres";
+import { useBorrador } from "@/hooks/useBorrador";
+import { useCambiosSinGuardar } from "@/hooks/useCambiosSinGuardar";
+import AvisoBorrador, { SelloBorrador } from "@/components/borradores/AvisoBorrador";
+import { useNovedades } from "@/hooks/useEnVivo";
+import BarraNovedades from "@/components/envivo/BarraNovedades";
 
 type Fila = {
   chofer_id: string;
@@ -57,6 +62,34 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     camion_previo_patente: c.camion_previo_patente,
     observaciones: c.observaciones ?? "",
   }));
+}
+
+// ── Borrador ──────────────────────────────────────────────────────────────────
+
+/**
+ * Lo que se cambió y todavía no se guardó, por chofer.
+ *
+ * Se guarda el CAMBIO y no la planilla entera a propósito: los nombres, el
+ * camión habitual y el camión previo salen del servidor y pueden haber cambiado
+ * desde ayer. Restaurar una foto vieja de todo eso reescribiría datos que nadie
+ * tocó —el mismo error que ya está documentado en la hoja de ruta—. Acá vuelve
+ * sólo lo que la persona eligió: el camión del día y la observación.
+ */
+type BorradorPlanilla = Record<string, { camion_id: string; observaciones: string }>;
+
+function normalizarBorradorPlanilla(crudo: unknown): BorradorPlanilla | null {
+  if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return null;
+
+  const out: BorradorPlanilla = {};
+  for (const [choferId, v] of Object.entries(crudo as Record<string, unknown>)) {
+    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+    const { camion_id, observaciones } = v as Record<string, unknown>;
+    out[choferId] = {
+      camion_id: typeof camion_id === "string" ? camion_id : "",
+      observaciones: typeof observaciones === "string" ? observaciones : "",
+    };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 /** "AD916TF → AE331SH": de qué unidad a cuál pasó el chofer. */
@@ -103,6 +136,65 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     () => new Map(data.camiones.map((c) => [c.id, c.label])),
     [data.camiones],
   );
+
+  // ── Borrador: la planilla del día sobrevive a un F5 o a un corte.
+  // La clave lleva la fecha: cada día es una planilla distinta y el borrador de
+  // ayer no tiene por qué aparecer al abrir la de hoy.
+  const filasOriginales = useMemo(() => new Map(buildFilas(data).map((f) => [f.chofer_id, f])), [data]);
+
+  const valorBorrador = useMemo<BorradorPlanilla>(() => {
+    const out: BorradorPlanilla = {};
+    for (const f of filas) {
+      const original = filasOriginales.get(f.chofer_id);
+      if (!original) continue;
+      if (f.camion_id !== original.camion_id || f.observaciones !== original.observaciones) {
+        out[f.chofer_id] = { camion_id: f.camion_id, observaciones: f.observaciones };
+      }
+    }
+    return out;
+  }, [filas, filasOriginales]);
+
+  const cantidadSinGuardar = Object.keys(valorBorrador).length;
+
+  const borrador = useBorrador({
+    pantalla: `viajes-planilla-diaria:${data.fecha}`,
+    valor: valorBorrador,
+    normalizar: normalizarBorradorPlanilla,
+    hayDatos: (b) => Object.keys(b).length > 0,
+    activo: editable,
+  });
+
+  useCambiosSinGuardar(editable && cantidadSinGuardar > 0);
+
+  // ── En vivo: si otro guarda la planilla del día, esta pantalla se entera.
+  //
+  // El refresco es el del router: los datos de esta pantalla los arma el
+  // servidor, así que vuelve a pedírselos y reconcilia. No recarga la página ni
+  // pierde el scroll. Lo que NO hace por sí solo es rearmar la grilla —`filas`
+  // se inicializa una sola vez—, y de eso se encarga el efecto de abajo.
+  const { novedades, ver } = useNovedades({
+    seccion: "planilla-diaria",
+    recargar: () => router.refresh(),
+    ocupado: cantidadSinGuardar > 0,
+    activo: editable,
+  });
+
+  // Llegó una planilla nueva del servidor: se adopta SÓLO si no hay nada sin
+  // guardar. Pisarle a alguien los camiones que acaba de asignar sería peor que
+  // mostrarle datos de hace un minuto.
+  const dataRef = useRef(data);
+  useEffect(() => {
+    if (dataRef.current === data) return;
+    dataRef.current = data;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional: llegó una planilla nueva del servidor y no hay nada sin guardar
+    if (cantidadSinGuardar === 0) setFilas(buildFilas(data));
+  }, [data, cantidadSinGuardar]);
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setFilas((prev) => prev.map((f) => (b[f.chofer_id] ? { ...f, ...b[f.chofer_id] } : f)));
+  };
 
   /** Una fila cambió si el camión que tiene ahora no es el que traía. */
   const tieneCambio = (f: Fila) => f.camion_id !== f.camion_previo_id;
@@ -242,6 +334,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es). Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
               : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
         });
+        // Recién con el OK del servidor el borrador deja de hacer falta.
+        borrador.limpiar();
         router.refresh();
       } else {
         setResultado({ ok: false, mensaje: res.error });
@@ -264,6 +358,22 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     // el padding de abajo deja pasar la última fila.
     <div className={`space-y-5 ${editable ? "pb-20 sm:pb-0" : ""}`}>
       <CambiosDrawer open={cambiosOpen} onClose={() => setCambiosOpen(false)} />
+
+      <BarraNovedades
+        cantidad={novedades}
+        onVer={ver}
+        sustantivo="cambio en la planilla"
+        sustantivoPlural="cambios en la planilla"
+      />
+
+      {borrador.pendiente && (
+        <AvisoBorrador
+          ts={borrador.pendiente.ts}
+          detalle={`${Object.keys(borrador.pendiente.valor).length} chofer(es)`}
+          onRecuperar={recuperarBorrador}
+          onDescartar={borrador.descartar}
+        />
+      )}
 
       {/* Barra superior: fecha + atajos */}
       <div className="bg-card border border-border rounded-[8px] p-4 sm:px-5 sm:py-4 flex flex-wrap items-end gap-3 sm:gap-4">
@@ -701,6 +811,17 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
             <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
           )}
           <span className="font-medium">{resultado.mensaje}</span>
+        </div>
+      )}
+
+      {/* Qué hay sin guardar y desde cuándo está a salvo. El botón es flotante,
+          así que esto va al pie de la grilla, que es donde se termina de cargar. */}
+      {editable && cantidadSinGuardar > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            {cantidadSinGuardar} chofer{cantidadSinGuardar !== 1 ? "es" : ""} sin guardar.
+          </span>
+          <SelloBorrador ts={borrador.guardadoTs} />
         </div>
       )}
 

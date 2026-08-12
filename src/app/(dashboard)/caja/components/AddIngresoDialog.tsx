@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -16,6 +16,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addIngresoAction, type CajaId } from "../actions";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El ingreso en blanco, para completar contra él un borrador viejo. */
+const vacioIngreso = (privado: boolean) => ({
+  concepto: "",
+  monto: "",
+  medio: "efectivo" as "efectivo" | "transferencia" | "cheque" | "otro",
+  categoria: "cobro_cliente" as
+    | "cobro_cliente"
+    | "rendicion_vuelto"
+    | "transferencia_interna"
+    | "ajuste"
+    | "otro",
+  fecha: "",
+  privado,
+});
 
 const CATEGORIA_LABEL: Record<string, string> = {
   cobro_cliente: "Cobro a Cliente",
@@ -60,6 +78,32 @@ export default function AddIngresoDialog({
   // chica arranca visible; en la general, privado (solo dirección).
   const [privado, setPrivado] = useState(defaultPrivado);
 
+  const valorBorrador = useMemo(
+    () => ({ concepto, monto, medio, categoria, fecha, privado }),
+    [concepto, monto, medio, categoria, fecha, privado],
+  );
+
+  // Mismo criterio que en el egreso: la caja general es confidencial y no deja
+  // rastro en el navegador.
+  const borrador = useBorrador({
+    pantalla: "caja-ingreso",
+    valor: valorBorrador,
+    normalizar: objetoCon(vacioIngreso(defaultPrivado)),
+    hayDatos: (v) => v.concepto.trim() !== "" || v.monto.trim() !== "",
+    activo: open && caja !== "grande",
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setConcepto(b.concepto);
+    setMonto(b.monto);
+    setMedio(b.medio);
+    setCategoria(b.categoria);
+    setFecha(b.fecha);
+    setPrivado(b.privado);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!monto || isNaN(Number(monto))) return;
@@ -82,6 +126,8 @@ export default function AddIngresoDialog({
         setConcepto("");
         setMonto("");
         setPrivado(defaultPrivado);
+        // El ingreso ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         window.dispatchEvent(new CustomEvent("caja:refresh"));
         router.refresh();
       }
@@ -108,6 +154,14 @@ export default function AddIngresoDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
               {error}

@@ -33,7 +33,41 @@ import EditViajeDialog from "../components/EditViajeDialog";
 import { aCambio, borradorDe, borradorSucio, type Borrador } from "./borradores";
 import type { ViajeBasico } from "../types";
 import { coincideBusqueda } from "@/lib/texto";
+import { useBorrador } from "@/hooks/useBorrador";
+import { useCambiosSinGuardar } from "@/hooks/useCambiosSinGuardar";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+import { useNovedades } from "@/hooks/useEnVivo";
+import BarraNovedades from "@/components/envivo/BarraNovedades";
+
 import { etiquetaRutaVia } from "@/domain/viajes/ruta-via";
+
+/**
+ * Lo que se estaba corrigiendo en la hoja, por id de viaje.
+ *
+ * Cada campo es texto porque sale de un input; los que falten se completan
+ * vacíos, así un borrador guardado antes de que la hoja tuviera una columna no
+ * rompe la pantalla al volver.
+ */
+function normalizarBorradorHojaRuta(crudo: unknown): Record<string, Borrador> | null {
+  if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return null;
+
+  const texto = (x: unknown) => (typeof x === "string" ? x : "");
+  const out: Record<string, Borrador> = {};
+  for (const [id, v] of Object.entries(crudo as Record<string, unknown>)) {
+    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+    const b = v as Record<string, unknown>;
+    out[id] = {
+      origen: texto(b.origen),
+      destino: texto(b.destino),
+      km: texto(b.km),
+      kmVacios: texto(b.kmVacios),
+      toneladas: texto(b.toneladas),
+      remito: texto(b.remito),
+      monto: texto(b.monto),
+    };
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 // Helpers ---------------------------------------------------------------------
 
@@ -159,6 +193,17 @@ export default function HojaRutaMensualClient({
     });
   };
 
+  // ── En vivo: si otro corrige un viaje del mes, la hoja se pone al día.
+  //
+  // Recargar acá es seguro aunque haya correcciones a medio tipear: los
+  // borradores de fila viven aparte, indexados por viaje, y `borradorPara` les
+  // da prioridad sobre lo que llega del servidor. Lo que se está escribiendo no
+  // se pierde.
+  const { novedades: viajesNuevos, ver: verViajesNuevos } = useNovedades({
+    seccion: "viajes",
+    recargar: refresh,
+  });
+
   // Stats globales del mes (todos los choferes)
   const abrirSinRemito = async () => {
     if (vistaSinRemito) {
@@ -199,6 +244,14 @@ export default function HojaRutaMensualClient({
     // abajo, y scrollea la página entera. De `lg` para arriba vuelve el layout
     // de dos paneles con alto fijo.
     <div className="flex flex-col lg:h-[calc(100vh-84px)] gap-3 p-4 sm:p-6">
+      {/* Alguien tocó viajes del mes mientras estabas corrigiendo. */}
+      <BarraNovedades
+        cantidad={viajesNuevos}
+        onVer={verViajesNuevos}
+        sustantivo="cambio en los viajes"
+        sustantivoPlural="cambios en los viajes"
+      />
+
       {/* ─── Header ─── */}
       <div className="flex items-start justify-between gap-3 flex-wrap shrink-0">
         <div>
@@ -359,7 +412,12 @@ export default function HojaRutaMensualClient({
               <p className="text-sm">Elegí un chofer del sidebar para ver su hoja de ruta.</p>
             </div>
           ) : (
-            <PanelChofer panel={panel} canWrite={canWrite} onChanged={refresh} />
+            <PanelChofer
+              panel={panel}
+              canWrite={canWrite}
+              onChanged={refresh}
+              ambito={`${mes}:${panel.id}`}
+            />
           )}
         </section>
       </div>
@@ -441,7 +499,13 @@ function PanelSinRemito({
           Todos los viajes del mes tienen su remito cargado.
         </div>
       ) : (
-        <PanelChofer panel={panel} canWrite={canWrite} onChanged={onChanged} mostrarChofer />
+        <PanelChofer
+          panel={panel}
+          canWrite={canWrite}
+          onChanged={onChanged}
+          ambito={`${mes}:sin-remito`}
+          mostrarChofer
+        />
       )}
     </div>
   );
@@ -489,11 +553,14 @@ function PanelChofer({
   panel,
   canWrite,
   onChanged,
+  ambito,
   mostrarChofer = false,
 }: {
   panel: HrPanelChofer;
   canWrite: boolean;
   onChanged: () => void;
+  /** Qué hoja se está corrigiendo, para que el borrador no se mezcle entre meses ni choferes. */
+  ambito: string;
   /** Agrega la columna Chofer: sólo hace falta en la vista que cruza choferes. */
   mostrarChofer?: boolean;
 }) {
@@ -511,11 +578,49 @@ function PanelChofer({
   const borradorPara = (v: HrViajeItem) => borradores[v.id] ?? borradorDe(v);
   const sucios = panel.viajes.filter((v) => borradores[v.id] && borradorSucio(v, borradores[v.id]!));
 
+  // ── Borrador local: corregir un mes entero son muchas filas tipeadas a mano,
+  // y hasta que no se toca "Guardar todo" viven sólo en memoria.
+  //
+  // Se guardan SÓLO las filas sucias. Guardar todas traería de vuelta el valor
+  // que tenía la fila cuando se abrió la pantalla, y eso es exactamente el
+  // pisotón silencioso que `aCambio` está escrito para evitar: si en el medio
+  // alguien cargó el DM de YPF o el importe, se borraría.
+  const sucioPorId = useMemo(() => {
+    const out: Record<string, Borrador> = {};
+    for (const v of panel.viajes) {
+      const b = borradores[v.id];
+      if (b && borradorSucio(v, b)) out[v.id] = b;
+    }
+    return out;
+  }, [panel.viajes, borradores]);
+
+  const borradorLocal = useBorrador({
+    pantalla: `viajes-hoja-ruta:${ambito}`,
+    valor: sucioPorId,
+    normalizar: normalizarBorradorHojaRuta,
+    hayDatos: (b) => Object.keys(b).length > 0,
+    activo: canWrite,
+  });
+
+  useCambiosSinGuardar(canWrite && sucios.length > 0);
+
+  const recuperarBorrador = () => {
+    const b = borradorLocal.recuperar();
+    if (!b) return;
+    // Sólo las filas que siguen estando en la hoja: si un viaje se borró o se
+    // facturó desde otra sesión, su corrección vieja ya no aplica.
+    const vigentes = new Set(panel.viajes.map((v) => v.id));
+    const aplicables = Object.fromEntries(Object.entries(b).filter(([id]) => vigentes.has(id)));
+    setBorradores((prev) => ({ ...prev, ...aplicables }));
+    setModoTodos(true);
+  };
+
   const limpiar = () => {
     setModoTodos(false);
     setEditandoId(null);
     setBorradores({});
     setErrorGuardar(null);
+    borradorLocal.limpiar();
   };
 
   const guardarLote = async (viajes: HrViajeItem[]) => {
@@ -536,6 +641,9 @@ function PanelChofer({
       // valores viejos hace creer que no se guardó nada.
       if (res.guardados > 0) {
         setBorradores({});
+        // Entró parte del lote: el borrador viejo ya no representa nada y
+        // ofrecerlo después sería volver a mandar correcciones ya aplicadas.
+        borradorLocal.limpiar();
         onChanged();
       }
       return;
@@ -554,6 +662,15 @@ function PanelChofer({
 
   return (
     <div className="p-4 sm:p-5 space-y-4">
+      {borradorLocal.pendiente && (
+        <AvisoBorrador
+          ts={borradorLocal.pendiente.ts}
+          detalle={`${Object.keys(borradorLocal.pendiente.valor).length} fila(s) corregida(s)`}
+          onRecuperar={recuperarBorrador}
+          onDescartar={borradorLocal.descartar}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>

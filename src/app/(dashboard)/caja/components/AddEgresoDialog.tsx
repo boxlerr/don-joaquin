@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -16,6 +16,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addEgresoAction, type CajaId } from "../actions";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El egreso en blanco, para completar contra él un borrador viejo. */
+const vacioEgreso = (privado: boolean) => ({
+  concepto: "",
+  monto: "",
+  medio: "efectivo" as "efectivo" | "transferencia" | "cheque" | "otro",
+  categoria: "gasto_operativo" as
+    | "gasto_operativo"
+    | "pago_proveedor"
+    | "pago_chofer"
+    | "transferencia_interna"
+    | "ajuste"
+    | "otro",
+  tipoGastoId: "",
+  fecha: "",
+  privado,
+});
 
 const CATEGORIA_LABEL: Record<string, string> = {
   gasto_operativo: "Gasto Operativo",
@@ -64,6 +84,35 @@ export default function AddEgresoDialog({
   // chica arranca visible; en la general, privado (solo dirección).
   const [privado, setPrivado] = useState(defaultPrivado);
 
+  const valorBorrador = useMemo(
+    () => ({ concepto, monto, medio, categoria, tipoGastoId, fecha, privado }),
+    [concepto, monto, medio, categoria, tipoGastoId, fecha, privado],
+  );
+
+  // La caja general NO deja borrador. Es una subsección confidencial de
+  // dirección y esto se guarda en el navegador, sin cifrar: en una máquina
+  // compartida, un importe de la caja grande no puede quedar ahí. La caja chica
+  // sí, que es donde se carga a diario y donde duele perder lo tipeado.
+  const borrador = useBorrador({
+    pantalla: "caja-egreso",
+    valor: valorBorrador,
+    normalizar: objetoCon(vacioEgreso(defaultPrivado)),
+    hayDatos: (v) => v.concepto.trim() !== "" || v.monto.trim() !== "",
+    activo: open && caja !== "grande",
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setConcepto(b.concepto);
+    setMonto(b.monto);
+    setMedio(b.medio);
+    setCategoria(b.categoria);
+    setTipoGastoId(b.tipoGastoId);
+    setFecha(b.fecha);
+    setPrivado(b.privado);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!monto || isNaN(Number(monto))) return;
@@ -88,6 +137,8 @@ export default function AddEgresoDialog({
         setMonto("");
         setTipoGastoId("");
         setPrivado(defaultPrivado);
+        // El egreso ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         window.dispatchEvent(new CustomEvent("caja:refresh"));
         router.refresh();
       }
@@ -114,6 +165,14 @@ export default function AddEgresoDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
               {error}

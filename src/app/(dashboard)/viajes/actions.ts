@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { avisarCambio } from "@/lib/avisos";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traerTodo } from "@/lib/supabase/traer-todo";
@@ -1283,6 +1284,8 @@ export async function createViajeAction(
   }
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true };
 }
 
@@ -1519,6 +1522,8 @@ export async function deleteViajeAction(id: string): Promise<{ ok: boolean; erro
   );
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true };
 }
 
@@ -1593,6 +1598,8 @@ export async function deleteViajesEnBloqueAction(
   }
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   revalidatePath("/dashboard");
   return { ok: true, eliminados, bloqueados };
 }
@@ -1678,6 +1685,8 @@ export async function cerrarViajeAction(
   }, user.id);
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   revalidatePath("/dashboard");
   return {
     ok: true,
@@ -1727,6 +1736,8 @@ export async function updateNotasViajeAction(
   );
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true, observaciones };
 }
 
@@ -1831,6 +1842,8 @@ export async function facturarViajesEnBloqueAction(
   }
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   revalidatePath("/dashboard");
   return { ok: true, facturados, omitidos };
 }
@@ -2206,6 +2219,8 @@ export async function updateViajeAction(
   }
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true };
 }
 
@@ -2408,6 +2423,8 @@ export async function createViajesBatchAction(
   });
 
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true, creados };
 }
 

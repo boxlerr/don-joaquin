@@ -120,9 +120,22 @@ export default function AgregarDocumentoDialog({
     onOpenChange(false);
   };
 
+  // OJO: acá NO se avisa `onOpenChange(false)`. El padre monta este diálogo con
+  // `{agregando && <AgregarDocumentoDialog…>}`, así que cerrar el paso 1 desde
+  // afuera desmontaba el componente entero — y con él el formulario de carga que
+  // se acababa de pedir. El efecto era que "Continuar" cerraba todo y no se
+  // llegaba nunca a la pantalla para subir el papel. El paso 1 se tapa solo
+  // (`open && !cargando`) y el padre se entera recién cuando termina el flujo.
   const continuar = () => {
     if (!filaElegida || !requisito) return;
     setCargando(filaElegida);
+  };
+
+  /** Se cerró el formulario de carga: termina el flujo entero. */
+  const terminar = () => {
+    setCargando(null);
+    setCodigo("");
+    setEntidad("");
     onOpenChange(false);
   };
 
@@ -141,7 +154,7 @@ export default function AgregarDocumentoDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : cerrar())}>
+      <Dialog open={open && !cargando} onOpenChange={(v) => (v ? onOpenChange(true) : cerrar())}>
         <DialogContent className="sm:max-w-[460px]">
           <DialogHeader>
             <DialogTitle className="text-lg text-foreground sm:text-xl">Agregar documento</DialogTitle>
@@ -218,7 +231,15 @@ export default function AgregarDocumentoDialog({
             <Button type="button" variant="outline" onClick={cerrar} className="border-border text-muted-foreground">
               Cancelar
             </Button>
-            <Button type="button" variant="brand" onClick={continuar} disabled={!filaElegida}>
+            {/* También pide `requisito`: sin él `continuar()` se vuelve sin hacer
+                nada, y un botón habilitado que no responde se lee como que el
+                sistema se colgó. */}
+            <Button
+              type="button"
+              variant="brand"
+              onClick={continuar}
+              disabled={!filaElegida || !requisito}
+            >
               Continuar
             </Button>
           </DialogFooter>
@@ -234,11 +255,7 @@ export default function AgregarDocumentoDialog({
           edit={edit}
           open={true}
           onOpenChange={(o) => {
-            if (!o) {
-              setCargando(null);
-              setCodigo("");
-              setEntidad("");
-            }
+            if (!o) terminar();
           }}
           onSuccess={() => {
             setCargando(null);

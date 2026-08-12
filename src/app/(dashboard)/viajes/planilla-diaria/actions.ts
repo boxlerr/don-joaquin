@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { avisarCambio } from "@/lib/avisos";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
@@ -515,6 +516,8 @@ export async function guardarPlanillaDiariaAction(
   }
 
   revalidatePath("/viajes/planilla-diaria");
+  // Las planillas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("planilla-diaria");
   revalidatePath("/viajes/carga-rapida");
   revalidatePath("/choferes");
   revalidatePath("/choferes/[slug]", "page");

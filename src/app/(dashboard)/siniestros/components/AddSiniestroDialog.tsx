@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,9 @@ import InlineFeedback from "@/components/ui/InlineFeedback";
 const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import type { TipoSiniestro, EstadoSiniestro } from "./SiniestrosTable";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
 
 export type SiniestroFormPayload = {
   camion_id: string;
@@ -49,6 +52,19 @@ export type SiniestroFormPayload = {
 export type SiniestroEditing = {
   id: string;
 } & SiniestroFormPayload;
+
+/** El siniestro en blanco, para completar contra él un borrador viejo. */
+const SINIESTRO_VACIO = {
+  choferId: "none",
+  tipoSiniestro: "choque" as TipoSiniestro,
+  tipoSiniestroDetalle: "",
+  estado: "abierto" as EstadoSiniestro,
+  descripcion: "",
+  montoDanos: "",
+  companiaSeguro: "",
+  numeroSiniestroSeguro: "",
+  tercerosInvolucrados: "",
+};
 
 type FieldErrors = {
   camionId?: string;
@@ -112,6 +128,51 @@ export default function AddSiniestroDialog({
   const [numeroSiniestroSeguro, setNumeroSiniestroSeguro] = useState("");
   const [tercerosInvolucrados, setTercerosInvolucrados] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+
+  // ── Borrador. Sólo en el alta: al editar, los datos ya están en el sistema y
+  // lo que se pierde es una corrección, no una carga entera. La fecha y el
+  // camión tampoco entran cuando el diálogo se abre desde una unidad.
+  const valorBorrador = useMemo(
+    () => ({
+      choferId,
+      tipoSiniestro,
+      tipoSiniestroDetalle,
+      estado,
+      descripcion,
+      montoDanos,
+      companiaSeguro,
+      numeroSiniestroSeguro,
+      tercerosInvolucrados,
+    }),
+    [choferId, tipoSiniestro, tipoSiniestroDetalle, estado, descripcion, montoDanos,
+     companiaSeguro, numeroSiniestroSeguro, tercerosInvolucrados],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "siniestros-nuevo",
+    valor: valorBorrador,
+    normalizar: objetoCon(SINIESTRO_VACIO),
+    hayDatos: (v) =>
+      v.descripcion.trim() !== "" ||
+      v.montoDanos.trim() !== "" ||
+      v.companiaSeguro.trim() !== "" ||
+      v.tercerosInvolucrados.trim() !== "",
+    activo: open && !editing,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setChoferId(b.choferId);
+    setTipoSiniestro(b.tipoSiniestro);
+    setTipoSiniestroDetalle(b.tipoSiniestroDetalle);
+    setEstado(b.estado);
+    setDescripcion(b.descripcion);
+    setMontoDanos(b.montoDanos);
+    setCompaniaSeguro(b.companiaSeguro);
+    setNumeroSiniestroSeguro(b.numeroSiniestroSeguro);
+    setTercerosInvolucrados(b.tercerosInvolucrados);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -188,6 +249,8 @@ export default function AddSiniestroDialog({
       if (onSaved) {
         onSaved(payload);
         setSuccess(editing ? "Siniestro actualizado" : "Siniestro registrado");
+        // El siniestro ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         setTimeout(() => setOpen(false), 800);
       }
     } catch {
@@ -222,6 +285,14 @@ export default function AddSiniestroDialog({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-5">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
           {success && <InlineFeedback variant="success" message={success} onDismiss={() => setSuccess(null)} />}
 

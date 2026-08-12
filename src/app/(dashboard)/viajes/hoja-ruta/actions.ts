@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { avisarCambio } from "@/lib/avisos";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 import { logAudit } from "@/lib/audit";
 // Sólo el tipo: se borra en compilación, así que no arrastra el módulo de
@@ -536,6 +537,8 @@ export async function actualizarViajeHojaRutaAction(
 
   revalidatePath("/viajes/hoja-ruta");
   revalidatePath("/viajes");
+  // Las pantallas de viajes abiertas se enteran solas.
+  await avisarCambio("viajes");
   return { ok: true };
 }
 

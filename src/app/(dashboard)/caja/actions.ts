@@ -13,6 +13,7 @@ import { normalizarTexto } from "@/lib/texto";
 import { clausulaVisibilidad } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
+import { avisarCambio } from "@/lib/avisos";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
@@ -559,6 +560,8 @@ export async function setMovimientoPrivadoAction(data: { id: string; privado: bo
   );
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { success: true };
 }
 
@@ -609,6 +612,8 @@ export async function addIngresoAction(data: {
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { success: true };
 }
 
@@ -695,6 +700,8 @@ export async function addEgresoAction(data: {
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { success: true };
 }
 
@@ -765,6 +772,8 @@ export async function transferirEntreCajasAction(data: {
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { success: true };
 }
 
@@ -1022,6 +1031,8 @@ export async function importMovimientosCajaAction(
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { ok: true, imported, skipped, errors };
 }
 
@@ -1090,6 +1101,8 @@ export async function addViaticoAction(data: {
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { success: true };
 }
 
@@ -1170,5 +1183,7 @@ export async function rendirViaticoAction(data: {
   }
 
   revalidatePath("/caja");
+  // Las cajas abiertas en otras pantallas se enteran solas.
+  await avisarCambio("caja");
   return { ok: true };
 }

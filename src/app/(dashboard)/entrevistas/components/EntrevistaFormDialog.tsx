@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -32,6 +32,23 @@ import {
 } from "../actions";
 import AdjuntosEditable from "@/components/ui/AdjuntosEditable";
 import type { Entrevista } from "./EntrevistasTable";
+import { useBorrador } from "@/hooks/useBorrador";
+import { objetoCon } from "@/lib/borrador-local";
+import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+/** El candidato en blanco, para completar contra él un borrador viejo. */
+const ENTREVISTA_VACIA = {
+  nombre: "",
+  edad: "",
+  localidad: "",
+  telefono: "",
+  dni: "",
+  email: "",
+  puesto: "",
+  experiencia: "",
+  contactoEmergencia: "",
+  observaciones: "",
+};
 
 const PREOCUPACIONAL_OPCIONES = [
   { value: "no_aplica", label: "No corresponde / sin definir" },
@@ -83,6 +100,42 @@ export default function EntrevistaFormDialog({
   const [entro, setEntro] = useState(entrevista?.entro ?? "");
   const [seMantuvo, setSeMantuvo] = useState(entrevista?.se_mantuvo ?? "");
 
+  // ── Borrador. Sólo en el alta: en edición los datos ya están cargados y el
+  // borrador de un candidato se le aparecería a otro. Se guarda lo que se tipea
+  // —los datos del candidato—, no el seguimiento (resultado, preocupacional,
+  // aprobado), que se completa después y con la ficha delante.
+  const valorBorrador = useMemo(
+    () => ({
+      nombre, edad, localidad, telefono, dni, email, puesto, experiencia,
+      contactoEmergencia, observaciones,
+    }),
+    [nombre, edad, localidad, telefono, dni, email, puesto, experiencia,
+     contactoEmergencia, observaciones],
+  );
+
+  const borrador = useBorrador({
+    pantalla: "entrevistas-nueva",
+    valor: valorBorrador,
+    normalizar: objetoCon(ENTREVISTA_VACIA),
+    hayDatos: (v) => v.nombre.trim() !== "" || v.dni.trim() !== "" || v.telefono.trim() !== "",
+    activo: open && !isEdit,
+  });
+
+  const recuperarBorrador = () => {
+    const b = borrador.recuperar();
+    if (!b) return;
+    setNombre(b.nombre);
+    setEdad(b.edad);
+    setLocalidad(b.localidad);
+    setTelefono(b.telefono);
+    setDni(b.dni);
+    setEmail(b.email);
+    setPuesto(b.puesto);
+    setExperiencia(b.experiencia);
+    setContactoEmergencia(b.contactoEmergencia);
+    setObservaciones(b.observaciones);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) {
@@ -121,6 +174,8 @@ export default function EntrevistaFormDialog({
         setError(res.error);
       } else {
         setOpen(false);
+        // El candidato ya entró: recién ahora el borrador sobra.
+        borrador.limpiar();
         if (!isEdit) {
           // Reset en modo alta
           setNombre("");
@@ -166,6 +221,14 @@ export default function EntrevistaFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {borrador.pendiente && (
+            <AvisoBorrador
+              ts={borrador.pendiente.ts}
+              onRecuperar={recuperarBorrador}
+              onDescartar={borrador.descartar}
+            />
+          )}
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
               {error}
