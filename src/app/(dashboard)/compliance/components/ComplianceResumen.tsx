@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   FileText,
   CalendarClock,
@@ -411,6 +411,10 @@ type ResumenTipo = {
   alDia: number;
   pct: number;
   estado: ComplianceEstado;
+  /** A quién le corresponde: sale de las filas, es el mismo para todo el tipo. */
+  nivel: ComplianceNivel;
+  /** A qué plataforma se presenta (`cliente_aplica`). */
+  aplica: string;
 };
 
 // `color` es para texto (tiene que contrastar sobre el fondo claro) y `barra`
@@ -436,19 +440,32 @@ const RANK_FILA: Record<ComplianceEstado, number> = {
   vigente: 3,
 };
 
+const NIVEL_CORTO: Record<ComplianceNivel, string> = {
+  empresa: "Empresa",
+  unidad: "Camión",
+  chofer: "Chofer",
+};
+
+/** A qué plataforma va el documento. Dato de la papeleta, no una categoría inventada. */
+const APLICA_UI: Record<string, { label: string; color: string; bg: string }> = {
+  AMBOS: { label: "YPF + Loma", color: "#075985", bg: "#E0F2FE" },
+  YPF: { label: "Solo YPF", color: "#166534", bg: "#F0FDF4" },
+  LOMA_NEGRA: { label: "Solo Loma", color: "#7C2D12", bg: "#FFF7ED" },
+};
+
 /** Cuántos tipos se ven antes de tocar "Ver más". */
 const TIPOS_VISIBLES = 7;
 /** Cuántas filas se listan dentro de un tipo desplegado. */
 const FILAS_EN_DETALLE = 8;
 
 /**
- * Categorías: un renglón por tipo de documento, ordenado por lo que peor está.
+ * Los tipos de documento, en tabla: un renglón por tipo con sus columnas.
  *
  * Reemplaza al "abrí el acordeón y contá": de un vistazo se ve que las VTV
- * tienen 12 vencidas y las licencias ninguna. Y el renglón se abre: adentro
- * están las unidades/choferes concretos a los que les falta, con el botón para
- * cargarlo ahí mismo. Antes había que bajar hasta el checklist, abrir el nivel,
- * abrir la unidad y recién ahí encontrar la fila.
+ * tienen 12 vencidas y las licencias ninguna. Cada renglón dice además a quién
+ * le corresponde ese papel y a qué plataforma va, que antes había que saberlo de
+ * memoria — y se abre: adentro están las unidades/choferes concretos a los que
+ * les falta, con el botón para cargarlo ahí mismo.
  */
 export function ComplianceCategorias({
   rows,
@@ -483,6 +500,8 @@ export function ComplianceCategorias({
           alDia: 0,
           pct: 0,
           estado: "vigente",
+          nivel: r.nivel,
+          aplica: r.cliente_aplica,
         } satisfies ResumenTipo);
       prev.total += 1;
       if (r.estado === "vencido") prev.vencidos += 1;
@@ -537,163 +556,207 @@ export function ComplianceCategorias({
         </span>
       </div>
 
-      <ul className="divide-y divide-border">
-        {visibles.map((c) => {
-          const ui = TIPO_UI[c.estado];
-          const expandido = abierto === c.codigo;
-          const filas = porTipo.get(c.codigo) ?? [];
-          const pendientes = filas.filter((r) => esPendienteEstado(r.estado));
-          // Si está todo al día no hay nada que ir a resolver: se listan igual
-          // los documentos, así se puede ver la fecha sin bajar al checklist.
-          const aListar = (pendientes.length > 0 ? pendientes : filas).slice(0, FILAS_EN_DETALLE);
-          const restantes = (pendientes.length > 0 ? pendientes.length : filas.length) - aListar.length;
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[32rem] border-collapse text-left">
+          <thead>
+            <tr className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-2 font-semibold">Documento</th>
+              <th className="hidden px-3 py-2 font-semibold lg:table-cell">Es de</th>
+              {/* La plataforma sólo distingue a los pocos que no van a las dos:
+                  es la primera que se va cuando falta ancho. */}
+              <th className="hidden px-3 py-2 font-semibold 2xl:table-cell">Plataforma</th>
+              <th className="px-3 py-2 font-semibold">Al día</th>
+              <th className="px-3 py-2 font-semibold">Estado</th>
+              <th className="w-10 px-3 py-2" aria-label="Abrir" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {visibles.map((c) => {
+              const ui = TIPO_UI[c.estado];
+              const aplica = APLICA_UI[c.aplica] ?? APLICA_UI.AMBOS!;
+              const expandido = abierto === c.codigo;
+              const filas = porTipo.get(c.codigo) ?? [];
+              const pendientes = filas.filter((r) => esPendienteEstado(r.estado));
+              // Si está todo al día no hay nada que ir a resolver: se listan igual
+              // los documentos, así se puede ver la fecha sin bajar al checklist.
+              const aListar = (pendientes.length > 0 ? pendientes : filas).slice(0, FILAS_EN_DETALLE);
+              const restantes = (pendientes.length > 0 ? pendientes.length : filas.length) - aListar.length;
 
-          return (
-            <li key={c.codigo}>
-              <button
-                type="button"
-                onClick={() => setAbierto(expandido ? null : c.codigo)}
-                aria-expanded={expandido}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors sm:px-4 ${
-                  expandido ? "bg-muted/40" : "hover:bg-muted/40"
-                }`}
-              >
-                <IlustracionCompliance nombre={ui.arte} size={34} />
+              return (
+                <Fragment key={c.codigo}>
+                  <tr
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={expandido}
+                    onClick={() => setAbierto(expandido ? null : c.codigo)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      setAbierto(expandido ? null : c.codigo);
+                    }}
+                    className={`cursor-pointer transition-colors ${
+                      expandido ? "bg-muted/40" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <IlustracionCompliance nombre={ui.arte} size={34} />
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-medium text-foreground">{c.nombre}</p>
+                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                            {c.total} {c.total === 1 ? "documento" : "documentos"}
+                            {c.vencidos > 0 && (
+                              <span className="font-semibold text-[#B91C1C]">
+                                {" · "}
+                                {c.vencidos} vencido{c.vencidos === 1 ? "" : "s"}
+                              </span>
+                            )}
+                            {c.porVencer > 0 && (
+                              <span className="font-semibold text-[#B45309]">
+                                {" · "}
+                                {c.porVencer} por vencer
+                              </span>
+                            )}
+                            {c.faltantes > 0 && <span>{" · "}{c.faltantes} sin cargar</span>}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
 
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium text-foreground">{c.nombre}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-                    {c.total} {c.total === 1 ? "documento" : "documentos"}
-                    {c.vencidos > 0 && (
-                      <span className="font-semibold text-[#B91C1C]">
-                        {" · "}
-                        {c.vencidos} vencido{c.vencidos === 1 ? "" : "s"}
+                    <td className="hidden px-3 py-2.5 lg:table-cell">
+                      <span className="whitespace-nowrap rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {NIVEL_CORTO[c.nivel]}
                       </span>
-                    )}
-                    {c.porVencer > 0 && (
-                      <span className="font-semibold text-[#B45309]">
-                        {" · "}
-                        {c.porVencer} por vencer
+                    </td>
+
+                    <td className="hidden px-3 py-2.5 2xl:table-cell">
+                      <span
+                        className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ backgroundColor: aplica.bg, color: aplica.color }}
+                      >
+                        {aplica.label}
                       </span>
-                    )}
-                    {c.faltantes > 0 && (
-                      <span>
-                        {" · "}
-                        {c.faltantes} sin cargar
-                      </span>
-                    )}
-                  </span>
-                </span>
+                    </td>
 
-                {/* La barra mide lo que está al día. Sin número al lado no se
-                    entiende de qué es el porcentaje. */}
-                <span className="hidden w-24 shrink-0 lg:block xl:w-32">
-                  <span className="block h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <span
-                      className="block h-full rounded-full transition-[width] duration-500"
-                      style={{ width: `${c.pct}%`, backgroundColor: ui.barra }}
-                    />
-                  </span>
-                </span>
-                <span className="w-9 shrink-0 text-right text-[12px] font-semibold tabular-nums text-muted-foreground">
-                  {c.pct}%
-                </span>
-
-                <span
-                  className="hidden shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold sm:inline-block"
-                  style={{ backgroundColor: ui.bg, color: ui.color }}
-                >
-                  {ui.label}
-                </span>
-
-                <span
-                  aria-hidden
-                  className={`grid size-6 shrink-0 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-transform ${
-                    expandido ? "" : "-rotate-90"
-                  }`}
-                >
-                  <ChevronDown size={14} />
-                </span>
-              </button>
-
-              {expandido && (
-                <div className="border-t border-border bg-muted/20 px-3 py-3 sm:px-4">
-                  {pendientes.length === 0 ? (
-                    <p className="mb-2 text-[12px] font-medium text-[#166534]">
-                      Todo al día: los {c.total} están vigentes.
-                    </p>
-                  ) : (
-                    <p className="mb-2 text-[12px] text-muted-foreground">
-                      <span className="font-semibold text-foreground">{pendientes.length}</span> de {c.total}{" "}
-                      necesitan algo. {onCargar && canWrite ? "Tocá uno para cargarlo." : ""}
-                    </p>
-                  )}
-
-                  <ul className="grid gap-1 sm:grid-cols-2">
-                    {aListar.map((r) => {
-                      const fui = TIPO_UI[r.estado];
-                      const etiqueta = r.chofer_nombre ?? r.camion_patente ?? "Empresa";
-                      const clickable = Boolean(onCargar);
-                      const contenido = (
-                        <>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        {/* La barra mide lo que está al día. Sin número al lado no
+                            se entiende de qué es el porcentaje. */}
+                        <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted sm:block xl:w-28">
                           <span
-                            aria-hidden
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: fui.barra }}
+                            className="block h-full rounded-full transition-[width] duration-500"
+                            style={{ width: `${c.pct}%`, backgroundColor: ui.barra }}
                           />
-                          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{etiqueta}</span>
-                          <span className="shrink-0 text-[11px]" style={{ color: fui.color }}>
-                            {r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : fui.label}
-                          </span>
-                        </>
-                      );
-                      return (
-                        <li key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
-                          {clickable ? (
-                            <button
-                              type="button"
-                              onClick={() => onCargar?.(r)}
-                              title={
-                                canWrite
-                                  ? r.documento_id
-                                    ? "Editar el vencimiento"
-                                    : "Cargar este documento"
-                                  : "Ver el documento"
-                              }
-                              className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
-                            >
-                              {contenido}
-                            </button>
-                          ) : (
-                            <span className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
-                              {contenido}
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        </span>
+                        <span className="w-9 shrink-0 text-right text-[12px] font-semibold tabular-nums text-muted-foreground">
+                          {c.pct}%
+                        </span>
+                      </div>
+                    </td>
 
-                  <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    {restantes > 0 && (
-                      <span className="text-[11px] text-muted-foreground">
-                        y {restantes} más…
+                    <td className="px-3 py-2.5">
+                      <span
+                        className="inline-block whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold"
+                        style={{ backgroundColor: ui.bg, color: ui.color }}
+                      >
+                        {ui.label}
                       </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onChange({ ...filtros, requisito: c.codigo, estado: "todos" })}
-                      className="text-[12px] font-medium text-primary hover:underline"
-                    >
-                      Ver los {c.total} en el checklist
-                    </button>
-                  </div>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                    </td>
+
+                    <td className="px-3 py-2.5">
+                      <span
+                        aria-hidden
+                        className={`grid size-6 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-transform ${
+                          expandido ? "" : "-rotate-90"
+                        }`}
+                      >
+                        <ChevronDown size={14} />
+                      </span>
+                    </td>
+                  </tr>
+
+                  {expandido && (
+                    <tr>
+                      <td colSpan={6} className="border-t border-border bg-muted/20 px-3 py-3 sm:px-4">
+                        {pendientes.length === 0 ? (
+                          <p className="mb-2 text-[12px] font-medium text-[#166534]">
+                            Todo al día: los {c.total} están vigentes.
+                          </p>
+                        ) : (
+                          <p className="mb-2 text-[12px] text-muted-foreground">
+                            <span className="font-semibold text-foreground">{pendientes.length}</span> de{" "}
+                            {c.total} necesitan algo. {onCargar && canWrite ? "Tocá uno para cargarlo." : ""}
+                          </p>
+                        )}
+
+                        <ul className="grid gap-1 sm:grid-cols-2">
+                          {aListar.map((r) => {
+                            const fui = TIPO_UI[r.estado];
+                            const etiqueta = r.chofer_nombre ?? r.camion_patente ?? "Empresa";
+                            const clickable = Boolean(onCargar);
+                            const contenido = (
+                              <>
+                                <span
+                                  aria-hidden
+                                  className="size-2 shrink-0 rounded-full"
+                                  style={{ backgroundColor: fui.barra }}
+                                />
+                                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                                  {etiqueta}
+                                </span>
+                                <span className="shrink-0 text-[11px]" style={{ color: fui.color }}>
+                                  {r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : fui.label}
+                                </span>
+                              </>
+                            );
+                            return (
+                              <li key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
+                                {clickable ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onCargar?.(r)}
+                                    title={
+                                      canWrite
+                                        ? r.documento_id
+                                          ? "Editar el vencimiento"
+                                          : "Cargar este documento"
+                                        : "Ver el documento"
+                                    }
+                                    className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                                  >
+                                    {contenido}
+                                  </button>
+                                ) : (
+                                  <span className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
+                                    {contenido}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+
+                        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          {restantes > 0 && (
+                            <span className="text-[11px] text-muted-foreground">y {restantes} más…</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onChange({ ...filtros, requisito: c.codigo, estado: "todos" })}
+                            className="text-[12px] font-medium text-primary hover:underline"
+                          >
+                            Ver los {c.total} en el checklist
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {cats.length > TIPOS_VISIBLES && (
         <button

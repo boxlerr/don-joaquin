@@ -90,15 +90,6 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
-    id: "los-documentos-ahora-se-ven-en-una-tabla",
-    fecha: "2026-08-12",
-    tipo: "mejora",
-    ver: "compliance",
-    titulo: "Los documentos ahora se ven en una tabla, con lo que vence primero",
-    detalle: "Solapas arriba para saltar entre vencidos, por vencer y sin cargar. Si preferís verlo por chofer y por unidad, el botón \"Agrupado\" te lo devuelve.",
-    href: "/compliance",
-  },
-  {
     id: "en-novedades-ves-de-que-parte-del-sistema",
     fecha: "2026-08-12",
     tipo: "mejora",

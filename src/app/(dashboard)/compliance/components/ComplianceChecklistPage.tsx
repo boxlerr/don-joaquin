@@ -21,8 +21,6 @@ import {
   ShieldCheck,
   CalendarClock,
   SearchX,
-  Table2,
-  Rows3,
 } from "lucide-react";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import MarcaLogo from "@/components/ui/MarcaLogo";
@@ -39,7 +37,6 @@ import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplia
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
 import ComplianceRail from "./ComplianceRail";
-import ComplianceTabla from "./ComplianceTabla";
 import {
   ComplianceFiltros,
   ComplianceMetricas,
@@ -255,10 +252,6 @@ export default function ComplianceChecklistPage({
   );
 
   const [filtros, setFiltros] = useState<FiltrosCompliance>(FILTROS_VACIOS);
-  // Dos formas de mirar lo mismo. La tabla contesta "¿qué vence primero?" —la
-  // pregunta de todas las mañanas— y arranca elegida; el agrupado contesta "¿qué
-  // le falta a este chofer?", que es para cuando se prepara una carpeta.
-  const [vista, setVista] = useState<"tabla" | "agrupado">("tabla");
   // Lo que la persona abrió o cerró A MANO. Lo demás lo decide el filtro: con un
   // filtro puesto todo arranca abierto, porque si no se filtra "Vencidos" y la
   // pantalla queda en blanco con los acordeones cerrados.
@@ -668,53 +661,8 @@ export default function ComplianceChecklistPage({
             canWrite={canWrite}
           />
 
-          <div ref={checklistRef} className="space-y-3 scroll-mt-4 sm:scroll-mt-[5.25rem]">
-            <div className="flex items-center justify-between gap-3 print:hidden">
-              <h2 className="text-[13px] font-semibold text-foreground">
-                {vista === "tabla" ? "Los documentos" : "Por chofer y por unidad"}
-              </h2>
-              <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-border">
-                {(
-                  [
-                    { id: "tabla" as const, label: "Tabla", Icono: Table2 },
-                    { id: "agrupado" as const, label: "Agrupado", Icono: Rows3 },
-                  ]
-                ).map(({ id, label, Icono }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setVista(id)}
-                    aria-pressed={vista === id}
-                    className={`inline-flex h-8 items-center gap-1.5 px-2.5 text-[12px] font-medium transition-colors max-md:h-9 ${
-                      vista === id
-                        ? "bg-primary/5 text-primary"
-                        : "bg-card text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    <Icono size={14} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {vista === "tabla" ? (
-              <ComplianceTabla
-                rows={visibles}
-                todas={rows}
-                filtros={filtros}
-                onChange={cambiarFiltros}
-                requisitos={requisitos}
-                unidades={unidades}
-                choferes={choferes}
-                canWrite={canWrite}
-                onCargar={handleCasilla}
-                onHistorial={handleHistorial}
-                onDescargar={(r) => startTransition(() => abrirArchivo(r.archivo_id!, true))}
-              />
-            ) : (
-              <div className="space-y-4">{checklist}</div>
-            )}
+          <div ref={checklistRef} className="space-y-4 scroll-mt-4 sm:scroll-mt-[5.25rem]">
+            {checklist}
           </div>
         </div>
 
