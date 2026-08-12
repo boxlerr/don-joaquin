@@ -13,13 +13,15 @@ import {
   type CajaResumen,
   type CajaVista,
 } from "../actions";
-import { VENTANA_CAJA_CHICA_DIAS } from "../ventana";
+import { periodoInicial, VENTANA_CAJA_CHICA_DIAS } from "../ventana";
 
 /**
- * Qué se está mirando. El día suelto viene del calendario; el mes es el período
- * por defecto; "custom" lo activa el rango manual de la tabla.
+ * Qué se está mirando. El día suelto viene del calendario; "ventana" son los
+ * últimos 30 días (lo que ES la caja chica) y con eso abre la pantalla; el mes
+ * lo elige la navegación; "custom" lo activa el rango manual de la tabla.
  */
 type Periodo =
+  | { tipo: "ventana" }
   | { tipo: "mes"; mes: string }
   | { tipo: "dia"; dia: string }
   | { tipo: "todos" }
@@ -35,8 +37,14 @@ function mesRange(mes: string): { desde: string; hasta: string } {
   };
 }
 
-function rangoDe(periodo: Periodo): { desde: string; hasta: string } {
+function rangoDe(
+  periodo: Periodo,
+  ventanaDesde: string | undefined,
+  hoy: string,
+): { desde: string; hasta: string } {
   switch (periodo.tipo) {
+    case "ventana":
+      return { desde: ventanaDesde ?? "", hasta: hoy };
     case "mes":
       return mesRange(periodo.mes);
     case "dia":
@@ -64,6 +72,8 @@ function diaLabel(dia: string): string {
 
 function periodoLabelDe(periodo: Periodo): string {
   switch (periodo.tipo) {
+    case "ventana":
+      return `Últimos ${VENTANA_CAJA_CHICA_DIAS} días`;
     case "mes":
       return mesLabel(periodo.mes);
     case "dia":
@@ -134,11 +144,9 @@ export default function CajaDashboard({
 }: Props) {
   const esGeneral = vista === "general";
   const [cajaFiltro, setCajaFiltro] = useState<CajaFiltro>(esGeneral ? "todas" : "diaria");
-  const [periodo, setPeriodo] = useState<Periodo>(() => {
-    const actual = mesActual();
-    return { tipo: "mes", mes: mesesConDatos.includes(actual) ? actual : mesesConDatos[0] ?? actual };
-  });
-  const rango = rangoDe(periodo);
+  const [periodo, setPeriodo] = useState<Periodo>(() => periodoInicial(ventanaDesde, mesActual()));
+  const hoy = hoyISO();
+  const rango = rangoDe(periodo, ventanaDesde, hoy);
 
   const [resumen, setResumen] = useState<CajaResumen | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -180,8 +188,12 @@ export default function CajaDashboard({
       setPeriodo({ tipo: "dia", dia });
       return;
     }
+    // Desde la ventana ("Últimos 30 días") la flecha de atrás lleva al mes
+    // pasado completo: es el paso hacia atrás que se espera, y la ventana ya
+    // incluye lo que va del mes corriente.
     const base = periodo.tipo === "mes" ? periodo.mes : mesActual();
-    const mes = periodo.tipo === "mes" ? sumarMeses(base, delta) : base;
+    const mes =
+      periodo.tipo === "mes" || periodo.tipo === "ventana" ? sumarMeses(base, delta) : base;
     if (ventanaDesde && mesRange(mes).hasta < ventanaDesde) return;
     setPeriodo({ tipo: "mes", mes });
   };
@@ -194,12 +206,25 @@ export default function CajaDashboard({
 
   const diasConDatos = useMemo(() => new Set(fechasConDatos), [fechasConDatos]);
   const periodoLabel = periodoLabelDe(periodo);
-  const hoy = hoyISO();
 
-  // Sin futuro: la caja no se carga hacia adelante.
+  // Sin futuro: la caja no se carga hacia adelante. La ventana termina hoy, así
+  // que también está "en el presente".
   const enElPresente =
+    periodo.tipo === "ventana" ||
     (periodo.tipo === "mes" && periodo.mes === mesActual()) ||
     (periodo.tipo === "dia" && periodo.dia === hoy);
+
+  // Mes elegido sin un solo movimiento, habiendo otro que sí tiene: el mes al
+  // que se puede ir. `null` mientras carga el resumen (`movimientos` en null),
+  // para no ofrecer un salto y borrarlo medio segundo después.
+  const ultimoConDatos = mesesConDatos[0];
+  const mesVacio =
+    periodo.tipo === "mes" &&
+    resumen?.movimientos === 0 &&
+    ultimoConDatos &&
+    ultimoConDatos !== periodo.mes
+      ? ultimoConDatos
+      : null;
 
   // Navegación del período: va en la franja superior de la barra de saldo, así
   // el control y el número que devuelve son un mismo bloque.
@@ -261,6 +286,22 @@ export default function CajaDashboard({
                 Todo
               </Button>
             </div>
+            {/* La vuelta a la ventana con la que abre la pantalla: sin esto, el
+                que se fue a mirar un día de julio no tenía cómo volver a "lo
+                último" más que recargando. */}
+            {ventanaDesde && periodo.tipo !== "ventana" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  setPeriodo({ tipo: "ventana" });
+                  cerrar();
+                }}
+              >
+                Últimos {VENTANA_CAJA_CHICA_DIAS} días
+              </Button>
+            )}
             <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <span className="size-2.5 rounded-full bg-emerald-50 border border-emerald-200/60" />
               días con movimientos
@@ -290,6 +331,20 @@ export default function CajaDashboard({
         </Button>
       )}
 
+      {/* El mes elegido no tiene un solo movimiento y sí hay otro que sí: se
+          OFRECE, no se salta. La pantalla se iba sola al último mes con datos y
+          nadie entendía por qué estaba parado en julio un 11 de agosto. */}
+      {mesVacio && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-9 text-xs text-muted-foreground sm:h-8"
+          onClick={() => setPeriodo({ tipo: "mes", mes: mesVacio })}
+        >
+          Sin movimientos · ver {mesLabel(mesVacio)}
+        </Button>
+      )}
+
       {/* Vista general: las dos cajas juntas, con la opción de separarlas. */}
       {esGeneral && (
         <Combobox
@@ -316,7 +371,13 @@ export default function CajaDashboard({
         saldo={resumen?.saldoTotal ?? null}
         saldoSub={`${CAJA_LABEL[cajaFiltro]} · histórico`}
         controles={controles}
-        nota={ventanaDesde ? `Últimos ${VENTANA_CAJA_CHICA_DIAS} días` : null}
+        // Con la ventana como período, el propio selector ya lo dice: repetirlo
+        // a la derecha era el mismo texto dos veces en la misma franja.
+        nota={
+          ventanaDesde && periodo.tipo !== "ventana"
+            ? `Últimos ${VENTANA_CAJA_CHICA_DIAS} días`
+            : null
+        }
         hoy={resumen?.hoy ?? null}
         metricas={[
           {

@@ -7,6 +7,7 @@ import { getChequeAlertasLive, getDocAlertasLive } from "@/lib/alertas-live";
 import { alertaColumnaDe, caducaAlPasar, esEfemeride, RRHH_EVENTOS_COL } from "@/lib/alertas-routing";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 import { hoyArgentina } from "@/lib/fecha-ar";
+import { novedadesRecientes, novedadesVisibles, type Novedad } from "@/lib/novedades";
 import { alertaHref, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
 import { ALERTA_COLUMNAS } from "@/app/(dashboard)/configuracion/notificaciones/constants";
 
@@ -172,6 +173,12 @@ export type ResumenDiario = {
   total: number;
   vencidos: number;
   grupos: GrupoResumen[];
+  /**
+   * Qué cambió en el sistema, ya filtrado por lo que esta persona puede abrir.
+   * Viaja con el resumen (y no se lee de `@/lib/novedades` en el cliente) porque
+   * el filtro es de permisos: ver `getResumenDiario`.
+   */
+  novedades: Novedad[];
 };
 
 /** Fila ya normalizada: tabla y "live" tienen forma distinta, acá se emparejan. */
@@ -360,5 +367,15 @@ export async function getResumenDiario(user: CurrentUser): Promise<ResumenDiario
     return a.nombre.localeCompare(b.nombre, "es");
   });
 
-  return { total, vencidos, grupos };
+  // Qué cambió en el sistema. El filtro por permisos se hace ACÁ y no en el
+  // navegador: los permisos viven en el server, y así al cliente no le viaja ni
+  // el título de una pantalla que esta persona no puede abrir. La ventana es de
+  // días; cuáles de esas ya vio cada uno lo decide el pop-up, que es el que
+  // guarda la marca (ver `novedadesNuevas` en ResumenDiarioModal).
+  const novedades = novedadesVisibles(novedadesRecientes(hoyArgentina()), {
+    secciones: user.secciones,
+    areas: user.permisos,
+  });
+
+  return { total, vencidos, grupos, novedades };
 }

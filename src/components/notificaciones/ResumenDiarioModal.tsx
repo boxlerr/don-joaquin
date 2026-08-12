@@ -29,9 +29,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import MetricCard from "@/components/ui/MetricCard";
 import ChecklistYCampana from "@/components/notificaciones/ChecklistYCampana";
+import ListaNovedades from "@/components/novedades/ListaNovedades";
+import MegafonoNovedades from "@/components/novedades/MegafonoNovedades";
 import { RRHH_EVENTOS_COL } from "@/lib/alertas-routing";
 import { CATEGORIA_ESTILO } from "@/lib/email-template";
-import { novedadesRecientes } from "@/lib/novedades";
+import type { Novedad } from "@/lib/novedades";
 import type { GrupoResumen, ItemResumen, ResumenDiario } from "@/lib/resumen-diario";
 
 /**
@@ -55,6 +57,25 @@ import type { GrupoResumen, ItemResumen, ResumenDiario } from "@/lib/resumen-dia
  */
 
 const CLAVE_PREFIX = "dj_resumen_dia_";
+
+/**
+ * Qué novedades ya se le mostraron a esta persona (ids, por usuario).
+ *
+ * Es la respuesta a "¿y cuándo haya muchas?": el pop-up no muestra las de los
+ * últimos N días —eso repetía diez mañanas seguidas la misma lista— sino las que
+ * ESTA persona todavía no vio, y como mucho `MAX_NOVEDADES`. El resto espera su
+ * turno mañana y el historial completo vive en /novedades.
+ *
+ * Se guardan ids y no una fecha porque en un mismo día se sube más de una cosa:
+ * con "vi hasta el 11/08", la segunda novedad del 11 no se anunciaba nunca.
+ */
+const CLAVE_NOVEDADES = "dj_novedades_vistas_";
+
+/** Cuántas se muestran de una. Las que sobran se cuentan y salen mañana. */
+const MAX_NOVEDADES = 4;
+
+/** Tope de ids guardados: la lista crece unas pocas por semana, no hace falta más. */
+const TOPE_VISTAS = 200;
 
 /**
  * Volver a abrir el pop-up a pedido. Lo dispara el botón de la campana ("Resumen
@@ -214,6 +235,46 @@ function marcarVistoHoy(userId: string): void {
   } catch {
     /* storage lleno o bloqueado: el peor caso es que se repita el pop-up */
   }
+}
+
+/** Ids de novedades ya mostradas. Sin storage devuelve vacío: se muestran de más. */
+function novedadesVistas(userId: string): string[] {
+  const ls = safeLocal();
+  if (!ls) return [];
+  try {
+    const crudo = ls.getItem(CLAVE_NOVEDADES + userId);
+    const arr: unknown = crudo ? JSON.parse(crudo) : [];
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Marca como vistas SOLO las que se dibujaron.
+ *
+ * Si se marcaran todas las que llegaron, un usuario que vuelve de vacaciones con
+ * doce novedades nuevas vería cuatro y perdería ocho para siempre. Así las que
+ * no entraron hoy son las primeras de mañana.
+ */
+function marcarNovedadesVistas(userId: string, ids: string[]): void {
+  const ls = safeLocal();
+  if (!ls || ids.length === 0) return;
+  try {
+    const todas = [...new Set([...novedadesVistas(userId), ...ids])];
+    ls.setItem(CLAVE_NOVEDADES + userId, JSON.stringify(todas.slice(-TOPE_VISTAS)));
+  } catch {
+    /* el peor caso es volver a mostrar una novedad */
+  }
+}
+
+/**
+ * Las que esta persona todavía no vio. Exportada para el test: es la regla que
+ * decide si el pop-up aparece en un día sin vencimientos.
+ */
+export function novedadesNuevas(items: Novedad[], vistas: string[]): Novedad[] {
+  const yaVistas = new Set(vistas);
+  return items.filter((n) => !yaVistas.has(n.id));
 }
 
 function fechaLarga(d: Date): string {
@@ -377,7 +438,13 @@ export default function ResumenDiarioModal({
         const res = await fetch("/api/alertas?mode=diario", { cache: "no-store", signal: ctrl.signal });
         if (!res.ok) return;
         const json = (await res.json()) as ResumenDiario | null;
-        if (!json || !Array.isArray(json.grupos) || json.total <= 0) return;
+        if (!json || !Array.isArray(json.grupos)) return;
+        // Un día sin vencimientos pero con cambios en el sistema TAMBIÉN abre el
+        // pop-up: es el único lugar donde se anuncian, y si no aparece nadie se
+        // entera. Sin nada pendiente y sin nada nuevo, no se molesta.
+        const hayNovedades =
+          novedadesNuevas(json.novedades ?? [], novedadesVistas(userId)).length > 0;
+        if (json.total <= 0 && !hayNovedades) return;
         // La marca se escribe recién cuando SÍ hay algo para mostrar: si el día
         // arrancó limpio y a media mañana aparece un vencimiento, la próxima
         // carga lo muestra igual en vez de dar el día por avisado.
@@ -629,7 +696,7 @@ export default function ResumenDiarioModal({
           {/* Qué cambió en el sistema. Va al final y solo si hay algo: en una
               semana sin cambios no ocupa lugar, y nunca compite con los
               vencimientos, que son lo que el pop-up viene a decir. */}
-          {data && <Novedades onIr={ir} />}
+          {data && <Novedades items={data.novedades ?? []} userId={userId} onIr={ir} />}
         </div>
 
         <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 lg:px-6">
@@ -806,77 +873,111 @@ function NoCargo() {
 }
 
 /**
- * "Novedades del sistema": lo que cambió en los últimos días.
+ * "Novedades del sistema": lo que cambió y esta persona todavía no vio.
  *
  * Pedido de Julián (10/08/2026). Hasta ahora, que una pantalla cambiara no se
  * anunciaba en ningún lado: el equipo se enteraba al abrirla y no reconocerla.
  *
- * Va abajo de todo y en tono menor a propósito — el pop-up existe para los
- * vencimientos del día; esto es contexto, no una tarea. Por eso no lleva número
- * ni color propio: si compitiera con las tarjetas de arriba, se leería como algo
- * que hay que hacer.
+ * Tres decisiones, todas de la vuelta del 11/08:
+ *
+ *  1. No muestra "las de los últimos 10 días" sino las que NO VIO. Con la
+ *     ventana, la misma lista aparecía diez mañanas seguidas y se volvía parte
+ *     del fondo; con esto, si no hubo cambios la sección directamente no está.
+ *  2. Corta en `MAX_NOVEDADES`. La pregunta era si paginar: adentro del pop-up
+ *     no —cuatro y "y N más"—, porque el cartel viene a hablar de vencimientos y
+ *     una lista larga lo convierte en otra cosa. Las que sobran salen mañana y
+ *     el historial entero está en /novedades.
+ *  3. Llega filtrada por permisos desde el server (`getResumenDiario`): a nadie
+ *     se le anuncia una pantalla que no puede abrir.
+ *
+ * Va abajo de todo a propósito — el pop-up existe para los vencimientos del día;
+ * esto es contexto, no una tarea. Los colores son los del tipo de cambio (nuevo
+ * / mejora / arreglo), que es información, no decoración.
  */
-function Novedades({ onIr }: { onIr: (href: string) => void }) {
-  const items = novedadesRecientes(hoyLocal());
-  if (items.length === 0) return null;
+function Novedades({
+  items,
+  userId,
+  onIr,
+}: {
+  items: Novedad[];
+  userId: string;
+  onIr: (href: string) => void;
+}) {
+  // Se congela en el primer render a propósito: marcar como vistas es un efecto
+  // que cambia el storage, y si la lista se recalculara con cada render se
+  // vaciaría en el acto, delante de la persona que la está leyendo.
+  const [nuevas] = useState(() => novedadesNuevas(items, novedadesVistas(userId)));
+  const visibles = nuevas.slice(0, MAX_NOVEDADES);
+  const restantes = nuevas.length - visibles.length;
+
+  useEffect(() => {
+    marcarNovedadesVistas(
+      userId,
+      visibles.map((n) => n.id),
+    );
+    // Una sola vez por apertura: `visibles` sale de un estado congelado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Ya las vio todas: en vez de desaparecer sin dejar rastro, queda la puerta
+  // abierta al historial. Es la única forma de encontrar /novedades para quien
+  // abrió el resumen a mano un día tranquilo.
+  if (visibles.length === 0) {
+    if (items.length === 0) return null;
+    return (
+      <div className="mt-5 flex justify-center">
+        <button
+          type="button"
+          onClick={() => onIr("/novedades")}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Sparkles size={13} />
+          Ver las novedades del sistema
+          <ChevronRight size={13} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-5">
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
-        <Rotulo texto="Novedades del sistema" icono={Sparkles} color="#64748B" />
-        <span className="shrink-0 text-[11px] text-muted-foreground/70">
-          {items.length === 1 ? "1 cambio reciente" : `${items.length} cambios recientes`}
-        </span>
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {/* La ilustración es lo que separa esta sección de las tarjetas de
+              arriba: abajo del todo, el cartel deja de dar tareas y pasa a
+              contar algo. */}
+          <MegafonoNovedades className="size-9 shrink-0" />
+          <div className="min-w-0">
+            <span className="block text-[13px] font-semibold tracking-tight text-foreground">
+              Novedades del sistema
+            </span>
+            <span className="block text-[11px] text-muted-foreground">
+              {nuevas.length === 1 ? "Hay 1 cambio nuevo" : `Hay ${nuevas.length} cambios nuevos`}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onIr("/novedades")}
+          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          Ver todas
+          <ChevronRight size={13} />
+        </button>
       </div>
 
-      {/* Un panel con separadores en vez de una lista suelta: le da el mismo
-          cuerpo que las tarjetas de arriba sin pedir la misma atención. */}
-      <ul className="divide-y divide-border overflow-hidden rounded-[8px] border border-border bg-card">
-        {items.map((n, i) => {
-          const contenido = (
-            <>
-              {/* La fecha en columna fija: alineadas verticalmente se leen como
-                  una línea de tiempo, y no bailan según el largo del día. */}
-              <span className="mt-[2px] w-[52px] shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground/80">
-                {fechaCorta(n.fecha) ?? n.fecha}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium leading-snug text-foreground">
-                  {n.titulo}
-                </span>
-                {n.detalle && (
-                  <span className="mt-0.5 block text-[12px] leading-relaxed text-muted-foreground">
-                    {n.detalle}
-                  </span>
-                )}
-              </span>
-              {n.href && (
-                <ChevronRight
-                  size={14}
-                  className="mt-0.5 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary"
-                  aria-hidden
-                />
-              )}
-            </>
-          );
+      <ListaNovedades items={visibles} onIr={onIr} />
 
-          return (
-            <li key={`${n.fecha}-${i}`}>
-              {n.href ? (
-                <button
-                  type="button"
-                  onClick={() => onIr(n.href!)}
-                  className="group flex w-full gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
-                >
-                  {contenido}
-                </button>
-              ) : (
-                <div className="flex gap-3 px-3 py-2.5">{contenido}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {restantes > 0 && (
+        <button
+          type="button"
+          onClick={() => onIr("/novedades")}
+          className="mt-1.5 flex min-h-9 w-full items-center justify-center gap-1 rounded-lg text-[11.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          {restantes === 1 ? "y 1 novedad más" : `y ${restantes} novedades más`}
+          <ChevronRight size={13} />
+        </button>
+      )}
     </div>
   );
 }

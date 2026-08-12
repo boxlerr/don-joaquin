@@ -19,6 +19,7 @@ import {
   UserSearch,
   BarChart3,
   Landmark,
+  Megaphone,
   PiggyBank,
   TrendingUp,
   type LucideIcon,
@@ -61,6 +62,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // Métricas históricas (planillas del padre) — confidencial, solo admins.
       { label: "Métricas", href: "/metricas", icon: BarChart3, seccion: "metricas" },
       { label: "Notificaciones", href: "/notificaciones", icon: Bell },
+      // Qué cambió en el sistema. Sin área ni sección: la ve todo el mundo y la
+      // LISTA se filtra por dentro (cada novedad declara qué permiso pide).
+      { label: "Novedades", href: "/novedades", icon: Megaphone },
       { label: "Reportes", href: "/reportes", icon: BarChart3, seccion: "reportes" },
     ],
   },

@@ -1,8 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { AlertTriangle, ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 /**
  * Barra de saldo de la caja: un solo bloque en lugar de las tarjetas sueltas.
@@ -136,19 +136,141 @@ function fechaCorta(iso: string): string {
   return `${d}/${m}`;
 }
 
+const DIAS_LARGO = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MESES_LARGO = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
 /**
- * Franja del día en curso. Es la pregunta del cierre —"¿cómo venimos hoy?"— y no
- * depende del período elegido, así que va abajo de todo y en una sola línea.
+ * "2026-08-11" → "martes 11 de agosto". Se arma con los tres números sueltos y
+ * NO con `new Date(iso)`: ese constructor lee el string como UTC y en Argentina
+ * devuelve el día anterior.
+ */
+function fechaLarga(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${DIAS_LARGO[new Date(y, m - 1, d).getDay()]} ${d} de ${MESES_LARGO[m - 1]}`;
+}
+
+/** Fecha local de la máquina en "YYYY-MM-DD" (nunca `toISOString`, que es UTC). */
+function isoLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+const SEGUNDO_MS = 1000;
+
+/** El tic del reloj: una suscripción como cualquier otra fuente externa. */
+function suscribirAlSegundo(alCambiar: () => void): () => void {
+  const id = setInterval(alCambiar, SEGUNDO_MS);
+  return () => clearInterval(id);
+}
+
+/**
+ * El segundo en curso, como número.
+ *
+ * Devuelve el MISMO valor durante todo el segundo a propósito: React compara la
+ * foto anterior con la nueva usando `Object.is`, y un `new Date()` sería un
+ * objeto distinto en cada lectura — lo que dispara el "getSnapshot should be
+ * cached" y un render infinito.
+ */
+function segundoActual(): number {
+  return Math.floor(Date.now() / SEGUNDO_MS);
+}
+
+/**
+ * En el server no hay reloj que sirva: corre en UTC y en otra máquina. El HTML
+ * sale sin hora y el navegador la completa apenas hidrata; si se dibujara del
+ * lado del server, React encontraría dos horas distintas y tiraría el error de
+ * hidratación en la cara del usuario.
+ */
+function sinReloj(): null {
+  return null;
+}
+
+/**
+ * El día y la hora, arriba de todo en la franja de hoy y andando.
+ *
+ * Pedido de Julián (11/08/2026): "ver en grande el día actual y la hora que se
+ * vaya actualizando". No es adorno — la caja se carga contra el día, y tener el
+ * día a la vista mientras se anota un movimiento es lo que evita el clásico de
+ * cargar el lunes lo del viernes.
+ *
+ * Dos detalles que no son obvios:
+ *
+ *  - La hora sale del navegador y no del server (ver `sinReloj`), así que el
+ *    primer dibujo no la tiene: es "--:--:--" por un instante y no un error de
+ *    hidratación.
+ *  - El DÍA que se muestra es el del SERVIDOR (`fecha`), no el de la máquina:
+ *    es el que va a llevar el movimiento cuando se guarde. Si la computadora
+ *    marca otro día, se avisa en vez de mostrar dos fechas distintas sin
+ *    explicación — que es justo el "más confiable" del pedido.
+ */
+function RelojHoy({ fecha }: { fecha: string | null }) {
+  // El reloj del sistema es un dato de AFUERA de React, así que se lee como
+  // tal: `useSyncExternalStore` se encarga solo de suscribir, desuscribir y
+  // dibujar el HTML del server sin hora.
+  const segundo = useSyncExternalStore<number | null>(suscribirAlSegundo, segundoActual, sinReloj);
+  const ahora = segundo === null ? null : new Date(segundo * SEGUNDO_MS);
+
+  const dia = fecha ?? (ahora ? isoLocal(ahora) : null);
+  const desfasada = !!fecha && !!ahora && isoLocal(ahora) !== fecha;
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 sm:flex-none">
+      <div className="min-w-0">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+          Hoy
+        </span>
+        <span className="mt-0.5 block truncate text-[15px] font-semibold leading-tight text-foreground first-letter:uppercase sm:text-base">
+          {dia ? fechaLarga(dia) : "—"}
+        </span>
+      </div>
+
+      {/* La hora en cuerpo grande y tabular: es lo que se mira de reojo mientras
+          se carga, y con ancho fijo por dígito no baila cada segundo. */}
+      <span
+        className="text-[26px] font-semibold leading-none tracking-tight tabular-nums text-foreground sm:text-[30px]"
+        aria-live="off"
+      >
+        {ahora
+          ? ahora.toLocaleTimeString("es-AR", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: false,
+            })
+          : "--:--:--"}
+      </span>
+
+      {desfasada && (
+        <span className="flex items-center gap-1 text-[11px] text-amber-600">
+          <AlertTriangle size={12} />
+          Tu computadora marca el {fechaCorta(isoLocal(ahora!))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Franja del día en curso: el reloj y la pregunta del cierre —"¿cómo venimos
+ * hoy?"—. No depende del período elegido (arriba se puede estar mirando julio),
+ * así que va abajo de todo y en una sola línea.
  */
 function FranjaHoy({ hoy, cargando }: { hoy: Hoy | null; cargando: boolean }) {
   const neto = hoy ? hoy.ingresos - hoy.egresos : 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-b-xl border-t border-border bg-muted/20 px-4 py-2.5 sm:gap-x-6 sm:px-5">
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-        <span className="size-1.5 rounded-full bg-primary" aria-hidden />
-        Hoy{hoy && ` · ${fechaCorta(hoy.fecha)}`}
-      </span>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-4 py-3 sm:gap-x-6 sm:px-5">
+      <RelojHoy fecha={hoy?.fecha ?? null} />
+
+      {/* El divisor separa el reloj de la plata del día: son dos lecturas
+          distintas y en una sola tira se leían como una sola frase. */}
+      <span className="hidden h-9 w-px shrink-0 bg-border sm:block" aria-hidden />
 
       {cargando ? (
         <Placeholder className="h-4 w-64" />
