@@ -39,7 +39,7 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import AvatarPersona from "@/components/ui/AvatarPersona";
-import MarcaLogo from "../../camiones/components/MarcaLogo";
+import MarcaLogo from "@/components/ui/MarcaLogo";
 import { actualizarViajeHojaRutaAction } from "../hoja-ruta/actions";
 import { descargarXlsxBase64 } from "@/lib/excel/download-client";
 import HelpTutorialButton from "./help-tutorial-button";

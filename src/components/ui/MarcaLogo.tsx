@@ -1,7 +1,11 @@
 "use client";
 
 /**
- * Logo de la marca del camión.
+ * La imagen de una unidad: su foto si se la sacaron y, si no, el logo de la marca.
+ *
+ * Es la "foto de perfil" del camión en todo el sistema — la lista de flota, los
+ * legajos, el resumen de viajes y el checklist de Compliance dibujan la misma,
+ * así que una unidad se reconoce igual en todas las pantallas.
  *
  * Todas las filas tenían el mismo ícono de camioncito, así que no se distinguía
  * un Scania de un Iveco sin leer la columna. Con el logo se reconoce de un
@@ -13,7 +17,7 @@
  */
 
 import { Truck } from "lucide-react";
-import { normalizar } from "../filtros";
+import { normalizar } from "@/app/(dashboard)/camiones/filtros";
 
 /** Archivo en /public/marcas por marca, con las grafías que aparecen cargadas. */
 const LOGOS: Record<string, string> = {

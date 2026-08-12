@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Container } from "lucide-react";
-import { logoDeMarca } from "./MarcaLogo";
+import { logoDeMarca } from "@/components/ui/MarcaLogo";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EstadoSwitch from "./EstadoSwitch";

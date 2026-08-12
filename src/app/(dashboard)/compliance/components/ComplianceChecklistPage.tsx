@@ -22,7 +22,8 @@ import {
   CalendarClock,
   SearchX,
 } from "lucide-react";
-import AvatarPersona, { colorDePersona } from "@/components/ui/AvatarPersona";
+import AvatarPersona from "@/components/ui/AvatarPersona";
+import MarcaLogo from "@/components/ui/MarcaLogo";
 import {
   NIVEL_LABEL,
   type ChoferInfo,
@@ -759,7 +760,7 @@ function GroupHeaderInfo({
           className="shrink-0"
         />
       ) : (
-        <FotoUnidad url={unidad?.foto_url ?? null} patente={label} />
+        <MarcaLogo marca={unidad?.marca} foto={unidad?.foto_url} patente={label} size={32} />
       )}
 
     <div className="min-w-0">
@@ -804,41 +805,6 @@ function GroupHeaderInfo({
       )}
     </div>
     </>
-  );
-}
-
-/**
- * La foto de tapa de la unidad. Sin foto va un camión teñido con el color de la
- * patente —la misma paleta y el mismo criterio que el avatar de las personas—:
- * 62 cuadraditos idénticos no ayudan a encontrar la fila, y ese es todo el punto
- * de poner una imagen. Ocupa el mismo lugar que la foto, así las filas con y sin
- * foto no quedan desalineadas.
- */
-function FotoUnidad({ url, patente }: { url: string | null; patente: string }) {
-  if (!url) {
-    const color = colorDePersona(patente);
-    return (
-      <span
-        className="grid size-8 shrink-0 place-items-center rounded-lg"
-        style={{ backgroundColor: `${color}1A`, color }}
-        title={`${patente} — sin foto cargada`}
-        aria-hidden
-      >
-        <Truck size={16} />
-      </span>
-    );
-  }
-  return (
-    // Viene de Storage con URL pública. `next/image` exige configurar el dominio
-    // y no aporta nada acá: son 62 miniaturas de 32px.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt=""
-      loading="lazy"
-      className="size-8 shrink-0 rounded-lg border border-border object-cover"
-      title={patente}
-    />
   );
 }
 

@@ -30,7 +30,7 @@ import { useChoferAcciones } from "./useChoferAcciones";
 import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
-import { logoDeMarca } from "@/app/(dashboard)/camiones/components/MarcaLogo";
+import { logoDeMarca } from "@/components/ui/MarcaLogo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fila de chofer (DB) con muchos campos; los tipos generados no están disponibles acá
 export default function ChoferCard({ chofer }: { chofer: any }) {

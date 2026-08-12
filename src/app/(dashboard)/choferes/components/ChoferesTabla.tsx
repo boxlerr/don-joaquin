@@ -38,7 +38,7 @@ import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { formatFecha } from "@/lib/utils";
-import { logoDeMarca } from "@/app/(dashboard)/camiones/components/MarcaLogo";
+import { logoDeMarca } from "@/components/ui/MarcaLogo";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { useChoferAcciones } from "./useChoferAcciones";
 import type { ChoferMotivoEgreso } from "../actions";

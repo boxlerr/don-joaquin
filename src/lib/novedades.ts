@@ -89,6 +89,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "cada-unidad-se-reconoce-por-el-logo-de-su",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "compliance",
+    titulo: "Cada unidad se reconoce por el logo de su marca",
+    detalle: "En el checklist ves el Scania, el Iveco o el Volvo al lado de la patente, igual que en Camiones. Si le sacás una foto y la subís en Camiones, pasa a mostrarse esa.",
+    href: "/compliance",
+  },
+  {
     id: "en-el-checklist-encontras-al-chofer-o-la",
     fecha: "2026-08-12",
     tipo: "mejora",

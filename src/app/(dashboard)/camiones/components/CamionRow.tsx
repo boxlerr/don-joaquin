@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TableRow, TableCell } from "@/components/ui/table";
 import StatusBadge from "@/components/ui/StatusBadge";
-import MarcaLogo from "./MarcaLogo";
+import MarcaLogo from "@/components/ui/MarcaLogo";
 import EstadoSwitch from "./EstadoSwitch";
 import {
   categoriaCapacidad,
