@@ -54,6 +54,12 @@ interface MetricCardProps {
   color?: string;
   /** Nombre accesible completo, cuando el `label` va abreviado para que entre. */
   ariaLabel?: string;
+  /**
+   * Dibujo propio en lugar del ícono en su cuadradito. Lo usa Compliance, donde
+   * cuatro tarjetas seguidas con la misma hoja de papel no se distinguían. El
+   * nodo trae su propio fondo y tamaño; la tarjeta sólo le hace lugar.
+   */
+  art?: React.ReactNode;
   onClick?: () => void;
   href?: string;
   /** Serie real (un punto por período) + el texto que explica qué cambió. */
@@ -133,6 +139,7 @@ export default function MetricCard({
   tone = "brand",
   color,
   ariaLabel,
+  art,
   onClick,
   href,
   trend,
@@ -151,12 +158,14 @@ export default function MetricCard({
   const contenido = (
     <>
       <div className={`flex items-start gap-3 ${pie ? "mb-3" : ""}`}>
-        <span
-          className={`grid size-9 sm:size-10 shrink-0 place-items-center rounded-lg ${t.chip} ${t.fg}`}
-          style={estiloChip}
-        >
-          <Icon size={18} strokeWidth={2.2} />
-        </span>
+        {art ?? (
+          <span
+            className={`grid size-9 sm:size-10 shrink-0 place-items-center rounded-lg ${t.chip} ${t.fg}`}
+            style={estiloChip}
+          >
+            <Icon size={18} strokeWidth={2.2} />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground leading-tight">
             {label}

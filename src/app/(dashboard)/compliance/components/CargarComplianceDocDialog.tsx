@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Send, Loader2, X, FileText } from "lucide-react";
+import { Upload, Send, Loader2, X, FileText, User, Truck } from "lucide-react";
 import {
   uploadComplianceDocAction,
   crearUrlSubidaComplianceDocAction,
@@ -39,6 +39,12 @@ interface Props {
   requisito: ComplianceRequisito;
   chofer_id?: string;
   camion_id?: string;
+  /**
+   * De quién es el documento (nombre del chofer o patente). El diálogo se abre
+   * desde listas de 78 nombres: sin esto no hay forma de confirmar que se está
+   * cargando en el legajo correcto.
+   */
+  entidadLabel?: string | null;
   edit?: EditVencimiento;
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -49,6 +55,7 @@ export default function CargarComplianceDocDialog({
   requisito,
   chofer_id,
   camion_id,
+  entidadLabel,
   edit,
   open,
   onOpenChange,
@@ -197,6 +204,12 @@ export default function CargarComplianceDocDialog({
           <DialogTitle className="text-foreground text-lg sm:text-xl">
             {esEdicion ? "Editar vencimiento" : "Cargar"} — {requisito.nombre}
           </DialogTitle>
+          {entidadLabel && (
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              {chofer_id ? <User size={14} className="shrink-0 text-muted-foreground" /> : <Truck size={14} className="shrink-0 text-muted-foreground" />}
+              {entidadLabel}
+            </p>
+          )}
           <DialogDescription className="text-muted-foreground">
             {esEdicion
               ? "Actualizá la fecha de vencimiento y, si lo tenés, adjuntá el documento nuevo. Se suma a los anteriores."

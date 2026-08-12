@@ -1,11 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ShieldCheck, FileCheck2, ClipboardList, AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ShieldCheck,
+  FileCheck2,
+  ClipboardList,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  FileSpreadsheet,
+  Printer,
+  Plus,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import ComplianceChecklistPage from "./components/ComplianceChecklistPage";
+import ComplianceHelpButton from "./components/ComplianceHelpButton";
+import AgregarDocumentoDialog from "./components/AgregarDocumentoDialog";
 import OrganismoChecklistPage from "./organismos/OrganismoChecklistPage";
 import Form931Client from "./form-931/Form931Client";
+import { exportarComplianceChecklistXlsx } from "./export";
 import type {
   ComplianceDestinatario,
   ComplianceEstado,
@@ -37,6 +52,8 @@ interface Props {
   envio931: string | null;
   /** Plataforma inicial (de ?plat=) para deep-links desde rutas viejas. */
   initialPlat?: string;
+  /** Momento (ISO) en que el server armó estos datos. */
+  generadoEn: string;
 }
 
 function esPendiente(estado: ComplianceEstado): boolean {
@@ -55,7 +72,14 @@ type TabDef = {
   id: string;
   label: string;
   icon: typeof ShieldCheck;
-  alerta: number;
+  /** Cuántos documentos tiene esa solapa (el número neutro del selector). */
+  total: number;
+  /** Cuántos están vencidos: es lo único que se pinta en rojo. */
+  vencidos: number;
+  /** Acciones propias de la solapa, en la cabecera de la pantalla. */
+  acciones?: React.ReactNode;
+  /** Qué es esa solapa. Va en el tooltip, no ocupando una franja de pantalla. */
+  ayuda?: string;
   render: () => React.ReactNode;
 };
 
@@ -71,7 +95,11 @@ export default function ComplianceUnifiedClient({
   periodos931,
   envio931,
   initialPlat,
+  generadoEn,
 }: Props) {
+  const router = useRouter();
+  const [agregando, setAgregando] = useState(false);
+
   // El F931 vive dentro de la papeleta (fila "F931" de Empresa): ahí se despliega
   // el seguimiento de períodos con su fecha límite y el envío a YPF/Loma. Antes era
   // una solapa aparte y quedaba duplicado con el ítem de Documentación.
@@ -84,17 +112,52 @@ export default function ComplianceUnifiedClient({
       id: "documentacion",
       label: "Documentación",
       icon: ClipboardList,
-      alerta:
-        documentacion.rows.filter((r) => esPendiente(r.estado)).length + pendientes931,
+      total: documentacion.rows.length,
+      vencidos: documentacion.rows.filter((r) => r.estado === "vencido").length,
+      acciones: (
+        <>
+          <ComplianceHelpButton />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="border-border"
+            title="Imprimir el checklist"
+          >
+            <Printer size={14} className="sm:mr-1.5" />
+            <span className="hidden sm:inline">Imprimir</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void exportarComplianceChecklistXlsx("Documentación", documentacion.rows)}
+            className="border-border"
+          >
+            <FileSpreadsheet size={14} className="mr-1.5" />
+            Exportar
+          </Button>
+          {canWrite && (
+            <Button variant="brand" size="sm" onClick={() => setAgregando(true)}>
+              <Plus size={14} className="mr-1.5" />
+              Agregar documento
+            </Button>
+          )}
+        </>
+      ),
+      // La explicación de la papeleta (qué es y qué significan las marcas
+      // "solo YPF" / "solo Loma") vive en el tooltip de la solapa y en el
+      // Tutorial: como párrafo fijo se comía media pantalla todos los días.
+      ayuda:
+        "Papeleta de flota de YPF y Loma. Los documentos que van a las dos plataformas no llevan marca; los específicos van (solo YPF) o (solo Loma).",
       render: () => (
         <ComplianceChecklistPage
           titulo="Documentación"
-          subtitulo="Checklist de la papeleta de flota (YPF y Loma). Los que van a todas las plataformas no llevan nada; los específicos van marcados (solo YPF) / (solo Loma)."
           rows={documentacion.rows}
           requisitos={documentacion.requisitos}
           unidades={documentacion.unidades}
           canWrite={canWrite}
           embedded
+          generadoEn={generadoEn}
           panelInicial={initialPlat?.toLowerCase() === "931" ? "F931" : undefined}
           renderRowPanel={(row) =>
             row.requisito_codigo === "F931" ? (
@@ -110,7 +173,9 @@ export default function ComplianceUnifiedClient({
         id: `org:${org.destinatario.codigo.toLowerCase()}`,
         label: org.destinatario.nombre,
         icon: ShieldCheck,
-        alerta: org.rows.filter((r) => esPendiente(r.estado)).length,
+        total: org.rows.length,
+        vencidos: org.rows.filter((r) => r.estado === "vencido").length,
+        ayuda: org.destinatario.descripcion ?? undefined,
         render: () => (
           <OrganismoChecklistPage
             destinatario={org.destinatario}
@@ -123,7 +188,7 @@ export default function ComplianceUnifiedClient({
     }
 
     return out;
-  }, [documentacion, organismos, periodos931, pendientes931, envio931, canWrite, initialPlat]);
+  }, [documentacion, organismos, periodos931, envio931, canWrite, initialPlat, generadoEn]);
 
   // Resolver la solapa inicial (?plat=). Las rutas viejas (ypf/loma/generales)
   // caen todas en "Documentación", que ahora las junta.
@@ -144,22 +209,26 @@ export default function ComplianceUnifiedClient({
   const [activo, setActivo] = useState<string>(resolveInitial);
   const tab = tabs.find((t) => t.id === activo) ?? tabs[0];
 
+  const pendientesDoc =
+    documentacion.rows.filter((r) => esPendiente(r.estado)).length + pendientes931;
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-5">
-      {/* Header */}
-      <div>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4">
+      {/* Header — título y acciones en UNA fila, sin bajada. Antes eran cinco
+          bloques de texto apilados (título, bajada, botones, resumen y aviso)
+          antes de llegar al primer dato: media pantalla en explicaciones. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 print:block">
         <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
           <ShieldCheck size={22} className="text-primary" />
           Compliance
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Toda la documentación y las presentaciones en un solo lugar — checklist con fechas de
-          vencimiento y alertas.
-        </p>
+        {tab?.acciones && (
+          <div className="flex flex-wrap items-center gap-2 print:hidden">{tab.acciones}</div>
+        )}
       </div>
 
       {/* Selector — la tira se sale en celular: scroll propio con flechitas */}
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8">
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8 print:hidden">
         <HorizontalScrollHint
           className="flex border-b border-border px-4 sm:px-6 lg:px-8"
           fadeBg="from-background"
@@ -173,6 +242,12 @@ export default function ComplianceUnifiedClient({
                   key={t.id}
                   type="button"
                   onClick={() => setActivo(t.id)}
+                  title={t.ayuda}
+                  aria-label={
+                    t.vencidos > 0
+                      ? `${t.label}: ${t.total} documentos, ${t.vencidos} vencidos`
+                      : `${t.label}: ${t.total} documentos`
+                  }
                   className={`relative inline-flex items-center gap-2 px-3 sm:px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px whitespace-nowrap ${
                     active
                       ? "text-primary border-primary"
@@ -181,13 +256,18 @@ export default function ComplianceUnifiedClient({
                 >
                   <Icon size={15} className="shrink-0" />
                   {t.label}
-                  {t.alerta > 0 && (
-                    <span
-                      className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${
-                        active ? "bg-[#FEE2E2] text-[#991B1B]" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {t.alerta}
+                  {/* El total va en gris: 728 "sin cargar" no son una alarma. En
+                      rojo va sólo lo vencido, que sí lo es. */}
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold tabular-nums ${
+                      active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {t.total}
+                  </span>
+                  {t.vencidos > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FEE2E2] text-[10px] font-bold tabular-nums text-[#991B1B]">
+                      {t.vencidos}
                     </span>
                   )}
                 </button>
@@ -197,7 +277,29 @@ export default function ComplianceUnifiedClient({
         </HorizontalScrollHint>
       </div>
 
+      {/* Cuando no queda nada pendiente sí vale una línea: es la única que no
+          se puede leer de las tarjetas (todas en cero se leen igual que "no
+          cargué nada"). Con pendientes, los números de arriba ya lo dicen. */}
+      {tab?.id === "documentacion" && pendientesDoc === 0 && (
+        <p className="text-[13px] font-medium text-[#166534] print:hidden">
+          Todo al día: los {documentacion.rows.length} documentos exigidos están presentados y vigentes.
+        </p>
+      )}
+
       {tab?.render()}
+
+      {agregando && (
+        <AgregarDocumentoDialog
+          rows={documentacion.rows}
+          requisitos={documentacion.requisitos}
+          open={agregando}
+          onOpenChange={setAgregando}
+          onSuccess={() => {
+            setAgregando(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

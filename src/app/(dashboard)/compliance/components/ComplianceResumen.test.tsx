@@ -6,6 +6,8 @@ import {
   ComplianceFiltros,
   FILTROS_VACIOS,
   aplicaFiltroEstado,
+  contarFiltros,
+  filaPasaFiltros,
   hayFiltros,
 } from "./ComplianceResumen";
 import type { ComplianceEstadoRow } from "../types";
@@ -121,11 +123,71 @@ describe("ComplianceCategorias", () => {
     expect(items[0]!).toHaveTextContent("2 vencidos");
   });
 
-  it("tocar un tipo lo filtra", () => {
+  it("tocar un tipo lo abre y muestra a quién le falta, sin bajar al checklist", () => {
+    const onCargar = vi.fn();
+    render(
+      <ComplianceCategorias
+        rows={ROWS}
+        filtros={FILTROS_VACIOS}
+        onChange={vi.fn()}
+        onCargar={onCargar}
+        canWrite
+      />,
+    );
+    fireEvent.click(screen.getByText("Licencia de conducir"));
+    // La que falta es la de Valerga: es la única pendiente de ese tipo.
+    fireEvent.click(screen.getByText("Valerga, Andrés"));
+    expect(onCargar).toHaveBeenCalledWith(
+      expect.objectContaining({ requisito_codigo: "LICENCIA", estado: "faltante" }),
+    );
+  });
+
+  it("desde el tipo abierto se puede filtrar el checklist entero", () => {
     const onChange = vi.fn();
     render(<ComplianceCategorias rows={ROWS} filtros={FILTROS_VACIOS} onChange={onChange} />);
     fireEvent.click(screen.getByText("Licencia de conducir"));
+    fireEvent.click(screen.getByText("Ver los 2 en el checklist"));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ requisito: "LICENCIA" }));
+  });
+});
+
+describe("filaPasaFiltros", () => {
+  // Las tres listas que tienen que coincidir siempre (tabla, "mostrando N de M"
+  // y export) preguntan por acá: un criterio duplicado es un número que miente.
+  const vtvVencida = ROWS[0]!;
+
+  it("el filtro de estado y el de tipo se aplican juntos", () => {
+    expect(filaPasaFiltros(vtvVencida, { ...FILTROS_VACIOS, estado: "vencido" })).toBe(true);
+    expect(
+      filaPasaFiltros(vtvVencida, { ...FILTROS_VACIOS, estado: "vencido", requisito: "LICENCIA" }),
+    ).toBe(false);
+  });
+
+  it("«sin archivo» deja los que se anotaron pero no se digitalizaron", () => {
+    const conArchivo = fila({ archivo_id: "a1" });
+    expect(filaPasaFiltros(conArchivo, { ...FILTROS_VACIOS, archivo: "sin" })).toBe(false);
+    expect(filaPasaFiltros(conArchivo, { ...FILTROS_VACIOS, archivo: "con" })).toBe(true);
+    expect(filaPasaFiltros(vtvVencida, { ...FILTROS_VACIOS, archivo: "sin" })).toBe(true);
+  });
+
+  it("«vence dentro de 30 días» no incluye lo que ya venció", () => {
+    const en10 = fila({ estado: "por_vencer", dias_restantes: 10 });
+    const en45 = fila({ estado: "por_vencer", dias_restantes: 45 });
+    expect(filaPasaFiltros(en10, { ...FILTROS_VACIOS, vence: "30" })).toBe(true);
+    expect(filaPasaFiltros(en45, { ...FILTROS_VACIOS, vence: "30" })).toBe(false);
+    // dias_restantes = -74: venció hace rato, no "vence dentro de".
+    expect(filaPasaFiltros(vtvVencida, { ...FILTROS_VACIOS, vence: "30" })).toBe(false);
+  });
+
+  it("la plataforma separa lo específico de lo que va a todas", () => {
+    const soloYpf = fila({ cliente_aplica: "YPF" });
+    expect(filaPasaFiltros(soloYpf, { ...FILTROS_VACIOS, plataforma: "YPF" })).toBe(true);
+    expect(filaPasaFiltros(soloYpf, { ...FILTROS_VACIOS, plataforma: "AMBOS" })).toBe(false);
+  });
+
+  it("contarFiltros cuenta lo que hay puesto, para poder ofrecer limpiarlo", () => {
+    expect(contarFiltros(FILTROS_VACIOS)).toBe(0);
+    expect(contarFiltros({ ...FILTROS_VACIOS, estado: "vencido", vence: "60" })).toBe(2);
   });
 });
 
@@ -143,7 +205,7 @@ describe("ComplianceFiltros", () => {
       />,
     );
     expect(screen.getByText(/Mostrando/)).toHaveTextContent("Mostrando 2 de 5");
-    fireEvent.click(screen.getByText("Limpiar filtros"));
+    fireEvent.click(screen.getByText("Limpiar 1 filtro"));
     expect(onChange).toHaveBeenCalledWith(FILTROS_VACIOS);
   });
 

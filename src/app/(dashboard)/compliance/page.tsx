@@ -63,6 +63,10 @@ export default async function ComplianceUnifiedPage({
       periodos931={periodos931}
       envio931={envio931}
       initialPlat={plat}
+      // Los estados (vencido / por vencer) se calculan contra el día en que se
+      // arma la página. La pantalla lo dice y ofrece rehacerla: si alguien cargó
+      // un documento hace un minuto, esta copia todavía no lo tiene.
+      generadoEn={new Date().toISOString()}
     />
   );
 }

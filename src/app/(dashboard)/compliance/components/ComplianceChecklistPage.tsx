@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
   Send,
   ShieldCheck,
   CalendarClock,
+  SearchX,
 } from "lucide-react";
 import {
   NIVEL_LABEL,
@@ -32,17 +33,18 @@ import {
 import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplianceDocDialog";
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
+import ComplianceRail from "./ComplianceRail";
 import {
   ComplianceFiltros,
   ComplianceMetricas,
   ComplianceCategorias,
   FILTROS_VACIOS,
-  aplicaFiltroEstado,
+  filaPasaFiltros,
+  hayFiltros,
   type FiltrosCompliance,
 } from "./ComplianceResumen";
 import { getSignedUrlComplianceArchivoAction } from "../actions";
 import { formatFecha } from "@/lib/utils";
-import { coincideBusqueda } from "@/lib/texto";
 import { exportarComplianceChecklistXlsx } from "../export";
 
 interface Props {
@@ -63,6 +65,8 @@ interface Props {
   panelInicial?: string;
   /** Ficha de cada unidad por `camion_id`, para la cabecera del grupo "Unidades". */
   unidades?: Record<string, UnidadInfo>;
+  /** Momento (ISO) en que el server armó estos datos — lo muestra la columna derecha. */
+  generadoEn?: string;
 }
 
 const NIVELES: ComplianceNivel[] = ["empresa", "unidad", "chofer"];
@@ -90,18 +94,26 @@ const ESTADO_LABEL: Record<ComplianceEstado, string> = {
   vigente: "al día",
   por_vencer: "por vencer",
   vencido: "vencido",
-  faltante: "falta",
+  faltante: "sin cargar",
+};
+
+/** El mismo estado para la pastilla, que va sola y arranca la frase. */
+const ESTADO_CHIP: Record<ComplianceEstado, string> = {
+  vigente: "Al día",
+  por_vencer: "Por vencer",
+  vencido: "Vencido",
+  faltante: "Sin cargar",
 };
 
 // Colores de la casilla y el estado, por estado.
 const ESTADO_UI: Record<
   ComplianceEstado,
-  { bg: string; border: string; fg: string; icon: "check" | "alert" | "none" }
+  { bg: string; border: string; fg: string; chip: string; icon: "check" | "alert" | "none" }
 > = {
-  vigente: { bg: "#F0FDF4", border: "#22C55E", fg: "#166534", icon: "check" },
-  por_vencer: { bg: "#FFFBEB", border: "#F59E0B", fg: "#92400E", icon: "check" },
-  vencido: { bg: "#FEF2F2", border: "#EF4444", fg: "#991B1B", icon: "alert" },
-  faltante: { bg: "transparent", border: "#94A3B8", fg: "#64748B", icon: "none" },
+  vigente: { bg: "#F0FDF4", border: "#22C55E", fg: "#166534", chip: "#F0FDF4", icon: "check" },
+  por_vencer: { bg: "#FFFBEB", border: "#F59E0B", fg: "#B45309", chip: "#FFFBEB", icon: "check" },
+  vencido: { bg: "#FEF2F2", border: "#EF4444", fg: "#B91C1C", chip: "#FEF2F2", icon: "alert" },
+  faltante: { bg: "transparent", border: "#94A3B8", fg: "#475569", chip: "#F1F5F9", icon: "none" },
 };
 
 // Centinela del seed de carga inicial: unidades que en el Excel vinieron solo con
@@ -149,7 +161,8 @@ function tagCliente(aplica: string): string | null {
 }
 
 function subFecha(row: ComplianceEstadoRow): string {
-  if (!row.fecha_vencimiento) return "sin cargar";
+  // Sin fecha no hay nada que poner: lo dice la pastilla de estado, al lado.
+  if (!row.fecha_vencimiento) return "";
   const base = `vence ${formatFecha(row.fecha_vencimiento)}`;
   if (row.estado === "vencido" && row.dias_restantes !== null)
     return `venció hace ${Math.abs(row.dias_restantes)} días`;
@@ -211,6 +224,9 @@ function groupRows(rows: ComplianceEstadoRow[], nivel: ComplianceNivel): EntityG
   });
 }
 
+/** Con pocos grupos, filtrar los abre solos; con muchos, no (serían 62 unidades). */
+const AUTO_ABRIR_HASTA = 25;
+
 export default function ComplianceChecklistPage({
   titulo,
   subtitulo,
@@ -221,20 +237,25 @@ export default function ComplianceChecklistPage({
   renderRowPanel,
   panelInicial,
   unidades,
+  generadoEn,
 }: Props) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [refrescando, startTransition] = useTransition();
   const [panelesAbiertos, setPanelesAbiertos] = useState<Set<string>>(
     () => new Set(panelInicial ? [panelInicial] : []),
   );
 
   const [filtros, setFiltros] = useState<FiltrosCompliance>(FILTROS_VACIOS);
-  const [colapsados, setColapsados] = useState<Set<ComplianceNivel>>(() => new Set(["unidad", "chofer"]));
-  const [groupsExpandidos, setGroupsExpandidos] = useState<Set<string>>(new Set());
+  // Lo que la persona abrió o cerró A MANO. Lo demás lo decide el filtro: con un
+  // filtro puesto todo arranca abierto, porque si no se filtra "Vencidos" y la
+  // pantalla queda en blanco con los acordeones cerrados.
+  const [nivelManual, setNivelManual] = useState<Map<ComplianceNivel, boolean>>(new Map());
+  const [grupoManual, setGrupoManual] = useState<Map<string, boolean>>(new Map());
   const [dialogState, setDialogState] = useState<{
     requisito: ComplianceRequisito;
     chofer_id?: string;
     camion_id?: string;
+    entidadLabel?: string | null;
     edit?: EditVencimiento;
   } | null>(null);
   const [historialState, setHistorialState] = useState<{
@@ -244,6 +265,8 @@ export default function ComplianceChecklistPage({
     camion_id?: string;
   } | null>(null);
 
+  const checklistRef = useRef<HTMLDivElement>(null);
+
   const reqById = useMemo(() => {
     const m = new Map<string, ComplianceRequisito>();
     for (const r of requisitos) m.set(r.id, r);
@@ -251,16 +274,9 @@ export default function ComplianceChecklistPage({
   }, [requisitos]);
 
   const rowsPorNivel = useMemo(() => {
-    const q = filtros.busqueda.trim();
     const m: Record<ComplianceNivel, ComplianceEstadoRow[]> = { empresa: [], unidad: [], chofer: [] };
     for (const r of rows) {
-      if (!aplicaFiltroEstado(r.estado, filtros.estado)) continue;
-      if (filtros.nivel !== "todos" && r.nivel !== filtros.nivel) continue;
-      if (filtros.requisito !== "todos" && r.requisito_codigo !== filtros.requisito) continue;
-      if (q) {
-        const text = `${r.chofer_nombre ?? ""} ${r.camion_patente ?? ""} ${r.requisito_nombre}`;
-        if (!coincideBusqueda(text, q)) continue;
-      }
+      if (!filaPasaFiltros(r, filtros)) continue;
       m[r.nivel].push(r);
     }
     for (const n of NIVELES) {
@@ -287,7 +303,30 @@ export default function ComplianceChecklistPage({
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [rows]);
 
-  const mostrados = NIVELES.reduce((acc, n) => acc + rowsPorNivel[n].length, 0);
+  const visibles = useMemo(() => NIVELES.flatMap((n) => rowsPorNivel[n]), [rowsPorNivel]);
+  const mostrados = visibles.length;
+  const filtrando = hayFiltros(filtros);
+  /** Con un tipo de documento elegido, agrupar por entidad no agrupa nada. */
+  const agrupar = filtros.requisito === "todos";
+
+  /** Cambiar un filtro descarta lo que se abrió a mano: el filtro manda de nuevo. */
+  const cambiarFiltros = (f: FiltrosCompliance) => {
+    setFiltros(f);
+    setNivelManual(new Map());
+    setGrupoManual(new Map());
+  };
+
+  const irAlChecklist = (f: FiltrosCompliance) => {
+    cambiarFiltros(f);
+    // Sin esto, tocar un tipo cambia una lista que está 600px más abajo y
+    // parece que no pasó nada. Dos cuadros: en el primero React todavía está
+    // pintando la lista nueva y el destino queda donde estaba la vieja.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        checklistRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      ),
+    );
+  };
 
   const abrirArchivo = async (archivo_id: string, download: boolean) => {
     const res = await getSignedUrlComplianceArchivoAction(archivo_id, { download });
@@ -302,7 +341,11 @@ export default function ComplianceChecklistPage({
     }
     const req = reqById.get(row.requisito_id);
     if (!req) return;
-    const target = { chofer_id: row.chofer_id ?? undefined, camion_id: row.camion_id ?? undefined };
+    const target = {
+      chofer_id: row.chofer_id ?? undefined,
+      camion_id: row.camion_id ?? undefined,
+      entidadLabel: row.chofer_nombre ?? row.camion_patente ?? null,
+    };
     if (row.documento_id && row.documento_fuente) {
       setDialogState({
         requisito: req,
@@ -322,7 +365,12 @@ export default function ComplianceChecklistPage({
   const handleSubir = (row: ComplianceEstadoRow) => {
     const req = reqById.get(row.requisito_id);
     if (!req) return;
-    setDialogState({ requisito: req, chofer_id: row.chofer_id ?? undefined, camion_id: row.camion_id ?? undefined });
+    setDialogState({
+      requisito: req,
+      chofer_id: row.chofer_id ?? undefined,
+      camion_id: row.camion_id ?? undefined,
+      entidadLabel: row.chofer_nombre ?? row.camion_patente ?? null,
+    });
   };
 
   const handleHistorial = (row: ComplianceEstadoRow) => {
@@ -336,21 +384,11 @@ export default function ComplianceChecklistPage({
     });
   };
 
-  const toggleColapso = (n: ComplianceNivel) =>
-    setColapsados((prev) => {
-      const next = new Set(prev);
-      if (next.has(n)) next.delete(n);
-      else next.add(n);
-      return next;
-    });
+  const toggleColapso = (n: ComplianceNivel, abierto: boolean) =>
+    setNivelManual((prev) => new Map(prev).set(n, !abierto));
 
-  const toggleGroupColapso = (groupId: string) =>
-    setGroupsExpandidos((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
-      return next;
-    });
+  const toggleGroupColapso = (groupId: string, abierto: boolean) =>
+    setGrupoManual((prev) => new Map(prev).set(groupId, !abierto));
 
   const togglePanel = (codigo: string) =>
     setPanelesAbiertos((prev) => {
@@ -360,23 +398,21 @@ export default function ComplianceChecklistPage({
       return next;
     });
 
-  const handleExport = () => {
-    // El armado del .xlsx corre en el server (export-action.ts); se mandan las
-    // filas visibles en el mismo orden del tablero (por nivel).
-    void exportarComplianceChecklistXlsx(titulo, NIVELES.flatMap((n) => rowsPorNivel[n]));
-  };
+  // El armado del .xlsx corre en el server (export-action.ts); se mandan las
+  // filas visibles en el mismo orden del tablero (por nivel).
+  const handleExport = () => void exportarComplianceChecklistXlsx(titulo, visibles);
 
-  const hayResultados = NIVELES.some((n) => rowsPorNivel[n].length > 0);
+  const hayResultados = mostrados > 0;
 
   /** Una fila del checklist + su panel desplegable, si el requisito tiene uno. */
-  const renderFila = (r: ComplianceEstadoRow, i: number, n: ComplianceNivel) => {
+  const renderFila = (r: ComplianceEstadoRow, i: number, mostrarEntidad = false) => {
     const panel = renderRowPanel?.(r) ?? null;
     const abierto = panelesAbiertos.has(r.requisito_codigo);
     return (
       <div key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
         <ChecklistRow
           row={r}
-          nivel={n}
+          entidadLabel={mostrarEntidad ? r.chofer_nombre ?? r.camion_patente ?? null : null}
           enviarA={reqById.get(r.requisito_id)?.enviar_a ?? null}
           canWrite={canWrite}
           primero={i === 0}
@@ -395,187 +431,249 @@ export default function ComplianceChecklistPage({
     );
   };
 
+  const checklist = !hayResultados ? (
+    <div className="rounded-[12px] border border-border bg-card p-6 text-center sm:p-10">
+      <SearchX size={28} className="mx-auto text-muted-foreground/50" aria-hidden />
+      <p className="mt-2 text-sm font-medium text-foreground">
+        {filtros.estado === "pendientes" || filtros.estado === "vencido"
+          ? "No hay nada pendiente con este filtro."
+          : "Ningún documento coincide con lo que buscaste."}
+      </p>
+      {filtrando && (
+        <button
+          type="button"
+          onClick={() => cambiarFiltros(FILTROS_VACIOS)}
+          className="mt-2 text-[13px] font-medium text-primary hover:underline"
+        >
+          Ver los {rows.length} documentos
+        </button>
+      )}
+    </div>
+  ) : (
+    NIVELES.map((n) => {
+      const grupo = rowsPorNivel[n];
+      if (grupo.length === 0) return null;
+      const Icon = NIVEL_ICON[n];
+      // Con un filtro puesto todo arranca abierto; sin filtro, sólo "Empresa"
+      // (unidades y choferes son 800 filas).
+      const abiertoPorDefecto = filtrando || n === "empresa";
+      const abierto = nivelManual.get(n) ?? abiertoPorDefecto;
+      return (
+        <section key={n} className="space-y-2">
+          <button
+            type="button"
+            onClick={() => toggleColapso(n, abierto)}
+            aria-expanded={abierto}
+            className="flex items-center gap-2 w-full text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
+          >
+            {/* Chevron en caja: sin esto la cabecera se leía como un título y
+                no como algo que se puede abrir. */}
+            <span
+              className={`flex items-center justify-center size-[22px] shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
+                abierto ? "" : "-rotate-90"
+              }`}
+            >
+              <ChevronDown size={14} />
+            </span>
+            <Icon size={15} className="shrink-0 text-muted-foreground" />
+            {/* En celular el subtítulo baja a una segunda línea en vez de
+                romper la fila (o desaparecer). */}
+            <span className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-1 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>{NIVEL_LABEL[n]}</span>
+              <span aria-hidden className="hidden sm:inline">·</span>
+              <span className="truncate text-[10px] sm:text-[12px] font-medium sm:font-semibold text-muted-foreground/70 sm:text-muted-foreground">
+                {NIVEL_SUB[n]}
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] text-muted-foreground/70">{grupo.length}</span>
+            <span className="ml-auto shrink-0 text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
+              {abierto ? "Ocultar" : "Mostrar"}
+            </span>
+          </button>
+
+          {abierto && (() => {
+            // Filtrando por UN tipo de documento hay exactamente una fila por
+            // chofer/unidad: agrupar deja 78 tarjetas que dicen "ver 1 doc.".
+            // Ahí la lista va derecha, con el nombre en cada fila.
+            if (n === "empresa" || !agrupar) {
+              return (
+                <div className="border border-border rounded-[12px] overflow-hidden bg-card">
+                  {grupo.map((r, i) => renderFila(r, i, n !== "empresa"))}
+                </div>
+              );
+            }
+
+            const groupedEntities = groupRows(grupo, n);
+            const grupoAbiertoPorDefecto = filtrando && groupedEntities.length <= AUTO_ABRIR_HASTA;
+
+            return (
+              <div className="space-y-3">
+                {groupedEntities.map((g) => {
+                  const gAbierto = grupoManual.get(g.id) ?? grupoAbiertoPorDefecto;
+                  const SubIcon = n === "chofer" ? Users : Truck;
+                  return (
+                    <div
+                      key={g.id}
+                      className="border border-border rounded-[12px] bg-card overflow-hidden shadow-sm"
+                    >
+                      {/* Cabecera del subgrupo (Chofer / Unidad) */}
+                      <button
+                        type="button"
+                        onClick={() => toggleGroupColapso(g.id, gAbierto)}
+                        aria-expanded={gAbierto}
+                        title={gAbierto ? "Ocultar documentos" : "Ver documentos"}
+                        className={`group w-full text-left bg-muted/30 hover:bg-muted/60 px-3 sm:px-4 py-2.5 flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 select-none transition-colors ${
+                          gAbierto ? "border-b border-border" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {/* Chevron en caja + contador: la fila tiene que
+                              leerse como "esto se abre", no como un título. */}
+                          <span
+                            className={`flex items-center justify-center size-5 shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
+                              gAbierto ? "" : "-rotate-90"
+                            }`}
+                          >
+                            <ChevronDown size={13} />
+                          </span>
+                          <SubIcon size={14} className="shrink-0 text-muted-foreground/80" />
+                          <GroupHeaderInfo nivel={n} groupId={g.id} label={g.label} unidades={unidades} />
+                        </div>
+
+                        {/* Indicadores de estado resumidos */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] pl-7 sm:pl-0 sm:shrink-0">
+                          <span className="text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors sm:mr-1">
+                            {gAbierto ? "Ocultar" : `Ver ${g.rows.length} doc.`}
+                          </span>
+                          {g.vencidos > 0 && (
+                            <span className="bg-[#FEF2F2] text-[#991B1B] font-medium px-2 py-0.5 rounded-full border border-[#FECACA]">
+                              {g.vencidos} vencido{g.vencidos > 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {g.porVencer > 0 && (
+                            <span className="bg-[#FFFBEB] text-[#92400E] font-medium px-2 py-0.5 rounded-full border border-[#FDE68A]">
+                              {g.porVencer} por vencer
+                            </span>
+                          )}
+                          {g.faltantes > 0 && (
+                            <span className="bg-muted text-muted-foreground font-medium px-2 py-0.5 rounded-full border border-border">
+                              {g.faltantes} sin cargar
+                            </span>
+                          )}
+                          {g.vencidos === 0 && g.porVencer === 0 && g.faltantes === 0 && (
+                            <span className="bg-[#F0FDF4] text-[#166534] font-medium px-2 py-0.5 rounded-full border border-[#BBF7D0]">
+                              Al día
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Lista de documentos del subgrupo */}
+                      {gAbierto && (
+                        <div className="divide-y divide-border">
+                          {g.rows.map((r, i) => renderFila(r, i))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </section>
+      );
+    })
+  );
+
   return (
     <div className={`${embedded ? "space-y-4" : "p-4 sm:p-6 lg:p-8 space-y-4"} print:p-2`}>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 flex-wrap print:hidden">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <ShieldCheck size={22} className="text-primary" />
-            {titulo}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {subtitulo ?? "Checklist de documentación con fechas de vencimiento."}
-          </p>
+      {/* Header propio — sólo cuando la pantalla se usa suelta. Embebida, el
+          título y las acciones los pone el contenedor (si no, quedan dos
+          títulos, uno debajo del otro). */}
+      {!embedded && (
+        <div className="flex items-start justify-between gap-3 flex-wrap print:hidden">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+              <ShieldCheck size={22} className="text-primary" />
+              {titulo}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {subtitulo ?? "Checklist de documentación con fechas de vencimiento."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ComplianceHelpButton />
+            <Button variant="outline" size="sm" onClick={handleExport} className="border-border">
+              <FileSpreadsheet size={14} className="mr-1.5" />
+              Exportar
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()} className="border-border">
+              <Printer size={14} className="mr-1.5" />
+              Imprimir
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ComplianceHelpButton />
-          <Button variant="outline" size="sm" onClick={handleExport} className="border-border">
-            <FileSpreadsheet size={14} className="mr-1.5" />
-            Exportar
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="border-border">
-            <Printer size={14} className="mr-1.5" />
-            Imprimir
-          </Button>
-        </div>
-      </div>
+      )}
 
+      {/* Dos columnas en pantalla ancha: la pantalla a la izquierda y los
+          atajos a la derecha, acompañando todo el scroll. Es `grid` y no
+          `flex`: con `minmax(0,1fr)` la columna izquierda nunca puede empujar
+          a la derecha fuera de la pantalla (con flex, un hijo ancho desbordaba
+          y se comía el borde derecho). Abajo de `xl` la barra lateral de la app
+          ya se come el ancho y la columna derecha no se dibuja: todo lo que
+          tiene está también en las tarjetas y en el filtro "Alcance". */}
       {/* En qué estás parado: las métricas son el filtro (tocar "Vencidos" deja
-          los vencidos). Antes eran tres chips que sólo contaban. */}
-      <ComplianceMetricas rows={rows} filtros={filtros} onChange={setFiltros} />
+          los vencidos). Antes eran tres chips que sólo contaban. Van a todo el
+          ancho: metidas en la columna izquierda quedan de 140px y el número
+          grande no entra. */}
+      <ComplianceMetricas rows={rows} filtros={filtros} onChange={cambiarFiltros} />
 
       <ComplianceFiltros
         filtros={filtros}
-        onChange={setFiltros}
+        onChange={cambiarFiltros}
         requisitos={requisitosPresentes}
         mostrados={mostrados}
         total={rows.length}
+        onExportarVisibles={handleExport}
       />
 
-      <ComplianceCategorias rows={rows} filtros={filtros} onChange={setFiltros} />
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        {/* El `min-h` es para la columna de al lado: `sticky` sólo se sostiene
+            mientras dure la fila de la grilla, y con la lista colapsada la fila
+            era más baja que el panel — al llegar al fondo se despegaba de golpe
+            y se metía debajo de la barra de arriba. */}
+        <div className="min-w-0 space-y-4 xl:min-h-[calc(100dvh-13rem)]">
+          <ComplianceCategorias
+            rows={rows}
+            filtros={filtros}
+            onChange={irAlChecklist}
+            onCargar={handleCasilla}
+            canWrite={canWrite}
+          />
 
-      {/* Grupos */}
-      {!hayResultados ? (
-        <div className="bg-card rounded-[12px] border border-border p-6 sm:p-10 text-center text-sm text-muted-foreground">
-          {filtros.estado === "pendientes" || filtros.estado === "vencido"
-            ? "No hay nada pendiente con este filtro. Todo al día."
-            : "Ningún documento coincide con lo que buscaste."}
+          <div ref={checklistRef} className="space-y-4 scroll-mt-4 sm:scroll-mt-[5.25rem]">
+            {checklist}
+          </div>
         </div>
-      ) : (
-        NIVELES.map((n) => {
-          const grupo = rowsPorNivel[n];
-          if (grupo.length === 0) return null;
-          const Icon = NIVEL_ICON[n];
-          const abierto = !colapsados.has(n);
-          return (
-            <section key={n} className="space-y-2">
-              <button
-                type="button"
-                onClick={() => toggleColapso(n)}
-                aria-expanded={abierto}
-                className="flex items-center gap-2 w-full text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
-              >
-                {/* Chevron en caja: sin esto la cabecera se leía como un título y
-                    no como algo que se puede abrir. */}
-                <span
-                  className={`flex items-center justify-center size-[22px] shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
-                    abierto ? "" : "-rotate-90"
-                  }`}
-                >
-                  <ChevronDown size={14} />
-                </span>
-                <Icon size={15} className="shrink-0 text-muted-foreground" />
-                {/* En celular el subtítulo baja a una segunda línea en vez de
-                    romper la fila (o desaparecer). */}
-                <span className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-1 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <span>{NIVEL_LABEL[n]}</span>
-                  <span aria-hidden className="hidden sm:inline">·</span>
-                  <span className="truncate text-[10px] sm:text-[12px] font-medium sm:font-semibold text-muted-foreground/70 sm:text-muted-foreground">
-                    {NIVEL_SUB[n]}
-                  </span>
-                </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground/70">{grupo.length}</span>
-                <span className="ml-auto shrink-0 text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
-                  {abierto ? "Ocultar" : "Mostrar"}
-                </span>
-              </button>
 
-              {abierto && (() => {
-                if (n === "empresa") {
-                  return (
-                    <div className="border border-border rounded-[12px] overflow-hidden bg-card">
-                      {grupo.map((r, i) => renderFila(r, i, n))}
-                    </div>
-                  );
-                }
-
-                const groupedEntities = groupRows(grupo, n);
-
-                return (
-                  <div className="space-y-3">
-                    {groupedEntities.map((g) => {
-                      const gAbierto = groupsExpandidos.has(g.id);
-                      const SubIcon = n === "chofer" ? Users : Truck;
-                      return (
-                        <div
-                          key={g.id}
-                          className="border border-border rounded-[12px] bg-card overflow-hidden shadow-sm"
-                        >
-                          {/* Cabecera del subgrupo (Chofer / Unidad) */}
-                          <button
-                            type="button"
-                            onClick={() => toggleGroupColapso(g.id)}
-                            aria-expanded={gAbierto}
-                            title={gAbierto ? "Ocultar documentos" : "Ver documentos"}
-                            className={`group w-full text-left bg-muted/30 hover:bg-muted/60 px-3 sm:px-4 py-2.5 flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 select-none transition-colors ${
-                              gAbierto ? "border-b border-border" : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {/* Chevron en caja + contador: la fila tiene que
-                                  leerse como "esto se abre", no como un título. */}
-                              <span
-                                className={`flex items-center justify-center size-5 shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
-                                  gAbierto ? "" : "-rotate-90"
-                                }`}
-                              >
-                                <ChevronDown size={13} />
-                              </span>
-                              <SubIcon size={14} className="shrink-0 text-muted-foreground/80" />
-                              <GroupHeaderInfo nivel={n} groupId={g.id} label={g.label} unidades={unidades} />
-                            </div>
-
-                            {/* Indicadores de estado resumidos */}
-                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] pl-7 sm:pl-0 sm:shrink-0">
-                              <span className="text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors sm:mr-1">
-                                {gAbierto ? "Ocultar" : `Ver ${g.rows.length} doc.`}
-                              </span>
-                              {g.vencidos > 0 && (
-                                <span className="bg-[#FEF2F2] text-[#991B1B] font-medium px-2 py-0.5 rounded-full border border-[#FECACA]">
-                                  {g.vencidos} vencido{g.vencidos > 1 ? "s" : ""}
-                                </span>
-                              )}
-                              {g.porVencer > 0 && (
-                                <span className="bg-[#FFFBEB] text-[#92400E] font-medium px-2 py-0.5 rounded-full border border-[#FDE68A]">
-                                  {g.porVencer} por vencer
-                                </span>
-                              )}
-                              {g.faltantes > 0 && (
-                                <span className="bg-muted text-muted-foreground font-medium px-2 py-0.5 rounded-full border border-border">
-                                  {g.faltantes} falta{g.faltantes > 1 ? "s" : ""}
-                                </span>
-                              )}
-                              {g.vencidos === 0 && g.porVencer === 0 && g.faltantes === 0 && (
-                                <span className="bg-[#F0FDF4] text-[#166534] font-medium px-2 py-0.5 rounded-full border border-[#BBF7D0]">
-                                  Al día
-                                </span>
-                              )}
-                            </div>
-                          </button>
-
-                          {/* Lista de documentos del subgrupo */}
-                          {gAbierto && (
-                            <div className="divide-y divide-border">
-                              {g.rows.map((r, i) => renderFila(r, i, n))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </section>
-          );
-        })
-      )}
+        {generadoEn && (
+          <ComplianceRail
+            rows={rows}
+            filtros={filtros}
+            onChange={cambiarFiltros}
+            generadoEn={generadoEn}
+            onRefrescar={() => startTransition(() => router.refresh())}
+            refrescando={refrescando}
+          />
+        )}
+      </div>
 
       {dialogState && (
         <CargarComplianceDocDialog
           requisito={dialogState.requisito}
           chofer_id={dialogState.chofer_id}
           camion_id={dialogState.camion_id}
+          entidadLabel={dialogState.entidadLabel}
           edit={dialogState.edit}
           open={true}
           onOpenChange={(o) => !o && setDialogState(null)}
@@ -680,7 +778,7 @@ function GroupHeaderInfo({
 
 function ChecklistRow({
   row,
-  nivel,
+  entidadLabel,
   enviarA,
   canWrite,
   primero,
@@ -693,7 +791,9 @@ function ChecklistRow({
   onDescargar,
 }: {
   row: ComplianceEstadoRow;
-  nivel: ComplianceNivel;
+  /** De quién es la fila. Va sólo cuando la lista no está agrupada por entidad
+   *  (si no, el nombre ya está en la cabecera del grupo y se repetiría). */
+  entidadLabel?: string | null;
   enviarA: string | null;
   canWrite: boolean;
   primero: boolean;
@@ -708,7 +808,6 @@ function ChecklistRow({
 }) {
   const ui = ESTADO_UI[row.estado];
   const tag = tagCliente(row.cliente_aplica);
-  const entidad = null;
 
   return (
     <div
@@ -736,7 +835,16 @@ function ChecklistRow({
 
       {/* Nombre + entidad */}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">
+        {/* Sin agrupar, el título de la fila es de quién es: el tipo de
+            documento ya lo dice el filtro y sería el mismo en las 78 filas. */}
+        {entidadLabel && (
+          <p className="truncate text-sm font-semibold text-foreground">{entidadLabel}</p>
+        )}
+        <p
+          className={`truncate ${
+            entidadLabel ? "text-xs text-muted-foreground" : "text-sm font-medium text-foreground"
+          }`}
+        >
           {expandible ? (
             <button
               type="button"
@@ -763,7 +871,6 @@ function ChecklistRow({
           {tag && <span className="text-muted-foreground font-normal"> ({tag})</span>}
         </p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          {entidad && <span className="truncate">{entidad}</span>}
           {row.aseguradora && (
             <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
               {row.aseguradora}
@@ -789,21 +896,30 @@ function ChecklistRow({
         {/* Vencimiento + estado — en celular van acá abajo, porque la columna
             de la derecha no entra. En papel manda la columna (print:hidden). */}
         <p className="sm:hidden print:hidden mt-0.5 text-[11px] leading-tight">
-          <span style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>{subFecha(row)}</span>
+          {subFecha(row) && (
+            <span style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>
+              {subFecha(row)}
+              {" · "}
+            </span>
+          )}
           <span className="font-semibold" style={{ color: ui.fg }}>
-            {" · "}
             {ESTADO_LABEL[row.estado]}
           </span>
         </p>
       </div>
 
       {/* Vencimiento + estado */}
-      <div className="text-right shrink-0 hidden sm:block print:block">
-        <p className="text-xs" style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>
+      <div className="hidden shrink-0 items-center gap-2 sm:flex print:flex">
+        <p className="text-xs text-right" style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>
           {subFecha(row)}
         </p>
-        <span className="text-[11px] font-medium" style={{ color: ui.fg }}>
-          {ESTADO_LABEL[row.estado]}
+        {/* El estado, en pastilla: es lo primero que se busca al barrer la
+            lista y en texto suelto se perdía entre la fecha y los íconos. */}
+        <span
+          className="w-[74px] shrink-0 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
+          style={{ backgroundColor: ui.chip, color: ui.fg }}
+        >
+          {ESTADO_CHIP[row.estado]}
         </span>
       </div>
 
@@ -847,4 +963,3 @@ function IconBtn({ title, onClick, children }: { title: string; onClick: () => v
     </button>
   );
 }
-
