@@ -67,7 +67,9 @@ describe("CargarComplianceDocDialog", () => {
     // El input de archivos tiene que estar presente, no solo el rótulo.
     const input = document.querySelector('input[type="file"]');
     expect(input).not.toBeNull();
-    expect(screen.getByText(/Adjuntar el documento renovado/i)).toBeTruthy();
+    // El texto de la caja de archivos, que es único (el título del diálogo
+    // también nombra el papel renovado).
+    expect(screen.getByText(/se agrega a los que ya estaban/i)).toBeTruthy();
   });
 
   it("al editar ya no promete que NO se puede subir el archivo", () => {
@@ -78,7 +80,14 @@ describe("CargarComplianceDocDialog", () => {
   it("sigue dejando adjuntar en el alta, que es lo que ya funcionaba", () => {
     render(<CargarComplianceDocDialog {...props} />);
     expect(document.querySelector('input[type="file"]')).not.toBeNull();
-    expect(screen.getByText(/Archivos \(opcional\)/i)).toBeTruthy();
+    expect(screen.getByText(/podés registrar solo el vencimiento/i)).toBeTruthy();
+  });
+
+  it("dice DE QUIÉN es el documento", () => {
+    // Se abre desde listas de 78 nombres y desde el botón "Agregar documento":
+    // sin el nombre a la vista, cargar en el legajo equivocado no se nota.
+    render(<CargarComplianceDocDialog {...props} camion_id="u1" entidadLabel="AE997MM" />);
+    expect(screen.getByText("AE997MM")).toBeTruthy();
   });
 
   it("precarga la fecha que ya tenía el documento al editar", () => {

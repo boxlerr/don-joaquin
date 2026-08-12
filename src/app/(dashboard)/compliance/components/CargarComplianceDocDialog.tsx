@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Send, Loader2, X, FileText, User, Truck } from "lucide-react";
+import { Send, Truck, User } from "lucide-react";
 import {
   uploadComplianceDocAction,
   crearUrlSubidaComplianceDocAction,
@@ -20,10 +20,19 @@ import {
   setComplianceEnviarAAction,
 } from "../actions";
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
+import ArchivosCargar, { type ArchivoElegido } from "./ArchivosCargar";
 import type { ArchivoMeta } from "@/lib/adjuntos-server";
 import type { ComplianceRequisito } from "../types";
 
-const MAX_MB = 100;
+/**
+ * Cargar (o renovar) un documento del checklist.
+ *
+ * El formulario va en dos columnas y no en una sola tira: a la izquierda las
+ * fechas —que es lo único obligatorio— y a la derecha el papel, con su vista
+ * previa. Apilado, el diálogo medía dos pantallas de alto y el botón "Cargar"
+ * quedaba abajo de todo, así que había que scrollear dentro del modal para algo
+ * que en el 90% de los casos es "poné la fecha y subí el PDF".
+ */
 
 // Cuando se pasa `edit`, el diálogo edita el vencimiento/observaciones de un
 // documento YA cargado (sin re-subir el archivo). Si no, carga uno nuevo (con el
@@ -51,6 +60,13 @@ interface Props {
   onSuccess: () => void;
 }
 
+/** Rótulo de una mitad del formulario. */
+function Rotulo({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{children}</p>
+  );
+}
+
 export default function CargarComplianceDocDialog({
   requisito,
   chofer_id,
@@ -73,9 +89,8 @@ export default function CargarComplianceDocDialog({
   // documento: se edita acá por comodidad y aplica a todas las presentaciones.
   const [enviarA, setEnviarA] = useState(requisito.enviar_a ?? "");
   const [aseguradora, setAseguradora] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [archivos, setArchivos] = useState<ArchivoElegido[]>([]);
   const [subiendo, setSubiendo] = useState<{ idx: number; total: number; pct: number } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setPeriodo("");
@@ -85,31 +100,14 @@ export default function CargarComplianceDocDialog({
     setNumero("");
     setEnviarA(requisito.enviar_a ?? "");
     setAseguradora("");
-    setFiles([]);
+    setArchivos([]);
     setSubiendo(null);
     setError(null);
-    if (fileRef.current) fileRef.current.value = "";
   };
-
-  const agregarFiles = (lista: FileList | null) => {
-    if (!lista || lista.length === 0) return;
-    const nuevos = Array.from(lista);
-    const grande = nuevos.find((f) => f.size > MAX_MB * 1024 * 1024);
-    if (grande) return setError(`"${grande.name}" supera los ${MAX_MB} MB permitidos.`);
-    setError(null);
-    // Evita duplicados por nombre+tamaño; permite ir sumando en varias tandas.
-    setFiles((prev) => {
-      const clave = (f: File) => `${f.name}:${f.size}`;
-      const yaHay = new Set(prev.map(clave));
-      return [...prev, ...nuevos.filter((f) => !yaHay.has(clave(f)))];
-    });
-    if (fileRef.current) fileRef.current.value = "";
-  };
-  const quitarFile = (i: number) => setFiles((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fechaVencimiento) return setError("Fecha de vencimiento requerida");
+    if (!fechaVencimiento) return setError("Falta la fecha de vencimiento.");
 
     setLoading(true);
     setError(null);
@@ -119,18 +117,18 @@ export default function CargarComplianceDocDialog({
       // Se hace en los DOS modos: renovar un vencimiento también deja archivar el
       // papel nuevo, que antes era el único camino sin adjuntos.
       const subirSeleccionados = async (): Promise<ArchivoMeta[]> => {
-        const archivos: ArchivoMeta[] = [];
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          setSubiendo({ idx: i + 1, total: files.length, pct: 0 });
+        const metas: ArchivoMeta[] = [];
+        for (let i = 0; i < archivos.length; i++) {
+          const f = archivos[i]!.file;
+          setSubiendo({ idx: i + 1, total: archivos.length, pct: 0 });
           const url = await crearUrlSubidaComplianceDocAction({ filename: f.name });
           if ("error" in url) throw new Error(url.error);
           await subirArchivoConUrlFirmada({
             signedUrl: url.signedUrl,
             file: f,
-            onProgress: (pct) => setSubiendo({ idx: i + 1, total: files.length, pct }),
+            onProgress: (pct) => setSubiendo({ idx: i + 1, total: archivos.length, pct }),
           });
-          archivos.push({
+          metas.push({
             bucket: url.bucket,
             path: url.path,
             nombre_original: f.name,
@@ -139,22 +137,22 @@ export default function CargarComplianceDocDialog({
           });
         }
         setSubiendo(null);
-        return archivos;
+        return metas;
       };
 
       const res = esEdicion
         ? await (async () => {
-            const archivos = await subirSeleccionados();
+            const subidos = await subirSeleccionados();
             return setComplianceVencimientoAction({
               documento_id: edit!.documento_id,
               fuente: edit!.fuente,
               fecha_vencimiento: fechaVencimiento,
               observaciones: observaciones || null,
-              archivos,
+              archivos: subidos,
             });
           })()
         : await (async () => {
-            const archivos = await subirSeleccionados();
+            const subidos = await subirSeleccionados();
             return uploadComplianceDocAction({
               requisito_id: requisito.id,
               chofer_id: chofer_id ?? null,
@@ -165,7 +163,7 @@ export default function CargarComplianceDocDialog({
               observaciones: observaciones || null,
               numero: numero || null,
               aseguradora: aseguradora || null,
-              archivos,
+              archivos: subidos,
             });
           })();
 
@@ -190,6 +188,11 @@ export default function CargarComplianceDocDialog({
 
   const esMensual = requisito.periodicidad === "mensual";
   const vaAlLegajo = !!requisito.tipo_documento_id;
+  const dondeQueda = vaAlLegajo
+    ? chofer_id
+      ? "Queda guardado en el legajo del chofer y aparece también acá."
+      : "Queda guardado en la ficha del camión y aparece también acá."
+    : "Queda guardado en Compliance.";
 
   return (
     <Dialog
@@ -199,166 +202,159 @@ export default function CargarComplianceDocDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[46rem]">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg sm:text-xl">
-            {esEdicion ? "Editar vencimiento" : "Cargar"} — {requisito.nombre}
+          <DialogTitle className="text-lg text-foreground sm:text-xl">
+            {esEdicion ? "Renovar" : "Cargar"} — {requisito.nombre}
           </DialogTitle>
           {entidadLabel && (
             <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-              {chofer_id ? <User size={14} className="shrink-0 text-muted-foreground" /> : <Truck size={14} className="shrink-0 text-muted-foreground" />}
+              {chofer_id ? (
+                <User size={14} className="shrink-0 text-muted-foreground" />
+              ) : (
+                <Truck size={14} className="shrink-0 text-muted-foreground" />
+              )}
               {entidadLabel}
             </p>
           )}
           <DialogDescription className="text-muted-foreground">
             {esEdicion
-              ? "Actualizá la fecha de vencimiento y, si lo tenés, adjuntá el documento nuevo. Se suma a los anteriores."
-              : vaAlLegajo
-                ? `Se va a guardar en ${chofer_id ? "el legajo del chofer" : "la ficha del camión"} y aparecer también acá. Podés adjuntar varios archivos (opcional).`
-                : "Los archivos son opcionales — podés registrar solo el vencimiento. Podés subir varios, hasta 100 MB c/u."}
+              ? `Poné el vencimiento nuevo y, si lo tenés, adjuntá el papel renovado — se suma a los anteriores sin borrarlos. ${dondeQueda}`
+              : `Lo único obligatorio es el vencimiento: con esa fecha el sistema avisa antes de que se venza. ${dondeQueda}`}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
               {error}
             </div>
           )}
 
-          {!esEdicion && esMensual && !vaAlLegajo && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Período (mes)</Label>
-              <Input
-                type="month"
-                value={periodo ? periodo.slice(0, 7) : ""}
-                onChange={(e) => setPeriodo(e.target.value ? `${e.target.value}-01` : "")}
-              />
-            </div>
-          )}
+          <div className="grid gap-5 md:grid-cols-2">
+            {/* Izquierda: los datos. */}
+            <div className="space-y-3">
+              <Rotulo>Fechas</Rotulo>
 
-          {!esEdicion && vaAlLegajo && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Número</Label>
-              <Input
-                placeholder="Opcional"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
-              />
-            </div>
-          )}
-
-          {!esEdicion && requisito.codigo === "SEGURO_UNIDAD" && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">Aseguradora</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input placeholder="Nación / Segurcoop" value={aseguradora} onChange={(e) => setAseguradora(e.target.value)} className="w-full sm:w-auto sm:flex-1" />
-                {["Nación", "Segurcoop"].map((a) => (
-                  <button type="button" key={a} onClick={() => setAseguradora(a)}
-                    className={`text-xs px-2.5 py-1.5 max-md:h-9 max-md:px-3 rounded-md border transition-colors ${aseguradora === a ? "bg-[#0088D1]/10 border-[#0088D1]/40 text-[#0088D1] font-semibold" : "border-border text-muted-foreground hover:bg-muted"}`}>{a}</button>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground">La mayoría de la flota es Nación; solo algunas unidades van con Segurcoop.</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {!esEdicion && (
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Fecha emisión</Label>
-                <Input
-                  type="date"
-                  value={fechaEmision}
-                  onChange={(e) => setFechaEmision(e.target.value)}
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">
-                Vencimiento <span className="text-red-400">*</span>
-              </Label>
-              <Input
-                type="date"
-                value={fechaVencimiento}
-                onChange={(e) => setFechaVencimiento(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">Observaciones</Label>
-            <Input
-              placeholder='Opcional (ej. "solo Loma Negra")'
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground inline-flex items-center gap-1.5">
-              <Send size={12} className="text-muted-foreground" />
-              A dónde se manda
-            </Label>
-            <Input
-              placeholder='Portales / mails (ej. "SICOP, Secondi y portal de YPF")'
-              value={enviarA}
-              onChange={(e) => setEnviarA(e.target.value)}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Queda asociado al documento «{requisito.nombre}» (todas sus presentaciones) y
-              se muestra en el checklist y en las alertas de vencimiento.
-            </p>
-          </div>
-
-          {/* También al editar: renovar un vencimiento tiene que dejar archivar el papel
-              nuevo. Era el único camino del sistema que no aceptaba adjuntos, y es por
-              donde se cargaron las 45 renovaciones del 08/08 — todas sin documento. */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">
-              {esEdicion ? "Adjuntar el documento renovado (opcional)" : "Archivos (opcional)"}
-            </Label>
-              <label className="flex items-center gap-3 px-4 py-3 min-h-11 border border-dashed border-[#CBD5E1] rounded-[8px] cursor-pointer hover:border-[#0088D1] hover:bg-[#F0F9FF] transition-colors">
-                <Upload size={16} className="shrink-0 text-muted-foreground/70" />
-                <span className="text-sm text-muted-foreground">
-                  {files.length ? "Agregar más archivos…" : "Elegir archivos…"}
-                </span>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => agregarFiles(e.target.files)}
-                />
-              </label>
-
-              {files.length > 0 && (
-                <ul className="space-y-1 pt-1">
-                  {files.map((f, i) => (
-                    <li key={`${f.name}:${f.size}:${i}`} className="flex items-center gap-2 text-xs bg-muted/40 rounded-md px-2 py-1.5">
-                      <FileText size={13} className="text-muted-foreground shrink-0" />
-                      <span className="truncate flex-1 text-foreground">{f.name}</span>
-                      <span className="text-muted-foreground font-mono shrink-0">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
-                      <button type="button" onClick={() => quitarFile(i)} disabled={loading} className="shrink-0 inline-flex items-center justify-center size-5 max-md:size-9 rounded-md text-muted-foreground/60 hover:text-destructive" aria-label="Quitar archivo"><X size={13} /></button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {subiendo && (
-                <div className="space-y-1 pt-1">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Subiendo {subiendo.idx} de {subiendo.total}…</span>
-                    <span className="font-mono">{subiendo.pct}%</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">
+                    Vence el <span className="text-red-400">*</span>
+                  </Label>
+                  <Input
+                    type="date"
+                    value={fechaVencimiento}
+                    onChange={(e) => setFechaVencimiento(e.target.value)}
+                    required
+                  />
+                </div>
+                {!esEdicion && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-foreground">Se emitió el</Label>
+                    <Input
+                      type="date"
+                      value={fechaEmision}
+                      onChange={(e) => setFechaEmision(e.target.value)}
+                    />
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-[#0088D1] rounded-full transition-all duration-200" style={{ width: `${subiendo.pct}%` }} />
-                  </div>
+                )}
+              </div>
+
+              {!esEdicion && esMensual && !vaAlLegajo && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">Período (mes)</Label>
+                  <Input
+                    type="month"
+                    value={periodo ? periodo.slice(0, 7) : ""}
+                    onChange={(e) => setPeriodo(e.target.value ? `${e.target.value}-01` : "")}
+                  />
+                  <p className="text-[11px] text-muted-foreground">A qué mes corresponde.</p>
                 </div>
               )}
+
+              {!esEdicion && vaAlLegajo && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">Número</Label>
+                  <Input
+                    placeholder="Opcional"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {!esEdicion && requisito.codigo === "SEGURO_UNIDAD" && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-foreground">Aseguradora</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      placeholder="Nación / Segurcoop"
+                      value={aseguradora}
+                      onChange={(e) => setAseguradora(e.target.value)}
+                      className="w-full sm:w-auto sm:flex-1"
+                    />
+                    {["Nación", "Segurcoop"].map((a) => (
+                      <button
+                        type="button"
+                        key={a}
+                        onClick={() => setAseguradora(a)}
+                        className={`rounded-md border px-2.5 py-1.5 text-xs transition-colors max-md:h-9 max-md:px-3 ${
+                          aseguradora === a
+                            ? "border-[#0088D1]/40 bg-[#0088D1]/10 font-semibold text-[#0088D1]"
+                            : "border-border text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    La mayoría de la flota es Nación; solo algunas unidades van con Segurcoop.
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-foreground">Observaciones</Label>
+                <Input
+                  placeholder='Opcional (ej. "solo Loma Negra")'
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <Send size={12} className="text-muted-foreground" />A dónde se manda
+                </Label>
+                <Input
+                  placeholder='Portales / mails (ej. "SICOP, Secondi y portal de YPF")'
+                  value={enviarA}
+                  onChange={(e) => setEnviarA(e.target.value)}
+                />
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Vale para «{requisito.nombre}» en todas sus presentaciones, y se muestra en el
+                  checklist y en el aviso de vencimiento.
+                </p>
+              </div>
+            </div>
+
+            {/* Derecha: el papel. */}
+            <ArchivosCargar
+              archivos={archivos}
+              onChange={setArchivos}
+              onError={setError}
+              subiendo={subiendo}
+              titulo={esEdicion ? "El papel renovado" : "El papel"}
+              ayuda={
+                esEdicion
+                  ? "Se agrega a los que ya estaban; no reemplaza nada."
+                  : "Es opcional: podés registrar solo el vencimiento y subir el papel después."
+              }
+            />
           </div>
 
-          <DialogFooter className="pt-3 border-t border-[#F1F5F9] gap-2">
+          <DialogFooter className="gap-2 border-t border-border pt-3">
             <Button
               type="button"
               variant="outline"
@@ -367,12 +363,18 @@ export default function CargarComplianceDocDialog({
                 onOpenChange(false);
               }}
               disabled={loading}
-              className="text-muted-foreground border-border"
+              className="border-border text-muted-foreground"
             >
               Cancelar
             </Button>
             <Button type="submit" variant="brand" disabled={loading}>
-              {subiendo ? "Subiendo…" : loading ? "Guardando..." : esEdicion ? "Guardar vencimiento" : "Cargar"}
+              {subiendo
+                ? "Subiendo…"
+                : loading
+                  ? "Guardando…"
+                  : esEdicion
+                    ? "Guardar vencimiento"
+                    : "Cargar"}
             </Button>
           </DialogFooter>
         </form>

@@ -934,9 +934,20 @@ function ChecklistRow({
               {" · "}
             </span>
           )}
-          <span className="font-semibold" style={{ color: ui.fg }}>
-            {ESTADO_LABEL[row.estado]}
-          </span>
+          {row.estado === "faltante" && canWrite ? (
+            <button
+              type="button"
+              onClick={onSubir}
+              className="inline-flex items-center gap-1 font-semibold text-primary"
+            >
+              <Upload size={11} />
+              Cargar
+            </button>
+          ) : (
+            <span className="font-semibold" style={{ color: ui.fg }}>
+              {ESTADO_LABEL[row.estado]}
+            </span>
+          )}
         </p>
       </div>
 
@@ -945,14 +956,28 @@ function ChecklistRow({
         <p className="text-xs text-right" style={{ color: row.estado === "vencido" ? "#DC2626" : undefined }}>
           {subFecha(row)}
         </p>
-        {/* El estado, en pastilla: es lo primero que se busca al barrer la
-            lista y en texto suelto se perdía entre la fecha y los íconos. */}
-        <span
-          className="w-[74px] shrink-0 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold"
-          style={{ backgroundColor: ui.chip, color: ui.fg }}
-        >
-          {ESTADO_CHIP[row.estado]}
-        </span>
+        {/* Lo que falta cargar no lleva pastilla sino BOTÓN: "Sin cargar" era
+            un cartel gris y la única forma de cargarlo era adivinar que la
+            flechita del final servía para eso. Los demás estados sí van en
+            pastilla — ahí no hay nada urgente que hacer. */}
+        {row.estado === "faltante" && canWrite ? (
+          <button
+            type="button"
+            onClick={onSubir}
+            className="inline-flex w-[104px] shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[12px] font-semibold text-primary transition-colors hover:border-primary/60 hover:bg-primary/10"
+            title={`Cargar ${row.requisito_nombre}`}
+          >
+            <Upload size={13} />
+            Cargar
+          </button>
+        ) : (
+          <span
+            className="w-[104px] shrink-0 rounded-md px-1.5 py-1 text-center text-[11px] font-semibold"
+            style={{ backgroundColor: ui.chip, color: ui.fg }}
+          >
+            {ESTADO_CHIP[row.estado]}
+          </span>
+        )}
       </div>
 
       {/* Acciones */}
@@ -973,9 +998,9 @@ function ChecklistRow({
         <IconBtn title="Ver historial" onClick={onHistorial}>
           <History size={14} />
         </IconBtn>
-        {canWrite && (
-          <IconBtn title={row.documento_id ? "Editar vencimiento / reemplazar" : "Cargar"} onClick={onSubir}>
-            {row.documento_id ? <Pencil size={14} /> : <Upload size={14} />}
+        {canWrite && row.estado !== "faltante" && (
+          <IconBtn title="Editar vencimiento / reemplazar" onClick={onSubir}>
+            <Pencil size={14} />
           </IconBtn>
         )}
       </div>

@@ -89,6 +89,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "lo-que-falta-cargar-ahora-tiene-su-boton",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "compliance",
+    titulo: "Lo que falta cargar ahora tiene su botón \"Cargar\"",
+    detalle: "Antes decía \"Sin cargar\" y había que adivinar dónde tocar. Además el formulario entra en una pantalla y ves el documento que subís antes de guardarlo.",
+    href: "/compliance",
+  },
+  {
     id: "cada-unidad-se-reconoce-por-el-logo-de-su",
     fecha: "2026-08-12",
     tipo: "mejora",
