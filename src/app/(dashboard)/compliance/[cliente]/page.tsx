@@ -21,7 +21,7 @@ export default async function ComplianceClientePage({
   const user = await requireArea("compliance", "read");
   const canWrite = hasArea(user, "compliance", "write");
 
-  const { rows, requisitos, unidades } = await getComplianceEstadoAction(cliente);
+  const { rows, requisitos, unidades, choferes } = await getComplianceEstadoAction(cliente);
 
   return (
     <ComplianceChecklistPage
@@ -29,6 +29,7 @@ export default async function ComplianceClientePage({
       rows={rows}
       requisitos={requisitos}
       unidades={unidades}
+      choferes={choferes}
       canWrite={canWrite}
     />
   );

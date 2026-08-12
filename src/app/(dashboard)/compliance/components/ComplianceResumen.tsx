@@ -332,7 +332,7 @@ export function ComplianceMetricas({
     // "Al día" flotando). Con `flex-1` las de la última fila se estiran y el
     // renglón siempre queda lleno, entren 2, 3, 4 o 5.
     <div className="flex flex-wrap gap-2.5 sm:gap-3 print:hidden">
-      <div className="min-w-0 flex-1 basis-[9.5rem]">
+      <div className="flex min-w-0 flex-1 basis-[9.5rem]">
         <MetricCard
           art={<IlustracionCompliance nombre="total" size={42} />}
           label="Total"
@@ -344,7 +344,7 @@ export function ComplianceMetricas({
           ariaLabel="Ver todos los documentos"
         />
       </div>
-      <div className={`min-w-0 flex-1 basis-[9.5rem] ${marca("vencido")}`}>
+      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("vencido")}`}>
         <MetricCard
           art={<IlustracionCompliance nombre="vencido" size={42} />}
           label="Vencidos"
@@ -356,7 +356,7 @@ export function ComplianceMetricas({
           ariaLabel="Ver solo los vencidos"
         />
       </div>
-      <div className={`min-w-0 flex-1 basis-[9.5rem] ${marca("por_vencer")}`}>
+      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("por_vencer")}`}>
         <MetricCard
           art={<IlustracionCompliance nombre="por-vencer" size={42} />}
           label="Por vencer"
@@ -368,7 +368,7 @@ export function ComplianceMetricas({
           ariaLabel="Ver solo los que están por vencer"
         />
       </div>
-      <div className={`min-w-0 flex-1 basis-[9.5rem] ${marca("faltante")}`}>
+      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("faltante")}`}>
         <MetricCard
           art={<IlustracionCompliance nombre="sin-cargar" size={42} />}
           label="Sin cargar"
@@ -380,7 +380,7 @@ export function ComplianceMetricas({
           ariaLabel="Ver solo los que faltan cargar"
         />
       </div>
-      <div className={`min-w-0 flex-1 basis-[9.5rem] ${marca("vigente")}`}>
+      <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("vigente")}`}>
         <MetricCard
           art={<IlustracionCompliance nombre="al-dia" size={42} />}
           label="Al día"

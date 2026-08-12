@@ -22,6 +22,7 @@ import OrganismoChecklistPage from "./organismos/OrganismoChecklistPage";
 import Form931Client from "./form-931/Form931Client";
 import { exportarComplianceChecklistXlsx } from "./export";
 import type {
+  ChoferInfo,
   ComplianceDestinatario,
   ComplianceEstado,
   ComplianceEstadoRow,
@@ -35,6 +36,7 @@ type ClienteData = {
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
   unidades: Record<string, UnidadInfo>;
+  choferes: Record<string, ChoferInfo>;
 };
 type OrganismoData = {
   destinatario: ComplianceDestinatario;
@@ -155,6 +157,7 @@ export default function ComplianceUnifiedClient({
           rows={documentacion.rows}
           requisitos={documentacion.requisitos}
           unidades={documentacion.unidades}
+          choferes={documentacion.choferes}
           canWrite={canWrite}
           embedded
           generadoEn={generadoEn}

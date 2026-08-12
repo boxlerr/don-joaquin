@@ -22,8 +22,10 @@ import {
   CalendarClock,
   SearchX,
 } from "lucide-react";
+import AvatarPersona, { colorDePersona } from "@/components/ui/AvatarPersona";
 import {
   NIVEL_LABEL,
+  type ChoferInfo,
   type ComplianceEstado,
   type ComplianceEstadoRow,
   type ComplianceNivel,
@@ -65,6 +67,8 @@ interface Props {
   panelInicial?: string;
   /** Ficha de cada unidad por `camion_id`, para la cabecera del grupo "Unidades". */
   unidades?: Record<string, UnidadInfo>;
+  /** Ficha de cada chofer por `chofer_id`, para el avatar de su cabecera. */
+  choferes?: Record<string, ChoferInfo>;
   /** Momento (ISO) en que el server armó estos datos — lo muestra la columna derecha. */
   generadoEn?: string;
 }
@@ -237,6 +241,7 @@ export default function ComplianceChecklistPage({
   renderRowPanel,
   panelInicial,
   unidades,
+  choferes,
   generadoEn,
 }: Props) {
   const router = useRouter();
@@ -510,7 +515,6 @@ export default function ComplianceChecklistPage({
               <div className="space-y-3">
                 {groupedEntities.map((g) => {
                   const gAbierto = grupoManual.get(g.id) ?? grupoAbiertoPorDefecto;
-                  const SubIcon = n === "chofer" ? Users : Truck;
                   return (
                     <div
                       key={g.id}
@@ -536,8 +540,13 @@ export default function ComplianceChecklistPage({
                           >
                             <ChevronDown size={13} />
                           </span>
-                          <SubIcon size={14} className="shrink-0 text-muted-foreground/80" />
-                          <GroupHeaderInfo nivel={n} groupId={g.id} label={g.label} unidades={unidades} />
+                          <GroupHeaderInfo
+                            nivel={n}
+                            groupId={g.id}
+                            label={g.label}
+                            unidades={unidades}
+                            choferes={choferes}
+                          />
                         </div>
 
                         {/* Indicadores de estado resumidos */}
@@ -710,13 +719,16 @@ function GroupHeaderInfo({
   groupId,
   label,
   unidades,
+  choferes,
 }: {
   nivel: ComplianceNivel;
   groupId: string;
   label: string;
   unidades?: Record<string, UnidadInfo>;
+  choferes?: Record<string, ChoferInfo>;
 }) {
   const unidad = nivel === "unidad" ? unidades?.[groupId] : undefined;
+  const choferInfo = nivel === "chofer" ? choferes?.[groupId] : undefined;
 
   // En el grupo "chofer" mostramos la unidad que maneja (relación inversa).
   const unidadDelChofer =
@@ -732,6 +744,24 @@ function GroupHeaderInfo({
   const chofer = unidad?.chofer_nombre ?? null;
 
   return (
+    <>
+      {/* La cara y la foto en lugar del iconito repetido: con 78 choferes y 62
+          unidades apilados, la fila se encuentra por la imagen mucho antes que
+          leyendo el nombre o la patente. La foto del camión es la misma de tapa
+          que muestra /camiones; el chofer sin foto lleva la silueta de su área,
+          igual que en el legajo. */}
+      {nivel === "chofer" ? (
+        <AvatarPersona
+          name={choferInfo?.nombre ?? label}
+          src={choferInfo?.foto_url ?? null}
+          rol={choferInfo?.rol}
+          size={32}
+          className="shrink-0"
+        />
+      ) : (
+        <FotoUnidad url={unidad?.foto_url ?? null} patente={label} />
+      )}
+
     <div className="min-w-0">
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold text-foreground">{label}</span>
@@ -773,6 +803,42 @@ function GroupHeaderInfo({
         </div>
       )}
     </div>
+    </>
+  );
+}
+
+/**
+ * La foto de tapa de la unidad. Sin foto va un camión teñido con el color de la
+ * patente —la misma paleta y el mismo criterio que el avatar de las personas—:
+ * 62 cuadraditos idénticos no ayudan a encontrar la fila, y ese es todo el punto
+ * de poner una imagen. Ocupa el mismo lugar que la foto, así las filas con y sin
+ * foto no quedan desalineadas.
+ */
+function FotoUnidad({ url, patente }: { url: string | null; patente: string }) {
+  if (!url) {
+    const color = colorDePersona(patente);
+    return (
+      <span
+        className="grid size-8 shrink-0 place-items-center rounded-lg"
+        style={{ backgroundColor: `${color}1A`, color }}
+        title={`${patente} — sin foto cargada`}
+        aria-hidden
+      >
+        <Truck size={16} />
+      </span>
+    );
+  }
+  return (
+    // Viene de Storage con URL pública. `next/image` exige configurar el dominio
+    // y no aporta nada acá: son 62 miniaturas de 32px.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      className="size-8 shrink-0 rounded-lg border border-border object-cover"
+      title={patente}
+    />
   );
 }
 

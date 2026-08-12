@@ -12,6 +12,7 @@ import {
   type CrearUrlResult,
 } from "@/lib/adjuntos-server";
 import type {
+  ChoferInfo,
   ComplianceCliente,
   ComplianceClienteAplica,
   ComplianceEstadoRow,
@@ -60,11 +61,12 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
   unidades: Record<string, UnidadInfo>;
+  choferes: Record<string, ChoferInfo>;
 }> {
   await requireArea("compliance", "read");
   const supabase = createAdminClient();
 
-  const [rowsRes, reqRes, unidades] = await Promise.all([
+  const [rowsRes, reqRes, unidades, choferes] = await Promise.all([
     supabase
       .from("v_compliance_estado")
       .select("*")
@@ -78,6 +80,7 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
       .in("cliente_aplica", aplica)
       .order("orden", { ascending: true }),
     getUnidadesInfo(supabase),
+    getChoferesInfo(supabase),
   ]);
 
   const rows = (rowsRes.data as ComplianceEstadoRow[] | null) ?? [];
@@ -87,7 +90,34 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
     rows,
     requisitos: (reqRes.data as ComplianceRequisito[] | null) ?? [],
     unidades,
+    choferes,
   };
+}
+
+/**
+ * Foto + área de cada chofer, para el avatar de la cabecera de su grupo. Mismo
+ * criterio que en Legajos: si subieron la foto va la foto, y si no la silueta
+ * del área teñida por el nombre.
+ */
+async function getChoferesInfo(
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<Record<string, ChoferInfo>> {
+  const { data } = await supabase
+    .from("choferes")
+    .select("id, nombre, apellido, rol, foto:documentos_archivos!foto_id(bucket, path)");
+
+  const out: Record<string, ChoferInfo> = {};
+  for (const c of data ?? []) {
+    const foto = Array.isArray(c.foto) ? c.foto[0] : c.foto;
+    out[c.id] = {
+      nombre: `${c.apellido ?? ""}${c.nombre ? ` ${c.nombre}` : ""}`.trim(),
+      rol: c.rol,
+      foto_url: foto
+        ? supabase.storage.from(foto.bucket).getPublicUrl(foto.path).data.publicUrl
+        : null,
+    };
+  }
+  return out;
 }
 
 /**
@@ -98,7 +128,7 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
 async function getUnidadesInfo(
   supabase: ReturnType<typeof createAdminClient>,
 ): Promise<Record<string, UnidadInfo>> {
-  const [camionesRes, choferesRes, vinculosRes] = await Promise.all([
+  const [camionesRes, choferesRes, vinculosRes, fotosRes] = await Promise.all([
     supabase
       .from("camiones")
       .select(
@@ -110,7 +140,19 @@ async function getUnidadesInfo(
       .from("camion_acoplados")
       .select("camion_id, acoplado:acoplados(patente)")
       .is("hasta", null),
+    // La foto de tapa de cada unidad, la misma que muestra /camiones.
+    supabase
+      .from("camion_fotos")
+      .select("camion_id, archivo:documentos_archivos!archivo_id(bucket, path)")
+      .eq("es_principal", true),
   ]);
+
+  const fotoDe = new Map<string, string>();
+  for (const f of fotosRes.data ?? []) {
+    const archivo = Array.isArray(f.archivo) ? f.archivo[0] : f.archivo;
+    if (!archivo) continue;
+    fotoDe.set(f.camion_id, supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path).data.publicUrl);
+  }
 
   // Mismo formato que la tabla de /camiones: "Apellido Nombre".
   const choferNombre = new Map<string, string>();
@@ -141,6 +183,7 @@ async function getUnidadesInfo(
       chofer_id: c.chofer_actual_id,
       chofer_nombre: c.chofer_actual_id ? choferNombre.get(c.chofer_actual_id) ?? null : null,
       acoplados: acopladosDe.get(c.id) ?? [],
+      foto_url: fotoDe.get(c.id) ?? null,
     };
   }
   return out;
@@ -150,6 +193,7 @@ export async function getComplianceEstadoAction(cliente: ComplianceCliente): Pro
   rows: ComplianceEstadoRow[];
   requisitos: ComplianceRequisito[];
   unidades: Record<string, UnidadInfo>;
+  choferes: Record<string, ChoferInfo>;
 }> {
   return getComplianceEstadoAplica(["AMBOS", clienteToEnum(cliente)]);
 }

@@ -89,6 +89,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "en-el-checklist-encontras-al-chofer-o-la",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "compliance",
+    titulo: "En el checklist encontrás al chofer o la unidad por su imagen",
+    detalle: "Cada chofer aparece con el mismo avatar que en su legajo y cada unidad con su color. Si le cargás la foto en Camiones o en el legajo, se ve la foto.",
+    href: "/compliance",
+  },
+  {
     id: "el-buscador-te-acompana-mientras-bajas-por",
     fecha: "2026-08-12",
     tipo: "mejora",

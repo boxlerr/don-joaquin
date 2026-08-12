@@ -231,7 +231,11 @@ export default function MetricCard({
     </>
   );
 
-  const clase = `flex flex-col rounded-[8px] border border-border bg-card p-3.5 sm:p-4 text-left shadow-xs transition-all ${
+  // `w-full h-full`: la tarjeta puede venir envuelta en un contenedor que le da
+  // el ancho (la fila de Compliance la envuelve para marcarla cuando está
+  // filtrando). Un <button> no llena su contenedor por sí solo, así que el marco
+  // quedaba más grande que la tarjeta y se veía un recuadro suelto al costado.
+  const clase = `flex h-full w-full flex-col rounded-[8px] border border-border bg-card p-3.5 sm:p-4 text-left shadow-xs transition-all ${
     interactive ? "cursor-pointer hover:border-primary/50 hover:shadow-md" : ""
   }`;
 

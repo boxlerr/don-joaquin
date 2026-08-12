@@ -69,6 +69,21 @@ export type UnidadInfo = {
   chofer_nombre: string | null;
   /** Patentes de los acoplados vinculados vigentes (`camion_acoplados.hasta is null`). */
   acoplados: string[];
+  /** Foto principal de la unidad (`camion_fotos.es_principal`), si tiene. */
+  foto_url: string | null;
+};
+
+/**
+ * Ficha del chofer para la cabecera de su grupo. Es lo mínimo para dibujar el
+ * mismo avatar que en el legajo: la foto si la subieron y, si no, la silueta del
+ * área (ver `AvatarPersona`) — con 78 tarjetas apiladas, una fila con cara se
+ * encuentra mucho más rápido que una fila con texto.
+ */
+export type ChoferInfo = {
+  nombre: string;
+  /** `choferes.rol`: define qué silueta se dibuja cuando no hay foto. */
+  rol: string | null;
+  foto_url: string | null;
 };
 
 export type ProximaPresentacion = ComplianceEstadoRow & {

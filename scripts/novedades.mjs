@@ -27,6 +27,13 @@
  * el catálogo real de secciones y áreas. Duplicar acá esa lista sería tener dos
  * fuentes de verdad, y la copia siempre queda vieja.
  *
+ * El flujo, en orden (el trailer recién existe una vez hecho el commit):
+ *
+ *     git commit -m "..." -m "Novedad: mejora | compliance | ... "
+ *     npm run novedades
+ *     git commit --amend --no-edit -- src/lib/novedades.ts   # o un commit aparte
+ *     git push
+ *
  * Uso:
  *   node scripts/novedades.mjs            → escribe lo que falte (idempotente)
  *   node scripts/novedades.mjs --dry      → muestra qué escribiría, sin tocar nada
