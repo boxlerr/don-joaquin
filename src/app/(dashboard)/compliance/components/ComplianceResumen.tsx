@@ -453,19 +453,25 @@ const APLICA_UI: Record<string, { label: string; color: string; bg: string }> = 
   LOMA_NEGRA: { label: "Solo Loma", color: "#7C2D12", bg: "#FFF7ED" },
 };
 
-/** Cuántos tipos se ven antes de tocar "Ver más". */
-const TIPOS_VISIBLES = 7;
+/** Cuántos tipos se ven antes de tocar "Ver más". Nueve = tres filas. */
+const TIPOS_VISIBLES = 9;
 /** Cuántas filas se listan dentro de un tipo desplegado. */
 const FILAS_EN_DETALLE = 8;
 
 /**
- * Los tipos de documento, en tabla: un renglón por tipo con sus columnas.
+ * Los tipos de documento, en tarjetas.
  *
  * Reemplaza al "abrí el acordeón y contá": de un vistazo se ve que las VTV
- * tienen 12 vencidas y las licencias ninguna. Cada renglón dice además a quién
- * le corresponde ese papel y a qué plataforma va, que antes había que saberlo de
- * memoria — y se abre: adentro están las unidades/choferes concretos a los que
- * les falta, con el botón para cargarlo ahí mismo.
+ * tienen 12 vencidas y las licencias ninguna.
+ *
+ * En tarjetas y no en tabla a propósito. Son 20 tipos, no una lista larga, y
+ * abajo ya viene el checklist: dos tablas seguidas se leen como la misma cosa
+ * partida al medio y hay que frenar a entender cuál es cuál. La grilla se
+ * distingue sola, entra en menos alto y deja el filete de color del estado a la
+ * izquierda, que es lo que hace saltar el tipo que está peor.
+ *
+ * Tocar una tarjeta abre el detalle DEBAJO de la grilla, a todo el ancho: si se
+ * abriera dentro de la tarjeta, las de al lado saltarían de lugar.
  */
 export function ComplianceCategorias({
   rows,
@@ -546,217 +552,170 @@ export function ComplianceCategorias({
 
   const visibles = verTodos ? cats : cats.slice(0, TIPOS_VISIBLES);
   const ocultos = cats.length - visibles.length;
+  const elegido = abierto ? cats.find((c) => c.codigo === abierto) ?? null : null;
+  const filasDelElegido = elegido ? porTipo.get(elegido.codigo) ?? [] : [];
+  const pendientes = filasDelElegido.filter((r) => esPendienteEstado(r.estado));
+  // Si está todo al día no hay nada que ir a resolver: se listan igual los
+  // documentos, así se puede ver la fecha sin bajar al checklist.
+  const aListar = (pendientes.length > 0 ? pendientes : filasDelElegido).slice(0, FILAS_EN_DETALLE);
+  const restantes =
+    (pendientes.length > 0 ? pendientes.length : filasDelElegido.length) - aListar.length;
 
   return (
     <section className="rounded-[10px] border border-border bg-card print:hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-3">
         <h2 className="text-[13px] font-semibold text-foreground">Por tipo de documento</h2>
-        <span className="text-[11px] text-muted-foreground">
-          {cats.length} {cats.length === 1 ? "tipo" : "tipos"} · el % es lo que está al día
-        </span>
+        <span className="text-[11px] text-muted-foreground">Tocá uno para ver a quién le falta</span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <th className="px-3 py-2 font-semibold">Documento</th>
-              <th className="hidden px-3 py-2 font-semibold lg:table-cell">Es de</th>
-              {/* La plataforma sólo distingue a los pocos que no van a las dos:
-                  es la primera que se va cuando falta ancho. */}
-              <th className="hidden px-3 py-2 font-semibold 2xl:table-cell">Plataforma</th>
-              <th className="px-3 py-2 font-semibold">Al día</th>
-              <th className="px-3 py-2 font-semibold">Estado</th>
-              <th className="w-10 px-3 py-2" aria-label="Abrir" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {visibles.map((c) => {
-              const ui = TIPO_UI[c.estado];
-              const aplica = APLICA_UI[c.aplica] ?? APLICA_UI.AMBOS!;
-              const expandido = abierto === c.codigo;
-              const filas = porTipo.get(c.codigo) ?? [];
-              const pendientes = filas.filter((r) => esPendienteEstado(r.estado));
-              // Si está todo al día no hay nada que ir a resolver: se listan igual
-              // los documentos, así se puede ver la fecha sin bajar al checklist.
-              const aListar = (pendientes.length > 0 ? pendientes : filas).slice(0, FILAS_EN_DETALLE);
-              const restantes = (pendientes.length > 0 ? pendientes.length : filas.length) - aListar.length;
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(13.5rem,1fr))] gap-2.5 p-3">
+        {visibles.map((c) => {
+          const ui = TIPO_UI[c.estado];
+          const activa = abierto === c.codigo;
+          const pend = c.total - c.alDia;
+          return (
+            <button
+              key={c.codigo}
+              type="button"
+              onClick={() => setAbierto(activa ? null : c.codigo)}
+              aria-expanded={activa}
+              aria-label={`${c.nombre}: ${c.pct}% al día de ${c.total}`}
+              className={`relative overflow-hidden rounded-lg border bg-card p-3 pl-4 text-left transition-all ${
+                activa
+                  ? "border-primary/50 shadow-sm ring-2 ring-primary/20"
+                  : "border-border hover:border-primary/40 hover:shadow-sm"
+              }`}
+            >
+              {/* Filete del estado: es lo que hace saltar el tipo que está peor
+                  sin tener que leer los números de cada tarjeta. */}
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-1.5"
+                style={{ backgroundColor: ui.barra }}
+              />
 
+              <div className="flex items-start gap-2.5">
+                <IlustracionCompliance nombre={ui.arte} size={34} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-foreground">{c.nombre}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {NIVEL_CORTO[c.nivel]} · {c.total}
+                    {c.aplica !== "AMBOS" && ` · ${APLICA_UI[c.aplica]?.label ?? ""}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className="block h-full rounded-full transition-[width] duration-500"
+                    style={{ width: `${c.pct}%`, backgroundColor: ui.barra }}
+                  />
+                </span>
+                <span className="shrink-0 text-[12px] font-bold tabular-nums" style={{ color: ui.color }}>
+                  {c.pct}%
+                </span>
+              </div>
+
+              <p className="mt-1 truncate text-[11px]">
+                {pend === 0 ? (
+                  <span style={{ color: ui.color }}>Todos al día</span>
+                ) : (
+                  <>
+                    {c.vencidos > 0 && (
+                      <span className="font-semibold text-[#B91C1C]">{c.vencidos} vencido{c.vencidos === 1 ? "" : "s"}</span>
+                    )}
+                    {c.vencidos > 0 && (c.porVencer > 0 || c.faltantes > 0) && (
+                      <span className="text-muted-foreground"> · </span>
+                    )}
+                    {c.porVencer > 0 && (
+                      <span className="font-semibold text-[#B45309]">{c.porVencer} por vencer</span>
+                    )}
+                    {c.porVencer > 0 && c.faltantes > 0 && <span className="text-muted-foreground"> · </span>}
+                    {c.faltantes > 0 && (
+                      <span className="text-muted-foreground">{c.faltantes} sin cargar</span>
+                    )}
+                  </>
+                )}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* El detalle, a todo el ancho y debajo de la grilla. */}
+      {elegido && (
+        <div className="border-t border-border bg-muted/20 px-3 py-3 sm:px-4">
+          <p className="mb-2 text-[12px]">
+            <span className="font-semibold text-foreground">{elegido.nombre}</span>
+            {pendientes.length === 0 ? (
+              <span className="text-[#166534]"> — todo al día: los {elegido.total} están vigentes.</span>
+            ) : (
+              <span className="text-muted-foreground">
+                {" "}
+                — {pendientes.length} de {elegido.total} necesitan algo.{" "}
+                {onCargar && canWrite ? "Tocá uno para cargarlo." : ""}
+              </span>
+            )}
+          </p>
+
+          <ul className="grid gap-1 sm:grid-cols-2 xl:grid-cols-3">
+            {aListar.map((r) => {
+              const fui = TIPO_UI[r.estado];
+              const etiqueta = r.chofer_nombre ?? r.camion_patente ?? "Empresa";
+              const clickable = Boolean(onCargar);
+              const contenido = (
+                <>
+                  <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: fui.barra }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{etiqueta}</span>
+                  <span className="shrink-0 text-[11px]" style={{ color: fui.color }}>
+                    {r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : fui.label}
+                  </span>
+                </>
+              );
               return (
-                <Fragment key={c.codigo}>
-                  <tr
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={expandido}
-                    onClick={() => setAbierto(expandido ? null : c.codigo)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter" && e.key !== " ") return;
-                      e.preventDefault();
-                      setAbierto(expandido ? null : c.codigo);
-                    }}
-                    className={`cursor-pointer transition-colors ${
-                      expandido ? "bg-muted/40" : "hover:bg-muted/30"
-                    }`}
-                  >
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <IlustracionCompliance nombre={ui.arte} size={34} />
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-foreground">{c.nombre}</p>
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                            {c.total} {c.total === 1 ? "documento" : "documentos"}
-                            {c.vencidos > 0 && (
-                              <span className="font-semibold text-[#B91C1C]">
-                                {" · "}
-                                {c.vencidos} vencido{c.vencidos === 1 ? "" : "s"}
-                              </span>
-                            )}
-                            {c.porVencer > 0 && (
-                              <span className="font-semibold text-[#B45309]">
-                                {" · "}
-                                {c.porVencer} por vencer
-                              </span>
-                            )}
-                            {c.faltantes > 0 && <span>{" · "}{c.faltantes} sin cargar</span>}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="hidden px-3 py-2.5 lg:table-cell">
-                      <span className="whitespace-nowrap rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-                        {NIVEL_CORTO[c.nivel]}
-                      </span>
-                    </td>
-
-                    <td className="hidden px-3 py-2.5 2xl:table-cell">
-                      <span
-                        className="whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                        style={{ backgroundColor: aplica.bg, color: aplica.color }}
-                      >
-                        {aplica.label}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-2">
-                        {/* La barra mide lo que está al día. Sin número al lado no
-                            se entiende de qué es el porcentaje. */}
-                        <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted sm:block xl:w-28">
-                          <span
-                            className="block h-full rounded-full transition-[width] duration-500"
-                            style={{ width: `${c.pct}%`, backgroundColor: ui.barra }}
-                          />
-                        </span>
-                        <span className="w-9 shrink-0 text-right text-[12px] font-semibold tabular-nums text-muted-foreground">
-                          {c.pct}%
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-2.5">
-                      <span
-                        className="inline-block whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-semibold"
-                        style={{ backgroundColor: ui.bg, color: ui.color }}
-                      >
-                        {ui.label}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-2.5">
-                      <span
-                        aria-hidden
-                        className={`grid size-6 place-items-center rounded-md border border-border bg-card text-muted-foreground transition-transform ${
-                          expandido ? "" : "-rotate-90"
-                        }`}
-                      >
-                        <ChevronDown size={14} />
-                      </span>
-                    </td>
-                  </tr>
-
-                  {expandido && (
-                    <tr>
-                      <td colSpan={6} className="border-t border-border bg-muted/20 px-3 py-3 sm:px-4">
-                        {pendientes.length === 0 ? (
-                          <p className="mb-2 text-[12px] font-medium text-[#166534]">
-                            Todo al día: los {c.total} están vigentes.
-                          </p>
-                        ) : (
-                          <p className="mb-2 text-[12px] text-muted-foreground">
-                            <span className="font-semibold text-foreground">{pendientes.length}</span> de{" "}
-                            {c.total} necesitan algo. {onCargar && canWrite ? "Tocá uno para cargarlo." : ""}
-                          </p>
-                        )}
-
-                        <ul className="grid gap-1 sm:grid-cols-2">
-                          {aListar.map((r) => {
-                            const fui = TIPO_UI[r.estado];
-                            const etiqueta = r.chofer_nombre ?? r.camion_patente ?? "Empresa";
-                            const clickable = Boolean(onCargar);
-                            const contenido = (
-                              <>
-                                <span
-                                  aria-hidden
-                                  className="size-2 shrink-0 rounded-full"
-                                  style={{ backgroundColor: fui.barra }}
-                                />
-                                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                                  {etiqueta}
-                                </span>
-                                <span className="shrink-0 text-[11px]" style={{ color: fui.color }}>
-                                  {r.fecha_vencimiento ? formatFecha(r.fecha_vencimiento) : fui.label}
-                                </span>
-                              </>
-                            );
-                            return (
-                              <li key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
-                                {clickable ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => onCargar?.(r)}
-                                    title={
-                                      canWrite
-                                        ? r.documento_id
-                                          ? "Editar el vencimiento"
-                                          : "Cargar este documento"
-                                        : "Ver el documento"
-                                    }
-                                    className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
-                                  >
-                                    {contenido}
-                                  </button>
-                                ) : (
-                                  <span className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
-                                    {contenido}
-                                  </span>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-
-                        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          {restantes > 0 && (
-                            <span className="text-[11px] text-muted-foreground">y {restantes} más…</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => onChange({ ...filtros, requisito: c.codigo, estado: "todos" })}
-                            className="text-[12px] font-medium text-primary hover:underline"
-                          >
-                            Ver los {c.total} en el checklist
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                <li key={`${r.requisito_id}-${r.chofer_id ?? r.camion_id ?? "emp"}`}>
+                  {clickable ? (
+                    <button
+                      type="button"
+                      onClick={() => onCargar?.(r)}
+                      title={
+                        canWrite
+                          ? r.documento_id
+                            ? "Editar el vencimiento"
+                            : "Cargar este documento"
+                          : "Ver el documento"
+                      }
+                      className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                    >
+                      {contenido}
+                    </button>
+                  ) : (
+                    <span className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
+                      {contenido}
+                    </span>
                   )}
-                </Fragment>
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {restantes > 0 && <span className="text-[11px] text-muted-foreground">y {restantes} más…</span>}
+            <button
+              type="button"
+              onClick={() => onChange({ ...filtros, requisito: elegido.codigo, estado: "todos" })}
+              className="text-[12px] font-medium text-primary hover:underline"
+            >
+              Ver los {elegido.total} en el checklist
+            </button>
+          </div>
+        </div>
+      )}
 
       {cats.length > TIPOS_VISIBLES && (
         <button
