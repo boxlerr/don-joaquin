@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-tutorial-de-compliance-ahora-explica-la",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "compliance",
+    titulo: "El tutorial de Compliance ahora explica la pantalla de verdad",
+    detalle: "Entrá por \"Tutorial\", arriba a la derecha. Está en tres partes: qué estás viendo, cómo encontrar algo y cómo cargar un documento.",
+    href: "/compliance",
+  },
+  {
     id: "en-novedades-ves-de-que-parte-del-sistema",
     fecha: "2026-08-12",
     tipo: "mejora",
