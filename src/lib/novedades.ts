@@ -90,6 +90,14 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "cuando-algo-falla-la-pantalla-te-dice-que",
+    fecha: "2026-08-12",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "Cuando algo falla, la pantalla te dice qué pasó y por dónde volver",
+    detalle: "Si escribís mal una dirección o se rompe algo, ya no aparece la pantalla negra en inglés sin ningún botón: ahora es una pantalla del sistema, con un botón para volver al inicio o reintentar. Si se rompió algo, además te da un código para pasar cuando lo reportes.",
+  },
+  {
     id: "lo-que-estas-cargando-ya-no-se-pierde",
     fecha: "2026-08-12",
     tipo: "nuevo",

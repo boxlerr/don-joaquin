@@ -64,6 +64,39 @@
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* ---------------------------------------------------------------------------
+   El camión de las pantallas de error (la de página no encontrada y la de "se
+   rompió algo"). Son dos movimientos chicos y lentos: la aguja del reloj
+   temblando y el humo del escape subiendo. Nada de esto es información, así que
+   si el sistema operativo pide menos movimiento, se apagan.
+--------------------------------------------------------------------------- */
+@keyframes dj-aguja-tiembla {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50%      { transform: rotate(3.5deg); }
+}
+
+@keyframes dj-humo-sube {
+  0%   { transform: translateY(4px); opacity: 0.25; }
+  50%  { transform: translateY(-4px); opacity: 1; }
+  100% { transform: translateY(-12px); opacity: 0; }
+}
+
+.dj-aguja {
+  transform-origin: 494px 68px;
+  animation: dj-aguja-tiembla 2.4s ease-in-out infinite;
+}
+
+.dj-humo {
+  animation: dj-humo-sube 4.5s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dj-aguja,
+  .dj-humo {
+    animation: none;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
