@@ -28,6 +28,7 @@ import {
   venceSaldoLabel,
   saldosPorAnio,
   resumenSaldos,
+  yaSePuedeTomar,
 } from "../vacaciones/derivar";
 import type { SaldoAnio } from "../vacaciones/derivar";
 
@@ -56,6 +57,7 @@ export default function ChoferVacacionesTab({
   onRefresh,
 }: Props) {
   const finPeriodoY = new Date().getFullYear();
+  const hoyISO = new Date().toISOString().slice(0, 10);
 
   // Edición de los días que corresponden año por año: es lo que permite
   // arreglar a mano una carga inicial mal importada sin depender de un dev.
@@ -359,6 +361,17 @@ export default function ChoferVacacionesTab({
           hint={`Lo que le quedó sin tomar del ${finPeriodoY - 1}.`}
         />
       </div>
+      {/* "Los 21 de 2026 son arena de otro costal, son a partir de octubre"
+          (Bárbara, 29/07/2026). La ventana del art. 154 ya estaba calculada y
+          testeada, pero no la mostraba ninguna pantalla: el número de la tarjeta
+          se leía como días que se pueden pedir hoy. */}
+      {!yaSePuedeTomar(finPeriodoY, hoyISO) && (
+        <p className="border-l-2 border-border pl-3 text-[13px] leading-snug text-muted-foreground">
+          Los días del {finPeriodoY} se pueden tomar recién{" "}
+          <span className="font-medium text-foreground">desde el 1/10/{finPeriodoY}</span> y hasta el
+          30/4/{finPeriodoY + 1}. Lo que se puede gozar ahora es lo que figura en Adeudados.
+        </p>
+      )}
       {/* Un adeudados negativo no es un saldo: es que a ese año se le imputaron
           más días de los que tiene cargados. La tarjeta muestra 0 y el problema
           se explica acá, porque un "−15" pelado fue justo lo que asustó a
@@ -459,6 +472,17 @@ export default function ChoferVacacionesTab({
 
         {editando ? (
           <div className="p-3 sm:p-4 space-y-2">
+            {/* Encabezados a la vista. Sin ellos, el "sin tomar" que va pegado
+                al input se lee como su rótulo: es lo que hizo que Bárbara
+                escribiera 3 —los que le quedaban— donde van los 21 que le
+                corresponden (video del 29/07/2026). Los anchos son los mismos
+                que los de los campos para que la columna caiga derecha también
+                en el celular. */}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="w-20 sm:w-24 shrink-0">Año</span>
+              <span className="w-16 sm:w-20 shrink-0 text-right">Le corresponden</span>
+              <span className="w-20 sm:w-28 shrink-0">Ya se tomó</span>
+            </div>
             {filas.map((f, i) => {
               const usados = saldo.anios.find((a) => a.anio === Number(f.anio))?.usados ?? 0;
               return (
@@ -486,7 +510,10 @@ export default function ChoferVacacionesTab({
                     aria-label="Días que corresponden"
                   />
                   <span className="w-20 sm:w-28 shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                    {usados > 0 ? `${usados} tomados` : "sin tomar"}
+                    {/* "0 tomados" y no "sin tomar": en paralelo con la otra
+                        rama se lee como un dato de la fila, no como el rótulo
+                        del campo de al lado. */}
+                    {usados} tomados
                   </span>
                   <button
                     type="button"
