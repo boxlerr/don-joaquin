@@ -200,7 +200,15 @@ export async function togglePresentadoImpuestoAction(
 
 export async function updateImpuestoAction(
   id: string,
-  data: { nombre: string; organismo: string | null; fecha_vencimiento: string; observaciones: string | null },
+  // `periodo` también se edita: se carga al crear y hasta ahora, si venía con un
+  // error de tipeo, sólo se arreglaba borrando el impuesto y cargándolo de nuevo.
+  data: {
+    nombre: string;
+    organismo: string | null;
+    periodo?: string | null;
+    fecha_vencimiento: string;
+    observaciones: string | null;
+  },
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireArea("finanzas", "write");
   if (!data.nombre.trim()) return { error: "El nombre es obligatorio." };
@@ -210,19 +218,23 @@ export async function updateImpuestoAction(
 
   const { data: previo } = await (supabase as any)
     .from("impuesto_vencimientos")
-    .select("nombre, organismo, fecha_vencimiento, observaciones")
+    .select("nombre, organismo, periodo, fecha_vencimiento, observaciones")
     .eq("id", id)
     .maybeSingle();
 
+  const valores = {
+    nombre: data.nombre.trim(),
+    organismo: data.organismo?.trim() || null,
+    fecha_vencimiento: data.fecha_vencimiento,
+    observaciones: data.observaciones?.trim() || null,
+    // Sin el campo en el formulario no se toca la columna: `undefined` es "no
+    // vino", que no es lo mismo que "lo vaciaron".
+    ...(data.periodo !== undefined ? { periodo: data.periodo?.trim() || null } : {}),
+  };
+
   const { error } = await (supabase as any)
     .from("impuesto_vencimientos")
-    .update({
-      nombre: data.nombre.trim(),
-      organismo: data.organismo?.trim() || null,
-      fecha_vencimiento: data.fecha_vencimiento,
-      observaciones: data.observaciones?.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ ...valores, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { error: "No se pudo actualizar el impuesto." };
 
@@ -233,12 +245,7 @@ export async function updateImpuestoAction(
     entidadTipo: "impuesto",
     entidadId: id,
     valoresAnteriores: previo ?? null,
-    valoresNuevos: {
-      nombre: data.nombre.trim(),
-      organismo: data.organismo?.trim() || null,
-      fecha_vencimiento: data.fecha_vencimiento,
-      observaciones: data.observaciones?.trim() || null,
-    },
+    valoresNuevos: valores,
   });
 
   revalidatePath("/impuestos");

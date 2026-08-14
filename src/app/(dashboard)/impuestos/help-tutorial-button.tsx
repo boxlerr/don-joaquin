@@ -14,7 +14,9 @@ import {
   FileText,
   ShieldCheck,
   ArrowRight,
+  ArrowUp,
   RotateCcw,
+  Search,
 } from "lucide-react";
 import HelpTutorialDialog, {
   MockField,
@@ -44,15 +46,18 @@ function StatMini({
   label,
   value,
   sub,
+  activo,
 }: {
   tono: Tono;
   icon: React.ReactNode;
   label: string;
   value: string;
   sub: string;
+  /** Marcada: es la tarjeta que está filtrando la lista. */
+  activo?: boolean;
 }) {
   return (
-    <div className="rounded-md border border-border bg-card p-2">
+    <div className={`rounded-md border bg-card p-2 ${activo ? "border-primary/60 ring-2 ring-primary/40" : "border-border"}`}>
       <div className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-muted-foreground">
         <span className={TONO_TXT[tono]}>{icon}</span> {label}
       </div>
@@ -64,27 +69,28 @@ function StatMini({
 
 type EstadoTono = "green" | "red" | "amber" | "slate";
 
+// Los mismos tonos que la pastilla de estado de la pantalla (`StatusBadge`).
 const ESTADO_CLS: Record<EstadoTono, string> = {
-  green: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
-  red: "bg-red-100 text-red-700 border-red-200/60",
-  amber: "bg-amber-50 text-amber-700 border-amber-200/60",
-  slate: "bg-slate-100 text-slate-600 border-slate-200/60",
+  green: "bg-[#F0FDF4] text-[#166534] border-[#BBF7D0]",
+  red: "bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]",
+  amber: "bg-[#FFFBEB] text-[#92400E] border-[#FEF3C7]",
+  slate: "bg-muted/40 text-muted-foreground border-border",
 };
 
-function EstadoBadge({
-  tono,
-  icon,
-  children,
-}: {
-  tono: EstadoTono;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+const ESTADO_DOT: Record<EstadoTono, string> = {
+  green: "bg-[#22C55E]",
+  red: "bg-[#EF4444]",
+  amber: "bg-[#F59E0B]",
+  slate: "bg-[#94A3B8]",
+};
+
+function EstadoBadge({ tono, children }: { tono: EstadoTono; children: React.ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${ESTADO_CLS[tono]}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${ESTADO_CLS[tono]}`}
     >
-      {icon} {children}
+      <span className={`size-1 rounded-full ${ESTADO_DOT[tono]}`} />
+      {children}
     </span>
   );
 }
@@ -93,25 +99,44 @@ function Fila({
   nombre,
   org,
   fecha,
+  aviso,
+  avisoTono = "slate",
   estado,
   done,
 }: {
   nombre: string;
   org: string;
   fecha: string;
+  /** El renglón chico de abajo de la fecha ("vence en 4 días"). */
+  aviso: string;
+  avisoTono?: EstadoTono;
   estado: React.ReactNode;
   done?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 border-t border-border">
-      <div className="min-w-0">
-        <div className={`text-[11px] font-semibold text-foreground truncate ${done ? "line-through opacity-60" : ""}`}>
-          {nombre}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="grid size-5 shrink-0 place-items-center rounded bg-primary/8 text-primary">
+          <FileText size={10} />
+        </span>
+        <div className="min-w-0">
+          <div className={`text-[11px] font-semibold text-foreground truncate ${done ? "line-through opacity-60" : ""}`}>
+            {nombre}
+          </div>
+          <div className="text-[8px] text-muted-foreground">{org}</div>
         </div>
-        <div className="text-[8px] text-muted-foreground">{org}</div>
       </div>
-      <span className="w-12 text-[10px] tabular-nums text-foreground text-right">{fecha}</span>
-      <span className="w-[76px] flex justify-center">{estado}</span>
+      <span className="w-[78px] text-right">
+        <span className="block text-[10px] tabular-nums text-foreground">{fecha}</span>
+        <span
+          className={`block text-[8px] ${
+            avisoTono === "red" ? "text-red-600" : avisoTono === "amber" ? "text-amber-600" : "text-muted-foreground"
+          }`}
+        >
+          {aviso}
+        </span>
+      </span>
+      <span className="w-[86px] flex justify-center">{estado}</span>
     </div>
   );
 }
@@ -119,7 +144,7 @@ function Fila({
 function SemaforoRow({ badge, desc }: { badge: React.ReactNode; desc: string }) {
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-1.5">
-      <span className="w-[92px] shrink-0 flex">{badge}</span>
+      <span className="w-[108px] shrink-0 flex">{badge}</span>
       <span className="text-[11px] text-muted-foreground">{desc}</span>
     </div>
   );
@@ -174,7 +199,47 @@ function MockStats() {
       <StatMini tono="brand" icon={<Landmark size={10} />} label="Impuestos" value="12" sub="En el calendario" />
       <StatMini tono="success" icon={<CheckCircle2 size={10} />} label="Presentados" value="7" sub="Marcados como hechos" />
       <StatMini tono="warning" icon={<Clock size={10} />} label="Por vencer" value="3" sub="Pendientes en ≤ 7 días" />
-      <StatMini tono="error" icon={<AlertTriangle size={10} />} label="Vencidos" value="1" sub="Pasados de fecha" />
+      <StatMini tono="error" icon={<AlertTriangle size={10} />} label="Vencidos" value="1" sub="Pasados de fecha" activo />
+    </div>
+  );
+}
+
+/** El buscador y las solapas, que es como se acota la lista. */
+function MockFiltros() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3 py-2">
+        <div className="flex h-7 flex-1 items-center gap-1.5 rounded-md border border-border px-2 text-[10px] text-muted-foreground">
+          <Search size={10} /> Buscar impuesto, organismo o período…
+          <span className="ml-auto rounded border border-border bg-muted px-1 text-[8px] font-bold">/</span>
+        </div>
+        <div className="flex h-7 w-24 items-center gap-1 rounded-md border border-border px-2 text-[10px] text-foreground">
+          <Building2 size={10} className="text-muted-foreground" /> AFIP
+        </div>
+      </div>
+      <div className="flex items-center gap-2 border-t border-border px-3">
+        {[
+          { l: "Todos", n: "12", activo: false },
+          { l: "Por vencer", n: "3", activo: false },
+          { l: "Vencidos", n: "1", activo: true },
+          { l: "Presentados", n: "7", activo: false },
+        ].map((t) => (
+          <span
+            key={t.l}
+            className={`-mb-px inline-flex items-center gap-1 border-b-2 py-1.5 text-[9px] font-semibold ${
+              t.activo ? "border-primary text-primary" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            {t.l}
+            <span className={`rounded px-1 text-[8px] font-bold ${t.activo ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+              {t.n}
+            </span>
+          </span>
+        ))}
+      </div>
+      <div className="border-t border-border px-3 py-1.5 text-[8px] text-muted-foreground">
+        Mostrando <b className="text-foreground">1–1</b> de 1 impuesto
+      </div>
     </div>
   );
 }
@@ -184,12 +249,35 @@ function MockTabla() {
     <div className="rounded-lg border border-border overflow-hidden">
       <div className="grid grid-cols-[1fr_auto_auto] gap-2 bg-muted/50 px-3 py-1.5 text-[8px] font-bold uppercase text-muted-foreground">
         <span>Impuesto</span>
-        <span className="w-12 text-right">Vence</span>
-        <span className="w-[76px] text-center">Estado</span>
+        <span className="inline-flex w-[78px] items-center justify-end gap-0.5">
+          Vence <ArrowUp size={8} className="text-primary" />
+        </span>
+        <span className="w-[86px] text-center">Estado</span>
       </div>
-      <Fila nombre="IVA — DDJJ mensual" org="AFIP" fecha="18/07" estado={<EstadoBadge tono="red" icon={<CalendarClock size={10} />}>en 2 días</EstadoBadge>} />
-      <Fila nombre="SICORE — 1er. Q" org="AFIP" fecha="22/07" estado={<EstadoBadge tono="amber" icon={<CalendarClock size={10} />}>en 6 días</EstadoBadge>} />
-      <Fila nombre="Ingresos Brutos" org="ARBA" fecha="10/07" done estado={<EstadoBadge tono="green" icon={<Check size={10} />}>Presentado</EstadoBadge>} />
+      <Fila
+        nombre="IVA — DDJJ mensual"
+        org="AFIP"
+        fecha="18/07"
+        aviso="venció hace 3 días"
+        avisoTono="red"
+        estado={<EstadoBadge tono="red">Vencido</EstadoBadge>}
+      />
+      <Fila
+        nombre="SICORE — 1er. Q"
+        org="AFIP"
+        fecha="26/07"
+        aviso="vence en 5 días"
+        avisoTono="amber"
+        estado={<EstadoBadge tono="amber">Por vencer</EstadoBadge>}
+      />
+      <Fila
+        nombre="Ingresos Brutos"
+        org="ARBA"
+        fecha="10/07"
+        aviso="vencía el 10/07"
+        done
+        estado={<EstadoBadge tono="green">Presentado</EstadoBadge>}
+      />
     </div>
   );
 }
@@ -197,11 +285,11 @@ function MockTabla() {
 function MockSemaforo() {
   return (
     <div className="space-y-1.5">
-      <SemaforoRow badge={<EstadoBadge tono="green" icon={<Check size={10} />}>Presentado</EstadoBadge>} desc="Ya lo presentaste" />
-      <SemaforoRow badge={<EstadoBadge tono="red" icon={<CalendarClock size={10} />}>vencido</EstadoBadge>} desc="Pasó la fecha y sigue pendiente" />
-      <SemaforoRow badge={<EstadoBadge tono="red" icon={<CalendarClock size={10} />}>en 4 días</EstadoBadge>} desc="Urgente: vence en 5 días o menos" />
-      <SemaforoRow badge={<EstadoBadge tono="amber" icon={<CalendarClock size={10} />}>en 12 días</EstadoBadge>} desc="Atención: entre 6 y 15 días" />
-      <SemaforoRow badge={<EstadoBadge tono="slate" icon={<CalendarClock size={10} />}>en 24 días</EstadoBadge>} desc="Todavía hay margen" />
+      <SemaforoRow badge={<EstadoBadge tono="green">Presentado</EstadoBadge>} desc="Ya lo presentaste, en fecha" />
+      <SemaforoRow badge={<EstadoBadge tono="amber">Presentado tarde</EstadoBadge>} desc="Se presentó, pero después del vencimiento" />
+      <SemaforoRow badge={<EstadoBadge tono="red">Vencido</EstadoBadge>} desc="Pasó la fecha y sigue pendiente" />
+      <SemaforoRow badge={<EstadoBadge tono="amber">Por vencer</EstadoBadge>} desc="Vence dentro de los próximos 7 días" />
+      <SemaforoRow badge={<EstadoBadge tono="slate">Pendiente</EstadoBadge>} desc="Falta presentarlo, pero todavía hay margen" />
     </div>
   );
 }
@@ -268,6 +356,7 @@ function MockEditForm() {
           <MockField label="Organismo" value="AFIP" icon={<Building2 size={10} />} />
           <MockField label="Vencimiento *" value="22/07/2026" icon={<CalendarClock size={10} />} required />
         </div>
+        <MockField label="Período (opcional)" value="2026-07" icon={<FileText size={10} />} />
         <MockField label="Observaciones (opcional)" value="Lo presenta el contador" icon={<FileText size={10} />} />
       </div>
     </div>
@@ -276,29 +365,40 @@ function MockEditForm() {
 
 function MockDelete() {
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold text-foreground truncate">Ingresos Brutos</div>
-          <div className="text-[8px] text-muted-foreground">ARBA</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="inline-flex size-6 items-center justify-center rounded-md bg-muted text-primary" title="Editar">
-            <Pencil size={11} />
-          </span>
-          <span className="inline-flex size-6 items-center justify-center rounded-md bg-red-50 text-red-600" title="Eliminar">
-            <Trash2 size={11} />
-          </span>
+    <div className="space-y-2">
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold text-foreground truncate">Ingresos Brutos</div>
+            <div className="text-[8px] text-muted-foreground">ARBA</div>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="inline-flex size-6 items-center justify-center rounded-md bg-muted text-primary" title="Editar">
+              <Pencil size={11} />
+            </span>
+            <span className="inline-flex size-6 items-center justify-center rounded-md bg-red-50 text-red-600" title="Eliminar">
+              <Trash2 size={11} />
+            </span>
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-1 px-3 py-1.5 border-t border-border bg-red-50/50">
-        <span className="text-[9px] text-muted-foreground mr-auto">Confirmá para borrarlo</span>
-        <span className="h-6 px-2 rounded-md bg-card text-red-600 border border-red-200 text-[9px] font-bold inline-flex items-center">
-          Eliminar
-        </span>
-        <span className="h-6 px-2 rounded-md text-muted-foreground text-[9px] font-semibold inline-flex items-center">
-          Cancelar
-        </span>
+      {/* La confirmación es una ventanita al medio de la pantalla, no dos
+          botones metidos en la fila. */}
+      <div className="rounded-lg border border-border bg-card p-3 shadow-md">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold text-foreground">
+          <AlertTriangle size={12} className="text-red-500" /> Eliminar impuesto
+        </div>
+        <p className="mt-1 text-[9px] text-muted-foreground">
+          Se va a borrar <b className="text-foreground">Ingresos Brutos</b> y sus comprobantes. No se puede deshacer.
+        </p>
+        <div className="mt-2 flex justify-end gap-1.5">
+          <span className="inline-flex h-6 items-center rounded-md border border-border px-2 text-[9px] font-semibold text-muted-foreground">
+            Cancelar
+          </span>
+          <span className="inline-flex h-6 items-center rounded-md bg-red-50 px-2 text-[9px] font-bold text-red-600">
+            Eliminar
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -317,14 +417,14 @@ function MockToggle() {
       <CheckRow
         done
         nombre="Ingresos Brutos"
-        detalle="ARBA · venció 10/07"
-        estado={<EstadoBadge tono="green" icon={<Check size={10} />}>Presentado</EstadoBadge>}
+        detalle="ARBA · vencía el 10/07"
+        estado={<EstadoBadge tono="green">Presentado</EstadoBadge>}
       />
       <CheckRow
         done={false}
         nombre="IVA — DDJJ mensual"
-        detalle="AFIP · vence 18/07"
-        estado={<EstadoBadge tono="amber" icon={<CalendarClock size={10} />}>en 4 días</EstadoBadge>}
+        detalle="AFIP · vence en 4 días"
+        estado={<EstadoBadge tono="amber">Por vencer</EstadoBadge>}
       />
     </div>
   );
@@ -391,20 +491,27 @@ const TABS: TutorialTab[] = [
       {
         title: "Las 4 tarjetas de arriba",
         description:
-          "El resumen del mes de un vistazo: cuántos impuestos hay en el calendario, cuántos ya presentaste, cuántos vencen en 7 días o menos y cuántos están vencidos.",
+          "El resumen del mes de un vistazo: cuántos impuestos hay en el calendario, cuántos ya presentaste, cuántos vencen en 7 días o menos y cuántos están vencidos. Además filtran: tocás “Vencidos” y abajo quedan sólo esos; la tarjeta se marca para que sepas qué estás mirando y volvés a tocarla para ver todo de nuevo.",
         mockup: <MockStats />,
+      },
+      {
+        title: "Buscá y acotá con las solapas",
+        description:
+          "El buscador encuentra por nombre, organismo o período (podés escribir sin acentos), y al lado acotás por organismo. Las solapas dejan sólo lo que te interesa y el número de cada una cuenta lo que hay con esa búsqueda puesta.",
+        mockup: <MockFiltros />,
+        hint: "Apretando la tecla “/” saltás al buscador sin usar el mouse. Abajo de la lista siempre dice cuántos estás viendo, y de a 25 por página cuando son muchos.",
       },
       {
         title: "La tabla, ordenada por vencimiento",
         description:
-          "Cada fila es un impuesto con su organismo, su fecha y su estado. Se ordena sola por fecha de vencimiento: el más próximo queda siempre arriba.",
+          "Cada fila es un impuesto con su organismo, su fecha y su estado. Arranca ordenada por vencimiento —el más próximo arriba— y podés cambiarla tocando el título de la columna: una vez ordena de menor a mayor y otra al revés.",
         mockup: <MockTabla />,
-        hint: "Los impuestos ya presentados se ven en gris y tachados, para que no te distraigan de lo que falta.",
+        hint: "Abajo de la fecha dice cuánto falta (o hace cuánto se pasó). Los presentados se ven en gris y tachados, para que no te distraigan de lo que falta.",
       },
       {
         title: "El semáforo de estados",
         description:
-          "El color de cada estado te dice qué tan urgente es: rojo si vence en 5 días o menos (o ya venció), ámbar entre 6 y 15 días, gris cuando hay margen y verde cuando ya está presentado.",
+          "La pastilla de la derecha dice en qué anda cada impuesto: rojo cuando ya venció, ámbar cuando vence dentro de los próximos 7 días, gris cuando todavía hay margen y verde cuando está presentado. Si se presentó después de la fecha, queda en ámbar como “Presentado tarde”.",
         mockup: <MockSemaforo />,
       },
     ],
@@ -430,13 +537,13 @@ const TABS: TutorialTab[] = [
       {
         title: "Editá lo que haga falta",
         description:
-          "El lápiz de cada fila abre el mismo formulario para corregir el nombre, el organismo o la fecha. Al editar además podés dejar una Observación (quién lo presenta, un recordatorio, etc.).",
+          "El lápiz de cada fila abre el mismo formulario para corregir el nombre, el organismo, el período o la fecha. Al editar además podés dejar una Observación (quién lo presenta, un recordatorio, etc.).",
         mockup: <MockEditForm />,
       },
       {
         title: "Eliminá con confirmación",
         description:
-          "El tacho pide confirmar antes de borrar: aparecen “Eliminar” y “Cancelar” en la misma fila. Recién cuando confirmás, el impuesto sale del calendario.",
+          "El tacho abre una ventanita que te dice qué impuesto estás por borrar y espera que confirmes. Recién ahí sale del calendario, junto con sus comprobantes.",
         mockup: <MockDelete />,
         hint: "Borrar es definitivo. Si un impuesto se repite todos los meses, mejor editarle la fecha que borrarlo y cargarlo de nuevo.",
       },
