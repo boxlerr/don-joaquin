@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Label } from "@/components/ui/label";
 import { guardarTopesAction } from "./actions";
 import { PERIODOS, PERIODO_LABEL, type TopesConfig } from "./topes";
@@ -38,8 +38,8 @@ export default function TopesDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const [valores, setValores] = useState<Record<string, string>>({
-    mes: topes.mes != null ? String(topes.mes) : "",
+  const [valores, setValores] = useState<Record<string, number | null>>({
+    mes: topes.mes ?? null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export default function TopesDialog({
       // vuelven a usar; hoy la pantalla sólo edita el mensual.
       dia: topes.dia,
       semana: topes.semana,
-      mes: valores.mes!.trim() === "" ? null : Number(valores.mes),
+      mes: valores.mes ?? null,
     });
     setLoading(false);
     if ("error" in res) {
@@ -80,18 +80,16 @@ export default function TopesDialog({
           )}
 
           {PERIODOS.map((p) => {
-            const n = valores[p]!.trim() === "" ? null : Number(valores[p]);
+            const n = valores[p] ?? null;
             return (
               <div key={p} className="space-y-1">
-                <Label className="text-xs font-semibold text-muted-foreground">
+                <Label htmlFor={`tope-${p}`} className="text-xs font-semibold text-muted-foreground">
                   Tope {PERIODO_LABEL[p]}
                 </Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="1000000"
-                  value={valores[p]}
-                  onChange={(e) => setValores((v) => ({ ...v, [p]: e.target.value }))}
+                <MoneyInput
+                  id={`tope-${p}`}
+                  value={n}
+                  onValueChange={(v) => setValores((prev) => ({ ...prev, [p]: v }))}
                   placeholder="Sin tope"
                 />
                 <p className="text-[11px] leading-snug text-muted-foreground">

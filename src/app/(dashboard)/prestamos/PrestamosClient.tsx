@@ -4,10 +4,8 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   PiggyBank,
-  CalendarClock,
   AlertTriangle,
   Search,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -23,7 +21,8 @@ import {
   Bell,
   CalendarDays,
   CalendarRange,
-  Sunrise,
+  Check,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -39,6 +38,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { Combobox } from "@/components/ui/combobox";
 import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import { coincideBusqueda } from "@/lib/texto";
@@ -57,6 +57,7 @@ import { inicialesBanco, marcaBanco } from "./bancos";
 import { textoFaltantes, tieneFaltantes } from "./faltantes";
 import { formatoVariacion, variacionCuota } from "./variacion";
 import TopesDialog from "./TopesDialog";
+import IlustracionPrestamo, { type IlustracionPrestamoNombre } from "./IlustracionPrestamo";
 import FechasDelMesDialog from "./FechasDelMesDialog";
 import HistorialPagosDialog from "./HistorialPagosDialog";
 import { excedeTope, hayAlgunTope, nivel, TOPES_DEFAULT, type TopesConfig } from "./topes";
@@ -84,6 +85,53 @@ function arsCompacto(n: number): string {
 function fmtFecha(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+/**
+ * Cuántos días faltan (negativo si ya pasó).
+ *
+ * Se cuenta con fechas locales a medianoche y no con `Date.parse`: en ISO
+ * pelado el navegador entiende UTC, y a la tarde en Argentina eso corre todo un
+ * día — la cuota que vence hoy aparecía venciendo ayer.
+ */
+function diasHasta(iso: string, hoyISO: string): number {
+  const aDate = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y!, m! - 1, d!);
+  };
+  return Math.round((aDate(iso).getTime() - aDate(hoyISO).getTime()) / 86400000);
+}
+
+/** "en 3 días" / "venció hace 12 días": el dato que la fecha sola no da. */
+function textoVence(dias: number): string {
+  if (dias === 0) return "vence hoy";
+  if (dias === 1) return "vence mañana";
+  if (dias === -1) return "venció ayer";
+  if (dias < 0) return `venció hace ${Math.abs(dias)} días`;
+  return `en ${dias} días`;
+}
+
+/**
+ * El día y el mes en un cuadrito, a la izquierda de cada vencimiento.
+ *
+ * Con veinte renglones seguidos de "vence el 08/06/2026" el ojo no encuentra el
+ * orden: todas las fechas tienen el mismo largo y la misma forma. El número
+ * grande hace que la lista se lea como un calendario.
+ */
+function FechaBadge({ iso, vencida }: { iso: string; vencida: boolean }) {
+  const [, m, d] = iso.split("-").map(Number);
+  return (
+    <span
+      className={`flex w-10 shrink-0 flex-col items-center rounded-[6px] border px-1 py-1 leading-none ${
+        vencida ? "border-red-200 bg-red-50 text-red-700" : "border-border bg-muted/50 text-foreground"
+      }`}
+    >
+      <span className="text-[15px] font-bold tabular-nums">{String(d).padStart(2, "0")}</span>
+      <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide opacity-70">
+        {MESES_CORTOS[m! - 1]}
+      </span>
+    </span>
+  );
 }
 
 /** Lunes de la semana de una fecha (ISO YYYY-MM-DD), como Date local. */
@@ -115,6 +163,12 @@ const ROJO_TOPE = "#DC2626";
 const VIOLETA = "#7C3AED";
 const AMBAR = "#F59E0B";
 const TEAL = "#0D9488";
+
+/**
+ * Qué recorte está mirando la lista de vencimientos de la derecha.
+ * `proximos` es el estado sin filtro: lo que cae en los próximos 30 días.
+ */
+type FocoLista = "proximos" | "vencidas" | "manana" | "semana" | "mes";
 
 /** Escalas de tiempo del gráfico de carga de pagos. */
 type VistaGrafico = "dia" | "semana" | "mes";
@@ -258,6 +312,8 @@ export default function PrestamosClient({
 
   const hoy = new Date().toISOString().slice(0, 10);
   const [mesSel, setMesSel] = useState(hoy.slice(0, 7));
+  /** El recorte de la lista de vencimientos: lo ponen las tarjetas de arriba. */
+  const [foco, setFoco] = useState<FocoLista>("proximos");
   /** Un solo gráfico con tres escalas de tiempo (pedido: verlo de todas las formas). */
   const [vista, setVista] = useState<VistaGrafico>("semana");
   /** Desplazamiento de la ventana del gráfico: -1 = anterior, +1 = siguiente. */
@@ -287,6 +343,7 @@ export default function PrestamosClient({
   }, [prestamos]);
 
   const vencidas = cuotasPendientes.filter((c) => c.fecha_vencimiento < hoy);
+  const totalVencido = vencidas.reduce((s, c) => s + c.importe, 0);
 
   // Carga por semana: la actual + las próximas 7 (lo que pidió Bárbara para
   // decidir en qué semana conviene pagar/financiar).
@@ -367,6 +424,43 @@ export default function PrestamosClient({
   const manana = addDiasISO(hoy, 1);
   const cuotasManana = cuotasPendientes.filter((c) => c.fecha_efectiva === manana);
   const totalManana = cuotasManana.reduce((s, c) => s + c.importe, 0);
+
+  // -------------------------------------------------------------------------
+  // Qué muestra la lista de la derecha.
+  //
+  // Las tarjetas de arriba dejaron de ser un cartel: tocarlas recorta la lista
+  // a lo que dice el número. Antes la tarjeta decía "3 vencidas" y para saber
+  // CUÁLES había que ir a buscarlas a mano entre ochocientas.
+  // -------------------------------------------------------------------------
+
+  /** El día hasta donde llega la lista cuando no hay ningún recorte puesto. */
+  const HORIZONTE_DIAS = 30;
+  const horizonte = addDiasISO(hoy, HORIZONTE_DIAS);
+
+  const LISTA: Record<FocoLista, (c: (typeof cuotasPendientes)[number]) => boolean> = {
+    // Lo vencido entra siempre: es lo más urgente que hay y dejarlo afuera de
+    // "los próximos 30 días" por una cuestión de aritmética sería absurdo.
+    proximos: (c) => c.fecha_vencimiento <= horizonte,
+    vencidas: (c) => c.fecha_vencimiento < hoy,
+    manana: (c) => c.fecha_efectiva === manana,
+    semana: (c) => c.fecha_efectiva >= hoy && c.fecha_efectiva <= finDeSemana,
+    mes: (c) => c.fecha_efectiva.slice(0, 7) === mesSel,
+  };
+
+  const listaVenc = cuotasPendientes.filter(LISTA[foco]);
+  /** Lo que queda afuera del horizonte. Se anuncia; cortar callado se lee como "no hay más". */
+  const restanProximos = foco === "proximos" ? cuotasPendientes.length - listaVenc.length : 0;
+
+  const TITULO_LISTA: Record<FocoLista, string> = {
+    proximos: "Próximos vencimientos",
+    vencidas: "Vencidas sin pagar",
+    manana: "Vencen mañana",
+    semana: "Vencen esta semana",
+    mes: `Vencen en ${labelMes(mesSel)}`,
+  };
+
+  /** Tocar la tarjeta que ya está puesta saca el recorte, como en Legajos. */
+  const enfocar = (f: FocoLista) => setFoco((actual) => (actual === f ? "proximos" : f));
 
   // Carga día a día: hoy + los próximos 13 (el "cuánto hay que pagar en el día"
   // que pidió como gráfico aparte del semanal).
@@ -520,9 +614,7 @@ export default function PrestamosClient({
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
-          icon={Sunrise}
-          iconColor="text-amber-600"
-          iconBg="bg-amber-500/10"
+          art="manana"
           label="A pagar mañana"
           value={ars(totalManana)}
           hint={
@@ -530,11 +622,11 @@ export default function PrestamosClient({
               ? `${cuotasManana.length} cuota${cuotasManana.length > 1 ? "s" : ""} vence${cuotasManana.length > 1 ? "n" : ""} mañana`
               : "Mañana no vence nada"
           }
+          onClick={cuotasManana.length ? () => enfocar("manana") : undefined}
+          activo={foco === "manana"}
         />
         <KpiCard
-          icon={CalendarClock}
-          iconColor="text-sky-600"
-          iconBg="bg-sky-500/10"
+          art="semana"
           label="A pagar esta semana"
           value={ars(totalSemana)}
           hint={
@@ -542,9 +634,12 @@ export default function PrestamosClient({
               ? `${cuotasSemana.length} cuota${cuotasSemana.length > 1 ? "s" : ""} por vencer`
               : "Sin vencimientos esta semana"
           }
+          onClick={cuotasSemana.length ? () => enfocar("semana") : undefined}
+          activo={foco === "semana"}
         />
-        {/* El mes es parte del título: "A pagar en [Agosto 2026]". Antes el
-            label competía por el espacio con el selector y quedaba en "A P…". */}
+        {/* El mes va PEGADO al título — "A pagar en [Agosto 2026]"— y no en un
+            renglón aparte: solo, el rótulo quedaba colgado sin decir de cuándo
+            habla, y el selector abajo del número parecía otra cosa. */}
         <KpiHero
           label="A pagar en"
           value={ars(totalMes)}
@@ -553,16 +648,36 @@ export default function PrestamosClient({
               ? `${cuotasMes.length} cuota${cuotasMes.length > 1 ? "s" : ""} ${esMesActual ? "este mes" : "ese mes"}`
               : `Sin cuotas en ${labelMes(mesSel)}`
           }
+          selector={
+            // Sin ancho fijo y con la tipografía del rótulo: así "A pagar en" y
+            // el mes se leen como una sola frase y entran en la misma línea. El
+            // fondo tenue es lo único que lo delata como desplegable — sin él
+            // nadie descubre que el mes se puede cambiar.
+            <Combobox
+              value={mesSel}
+              onValueChange={setMesSel}
+              options={mesesOpciones}
+              aria-label="Elegir el mes"
+              searchable
+              // Sin mayúsculas a propósito: "SEPTIEMBRE 2026" en versalitas y
+              // con tracking mide 137px y tira el selector al renglón de abajo,
+              // que es justo lo que había que arreglar.
+              triggerClassName="h-6 max-md:h-8 w-auto max-w-full gap-1 rounded-md border-0 bg-white/15 px-1.5 text-[11px] font-semibold text-white hover:bg-white/25 [&_svg]:size-3 [&_svg]:text-white/70"
+            />
+          }
           action={
-            <div className="flex flex-wrap items-center gap-2">
-              <Combobox
-                value={mesSel}
-                onValueChange={setMesSel}
-                options={mesesOpciones}
-                aria-label="Elegir mes"
-                searchable
-                triggerClassName="h-9 sm:h-7 w-[152px] max-w-full border-white/30 bg-white/15 text-white text-xs hover:bg-white/25"
-              />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {/* La tarjeta entera no es el botón: adentro vive el selector de
+                  mes, y un click en el desplegable habría filtrado sin querer. */}
+              {cuotasMes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => enfocar("mes")}
+                  className="text-[11px] font-semibold text-white underline underline-offset-2 hover:text-white/80"
+                >
+                  {foco === "mes" ? "Ocultar el detalle" : `Ver las ${cuotasMes.length} cuotas`}
+                </button>
+              )}
               {!esMesActual && (
                 <button
                   type="button"
@@ -575,22 +690,46 @@ export default function PrestamosClient({
             </div>
           }
         />
+        {/* El número grande solo no servía de nada: decía que hay tres vencidas
+            y para saber cuáles había que buscarlas a mano entre ochocientas.
+            Ahora dice también cuánta plata es, y tocarla las muestra al lado. */}
         <KpiCard
-          icon={vencidas.length > 0 ? AlertTriangle : CheckCircle2}
-          iconColor={vencidas.length > 0 ? "text-red-600" : "text-emerald-600"}
-          iconBg={vencidas.length > 0 ? "bg-red-500/10" : "bg-emerald-500/10"}
+          art={vencidas.length > 0 ? "vencidas" : "al-dia"}
           label="Cuotas vencidas sin pagar"
           value={String(vencidas.length)}
           valueTone={vencidas.length > 0 ? "text-red-600" : "text-emerald-600"}
-          hint={vencidas.length > 0 ? "Marcalas como pagadas si ya se abonaron" : "Todo al día ✓"}
+          hint={
+            vencidas.length > 0
+              ? `${ars(totalVencido)} sin pagar`
+              : "Todo al día ✓"
+          }
+          accion={
+            vencidas.length > 0
+              ? foco === "vencidas"
+                ? "Ocultar el detalle"
+                : vencidas.length === 1
+                  ? "Ver cuál es"
+                  : "Ver cuáles son"
+              : undefined
+          }
+          onClick={vencidas.length > 0 ? () => enfocar("vencidas") : undefined}
+          activo={foco === "vencidas"}
         />
       </div>
 
-      <div className="space-y-4">
+      {/* El gráfico y lo que vence van uno al lado del otro: son la misma
+          pregunta mirada de dos maneras —cuánta plata cae y cuál cae primero— y
+          apilados obligaban a scrollear de uno al otro para cruzarlas. Abajo de
+          xl vuelven a apilarse: en media pantalla de notebook la lista de
+          vencimientos queda en una columna donde no entra ni el banco. */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
         {/* Un solo gráfico de carga de pagos, con tres escalas de tiempo:
             día (qué cae mañana), semana (en cuál conviene pagar o financiar) y
-            mes (la película larga). */}
-        <div className="rounded-[12px] border border-border bg-card p-3 shadow-sm sm:p-5">
+            mes (la película larga).
+            El `min-h` es el piso de la fila: cuando el gráfico está vacío mide
+            la mitad, y como el alto de la fila sale de acá, la lista de al lado
+            quedaba en dos renglones y medio. */}
+        <div className="rounded-[12px] border border-border bg-card p-3 shadow-sm sm:p-5 xl:min-h-[420px]">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
             <div className="flex items-center gap-2">
               {vista === "dia" ? (
@@ -810,71 +949,146 @@ export default function PrestamosClient({
             ))}
         </div>
 
-        {/* Próximos vencimientos */}
-        <div className="overflow-hidden rounded-[12px] border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
-            <Bell size={15} className="text-[#0088D1]" />
-            <h2 className="text-sm font-semibold text-foreground">Próximos vencimientos</h2>
-          </div>
-          {cuotasPendientes.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-muted-foreground sm:px-5">
-              Sin cuotas pendientes. Cargá un préstamo para empezar.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {cuotasPendientes.slice(0, 8).map((c) => {
-                const vencida = c.fecha_vencimiento < hoy;
-                return (
-                  // En celular el importe y el botón bajan a su propio
-                  // renglón: en la misma fila el banco quedaba en "Galic…".
-                  <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
-                    <BankBadge banco={c.banco} alto={18} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {c.banco}{" "}
-                        <span className="font-normal text-muted-foreground">
-                          · cuota {c.nro}/{c.cuotas_total}
-                          {c.tasa != null ? ` · ${c.tasa.toLocaleString("es-AR")}%` : ""}
-                        </span>
-                      </p>
-                      <p
-                        className={`text-xs ${vencida ? "font-semibold text-red-600" : "text-muted-foreground"}`}
-                      >
-                        {vencida ? "Venció el " : "Vence el "}
-                        {fmtFecha(c.fecha_vencimiento)}
-                        {c.motivo_corrimiento && (
-                          <span className="text-[#B45309]">
-                            {" · "}
-                            {c.motivo_corrimiento}, se paga el {fmtFecha(c.fecha_efectiva)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                        {ars(c.importe)}
-                      </span>
-                      {canWrite && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0 px-2 text-xs"
-                          disabled={savingId === c.id}
-                          onClick={() => togglePagada(c.id, true)}
-                        >
-                          {savingId === c.id ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            "Pagada"
+        {/* Próximos vencimientos — la columna de la derecha.
+            Scrollea adentro de su tarjeta en vez de cortarse en ocho: cortada
+            dejaba afuera justo el mes que viene, que es lo que se está mirando
+            cuando uno corre el gráfico.
+
+            El `absolute` de xl para arriba no es decoración: la lista tiene
+            cientos de renglones y, midiendo normal, estiraba la fila de la
+            grilla a doce mil pixeles de alto — el gráfico quedaba arriba de
+            todo y abajo un tobogán de vencimientos. Sacada del flujo, el alto
+            de la fila lo fija el gráfico y la lista se acomoda adentro. */}
+        <div className="relative">
+          <aside className="flex min-h-0 flex-col overflow-hidden rounded-[12px] border border-border bg-card shadow-sm xl:absolute xl:inset-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-3">
+              <Bell
+                size={15}
+                className={foco === "vencidas" ? "text-red-600" : "text-[#0088D1]"}
+              />
+              <h2 className="text-sm font-semibold text-foreground">{TITULO_LISTA[foco]}</h2>
+              <span className="ml-auto text-[11px] font-medium tabular-nums text-muted-foreground">
+                {listaVenc.length}
+                {foco === "proximos" ? " en 30 días" : listaVenc.length === 1 ? " cuota" : " cuotas"}
+              </span>
+              {/* Sale del recorte sin tener que acordarse de cuál tarjeta lo
+                  puso. Ocupa su renglón entero para no pelear con el conteo. */}
+              {foco !== "proximos" && (
+                <button
+                  type="button"
+                  onClick={() => setFoco("proximos")}
+                  className="inline-flex w-full items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                >
+                  <X size={11} /> Quitar filtro
+                </button>
+              )}
+            </div>
+
+            {listaVenc.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                {cuotasPendientes.length === 0
+                  ? "Sin cuotas pendientes. Cargá un préstamo para empezar."
+                  : foco === "proximos"
+                    ? `No vence ninguna cuota en los próximos ${HORIZONTE_DIAS} días.`
+                    : "Ninguna cuota entra en ese recorte."}
+              </p>
+            ) : (
+              <>
+                {/* `max-h` en celular y `flex-1` al costado: apilada no puede
+                    comerse la pantalla, y al lado del gráfico llega justo hasta
+                    donde el gráfico termina. */}
+                <ul className="max-h-[420px] min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto xl:max-h-none">
+                  {listaVenc.map((c) => {
+                    const vencida = c.fecha_vencimiento < hoy;
+                    const d = diasHasta(c.fecha_vencimiento, hoy);
+                    return (
+                      <li key={c.id} className="flex items-start gap-3 px-3 py-2.5">
+                        <FechaBadge iso={c.fecha_vencimiento} vencida={vencida} />
+
+                        <div className="min-w-0 flex-1">
+                          {/* El logo ES el nombre del banco —son wordmarks—, así
+                              que ocupa el renglón del título en vez de repetirlo. */}
+                          <div className="flex min-w-0 items-center gap-2">
+                            <BankBadge banco={c.banco} alto={16} />
+                            <span className="truncate text-[11px] text-muted-foreground">
+                              cuota {c.nro}/{c.cuotas_total}
+                            </span>
+                          </div>
+                          <p
+                            className={`mt-0.5 text-[11px] leading-snug ${
+                              vencida
+                                ? "font-semibold text-red-600"
+                                : d <= 7
+                                  ? "font-medium text-amber-600"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            {textoVence(d)} · {fmtFecha(c.fecha_vencimiento)}
+                          </p>
+                          {/* De dónde sale la diferencia entre el día que vence y
+                              el día que sale la plata. */}
+                          {c.motivo_corrimiento && (
+                            <p className="mt-0.5 text-[11px] leading-snug text-[#B45309]">
+                              {c.motivo_corrimiento}, se paga el {fmtFecha(c.fecha_efectiva)}
+                            </p>
                           )}
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                        </div>
+
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          <span className="text-[13px] font-semibold tabular-nums text-foreground">
+                            {ars(c.importe)}
+                          </span>
+                          {/* El botón dice qué hace, no en qué estado está: un
+                              "Pagada" gris suelto se leía como un cartel de que
+                              ya estaba paga, que es justo lo contrario. */}
+                          {canWrite && (
+                            <button
+                              type="button"
+                              title={`Marcar como pagada la cuota ${c.nro} de ${c.banco}`}
+                              disabled={savingId === c.id}
+                              onClick={() => togglePagada(c.id, true)}
+                              className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50/60 px-2 text-[11px] font-semibold text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50 max-md:h-9 max-md:px-3"
+                            >
+                              {savingId === c.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Check size={12} />
+                              )}
+                              Pagada
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+
+                  {/* Lo que quedó afuera se dice, no se esconde: sin este
+                      renglón la lista termina en seco y parece que no hay más
+                      cuotas después del mes que viene. */}
+                  {restanProximos > 0 && (
+                    <li className="px-3 py-2.5 text-center text-[11px] text-muted-foreground">
+                      y {restanProximos} {restanProximos === 1 ? "cuota más" : "cuotas más"} después
+                      del {fmtFecha(horizonte)}
+                    </li>
+                  )}
+                </ul>
+
+                {/* El ritual de principio de mes, a mano desde acá: se mira la
+                    lista, se ve que las fechas no son las que pasó el banco y se
+                    corrigen todas de una. */}
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => setFechasOpen(true)}
+                    className="flex shrink-0 items-center justify-center gap-1.5 border-t border-border px-4 py-2.5 text-xs font-medium text-primary transition-colors hover:bg-muted/50"
+                  >
+                    <CalendarCheck size={14} />
+                    Corregir las fechas del mes
+                  </button>
+                )}
+              </>
+            )}
+          </aside>
         </div>
       </div>
 
@@ -1569,29 +1783,38 @@ function ChartTooltip({
   );
 }
 
+/**
+ * Una tarjeta de las de arriba.
+ *
+ * Cuando trae `onClick` deja de ser un cartel y pasa a ser el filtro de la
+ * lista de vencimientos de al lado — el mismo gesto que ya se usa en Legajos,
+ * Compliance e Impuestos: el número y el recorte son la misma cosa.
+ */
 function KpiCard({
-  icon: Icon,
-  iconColor,
-  iconBg,
+  art,
   label,
   value,
   valueTone = "text-foreground",
   hint,
+  accion,
+  onClick,
+  activo = false,
 }: {
-  icon: typeof PiggyBank;
-  iconColor: string;
-  iconBg: string;
+  /** La placa dibujada. Ver `IlustracionPrestamo`. */
+  art: IlustracionPrestamoNombre;
   label: string;
   value: string;
   valueTone?: string;
   hint?: string;
+  /** El renglón que dice qué pasa si la tocás. Sólo con `onClick`. */
+  accion?: string;
+  onClick?: () => void;
+  activo?: boolean;
 }) {
-  return (
-    <div className="rounded-[12px] border border-border bg-card p-4 shadow-sm sm:p-5">
+  const contenido = (
+    <>
       <div className="flex items-center gap-2.5">
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-          <Icon size={16} className={iconColor} />
-        </span>
+        <IlustracionPrestamo nombre={art} size={36} />
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
@@ -1602,40 +1825,80 @@ function KpiCard({
         {value}
       </p>
       {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
-    </div>
+      {accion && (
+        <p className="mt-auto pt-2 text-[11px] font-semibold text-primary">
+          {accion} {activo ? "↑" : "→"}
+        </p>
+      )}
+    </>
+  );
+
+  const clase = `flex h-full w-full flex-col rounded-[12px] border bg-card p-4 text-left shadow-sm transition-all sm:p-5 ${
+    activo
+      ? "border-primary ring-2 ring-primary/25"
+      : onClick
+        ? "cursor-pointer border-border hover:border-primary/50 hover:shadow-md"
+        : "border-border"
+  }`;
+
+  if (!onClick) return <div className={clase}>{contenido}</div>;
+  return (
+    <button type="button" onClick={onClick} aria-pressed={activo} className={clase}>
+      {contenido}
+    </button>
   );
 }
 
-/** Card destacado (el foco de la pantalla): fondo de marca, texto claro. */
+/**
+ * Card destacado (el foco de la pantalla): fondo de marca, texto claro.
+ *
+ * Atrás va una textura generada —el mismo degradé azul de la marca con unas
+ * barras apenas insinuadas abajo a la derecha— en `soft-light` y al 35%: le da
+ * profundidad sin tocar el contraste del número, que es lo único que se lee de
+ * esta tarjeta. Cualquier cosa más fuerte y el importe se empieza a pelear con
+ * el fondo.
+ */
 function KpiHero({
   label,
   value,
   hint,
   action,
+  selector,
 }: {
   label: string;
   value: string;
   hint?: string;
   action?: React.ReactNode;
+  /** Va pegado al rótulo: es de QUÉ habla el número. */
+  selector?: React.ReactNode;
 }) {
   return (
     <div
-      className="rounded-[12px] p-4 shadow-sm sm:p-5"
+      className="relative isolate flex flex-col overflow-hidden rounded-[12px] p-4 shadow-sm sm:p-5"
       style={{ background: "linear-gradient(135deg, #0088D1 0%, #0072B0 100%)" }}
     >
-      {/* El título va solo en su fila: compartirla con el selector lo dejaba
-          cortado en "A PA…" por más corto que fuera. */}
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/20">
-          <PiggyBank size={16} className="text-white" />
+      {/* eslint-disable-next-line @next/next/no-img-element -- decorativa y fija: no hay nada que optimizar */}
+      <img
+        src="/prestamos/fondo-mes.jpg"
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover opacity-35 mix-blend-soft-light"
+      />
+      {/* El rótulo y el mes en la misma línea: "A pagar en [Agosto 2026]" es
+          una sola frase. Envuelve cuando la tarjeta se angosta, así el mes baja
+          en vez de comerse el rótulo. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+        <IlustracionPrestamo nombre="mes" size={36} />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-white/85">
+          {label}
         </span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-white/80">{label}</span>
+        {selector}
       </div>
       <p className="mt-3 text-2xl font-bold leading-none tabular-nums text-white sm:text-[26px]">
         {value}
       </p>
-      {action && <div className="mt-3">{action}</div>}
-      {hint && <p className="mt-2 text-xs text-white/70">{hint}</p>}
+      {hint && <p className="mt-2 text-xs text-white/75">{hint}</p>}
+      {action && <div className="mt-auto pt-2">{action}</div>}
     </div>
   );
 }
@@ -1651,7 +1914,7 @@ function EditarCuotaDialog({
   onSaved: () => void;
 }) {
   const [fecha, setFecha] = useState(cuota.fecha_vencimiento);
-  const [importe, setImporte] = useState(String(cuota.importe || ""));
+  const [importe, setImporte] = useState<number | null>(cuota.importe || null);
   const [error, setError] = useState<string | null>(null);
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -1661,7 +1924,7 @@ function EditarCuotaDialog({
     startTransition(async () => {
       const res = await updateCuotaAction(cuota.id, {
         fecha_vencimiento: fecha,
-        importe: importe.trim() === "" ? undefined : Number(importe) || 0,
+        importe: importe ?? undefined,
       });
       if ("error" in res) setError(res.error);
       else onSaved();
@@ -1681,14 +1944,23 @@ function EditarCuotaDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && !isPending && onClose()}>
-      <DialogContent className="sm:max-w-[380px]">
+      <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>
-            Cuota {cuota.nro} — {cuota.banco}
-          </DialogTitle>
-          <DialogDescription>
-            Corregí la fecha de vencimiento o el importe de esta cuota puntual.
-          </DialogDescription>
+          {/* El logo del banco arriba, como en la ficha del préstamo: el
+              diálogo se abre desde una tira de cuotas donde todas se llaman
+              igual, y era fácil terminar corrigiendo la del banco de al lado. */}
+          <div className="flex items-start gap-3 pr-8">
+            <BankBadge banco={cuota.banco} alto={22} />
+            <div className="min-w-0">
+              <DialogTitle>
+                {cuota.banco} · cuota {cuota.nro}
+              </DialogTitle>
+              <DialogDescription>
+                Se corrige sólo esta cuota. Vence el {fmtFecha(cuota.fecha_vencimiento)}
+                {cuota.importe > 0 ? ` y hoy figura en ${ars(cuota.importe)}` : ""}.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -1704,14 +1976,13 @@ function EditarCuotaDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cuota-importe" className="text-xs font-medium text-muted-foreground">
-              Importe $
+              Importe de la cuota
             </Label>
-            <Input
+            <MoneyInput
               id="cuota-importe"
-              type="number"
-              min="0"
               value={importe}
-              onChange={(e) => setImporte(e.target.value)}
+              onValueChange={setImporte}
+              placeholder="Ej: 4.500.000"
             />
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}

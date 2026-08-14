@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { actualizarCuotasAction, type PrestamoRow } from "./actions";
 
@@ -78,7 +79,9 @@ export default function FechasDelMesDialog({
   const router = useRouter();
   const [mes, setMes] = useState(mesInicial);
   const [fechas, setFechas] = useState<Record<string, string>>({});
-  const [importes, setImportes] = useState<Record<string, string>>({});
+  /** Sólo las cuotas que se tocaron. `null` es "lo vaciaron", que no es lo
+   *  mismo que "no lo tocaron": por eso se pregunta con `in` y no con `??`. */
+  const [importes, setImportes] = useState<Record<string, number | null>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,18 +109,17 @@ export default function FechasDelMesDialog({
   }, [prestamos, mes]);
 
   const valorFecha = (f: Fila) => fechas[f.cuotaId] ?? f.fechaOriginal;
-  const valorImporte = (f: Fila) =>
-    importes[f.cuotaId] ?? (f.importeOriginal > 0 ? String(f.importeOriginal) : "");
+  const valorImporte = (f: Fila): number | null =>
+    f.cuotaId in importes ? importes[f.cuotaId]! : f.importeOriginal > 0 ? f.importeOriginal : null;
 
   const cambios = useMemo(
     () =>
       filas
         .map((f) => {
           const fecha = valorFecha(f);
-          const importeTxt = valorImporte(f).trim();
-          const importe = importeTxt === "" ? 0 : Number(importeTxt);
+          const importe = valorImporte(f) ?? 0;
           const cambioFecha = fecha !== f.fechaOriginal;
-          const cambioImporte = Number.isFinite(importe) && importe !== f.importeOriginal;
+          const cambioImporte = importe !== f.importeOriginal;
           if (!cambioFecha && !cambioImporte) return null;
           return {
             id: f.cuotaId,
@@ -252,18 +254,13 @@ export default function FechasDelMesDialog({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <MoneyInput
                           value={valorImporte(f)}
-                          onChange={(e) =>
-                            setImportes((v) => ({ ...v, [f.cuotaId]: e.target.value }))
-                          }
+                          onValueChange={(n) => setImportes((v) => ({ ...v, [f.cuotaId]: n }))}
+                          prefijo={f.moneda === "USD" ? "US$" : "$"}
                           placeholder="—"
-                          className={`w-full text-right tabular-nums sm:w-[9.5rem] ${
-                            valorImporte(f).trim() !== "" &&
-                            Number(valorImporte(f)) !== f.importeOriginal
+                          className={`w-full text-right sm:w-[9.5rem] ${
+                            valorImporte(f) !== null && valorImporte(f) !== f.importeOriginal
                               ? "border-primary/60"
                               : ""
                           }`}

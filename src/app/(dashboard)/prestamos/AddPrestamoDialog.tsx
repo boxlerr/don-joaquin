@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import { addPrestamoAction } from "./actions";
 import { listaBancos } from "./bancos";
@@ -34,8 +35,8 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
   const [banco, setBanco] = useState("");
   const [detalle, setDetalle] = useState("");
   const [referencia, setReferencia] = useState("");
-  const [tasa, setTasa] = useState("");
-  const [importeCuota, setImporteCuota] = useState("");
+  const [tasa, setTasa] = useState<number | null>(null);
+  const [importeCuota, setImporteCuota] = useState<number | null>(null);
   const [cuotasTotal, setCuotasTotal] = useState("");
   const [proximaNro, setProximaNro] = useState("1");
   const [proximaFecha, setProximaFecha] = useState("");
@@ -51,8 +52,8 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
     setBanco("");
     setDetalle("");
     setReferencia("");
-    setTasa("");
-    setImporteCuota("");
+    setTasa(null);
+    setImporteCuota(null);
     setCuotasTotal("");
     setProximaNro("1");
     setProximaFecha("");
@@ -66,6 +67,12 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
       setError("Elegí o escribí el banco.");
       return;
     }
+    // El campo es de texto (los importes van con puntos de miles), así que el
+    // `required` del navegador no alcanza para cazar el que quedó vacío.
+    if (!importeCuota) {
+      setError("Poné el importe de la cuota.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -73,8 +80,8 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
         banco,
         detalle: detalle.trim() || null,
         referencia: referencia.trim() || null,
-        tasa: tasa.trim() === "" ? null : Number(tasa) || 0,
-        importe_cuota: Number(importeCuota) || 0,
+        tasa,
+        importe_cuota: importeCuota,
         cuotas_total: parseInt(cuotasTotal) || 0,
         proxima_cuota_nro: parseInt(proximaNro) || 1,
         proxima_fecha: proximaFecha,
@@ -185,15 +192,12 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                   >
                     Importe de la cuota
                   </Label>
-                  <Input
+                  <MoneyInput
                     id={`${uid}-cuota`}
-                    type="number"
-                    min="1"
-                    step="0.01"
                     value={importeCuota}
-                    onChange={(e) => setImporteCuota(e.target.value)}
-                    placeholder="Ej: 4500000"
-                    required
+                    onValueChange={setImporteCuota}
+                    prefijo={moneda === "USD" ? "US$" : "$"}
+                    placeholder={moneda === "USD" ? "Ej: 4.500" : "Ej: 4.500.000"}
                   />
                 </div>
                 <div className="space-y-1">
@@ -201,16 +205,15 @@ export default function AddPrestamoDialog({ bancos = [] }: { bancos?: string[] }
                     htmlFor={`${uid}-tasa`}
                     className="text-xs font-semibold text-muted-foreground"
                   >
-                    Tasa % <span className="font-normal text-muted-foreground/70">(opc.)</span>
+                    Tasa <span className="font-normal text-muted-foreground/70">(opc.)</span>
                   </Label>
-                  <Input
+                  <MoneyInput
                     id={`${uid}-tasa`}
-                    type="number"
-                    min="0"
-                    step="0.01"
                     value={tasa}
-                    onChange={(e) => setTasa(e.target.value)}
-                    placeholder="Ej: 45"
+                    onValueChange={setTasa}
+                    prefijo={null}
+                    sufijo="%"
+                    placeholder="45"
                   />
                 </div>
                 <div className="space-y-1">

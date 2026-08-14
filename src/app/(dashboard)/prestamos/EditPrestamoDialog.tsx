@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 import { PlaceCombobox } from "@/components/ui/place-combobox";
 import {
   rehacerCronogramaAction,
@@ -82,9 +83,9 @@ export default function EditPrestamoDialog({
   const [banco, setBanco] = useState(prestamo?.banco ?? "");
   const [detalle, setDetalle] = useState(prestamo?.detalle ?? "");
   const [referencia, setReferencia] = useState(prestamo?.referencia ?? "");
-  const [tasa, setTasa] = useState(prestamo?.tasa != null ? String(prestamo.tasa) : "");
-  const [importe, setImporte] = useState(
-    prestamo && prestamo.importe_cuota > 0 ? String(prestamo.importe_cuota) : "",
+  const [tasa, setTasa] = useState<number | null>(prestamo?.tasa ?? null);
+  const [importe, setImporte] = useState<number | null>(
+    prestamo && prestamo.importe_cuota > 0 ? prestamo.importe_cuota : null,
   );
   const [moneda, setMoneda] = useState<"ARS" | "USD">(prestamo?.moneda === "USD" ? "USD" : "ARS");
   const [loading, setLoading] = useState(false);
@@ -117,7 +118,7 @@ export default function EditPrestamoDialog({
 
   if (!prestamo) return null;
 
-  const importeNum = importe.trim() === "" ? 0 : Number(importe);
+  const importeNum = importe ?? 0;
   const nota = prestamo.datos_faltantes?.trim() || null;
 
   const rTotalNum = Number.parseInt(rTotal, 10);
@@ -152,7 +153,7 @@ export default function EditPrestamoDialog({
       banco,
       detalle: detalle.trim() || null,
       referencia: referencia.trim() || null,
-      tasa: tasa.trim() === "" ? null : Number(tasa),
+      tasa,
       importe_cuota: importeNum,
       moneda,
       // Sólo se toca si el usuario dijo que ya está: si no, queda como vino.
@@ -195,7 +196,7 @@ export default function EditPrestamoDialog({
   const enElFormulario = {
     detalle: detalle.trim() || null,
     importe_cuota: importeNum,
-    tasa: tasa.trim() === "" ? null : Number(tasa),
+    tasa,
     faltantes: [] as string[],
     datos_faltantes: null,
   };
@@ -293,27 +294,28 @@ export default function EditPrestamoDialog({
                   largo y en media pantalla no se lee. */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem_auto]">
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-muted-foreground">
+                  <Label htmlFor="edit-cuota" className="text-xs font-semibold text-muted-foreground">
                     Importe de la cuota
                   </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                  <MoneyInput
+                    id="edit-cuota"
                     value={importe}
-                    onChange={(e) => setImporte(e.target.value)}
-                    placeholder="Ej: 4500000"
+                    onValueChange={setImporte}
+                    prefijo={moneda === "USD" ? "US$" : "$"}
+                    placeholder={moneda === "USD" ? "Ej: 4.500" : "Ej: 4.500.000"}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-muted-foreground">Tasa %</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                  <Label htmlFor="edit-tasa" className="text-xs font-semibold text-muted-foreground">
+                    Tasa
+                  </Label>
+                  <MoneyInput
+                    id="edit-tasa"
                     value={tasa}
-                    onChange={(e) => setTasa(e.target.value)}
-                    placeholder="Ej: 45"
+                    onValueChange={setTasa}
+                    prefijo={null}
+                    sufijo="%"
+                    placeholder="45"
                   />
                 </div>
                 <div className="space-y-1">
