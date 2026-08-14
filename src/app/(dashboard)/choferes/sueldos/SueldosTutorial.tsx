@@ -150,12 +150,14 @@ export default function SueldosTutorial({
 // ── Ilustraciones ──────────────────────────────────────────────────────────
 
 function IlustracionPestanas({ canChoferes, canAdmin }: { canChoferes: boolean; canAdmin: boolean }) {
+  // Mismo orden que la tira de pestañas real, si no el dibujo enseña una
+  // pantalla que ya no existe.
   const tabs = [
-    ...(canChoferes ? [{ icon: Truck, label: "Choferes", color: "text-sky-600 bg-sky-50 border-sky-200/70" }] : []),
     ...(canAdmin ? [
       { icon: Wallet, label: "Admin y taller", color: "text-violet-600 bg-violet-50 border-violet-200/70" },
       { icon: TrendingUp, label: "Aumentos", color: "text-emerald-600 bg-emerald-50 border-emerald-200/70" },
     ] : []),
+    ...(canChoferes ? [{ icon: Truck, label: "Choferes", color: "text-sky-600 bg-sky-50 border-sky-200/70" }] : []),
   ];
   return (
     <div className="flex items-center gap-2 sm:gap-3">

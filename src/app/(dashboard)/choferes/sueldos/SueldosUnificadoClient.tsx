@@ -29,12 +29,14 @@ export default function SueldosUnificadoClient({
   canAdmin: boolean;
   canAdminWrite: boolean;
 }) {
+  // Admin y taller va primero: es la planilla que se carga todos los meses.
+  // Choferes queda al final, que hoy se liquida por fuera del sistema.
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
-    ...(canChoferes ? [{ id: "choferes" as const, label: "Choferes", icon: Truck }] : []),
     ...(canAdmin ? [
       { id: "admin" as const, label: "Admin y taller", icon: Wallet },
       { id: "aumentos" as const, label: "Aumentos", icon: TrendingUp },
     ] : []),
+    ...(canChoferes ? [{ id: "choferes" as const, label: "Choferes", icon: Truck }] : []),
   ];
   const [tab, setTab] = useState<TabId>(tabs[0]?.id ?? "choferes");
   const [helpOpen, setHelpOpen] = useState(false);
