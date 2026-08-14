@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-cheques-nuestros-ya-aparecen-en-la-caja",
+    fecha: "2026-08-14",
+    tipo: "nuevo",
+    ver: "caja_grande",
+    titulo: "Los cheques nuestros ya aparecen en la caja",
+    detalle: "Cuando marcás un cheque propio como debitado, se anota solo como egreso en la caja general. Si después lo anulás o corregís el estado, el movimiento se saca solo",
+    href: "/caja",
+  },
+  {
+    id: "sueldos-abre-directo-en-admin-y-taller",
+    fecha: "2026-08-14",
+    tipo: "mejora",
+    ver: "sueldos_admin",
+    titulo: "Sueldos abre directo en Admin y taller",
+    detalle: "Antes abría en Choferes y había que cambiar de pestaña cada vez que entrabas a cargar la planilla del mes",
+    href: "/choferes/sueldos",
+  },
+  {
     id: "cuando-algo-falla-la-pantalla-te-dice-que",
     fecha: "2026-08-12",
     tipo: "mejora",
