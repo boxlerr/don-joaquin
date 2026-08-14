@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ESTADOS_POR_ORIGEN,
+  dejaEgresoEnCaja,
   estadoAlCambiarOrigen,
   estadoInicial,
   puedeCambiarOrigen,
@@ -109,6 +110,38 @@ describe("corregir el estado a mano", () => {
     for (const origen of ["recibido", "propio"] as const) {
       expect(ESTADOS_POR_ORIGEN[origen]).toContain("anulado");
       expect(ESTADOS_POR_ORIGEN[origen]).toContain("rechazado");
+    }
+  });
+});
+
+describe("cuándo el cheque deja un egreso en la caja", () => {
+  it("sólo el cheque nuestro ya debitado", () => {
+    expect(dejaEgresoEnCaja("propio", "debitado")).toBe(true);
+  });
+
+  it("emitido y entregado todavía no salieron de la cuenta", () => {
+    // Anotarlos como egreso mostraría como gastada plata que sigue estando.
+    expect(dejaEgresoEnCaja("propio", "emitido")).toBe(false);
+    expect(dejaEgresoEnCaja("propio", "entregado")).toBe(false);
+  });
+
+  it("un cheque que no se pagó no deja egreso", () => {
+    expect(dejaEgresoEnCaja("propio", "rechazado")).toBe(false);
+    expect(dejaEgresoEnCaja("propio", "anulado")).toBe(false);
+  });
+
+  it("ningún cheque que recibimos genera un egreso", () => {
+    // El que entra es plata que llega, y no es asunto de esta función.
+    for (const estado of ESTADOS_POR_ORIGEN.recibido) {
+      expect(dejaEgresoEnCaja("recibido", estado)).toBe(false);
+    }
+  });
+
+  it("todo estado propio que no es debitado da false", () => {
+    // Blinda el día que se agregue un estado nuevo al circuito propio.
+    const otros = ESTADOS_POR_ORIGEN.propio.filter((e) => e !== "debitado");
+    for (const estado of otros) {
+      expect(dejaEgresoEnCaja("propio", estado)).toBe(false);
     }
   });
 });

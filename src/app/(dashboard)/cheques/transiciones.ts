@@ -114,6 +114,21 @@ export const ESTADOS_POR_ORIGEN: Record<ChequeOrigen, ChequeEstado[]> = {
 };
 
 /**
+ * Si el cheque tiene que dejar un egreso en la caja.
+ *
+ * Sólo el cheque nuestro YA DEBITADO: recién ahí la plata salió de la cuenta.
+ * Uno emitido o entregado todavía no se cobró, y anotarlo como egreso mostraría
+ * plata que sigue estando.
+ *
+ * Es una función y no una constante porque se consulta en los dos sentidos: si
+ * un cheque debitado se corrige a otro estado, el egreso se borra. Eso evita el
+ * egreso fantasma de un cheque que al final no se pagó.
+ */
+export function dejaEgresoEnCaja(origen: ChequeOrigen, estado: ChequeEstado): boolean {
+  return origen === "propio" && estado === "debitado";
+}
+
+/**
  * Corregir el estado a mano, sin pasar por las transiciones.
  *
  * Hace falta porque equivocarse es normal: anular un cheque por error dejaba la

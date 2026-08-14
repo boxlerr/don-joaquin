@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import {
   ESTADOS_ORIGEN_EDITABLE,
+  dejaEgresoEnCaja,
   estadoAlCambiarOrigen,
   estadoInicial,
   puedeCorregirseA,
@@ -415,7 +416,12 @@ async function editarCheque(input: UpdateChequeInput) {
 
   await logChequeAudit(supabase, input.id, "actualizar", anterior, updateData, user.id);
 
+  // Corregir el estado a mano puede dejar o sacar el cheque de "debitado", y
+  // editar el importe cambia lo que salió: la caja se recalcula siempre.
+  await sincronizarEgresoCaja(supabase, input.id, user.id);
+
   revalidatePath("/cheques");
+  revalidatePath("/caja");
   return { success: true };
 }
 
@@ -431,6 +437,138 @@ async function fetchCheque(id: string) {
     estado: data.estado as ChequeEstado,
     origen: ((data as { origen?: ChequeOrigen }).origen ?? "recibido") as ChequeOrigen,
   };
+}
+
+/**
+ * Deja la caja de acuerdo con el estado del cheque.
+ *
+ * Un cheque nuestro que se debita es plata que salió de la cuenta, y hasta
+ * ahora el circuito terminaba en el cambio de estado: la salida no figuraba en
+ * ningún lado. Por eso no se podían sumar los egresos comprometidos del mes,
+ * que es lo que pide la alerta de baches financieros.
+ *
+ * Es idempotente y va en los dos sentidos: si el cheque deja de estar debitado
+ * —se corrigió el estado a mano, se anuló, lo rechazaron— el movimiento se
+ * borra, así no queda un egreso de un cheque que al final no se pagó.
+ *
+ * Va a la caja GRANDE y privado: un cheque propio es información de dirección,
+ * no de la caja chica que mira el personal.
+ */
+async function sincronizarEgresoCaja(
+  supabase: ReturnType<typeof createAdminClient>,
+  chequeId: string,
+  userId: string,
+) {
+  const { data: cheque } = await supabase
+    .from("cheques")
+    .select("estado, origen, importe, numero, entregado_a, fecha_estado_actual")
+    .eq("id", chequeId)
+    .maybeSingle();
+
+  const c = cheque as {
+    estado: ChequeEstado;
+    origen?: ChequeOrigen;
+    importe: number;
+    numero: string | null;
+    entregado_a: string | null;
+    fecha_estado_actual: string | null;
+  } | null;
+
+  const corresponde = !!c && dejaEgresoEnCaja(c.origen ?? "recibido", c.estado);
+
+  // Sólo los egresos: si algún día un cheque recibido genera un ingreso, no es
+  // asunto de esta función y no se toca.
+  const { data: previos } = await supabase
+    .from("caja_movimientos")
+    .select("id, monto, fecha")
+    .eq("cheque_id", chequeId)
+    .eq("tipo", "egreso");
+
+  const existente = (previos ?? [])[0] as { id: string; monto: number; fecha: string } | undefined;
+
+  if (!corresponde || !c) {
+    if (existente) {
+      await supabase.from("caja_movimientos").delete().eq("id", existente.id);
+      await logAudit({
+        accion: "eliminar",
+        entidadTipo: "caja",
+        entidadId: existente.id,
+        usuarioId: userId,
+        valoresAnteriores: { monto: existente.monto, fecha: existente.fecha },
+        valoresNuevos: null,
+        client: supabase,
+      });
+    }
+    return;
+  }
+
+  const destinatario = c.entregado_a?.trim();
+  const concepto = [
+    "Cheque nuestro",
+    c.numero ? `N° ${c.numero}` : null,
+    destinatario ? `— ${destinatario}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const fecha = c.fecha_estado_actual ?? new Date().toISOString().split("T")[0];
+
+  if (existente) {
+    // Ya estaba: puede haber cambiado el importe o la fecha del débito.
+    if (existente.monto === c.importe && existente.fecha === fecha) return;
+    await supabase
+      .from("caja_movimientos")
+      .update({ monto: c.importe, fecha, concepto } as never)
+      .eq("id", existente.id);
+    await logAudit({
+      accion: "actualizar",
+      entidadTipo: "caja",
+      entidadId: existente.id,
+      usuarioId: userId,
+      valoresAnteriores: { monto: existente.monto, fecha: existente.fecha },
+      valoresNuevos: { monto: c.importe, fecha },
+      client: supabase,
+    });
+    return;
+  }
+
+  const insertData = {
+    tipo: "egreso" as const,
+    categoria: "pago_proveedor" as const,
+    concepto,
+    monto: c.importe,
+    medio: "cheque" as const,
+    fecha,
+    moneda: "ARS",
+    caja: "grande",
+    privado: true,
+    cheque_id: chequeId,
+    created_by: userId,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: creado, error } = await (supabase as any)
+    .from("caja_movimientos")
+    .insert(insertData)
+    .select("id")
+    .single();
+
+  if (error) {
+    // No se aborta el débito por esto: el cheque ya cambió de estado y volver
+    // atrás dejaría al usuario sin saber qué pasó. Queda el log para rastrearlo.
+    console.error("Error al registrar el egreso de caja del cheque:", error);
+    return;
+  }
+
+  await logAudit({
+    accion: "crear",
+    entidadTipo: "caja",
+    entidadId: creado?.id ?? chequeId,
+    usuarioId: userId,
+    valoresAnteriores: null,
+    valoresNuevos: insertData,
+    client: supabase,
+  });
 }
 
 async function registrarHistorial(params: {
@@ -700,7 +838,11 @@ export async function debitarChequeAction(input: DebitarChequeInput) {
     user.id,
   );
 
+  // La plata salió de la cuenta: que aparezca en la caja general.
+  await sincronizarEgresoCaja(supabase, input.id, user.id);
+
   revalidatePath("/cheques");
+  revalidatePath("/caja");
   return { success: true };
 }
 
@@ -766,7 +908,11 @@ export async function rechazarChequeAction(input: RechazarChequeInput) {
     user.id,
   );
 
+  // Un cheque rechazado no pagó nada: si había egreso, se va.
+  await sincronizarEgresoCaja(supabase, input.id, user.id);
+
   revalidatePath("/cheques");
+  revalidatePath("/caja");
   return { success: true };
 }
 
@@ -827,7 +973,11 @@ export async function anularChequeAction(input: AnularChequeInput) {
     user.id,
   );
 
+  // Anulado es "este cheque no existió": el egreso tampoco.
+  await sincronizarEgresoCaja(supabase, input.id, user.id);
+
   revalidatePath("/cheques");
+  revalidatePath("/caja");
   return { success: true };
 }
 
