@@ -232,10 +232,26 @@ export default function ChoferVacacionesTab({
   // elección nuestra, no un dato. Sin avisarlo, la pantalla afirma una precisión
   // que el dato no tiene y el que la lee después la toma por firme. La cantidad
   // de días sí es firme; lo estimado es cuándo.
-  const marcaEstimada = (obs: string | null) => {
-    const m = obs && /(FECHA ESTIMADA|AÑO ESTIMADO)/i.exec(obs);
-    if (!m) return null;
-    return { etiqueta: /AÑO/i.test(m[1]!) ? "año estimado" : "fecha estimada", detalle: obs! };
+  // Desde el 14/08 la marca es una columna (`fecha_aproximada`) y no una
+  // convención de texto: quien carga el período la pone con un checkbox. El
+  // texto se sigue mirando por los 32 períodos viejos importados del Excel y
+  // porque distingue "año estimado" de "fecha estimada", que la columna no
+  // separa; si la fila está marcada pero no dice nada, se cae al caso general.
+  const marcaEstimada = (a: Ausencia) => {
+    const m = a.observaciones && /(FECHA ESTIMADA|AÑO ESTIMADO)/i.exec(a.observaciones);
+    if (m) {
+      return {
+        etiqueta: /AÑO/i.test(m[1]!) ? "año estimado" : "fecha estimada",
+        detalle: a.observaciones!,
+      };
+    }
+    if (!a.fecha_aproximada) return null;
+    return {
+      etiqueta: "fecha estimada",
+      detalle:
+        a.observaciones ||
+        "Se cargó sin la fecha exacta: los días son firmes, el cuándo lo ubicamos nosotros dentro del mes.",
+    };
   };
 
   // Mismo cálculo inclusivo que hace el servidor: del 30/03 al 05/04 son 7 días,
@@ -665,7 +681,7 @@ export default function ChoferVacacionesTab({
                   {abierto && (
                     <ul className="divide-y divide-border">
                       {g.items.map((a) => {
-                        const estimada = marcaEstimada(a.observaciones);
+                        const estimada = marcaEstimada(a);
                         return (
                         <li key={a.id} className="group px-3 sm:px-3.5 py-2.5">
                           {editandoFechas === a.id ? (

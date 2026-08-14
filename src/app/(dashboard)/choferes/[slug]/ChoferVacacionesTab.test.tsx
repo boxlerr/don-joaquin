@@ -50,6 +50,7 @@ const periodoHeim: Ausencia = {
   es_vacaciones: true,
   justificada: true,
   anio_cargo: Y - 1,
+  fecha_aproximada: false,
   created_at: `${Y}-07-01T00:00:00Z`,
 };
 
@@ -362,5 +363,32 @@ describe("ChoferVacacionesTab — fechas estimadas", () => {
   it("tolera un período sin observaciones", () => {
     montar(undefined, true, [conObs(null)]);
     expect(screen.queryByText("fecha estimada")).not.toBeInTheDocument();
+  });
+});
+
+// "Que me ponga tres semanas en febrero… si yo pongo la fecha incierta, que
+// siga incierta" (Bárbara, 29/07/2026). Hasta el 14/08 la marca salía de buscar
+// "FECHA ESTIMADA" adentro de las observaciones: si alguien reescribía el texto,
+// el período pasaba a afirmar una precisión que no tenía.
+describe("ChoferVacacionesTab — fecha aproximada", () => {
+  const conFlag = (over: Partial<Ausencia>): Ausencia => ({ ...periodoHeim, ...over });
+
+  it("marca el período cuando la fila dice que la fecha es aproximada", () => {
+    montar(undefined, true, [conFlag({ fecha_aproximada: true, observaciones: null })]);
+    expect(screen.getAllByText("~").length).toBeGreaterThan(0);
+  });
+
+  it("no lo marca cuando la fecha es firme", () => {
+    montar(undefined, true, [conFlag({ fecha_aproximada: false, observaciones: null })]);
+    expect(screen.queryByText("~")).toBeNull();
+  });
+
+  it("los 32 períodos viejos del Excel siguen marcados por su texto", () => {
+    // Se importaron antes de que existiera la columna; la migración los pasó a
+    // flag, pero el texto es el que distingue "año estimado" de "fecha estimada".
+    montar(undefined, true, [
+      conFlag({ fecha_aproximada: true, observaciones: "AÑO ESTIMADO: el comentario no lo dice" }),
+    ]);
+    expect(screen.getAllByText("~").length).toBeGreaterThan(0);
   });
 });

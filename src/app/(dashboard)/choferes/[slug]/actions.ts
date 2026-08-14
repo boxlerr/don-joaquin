@@ -292,7 +292,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: ausenciasRaw } = (await (supabase as any)
     .from("chofer_ausencias")
-    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, anio_cargo, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
+    .select("id, tipo, fecha_inicio, fecha_fin, estado, observaciones, es_vacaciones, justificada, anio_cargo, fecha_aproximada, created_at, autorizado:usuarios!autorizado_por(nombre, apellido)")
     .eq("chofer_id", chofer_id)
     .is("deleted_at", null)
     .order("fecha_inicio", { ascending: false })) as {
@@ -307,6 +307,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
           es_vacaciones: boolean | null;
           justificada: boolean | null;
           anio_cargo: number | null;
+          fecha_aproximada: boolean | null;
           created_at: string;
           autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
         }[]
@@ -890,6 +891,7 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
         es_vacaciones: a.es_vacaciones ?? false,
         justificada: a.justificada ?? true,
         anio_cargo: a.anio_cargo ?? null,
+        fecha_aproximada: a.fecha_aproximada ?? false,
         created_at: a.created_at,
       };
     }),
@@ -1320,6 +1322,8 @@ export async function crearAusenciaAction(
     observaciones?: string | null;
     es_vacaciones?: boolean;
     justificada?: boolean;
+    /** true = las fechas ubican el período en el mes, no son un dato firme. */
+    fecha_aproximada?: boolean;
   },
 ) {
   const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
@@ -1357,6 +1361,7 @@ export async function crearAusenciaAction(
       observaciones: data.observaciones?.trim() || null,
       es_vacaciones: data.es_vacaciones ?? false,
       justificada: data.justificada ?? true,
+      fecha_aproximada: data.fecha_aproximada ?? false,
       anio_cargo: anioCargo,
       created_by: user.id,
     })
@@ -1470,6 +1475,12 @@ export async function editarAusenciaAction(
      * histórico. Un número lo reimputa a ese año.
      */
     anio_cargo?: number | null;
+    /**
+     * true = las fechas ubican el período en el mes, no son un dato firme.
+     * `undefined` = no tocar, para los caminos que sólo mueven fechas (el drag
+     * & drop del cronograma no puede volver firme una fecha estimada).
+     */
+    fecha_aproximada?: boolean;
   },
 ) {
   const user = await requireAusenciaWrite(data.es_vacaciones ?? false);
@@ -1494,7 +1505,7 @@ export async function editarAusenciaAction(
   const sb = supabase as any;
   const { data: previo, error: errPrevio } = await sb
     .from("chofer_ausencias")
-    .select("tipo, fecha_inicio, fecha_fin, observaciones, es_vacaciones, anio_cargo")
+    .select("tipo, fecha_inicio, fecha_fin, observaciones, es_vacaciones, anio_cargo, fecha_aproximada")
     .eq("id", id)
     .single();
   // Sin la fila previa no se puede decidir la imputación sin pisarla: mejor
@@ -1535,6 +1546,9 @@ export async function editarAusenciaAction(
     es_vacaciones: esVac,
     justificada: data.justificada ?? true,
     anio_cargo: anioCargo,
+    // `undefined` conserva lo que había: mover un período de fechas desde el
+    // cronograma no lo vuelve una fecha confirmada.
+    fecha_aproximada: data.fecha_aproximada ?? previo.fecha_aproximada ?? false,
   };
 
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);

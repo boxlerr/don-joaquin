@@ -48,6 +48,7 @@ export default function CargarAusenciaDialog({
   const [loadingViajes, setLoadingViajes] = useState(false);
   const [esVacaciones, setEsVacaciones] = useState(defaultVacaciones ?? false);
   const [justificada, setJustificada] = useState(true);
+  const [fechaAproximada, setFechaAproximada] = useState(false);
 
   // Al abrir en modo edición, precargar los valores de la ausencia.
   useEffect(() => {
@@ -59,10 +60,14 @@ export default function CargarAusenciaDialog({
       setFechaFin(ausencia.fecha_fin);
       setEsVacaciones(ausencia.es_vacaciones);
       setJustificada(ausencia.justificada);
+      setFechaAproximada(ausencia.fecha_aproximada);
       setError(null);
     } else {
       setEsVacaciones(defaultVacaciones ?? false);
       setJustificada(true);
+      // Si no, abrir el alta justo después de editar un período aproximado
+      // arrastraba la marca al período nuevo.
+      setFechaAproximada(false);
     }
   }, [open, ausencia, defaultVacaciones]);
 
@@ -95,6 +100,7 @@ export default function CargarAusenciaDialog({
     setViajesRango([]);
     setEsVacaciones(defaultVacaciones ?? false);
     setJustificada(true);
+    setFechaAproximada(false);
     setError(null);
   };
 
@@ -114,6 +120,7 @@ export default function CargarAusenciaDialog({
       // Solo aplica a ausencias que NO son vacaciones. Las vacaciones siempre
       // quedan como justificadas.
       justificada: esVacaciones ? true : justificada,
+      fecha_aproximada: fechaAproximada,
     };
 
     const res = esEdicion
@@ -203,6 +210,27 @@ export default function CargarAusenciaDialog({
               className="size-4 rounded border-border accent-[#0088D1]"
             />
             Es período de <span className="font-medium">vacaciones</span> (descuenta del saldo)
+          </label>
+
+          {/* "Que me ponga tres semanas en febrero… si yo pongo la fecha
+              incierta, que siga incierta" (Bárbara, 29/07/2026). Cuando todavía
+              no se sabe el día exacto, las fechas ubican el período dentro del
+              mes y esto deja dicho que son nuestras, no del empleador. La
+              cantidad de días no cambia: eso es firme. */}
+          <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={fechaAproximada}
+              onChange={(e) => setFechaAproximada(e.target.checked)}
+              className="size-4 mt-0.5 rounded border-border accent-[#0088D1]"
+            />
+            <span>
+              Todavía no está la fecha exacta
+              <span className="block text-xs text-muted-foreground">
+                Los días cuentan igual en el saldo. En el legajo el período queda marcado con
+                un ~, para que nadie lo tome como fecha confirmada.
+              </span>
+            </span>
           </label>
 
           {/* Justificada: solo para ausencias que NO son vacaciones. */}

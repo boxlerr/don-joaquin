@@ -159,6 +159,9 @@ export type Ausencia = {
   // Año de vacaciones al que se imputa el período. null = histórico: ya estaba
   // reflejado en la carga inicial de saldos y no vuelve a descontar.
   anio_cargo: number | null;
+  // true = las fechas son una ubicación nuestra dentro del mes, no un dato del
+  // empleador ("tres semanas en febrero"). La cantidad de días sí es firme.
+  fecha_aproximada: boolean;
   created_at: string;
 };
 
