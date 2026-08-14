@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "impuestos-ahora-se-busca-se-filtra-y-se",
+    fecha: "2026-08-14",
+    tipo: "mejora",
+    ver: "impuestos",
+    titulo: "Impuestos ahora se busca, se filtra y se ordena",
+    detalle: "Las tarjetas de arriba filtran la lista, hay buscador y solapas por estado, se ordena tocando el título de la columna y abajo dice cuántos estás viendo",
+    href: "/impuestos",
+  },
+  {
     id: "los-cheques-nuestros-ya-aparecen-en-la-caja",
     fecha: "2026-08-14",
     tipo: "nuevo",
