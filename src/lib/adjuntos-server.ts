@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 /**
  * Infra compartida para adjuntar VARIOS archivos a cualquier entidad, prolijo y
@@ -171,19 +172,10 @@ export async function getAdjuntos(cfg: AdjuntoCfg, entidadId: string): Promise<A
     .filter((r): r is { id: string; created_at: string; archivo: ArchivoEmbed } => r.archivo != null);
 
   // URLs firmadas en lote (una llamada por bucket) — funciona con buckets privados.
-  const porBucket = new Map<string, string[]>();
-  for (const r of rows) {
-    if (!porBucket.has(r.archivo.bucket)) porBucket.set(r.archivo.bucket, []);
-    porBucket.get(r.archivo.bucket)!.push(r.archivo.path);
-  }
-  const urlPorPath = new Map<string, string>();
-  for (const [bucket, paths] of porBucket) {
-    const { data: signed } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600);
-    for (const s of signed ?? []) if (s.signedUrl && s.path) urlPorPath.set(`${bucket}:${s.path}`, s.signedUrl);
-  }
+  const urlPorPath = await urlesFirmadas(rows.map((r) => r.archivo));
 
   return rows.map((r): AdjuntoExistente => {
-    const url = urlPorPath.get(`${r.archivo.bucket}:${r.archivo.path}`) ?? "";
+    const url = urlPorPath.get(claveArchivo(r.archivo)) ?? "";
     // `&download=<nombre>` fuerza Content-Disposition: attachment con el nombre real
     // (verificado contra el Storage), en vez de descargar con el UUID del path.
     const downloadUrl = url

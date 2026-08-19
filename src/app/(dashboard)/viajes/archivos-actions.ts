@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 // Adjuntos de un viaje (remito / factura / otro). Mismo patrón que mantenimiento_archivos:
 // el archivo se sube directo del navegador al Storage con URL firmada y acá solo se
@@ -117,22 +118,22 @@ export async function getArchivosViajeAction(viajeId: string): Promise<ArchivoVi
       | { bucket: string; path: string; nombre_original: string; tamano_bytes: number | null; mime_type: string | null }[]
       | null;
   };
-  return ((data ?? []) as Row[])
-    .map((r): ArchivoViaje | null => {
-      const archivo = Array.isArray(r.archivo) ? r.archivo[0] : r.archivo;
-      if (!archivo) return null;
-      const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
-      return {
-        id: r.id,
-        tipo: r.tipo,
-        nombre_original: archivo.nombre_original,
-        url: pub.publicUrl,
-        tamano_bytes: archivo.tamano_bytes ?? 0,
-        mime_type: archivo.mime_type,
-        created_at: r.created_at,
-      };
-    })
-    .filter((a): a is ArchivoViaje => a !== null);
+  const filas = ((data ?? []) as Row[])
+    .map((r) => ({ r, archivo: (Array.isArray(r.archivo) ? r.archivo[0] : r.archivo) ?? null }))
+    .filter((f): f is { r: Row; archivo: NonNullable<(typeof f)["archivo"]> } => f.archivo !== null);
+
+  // Los remitos y comprobantes del viaje se firman todos juntos.
+  const urls = await urlesFirmadas(filas.map((f) => f.archivo));
+
+  return filas.map(({ r, archivo }): ArchivoViaje => ({
+    id: r.id,
+    tipo: r.tipo,
+    nombre_original: archivo.nombre_original,
+    url: urls.get(claveArchivo(archivo)) ?? "",
+    tamano_bytes: archivo.tamano_bytes ?? 0,
+    mime_type: archivo.mime_type,
+    created_at: r.created_at,
+  }));
 }
 
 /** Elimina un adjunto puntual de un viaje (fila puente + metadato + objeto). */

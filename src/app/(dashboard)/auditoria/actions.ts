@@ -5,6 +5,7 @@ import { requireArea } from "@/lib/auth";
 import { resolverEntidadLabels } from "./resolve-labels";
 import { resolverReferencias } from "./resolve-refs";
 import type { RefsMap } from "@/lib/audit-catalog";
+import { urlFirmada } from "@/lib/storage-urls";
 
 const AUDIT_PAGE_SIZE = 25;
 
@@ -121,4 +122,37 @@ export async function getAuditUsuariosAction(): Promise<
     .select("id, nombre, apellido")
     .order("nombre");
   return (data ?? []) as { id: string; nombre: string; apellido: string | null }[];
+}
+
+/**
+ * Firma la foto de una entrada de auditoría para poder mostrarla.
+ *
+ * Los buckets son privados, así que el link tiene que armarse en el momento de
+ * abrir la entrada. Las entradas nuevas guardan `foto_bucket` + `foto_path`;
+ * las viejas guardaron la URL entera de cuando el bucket era público, así que
+ * de ahí se recupera el bucket y el path y se firma igual. Si la foto se borró
+ * del Storage devuelve null y la UI muestra el cartel de "foto eliminada".
+ */
+export async function getUrlFotoAuditoriaAction(ref: {
+  bucket?: string | null;
+  path?: string | null;
+  /** Sólo para entradas viejas: la URL pública que quedó guardada. */
+  urlGuardada?: string | null;
+}): Promise<string | null> {
+  await requireArea("sistema", "read");
+
+  let bucket = ref.bucket ?? null;
+  let path = ref.path ?? null;
+
+  if ((!bucket || !path) && ref.urlGuardada) {
+    // .../storage/v1/object/public/<bucket>/<path con barras>
+    const m = ref.urlGuardada.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?]+)/);
+    if (m) {
+      bucket = decodeURIComponent(m[1]!);
+      path = decodeURIComponent(m[2]!);
+    }
+  }
+  if (!bucket || !path) return null;
+
+  return urlFirmada({ bucket, path });
 }

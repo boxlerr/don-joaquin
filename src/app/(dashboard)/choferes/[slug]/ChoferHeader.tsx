@@ -9,7 +9,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Camera, Edit, Loader2, Phone, Mail, MapPin, Calendar, Clock, AlertCircle, LogOut, FileText, Check, Truck, Cake, AlertTriangle, Trash2, X, Trophy } from "lucide-react";
 import type { ChoferDetail } from "./types";
-import { createClient } from "@/lib/supabase/client";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import { uploadFotoChoferAction, deleteFotoChoferAction, deleteChoferAction } from "../actions";
 import { updateEgresoAction } from "./actions";
@@ -160,10 +159,8 @@ export default function ChoferHeader({ chofer, onRefresh, onSelectTab, editing, 
       : null;
   const observacionEgreso = obtenerObservacionEgreso(chofer.observaciones);
 
-  const supabase = createClient();
-  const fotoUrl = chofer.foto
-    ? supabase.storage.from(chofer.foto.bucket).getPublicUrl(chofer.foto.path).data.publicUrl
-    : null;
+  // Link firmado en el servidor (`getChoferDetailAction`): el bucket es privado.
+  const fotoUrl = chofer.foto_url ?? null;
 
   return (
     // El legajo de un egresado se leía como una alerta: la tarjeta entera lavada

@@ -81,6 +81,8 @@ export type ChoferListado = ChoferValidable & {
   dni: string;
   estado: string;
   rol?: string | null;
+  /** Link firmado a la foto del legajo, armado en el servidor (bucket privado). */
+  foto_url?: string | null;
   camion_patente?: string | null;
   camion_marca?: string | null;
   camion_modelo?: string | null;

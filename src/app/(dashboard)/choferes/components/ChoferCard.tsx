@@ -27,7 +27,6 @@ import {
 } from "../actions";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { useChoferAcciones } from "./useChoferAcciones";
-import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { logoDeMarca } from "@/components/ui/MarcaLogo";
@@ -48,10 +47,9 @@ export default function ChoferCard({ chofer }: { chofer: any }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const supabase = createClient();
-  const fotoUrl = chofer.foto
-    ? supabase.storage.from(chofer.foto.bucket).getPublicUrl(chofer.foto.path).data.publicUrl
-    : null;
+  // El bucket de fotos es privado: el link viene firmado desde el servidor
+  // (ver `choferes/page.tsx`), acá no se puede construir.
+  const fotoUrl = chofer.foto_url ?? null;
 
   const esBaja = chofer.estado === "baja";
   // Fecha de egreso a mostrar: la real si está cargada; si no (bajas cargadas en

@@ -90,6 +90,14 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "reforzamos-la-seguridad-de-las-fotos-y-los",
+    fecha: "2026-08-18",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "Reforzamos la seguridad de las fotos y los archivos",
+    detalle: "Las fotos de los legajos y de las unidades, los remitos y los comprobantes ahora se abren sólo desde adentro del sistema y con tu sesión iniciada. Se ven igual que siempre: no tenés que hacer nada distinto",
+  },
+  {
     id: "los-vencimientos-ahora-se-ven-al-lado-del",
     fecha: "2026-08-14",
     tipo: "mejora",

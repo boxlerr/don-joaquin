@@ -34,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 import { choferSlug } from "@/lib/chofer-slug";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { formatFecha } from "@/lib/utils";
@@ -410,18 +409,15 @@ export default function ChoferesTabla({
   onOrdenChange: (o: OrdenFilter) => void;
   vacioMensaje: string;
 }) {
-  // Un solo cliente para todas las filas: `getPublicUrl` no pega a la red, pero
-  // instanciar el cliente 88 veces por render sí se nota.
-  const supabase = createClient();
+  // Las fotos vienen ya firmadas desde el servidor (el bucket es privado); acá
+  // sólo se indexan por chofer para que cada fila la encuentre sin recorrer.
   const fotoUrls = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of choferes) {
-      if (c.foto?.bucket && c.foto?.path) {
-        m.set(c.id, supabase.storage.from(c.foto.bucket).getPublicUrl(c.foto.path).data.publicUrl);
-      }
+      if (c.foto_url) m.set(c.id, c.foto_url);
     }
     return m;
-  }, [choferes, supabase]);
+  }, [choferes]);
 
   const th = "text-[11px] font-bold uppercase tracking-wider text-muted-foreground py-3";
 

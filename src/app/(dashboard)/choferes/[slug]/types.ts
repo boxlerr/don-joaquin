@@ -272,6 +272,9 @@ export type EvolucionMes = {
 
 export type ChoferDetail = ChoferBasico & {
   foto?: { bucket: string; path: string } | null;
+  /** Link firmado a la foto. Lo arma el servidor: el bucket es privado y la
+   *  firma vence, así que no se puede construir en el cliente. */
+  foto_url?: string | null;
   documentos_vigencia: DocumentoVigencia[];
   tipos_documento: TipoDocumento[];
   viajes_recientes: ViajeBasico[];

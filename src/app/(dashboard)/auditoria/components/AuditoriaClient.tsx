@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback, useRef, useEffect } from "react";
+import { useState, useTransition, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   X,
   Clock,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   getGlobalAuditLogsAction,
+  getUrlFotoAuditoriaAction,
   type AuditLogEntry,
   type AuditLogsResult,
   type GetAuditLogsParams,
@@ -1047,6 +1048,8 @@ type DiffRow = { key: string; antes: unknown; despues: unknown };
 
 const HIDDEN_KEYS = new Set([
   "foto_url",
+  "foto_bucket",
+  "foto_path",
   // FKs que el panel todavía no resuelve a un nombre legible: se ocultan.
   // (Los *_id que sí se resuelven —chofer, camión, cliente, etc.— se muestran.)
   "gasto_id",
@@ -1081,13 +1084,37 @@ function computeDiff(
   return rows;
 }
 
-function FotoPreview({ url, deleted }: { url: string; deleted?: boolean }) {
+/**
+ * Los buckets son privados: la foto de una entrada no tiene un link fijo, se
+ * firma al abrirla. Por eso el pedido va acá adentro y no al cargar la lista:
+ * firmar las fotos de las 25 entradas de una página, para que se mire una, es
+ * trabajo tirado.
+ */
+function FotoPreview({
+  foto,
+  deleted,
+}: {
+  foto: { bucket?: string | null; path?: string | null; urlGuardada?: string | null };
+  deleted?: boolean;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    getUrlFotoAuditoriaAction(foto).then((u) => {
+      if (vigente) setUrl(u);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [foto]);
+
   return (
     <div className="rounded-lg border border-border bg-muted/40 overflow-hidden">
       <div className="relative aspect-[4/3] bg-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={url}
+          src={url ?? undefined}
           alt="Foto del registro"
           className={`w-full h-full object-contain ${deleted ? "opacity-60" : ""}`}
           loading="lazy"
@@ -1107,12 +1134,21 @@ function FriendlyDiff({ entry, refs }: { entry: AuditLogEntry; refs: RefsMap }) 
   const despues = entry.valores_nuevos;
   const entidad = entry.entidad_tipo;
   const esFotoEntry = entry.accion.startsWith("foto_") || entry.accion === "nota_foto";
-  const fotoUrl =
-    (despues?.foto_url as string | undefined) ?? (antes?.foto_url as string | undefined) ?? null;
+  const foto = useMemo(() => {
+    const de = (v: Record<string, unknown> | null) =>
+      v?.foto_bucket || v?.foto_path || v?.foto_url
+        ? {
+            bucket: (v.foto_bucket as string | undefined) ?? null,
+            path: (v.foto_path as string | undefined) ?? null,
+            urlGuardada: (v.foto_url as string | undefined) ?? null,
+          }
+        : null;
+    return de(despues) ?? de(antes);
+  }, [antes, despues]);
 
   const diff = computeDiff(antes, despues);
 
-  if (diff.length === 0 && !fotoUrl) {
+  if (diff.length === 0 && !foto) {
     return (
       <p className="text-sm text-muted-foreground/70 text-center py-8">
         Sin cambios para mostrar.
@@ -1124,7 +1160,7 @@ function FriendlyDiff({ entry, refs }: { entry: AuditLogEntry; refs: RefsMap }) 
   if (!antes && despues) {
     return (
       <div className="space-y-3">
-        {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
+        {esFotoEntry && foto && <FotoPreview foto={foto} />}
         <p className="text-[12px] text-muted-foreground">
           {esFotoEntry ? "Datos de la foto:" : "Se registraron estos datos:"}
         </p>
@@ -1148,7 +1184,7 @@ function FriendlyDiff({ entry, refs }: { entry: AuditLogEntry; refs: RefsMap }) 
   if (antes && !despues) {
     return (
       <div className="space-y-3">
-        {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} deleted />}
+        {esFotoEntry && foto && <FotoPreview foto={foto} deleted />}
         <p className="text-[12px] text-muted-foreground">
           {esFotoEntry ? "Datos de la foto eliminada:" : "Se eliminó un registro con estos datos:"}
         </p>
@@ -1171,7 +1207,7 @@ function FriendlyDiff({ entry, refs }: { entry: AuditLogEntry; refs: RefsMap }) 
   // Actualización → diff antes→después por campo (incluye nota_foto)
   return (
     <div className="space-y-3">
-      {esFotoEntry && fotoUrl && <FotoPreview url={fotoUrl} />}
+      {esFotoEntry && foto && <FotoPreview foto={foto} />}
       <p className="text-[12px] text-muted-foreground">
         {diff.length === 1
           ? "Se modificó 1 campo:"

@@ -467,14 +467,17 @@ export async function uploadFotoChoferAction(formData: FormData) {
     }
   }
 
-  const { data: publicUrl } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(storagePath);
+  // La auditoría guarda bucket + path, no un link: los buckets son privados y
+  // cualquier URL que se guardara hoy estaría vencida cuando alguien la mire.
+  // El panel de auditoría firma el path en el momento de abrir la entrada.
   await logChoferAudit(
     chofer_id,
     "foto_agregada",
     null,
     {
       archivo: file.name,
-      foto_url: publicUrl?.publicUrl ?? null,
+      foto_bucket: FOTOS_BUCKET,
+      foto_path: storagePath,
     },
     user.id,
   );
@@ -508,12 +511,9 @@ export async function deleteFotoChoferAction(chofer_id: string) {
     .eq("id", chofer_id);
   if (updErr) return { error: "No se pudo desvincular la foto" };
 
-  let fotoUrl: string | null = null;
+  let fotoRef: { foto_bucket: string; foto_path: string } | null = null;
   if (archivo) {
-    const { data: publicUrl } = supabase.storage
-      .from(archivo.bucket)
-      .getPublicUrl(archivo.path);
-    fotoUrl = publicUrl?.publicUrl ?? null;
+    fotoRef = { foto_bucket: archivo.bucket, foto_path: archivo.path };
     await supabase.storage.from(archivo.bucket).remove([archivo.path]);
     await supabase.from("documentos_archivos").delete().eq("id", chofer.foto_id);
   }
@@ -521,7 +521,7 @@ export async function deleteFotoChoferAction(chofer_id: string) {
   await logChoferAudit(
     chofer_id,
     "foto_eliminada",
-    { foto_url: fotoUrl },
+    fotoRef,
     null,
     user.id,
   );

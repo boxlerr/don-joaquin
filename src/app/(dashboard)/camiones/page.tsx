@@ -15,6 +15,7 @@ import AddGastoDialog from "../gastos/components/AddGastoDialog";
 import { getGastoFormData } from "../gastos/actions";
 import { getTiposServicioAction } from "./actions";
 import { redirect } from "next/navigation";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 export default async function CamionesPage({
   searchParams,
@@ -77,12 +78,16 @@ export default async function CamionesPage({
       supabase.from("choferes").select("id, nombre, apellido"),
     ]);
 
+  // Las tapas de toda la flota se firman en una sola llamada al Storage.
+  const urlsTapas = await urlesFirmadas(
+    (fotosPrincipales ?? []).map((f) => (Array.isArray(f.archivo) ? f.archivo[0] : f.archivo)),
+  );
   const fotosMap = new Map<string, string>();
   for (const f of fotosPrincipales ?? []) {
     const archivo = Array.isArray(f.archivo) ? f.archivo[0] : f.archivo;
     if (!archivo) continue;
-    const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
-    fotosMap.set(f.camion_id, pub.publicUrl);
+    const url = urlsTapas.get(claveArchivo(archivo));
+    if (url) fotosMap.set(f.camion_id, url);
   }
 
   // Nombre de chofer por id (apellido + nombre, compacto para la tabla)

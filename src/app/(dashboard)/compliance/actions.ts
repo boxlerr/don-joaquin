@@ -20,6 +20,7 @@ import type {
   ComplianceRequisito,
   UnidadInfo,
 } from "./types";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 function clienteToEnum(c: ComplianceCliente): "YPF" | "LOMA_NEGRA" {
   return c;
@@ -106,15 +107,18 @@ async function getChoferesInfo(
     .from("choferes")
     .select("id, nombre, apellido, rol, foto:documentos_archivos!foto_id(bucket, path)");
 
+  // Las fotos se firman todas juntas (una llamada) antes de armar el índice.
+  const urls = await urlesFirmadas(
+    (data ?? []).map((c) => (Array.isArray(c.foto) ? c.foto[0] : c.foto)),
+  );
+
   const out: Record<string, ChoferInfo> = {};
   for (const c of data ?? []) {
     const foto = Array.isArray(c.foto) ? c.foto[0] : c.foto;
     out[c.id] = {
       nombre: `${c.apellido ?? ""}${c.nombre ? ` ${c.nombre}` : ""}`.trim(),
       rol: c.rol,
-      foto_url: foto
-        ? supabase.storage.from(foto.bucket).getPublicUrl(foto.path).data.publicUrl
-        : null,
+      foto_url: foto ? urls.get(claveArchivo(foto)) ?? null : null,
     };
   }
   return out;
@@ -147,11 +151,15 @@ async function getUnidadesInfo(
       .eq("es_principal", true),
   ]);
 
+  const urlsFotos = await urlesFirmadas(
+    (fotosRes.data ?? []).map((f) => (Array.isArray(f.archivo) ? f.archivo[0] : f.archivo)),
+  );
   const fotoDe = new Map<string, string>();
   for (const f of fotosRes.data ?? []) {
     const archivo = Array.isArray(f.archivo) ? f.archivo[0] : f.archivo;
     if (!archivo) continue;
-    fotoDe.set(f.camion_id, supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path).data.publicUrl);
+    const url = urlsFotos.get(claveArchivo(archivo));
+    if (url) fotoDe.set(f.camion_id, url);
   }
 
   // Mismo formato que la tabla de /camiones: "Apellido Nombre".

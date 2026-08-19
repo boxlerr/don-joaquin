@@ -30,6 +30,7 @@ import {
   type ProColumn,
   type CellValue,
 } from "@/lib/excel/professional-sheet";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
@@ -1154,13 +1155,16 @@ export async function getFotosCamionAction(camion_id: string) {
     return { fotos: [] };
   }
 
+  const urlsFotos = await urlesFirmadas(
+    (data ?? []).map((r) => (Array.isArray(r.archivo) ? r.archivo[0] : r.archivo)),
+  );
+
   const fotos = (data ?? []).map((row) => {
     const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
     if (!archivo) return null;
-    const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
     return {
       id: row.id,
-      url: pub.publicUrl,
+      url: urlsFotos.get(claveArchivo(archivo)) ?? "",
       descripcion: row.descripcion,
       es_principal: row.es_principal,
       created_at: row.created_at,
@@ -1245,8 +1249,6 @@ export async function uploadFotoCamionAction(formData: FormData) {
     return { error: "Error al registrar la foto" };
   }
 
-  const { data: pubFoto } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(storagePath);
-
   await logAudit({
     client: supabase,
     accion: "foto_agregada",
@@ -1257,7 +1259,8 @@ export async function uploadFotoCamionAction(formData: FormData) {
       archivo: file.name,
       nota: descripcion ?? null,
       es_principal: esPrimera,
-      foto_url: pubFoto.publicUrl,
+      foto_bucket: FOTOS_BUCKET,
+      foto_path: storagePath,
     },
   });
 
@@ -1276,9 +1279,6 @@ export async function setFotoPrincipalAction(foto_id: string, camion_id: string)
     .eq("id", foto_id)
     .single();
   const archivoFp = Array.isArray(foto?.archivo) ? foto?.archivo[0] : foto?.archivo;
-  const urlFp = archivoFp
-    ? supabase.storage.from(archivoFp.bucket).getPublicUrl(archivoFp.path).data.publicUrl
-    : null;
 
   const { error: clearError } = await supabase
     .from("camion_fotos")
@@ -1302,7 +1302,8 @@ export async function setFotoPrincipalAction(foto_id: string, camion_id: string)
     valoresNuevos: {
       archivo: archivoFp?.nombre_original ?? null,
       nota: foto?.descripcion ?? null,
-      foto_url: urlFp,
+      foto_bucket: archivoFp?.bucket ?? null,
+      foto_path: archivoFp?.path ?? null,
     },
   });
 
@@ -1321,9 +1322,6 @@ export async function updateFotoDescripcionAction(foto_id: string, descripcion: 
     .eq("id", foto_id)
     .single();
   const archivoUf = Array.isArray(previo?.archivo) ? previo?.archivo[0] : previo?.archivo;
-  const urlUf = archivoUf
-    ? supabase.storage.from(archivoUf.bucket).getPublicUrl(archivoUf.path).data.publicUrl
-    : null;
 
   const desc = descripcion?.trim() || null;
   const { error } = await supabase
@@ -1342,12 +1340,14 @@ export async function updateFotoDescripcionAction(foto_id: string, descripcion: 
       valoresAnteriores: {
         archivo: archivoUf?.nombre_original ?? null,
         nota: previo.descripcion ?? null,
-        foto_url: urlUf,
+        foto_bucket: archivoUf?.bucket ?? null,
+        foto_path: archivoUf?.path ?? null,
       },
       valoresNuevos: {
         archivo: archivoUf?.nombre_original ?? null,
         nota: desc,
-        foto_url: urlUf,
+        foto_bucket: archivoUf?.bucket ?? null,
+        foto_path: archivoUf?.path ?? null,
       },
     });
   }

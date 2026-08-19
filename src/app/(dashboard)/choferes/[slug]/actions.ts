@@ -46,6 +46,7 @@ import type {
   AusenciaEstado,
   ViajeEnRango,
 } from "./types";
+import { urlFirmada } from "@/lib/storage-urls";
 
 export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
   const user = await requireSeccion("choferes", "read");
@@ -797,6 +798,9 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     score_trimestre: scoreRes?.score ?? null,
     score_trimestre_desglose: scoreRes?.desglose ?? [],
     foto: fotoObj as { bucket: string; path: string } | null,
+    // El link de la foto se arma acá: el bucket es privado y un componente
+    // cliente no puede firmarlo.
+    foto_url: await urlFirmada(fotoObj as { bucket: string; path: string } | null),
     documentos_vigencia: mappedDocs,
     alertas: activeAlertsVisibles.map((a) => ({
       id: a.id,

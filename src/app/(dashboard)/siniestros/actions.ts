@@ -14,6 +14,7 @@ import {
   type ArchivoMeta as AdjuntoArchivoMeta,
   type CrearUrlResult,
 } from "@/lib/adjuntos-server";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 export async function createSiniestroAction(data: {
   camion_id: string;
@@ -270,20 +271,25 @@ export async function getArchivosSiniestroAction(siniestro_id: string): Promise<
     return [];
   }
 
-  return (data ?? []).map((row) => {
-    const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
-    if (!archivo) return null;
-    const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
-    return {
-      id: row.id,
-      descripcion: row.descripcion,
-      created_at: row.created_at,
-      nombre_original: archivo.nombre_original,
-      url: pub.publicUrl,
-      tamano_bytes: archivo.tamano_bytes,
-      mime_type: archivo.mime_type,
-    };
-  }).filter((a): a is SiniestroArchivo => a !== null);
+  const filas = (data ?? [])
+    .map((row) => ({
+      row,
+      archivo: (Array.isArray(row.archivo) ? row.archivo[0] : row.archivo) ?? null,
+    }))
+    .filter((f): f is { row: (typeof f)["row"]; archivo: NonNullable<(typeof f)["archivo"]> } => f.archivo !== null);
+
+  // Una sola llamada al Storage para firmar todos los adjuntos del siniestro.
+  const urls = await urlesFirmadas(filas.map((f) => f.archivo));
+
+  return filas.map(({ row, archivo }) => ({
+    id: row.id,
+    descripcion: row.descripcion,
+    created_at: row.created_at,
+    nombre_original: archivo.nombre_original,
+    url: urls.get(claveArchivo(archivo)) ?? "",
+    tamano_bytes: archivo.tamano_bytes,
+    mime_type: archivo.mime_type,
+  }));
 }
 
 export async function uploadArchivoSiniestroAction(formData: FormData): Promise<{ error?: string; success?: true }> {

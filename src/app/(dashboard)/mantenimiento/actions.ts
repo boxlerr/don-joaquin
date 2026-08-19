@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { requireArea } from "@/lib/auth";
 import { Database } from "@/types/database";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 type MantenimientoTipo = Database["public"]["Enums"]["mantenimiento_tipo"];
 
@@ -1059,7 +1060,7 @@ async function crearUrlSubida(
 
 /** Mapea una fila puente (con su archivo embebido) a la forma de la UI. */
 function mapAdjunto(
-  supabase: ReturnType<typeof createAdminClient>,
+  urls: Map<string, string>,
   row: {
     id: string;
     created_at: string;
@@ -1071,11 +1072,10 @@ function mapAdjunto(
 ): AdjuntoArchivo | null {
   const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
   if (!archivo) return null;
-  const { data: pub } = supabase.storage.from(archivo.bucket).getPublicUrl(archivo.path);
   return {
     id: row.id,
     nombre_original: archivo.nombre_original,
-    url: pub.publicUrl,
+    url: urls.get(claveArchivo(archivo)) ?? "",
     tamano_bytes: archivo.tamano_bytes ?? 0,
     mime_type: archivo.mime_type,
     created_at: row.created_at,
@@ -1139,7 +1139,7 @@ export async function crearUrlSubidaRoturaAction(input: { filename: string }) {
   return crearUrlSubida(ROTURA_BUCKET, "roturas", input.filename);
 }
 
-/** Lista los adjuntos de una rotura con URL pública para ver / descargar. */
+/** Lista los adjuntos de una rotura con URL firmada para ver / descargar. */
 export async function getArchivosRoturaAction(rotura_id: string): Promise<AdjuntoArchivo[]> {
   await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
@@ -1153,7 +1153,10 @@ export async function getArchivosRoturaAction(rotura_id: string): Promise<Adjunt
     console.error("Error al cargar archivos de rotura:", error);
     return [];
   }
-  return (data ?? []).map((r) => mapAdjunto(supabase, r)).filter((a): a is AdjuntoArchivo => a !== null);
+  const urls = await urlesFirmadas(
+    (data ?? []).map((r) => (Array.isArray(r.archivo) ? r.archivo[0] : r.archivo)),
+  );
+  return (data ?? []).map((r) => mapAdjunto(urls, r)).filter((a): a is AdjuntoArchivo => a !== null);
 }
 
 /** Elimina un adjunto puntual de una rotura (fila puente + metadato + objeto). */
@@ -1182,7 +1185,7 @@ export async function crearUrlSubidaServicioAction(input: { filename: string }) 
   return crearUrlSubida(SERVICIO_BUCKET, "mantenimientos", input.filename);
 }
 
-/** Lista los adjuntos de un servicio con URL pública para ver / descargar. */
+/** Lista los adjuntos de un servicio con URL firmada para ver / descargar. */
 export async function getArchivosServicioAction(mantenimiento_id: string): Promise<AdjuntoArchivo[]> {
   await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
@@ -1196,7 +1199,10 @@ export async function getArchivosServicioAction(mantenimiento_id: string): Promi
     console.error("Error al cargar archivos de servicio:", error);
     return [];
   }
-  return (data ?? []).map((r) => mapAdjunto(supabase, r)).filter((a): a is AdjuntoArchivo => a !== null);
+  const urls = await urlesFirmadas(
+    (data ?? []).map((r) => (Array.isArray(r.archivo) ? r.archivo[0] : r.archivo)),
+  );
+  return (data ?? []).map((r) => mapAdjunto(urls, r)).filter((a): a is AdjuntoArchivo => a !== null);
 }
 
 /** Elimina un adjunto puntual de un servicio (fila puente + metadato + objeto). */

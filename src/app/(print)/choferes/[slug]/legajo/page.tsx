@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { requireSeccion } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getChoferDetailAction,
   getChoferSueldosHistorialAction,
@@ -64,11 +63,9 @@ export default async function LegajoPrintPage({
     if (!("error" in res)) sueldos = res;
   }
 
-  // La foto vive en un bucket público: en el servidor no hay cliente de browser,
-  // así que la URL se arma con el cliente admin.
-  const fotoUrl = chofer.foto
-    ? createAdminClient().storage.from(chofer.foto.bucket).getPublicUrl(chofer.foto.path).data.publicUrl
-    : null;
+  // La foto vive en un bucket privado: `getChoferDetailAction` ya devuelve el
+  // link firmado.
+  const fotoUrl = chofer.foto_url ?? null;
 
   const nombreCompleto = `${chofer.apellido}, ${chofer.nombre}`;
   const esBaja = chofer.estado === "baja";

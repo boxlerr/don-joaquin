@@ -14,6 +14,7 @@ import type { ChoferLocalidad, LocalidadData } from "./components/ChoferesLocali
 import type { DocsResumen } from "./filtros";
 import { cortesUltimos12Meses, serieDotacion } from "@/lib/dotacion";
 import { traerTodo } from "@/lib/supabase/traer-todo";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 
 export default async function ChoferesPage({
   searchParams,
@@ -131,14 +132,25 @@ export default async function ChoferesPage({
       });
   }
 
-  const choferesMapeados = choferes?.map((c) => ({
-    ...c,
-    dni: c.dni ?? "",
-    foto: c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null,
-    camion_patente: camionPorChofer.get(c.id)?.patente ?? null,
-    camion_marca: camionPorChofer.get(c.id)?.marca ?? null,
-    camion_modelo: camionPorChofer.get(c.id)?.modelo ?? null,
-  }));
+  // Las fotos de los legajos se firman todas en una sola llamada al Storage: el
+  // bucket es privado y la tabla puede traer 88 filas, una firma por fila sería
+  // una tormenta de pedidos.
+  const urlsFotos = await urlesFirmadas(
+    (choferes ?? []).map((c) => (c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null)),
+  );
+
+  const choferesMapeados = choferes?.map((c) => {
+    const foto = c.foto ? (Array.isArray(c.foto) ? c.foto[0] : c.foto) : null;
+    return {
+      ...c,
+      dni: c.dni ?? "",
+      foto,
+      foto_url: foto ? urlsFotos.get(claveArchivo(foto)) ?? null : null,
+      camion_patente: camionPorChofer.get(c.id)?.patente ?? null,
+      camion_marca: camionPorChofer.get(c.id)?.marca ?? null,
+      camion_modelo: camionPorChofer.get(c.id)?.modelo ?? null,
+    };
+  });
 
   // Desglose por rol — solo personal vigente (los egresados/baja salen del conteo:
   // tienen su propia sección "Historial de Choferes Egresados"). Los choferes legacy
