@@ -38,6 +38,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...menos la plantilla: el README manda a copiarla, así que tiene que estar
+# en el repo. Los secretos siguen fuera porque `.env` y `.env.local` sí caen
+# en el patrón de arriba.
+!.env.example
 
 # vercel
 .vercel

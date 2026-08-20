@@ -112,13 +112,85 @@ async function fetchViajesMetricas(
   return rows;
 }
 
+/**
+ * Un punto de la evolución del período. El período se parte SIEMPRE en la misma
+ * cantidad de tramos (`SERIE_TRAMOS`), sea un mes o cinco años, así el
+ * sparkline de las tarjetas del dashboard tiene la misma forma y densidad
+ * cualquiera sea el rango elegido.
+ */
+export type PuntoSerie = {
+  /** Primer día del tramo (ISO). */
+  desde: string;
+  /** Último día del tramo (ISO, inclusive). */
+  hasta: string;
+  viajes: number;
+  kmConCarga: number;
+  kmVacios: number;
+  toneladas: number;
+  facturacion: number;
+};
+
 export type TotalesPeriodo = {
   viajes: number;
   choferesActivos: number;
   kmConCarga: number;
   kmVacios: number;
+  /** Toneladas transportadas (suma de tonelaje real cargado en los viajes). */
+  toneladas: number;
   facturacion: number;
+  /** Evolución dentro del período, para los sparklines del dashboard. */
+  serie: PuntoSerie[];
 };
+
+/** Cuántos tramos tiene la serie del período. 16 alcanza para que la curva se
+ *  lea y es poco como para que un mes flaco quede en un serrucho de ruido. */
+export const SERIE_TRAMOS = 16;
+
+const MS_DIA = 24 * 60 * 60 * 1000;
+
+/** Mediodía local del ISO, que es como el resto del módulo evita el corrimiento
+ *  de un día que trae parsear "YYYY-MM-DD" como UTC. */
+function fechaLocal(iso: string): number {
+  return new Date(iso + "T12:00:00").getTime();
+}
+
+function isoDeMs(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Arma los tramos vacíos del período (todos del mismo ancho en días). */
+function tramosDelPeriodo(desde: string, hasta: string): PuntoSerie[] {
+  const ini = fechaLocal(desde);
+  const fin = fechaLocal(hasta);
+  const dias = Math.max(1, Math.round((fin - ini) / MS_DIA) + 1);
+  const tramos = Math.min(SERIE_TRAMOS, dias);
+  const out: PuntoSerie[] = [];
+  for (let i = 0; i < tramos; i++) {
+    const diaIni = Math.floor((i * dias) / tramos);
+    const diaFin = Math.floor(((i + 1) * dias) / tramos) - 1;
+    out.push({
+      desde: isoDeMs(ini + diaIni * MS_DIA),
+      hasta: isoDeMs(ini + Math.max(diaIni, diaFin) * MS_DIA),
+      viajes: 0,
+      kmConCarga: 0,
+      kmVacios: 0,
+      toneladas: 0,
+      facturacion: 0,
+    });
+  }
+  return out;
+}
+
+/** En qué tramo cae una fecha. -1 si queda fuera del período. */
+function indiceDeTramo(fechaISO: string, desde: string, hasta: string, tramos: number): number {
+  const ini = fechaLocal(desde);
+  const fin = fechaLocal(hasta);
+  const dias = Math.max(1, Math.round((fin - ini) / MS_DIA) + 1);
+  const dia = Math.round((fechaLocal(fechaISO) - ini) / MS_DIA);
+  if (dia < 0 || dia >= dias) return -1;
+  return Math.min(tramos - 1, Math.floor((dia * tramos) / dias));
+}
 
 /**
  * Totales del período sobre TODOS los viajes no cancelados — misma definición que
@@ -131,16 +203,52 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
   const rows = await fetchViajesMetricas(supabase, { desde, hasta, excluirCancelados: true });
   let kmConCarga = 0;
   let kmVacios = 0;
+  let toneladas = 0;
   let facturacion = 0;
   const choferes = new Set<string>();
+  // Misma pasada que los totales: la serie sale de las filas que ya trajimos,
+  // sin una segunda consulta.
+  const serie = tramosDelPeriodo(desde, hasta);
   for (const v of rows) {
-    kmConCarga += v.km_con_carga ?? 0;
-    kmVacios += v.km_vacios ?? 0;
+    const km = v.km_con_carga ?? 0;
+    const kmV = v.km_vacios ?? 0;
+    const tn = v.tonelaje_real ?? 0;
     const m = v.monto_flete ?? 0;
-    if (m) facturacion += v.moneda && v.moneda !== "ARS" && v.tipo_cambio ? m * v.tipo_cambio : m;
+    const monto = m ? (v.moneda && v.moneda !== "ARS" && v.tipo_cambio ? m * v.tipo_cambio : m) : 0;
+    kmConCarga += km;
+    kmVacios += kmV;
+    toneladas += tn;
+    facturacion += monto;
     if (v.chofer_id) choferes.add(v.chofer_id);
+    if (v.fecha_viaje) {
+      const i = indiceDeTramo(v.fecha_viaje, desde, hasta, serie.length);
+      if (i >= 0) {
+        serie[i].viajes++;
+        serie[i].kmConCarga += km;
+        serie[i].kmVacios += kmV;
+        serie[i].toneladas += tn;
+        serie[i].facturacion += monto;
+      }
+    }
   }
-  return { viajes: rows.length, choferesActivos: choferes.size, kmConCarga, kmVacios, facturacion };
+  // Los tramos que todavía no empezaron se descartan. Si no, un período que
+  // llega a fin de mes (el "últimos 3 meses" default llega al 31) dibuja media
+  // curva pegada al cero y parece un desplome de la operación, cuando en
+  // realidad son días que no ocurrieron.
+  const hoyISO = isoDeMs(Date.now());
+  const serieHastaHoy = serie.filter((t) => t.desde <= hoyISO);
+
+  return {
+    viajes: rows.length,
+    choferesActivos: choferes.size,
+    kmConCarga,
+    kmVacios,
+    toneladas,
+    facturacion,
+    // Con un solo tramo no hay curva que dibujar; se deja la serie completa
+    // antes que dejar la tarjeta sin sparkline.
+    serie: serieHastaHoy.length >= 2 ? serieHastaHoy : serie,
+  };
 }
 
 // Tipos de rotura que cuentan como "gomas" (concepto 4); el resto va a

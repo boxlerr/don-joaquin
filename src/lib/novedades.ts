@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-dashboard-se-ve-nuevo",
+    fecha: "2026-08-20",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "El dashboard se ve nuevo",
+    detalle: "Arriba tenés el saludo sobre una foto de la flota, y cada número del período viene con la curva de cómo vino evolucionando. Las tarjetas de abajo ahora llevan fotos en vez de recuadros vacíos.",
+    href: "/dashboard",
+  },
+  {
+    id: "ves-de-un-vistazo-como-esta-la-flota",
+    fecha: "2026-08-20",
+    tipo: "nuevo",
+    ver: "todos",
+    titulo: "Ves de un vistazo cómo está la flota",
+    detalle: "Una torta muestra cuántas unidades están en servicio, en mantenimiento, inactivas o de baja. Al lado, qué parte de los kilómetros del período se hizo con carga y cuánta volviendo vacío.",
+    href: "/dashboard",
+  },
+  {
+    id: "el-gasoil-cargado-mes-a-mes-en-el-dashboard",
+    fecha: "2026-08-20",
+    tipo: "nuevo",
+    ver: "todos",
+    titulo: "El gasoil cargado, mes a mes, en el dashboard",
+    detalle: "Las barras muestran los litros de cada mes del período. Si un mes no tiene ninguna carga se dibuja punteado y la tarjeta te avisa desde qué día no se registra gasoil, para que no parezca que el gráfico está roto.",
+    href: "/combustible",
+  },
+  {
     id: "reforzamos-la-seguridad-de-las-fotos-y-los",
     fecha: "2026-08-18",
     tipo: "mejora",

@@ -442,3 +442,129 @@ export async function getCargasParaExportAction(month?: string): Promise<CargaEx
     };
   });
 }
+
+// ============================================================================
+// Consumo del período (para el dashboard)
+// ============================================================================
+
+export type MesConsumo = {
+  /** YYYY-MM. */
+  mes: string;
+  /** Rótulo corto del mes ("ago"). */
+  label: string;
+  litros: number;
+  importe: number;
+  cargas: number;
+  /** L/100km del mes por el método tanque-a-tanque; null si no alcanza. */
+  eficiencia: number | null;
+};
+
+export type ConsumoPeriodo = {
+  meses: MesConsumo[];
+  litrosTotales: number;
+  importeTotal: number;
+  cargasTotales: number;
+  /** L/100km de TODO el período (no el promedio de los promedios mensuales). */
+  eficienciaPromedio: number | null;
+  precioPromedioLitro: number | null;
+  /**
+   * Fecha (ISO) de la carga más reciente del período. Sirve para avisar cuándo
+   * se cortó la información: si el último mes está en cero, el gráfico no está
+   * roto — es que no se cargó más gasoil desde esa fecha.
+   */
+  ultimaCarga: string | null;
+};
+
+const MESES_ABR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+/**
+ * Consumo de gasoil mes a mes dentro de un rango arbitrario. Lo usa el
+ * dashboard para el gráfico de barras: es el mismo dato del módulo
+ * /combustible (mismo cálculo de eficiencia por deltas de odómetro), pero
+ * abierto por mes en vez de un único total del mes en curso.
+ *
+ * La eficiencia se calcula por mes con las cargas de ESE mes. Como el método
+ * necesita dos cargas del mismo camión para medir un tramo, un mes con una
+ * sola carga por unidad queda en `null` (barra sin dato) en vez de inventar un
+ * número.
+ */
+export async function getConsumoPeriodoAction(desde: string, hasta: string): Promise<ConsumoPeriodo> {
+  const supabase = createAdminClient();
+
+  // Paginado: PostgREST corta en 1000 filas y un rango de un año las supera.
+  const PAGE = 1000;
+  type Fila = { fecha: string; litros: number; km_odometro: number; importe_total: number; camion_id: string };
+  const cargas: Fila[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await supabase
+      .from("cargas_combustible")
+      .select("fecha, litros, km_odometro, importe_total, camion_id")
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .order("fecha", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (!data || data.length === 0) break;
+    cargas.push(...(data as Fila[]));
+    if (data.length < PAGE) break;
+  }
+
+  // Todos los meses del rango, incluso los que no tuvieron ninguna carga: si se
+  // saltean, el gráfico miente sobre la continuidad del período.
+  const meses: MesConsumo[] = [];
+  const porMes = new Map<string, Fila[]>();
+  const [yIni, mIni] = desde.split("-").map(Number);
+  const [yFin, mFin] = hasta.split("-").map(Number);
+  for (let y = yIni, m = mIni; y < yFin || (y === yFin && m <= mFin); ) {
+    const clave = `${y}-${String(m).padStart(2, "0")}`;
+    porMes.set(clave, []);
+    meses.push({ mes: clave, label: MESES_ABR[m - 1], litros: 0, importe: 0, cargas: 0, eficiencia: null });
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+
+  for (const c of cargas) {
+    const clave = c.fecha.slice(0, 7);
+    porMes.get(clave)?.push(c);
+  }
+
+  for (const m of meses) {
+    const filas = porMes.get(m.mes) ?? [];
+    m.cargas = filas.length;
+    m.litros = filas.reduce((acc, c) => acc + Number(c.litros), 0);
+    m.importe = filas.reduce((acc, c) => acc + Number(c.importe_total), 0);
+    const { eficiencia } = calcularEficienciaPorDeltas(
+      filas.map((c) => ({ camion_id: c.camion_id, km_odometro: c.km_odometro, litros: Number(c.litros) })),
+    );
+    m.eficiencia = eficiencia;
+  }
+
+  const litrosTotales = cargas.reduce((acc, c) => acc + Number(c.litros), 0);
+  const importeTotal = cargas.reduce((acc, c) => acc + Number(c.importe_total), 0);
+
+  let litrosPagados = 0;
+  let importePagado = 0;
+  for (const c of cargas) {
+    if (Number(c.litros) > 0 && Number(c.importe_total) > 0) {
+      litrosPagados += Number(c.litros);
+      importePagado += Number(c.importe_total);
+    }
+  }
+
+  const { eficiencia: eficienciaPromedio } = calcularEficienciaPorDeltas(
+    cargas.map((c) => ({ camion_id: c.camion_id, km_odometro: c.km_odometro, litros: Number(c.litros) })),
+  );
+
+  // Las cargas vienen ordenadas por fecha ascendente, así que la última es la
+  // más reciente del período.
+  const ultimaCarga = cargas.length > 0 ? cargas[cargas.length - 1].fecha : null;
+
+  return {
+    meses,
+    litrosTotales,
+    importeTotal,
+    cargasTotales: cargas.length,
+    eficienciaPromedio,
+    precioPromedioLitro: litrosPagados > 0 ? importePagado / litrosPagados : null,
+    ultimaCarga,
+  };
+}

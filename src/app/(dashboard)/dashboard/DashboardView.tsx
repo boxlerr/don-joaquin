@@ -1,4 +1,4 @@
-import StatCard from "@/components/ui/StatCard";
+import type { ReactNode } from "react";
 import {
   MapPin,
   AlertTriangle,
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Trophy,
+  TriangleAlert,
   Cake,
   Award,
   Settings,
@@ -24,10 +25,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
 import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
-import { getPremioDelMesAction } from "@/app/(dashboard)/combustible/actions";
+import { getPremioDelMesAction, getConsumoPeriodoAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
-import TopBottomChoferes from "./components/TopBottomChoferes";
-import ResumenMes from "./components/ResumenMes";
+import ChoferList from "./components/ChoferList";
+import TarjetaResumen from "./components/TarjetaResumen";
+import KpiPeriodo from "./components/KpiPeriodo";
+import DashboardHero from "./components/DashboardHero";
+import EstadoFlota from "./components/EstadoFlota";
+import RendimientoFlota from "./components/RendimientoFlota";
+import ConsumoCombustible from "./components/ConsumoCombustible";
 import DiaPedidoQuickAction from "./DiaPedidoQuickAction";
 import { computeRanking, computeTotalesPeriodo, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import PeriodoSelector from "@/app/(dashboard)/choferes/ranking/PeriodoSelector";
@@ -43,43 +49,50 @@ interface Props {
    * se ven la facturación acumulada y los montos por chofer.
    */
   conFacturacion: boolean;
+  /** Rótulo chico del encabezado ("Dashboard" / "Dashboard completo"). */
+  titulo: string;
+  subtitulo: string;
+  /** Acción propia de cada ruta (el botón de tutorial del dashboard general). */
+  accionExtra?: ReactNode;
+  /** Cartel que va arriba de todo el cuerpo (el aviso de vista privada). */
+  aviso?: ReactNode;
 }
 
 /**
  * Cuerpo del dashboard, compartido entre /dashboard (sin facturación) y
- * /dashboard/completo (con facturación). El PageHeader lo pone cada page,
- * así cada ruta lleva su propio título/banner sin duplicar esta vista.
+ * /dashboard/completo (con facturación). Incluye su propio encabezado —el hero
+ * con la foto de ruta y el saludo—, así que la page solo le pasa el rótulo y
+ * las acciones que sean suyas.
  */
-export default async function DashboardView({ sp, conFacturacion }: Props) {
+export default async function DashboardView({
+  sp,
+  conFacturacion,
+  titulo,
+  subtitulo,
+  accionExtra,
+  aviso,
+}: Props) {
   const supabase = createAdminClient();
   const rangoMes = resolverRango(sp);
 
   const [
-    viajesPeriodo,
     viajesSinFacturar,
     saldoMovimientos,
     viaticosPendientes,
     chequesPorVencer,
     docPorVencer,
     totalClientes,
-    totalCamiones,
+    camionesRes,
     totalChoferes,
     viajesResult,
     premioMes,
+    consumoPeriodo,
     ranking,
     totalesPeriodo,
     tiposDocRes,
     camionDocsRes,
     choferDocsRes,
   ] = await Promise.all([
-    // Viajes reales del período elegido (excluye cancelados = soft-delete). Ya no
-    // se usa el estado operativo (pendiente/en_curso), que se retiró de la UI.
-    supabase
-      .from("viajes")
-      .select("*", { count: "exact", head: true })
-      .neq("estado", "cancelado")
-      .gte("fecha_viaje", rangoMes.desde)
-      .lte("fecha_viaje", rangoMes.hasta),
     // Misma definición que el filtro "Sin facturar" del panel de /viajes
     // (excluye vacíos y cancelados) para que el contador coincida con esa vista.
     supabase
@@ -100,10 +113,13 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
     // Solo clientes activos: la tarjeta los rotula "activos" y así se excluye el
     // comodín "Sin asignar (import)" (estado inactivo) y cualquier baja.
     supabase.from("clientes").select("*", { count: "exact", head: true }).eq("estado", "activo"),
-    supabase.from("camiones").select("*", { count: "exact", head: true }),
+    // Ya no alcanza con contar: la torta de la flota necesita el estado de cada
+    // unidad. Son unas pocas decenas de filas de una sola columna.
+    supabase.from("camiones").select("estado", { count: "exact" }),
     supabase.from("choferes").select("rol", { count: "exact" }),
     getViajesAction({ pageSize: 5 }),
     getPremioDelMesAction(),
+    getConsumoPeriodoAction(rangoMes.desde, rangoMes.hasta),
     computeRanking(rangoMes),
     computeTotalesPeriodo(rangoMes.desde, rangoMes.hasta),
     supabase
@@ -184,6 +200,20 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
     else countChofer++;
   }
 
+  // Reparto de la flota por estado, para la torta. Los estados posibles son los
+  // cuatro de `camiones.estado`; cualquier valor raro cae en "inactivo" para no
+  // perder la unidad de la cuenta total.
+  const camionesRows = (camionesRes.data ?? []) as { estado: string | null }[];
+  const flotaPorEstado = { activo: 0, en_mantenimiento: 0, inactivo: 0, baja: 0 };
+  for (const c of camionesRows) {
+    const e = c.estado ?? "activo";
+    if (e === "activo") flotaPorEstado.activo++;
+    else if (e === "en_mantenimiento") flotaPorEstado.en_mantenimiento++;
+    else if (e === "baja") flotaPorEstado.baja++;
+    else flotaPorEstado.inactivo++;
+  }
+  const totalCamiones = camionesRows.length;
+
   // Desglose por categoría (documentación, cheques, viajes, personal, sistema).
   // Para no contar dos veces las alertas de documentos, ignoramos las del tipo
   // `vencimiento_doc_*` de la tabla (mismo criterio que /notificaciones, donde
@@ -244,11 +274,13 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
 
   return (
     <>
-      <ResumenMes
-        totales={totalesPeriodo}
-        periodoLabel={rangoMes.label}
-        mostrarFacturacion={conFacturacion}
-        periodoSelector={
+      {/* El hero va FUERA del contenedor con padding: la foto llega a los dos
+          bordes de la pantalla y se funde con el fondo del tablero. */}
+      <DashboardHero
+        nombre={currentUser?.nombre ?? null}
+        titulo={titulo}
+        subtitulo={subtitulo}
+        acciones={
           <>
             {/* Alta rápida del día pedido (turno médico, trámite). Va acá, en la
                 primera barra del dashboard, porque el pedido llega por teléfono
@@ -260,375 +292,330 @@ export default async function DashboardView({ sp, conFacturacion }: Props) {
               desdeActual={rangoMes.desde}
               hastaActual={rangoMes.hasta}
               incluirTotal
+              compacto
             />
+            {accionExtra}
           </>
         }
       />
 
-      {/* KPIs: 2 columnas en celular (el número de StatCard ya baja un escalón solo). */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          label="Viajes registrados"
-          value={String(viajesPeriodo.count ?? 0)}
-          sub="En el período"
-          color="brand"
-          icon={Truck}
-          variant="dashboard"
-          href="/viajes"
-        />
-        <StatCard
-          label="Movimientos de caja"
-          value={String(saldoMovimientos.count ?? 0)}
-          sub="Total registrados"
-          color="success"
-          icon={Receipt}
-          variant="dashboard"
-          href="/caja"
-        />
-        <StatCard
-          label="Viáticos"
-          value={String(viaticosPendientes.count ?? 0)}
-          sub="Total registrados"
-          color="warning"
-          icon={Route}
-          variant="dashboard"
-          href="/caja"
-        />
-        <StatCard
-          label="Cheques en cartera"
-          value={String(chequesPorVencer.count ?? 0)}
-          sub="Total registrados"
-          color="error"
-          icon={FileText}
-          variant="dashboard"
-          href="/cheques"
-        />
-      </div>
+      <div className="space-y-5 px-4 pb-8 sm:space-y-6 sm:px-6 sm:pb-10 lg:px-8">
+        {aviso}
 
-      {/* En xl los viajes toman ~71% del ancho: la lista respira y las alertas
-          (ícono + etiqueta + número) no necesitan más que eso. En celular y
-          tablet chica van uno debajo del otro: a 375px no entran lado a lado. */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-7 gap-4">
-        <div className="lg:col-span-2 xl:col-span-5 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
-            <div className="flex items-center gap-2">
-              <MapPin size={16} className="text-primary" />
-              <h2 className="text-foreground text-sm font-bold">Últimos viajes</h2>
+        <KpiPeriodo
+          totales={totalesPeriodo}
+          periodoLabel={rangoMes.label}
+          mostrarFacturacion={conFacturacion}
+        />
+
+        {/* Operación: los viajes recién cargados a la izquierda, el estado de la
+            flota a la derecha. En celular y tablet van uno debajo del otro: a
+            375px no entran lado a lado. */}
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="flex flex-col overflow-hidden rounded-[12px] border border-border bg-card shadow-[0_2px_10px_rgba(15,23,42,0.04)] xl:col-span-2">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3.5 sm:px-5 sm:py-4">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-primary" />
+                <h2 className="text-sm font-bold text-foreground">Últimos viajes</h2>
+              </div>
+              <a
+                href="/viajes"
+                className="inline-flex shrink-0 items-center max-md:h-9 text-xs font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+              >
+                Ver todos →
+              </a>
             </div>
-            <a
-              href="/viajes"
-              className="shrink-0 inline-flex items-center max-md:h-9 text-xs font-semibold text-primary hover:text-primary/80 hover:underline transition-colors"
-            >
-              Ver todos →
-            </a>
+            <div className="flex flex-1 flex-col bg-gradient-to-b from-card to-muted/10">
+              <RecentViajesTable initialViajes={ultimosViajes} mostrarFacturacion={conFacturacion} />
+            </div>
           </div>
-          <div className="flex-1 bg-gradient-to-b from-card to-muted/10">
-            <RecentViajesTable initialViajes={ultimosViajes} mostrarFacturacion={conFacturacion} />
+
+          <div className="flex flex-col gap-4">
+            <EstadoFlota porEstado={flotaPorEstado} />
+            <RendimientoFlota
+              kmConCarga={totalesPeriodo.kmConCarga}
+              kmVacios={totalesPeriodo.kmVacios}
+            />
           </div>
         </div>
 
-        <div className="lg:col-span-1 xl:col-span-2 bg-card rounded-[8px] border border-border shadow-sm flex flex-col justify-between overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="text-[#F59E0B]" />
-              <h2 className="text-foreground text-sm font-bold">Alertas activas</h2>
+        {/* Tres listas de alto parecido: lo que hay que atender, el podio del
+            mes y los que vienen flojos. Antes acá convivían dos listas y un
+            gráfico, y el gráfico —mucho más bajo— dejaba un hueco en blanco. */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col overflow-hidden rounded-[12px] border border-border bg-card shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3.5 sm:px-5 sm:py-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-[#F59E0B]" />
+                <h2 className="text-sm font-bold text-foreground">Alertas activas</h2>
+              </div>
+              <span className={`text-2xl font-black ${alertCount > 0 ? "text-[#D97706]" : "text-foreground"}`}>
+                {alertCount}
+              </span>
             </div>
-            <span className={`text-2xl font-black ${alertCount > 0 ? "text-[#D97706]" : "text-foreground"}`}>
-              {alertCount}
-            </span>
+            <div className="flex flex-1 flex-col">
+              {alertCount > 0 ? (
+                // Desglose por categoría — lista sobria (sin emojis) para no entrar
+                // legajo por legajo (pedido explícito del feedback).
+                <div className="flex h-full flex-col">
+                  <p className="px-4 pb-1 pt-3.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground sm:px-5">
+                    Se requiere atención
+                  </p>
+                  <div className="flex-1 divide-y divide-border/60 px-2 sm:px-3">
+                    {(
+                      [
+                        { id: "documentacion", label: "Documentación", Icon: FileText, count: catCounts.documentacion, warn: true },
+                        { id: "personal_prueba", label: "Fin de prueba", Icon: Unlock, count: catCounts.personal_prueba, warn: false },
+                        { id: "personal_cumple", label: "Cumpleaños", Icon: Cake, count: catCounts.personal_cumple, warn: false },
+                        { id: "personal_aniversario", label: "Aniversarios", Icon: Award, count: catCounts.personal_aniversario, warn: false },
+                        { id: "cheques", label: "Cheques", Icon: Wallet, count: catCounts.cheques, warn: false },
+                        { id: "viajes", label: "Viajes", Icon: Truck, count: catCounts.viajes, warn: false },
+                        { id: "sistema", label: "Sistema", Icon: Settings, count: catCounts.sistema, warn: false },
+                      ] as const
+                    )
+                      .filter((c) => c.count > 0)
+                      .map((c) => {
+                        // "personal_*" son subcategorías del filtro real "personal".
+                        const base = c.id.startsWith("personal_") ? "personal" : c.id;
+                        return (
+                          <a
+                            key={c.id}
+                            href={`/notificaciones?categoria=${base}`}
+                            className="flex items-center gap-3 px-2 py-2 transition-colors hover:bg-muted/50"
+                            title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
+                          >
+                            <span
+                              className={`flex size-7 shrink-0 items-center justify-center rounded-md ${
+                                c.warn ? "bg-[#F59E0B]/12 text-[#D97706]" : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <c.Icon size={14} strokeWidth={2} />
+                            </span>
+                            <span className="flex-1 text-[13px] font-semibold text-foreground">{c.label}</span>
+                            <span
+                              className={`text-[13px] font-extrabold tabular-nums ${
+                                c.warn ? "text-[#D97706]" : "text-foreground"
+                              }`}
+                            >
+                              {c.count}
+                            </span>
+                          </a>
+                        );
+                      })}
+                  </div>
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border px-4 py-2.5 sm:px-5 sm:py-3">
+                    <a
+                      href={resolverHref}
+                      className="inline-flex items-center gap-1 max-md:h-9 text-[13px] font-bold text-[#D97706] transition-colors hover:text-[#B45309]"
+                    >
+                      Resolver alerta
+                      <ChevronRight size={14} />
+                    </a>
+                    <a
+                      href="/notificaciones"
+                      className="inline-flex items-center max-md:h-9 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      Ver todas →
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                // Estado "sin alertas": sobrio, sin gradientes chillones.
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+                  <span className="flex size-11 items-center justify-center rounded-full bg-[#10B981]/10 text-[#10B981]">
+                    <CheckCircle2 size={22} />
+                  </span>
+                  <p className="text-sm font-bold text-foreground">Sin alertas activas</p>
+                  <p className="max-w-[240px] text-xs leading-relaxed text-muted-foreground">
+                    Todo bajo control. La documentación y los permisos de camiones y choferes están validados.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex-1 flex flex-col">
-            {alertCount > 0 ? (
-              // Desglose por categoría — lista sobria (sin emojis) para no entrar
-              // legajo por legajo (pedido explícito del feedback).
-              <div className="flex flex-col h-full">
-                <p className="px-4 sm:px-5 pt-3.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Se requiere atención
-                </p>
-                <div className="px-2 sm:px-3 flex-1 divide-y divide-border/60">
-                  {(
-                    [
-                      { id: "documentacion", label: "Documentación", Icon: FileText, count: catCounts.documentacion, warn: true },
-                      { id: "personal_prueba", label: "Fin de prueba", Icon: Unlock, count: catCounts.personal_prueba, warn: false },
-                      { id: "personal_cumple", label: "Cumpleaños", Icon: Cake, count: catCounts.personal_cumple, warn: false },
-                      { id: "personal_aniversario", label: "Aniversarios", Icon: Award, count: catCounts.personal_aniversario, warn: false },
-                      { id: "cheques", label: "Cheques", Icon: Wallet, count: catCounts.cheques, warn: false },
-                      { id: "viajes", label: "Viajes", Icon: Truck, count: catCounts.viajes, warn: false },
-                      { id: "sistema", label: "Sistema", Icon: Settings, count: catCounts.sistema, warn: false },
-                    ] as const
-                  )
-                    .filter((c) => c.count > 0)
-                    .map((c) => {
-                      // "personal_*" son subcategorías del filtro real "personal".
-                      const base = c.id.startsWith("personal_") ? "personal" : c.id;
-                      return (
-                        <a
-                          key={c.id}
-                          href={`/notificaciones?categoria=${base}`}
-                          className="flex items-center gap-3 px-2 py-2 hover:bg-muted/50 transition-colors"
-                          title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
-                        >
-                          <span
-                            className={`flex items-center justify-center size-7 rounded-md shrink-0 ${
-                              c.warn ? "bg-[#F59E0B]/12 text-[#D97706]" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            <c.Icon size={14} strokeWidth={2} />
-                          </span>
-                          <span className="flex-1 text-[13px] font-semibold text-foreground">{c.label}</span>
-                          <span
-                            className={`text-[13px] font-extrabold tabular-nums ${
-                              c.warn ? "text-[#D97706]" : "text-foreground"
-                            }`}
-                          >
-                            {c.count}
-                          </span>
-                        </a>
-                      );
-                    })}
-                </div>
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 sm:px-5 py-2.5 sm:py-3 border-t border-border">
-                  <a
-                    href={resolverHref}
-                    className="text-[13px] font-bold text-[#D97706] hover:text-[#B45309] inline-flex items-center gap-1 max-md:h-9 transition-colors"
-                  >
-                    Resolver alerta
-                    <ChevronRight size={14} />
-                  </a>
-                  <a
-                    href="/notificaciones"
-                    className="inline-flex items-center max-md:h-9 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Ver todas →
-                  </a>
-                </div>
+
+          <ChoferList
+            items={topChoferes}
+            title="Top 5 del mes"
+            subtitle="Mejor score operativo"
+            icon={Trophy}
+            accent="emerald"
+            emptyText="Sin choferes con actividad este mes."
+            mostrarFacturacion={conFacturacion}
+            conPuesto
+          />
+
+          <div className="md:col-span-2 xl:col-span-1">
+            <ChoferList
+              items={bottomChoferes}
+              title="Atención requerida"
+              subtitle="5 con score más bajo"
+              icon={TriangleAlert}
+              accent="rose"
+              emptyText="No hay choferes con score bajo este mes."
+              mostrarFacturacion={conFacturacion}
+            />
+          </div>
+        </div>
+
+        {/* El gasoil va a lo ancho: con doce meses posibles, las barras necesitan
+            el ancho del tablero, y así no queda media tarjeta vacía. */}
+        <ConsumoCombustible consumo={consumoPeriodo} mostrarImportes={conFacturacion} />
+
+        {/* Premio del Mes — Eficiencia de combustible. Sobrio, como el resto de
+            las tarjetas del dashboard (nada de banner amarillo). */}
+        <a
+          href="/combustible"
+          className="group block rounded-[12px] border border-border bg-card shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition-colors hover:bg-muted/30"
+        >
+          {/* En celular el detalle (km · cargas) baja de renglón en vez de salirse:
+              los tres datos en una sola línea no entran en 343px. */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-4">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Trophy size={15} strokeWidth={2.1} />
+            </div>
+            <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+              Premio del mes
+            </span>
+            {premioMes ? (
+              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <span className="max-w-full truncate text-sm font-bold text-foreground">
+                  {premioMes.chofer}
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-foreground/80">
+                  {premioMes.eficiencia.toFixed(2)}
+                  <span className="ml-0.5 text-[10px] font-medium text-muted-foreground">L/100km</span>
+                </span>
+                {/* Sin `shrink-0`: en 320px este detalle no entraba en el renglón
+                    y, al no poder achicarse, se salía de la tarjeta. */}
+                <span className="min-w-0 text-[11px] text-muted-foreground">
+                  {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
+                </span>
               </div>
             ) : (
-              // Estado "sin alertas": sobrio, sin gradientes chillones.
-              <div className="flex flex-col h-full items-center justify-center text-center px-6 py-10 gap-2">
-                <span className="flex items-center justify-center size-11 rounded-full bg-[#10B981]/10 text-[#10B981]">
-                  <CheckCircle2 size={22} />
-                </span>
-                <p className="text-foreground text-sm font-bold">Sin alertas activas</p>
-                <p className="text-muted-foreground text-xs leading-relaxed max-w-[240px]">
-                  Todo bajo control. La documentación y los permisos de camiones y choferes están validados.
-                </p>
-              </div>
+              <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+                Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
+              </span>
             )}
+            <ChevronRight
+              size={14}
+              className="shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5"
+            />
           </div>
-        </div>
-      </div>
+        </a>
 
-      <TopBottomChoferes top={topChoferes} bottom={bottomChoferes} mostrarFacturacion={conFacturacion} />
-
-      {/* Premio del Mes — Eficiencia de combustible. Sobrio, como el resto de
-          las tarjetas del dashboard (nada de banner amarillo). */}
-      <a
-        href="/combustible"
-        className="block bg-card border border-border rounded-[8px] shadow-sm hover:bg-muted/30 transition-colors group"
-      >
-        {/* En celular el detalle (km · cargas) baja de renglón en vez de salirse:
-            los tres datos en una sola línea no entran en 343px. */}
-        <div className="px-3 sm:px-4 py-2.5 flex items-center gap-2.5 sm:gap-3">
-          <div className="flex items-center justify-center size-8 rounded-md bg-primary/10 text-primary shrink-0">
-            <Trophy size={15} strokeWidth={2.1} />
+        {/* Cierre del tablero: dos pendientes que hay que atender y, abajo, los
+            totales del sistema. Todas las fichas son la misma pieza, así la fila
+            empareja sola y no quedan huecos. */}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-4 w-1 shrink-0 rounded-full bg-[#F43F5E]" />
+            <h2 className="text-sm font-bold text-foreground">Pendientes</h2>
           </div>
-          <span className="text-muted-foreground text-[10px] font-extrabold uppercase tracking-wider shrink-0">
-            Premio del mes
-          </span>
-          {premioMes ? (
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 flex-1 min-w-0">
-              <span className="text-foreground text-sm font-bold truncate max-w-full">
-                {premioMes.chofer}
-              </span>
-              <span className="text-foreground/80 text-sm font-semibold shrink-0">
-                {premioMes.eficiencia.toFixed(2)}
-                <span className="text-[10px] font-medium text-muted-foreground ml-0.5">L/100km</span>
-              </span>
-              {/* Sin `shrink-0`: en 320px este detalle no entraba en el renglón
-                  y, al no poder achicarse, se salía de la tarjeta. */}
-              <span className="text-muted-foreground text-[11px] min-w-0">
-                {premioMes.km_recorridos.toLocaleString("es-AR")} km · {premioMes.cargas} cargas
-              </span>
-            </div>
-          ) : (
-            <span className="text-muted-foreground text-xs flex-1 min-w-0">
-              Sin candidatos este mes — cargá 2 gasoiles del mismo camión con chofer.
-            </span>
-          )}
-          <ChevronRight
-            size={14}
-            className="text-muted-foreground/60 group-hover:translate-x-0.5 transition-transform shrink-0"
-          />
-        </div>
-      </a>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <TarjetaResumen
+              icon={ShieldAlert}
+              titulo="Documentación crítica"
+              descripcion="Documentos vencidos o que vencen dentro de 7 días"
+              valor={String(docCriticos)}
+              unidad={docCriticos === 1 ? "alerta crítica" : "alertas críticas"}
+              href="/notificaciones?severidad=critica"
+              tono="rojo"
+              imagen="/dashboard/documentacion.jpg"
+              imagenPos="60% center"
+              destacada={docCriticos > 0}
+            />
+            <TarjetaResumen
+              icon={Clock}
+              titulo="Viajes sin facturar"
+              descripcion="Viajes finalizados pendientes de carga de factura"
+              valor={(viajesSinFacturar.count ?? 0).toLocaleString("es-AR")}
+              unidad={(viajesSinFacturar.count ?? 0) === 1 ? "pendiente" : "pendientes"}
+              href="/viajes?filtro=sin_facturar"
+              tono="ambar"
+              imagen="/dashboard/facturacion.jpg"
+              imagenPos="55% center"
+              destacada={(viajesSinFacturar.count ?? 0) > 0}
+            />
+          </div>
+        </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        <SummaryCard
-          icon={Truck}
-          title="Flota de camiones"
-          metric={String(totalCamiones.count ?? 0)}
-          metricLabel="unidades"
-          description="Registradas en el sistema"
-          href="/camiones"
-          type="truck"
-        />
-        <SummaryCard
-          icon={Users}
-          title="Personal"
-          metric={String(totalChoferes.count ?? 0)}
-          metricLabel="legajos"
-          description="Choferes, administración y mantenimiento"
-          href="/choferes"
-          iconColor="text-[#7C3AED]"
-          iconBg="bg-[#F3E8FF]"
-          type="users"
-          breakdown={[
-            { label: "Choferes", value: countChofer },
-            { label: "Admin.", value: countAdmin },
-            { label: "Mant.", value: countMant },
-          ]}
-        />
-        <SummaryCard
-          icon={Briefcase}
-          title="Clientes"
-          metric={String(totalClientes.count ?? 0)}
-          metricLabel="activos"
-          description="Registrados en el sistema"
-          href="/clientes"
-          iconColor="text-[#059669]"
-          iconBg="bg-[#ECFDF5]"
-          type="building"
-        />
-      </div>
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-4 w-1 shrink-0 rounded-full bg-primary" />
+            <h2 className="text-sm font-bold text-foreground">El sistema en números</h2>
+            <span className="text-[11px] text-muted-foreground">Totales, no del período elegido</span>
+          </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        <SummaryCard
-          icon={ShieldAlert}
-          title="Documentación crítica"
-          description="Documentos vencidos o que vencen dentro de 7 días"
-          metric={String(docCriticos)}
-          metricLabel={docCriticos === 1 ? "alerta crítica" : "alertas críticas"}
-          href="/notificaciones?severidad=critica"
-          iconColor="text-[#E11D48]"
-          iconBg="bg-[#FFF1F2]"
-          type="clipboard"
-        />
-        <SummaryCard
-          icon={Clock}
-          title="Viajes sin facturar"
-          description="Viajes finalizados pendientes de carga de factura"
-          metric={String(viajesSinFacturar.count ?? 0)}
-          metricLabel="pendiente"
-          href="/viajes?filtro=sin_facturar"
-          iconColor="text-[#D97706]"
-          iconBg="bg-[#FEF3C7]"
-          type="invoice"
-        />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            <TarjetaResumen
+              icon={Truck}
+              titulo="Flota de camiones"
+              descripcion="Unidades registradas en el sistema"
+              valor={String(totalCamiones)}
+              unidad="unidades"
+              href="/camiones"
+              tono="brand"
+              imagen="/dashboard/flota-amanecer.jpg"
+              imagenPos="40% center"
+            />
+            <TarjetaResumen
+              icon={Users}
+              titulo="Personal"
+              descripcion="Choferes, administración y taller"
+              valor={String(totalChoferes.count ?? 0)}
+              unidad="legajos"
+              href="/choferes"
+              tono="violeta"
+              imagen="/dashboard/personal.jpg"
+              imagenPos="38% center"
+              chips={[
+                { label: "Choferes", value: countChofer },
+                { label: "Admin.", value: countAdmin },
+                { label: "Mant.", value: countMant },
+              ]}
+            />
+            <TarjetaResumen
+              icon={Briefcase}
+              titulo="Clientes"
+              descripcion="Clientes activos registrados"
+              valor={String(totalClientes.count ?? 0)}
+              unidad="activos"
+              href="/clientes"
+              tono="verde"
+              imagen="/dashboard/clientes.jpg"
+              imagenPos="55% center"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <TarjetaResumen
+              icon={Receipt}
+              titulo="Movimientos de caja"
+              valor={(saldoMovimientos.count ?? 0).toLocaleString("es-AR")}
+              href="/caja"
+              tono="verde"
+              tamano="chica"
+            />
+            <TarjetaResumen
+              icon={Route}
+              titulo="Viáticos"
+              valor={(viaticosPendientes.count ?? 0).toLocaleString("es-AR")}
+              href="/caja"
+              tono="ambar"
+              tamano="chica"
+            />
+            <TarjetaResumen
+              icon={FileText}
+              titulo="Cheques en cartera"
+              valor={(chequesPorVencer.count ?? 0).toLocaleString("es-AR")}
+              href="/cheques"
+              tono="rojo"
+              tamano="chica"
+            />
+          </div>
+        </section>
       </div>
     </>
-  );
-}
-
-interface SummaryCardProps {
-  icon: typeof FileText;
-  title: string;
-  description: string;
-  metric: string;
-  metricLabel: string;
-  href?: string;
-  iconColor?: string;
-  iconBg?: string;
-  type: "truck" | "users" | "building" | "clipboard" | "invoice";
-  /** Desglose opcional mostrado como chips bajo el conteo principal. */
-  breakdown?: { label: string; value: number | string }[];
-}
-
-function SummaryCard({
-  icon: Icon,
-  title,
-  description,
-  metric,
-  metricLabel,
-  href,
-  iconColor = "text-primary",
-  iconBg = "bg-primary/10",
-  type,
-  breakdown,
-}: SummaryCardProps) {
-  const CardWrapper = href ? "a" : "div";
-
-  return (
-    <CardWrapper
-      href={href}
-      className={`relative overflow-hidden bg-card rounded-[8px] border border-border shadow-sm p-4 sm:p-5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group block ${
-        href ? "cursor-pointer" : ""
-      }`}
-    >
-      <div className="flex items-start gap-3 sm:gap-4">
-        <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg} shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-sm`}>
-          <Icon size={20} className={iconColor} />
-        </div>
-        <div className="flex-1 min-w-0 z-10">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-foreground text-sm font-bold group-hover:text-primary transition-colors duration-300">
-              {title}
-            </span>
-            <ChevronRight size={16} className="shrink-0 text-muted-foreground/70 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-primary transition-all duration-300" />
-          </div>
-          <p className="text-muted-foreground text-xs mt-0.5 leading-relaxed">
-            {description}
-          </p>
-          <div className="mt-3 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-foreground tracking-tight leading-none">
-              {metric}
-            </span>
-            <span className="text-[10px] font-extrabold text-muted-foreground/70 uppercase tracking-wider">
-              {metricLabel}
-            </span>
-          </div>
-          {breakdown && breakdown.length > 0 && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {breakdown.map((b) => (
-                <span
-                  key={b.label}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted/60 text-foreground border border-border"
-                >
-                  <span className="font-black tabular-nums">{b.value}</span>
-                  <span className="text-muted-foreground uppercase tracking-wider">{b.label}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Silhouette SVGs with responsive themes & optimized opacities */}
-      {type === "truck" && (
-        <svg className="absolute -right-2 -bottom-4 w-18 h-18 text-sky-400 opacity-[0.14] pointer-events-none transition-transform duration-500 group-hover:scale-105 z-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 8h-2.5V5.5c0-.83-.67-1.5-1.5-1.5H3c-.83 0-1.5.67-1.5 1.5v10c0 .83.67 1.5 1.5 1.5h1.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5h5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5H21c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5h-.5zm-12 9.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm10 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
-        </svg>
-      )}
-      {type === "users" && (
-        <svg className="absolute -right-2 -bottom-4 w-18 h-18 text-purple-400 opacity-[0.14] pointer-events-none transition-transform duration-500 group-hover:scale-105 z-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-        </svg>
-      )}
-      {type === "building" && (
-        <svg className="absolute -right-2 -bottom-4 w-18 h-18 text-emerald-400 opacity-[0.14] pointer-events-none transition-transform duration-500 group-hover:scale-105 z-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v-2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
-        </svg>
-      )}
-      {type === "clipboard" && (
-        <svg className="absolute -right-2 -bottom-4 w-18 h-18 text-rose-400 opacity-[0.14] pointer-events-none transition-transform duration-500 group-hover:scale-105 z-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-        </svg>
-      )}
-      {type === "invoice" && (
-        <svg className="absolute -right-2 -bottom-4 w-18 h-18 text-amber-400 opacity-[0.14] pointer-events-none transition-transform duration-500 group-hover:scale-105 z-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
-        </svg>
-      )}
-    </CardWrapper>
   );
 }

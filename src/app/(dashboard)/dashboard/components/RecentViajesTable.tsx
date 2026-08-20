@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Package,
   ArrowRight,
+  CornerUpLeft,
 } from "lucide-react";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import { deleteViajeAction } from "@/app/(dashboard)/viajes/actions";
@@ -61,7 +62,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
 
   if (rows.length === 0) {
     return (
-      <div className="py-12 text-center flex flex-col items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center py-12 text-center">
         <span className="text-foreground text-sm font-bold tracking-tight">Sin viajes registrados</span>
         <span className="text-muted-foreground/70 text-xs font-medium mt-1">
           Los viajes que registres aparecerán aquí
@@ -71,7 +72,7 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
   }
 
   return (
-    <div className="divide-y divide-border/70">
+    <div className="flex h-full flex-col divide-y divide-border/70">
       {rows.map((v) => {
         const isExpanded = expandedId === v.id;
         // v.camion viene como "PATENTE - Marca - Modelo".
@@ -82,16 +83,32 @@ export default function RecentViajesTable({ initialViajes, mostrarFacturacion = 
         const roadColor = v.es_vacio ? "#C00000" : "#0088D1";
         const notas = notasDe(v.observaciones);
         return (
-          <div key={v.id}>
+          <div key={v.id} className="grow">
             {/* Fila: ruta arriba, contexto abajo — nunca se corta a lo ancho */}
             <button
               type="button"
               onClick={() => setExpandedId(isExpanded ? null : v.id)}
-              className={`w-full text-left px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 transition-colors cursor-pointer hover:bg-muted/40 ${
+              className={`group w-full text-left px-3 sm:px-5 py-2.5 flex items-center gap-2 sm:gap-3 transition-colors cursor-pointer hover:bg-muted/40 ${
                 isExpanded ? "bg-muted/30" : ""
               }`}
               aria-expanded={isExpanded}
             >
+              {/* Ficha de color: de un vistazo se distingue el viaje con carga
+                  (azul, camión) del retorno vacío (rojo, flecha de vuelta), sin
+                  tener que leer la chapa del final del renglón. */}
+              <span
+                // En celular baja a 28px: los nombres de origen y destino son
+                // largos y cada píxel que se lleva la ficha se lo saca al texto.
+                className={`flex size-7 shrink-0 items-center justify-center rounded-[8px] transition-transform duration-300 group-hover:scale-105 sm:size-9 sm:rounded-[10px] ${
+                  v.es_vacio
+                    ? "bg-[#FEF2F2] text-[#C00000] ring-1 ring-[#C00000]/15"
+                    : "bg-[#E1F5FE] text-[#0088D1] ring-1 ring-[#0088D1]/15"
+                }`}
+                aria-hidden
+              >
+                {v.es_vacio ? <CornerUpLeft size={14} strokeWidth={2.3} /> : <Truck size={14} strokeWidth={2.3} />}
+              </span>
+
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="size-1.5 rounded-full bg-[#10B981] shrink-0" aria-hidden />

@@ -47,10 +47,48 @@ docs/                   # SRS, contrato, diagramas
 
 ```bash
 cp .env.example .env.local
-# completar SUPABASE_*, CRON_SECRET
 npm install
 npm run dev
 ```
+
+Con las tres variables de Supabase alcanza para levantar el sistema en local.
+El resto son para los mails y el cron, que en local se pueden dejar vacías.
+
+## Variables de entorno
+
+Todas viven en **Vercel → don-joaquin → Settings → Environment Variables**
+(Production and Preview). Para bajarlas ya completas:
+
+```bash
+npm i -g vercel && vercel link && vercel env pull .env.local
+```
+
+Esta es la lista completa de lo que el código lee. **Si agregás una variable
+nueva, anotala acá y en `.env.example`**, si no se pierde.
+
+| Variable | Para qué | ¿Obligatoria? |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Proyecto de Supabase | Sí |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Cliente del navegador (respeta RLS) | Sí |
+| `SUPABASE_SERVICE_ROLE_KEY` | Cliente admin, **solo server-side** — saltea RLS | Sí |
+| `CRON_SECRET` | Protege `/api/cron/notificaciones`, que queda fuera del middleware de sesión porque lo llama Vercel Cron | Sí en prod |
+| `SMTP_HOST` · `SMTP_PORT` · `SMTP_USER` · `SMTP_PASS` | Envío de mails de alertas. Si falta una, no sale ningún mail (la UI lo avisa) | Sí para mails |
+| `EMAIL_FROM` | Remitente. Si falta, usa `SMTP_USER` | No |
+| `SMTP_SECURE` | Fuerza TLS. Sin definir: `true` en el puerto 465, `false` en el resto | No |
+| `NEXT_PUBLIC_APP_URL` | Override manual de la URL pública (links de los mails) | No |
+
+Las que **inyecta Vercel sola** y no hay que cargar: `VERCEL_URL` (el deploy
+puntual) y `VERCEL_PROJECT_PRODUCTION_URL` (el dominio de producción).
+
+`appUrl()` (`src/lib/email.ts`) resuelve la URL de los links en este orden:
+`NEXT_PUBLIC_APP_URL` → `VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL` →
+`http://localhost:3000`. Por eso en producción no hace falta configurar nada.
+
+> **Ojo:** en Vercel hay una `NEXT_PUBLIC_SITE_URL` cargada desde el 08/05 que
+> **no la lee nadie** en el repo — la que el código mira se llama
+> `NEXT_PUBLIC_APP_URL`. No rompe nada, pero editarla no tiene ningún efecto.
+> Si alguna vez hace falta fijar la URL a mano, renombrala en Vercel; si no, se
+> puede borrar.
 
 ## Scripts
 
